@@ -11,9 +11,13 @@ pre-commit = "*"
 flake8-bugbear = "*"
 
 [packages]
+flask = "*"
+flask-restful = "*"
+sqlalchemy = "*"
+flask-sqlalchemy = "*"
 
 [requires]
-python_version = "3.9"
+python_version = "3.6"
 
 [scripts]
 # Install the pre-commit hook
