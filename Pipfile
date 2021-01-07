@@ -15,6 +15,7 @@ flask = "*"
 flask-restful = "*"
 sqlalchemy = "*"
 flask-sqlalchemy = "*"
+waitress = "*"
 
 [requires]
 python_version = "3.6"
