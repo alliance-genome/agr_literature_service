@@ -37,17 +37,21 @@ pip3 install pipenv
 ## Running Server
 
 ```bash
-pipenv run python src/main.py <port>
+pipenv run python src/main.py --port=<port>
 ```
 
 ## Curling endpoint
 
+Add a reference
 ```bash
-curl http://localhost:5003/reference/PMID:4040 -d 'data={"title": "Worms abi-1"}' -X PUT
+curl http://localhost:5003/reference/PMID:4040 -d 'data={"title": "Worms abi-1"}' -X POST
 ```
 
-
+Get a Reference
+```bash
+curl http://localhost:5004/reference/PMID:4040
+```
 
 # Production
 
-Need to implement "waitress" server
+use --prod argument to use the WSGI server in production
