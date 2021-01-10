@@ -7,14 +7,17 @@ import logging
 import logging.config
 
 from flask import Flask
-from flask import request
-from flask import jsonify
-from flask_restful import Resource
-from flask_restful import Api
+from flask import Blueprint
+
 from flask_sqlalchemy import SQLAlchemy
+from flask_apispec.extension import FlaskApiSpec
+
 from waitress import serve
 
-from resources.reference import ReferenceEndpoints
+from resources.reference import AddReferenceResource
+from resources.reference import ReferenceListResource
+
+from shared.models import db
 
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), 'logging.conf')
@@ -29,24 +32,29 @@ parser.add_argument('-v', dest='verbose', action='store_true')
 
 args = vars(parser.parse_args())
 
-app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/test.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
+flask_app = Flask(__name__)
+flask_app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/test.db'
+flask_app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 
-db = SQLAlchemy(app)
-db.create_all()
+db.init_app(flask_app)
+flask_app.app_context().push()
+docs = FlaskApiSpec(flask_app)
 
-api = Api(app)
-api.add_resource(ReferenceEndpoints, '/reference/<reference_id>')
+reference_bp = Blueprint('references_api', __name__, url_prefix='/references/')
+reference_bp.add_url_rule('/add/', view_func=AddReferenceResource.as_view('AddReferenceResource'))
+reference_bp.add_url_rule('/list/', view_func=ReferenceListResource.as_view('ReferenceListResource'))
 
-def main(args):
-    """ Starting Server """
+app = flask_app
+app.register_blueprint(reference_bp)
+docs.register(AddReferenceResource, blueprint="references_api", endpoint='AddReferenceResource')
+docs.register(ReferenceListResource, blueprint="references_api", endpoint='ReferenceListResource')
 
+
+if __name__ == "__main__":
+    """ call main start function """
+
+    db.create_all()
     if args['prod']:
         serve(app, host=args['ip_adress'], port=args['port'])
     else:
         app.run(host=args['ip_adress'], port=args['port'])
-
-if __name__ == "__main__":
-    """ call main start function """
-    main(args)

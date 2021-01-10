@@ -12,10 +12,10 @@ flake8-bugbear = "*"
 
 [packages]
 flask = "*"
-flask-restful = "*"
 sqlalchemy = "*"
 flask-sqlalchemy = "*"
 waitress = "*"
+flask-apispec = "*"
 
 [requires]
 python_version = "3.6"

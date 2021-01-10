@@ -4,35 +4,50 @@ import json
 from flask import request
 from flask import jsonify
 
-from flask_restful import Resource
 from flask_sqlalchemy import SQLAlchemy
+from flask_apispec.views import MethodResource
+from flask_apispec.annotations import doc
 
-from references.models import PubMed_id
-from references.models import Reference_id
-from references.models import Reference_journal
-from references.models import Reference_title
+from shared.models import db
 
-db = SQLAlchemy()
+from references.models import Pubmed
+from references.models import Reference
+#from references.models import Journal
+#from references.models import Title
 
 logger = logging.getLogger('literature logger')
 
-class ReferenceEndpoints(Resource):
-    def get(self, reference_id):
-        titles = [] #Reference_title.query.all()
-        return {'reference': 'titles'}
-
-    def post(self, reference_id):
+@doc(description='Add reference to resource', tags=['references'])
+class AddReferenceResource(MethodResource):
+    def post(self):
         data_string = request.form['data']
         try:
             data = json.loads(data_string)
         except ValueError as e:
             return print(e)
 
+        if 'pubmed_id' not in data:
+           return "missing pubmed field"
+
         if 'title' not in data:
             return "missing title field"
 
-        #TODO need to change the URL structure to not have the pubmed id in the url segment. Provide it in the data instead and then create a Alliance ID if one does not exist for it yet. And then add the data to the other tables. 
-        #db.session.add(Reference_title(reference_id=reference_id, title=data['title']))
-        db.session.commit()
 
-        return {reference_id: data}
+        Pubmed_obj_from_db = Pubmed.query.filter_by(id=data['pubmed_id']).first()
+        if Pubmed_obj_from_db:
+            return 'Pubmed ID exists in DB'
+        else:
+            #add pubmed_id to database with link to new reference_id
+            reference_obj = Reference()
+            db.session.add(reference_obj)
+            pubmed_obj = Pubmed(id=data['pubmed_id'], reference=reference_obj)
+            db.session.add(pubmed_obj)
+            db.session.commit()
+
+
+        return 'added to database'
+
+@doc(description='list all references to resource', tag=['references'])
+class ReferenceListResource(MethodResource):
+    def get(self):
+        return "test"
