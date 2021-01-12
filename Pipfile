@@ -16,6 +16,7 @@ sqlalchemy = "*"
 flask-sqlalchemy = "*"
 waitress = "*"
 flask-apispec = "*"
+wheel = "*"
 
 [requires]
 python_version = "3.6"
