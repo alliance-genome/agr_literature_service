@@ -41,7 +41,7 @@ class AddReferenceResource(MethodResource):
             if pubmed_obj_from_db:
                 reference_id = pubmed_obj_from_db.reference_id
         elif reference_id == None and 'pubmod_id' in data:
-            pubmod_obj_from_db = Pubmed.query.filter_by(id=data['pubmod_id']).first()
+            pubmod_obj_from_db = Pubmod.query.filter_by(id=data['pubmod_id']).first()
             if pubmod_obj_from_db:
                 reference_id = pubmod_obj_from_db.reference_id
 

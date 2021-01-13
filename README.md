@@ -44,7 +44,7 @@ pipenv run python src/main.py --port=<port>
 
 Add a reference
 ```bash
-curl http://localhost:5003/reference/references/add -d 'data={"title": "Worms abi-1", "pubmed_id": "PMID:53e565", "mod": "WB", "pubmod_id": "WBPub:0e0000003"}' -X POST
+curl http://localhost:5003/references/add/ -d 'data={"title": "Worms abi-1", "pubmed_id": "PMID:53e565", "mod": "WB", "pubmod_id": "WBPub:0e0000003"}' -X POST
 ```
 
 Get a Reference
