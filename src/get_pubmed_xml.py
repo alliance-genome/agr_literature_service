@@ -9,7 +9,7 @@ import argparse
 # Need to set up flags to take in pmids from postgres queue, file in filesystem, file in URL, list from command line
 
 # to get set of pmids with search term 'elegans'
-# my $url = "https:\/\/eutils\.ncbi\.nlm\.nih\.gov\/entrez\/eutils\/esearch\.fcgi\?db\=pubmed\&term\=elegans\&retmax=100000000";
+# https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000
 
 pmids = []
 
