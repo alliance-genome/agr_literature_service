@@ -1,12 +1,18 @@
 import logging
 import json
+from datetime import datetime
+from datetime import timezone
 
 from flask import request
 from flask import jsonify
 
 from flask_sqlalchemy import SQLAlchemy
+
+from flask_apispec import marshal_with
 from flask_apispec.views import MethodResource
 from flask_apispec.annotations import doc
+
+from marshmallow import Schema, fields
 
 from shared.models import db
 
@@ -39,14 +45,16 @@ class AddReferenceResource(MethodResource):
         if reference_id == None and 'pubmed_id' in data:
             pubmed_obj_from_db = Pubmed.query.filter_by(id=data['pubmed_id']).first()
             if pubmed_obj_from_db:
-                reference_id = pubmed_obj_from_db.reference_id
+                reference_id = pubmed_obj_from_db.referenceId
         elif reference_id == None and 'pubmod_id' in data:
             pubmod_obj_from_db = Pubmod.query.filter_by(id=data['pubmod_id']).first()
             if pubmod_obj_from_db:
-                reference_id = pubmod_obj_from_db.reference_id
+                reference_id = pubmod_obj_from_db.referenceId
+
+        datetime_now = datetime.now(timezone.utc)
 
         if reference_id == None:
-            reference_obj = Reference()
+            reference_obj = Reference(dateTimeCreated=datetime_now)
         else:
             reference_obj = Reference.query.filter_by(id=reference_id).first()
 
@@ -62,7 +70,7 @@ class AddReferenceResource(MethodResource):
                 pubmed_obj = Pubmed(id=data['pubmed_id'], reference=reference_obj)
                 db.session.add(pubmed_obj)
                 db.session.commit()
-                reference_id = Pubmed.query.filter_by(id=data['pubmed_id']).first().reference_id
+                reference_id = Pubmed.query.filter_by(id=data['pubmed_id']).first().referenceId
         if 'pubmod_id' in data:
             if 'mod' not in data:
                 return "'mod' field required if adding 'pubmod_id'"
@@ -75,7 +83,7 @@ class AddReferenceResource(MethodResource):
                 pubmod_obj = Pubmod(id=data['pubmod_id'], mod=data['mod'], reference=reference_obj)
                 db.session.add(pubmod_obj)
                 db.session.commit()
-                reference_id = Pubmod.query.filter_by(id=data['pubmod_id']).first().reference_id
+                reference_id = Pubmod.query.filter_by(id=data['pubmod_id']).first().referenceId
 
         if 'title' in data:
             print("Adding title")
@@ -83,7 +91,80 @@ class AddReferenceResource(MethodResource):
 
         return 'Created or Updated: AllianceReference:%s' % reference_id
 
-@doc(description='list all references to resource', tag=['references'])
-class ReferenceListResource(MethodResource):
-    def get(self):
-        return "test"
+
+
+class AuthorSchema(Schema):
+    id = fields.Int()
+    referenceId = fields.Int()
+    name = fields.Str()
+    firstName = fields.Str()
+    lastName = fields.Str()
+    #middleNames = fields.List(fields.Str())
+    #crossreferences
+
+class PubModIdSchema(Schema):
+    id = fields.Str()
+    mod = fields.Str()
+    datetimeCreated = fields.DateTime()
+
+class PubMedIdSchema(Schema):
+    id = fields.Str()
+    datetimeCreated = fields.Str()
+
+class ResourceSchema(Schema):
+    id = fields.Int()
+    primaryId = fields.Str()
+    title = fields.Str()
+    authors = fields.List(fields.Nested(AuthorSchema))
+    datePublished = fields.Str()
+    dateArrivedInPubMed = fields.Str()
+    dateLastModified = fields.Str()
+    volume = fields.Str()
+    pages = fields.Str()
+    abstract = fields.Str()
+    citation = fields.Str()
+    keywords = fields.List(fields.Str())
+    pubMedType = fields.Str()
+    publisher = fields.Str()
+    allianceCategory = fields.Str()
+    modReferenceTypes = fields.List(fields.Str())
+    issueName = fields.Str()
+    issueDate = fields.Str()
+    tags = fields.List(fields.Str())
+    meshTerms = fields.List(fields.Str())
+    # Crossreference
+    pubmedIDs = fields.List(fields.Nested(PubMedIdSchema))
+    pubmodIDs = fields.List(fields.Nested(PubModIdSchema))
+    resourceAbbreviation = fields.Str()
+    dateTimeCreated = fields.DateTime()
+
+@marshal_with(ResourceSchema)
+@doc(description='Get Reference Data', tag=['references'])
+class GetReferenceResource(MethodResource):
+    def get(self, id):
+        reference = Reference.query.filter_by(id=id).one()
+        return {'id': reference.id,
+                'primaryId': None,
+                'title': None,
+                'authors': None,
+                'datePublished': None,
+                'dateArrivedInPubMed': None,
+                'dateLastModified': None,
+                'volume': None,
+                'pages': None,
+                'abstract': None,
+                'citation': None,
+                'keywords': None,
+                'pubMedType': None,
+                'publisher': None,
+                'allianceCategory': None,
+                'modReferenceTypes': None,
+                'issueName': None,
+                'issueDate': None,
+                'tags': None,
+                'meshTerms': None,
+                #crossReferences
+                'pubmedIDs': Pubmed.query.filter_by(referenceId=id),
+                'pubmodIDs': Pubmod.query.filter_by(referenceId=id),
+                'resourceAbbreviation': None,
+                'dateTimeCreated': None}

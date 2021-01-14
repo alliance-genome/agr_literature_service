@@ -15,7 +15,7 @@ from flask_apispec.extension import FlaskApiSpec
 from waitress import serve
 
 from resources.reference import AddReferenceResource
-from resources.reference import ReferenceListResource
+from resources.reference import GetReferenceResource
 
 from shared.models import db
 
@@ -40,14 +40,15 @@ db.init_app(flask_app)
 flask_app.app_context().push()
 docs = FlaskApiSpec(flask_app)
 
-reference_bp = Blueprint('references_api', __name__, url_prefix='/references/')
+reference_bp = Blueprint('references_api', __name__, url_prefix='/reference/')
 reference_bp.add_url_rule('/add/', view_func=AddReferenceResource.as_view('AddReferenceResource'))
-reference_bp.add_url_rule('/list/', view_func=ReferenceListResource.as_view('ReferenceListResource'))
+reference_bp.add_url_rule('/<string:id>/get/',
+                           view_func=GetReferenceResource.as_view('GetReferenceResource'))
 
 app = flask_app
 app.register_blueprint(reference_bp)
 docs.register(AddReferenceResource, blueprint="references_api", endpoint='AddReferenceResource')
-docs.register(ReferenceListResource, blueprint="references_api", endpoint='ReferenceListResource')
+docs.register(GetReferenceResource, blueprint="references_api", endpoint='GetReferenceResource')
 
 
 if __name__ == "__main__":
