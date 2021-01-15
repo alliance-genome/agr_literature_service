@@ -1,0 +1,146 @@
+<?xml version="1.0" ?>
+<!DOCTYPE PubmedArticleSet PUBLIC "-//NLM//DTD PubMedArticle, 1st January 2019//EN" "https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_190101.dtd">
+<PubmedArticleSet>
+<PubmedArticle>
+    <MedlineCitation Status="Publisher" Owner="NLM">
+        <PMID Version="1">33410237</PMID>
+        <DateRevised>
+            <Year>2021</Year>
+            <Month>01</Month>
+            <Day>07</Day>
+        </DateRevised>
+        <Article PubModel="Print-Electronic">
+            <Journal>
+                <ISSN IssnType="Electronic">1097-0177</ISSN>
+                <JournalIssue CitedMedium="Internet">
+                    <PubDate>
+                        <Year>2021</Year>
+                        <Month>Jan</Month>
+                        <Day>07</Day>
+                    </PubDate>
+                </JournalIssue>
+                <Title>Developmental dynamics : an official publication of the American Association of Anatomists</Title>
+                <ISOAbbreviation>Dev Dyn</ISOAbbreviation>
+            </Journal>
+            <ArticleTitle>Mechanisms of TGFß in prostaglandin synthesis and sperm guidance in C. elegans.</ArticleTitle>
+            <ELocationID EIdType="doi" ValidYN="Y">10.1002/dvdy.296</ELocationID>
+            <Abstract>
+                <AbstractText Label="BACKGROUND" NlmCategory="BACKGROUND">The transparent epidermis of C. elegans makes it an attractive model to study sperm motility and migration within an intact reproductive tract. C. elegans synthesize specific F-series prostaglandins (PGFs) that are important for guiding sperm toward the spermatheca. These PGFs are synthesized from polyunsaturated fatty acid (PUFA) precursors, such as arachidonic acid (AA), via a novel pathway, independent of the classical cyclooxygenases (Cox) responsible for most PG synthesis. While the enzyme(s) responsible for PG synthesis has yet to be identified, the DAF-7 TGFß pathway has been implicated in modulating PG levels and sperm guidance.</AbstractText>
+                <AbstractText Label="RESULTS" NlmCategory="RESULTS">We find that the reduced PGF levels in daf-1 Type I receptor mutants are responsible for the sperm guidance defect. The lower level of PGs in daf-1 mutants is due in part to the inaccessibility of AA. Finally, lipid analysis and assessment of sperm guidance in daf-1;daf-3 double mutants suggest DAF-3 suppresses PG production and sperm accumulation at the spermatheca. Our data suggest that DAF-3 functions in the nervous system, and possibly the germline, to affect sperm guidance.</AbstractText>
+                <AbstractText Label="CONCLUSION" NlmCategory="CONCLUSIONS">The C. elegans TGFß pathway regulates many pathways to modulate PG metabolism and sperm guidance. These pathways likely function in the nervous system and possibly the germline. This article is protected by copyright. All rights reserved.</AbstractText>
+                <CopyrightInformation>© 2021 Wiley Periodicals, Inc.</CopyrightInformation>
+            </Abstract>
+            <AuthorList CompleteYN="Y">
+                <Author ValidYN="Y">
+                    <LastName>Hu</LastName>
+                    <ForeName>Muhan</ForeName>
+                    <Initials>M</Initials>
+                    <Identifier Source="ORCID">https://orcid.org/0000-0003-4571-4405</Identifier>
+                    <AffiliationInfo>
+                        <Affiliation>Department of Cell Development and Integrative Biology, University of Alabama at Birmingham, Birmingham, AL, USA.</Affiliation>
+                    </AffiliationInfo>
+                </Author>
+                <Author ValidYN="Y">
+                    <LastName>Tiwary</LastName>
+                    <ForeName>Ekta</ForeName>
+                    <Initials>E</Initials>
+                    <AffiliationInfo>
+                        <Affiliation>Department of Pharmacology and Toxicology, University of Alabama at Birmingham, Birmingham, AL, USA.</Affiliation>
+                    </AffiliationInfo>
+                </Author>
+                <Author ValidYN="Y">
+                    <LastName>Prasain</LastName>
+                    <ForeName>Jeevan K</ForeName>
+                    <Initials>JK</Initials>
+                    <AffiliationInfo>
+                        <Affiliation>Department of Pharmacology and Toxicology, University of Alabama at Birmingham, Birmingham, AL, USA.</Affiliation>
+                    </AffiliationInfo>
+                </Author>
+                <Author ValidYN="Y">
+                    <LastName>Miller</LastName>
+                    <ForeName>Michael</ForeName>
+                    <Initials>M</Initials>
+                </Author>
+                <Author ValidYN="Y">
+                    <LastName>Serra</LastName>
+                    <ForeName>Rosa</ForeName>
+                    <Initials>R</Initials>
+                    <AffiliationInfo>
+                        <Affiliation>Department of Cell Development and Integrative Biology, University of Alabama at Birmingham, Birmingham, AL, USA.</Affiliation>
+                    </AffiliationInfo>
+                </Author>
+            </AuthorList>
+            <Language>eng</Language>
+            <PublicationTypeList>
+                <PublicationType UI="D016428">Journal Article</PublicationType>
+            </PublicationTypeList>
+            <ArticleDate DateType="Electronic">
+                <Year>2021</Year>
+                <Month>01</Month>
+                <Day>07</Day>
+            </ArticleDate>
+        </Article>
+        <MedlineJournalInfo>
+            <Country>United States</Country>
+            <MedlineTA>Dev Dyn</MedlineTA>
+            <NlmUniqueID>9201927</NlmUniqueID>
+            <ISSNLinking>1058-8388</ISSNLinking>
+        </MedlineJournalInfo>
+        <CitationSubset>IM</CitationSubset>
+        <KeywordList Owner="NOTNLM">
+            <Keyword MajorTopicYN="N">C. elegans</Keyword>
+            <Keyword MajorTopicYN="N">daf-1</Keyword>
+            <Keyword MajorTopicYN="N">daf-3</Keyword>
+            <Keyword MajorTopicYN="N">daf-7</Keyword>
+            <Keyword MajorTopicYN="N">oocyte</Keyword>
+            <Keyword MajorTopicYN="N">sperm</Keyword>
+        </KeywordList>
+    </MedlineCitation>
+    <PubmedData>
+        <History>
+            <PubMedPubDate PubStatus="received">
+                <Year>2020</Year>
+                <Month>06</Month>
+                <Day>23</Day>
+            </PubMedPubDate>
+            <PubMedPubDate PubStatus="revised">
+                <Year>2020</Year>
+                <Month>12</Month>
+                <Day>21</Day>
+            </PubMedPubDate>
+            <PubMedPubDate PubStatus="accepted">
+                <Year>2020</Year>
+                <Month>12</Month>
+                <Day>25</Day>
+            </PubMedPubDate>
+            <PubMedPubDate PubStatus="entrez">
+                <Year>2021</Year>
+                <Month>1</Month>
+                <Day>7</Day>
+                <Hour>6</Hour>
+                <Minute>16</Minute>
+            </PubMedPubDate>
+            <PubMedPubDate PubStatus="pubmed">
+                <Year>2021</Year>
+                <Month>1</Month>
+                <Day>8</Day>
+                <Hour>6</Hour>
+                <Minute>0</Minute>
+            </PubMedPubDate>
+            <PubMedPubDate PubStatus="medline">
+                <Year>2021</Year>
+                <Month>1</Month>
+                <Day>8</Day>
+                <Hour>6</Hour>
+                <Minute>0</Minute>
+            </PubMedPubDate>
+        </History>
+        <PublicationStatus>aheadofprint</PublicationStatus>
+        <ArticleIdList>
+            <ArticleId IdType="pubmed">33410237</ArticleId>
+            <ArticleId IdType="doi">10.1002/dvdy.296</ArticleId>
+        </ArticleIdList>
+    </PubmedData>
+</PubmedArticle>
+
+</PubmedArticleSet>

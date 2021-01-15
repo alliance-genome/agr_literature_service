@@ -1,0 +1,141 @@
+<?xml version="1.0" ?>
+<!DOCTYPE PubmedArticleSet PUBLIC "-//NLM//DTD PubMedArticle, 1st January 2019//EN" "https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_190101.dtd">
+<PubmedArticleSet>
+<PubmedArticle>
+    <MedlineCitation Status="Publisher" Owner="NLM">
+        <PMID Version="1">33440277</PMID>
+        <DateRevised>
+            <Year>2021</Year>
+            <Month>01</Month>
+            <Day>13</Day>
+        </DateRevised>
+        <Article PubModel="Print-Electronic">
+            <Journal>
+                <ISSN IssnType="Electronic">1873-3336</ISSN>
+                <JournalIssue CitedMedium="Internet">
+                    <Volume>411</Volume>
+                    <PubDate>
+                        <Year>2021</Year>
+                        <Month>Jan</Month>
+                        <Day>06</Day>
+                    </PubDate>
+                </JournalIssue>
+                <Title>Journal of hazardous materials</Title>
+                <ISOAbbreviation>J Hazard Mater</ISOAbbreviation>
+            </Journal>
+            <ArticleTitle>Acetylation regulation associated with the induction of protective response to polystyrene nanoparticles in Caenorhabditis elegans.</ArticleTitle>
+            <Pagination>
+                <MedlinePgn>125035</MedlinePgn>
+            </Pagination>
+            <ELocationID EIdType="pii" ValidYN="Y">S0304-3894(20)33026-0</ELocationID>
+            <ELocationID EIdType="doi" ValidYN="Y">10.1016/j.jhazmat.2020.125035</ELocationID>
+            <Abstract>
+                <AbstractText>Caenorhabditis elegans is a useful animal model to assess nanoplastic toxicity. Using polystyrene nanoparticles (PS-NPs) as the example of nanoplastics, we found that exposure to PS-NPs (1-100 μg/L) from L1-larvae for 6.5 days increased expression of cbp-1 encoding an acetyltransferase. The susceptibility to PS-NPs toxicity was observed in cbp-1(RNAi) worms, suggesting that CBP-1-mediated histone acetylation regulation reflects a protective response to PS-NPs. The functions of CBP-1 in intestine, neurons, and germline were required for formation of this protective response. In intestinal cells, CBP-1 controlled PS-NPs toxicity by modulating functions of insulin and p38 MAPK signaling pathways. In neuronal cells, CBP-1 controlled PS-NPs toxicity by affecting functions of DAF-7/TGF-β and JNK MAPK signaling pathways. In germline cells, CBP-1 controlled PS-NPs toxicity by suppressing NHL-2 activity, and NHL-2 further regulated PS-NPs toxicity by modulating insulin communication between germline and intestine. Therefore, our data suggested that the CBP-1-mediated histone acetylation regulation in certain tissues is associated with the induction of protective response to PS-NPs in C. elegans.</AbstractText>
+                <CopyrightInformation>Copyright © 2021 Elsevier B.V. All rights reserved.</CopyrightInformation>
+            </Abstract>
+            <AuthorList CompleteYN="Y">
+                <Author ValidYN="Y">
+                    <LastName>Liu</LastName>
+                    <ForeName>Huanliang</ForeName>
+                    <Initials>H</Initials>
+                    <AffiliationInfo>
+                        <Affiliation>Medical School, Southeast University, Nanjing 210009, China.</Affiliation>
+                    </AffiliationInfo>
+                </Author>
+                <Author ValidYN="Y">
+                    <LastName>Tian</LastName>
+                    <ForeName>Lijie</ForeName>
+                    <Initials>L</Initials>
+                    <AffiliationInfo>
+                        <Affiliation>Medical School, Southeast University, Nanjing 210009, China.</Affiliation>
+                    </AffiliationInfo>
+                </Author>
+                <Author ValidYN="Y">
+                    <LastName>Qu</LastName>
+                    <ForeName>Man</ForeName>
+                    <Initials>M</Initials>
+                    <AffiliationInfo>
+                        <Affiliation>Medical School, Southeast University, Nanjing 210009, China.</Affiliation>
+                    </AffiliationInfo>
+                </Author>
+                <Author ValidYN="Y">
+                    <LastName>Wang</LastName>
+                    <ForeName>Dayong</ForeName>
+                    <Initials>D</Initials>
+                    <AffiliationInfo>
+                        <Affiliation>Medical School, Southeast University, Nanjing 210009, China. Electronic address: dayongw@seu.edu.cn.</Affiliation>
+                    </AffiliationInfo>
+                </Author>
+            </AuthorList>
+            <Language>eng</Language>
+            <PublicationTypeList>
+                <PublicationType UI="D016428">Journal Article</PublicationType>
+            </PublicationTypeList>
+            <ArticleDate DateType="Electronic">
+                <Year>2021</Year>
+                <Month>01</Month>
+                <Day>06</Day>
+            </ArticleDate>
+        </Article>
+        <MedlineJournalInfo>
+            <Country>Netherlands</Country>
+            <MedlineTA>J Hazard Mater</MedlineTA>
+            <NlmUniqueID>9422688</NlmUniqueID>
+            <ISSNLinking>0304-3894</ISSNLinking>
+        </MedlineJournalInfo>
+        <CitationSubset>IM</CitationSubset>
+        <KeywordList Owner="NOTNLM">
+            <Keyword MajorTopicYN="N">CBP-1</Keyword>
+            <Keyword MajorTopicYN="N">Histone acetylation regulation</Keyword>
+            <Keyword MajorTopicYN="N">Polystyrene nanoparticles</Keyword>
+        </KeywordList>
+    </MedlineCitation>
+    <PubmedData>
+        <History>
+            <PubMedPubDate PubStatus="received">
+                <Year>2020</Year>
+                <Month>11</Month>
+                <Day>03</Day>
+            </PubMedPubDate>
+            <PubMedPubDate PubStatus="revised">
+                <Year>2020</Year>
+                <Month>12</Month>
+                <Day>09</Day>
+            </PubMedPubDate>
+            <PubMedPubDate PubStatus="accepted">
+                <Year>2020</Year>
+                <Month>12</Month>
+                <Day>29</Day>
+            </PubMedPubDate>
+            <PubMedPubDate PubStatus="entrez">
+                <Year>2021</Year>
+                <Month>1</Month>
+                <Day>13</Day>
+                <Hour>20</Hour>
+                <Minute>7</Minute>
+            </PubMedPubDate>
+            <PubMedPubDate PubStatus="pubmed">
+                <Year>2021</Year>
+                <Month>1</Month>
+                <Day>14</Day>
+                <Hour>6</Hour>
+                <Minute>0</Minute>
+            </PubMedPubDate>
+            <PubMedPubDate PubStatus="medline">
+                <Year>2021</Year>
+                <Month>1</Month>
+                <Day>14</Day>
+                <Hour>6</Hour>
+                <Minute>0</Minute>
+            </PubMedPubDate>
+        </History>
+        <PublicationStatus>aheadofprint</PublicationStatus>
+        <ArticleIdList>
+            <ArticleId IdType="pubmed">33440277</ArticleId>
+            <ArticleId IdType="pii">S0304-3894(20)33026-0</ArticleId>
+            <ArticleId IdType="doi">10.1016/j.jhazmat.2020.125035</ArticleId>
+        </ArticleIdList>
+    </PubmedData>
+</PubmedArticle>
+
+</PubmedArticleSet>

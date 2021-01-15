@@ -1,0 +1,240 @@
+{
+    "PubmedArticleSet": {
+        "PubmedArticle": {
+            "MedlineCitation": {
+                "@Owner": "PIP", 
+                "@Status": "MEDLINE", 
+                "Article": {
+                    "@PubModel": "Print", 
+                    "ArticleTitle": "Denpasar Declaration on Population and Development.", 
+                    "AuthorList": {
+                        "@CompleteYN": "Y", 
+                        "Author": {
+                            "@ValidYN": "Y", 
+                            "CollectiveName": "Ministerial Meeting on Population of the Non-Aligned Movement (1993: Bali)"
+                        }
+                    }, 
+                    "GrantList": {
+                        "@CompleteYN": "N", 
+                        "Grant": [
+                            {
+                                "Agency": "Department of Health", 
+                                "Country": "United Kingdom"
+                            }, 
+                            {
+                                "Acronym": "HHMI", 
+                                "Agency": "HHMI", 
+                                "Country": "United States"
+                            }, 
+                            {
+                                "Agency": "Medical Research Council", 
+                                "Country": "United Kingdom"
+                            }, 
+                            {
+                                "Acronym": "AS", 
+                                "Agency": "Autism Speaks", 
+                                "Country": "United States"
+                            }, 
+                            {
+                                "Agency": "World Health Organization", 
+                                "Country": "International"
+                            }, 
+                            {
+                                "Acronym": "AHA", 
+                                "Agency": "American Heart Association-American Stroke Association", 
+                                "Country": "United States"
+                            }, 
+                            {
+                                "Agency": "CIHR", 
+                                "Country": "Canada"
+                            }, 
+                            {
+                                "Acronym": "NASA", 
+                                "Agency": "NASA", 
+                                "Country": "United States"
+                            }
+                        ]
+                    }, 
+                    "Journal": {
+                        "ISOAbbreviation": "Integration", 
+                        "ISSN": {
+                            "#text": "0916-0582", 
+                            "@IssnType": "Print"
+                        }, 
+                        "JournalIssue": {
+                            "@CitedMedium": "Print", 
+                            "Issue": "40", 
+                            "PubDate": {
+                                "Month": "06", 
+                                "Year": "1994"
+                            }
+                        }, 
+                        "Title": "Integration (Tokyo, Japan)"
+                    }, 
+                    "Language": "eng", 
+                    "Pagination": {
+                        "MedlinePgn": "27-9"
+                    }, 
+                    "PublicationTypeList": {
+                        "PublicationType": {
+                            "#text": "Journal Article", 
+                            "@UI": "D016428"
+                        }
+                    }
+                }, 
+                "CitationSubset": "J", 
+                "DateCompleted": {
+                    "Day": "04", 
+                    "Month": "01", 
+                    "Year": "1995"
+                }, 
+                "DateRevised": {
+                    "Day": "18", 
+                    "Month": "01", 
+                    "Year": "2017"
+                }, 
+                "GeneralNote": {
+                    "#text": "TJ: INTEGRATION", 
+                    "@Owner": "PIP"
+                }, 
+                "KeywordList": {
+                    "@Owner": "PIP", 
+                    "Keyword": [
+                        {
+                            "#text": "Developing Countries", 
+                            "@MajorTopicYN": "Y"
+                        }, 
+                        {
+                            "#text": "Development Policy", 
+                            "@MajorTopicYN": "Y"
+                        }, 
+                        {
+                            "#text": "Economic Development", 
+                            "@MajorTopicYN": "Y"
+                        }, 
+                        {
+                            "#text": "Economic Factors", 
+                            "@MajorTopicYN": "N"
+                        }, 
+                        {
+                            "#text": "International Cooperation", 
+                            "@MajorTopicYN": "Y"
+                        }, 
+                        {
+                            "#text": "Policy", 
+                            "@MajorTopicYN": "N"
+                        }, 
+                        {
+                            "#text": "Population Policy", 
+                            "@MajorTopicYN": "Y"
+                        }, 
+                        {
+                            "#text": "Social Policy", 
+                            "@MajorTopicYN": "N"
+                        }
+                    ]
+                }, 
+                "MedlineJournalInfo": {
+                    "Country": "Japan", 
+                    "ISSNLinking": "0916-0582", 
+                    "MedlineTA": "Integration", 
+                    "NlmUniqueID": "9001944"
+                }, 
+                "MeshHeadingList": {
+                    "MeshHeading": [
+                        {
+                            "DescriptorName": {
+                                "#text": "Developing Countries", 
+                                "@MajorTopicYN": "Y", 
+                                "@UI": "D003906"
+                            }
+                        }, 
+                        {
+                            "DescriptorName": {
+                                "#text": "Economics", 
+                                "@MajorTopicYN": "Y", 
+                                "@UI": "D004467"
+                            }
+                        }, 
+                        {
+                            "DescriptorName": {
+                                "#text": "International Cooperation", 
+                                "@MajorTopicYN": "Y", 
+                                "@UI": "D007391"
+                            }
+                        }, 
+                        {
+                            "DescriptorName": {
+                                "#text": "Public Policy", 
+                                "@MajorTopicYN": "Y", 
+                                "@UI": "D011640"
+                            }
+                        }
+                    ]
+                }, 
+                "OtherAbstract": {
+                    "@Language": "eng", 
+                    "@Type": "PIP", 
+                    "AbstractText": "Ministers from the countries of the Non-Aligned Movement (NAM) got together at the Ministerial Meeting on Population in Bali, Indonesia, November 11-13, 1993, to develop the Denpasar Declaration on Population and Development.  The declaration was made with full consideration and acceptance of the sovereignty of individual nations and the decisions on population of the heads of states and governments at the tenth conference of Non-Aligned Countries at Jakarta, 1992, and the results of the meeting of the Standing Ministerial Committee for Economic Cooperation of the NAM in Bali 1993.  The ministers recognize that population should be an integral part of the development process, population policies and development efforts should be designed to improve the quality of life for present generations without compromising the ability of future generations to meet their own needs, and the alleviation of poverty is essential to the dignity of humankind and fundamental to the achievement of sustainable development.  They further reaffirm the existence of humans as the center of concern for sustainable development, the right to an adequate standard of living for all, gender equality, greater multilateral cooperation for development, and that all developing countries should participate effectively at the International Conference on Population and Development to be convened in Cairo in 1994.  The text of the declaration is included."
+                }, 
+                "OtherID": [
+                    {
+                        "#text": "099526", 
+                        "@Source": "PIP"
+                    }, 
+                    {
+                        "#text": "00232894", 
+                        "@Source": "POP"
+                    }
+                ], 
+                "PMID": {
+                    "#text": "12345678", 
+                    "@Version": "1"
+                }
+            }, 
+            "PubmedData": {
+                "ArticleIdList": {
+                    "ArticleId": [
+                        {
+                            "#text": "12345678", 
+                            "@IdType": "pubmed"
+                        }, 
+                        {
+                            "#text": "10.1234/2013/999990.", 
+                            "@IdType": "doi"
+                        }
+                    ]
+                }, 
+                "History": {
+                    "PubMedPubDate": [
+                        {
+                            "@PubStatus": "pubmed", 
+                            "Day": "1", 
+                            "Hour": "0", 
+                            "Minute": "0", 
+                            "Month": "6", 
+                            "Year": "1994"
+                        }, 
+                        {
+                            "@PubStatus": "medline", 
+                            "Day": "9", 
+                            "Hour": "4", 
+                            "Minute": "0", 
+                            "Month": "10", 
+                            "Year": "2002"
+                        }, 
+                        {
+                            "@PubStatus": "entrez", 
+                            "Day": "1", 
+                            "Hour": "0", 
+                            "Minute": "0", 
+                            "Month": "6", 
+                            "Year": "1994"
+                        }
+                    ]
+                }, 
+                "PublicationStatus": "ppublish"
+            }
+        }
+    }
+}

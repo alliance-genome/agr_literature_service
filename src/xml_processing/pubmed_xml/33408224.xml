@@ -1,0 +1,733 @@
+<?xml version="1.0" ?>
+<!DOCTYPE PubmedArticleSet PUBLIC "-//NLM//DTD PubMedArticle, 1st January 2019//EN" "https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_190101.dtd">
+<PubmedArticleSet>
+<PubmedArticle>
+    <MedlineCitation Status="In-Data-Review" Owner="NLM">
+        <PMID Version="1">33408224</PMID>
+        <DateRevised>
+            <Year>2021</Year>
+            <Month>01</Month>
+            <Day>12</Day>
+        </DateRevised>
+        <Article PubModel="Electronic">
+            <Journal>
+                <ISSN IssnType="Electronic">2379-5042</ISSN>
+                <JournalIssue CitedMedium="Internet">
+                    <Volume>6</Volume>
+                    <Issue>1</Issue>
+                    <PubDate>
+                        <Year>2021</Year>
+                        <Month>Jan</Month>
+                        <Day>06</Day>
+                    </PubDate>
+                </JournalIssue>
+                <Title>mSphere</Title>
+                <ISOAbbreviation>mSphere</ISOAbbreviation>
+            </Journal>
+            <ArticleTitle>Novel Immune Modulators Enhance <i>Caenorhabditis elegans</i> Resistance to Multiple Pathogens.</ArticleTitle>
+            <ELocationID EIdType="pii" ValidYN="Y">e00950-20</ELocationID>
+            <ELocationID EIdType="doi" ValidYN="Y">10.1128/mSphere.00950-20</ELocationID>
+            <Abstract>
+                <AbstractText>Traditionally, treatments for bacterial infection have focused on killing the microbe or preventing its growth. As antimicrobial resistance becomes more ubiquitous, the feasibility of this approach is beginning to wane and attention has begun to shift toward disrupting the host-pathogen interaction by improving the host defense. Using a high-throughput, fragment-based screen to identify compounds that alleviate <i>Pseudomonas aeruginosa</i>-mediated killing of <i>Caenorhabditis elegans</i>, we identified over 20 compounds that stimulated host defense gene expression. Five of these molecules were selected for further characterization. Four of five compounds showed little toxicity against mammalian cells or worms, consistent with their identification in a phenotypic, high-content screen. Each of the compounds activated several host defense pathways, but the pathways were generally dispensable for compound-mediated rescue in liquid killing, suggesting redundancy or that the activation of unknown pathway(s) may be driving compound effects. A genetic mechanism was identified for LK56, which required the Mediator subunit MDT-15/MED15 and NHR-49/HNF4 for its function. Interestingly, LK32, LK34, LK38, and LK56 also rescued <i>C. elegans</i> from <i>P. aeruginosa</i> in an agar-based assay, which uses different virulence factors and defense mechanisms. Rescue in an agar-based assay for LK38 entirely depended upon the PMK-1/p38 MAPK pathway. Three compounds-LK32, LK34, and LK56-also conferred resistance to <i>Enterococcus faecalis</i>, and the two lattermost, LK34 and LK56, also reduced pathogenesis from <i>Staphylococcus aureus</i> This study supports a growing role for MDT-15 and NHR-49 in immune response and identifies five molecules that have significant potential for use as tools in the investigation of innate immunity.<b>IMPORTANCE</b> Trends moving in opposite directions (increasing antimicrobial resistance and declining novel antimicrobial development) have precipitated a looming crisis: the nearly complete inability to safely and effectively treat bacterial infections. To avert this, new approaches are needed. One idea is to stimulate host defense pathways to improve the clearance of bacterial infection. Here, we describe five small molecules that promote resistance to infectious bacteria by activating <i>C. elegans</i>' innate immune pathways. Several are effective against both Gram-positive and Gram-negative pathogens. One of the compounds was mapped to the action of MDT-15/MED15 and NHR-49/HNF4, a pair of transcriptional regulators more generally associated with fatty acid metabolism, potentially highlighting a new link between these biological functions. These studies pave the way for future characterization of the anti-infective activity of the molecules in higher organisms and highlight the compounds' potential utility for further investigation of immune modulation as a novel therapeutic approach.</AbstractText>
+                <CopyrightInformation>Copyright © 2021 Hummell et al.</CopyrightInformation>
+            </Abstract>
+            <AuthorList CompleteYN="Y">
+                <Author ValidYN="Y" EqualContrib="Y">
+                    <LastName>Hummell</LastName>
+                    <ForeName>Nicholas A</ForeName>
+                    <Initials>NA</Initials>
+                    <AffiliationInfo>
+                        <Affiliation>Department of BioSciences, Rice University, Houston, Texas, USA.</Affiliation>
+                    </AffiliationInfo>
+                </Author>
+                <Author ValidYN="Y" EqualContrib="Y">
+                    <LastName>Revtovich</LastName>
+                    <ForeName>Alexey V</ForeName>
+                    <Initials>AV</Initials>
+                    <AffiliationInfo>
+                        <Affiliation>Department of BioSciences, Rice University, Houston, Texas, USA.</Affiliation>
+                    </AffiliationInfo>
+                </Author>
+                <Author ValidYN="Y">
+                    <LastName>Kirienko</LastName>
+                    <ForeName>Natalia V</ForeName>
+                    <Initials>NV</Initials>
+                    <Identifier Source="ORCID">https://orcid.org/0000-0002-1537-4967</Identifier>
+                    <AffiliationInfo>
+                        <Affiliation>Department of BioSciences, Rice University, Houston, Texas, USA kirienko@rice.edu.</Affiliation>
+                    </AffiliationInfo>
+                </Author>
+            </AuthorList>
+            <Language>eng</Language>
+            <GrantList CompleteYN="Y">
+                <Grant>
+                    <GrantID>R35 GM129294</GrantID>
+                    <Acronym>GM</Acronym>
+                    <Agency>NIGMS NIH HHS</Agency>
+                    <Country>United States</Country>
+                </Grant>
+            </GrantList>
+            <PublicationTypeList>
+                <PublicationType UI="D016428">Journal Article</PublicationType>
+            </PublicationTypeList>
+            <ArticleDate DateType="Electronic">
+                <Year>2021</Year>
+                <Month>01</Month>
+                <Day>06</Day>
+            </ArticleDate>
+        </Article>
+        <MedlineJournalInfo>
+            <Country>United States</Country>
+            <MedlineTA>mSphere</MedlineTA>
+            <NlmUniqueID>101674533</NlmUniqueID>
+            <ISSNLinking>2379-5042</ISSNLinking>
+        </MedlineJournalInfo>
+        <CitationSubset>IM</CitationSubset>
+        <KeywordList Owner="NOTNLM">
+            <Keyword MajorTopicYN="N">C. elegans</Keyword>
+            <Keyword MajorTopicYN="N">E. faecalis</Keyword>
+            <Keyword MajorTopicYN="N">MDT-15/MED15</Keyword>
+            <Keyword MajorTopicYN="N">NHR-49/HNF4</Keyword>
+            <Keyword MajorTopicYN="N">P. aeruginosa</Keyword>
+            <Keyword MajorTopicYN="N">PMK-1/p38 MAPK</Keyword>
+            <Keyword MajorTopicYN="N">S. aureus</Keyword>
+            <Keyword MajorTopicYN="N">high-throughput screen</Keyword>
+            <Keyword MajorTopicYN="N">immune modulators</Keyword>
+        </KeywordList>
+    </MedlineCitation>
+    <PubmedData>
+        <History>
+            <PubMedPubDate PubStatus="entrez">
+                <Year>2021</Year>
+                <Month>1</Month>
+                <Day>7</Day>
+                <Hour>6</Hour>
+                <Minute>0</Minute>
+            </PubMedPubDate>
+            <PubMedPubDate PubStatus="pubmed">
+                <Year>2021</Year>
+                <Month>1</Month>
+                <Day>8</Day>
+                <Hour>6</Hour>
+                <Minute>0</Minute>
+            </PubMedPubDate>
+            <PubMedPubDate PubStatus="medline">
+                <Year>2021</Year>
+                <Month>1</Month>
+                <Day>8</Day>
+                <Hour>6</Hour>
+                <Minute>0</Minute>
+            </PubMedPubDate>
+        </History>
+        <PublicationStatus>epublish</PublicationStatus>
+        <ArticleIdList>
+            <ArticleId IdType="pubmed">33408224</ArticleId>
+            <ArticleId IdType="pii">6/1/e00950-20</ArticleId>
+            <ArticleId IdType="doi">10.1128/mSphere.00950-20</ArticleId>
+        </ArticleIdList>
+        <ReferenceList>
+            <Reference>
+                <Citation>Bhagirath AY, Li Y, Somayajula D, Dadashi M, Badr S, Duan K. Cystic fibrosis lung environment and Pseudomonas aeruginosa infection. BMC Pulm Med. 2016;16:174.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1186/s12890-016-0339-5</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Naqvi SHA, Naqvi SHS. Pseudomonas aeruginosa burn wound infection in a dedicated paediatric burns unit. S Afr J Surg. 2013;51:151–152.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.7196/sajs.1811</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Michael CA, Dominey-Howes D, Labbate M. The antimicrobial resistance crisis: causes, consequences, and management. Front Public Health. 2014;2:145.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.3389/fpubh.2014.00145</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Ventola CL. The antibiotic resistance crisis. 1. Causes and threats. P T. 2015;40:277–283.</Citation>
+            </Reference>
+            <Reference>
+                <Citation>Sasaki R, Kanda T, Nakamoto S, Haga Y, Nakamura M, Yasui S, Jiang X, Wu S, Arai M, Yokosuka O. Natural interferon-beta treatment for patients with chronic hepatitis C in Japan. World J Hepatol. 2015;7:1125–1132.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.4254/wjh.v7.i8.1125</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Moriyama M, Arakawa Y. Treatment of interferon-alpha for chronic hepatitis C. Expert Opin Pharmacother. 2006;7:1163–1179.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1517/14656566.7.9.1163</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Yokogawa M, Takaishi M, Nakajima K, Kamijima R, Fujimoto C, Kataoka S, Terada Y, Sano S. Epicutaneous application of Toll-like receptor 7 agonists leads to systemic autoimmunity in wild-type mice: a new model of systemic Lupus erythematosus. Arthritis Rheumatol. 2014;66:694–706.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1002/art.38298</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Arandjus C, Black PN, Poole PJ, Wood Baker R, Steurer-Stey C. Oral bacterial vaccines for the prevention of acute exacerbations in chronic obstructive pulmonary disease and chronic bronchitis. Respir Med. 2006;100:1671–1681.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/j.rmed.2006.06.029</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Hughes JP, Rees S, Kalindjian SB, Philpott KL. Principles of early drug discovery. Br J Pharmacol. 2011;162:1239–1249.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1111/j.1476-5381.2010.01127.x</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Okesli-Armlovich A, Gupta A, Jimenez M, Auld D, Liu Q, Bassik MC, Khosla C. Discovery of small molecule inhibitors of human uridine-cytidine kinase 2 by high-throughput screening. Bioorg Med Chem Lett. 2019;29:2559–2564.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/j.bmcl.2019.08.010</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Guo W, Yao S, Sun P, Yang TB, Tang CP, Zheng MY, Ye Y, Meng LH. Discovery and characterization of natural products as novel indoleamine 2,3-dioxygenase 1 inhibitors through high-throughput screening. Acta Pharmacol Sin. 2020;41:423–431.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1038/s41401-019-0246-4</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Baell J, Walters MA. Chemistry: chemical con artists foil drug discovery. Nature. 2014;513:481–483.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1038/513481a</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Aldrich C, Bertozzi C, Georg GI, Kiessling L, Lindsley C, Liotta D, Merz KM Jr, Schepartz A, Wang S. The ecstasy and agony of assay interference compounds. ACS Med Chem Lett. 2017;8:379–382.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1021/acsmedchemlett.7b00056</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Kirienko DR, Revtovich AV, Kirienko NV. A high-content, phenotypic screen identifies fluorouridine as an inhibitor of pyoverdine biosynthesis and Pseudomonas aeruginosa Virulence. mSphere. 2016;1:e00217-26.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1128/mSphere.00217-16</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Pukkila-Worley R, Feinbaum R, Kirienko NV, Larkins-Ford J, Conery AL, Ausubel FM. Stimulation of host immune defenses by a small molecule protects Caenorhabditis elegans from bacterial infection. PLoS Genet. 2012;8:e1002733.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1371/journal.pgen.1002733</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Pukkila-Worley R, Ausubel FM. Immune defense mechanisms in the Caenorhabditis elegans intestinal epithelium. Curr Opin Immunol. 2012;24:3–9.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/j.coi.2011.10.004</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Ermolaeva MA, Schumacher B. Insights from the worm: the Caenorhabditis elegans model for innate immunity. Semin Immunol. 2014;26:303–309.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/j.smim.2014.04.005</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Kirienko DR, Kang D, Kirienko NV. Novel pyoverdine inhibitors mitigate Pseudomonas aeruginosa pathogenesis. Front Microbiol. 2018;9:3317.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.3389/fmicb.2018.03317</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Wang X, Kleerekoper Q, Revtovich AV, Kang D, Kirienko NV. Identification and validation of a novel anti-virulent that binds to pyoverdine and inhibits its function. Virulence. 2020;11:1293–1309.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1080/21505594.2020.1819144</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Lipinski CA, Lombardo F, Dominy BW, Feeney PJ. Experimental and computational approaches to estimate solubility and permeability in drug discovery and development settings. Adv Drug Deliv Rev. 2001;46:3–26.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/s0169-409x(00)00129-0</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Lamoree B, Hubbard RE. Current perspectives in fragment-based lead discovery (FBLD). Essays Biochem. 2017;61:453–464.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1042/EBC20170028</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Kang D, Revtovich AV, Chen Q, Shah KN, Cannon CL, Kirienko NV. Pyoverdine-dependent virulence of Pseudomonas aeruginosa isolates from cystic fibrosis patients. Front Microbiol. 2019;10:2048.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.3389/fmicb.2019.02048</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Kang D, Kirienko DR, Webster P, Fisher AL, Kirienko NV. Pyoverdine, a siderophore from Pseudomonas aeruginosa, translocates into Caenorhabditis elegans, removes iron, and activates a distinct host response. Virulence. 2018;9:804–817.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1080/21505594.2018.1449508</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Sood S, Malhotra M, Das BK, Kapil A. Enterococcal infections and antimicrobial resistance. Indian J Med Res. 2008;128:111–121.</Citation>
+            </Reference>
+            <Reference>
+                <Citation>Deurenberg RH, Stobberingh EE. The evolution of Staphylococcus aureus. Infect Genet Evol. 2008;8:747–763.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/j.meegid.2008.07.007</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Rajamuthiah R, Fuchs BB, Jayamani E, Kim Y, Larkins-Ford J, Conery A, Ausubel FM, Mylonakis E. Whole animal automated platform for drug discovery against multidrug resistant Staphylococcus aureus. PLoS One. 2014;9:e89189.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1371/journal.pone.0089189</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Anderson QL, Revtovich AV, Kirienko NV. A high-throughput, high-content, liquid-based Caenorhabditis elegans pathosystem. J Vis Exp. 2018.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.3791/58068</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Kim SM, Escorbar I, Lee K, Fuchs BB, Mylonakis E, Kim W. Anti-MRSA agent discovery using Caenorhabditis elegans-based high-throughput screening. J Microbiol. 2020;58:431–444.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1007/s12275-020-0163-8</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Garsin DA, Sifri CD, Mylonakis E, Qin X, Singh KV, Murray BE, Calderwood SB, Ausubel FM. A simple model host for identifying Gram-positive virulence factors. Proc Natl Acad Sci U S A. 2001;98:10892–10897.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1073/pnas.191378698</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Kirienko NV, Ausubel FM, Ruvkun G. Mitophagy confers resistance to siderophore-mediated killing by Pseudomonas aeruginosa. Proc Natl Acad Sci U S A. 2015;112:1821–1826.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1073/pnas.1424954112</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Kirienko NV, Kirienko DR, Larkins-Ford J, Wahlby C, Ruvkun G, Ausubel FM. Pseudomonas aeruginosa disrupts Caenorhabditis elegans iron homeostasis, causing a hypoxic response and death. Cell Host Microbe. 2013;13:406–416.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/j.chom.2013.03.003</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Sifri CD, Begun J, Ausubel FM, Calderwood SB. Caenorhabditis elegans as a model host for Staphylococcus aureus pathogenesis. Infect Immun. 2003;71:2208–2217.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1128/iai.71.4.2208-2217.2003</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Irazoqui JE, Troemel ER, Feinbaum RL, Luhachack LG, Cezairliyan BO, Ausubel FM. Distinct pathogenesis and host responses during infection of Caenorhabditis elegans by Pseudomonas aeruginosa and Staphylococcus aureus. PLoS Pathog. 2010;6:e1000982.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1371/journal.ppat.1000982</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Ewald CY. Redox signaling of NADPH oxidases regulates oxidative stress responses, immunity and aging. Antioxidants (Basel). 2018;7:130.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.3390/antiox7100130</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Kim DH. Bacteria and the aging and longevity of Caenorhabditis elegans. Annu Rev Genet. 2013;47:233–246.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1146/annurev-genet-111212-133352</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Benedetto A, Bambade T, Au C, Tullet JMA, Monkhouse J, Dang H, Cetnar K, Chan B, Cabreiro F, Gems D. New label-free automated survival assays reveal unexpected stress resistance patterns during Caenorhabditis elegans aging. Aging Cell. 2019;18:e12998.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1111/acel.12998</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Jha A, Mukherjee C, Prasad AK, Parmar VS, Vadaparti M, Das U, De Clercq E, Balzarini J, Stables JP, Shrivastav A, Sharma RK, Dimmock JR. Derivatives of aryl amines containing the cytotoxic 1,4-dioxo-2-butenyl pharmacophore. Bioorg Med Chem Lett. 2010;20:1510–1515.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/j.bmcl.2010.01.098</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Tjahjono E, McAnena AP, Kirienko NV. The evolutionarily conserved ESRE stress response network is activated by ROS and mitochondrial damage. BMC Biol. 2020;18:74.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1186/s12915-020-00812-5</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Tjahjono E, Kirienko NV. A conserved mitochondrial surveillance pathway is required for defense against Pseudomonas aeruginosa. PLoS Genet. 2017;13:e1006876.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1371/journal.pgen.1006876</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Hong M, Kwon JY, Shim J, Lee J. Differential hypoxia response of hsp-16 genes in the nematode. J Mol Biol. 2004;344:369–381.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/j.jmb.2004.09.077</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Kwon JY, Hong M, Choi MS, Kang S, Duke K, Kim S, Lee S, Lee J. Ethanol-response genes and their regulation analyzed by a microarray and comparative genomic approach in the nematode Caenorhabditis elegans. Genomics. 2004;83:600–614.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/j.ygeno.2003.10.008</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Kirienko NV, Fay DS. SLR-2 and JMJC-1 regulate an evolutionarily conserved stress-response network. EMBO J. 2010;29:727–739.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1038/emboj.2009.387</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Govindan JA, Jayamani E, Zhang X, Breen P, Larkins-Ford J, Mylonakis E, Ruvkun G. Lipid signalling couples translational surveillance to systemic detoxification in Caenorhabditis elegans. Nat Cell Biol. 2015;17:1294–1303.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1038/ncb3229</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Mir DA, Balamurugan K. Global proteomic response of Caenorhabditis elegans against PemKSa toxin. Front Cell Infect Microbiol. 2019;9:172.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.3389/fcimb.2019.00172</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Sinha A, Rae R. A functional genomic screen for evolutionarily conserved genes required for lifespan and immunity in germline-deficient Caenorhabditis elegans. PLoS One. 2014;9:e101970.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1371/journal.pone.0101970</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Niu W, Lu ZJ, Zhong M, Sarov M, Murray JI, Brdlik CM, Janette J, Chen C, Alves P, Preston E, Slightham C, Jiang L, Hyman AA, Kim SK, Waterston RH, Gerstein M, Snyder M, Reinke V. Diverse transcription factor binding features revealed by genome-wide ChIP-seq in Caenorhabditis elegans. Genome Res. 2011;21:245–254.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1101/gr.114587.110</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Troemel ER, Chu SW, Reinke V, Lee SS, Ausubel FM, Kim DH. p38 MAPK regulates expression of immune response genes and contributes to longevity in Caenorhabditis elegans. PLoS Genet. 2006;2:e183.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1371/journal.pgen.0020183</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Evans EA, Kawli T, Tan MW. Pseudomonas aeruginosa suppresses host immunity by activating the DAF-2 insulin-like signaling pathway in Caenorhabditis elegans. PLoS Pathog. 2008;4:e1000175.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1371/journal.ppat.1000175</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Papp D, Csermely P, Sőti C. A role for SKN-1/Nrf in pathogen resistance and immunosenescence in Caenorhabditis elegans. PLoS Pathog. 2012;8:e1002673.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1371/journal.ppat.1002673</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Shapira M, Hamlin BJ, Rong J, Chen K, Ronen M, Tan MW. A conserved role for a GATA transcription factor in regulating epithelial innate immune responses. Proc Natl Acad Sci U S A. 2006;103:14086–14091.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1073/pnas.0603424103</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Singh V, Aballay A. Regulation of DAF-16-mediated innate immunity in Caenorhabditis elegans. J Biol Chem. 2009;284:35580–35587.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1074/jbc.M109.060905</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>McEwan DL, Kirienko NV, Ausubel FM. Host translational inhibition by Pseudomonas aeruginosa exotoxin A triggers an immune response in Caenorhabditis elegans. Cell Host Microbe. 2012;11:364–374.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/j.chom.2012.02.007</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Maggiora G, Vogt M, Stumpfe D, Bajorath J. Molecular similarity in medicinal chemistry. J Med Chem. 2014;57:3186–3204.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1021/jm401411z</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Yang F, Vought BW, Satterlee JS, Walker AK, Jim Sun ZY, Watts JL, DeBeaumont R, Saito RM, Hyberts SG, Yang S, Macol C, Iyer L, Tjian R, van den Heuvel S, Hart AC, Wagner G, Naar AM. An ARC/Mediator subunit required for SREBP control of cholesterol and lipid homeostasis. Nature. 2006;442:700–704.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1038/nature04942</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Mao K, Ji F, Breen P, Sewell A, Han M, Sadreyev R, Ruvkun G. Mitochondrial dysfunction in Caenorhabditis elegans activates mitochondrial relocalization and nuclear hormone receptor-dependent detoxification genes. Cell Metab. 2019;29:1182–1191 e4.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/j.cmet.2019.01.022</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Taubert S, Ward JD, Yamamoto KR. Nuclear hormone receptors in nematodes: evolution and function. Mol Cell Endocrinol. 2011;334:49–55.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/j.mce.2010.04.021</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Taubert S, Hansen M, Van Gilst MR, Cooper SB, Yamamoto KR. The Mediator subunit MDT-15 confers metabolic adaptation to ingested material. PLoS Genet. 2008;4:e1000021.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1371/journal.pgen.1000021</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Pukkila-Worley R, Feinbaum RL, McEwan DL, Conery AL, Ausubel FM. The evolutionarily conserved mediator subunit MDT-15/MED15 links protective innate immune responses and xenobiotic detoxification. PLoS Pathog. 2014;10:e1004143.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1371/journal.ppat.1004143</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Sim S, Hibberd ML. Caenorhabditis elegans susceptibility to gut Enterococcus faecalis infection is associated with fat metabolism and epithelial junction integrity. BMC Microbiol. 2016;16:6.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1186/s12866-016-0624-8</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Dasgupta M, Shashikanth M, Gupta A, Sandhu A, De A, Javed S, Singh V. NHR-49 transcription factor regulates immunometabolic response and survival of Caenorhabditis elegans during Enterococcus faecalis infection. Infect Immun. 2020;88.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1128/IAI.00130-20</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Goh GYS, Winter JJ, Bhanshali F, Doering KRS, Lai R, Lee K, Veal EA, Taubert S. NHR-49/HNF4 integrates regulation of fatty acid metabolism with a protective transcriptional response to oxidative stress and fasting. Aging Cell. 2018;17:e12743.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1111/acel.12743</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Moreno-Arriola E, El Hafidi M, Ortega-Cuellar D, Carvajal K. AMP-activated protein kinase regulates oxidative metabolism in Caenorhabditis elegans through the NHR-49 and MDT-15 transcriptional regulators. PLoS One. 2016;11:e0148089.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1371/journal.pone.0148089</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Shivers RP, Pagano DJ, Kooistra T, Richardson CE, Reddy KC, Whitney JK, Kamanzi O, Matsumoto K, Hisamoto N, Kim DH. Phosphorylation of the conserved transcription factor ATF-7 by PMK-1 p38 MAPK regulates innate immunity in Caenorhabditis elegans. PLoS Genet. 2010;6:e1000892.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1371/journal.pgen.1000892</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Fletcher M, Tillman EJ, Butty VL, Levine SS, Kim DH. Global transcriptional regulation of innate immunity by ATF-7 in Caenorhabditis elegans. PLoS Genet. 2019;15:e1007830.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1371/journal.pgen.1007830</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Kim DH, Feinbaum R, Alloing G, Emerson FE, Garsin DA, Inoue H, Tanaka-Hino M, Hisamoto N, Matsumoto K, Tan MW, Ausubel FM. A conserved p38 MAP kinase pathway in Caenorhabditis elegans innate immunity. Science. 2002;297:623–626.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1126/science.1073759</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Giagulli C, Noerder M, Avolio M, Becker PD, Fiorentini S, Guzman CA, Caruso A. Pidotimod promotes functional maturation of dendritic cells and displays adjuvant properties at the nasal mucosa level. Int Immunopharmacol. 2009;9:1366–1373.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/j.intimp.2009.08.010</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Moy TI, Conery AL, Larkins-Ford J, Wu G, Mazitschek R, Casadei G, Lewis K, Carpenter AE, Ausubel FM. High-throughput screen for novel antimicrobials using a whole animal infection model. ACS Chem Biol. 2009;4:527–533.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1021/cb900084v</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Moy TI, Ball AR, Anklesaria Z, Casadei G, Lewis K, Ausubel FM. Identification of novel antimicrobials using a live-animal infection model. Proc Natl Acad Sci U S A. 2006;103:10414–10419.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1073/pnas.0604055103</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Hummell NA, Kirienko NV. Repurposing bioactive compounds for treating multidrug-resistant pathogens. J Med Microbiol. 2020;69:881–894.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1099/jmm.0.001172</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Bolz DD, Tenor JL, Aballay A. A conserved PMK-1/p38 MAPK is required in Caenorhabditis elegans tissue-specific immune response to Yersinia pestis infection. J Biol Chem. 2010;285:10832–10840.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1074/jbc.M109.091629</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Vellasco WT, Gomes CRB, Vasconcelos TRA. Chemistry and biological activities of 1,3-benzoxathiazol-2-ones. Mini-Rev Org Chem. 2011;8:103–109.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.2174/157019311793979882</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Shadyro OI, Timoshchuk VA, Polozov GI, Povalishev VN, Andreeva OT, Zhelobkovich VE. Synthesis and antiviral activity of spatially-screened phenols: 1,3-benzoxathiolan-2-one derivatives. Pharm Chem J. 1999;33:366–369.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1007/BF02508708</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Konieczny MT, Konieczny W, Sabisz M, Skladanowski A, Wakiec R, Augustynowicz-Kopec E, Zwolska Z. Synthesis of isomeric, oxathiolone fused chalcones, and comparison of their activity toward various microorganisms and human cancer cells line. Chem Pharm Bull (Tokyo). 2007;55:817–820.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1248/cpb.55.817</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Konieczny MT, Konieczny W, Sabisz M, Skladanowski A, Wakiec R, Augustynowicz-Kopec E, Zwolska Z. Acid-catalyzed synthesis of oxathiolone fused chalcones: comparison of their activity toward various microorganisms and human cancer cells line. Eur J Med Chem. 2007;42:729–733.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/j.ejmech.2006.12.014</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Abdeen S, Salim N, Mammadova N, Summers CM, Frankson R, Ambrose AJ, Anderson GG, Schultz PG, Horwich AL, Chapman E, Johnson SM. GroEL/ES inhibitors as potential antibiotics. Bioorg Med Chem Lett. 2016;26:3127–3134.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/j.bmcl.2016.04.089</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Johnson SM, Sharif O, Mak PA, Wang HT, Engels IH, Brinker A, Schultz PG, Horwich AL, Chapman E. A biochemical screen for GroEL/GroES inhibitors. Bioorg Med Chem Lett. 2014;24:786–789.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/j.bmcl.2013.12.100</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Tisdale MJGiraldi T, Connors TA, Cartei G. Triazenes: chemical, biological, and clinical aspects. 1989;15–22.</Citation>
+            </Reference>
+            <Reference>
+                <Citation>Foster BJ, Newell DR, Carmichael J, Harris AL, Gumbrell LA, Jones M, Goodard PM, Calvert AH. Preclinical, phase I, and pharmacokinetic studies with the dimethyl phenyltriazene CB10-277. Br J Cancer. 1993;67:362–368.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1038/bjc.1993.66</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Kanugula S, Pegg AE. Novel DNA repair alkyltransferase from Caenorhabditis elegans. Environ Mol Mutagen. 2001;38:235–243.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1002/em.1077</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Ermolaeva MA, Segref A, Dakhovnik A, Ou HL, Schneider JI, Utermohlen O, Hoppe T, Schumacher B. DNA damage in germ cells induces an innate immune response that triggers systemic stress resistance. Nature. 2013;501:416–420.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1038/nature12452</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Jeanneau-Nicolle E, Benoit-Guyod M, Namil A, Leclerc G. New thaizolo[3,2-a]pyrimidine derivatives, synthesis, and structure-activity relationships. Eur J Med Chem. 1992;27:115–120.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/0223-5234(92)90099-M</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Veretennikov EA, Pavlov AV. Synthesis of 5H-[1,3]thiazolo[3,2-a]pyrimidin-5-one derivatives. Russ J Org Chem. 2013;49:575–579.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1134/S1070428013040143</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Brenner S. The genetics of Caenorhabditis elegans. Genetics. 1974;77:71–94.</Citation>
+            </Reference>
+            <Reference>
+                <Citation>Beanan MJ, Strome S. Characterization of a germ-line proliferation mutation in C. elegans. Development. 1992;116:755–766.</Citation>
+            </Reference>
+            <Reference>
+                <Citation>Leiers B, Kampkotter A, Grevelding CG, Link CD, Johnson TE, Henkle-Duhrsen K. A stress-responsive glutathione S-transferase confers resistance to oxidative stress in Caenorhabditis elegans. Free Radic Biol Med. 2003;34:1405–1415.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1016/s0891-5849(03)00102-3</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Tsialikas JAY. xbp-1 mRNA splicing is attenuated under prolonged exposure to ER stress. 2017.</Citation>
+            </Reference>
+            <Reference>
+                <Citation>Lehrbach NJ, Ruvkun G. Proteasome dysfunction triggers activation of SKN-1A/Nrf1 by the aspartic protease DDI-1. Elife. 2016;5:e17721.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.7554/eLife.17721</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Tan MW, Mahajan-Miklos S, Ausubel FM. Killing of Caenorhabditis elegans by Pseudomonas aeruginosa used to model mammalian bacterial pathogenesis. Proc Natl Acad Sci U S A. 1999;96:715–720.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1073/pnas.96.2.715</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Schroth MN, Cho JJ, Green SK, Kominos SD. Epidemiology of Pseudomonas aeruginosa in agricultural areas. J Med Microbiol. 2018;67:1191–1201.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1099/jmm.0.000758</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Beabout K, McCurry MD, Mehta H, Shah AA, Pulukuri KK, Rigol S, Wang Y, Nicolaou KC, Shamoo Y. Experimental evolution of diverse strains as a method for the determination of biochemical mechanisms of action for novel pyrrolizidinone antibiotics. ACS Infect Dis. 2017;3:854–865.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1021/acsinfecdis.7b00135</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Conery AL, Larkins-Ford J, Ausubel FM, Kirienko NV. High-throughput screening for novel anti-infectives using a Caenorhabditis elegans pathogenesis model. Curr Protoc Chem Biol. 2014;6:25–37.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1002/9780470559277.ch130160</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Kirienko NV, Cezairliyan BO, Ausubel FM, Powell JR. Pseudomonas aeruginosa PA14 pathogenesis in Caenorhabditis elegans. Methods Mol Biol. 2014;1149:653–669.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1007/978-1-4939-0473-0_50</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Revtovich AV, Lee R, Kirienko NV. Interplay between mitochondria and diet mediates pathogen and stress resistance in Caenorhabditis elegans. PLoS Genet. 2019;15:e1008011.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1371/journal.pgen.1008011</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Steinbaugh MJ, Narasimhan SD, Robida-Stubbs S, Moronetti Mazzeo LE, Dreyfuss JM, Hourihan JM, Raghavan P, Operana TN, Esmaillie R, Blackwell TK. Lipid-mediated regulation of SKN-1/Nrf in response to germ cell absence. Elife. 2015;4:e07836.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.7554/eLife.07836</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Estes KA, Dunbar TL, Powell JR, Ausubel FM, Troemel ER. bZIP transcription factor zip-2 mediates an early response to Pseudomonas aeruginosa infection in Caenorhabditis elegans. Proc Natl Acad Sci U S A. 2010;107:2153–2158.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1073/pnas.0914643107</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Pukkila-Worley R, Ausubel FM, Mylonakis E. Candida albicans infection of Caenorhabditis elegans induces antifungal immune defenses. PLoS Pathog. 2011;7:e1002074.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1371/journal.ppat.1002074</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Huffman DL, Abrami L, Sasik R, Corbeil J, van der Goot FG, Aroian RV. Mitogen-activated protein kinase pathways defend against bacterial pore-forming toxins. Proc Natl Acad Sci U S A. 2004;101:10995–11000.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1073/pnas.0404073101</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>de Hoon MJ, Imoto S, Nolan J, Miyano S. Open source clustering software. Bioinformatics. 2004;20:1453–1454.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1093/bioinformatics/bth078</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Saldanha AJ. Java Treeview: extensible visualization of microarray data. Bioinformatics. 2004;20:3246–3248.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1093/bioinformatics/bth349</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Yang W, Dierking K, Schulenburg H. WormEXP: a web-based application for a Caenorhabditis elegans-specific gene expression enrichment analysis. Bioinformatics. 2016;32:943–945.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1093/bioinformatics/btv667</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Huang da W, Sherman BT, Lempicki RA. Systematic and integrative analysis of large gene lists using DAVID bioinformatics resources. Nat Protoc. 2009;4:44–57.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1038/nprot.2008.211</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>Huang da W, Sherman BT, Lempicki RA. Bioinformatics enrichment tools: paths toward the comprehensive functional analysis of large gene lists. Nucleic Acids Res. 2009;37:1–13.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1093/nar/gkn923</ArticleId>
+                </ArticleIdList>
+            </Reference>
+            <Reference>
+                <Citation>O’Boyle NM, Banck M, James CA, Morley C, Vandermeersch T, Hutchison GR. Open Babel: an open chemical toolbox. J Cheminform. 2011;3:33.</Citation>
+                <ArticleIdList>
+                    <ArticleId IdType="doi">10.1186/1758-2946-3-33</ArticleId>
+                </ArticleIdList>
+            </Reference>
+        </ReferenceList>
+    </PubmedData>
+</PubmedArticle>
+
+</PubmedArticleSet>

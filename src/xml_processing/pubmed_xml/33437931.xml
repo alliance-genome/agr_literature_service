@@ -1,0 +1,104 @@
+<?xml version="1.0" ?>
+<!DOCTYPE PubmedArticleSet PUBLIC "-//NLM//DTD PubMedArticle, 1st January 2019//EN" "https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_190101.dtd">
+<PubmedArticleSet>
+<PubmedArticle>
+    <MedlineCitation Status="PubMed-not-MEDLINE" Owner="NLM">
+        <PMID Version="1">33437931</PMID>
+        <DateRevised>
+            <Year>2021</Year>
+            <Month>01</Month>
+            <Day>13</Day>
+        </DateRevised>
+        <Article PubModel="Electronic">
+            <Journal>
+                <ISSN IssnType="Electronic">2578-9430</ISSN>
+                <JournalIssue CitedMedium="Internet">
+                    <Volume>2021</Volume>
+                    <PubDate>
+                        <Year>2021</Year>
+                        <Month>Jan</Month>
+                        <Day>08</Day>
+                    </PubDate>
+                </JournalIssue>
+                <Title>microPublication biology</Title>
+                <ISOAbbreviation>MicroPubl Biol</ISOAbbreviation>
+            </Journal>
+            <ArticleTitle>A histamine-gated channel is an efficient negative selection marker for <i>C. elegans</i> transgenesis.</ArticleTitle>
+            <ELocationID EIdType="doi" ValidYN="Y">10.17912/micropub.biology.000349</ELocationID>
+            <AuthorList CompleteYN="Y">
+                <Author ValidYN="Y">
+                    <LastName>El Mouridi</LastName>
+                    <ForeName>Sonia</ForeName>
+                    <Initials>S</Initials>
+                    <AffiliationInfo>
+                        <Affiliation>King Abdullah University of Science and Technology (KAUST), Biological and Environmental Science and Engineering Division (BESE), KAUST Environmental Epigenetics Program (KEEP), Thuwal, 23955-6900, Saudi Arabia.</Affiliation>
+                    </AffiliationInfo>
+                </Author>
+                <Author ValidYN="Y">
+                    <LastName>AlHarbi</LastName>
+                    <ForeName>Sarah</ForeName>
+                    <Initials>S</Initials>
+                    <AffiliationInfo>
+                        <Affiliation>King Abdullah University of Science and Technology (KAUST), Biological and Environmental Science and Engineering Division (BESE), KAUST Environmental Epigenetics Program (KEEP), Thuwal, 23955-6900, Saudi Arabia.</Affiliation>
+                    </AffiliationInfo>
+                </Author>
+                <Author ValidYN="Y">
+                    <LastName>Frøkjær-Jensen</LastName>
+                    <ForeName>Christian</ForeName>
+                    <Initials>C</Initials>
+                    <AffiliationInfo>
+                        <Affiliation>King Abdullah University of Science and Technology (KAUST), Biological and Environmental Science and Engineering Division (BESE), KAUST Environmental Epigenetics Program (KEEP), Thuwal, 23955-6900, Saudi Arabia.</Affiliation>
+                    </AffiliationInfo>
+                </Author>
+            </AuthorList>
+            <Language>eng</Language>
+            <PublicationTypeList>
+                <PublicationType UI="D016428">Journal Article</PublicationType>
+            </PublicationTypeList>
+            <ArticleDate DateType="Electronic">
+                <Year>2021</Year>
+                <Month>01</Month>
+                <Day>08</Day>
+            </ArticleDate>
+        </Article>
+        <MedlineJournalInfo>
+            <Country>United States</Country>
+            <MedlineTA>MicroPubl Biol</MedlineTA>
+            <NlmUniqueID>101759238</NlmUniqueID>
+            <ISSNLinking>2578-9430</ISSNLinking>
+        </MedlineJournalInfo>
+    </MedlineCitation>
+    <PubmedData>
+        <History>
+            <PubMedPubDate PubStatus="entrez">
+                <Year>2021</Year>
+                <Month>1</Month>
+                <Day>13</Day>
+                <Hour>6</Hour>
+                <Minute>14</Minute>
+            </PubMedPubDate>
+            <PubMedPubDate PubStatus="pubmed">
+                <Year>2021</Year>
+                <Month>1</Month>
+                <Day>14</Day>
+                <Hour>6</Hour>
+                <Minute>0</Minute>
+            </PubMedPubDate>
+            <PubMedPubDate PubStatus="medline">
+                <Year>2021</Year>
+                <Month>1</Month>
+                <Day>14</Day>
+                <Hour>6</Hour>
+                <Minute>1</Minute>
+            </PubMedPubDate>
+        </History>
+        <PublicationStatus>epublish</PublicationStatus>
+        <ArticleIdList>
+            <ArticleId IdType="pubmed">33437931</ArticleId>
+            <ArticleId IdType="doi">10.17912/micropub.biology.000349</ArticleId>
+            <ArticleId IdType="pmc">PMC7794662</ArticleId>
+        </ArticleIdList>
+    </PubmedData>
+</PubmedArticle>
+
+</PubmedArticleSet>
