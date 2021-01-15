@@ -18,6 +18,7 @@ waitress = "*"
 flask-apispec = "*"
 wheel = "*"
 xmltodict = "*"
+marshmallow-enum = "*"
 
 [requires]
 python_version = "3.6"

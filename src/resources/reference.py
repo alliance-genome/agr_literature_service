@@ -12,8 +12,6 @@ from flask_apispec import marshal_with
 from flask_apispec.views import MethodResource
 from flask_apispec.annotations import doc
 
-from marshmallow import Schema, fields
-
 from shared.models import db
 
 from references.models import Reference
@@ -23,7 +21,7 @@ from references.models import Pubmod
 #from references.models import Journal
 #from references.models import Title
 
-from references.schemas import ResourceSchema
+from references.schemas.reference import ReferenceSchema
 
 
 logger = logging.getLogger('literature logger')
@@ -94,7 +92,7 @@ class AddReferenceResource(MethodResource):
 
         return 'Created or Updated: AllianceReference:%s' % reference_id
 
-@marshal_with(ResourceSchema)
+@marshal_with(ReferenceSchema)
 @doc(description='Get Reference Data', tag=['references'])
 class GetReferenceResource(MethodResource):
     def get(self, id):
