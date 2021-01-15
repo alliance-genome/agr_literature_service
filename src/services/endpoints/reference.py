@@ -26,8 +26,8 @@ from references.schemas.reference import ReferenceSchema
 
 logger = logging.getLogger('literature logger')
 
-@doc(description='Add reference to resource', tags=['references'])
-class AddReferenceResource(MethodResource):
+@doc(description='Add reference', tags=['reference'])
+class AddReferenceEndpoint(MethodResource):
     def post(self):
         data_string = request.form['data']
         try:
@@ -93,8 +93,8 @@ class AddReferenceResource(MethodResource):
         return 'Created or Updated: AllianceReference:%s' % reference_id
 
 @marshal_with(ReferenceSchema)
-@doc(description='Get Reference Data', tag=['references'])
-class GetReferenceResource(MethodResource):
+@doc(description='Get Reference Data', tag=['reference'])
+class GetReferenceEndpoint(MethodResource):
     def get(self, id):
         reference = Reference.query.filter_by(id=id).one()
         return {'id': reference.id,

@@ -1,5 +1,9 @@
 from shared.models import db
 
+from .schemas.referenceTag import TagName
+from .schemas.referenceTag import TagSource
+from .schemas.allianceCategory import AllianceCategory
+
 class PrimaryId(db.Model):
     id = db.Column(db.String(20), primary_key=True)
     referenceId = db.Column(db.Integer, db.ForeignKey('reference.id'), nullable=False)
@@ -77,18 +81,7 @@ class Publisher(db.Model):
 class AllianceCategory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     referenceId = db.Column(db.Integer, db.ForeignKey('reference.id'), nullable=False)
-    string = db.Column(db.Enum("Research Article",
-                               "Review Article",
-                               "Thesis",
-                               "Book",
-                               "Other",
-                               "Preprint",
-                               "Conference Publication",
-                               "Personal Communication",
-                               "Direct Data Submission",
-                               "Internal Process Reference",
-                               "Unknown",
-                               "Retraction"), unique=False, nullable=True)
+    string = db.Column(db.Enum(AllianceCategory), unique=False, nullable=True)
 
 class ModReferenceTypes(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -109,9 +102,9 @@ class IssueDate(db.Model):
 class Tags(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     referenceId = db.Column(db.Integer, db.ForeignKey('reference.id'), nullable=False)
-    tagName = db.Column(db.Enum("canShowImages", "PMCOpenAccess", "inCorpus", "notRelevant"),
+    tagName = db.Column(db.Enum(TagName),
                         unique=False, nullable=False)
-    tagSource = db.Column(db.Enum("SGD","ZFIN","RGD","WB","MGI","FB"), unique=False, nullable=False)
+    tagSource = db.Column(db.Enum(TagSource), unique=False, nullable=False)
 
 
 class MeshTerms(db.Model):
@@ -167,3 +160,6 @@ class Reference(db.Model):
     pubmods = db.relationship('Pubmod', backref='reference', lazy=True)
     resourceAbbreviation = db.relationship('ResourceAbbreviation' , backref='reference', lazy=True)
     dateTimeCreated = db.Column(db.DateTime)
+
+class Resource(db.Model):
+    id =  db.Column(db.Integer, primary_key=True)
