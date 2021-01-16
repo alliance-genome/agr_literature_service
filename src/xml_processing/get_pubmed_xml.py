@@ -4,6 +4,7 @@ import urllib
 import argparse
 
 import re
+import requests
 
 import os
 from os import path
@@ -12,6 +13,13 @@ import logging.config
 
 
 # python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
+# python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/wormbase_pmids
+
+# webenv
+# https://www.ncbi.nlm.nih.gov/books/NBK25498/#chapter3.Application_3_Retrieving_large
+
+# try using post like (works with 5000 in perl)
+# https://www.ncbi.nlm.nih.gov/books/NBK25498/#chapter3.Application_4_Finding_unique_se
 
 
 # Need to set up a queue that queries postgres to get a list of pubmed id that don't have a pubmed final flag
@@ -44,9 +52,18 @@ pmids_found = set()
 
 def download_pubmed_xml():
     pmids_joined = (',').join(pmids);
-    url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" + pmids_joined + "&retmode=xml"
-    f = urllib.urlopen(url)
-    xml_all = f.read()
+
+# default way without a library with get
+#     url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" + pmids_joined + "&retmode=xml"
+#     f = urllib.urlopen(url)
+#     xml_all = f.read()
+
+# post with requests library, works well for 10000 pmids
+    url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+    parameters = {'db': 'pubmed', 'retmode': 'xml', 'id': pmids_joined}
+    r = requests.post(url, data=parameters)
+    xml_all = r.text.encode('utf-8').strip()
+
     xml_split = xml_all.split("<PubmedArticle>")
     header = xml_split.pop(0);
     footer = "\n\n</PubmedArticleSet>"
