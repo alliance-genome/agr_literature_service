@@ -3,10 +3,15 @@ import time
 import urllib
 import argparse
 
+import re
+
+import os
 from os import path
 import logging
 import logging.config
 
+
+# python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 
 
 # Need to set up a queue that queries postgres to get a list of pubmed id that don't have a pubmed final flag
@@ -15,8 +20,6 @@ import logging.config
 
 # to get set of pmids with search term 'elegans'
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000
-
-pmids = []
 
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
@@ -36,16 +39,49 @@ args = vars(parser.parse_args())
 # todo: save this in an env variable
 storage_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/pubmed_xml/'
 
+pmids = []
+pmids_found = set()
+
 def download_pubmed_xml():
-  for pmid in pmids:
-#    add some validation here
-    url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" + pmid + "&retmode=xml"
-    filename = storage_path + pmid + '.xml'
-#     print url
-#     print filename
-    logger.info("Downloading %s into %s", url, filename)
-    urllib.urlretrieve(url, filename)
-    time.sleep( 5 )
+    pmids_joined = (',').join(pmids);
+    url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" + pmids_joined + "&retmode=xml"
+    f = urllib.urlopen(url)
+    xml_all = f.read()
+    xml_split = xml_all.split("<PubmedArticle>")
+    header = xml_split.pop(0);
+    footer = "\n\n</PubmedArticleSet>"
+
+    for n in range(len(xml_split)):
+        xml_split[n] = header + "<PubmedArticle>\n" + xml_split[n]
+        xml_split[n] = os.linesep.join([s for s in xml_split[n].splitlines() if s])
+
+    for n in range(len(xml_split) - 1):
+        xml_split[n] += footer
+
+    for xml in xml_split:
+        if re.search("<PMID[^>]*?>(\d+)</PMID>", xml):
+            pmid_group = re.search("<PMID[^>]*?>(\d+)</PMID>", xml)
+            pmid = pmid_group.group(1)
+            pmids_found.add(pmid)
+            filename = storage_path + pmid + '.xml'
+            f = open(filename, "w")
+            f.write(xml)
+            f.close()
+
+    for pmid in pmids:
+        if pmid not in pmids_found:
+            logger.info("PMID %s not found in pubmed query", pmid)
+
+# to process one by one
+#   for pmid in pmids:
+# #    add some validation here
+#     url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" + pmid + "&retmode=xml"
+#     filename = storage_path + pmid + '.xml'
+# #     print url
+# #     print filename
+#     logger.info("Downloading %s into %s", url, filename)
+#     urllib.urlretrieve(url, filename)
+#     time.sleep( 5 )
 
 
 
