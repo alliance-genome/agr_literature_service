@@ -59,6 +59,8 @@ def print_titles():
         filename = storage_path + pmid + '.xml'
         with open(filename) as xml_file: 
               
+            # xmltodict is treating html markup like <i>text</i> as xml, which is creating mistaken structure in the conversion.  
+            # may be better to parse full xml instead.
             data_dict = xmltodict.parse(xml_file.read()) 
             xml_file.close() 
         
