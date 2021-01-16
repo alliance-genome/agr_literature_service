@@ -14,8 +14,10 @@ from flask_apispec.extension import FlaskApiSpec
 
 from waitress import serve
 
-from resources.reference import AddReferenceResource
-from resources.reference import GetReferenceResource
+from services.endpoints.reference import AddReferenceEndpoint
+from services.endpoints.reference import GetReferenceEndpoint
+from services.endpoints.resource import AddResourceEndpoint
+from services.endpoints.resource import GetResourceEndpoint
 
 from shared.models import db
 
@@ -41,14 +43,23 @@ flask_app.app_context().push()
 docs = FlaskApiSpec(flask_app)
 
 reference_bp = Blueprint('references_api', __name__, url_prefix='/reference/')
-reference_bp.add_url_rule('/add/', view_func=AddReferenceResource.as_view('AddReferenceResource'))
+reference_bp.add_url_rule('/add/', view_func=AddReferenceEndpoint.as_view('AddReferenceEndpoint'))
 reference_bp.add_url_rule('/<string:id>/get/',
-                           view_func=GetReferenceResource.as_view('GetReferenceResource'))
+                           view_func=GetReferenceEndpoint.as_view('GetReferenceEndpoint'))
+
+resource_bp = Blueprint('resources_api', __name__, url_prefix='/resource/')
+resource_bp.add_url_rule('/add/', view_func=AddResourceEndpoint.as_view('AddResourceEndpoint'))
+resource_bp.add_url_rule('/<string:id>/get/',
+                           view_func=GetResourceEndpoint.as_view('GetResourceEndpoint'))
 
 app = flask_app
 app.register_blueprint(reference_bp)
-docs.register(AddReferenceResource, blueprint="references_api", endpoint='AddReferenceResource')
-docs.register(GetReferenceResource, blueprint="references_api", endpoint='GetReferenceResource')
+docs.register(AddReferenceEndpoint, blueprint="references_api", endpoint='AddReferenceEndpoint')
+docs.register(GetReferenceEndpoint, blueprint="references_api", endpoint='GetReferenceEndpoint')
+
+app.register_blueprint(resource_bp)
+docs.register(AddResourceEndpoint, blueprint="resources_api", endpoint='AddResourceEndpoint')
+docs.register(GetResourceEndpoint, blueprint="resources_api", endpoint='GetResourceEndpoint')
 
 
 if __name__ == "__main__":

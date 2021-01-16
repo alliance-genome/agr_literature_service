@@ -12,8 +12,6 @@ from flask_apispec import marshal_with
 from flask_apispec.views import MethodResource
 from flask_apispec.annotations import doc
 
-from marshmallow import Schema, fields
-
 from shared.models import db
 
 from references.models import Reference
@@ -23,10 +21,13 @@ from references.models import Pubmod
 #from references.models import Journal
 #from references.models import Title
 
+from references.schemas.reference import ReferenceSchema
+
+
 logger = logging.getLogger('literature logger')
 
-@doc(description='Add reference to resource', tags=['references'])
-class AddReferenceResource(MethodResource):
+@doc(description='Add reference', tags=['reference'])
+class AddReferenceEndpoint(MethodResource):
     def post(self):
         data_string = request.form['data']
         try:
@@ -91,56 +92,9 @@ class AddReferenceResource(MethodResource):
 
         return 'Created or Updated: AllianceReference:%s' % reference_id
 
-
-
-class AuthorSchema(Schema):
-    id = fields.Int()
-    referenceId = fields.Int()
-    name = fields.Str()
-    firstName = fields.Str()
-    lastName = fields.Str()
-    #middleNames = fields.List(fields.Str())
-    #crossreferences
-
-class PubModIdSchema(Schema):
-    id = fields.Str()
-    mod = fields.Str()
-    datetimeCreated = fields.DateTime()
-
-class PubMedIdSchema(Schema):
-    id = fields.Str()
-    datetimeCreated = fields.Str()
-
-class ResourceSchema(Schema):
-    id = fields.Int()
-    primaryId = fields.Str()
-    title = fields.Str()
-    authors = fields.List(fields.Nested(AuthorSchema))
-    datePublished = fields.Str()
-    dateArrivedInPubMed = fields.Str()
-    dateLastModified = fields.Str()
-    volume = fields.Str()
-    pages = fields.Str()
-    abstract = fields.Str()
-    citation = fields.Str()
-    keywords = fields.List(fields.Str())
-    pubMedType = fields.Str()
-    publisher = fields.Str()
-    allianceCategory = fields.Str()
-    modReferenceTypes = fields.List(fields.Str())
-    issueName = fields.Str()
-    issueDate = fields.Str()
-    tags = fields.List(fields.Str())
-    meshTerms = fields.List(fields.Str())
-    # Crossreference
-    pubmedIDs = fields.List(fields.Nested(PubMedIdSchema))
-    pubmodIDs = fields.List(fields.Nested(PubModIdSchema))
-    resourceAbbreviation = fields.Str()
-    dateTimeCreated = fields.DateTime()
-
-@marshal_with(ResourceSchema)
-@doc(description='Get Reference Data', tag=['references'])
-class GetReferenceResource(MethodResource):
+@marshal_with(ReferenceSchema)
+@doc(description='Get Reference Data', tag=['reference'])
+class GetReferenceEndpoint(MethodResource):
     def get(self, id):
         reference = Reference.query.filter_by(id=id).one()
         return {'id': reference.id,
