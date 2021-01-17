@@ -1,7 +1,7 @@
 import json 
 import xmltodict 
 
-#  python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
+#  python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 
 
 

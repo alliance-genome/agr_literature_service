@@ -72,6 +72,7 @@ def download_pubmed_xml():
 
         xml_split = xml_all.split("\n<Pubmed")		# some types are not PubmedArticle, like PubmedBookArticle, e.g. 32644453
         header = xml_split.pop(0);
+        header = header + "\n<Pubmed" + xml_split.pop(0);
         footer = "\n\n</PubmedArticleSet>"
 
         for n in range(len(xml_split)):
