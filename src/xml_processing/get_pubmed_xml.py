@@ -51,39 +51,52 @@ pmids = []
 pmids_found = set()
 
 def download_pubmed_xml():
-    pmids_joined = (',').join(pmids);
+      # 4.5 minutes to download 28936 wormbase records in 10000 chunks
+    pmids_slice_size = 10000
+    for index in range(0, len(pmids), pmids_slice_size):
+        pmids_slice = pmids[index:index + pmids_slice_size]
+        pmids_joined = (',').join(pmids_slice);
+        logger.info("processing PMIDs %s", pmids_joined)
 
-# default way without a library with get
-#     url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" + pmids_joined + "&retmode=xml"
-#     f = urllib.urlopen(url)
-#     xml_all = f.read()
+#         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=33046903&retmode=xml"
 
-# post with requests library, works well for 10000 pmids
-    url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
-    parameters = {'db': 'pubmed', 'retmode': 'xml', 'id': pmids_joined}
-    r = requests.post(url, data=parameters)
-    xml_all = r.text.encode('utf-8').strip()
+#         default way without a library, using get
+#         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" + pmids_joined + "&retmode=xml"
+#         print url
+#         f = urllib.urlopen(url)
+#         xml_all = f.read()
 
-    xml_split = xml_all.split("<PubmedArticle>")
-    header = xml_split.pop(0);
-    footer = "\n\n</PubmedArticleSet>"
+#         using post with requests library, works well for 10000 pmids
+        url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+        parameters = {'db': 'pubmed', 'retmode': 'xml', 'id': pmids_joined}
+        r = requests.post(url, data=parameters)
+        xml_all = r.text.encode('utf-8').strip()
 
-    for n in range(len(xml_split)):
-        xml_split[n] = header + "<PubmedArticle>\n" + xml_split[n]
-        xml_split[n] = os.linesep.join([s for s in xml_split[n].splitlines() if s])
+        xml_split = xml_all.split("<PubmedArticle>")
+        header = xml_split.pop(0);
+        footer = "\n\n</PubmedArticleSet>"
 
-    for n in range(len(xml_split) - 1):
-        xml_split[n] += footer
+        for n in range(len(xml_split)):
+            xml_split[n] = header + "<PubmedArticle>\n" + xml_split[n]
+            xml_split[n] = os.linesep.join([s for s in xml_split[n].splitlines() if s])
 
-    for xml in xml_split:
-        if re.search("<PMID[^>]*?>(\d+)</PMID>", xml):
-            pmid_group = re.search("<PMID[^>]*?>(\d+)</PMID>", xml)
-            pmid = pmid_group.group(1)
-            pmids_found.add(pmid)
-            filename = storage_path + pmid + '.xml'
-            f = open(filename, "w")
-            f.write(xml)
-            f.close()
+        for n in range(len(xml_split) - 1):
+            xml_split[n] += footer
+
+        for xml in xml_split:
+#             print xml		# <PubmedArticle> doesn't work with 32644453
+            if re.search("<PMID[^>]*?>(\d+)</PMID>", xml):
+                pmid_group = re.search("<PMID[^>]*?>(\d+)</PMID>", xml)
+                pmid = pmid_group.group(1)
+                pmids_found.add(pmid)
+                filename = storage_path + pmid + '.xml'
+                f = open(filename, "w")
+                f.write(xml)
+                f.close()
+
+        if len(pmids_slice) == pmids_slice_size:
+            logger.info("waiting to process more pmids")
+            time.sleep( 5 )
 
     for pmid in pmids:
         if pmid not in pmids_found:
