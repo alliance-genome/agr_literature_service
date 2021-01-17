@@ -51,7 +51,7 @@ pmids = []
 pmids_found = set()
 
 def download_pubmed_xml():
-      # 4.5 minutes to download 28936 wormbase records in 10000 chunks
+      # 4.5 minutes to download 28994 wormbase records in 10000 chunks
     pmids_slice_size = 10000
     for index in range(0, len(pmids), pmids_slice_size):
         pmids_slice = pmids[index:index + pmids_slice_size]
@@ -70,19 +70,18 @@ def download_pubmed_xml():
         r = requests.post(url, data=parameters)
         xml_all = r.text.encode('utf-8').strip()
 
-        xml_split = xml_all.split("<PubmedArticle>")
+        xml_split = xml_all.split("\n<Pubmed")		# some types are not PubmedArticle, like PubmedBookArticle, e.g. 32644453
         header = xml_split.pop(0);
         footer = "\n\n</PubmedArticleSet>"
 
         for n in range(len(xml_split)):
-            xml_split[n] = header + "<PubmedArticle>\n" + xml_split[n]
+            xml_split[n] = header + "\n<Pubmed" + xml_split[n]
             xml_split[n] = os.linesep.join([s for s in xml_split[n].splitlines() if s])
 
         for n in range(len(xml_split) - 1):
             xml_split[n] += footer
 
         for xml in xml_split:
-#             print xml		# <PubmedArticle> doesn't work with 32644453
             if re.search("<PMID[^>]*?>(\d+)</PMID>", xml):
                 pmid_group = re.search("<PMID[^>]*?>(\d+)</PMID>", xml)
                 pmid = pmid_group.group(1)
