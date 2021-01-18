@@ -18,4 +18,4 @@ class ResourceSchema(Schema):
     volumes = fields.List(fields.Str())
     pages = fields.Int()
     abstractOrSummary = fields.Str()
-    crossReferences = fields.List(fields.Nested(CrossReferenceSchema))
+    #crossReferences = fields.List(fields.Nested(CrossReferenceSchema))

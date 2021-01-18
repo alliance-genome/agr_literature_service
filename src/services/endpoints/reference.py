@@ -14,9 +14,9 @@ from flask_apispec.annotations import doc
 
 from shared.models import db
 
-from references.models import Reference
-from references.models import Pubmed
-from references.models import Pubmod
+from references.models.reference import Reference
+from references.models.reference import Pubmed
+from references.models.reference import Pubmod
 
 #from references.models import Journal
 #from references.models import Title
@@ -36,61 +36,61 @@ class AddReferenceEndpoint(MethodResource):
             return print(e)
 
         #Create and/or Find reference record by ID
-        reference_id = None
-        if 'reference_id' in data:
-            reference_obj_from_db = Reference.query.filter_by(id=data['reference_id']).first()
+        id = None
+        if 'id' in data:
+            reference_obj_from_db = Reference.query.filter_by(id=data['id']).first()
             if reference_obj_from_db:
-               reference_id = data['reference_id']
+               id = data['id']
             else:
                return "Supplied 'reference_id' not in database"
-        if reference_id == None and 'pubmed_id' in data:
-            pubmed_obj_from_db = Pubmed.query.filter_by(id=data['pubmed_id']).first()
+        if id == None and 'pubmedId' in data:
+            pubmed_obj_from_db = Pubmed.query.filter_by(id=data['pubmedId']).first()
             if pubmed_obj_from_db:
-                reference_id = pubmed_obj_from_db.referenceId
-        elif reference_id == None and 'pubmod_id' in data:
-            pubmod_obj_from_db = Pubmod.query.filter_by(id=data['pubmod_id']).first()
+                id = pubmed_obj_from_db.referenceId
+        elif reference_id == None and 'pubmodId' in data:
+            pubmod_obj_from_db = Pubmod.query.filter_by(id=data['pubmodId']).first()
             if pubmod_obj_from_db:
-                reference_id = pubmod_obj_from_db.referenceId
+                id = pubmod_obj_from_db.referenceId
 
         datetime_now = datetime.now(timezone.utc)
 
-        if reference_id == None:
-            reference_obj = Reference(dateTimeCreated=datetime_now)
+        if id == None:
+            reference = Reference(dateTimeCreated=datetime_now)
         else:
-            reference_obj = Reference.query.filter_by(id=reference_id).first()
+            reference = Reference.query.filter_by(id=id).first()
 
 
 
 
         #add secondary IDs to database
-        if 'pubmed_id' in data:
-            pubmed_obj_from_db = Pubmed.query.filter_by(id=data['pubmed_id']).first()
-            if not pubmed_obj_from_db:
+        if 'pubmedId' in data:
+            pubmed = Pubmed.query.filter_by(id=data['pubmedId']).first()
+            if not pubmed:
                 print("Adding pubmed_id to database")
                 db.session.add(reference_obj)
-                pubmed_obj = Pubmed(id=data['pubmed_id'], reference=reference_obj)
-                db.session.add(pubmed_obj)
+                pubmed = Pubmed(id=data['pubmedId'], reference=reference)
+                db.session.add(pubmed)
                 db.session.commit()
-                reference_id = Pubmed.query.filter_by(id=data['pubmed_id']).first().referenceId
-        if 'pubmod_id' in data:
+                id = Pubmed.query.filter_by(id=data['pubmedId']).first().referenceId
+        if 'pubmodId' in data:
             if 'mod' not in data:
                 return "'mod' field required if adding 'pubmod_id'"
-            print(data['pubmod_id'])
-            pubmod_obj_from_db = Pubmod.query.filter_by(id=data['pubmod_id']).first()
-            if not pubmod_obj_from_db:
+            print(data['pubmodId'])
+            pubmod = Pubmod.query.filter_by(id=data['pubmodId']).first()
+            if not pubmod:
                 print("Adding PubMod ID to Database")
-                logger.info("Adding PubMod ID to database: ", data['pubmod_id'])
-                db.session.add(reference_obj)
-                pubmod_obj = Pubmod(id=data['pubmod_id'], mod=data['mod'], reference=reference_obj)
-                db.session.add(pubmod_obj)
+                logger.info("Adding PubMod ID to database: ", data['pubmodId'])
+                db.session.add(reference)
+                pubmod = Pubmod(id=data['pubmod_id'], mod=data['mod'], reference=reference)
+                db.session.add(pubmod)
                 db.session.commit()
-                reference_id = Pubmod.query.filter_by(id=data['pubmod_id']).first().referenceId
+                id = Pubmod.query.filter_by(id=data['pubmodId']).first().referenceId
 
         if 'title' in data:
             print("Adding title")
 
 
-        return 'Created or Updated: AllianceReference:%s' % reference_id
+        return 'Created or Updated: AllianceReference:%s' % id
 
 @marshal_with(ReferenceSchema)
 @doc(description='Get Reference Data', tag=['reference'])
