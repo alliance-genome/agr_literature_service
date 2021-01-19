@@ -73,6 +73,9 @@ python src/xml_processing/get_pubmed_xml.py -c 12345678 4576890 18280033
 ### Download xml from a database-based job (stub)
 python src/xml_processing/get_pubmed_xml.py -d
 
+### Download xml from a REST API-based job (stub)
+python src/xml_processing/get_pubmed_xml.py -r
+
 ### Download xml from a hardcoded sample
 python src/xml_processing/get_pubmed_xml.py -s
 

@@ -33,8 +33,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
 parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
 parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
-parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
+parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
 parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
+parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
 
 args = vars(parser.parse_args())
 
@@ -177,6 +178,9 @@ if __name__ == "__main__":
 #    python xml_to_json.py -d
     if args['database']:
         logger.info("Processing database entries")
+
+    elif args['restapi']:
+        logger.info("Processing rest api entries")
 
 #     python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
     elif args['file']:
