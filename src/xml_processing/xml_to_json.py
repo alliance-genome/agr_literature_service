@@ -53,7 +53,36 @@ storage_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processin
 #     urllib.urlretrieve(url, filename)
 #     time.sleep( 5 )
 
+
+def represents_int(s):
+    try: 
+        int(s)
+        return True
+    except ValueError:
+        return False
   
+def month_name_to_number_string(string):
+    m = {
+        'jan': '01',
+        'feb': '02',
+        'mar': '03',
+        'apr': '04',
+        'may': '05',
+        'jun': '06',
+        'jul': '07',
+        'aug': '08',
+        'sep': '09',
+        'oct': '10',
+        'nov': '11',
+        'dec': '12'
+        }
+    s = string.strip()[:3].lower()
+
+    try:
+        out = m[s]
+        return out
+    except:
+        raise ValueError(string + ' is not a month')
   
 def generate_json():
     # open input xml file and read data in form of python dictionary using xmltodict module 
@@ -102,11 +131,11 @@ def generate_json():
             if re.findall("<PublicationType>(.+?)</PublicationType>", xml):
                 types_group = re.findall("<PublicationType>(.+?)</PublicationType>", xml)
                 print types_group
-                data_dict['types'] = types_group
+                data_dict['pubMedType'] = types_group
             elif re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml):
                 types_group = re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml)
                 print types_group
-                data_dict['types'] = types_group
+                data_dict['pubMedType'] = types_group
 
             if re.search("<ArticleId IdType=\"doi\">(.+?)</ArticleId>", xml):
                 doi_group = re.search("<ArticleId IdType=\"doi\">(.+?)</ArticleId>", xml)
@@ -141,6 +170,40 @@ def generate_json():
                     authors_list.append(author_dict)
                 data_dict['authors'] = authors_list
 
+            if re.search("<PubDate>(.+?)</PubDate>", xml, re.DOTALL):
+                pub_date_group = re.search("<PubDate>(.+?)</PubDate>", xml, re.DOTALL)
+                pub_date = pub_date_group.group(1)
+#                 print pub_date
+                year = '';
+                month = '';
+                day = '';
+                date_list = []
+                if re.search("<Year>(.+?)</Year>", pub_date, re.DOTALL):
+                    year_group = re.search("<Year>(.+?)</Year>", pub_date, re.DOTALL)
+                    year = year_group.group(1)
+                    date_list.append(year)
+                if re.search("<Month>(.+?)</Month>", pub_date):
+                    month_group = re.search("<Month>(.+?)</Month>", pub_date)
+                    month_text = month_group.group(1)
+                    if represents_int(month_text):
+                        month = month_text
+                    else:
+                        month = month_name_to_number_string(month_text)
+                    date_list.append(month)
+                if re.search("<Day>(.+?)</Day>", pub_date):
+                    day_group = re.search("<Day>(.+?)</Day>", pub_date)
+                    day = day_group.group(1)
+                    date_list.append(day)
+                date_string = "-".join(date_list)
+                print date_string
+                date_dict = {}
+                date_dict['date_string'] = date_string
+                date_dict['year'] = year
+                date_dict['month'] = month
+                date_dict['day'] = day
+                data_dict['datePublished'] = date_dict
+
+
 #   my ($journal) = $page =~ /<MedlineTA>(.+?)\<\/MedlineTA\>/i;
 #   my ($pages) = $page =~ /\<MedlinePgn\>(.+?)\<\/MedlinePgn\>/i;
 #   my ($volume) = $page =~ /\<Volume\>(.+?)\<\/Volume\>/i;
@@ -154,6 +217,15 @@ def generate_json():
 #   foreach (@xml_authors){
 #       my ($lastname, $initials) = $_ =~ /\<LastName\>(.+?)\<\/LastName\>.+\<Initials\>(.+?)\<\/Initials\>/i;
 #       my $author = $lastname . " " . $initials; push @authors, $author; }
+#   if ( $page =~ /\<PubDate\>(.+?)\<\/PubDate\>/si ) {
+#     my ($PubDate) = $page =~ /\<PubDate\>(.+?)\<\/PubDate\>/si;
+#     if ( $PubDate =~ /\<Year\>(.+?)\<\/Year\>/i ) { $year = $1; }
+#     if ( $PubDate =~ /\<Month\>(.+?)\<\/Month\>/i ) { $month = $1;
+#       if ($month_to_num{$month}) { $month = $month_to_num{$month}; }
+#       else {          # in one case 00013115 / pmid12167287, it says Jul-Sep
+#         foreach my $key (keys %month_to_num) {        # so see if it begins with any month and use that
+#           if ($month =~ m/^$key/) { $month = $month_to_num{$key}; } } } }
+#     if ( $PubDate =~ /\<Day\>(.+?)\<\/Day\>/i ) { $day = $1; if ($day =~ m/^0/) { $day =~ s/^0//; } } }
             
             # generate the object using json.dumps()  
             # corresponding to json data 
