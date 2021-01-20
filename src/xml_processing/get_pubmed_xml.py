@@ -59,6 +59,8 @@ def download_pubmed_xml():
         pmids_joined = (',').join(pmids_slice);
         logger.info("processing PMIDs %s", pmids_joined)
 
+#         https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=10074449&retmode=xml
+
 #         default way without a library, using get
 #         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" + pmids_joined + "&retmode=xml"
 #         print url
