@@ -3,6 +3,14 @@ import xmltodict
 
 #  python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 
+# update sample
+# cp pubmed_json/32542232.json pubmed_sample
+# cp pubmed_json/32644453.json pubmed_sample
+# cp pubmed_json/33408224.json pubmed_sample
+# cp pubmed_json/33002525.json pubmed_sample
+# cp pubmed_json/33440160.json pubmed_sample
+# cp pubmed_json/33410237.json pubmed_sample
+
 
 
 import argparse
@@ -111,6 +119,8 @@ def generate_json():
     # open input xml file and read data in form of python dictionary using xmltodict module 
     for pmid in pmids:
         filename = storage_path + pmid + '.xml'
+        if not path.exists(filename):
+            continue
         with open(filename) as xml_file: 
 
             xml = xml_file.read()
@@ -121,7 +131,7 @@ def generate_json():
 #             data_dict = xmltodict.parse(xml_file.read()) 
             xml_file.close() 
         
-            print (pmid)
+#             print (pmid)
 #             print (data_dict["PubmedArticleSet"]["PubmedArticle"]["MedlineCitation"]["Article"]["ArticleTitle"])
         #     if (data_dict["PubmedArticleSet"]["PubmedArticle"]["MedlineCitation"]["Article"]["ArticleTitle"])
 
@@ -130,46 +140,46 @@ def generate_json():
             if re.search("<ArticleTitle>(.+?)</ArticleTitle>", xml):
                 title_group = re.search("<ArticleTitle>(.+?)</ArticleTitle>", xml)
                 title = title_group.group(1)
-                print title
+#                 print title
                 data_dict['title'] = title
 
             if re.search("<MedlineTA>(.+?)</MedlineTA>", xml):
                 journal_group = re.search("<MedlineTA>(.+?)</MedlineTA>", xml)
                 journal = journal_group.group(1)
-                print journal
+#                 print journal
                 data_dict['journal'] = journal
 
             if re.search("<MedlinePgn>(.+?)</MedlinePgn>", xml):
                 pages_group = re.search("<MedlinePgn>(.+?)</MedlinePgn>", xml)
                 pages = pages_group.group(1)
-                print pages
+#                 print pages
                 data_dict['pages'] = pages
 
             if re.search("<Volume>(.+?)</Volume>", xml):
                 volume_group = re.search("<Volume>(.+?)</Volume>", xml)
                 volume = volume_group.group(1)
-                print volume
+#                 print volume
                 data_dict['volume'] = volume
 
             if re.search("<Issue>(.+?)</Issue>", xml):
                 issue_group = re.search("<Issue>(.+?)</Issue>", xml)
                 issue = issue_group.group(1)
-                print issue
+#                 print issue
                 data_dict['issueName'] = issue
 
             if re.findall("<PublicationType>(.+?)</PublicationType>", xml):
                 types_group = re.findall("<PublicationType>(.+?)</PublicationType>", xml)
-                print types_group
+#                 print types_group
                 data_dict['pubMedType'] = types_group
             elif re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml):
                 types_group = re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml)
-                print types_group
+#                 print types_group
                 data_dict['pubMedType'] = types_group
 
             if re.search("<ArticleId IdType=\"doi\">(.+?)</ArticleId>", xml):
                 doi_group = re.search("<ArticleId IdType=\"doi\">(.+?)</ArticleId>", xml)
                 doi = doi_group.group(1)
-                print doi
+#                 print doi
                 data_dict['doi'] = doi
 
             # this will need to be restructured to match schema
@@ -193,12 +203,20 @@ def generate_json():
                         firstinit = firstinit_group.group(1)
                     fullname = firstname + ' ' + lastname
                     author_dict = {}
+#                     if (firstname and firstinit):
+#                         print "GOOD\t" + pmid
+#                     elif firstname:
+#                         print "FN\t" + pmid + "\t" + firstname
+#                     elif firstinit:
+#                         print "FI\t" + pmid + "\t" + firstinit
+#                     else:
+#                         print "NO\t" + pmid
                     author_dict["firstname"] = firstname
                     author_dict["firstinit"] = firstinit
                     author_dict["lastname"] = lastname
-                    author_dict["fullname"] = fullname
+                    author_dict["name"] = fullname
                     author_dict["authorRank"] = authors_rank
-                    print fullname
+#                     print fullname
                     authors_list.append(author_dict)
                 data_dict['authors'] = authors_list
 
@@ -213,7 +231,7 @@ def generate_json():
                 date_list = get_year_month_day_from_xml_date(pub_date)
                 if date_list[0]:
                     date_string = "-".join(date_list)
-                    print date_string
+#                     print date_string
                     date_dict = {}
                     date_dict['date_string'] = date_string
                     date_dict['year'] = date_list[0]
@@ -228,7 +246,7 @@ def generate_json():
                 date_list = get_year_month_day_from_xml_date(date_revised)
                 if date_list[0]:
                     date_string = "-".join(date_list)
-                    print date_string
+#                     print date_string
                     date_dict = {}
                     date_dict['date_string'] = date_string
                     date_dict['year'] = date_list[0]
@@ -239,7 +257,7 @@ def generate_json():
             if re.search("<PublisherName>(.+?)</PublisherName>", xml):
                 publisher_group = re.search("<PublisherName>(.+?)</PublisherName>", xml)
                 publisher = publisher_group.group(1)
-                print publisher
+#                 print publisher
                 data_dict['publisher'] = publisher
 
             if re.findall("<Keyword .*?>(.+?)</Keyword>", xml, re.DOTALL):
@@ -282,6 +300,7 @@ def generate_json():
             json_data = json.dumps(data_dict, indent=4, sort_keys=True) 
         
             # Write the json data to output json file 
+# UNCOMMENT TO write to json directory
             json_storage_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/pubmed_json/'
             json_filename = json_storage_path + pmid + '.json'
             with open(json_filename, "w") as json_file: 

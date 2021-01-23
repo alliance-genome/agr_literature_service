@@ -5,50 +5,50 @@
             "authorRank": 1, 
             "firstinit": "C", 
             "firstname": "Christian", 
-            "fullname": "Christian B\u00fcchter", 
-            "lastname": "B\u00fcchter"
+            "lastname": "B\u00fcchter", 
+            "name": "Christian B\u00fcchter"
         }, 
         {
             "authorRank": 2, 
             "firstinit": "K", 
             "firstname": "Karoline", 
-            "fullname": "Karoline Koch", 
-            "lastname": "Koch"
+            "lastname": "Koch", 
+            "name": "Karoline Koch"
         }, 
         {
             "authorRank": 3, 
             "firstinit": "M", 
             "firstname": "Martin", 
-            "fullname": "Martin Freyer", 
-            "lastname": "Freyer"
+            "lastname": "Freyer", 
+            "name": "Martin Freyer"
         }, 
         {
             "authorRank": 4, 
             "firstinit": "S", 
             "firstname": "Sabrina", 
-            "fullname": "Sabrina Baier", 
-            "lastname": "Baier"
+            "lastname": "Baier", 
+            "name": "Sabrina Baier"
         }, 
         {
             "authorRank": 5, 
             "firstinit": "C", 
             "firstname": "Christina", 
-            "fullname": "Christina Saier", 
-            "lastname": "Saier"
+            "lastname": "Saier", 
+            "name": "Christina Saier"
         }, 
         {
             "authorRank": 6, 
             "firstinit": "S", 
             "firstname": "Sebastian", 
-            "fullname": "Sebastian Honnen", 
-            "lastname": "Honnen"
+            "lastname": "Honnen", 
+            "name": "Sebastian Honnen"
         }, 
         {
             "authorRank": 7, 
             "firstinit": "W", 
             "firstname": "Wim", 
-            "fullname": "Wim W\u00e4tjen", 
-            "lastname": "W\u00e4tjen"
+            "lastname": "W\u00e4tjen", 
+            "name": "Wim W\u00e4tjen"
         }
     ], 
     "dateLastModified": {

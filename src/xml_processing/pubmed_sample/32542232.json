@@ -4,15 +4,15 @@
             "authorRank": 1, 
             "firstinit": "AK", 
             "firstname": "Alicia Kathryn", 
-            "fullname": "Alicia Kathryn Rogers", 
-            "lastname": "Rogers"
+            "lastname": "Rogers", 
+            "name": "Alicia Kathryn Rogers"
         }, 
         {
             "authorRank": 2, 
             "firstinit": "CM", 
             "firstname": "Carolyn Marie", 
-            "fullname": "Carolyn Marie Phillips", 
-            "lastname": "Phillips"
+            "lastname": "Phillips", 
+            "name": "Carolyn Marie Phillips"
         }
     ], 
     "dateLastModified": {

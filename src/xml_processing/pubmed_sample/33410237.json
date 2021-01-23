@@ -5,36 +5,36 @@
             "authorRank": 1, 
             "firstinit": "M", 
             "firstname": "Muhan", 
-            "fullname": "Muhan Hu", 
-            "lastname": "Hu"
+            "lastname": "Hu", 
+            "name": "Muhan Hu"
         }, 
         {
             "authorRank": 2, 
             "firstinit": "E", 
             "firstname": "Ekta", 
-            "fullname": "Ekta Tiwary", 
-            "lastname": "Tiwary"
+            "lastname": "Tiwary", 
+            "name": "Ekta Tiwary"
         }, 
         {
             "authorRank": 3, 
             "firstinit": "JK", 
             "firstname": "Jeevan K", 
-            "fullname": "Jeevan K Prasain", 
-            "lastname": "Prasain"
+            "lastname": "Prasain", 
+            "name": "Jeevan K Prasain"
         }, 
         {
             "authorRank": 4, 
             "firstinit": "M", 
             "firstname": "Michael", 
-            "fullname": "Michael Miller", 
-            "lastname": "Miller"
+            "lastname": "Miller", 
+            "name": "Michael Miller"
         }, 
         {
             "authorRank": 5, 
             "firstinit": "R", 
             "firstname": "Rosa", 
-            "fullname": "Rosa Serra", 
-            "lastname": "Serra"
+            "lastname": "Serra", 
+            "name": "Rosa Serra"
         }
     ], 
     "dateLastModified": {

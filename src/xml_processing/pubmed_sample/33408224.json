@@ -5,22 +5,22 @@
             "authorRank": 1, 
             "firstinit": "NA", 
             "firstname": "Nicholas A", 
-            "fullname": "Nicholas A Hummell", 
-            "lastname": "Hummell"
+            "lastname": "Hummell", 
+            "name": "Nicholas A Hummell"
         }, 
         {
             "authorRank": 2, 
             "firstinit": "AV", 
             "firstname": "Alexey V", 
-            "fullname": "Alexey V Revtovich", 
-            "lastname": "Revtovich"
+            "lastname": "Revtovich", 
+            "name": "Alexey V Revtovich"
         }, 
         {
             "authorRank": 3, 
             "firstinit": "NV", 
             "firstname": "Natalia V", 
-            "fullname": "Natalia V Kirienko", 
-            "lastname": "Kirienko"
+            "lastname": "Kirienko", 
+            "name": "Natalia V Kirienko"
         }
     ], 
     "dateLastModified": {

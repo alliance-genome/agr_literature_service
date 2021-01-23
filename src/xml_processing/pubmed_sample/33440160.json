@@ -5,29 +5,29 @@
             "authorRank": 1, 
             "firstinit": "IH", 
             "firstname": "In Hae", 
-            "fullname": "In Hae Lee", 
-            "lastname": "Lee"
+            "lastname": "Lee", 
+            "name": "In Hae Lee"
         }, 
         {
             "authorRank": 2, 
             "firstinit": "C", 
             "firstname": "Carl", 
-            "fullname": "Carl Procko", 
-            "lastname": "Procko"
+            "lastname": "Procko", 
+            "name": "Carl Procko"
         }, 
         {
             "authorRank": 3, 
             "firstinit": "Y", 
             "firstname": "Yun", 
-            "fullname": "Yun Lu", 
-            "lastname": "Lu"
+            "lastname": "Lu", 
+            "name": "Yun Lu"
         }, 
         {
             "authorRank": 4, 
             "firstinit": "S", 
             "firstname": "Shai", 
-            "fullname": "Shai Shaham", 
-            "lastname": "Shaham"
+            "lastname": "Shaham", 
+            "name": "Shai Shaham"
         }
     ], 
     "dateLastModified": {

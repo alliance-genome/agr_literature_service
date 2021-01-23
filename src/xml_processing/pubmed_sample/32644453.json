@@ -5,22 +5,22 @@
             "authorRank": 1, 
             "firstinit": "ME", 
             "firstname": "Michael E.", 
-            "fullname": "Michael E. Gyasi", 
-            "lastname": "Gyasi"
+            "lastname": "Gyasi", 
+            "name": "Michael E. Gyasi"
         }, 
         {
             "authorRank": 2, 
             "firstinit": "ON", 
             "firstname": "Ogugua N.", 
-            "fullname": "Ogugua N. Okonkwo", 
-            "lastname": "Okonkwo"
+            "lastname": "Okonkwo", 
+            "name": "Ogugua N. Okonkwo"
         }, 
         {
             "authorRank": 3, 
             "firstinit": "K", 
             "firstname": "Koushik", 
-            "fullname": "Koushik Tripathy", 
-            "lastname": "Tripathy"
+            "lastname": "Tripathy", 
+            "name": "Koushik Tripathy"
         }
     ], 
     "datePublished": {
