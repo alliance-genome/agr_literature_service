@@ -1,0 +1,72 @@
+{
+    "abstract": "The transparent epidermis of C. elegans makes it an attractive model to study sperm motility and migration within an intact reproductive tract. C. elegans synthesize specific F-series prostaglandins (PGFs) that are important for guiding sperm toward the spermatheca. These PGFs are synthesized from polyunsaturated fatty acid (PUFA) precursors, such as arachidonic acid (AA), via a novel pathway, independent of the classical cyclooxygenases (Cox) responsible for most PG synthesis. While the enzyme(s) responsible for PG synthesis has yet to be identified, the DAF-7 TGF\u00df pathway has been implicated in modulating PG levels and sperm guidance. We find that the reduced PGF levels in daf-1 Type I receptor mutants are responsible for the sperm guidance defect. The lower level of PGs in daf-1 mutants is due in part to the inaccessibility of AA. Finally, lipid analysis and assessment of sperm guidance in daf-1;daf-3 double mutants suggest DAF-3 suppresses PG production and sperm accumulation at the spermatheca. Our data suggest that DAF-3 functions in the nervous system, and possibly the germline, to affect sperm guidance. The C. elegans TGF\u00df pathway regulates many pathways to modulate PG metabolism and sperm guidance. These pathways likely function in the nervous system and possibly the germline. This article is protected by copyright. All rights reserved.", 
+    "authors": [
+        {
+            "authorRank": 1, 
+            "firstinit": "M", 
+            "firstname": "Muhan", 
+            "fullname": "Muhan Hu", 
+            "lastname": "Hu"
+        }, 
+        {
+            "authorRank": 2, 
+            "firstinit": "E", 
+            "firstname": "Ekta", 
+            "fullname": "Ekta Tiwary", 
+            "lastname": "Tiwary"
+        }, 
+        {
+            "authorRank": 3, 
+            "firstinit": "JK", 
+            "firstname": "Jeevan K", 
+            "fullname": "Jeevan K Prasain", 
+            "lastname": "Prasain"
+        }, 
+        {
+            "authorRank": 4, 
+            "firstinit": "M", 
+            "firstname": "Michael", 
+            "fullname": "Michael Miller", 
+            "lastname": "Miller"
+        }, 
+        {
+            "authorRank": 5, 
+            "firstinit": "R", 
+            "firstname": "Rosa", 
+            "fullname": "Rosa Serra", 
+            "lastname": "Serra"
+        }
+    ], 
+    "dateLastModified": {
+        "date_string": "2021-01-07", 
+        "day": "07", 
+        "month": "01", 
+        "year": "2021"
+    }, 
+    "datePublished": {
+        "date_string": "2021-01-07", 
+        "day": "07", 
+        "month": "01", 
+        "year": "2021"
+    }, 
+    "doi": "10.1002/dvdy.296", 
+    "issueDate": {
+        "date_string": "2021-01-07", 
+        "day": "07", 
+        "month": "01", 
+        "year": "2021"
+    }, 
+    "journal": "Dev Dyn", 
+    "keywords": [
+        "C. elegans", 
+        "daf-1", 
+        "daf-3", 
+        "daf-7", 
+        "oocyte", 
+        "sperm"
+    ], 
+    "pubMedType": [
+        "Journal Article"
+    ], 
+    "title": "Mechanisms of TGF\u00df in prostaglandin synthesis and sperm guidance in C. elegans."
+}

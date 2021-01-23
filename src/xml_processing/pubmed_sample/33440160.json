@@ -1,0 +1,68 @@
+{
+    "abstract": "Animal nervous systems remodel following stress. Although global stress-dependent changes are well documented, contributions of individual neuron remodeling events to animal behavior modification are challenging to study. In response to environmental insults, C.\u00a0elegans become stress-resistant dauers. Dauer entry induces amphid sensory organ remodeling in which bilateral AMsh glial cells expand and fuse, allowing embedded AWC chemosensory neurons to extend sensory receptive endings. We show that amphid remodeling correlates with accelerated dauer exit upon exposure to favorable conditions and identify a G protein-coupled receptor, REMO-1, driving AMsh glia fusion, AWC neuron remodeling, and dauer exit. REMO-1 is expressed in and localizes to AMsh glia tips, is dispensable for other remodeling events, and promotes stress-induced expression of the remodeling receptor tyrosine kinase VER-1. Our results demonstrate how single-neuron structural changes affect animal behavior, identify key glial roles in stress-induced nervous system plasticity, and demonstrate that remodeling primes animals to respond to favorable conditions.", 
+    "authors": [
+        {
+            "authorRank": 1, 
+            "firstinit": "IH", 
+            "firstname": "In Hae", 
+            "fullname": "In Hae Lee", 
+            "lastname": "Lee"
+        }, 
+        {
+            "authorRank": 2, 
+            "firstinit": "C", 
+            "firstname": "Carl", 
+            "fullname": "Carl Procko", 
+            "lastname": "Procko"
+        }, 
+        {
+            "authorRank": 3, 
+            "firstinit": "Y", 
+            "firstname": "Yun", 
+            "fullname": "Yun Lu", 
+            "lastname": "Lu"
+        }, 
+        {
+            "authorRank": 4, 
+            "firstinit": "S", 
+            "firstname": "Shai", 
+            "fullname": "Shai Shaham", 
+            "lastname": "Shaham"
+        }
+    ], 
+    "dateLastModified": {
+        "date_string": "2021-01-13", 
+        "day": "13", 
+        "month": "01", 
+        "year": "2021"
+    }, 
+    "datePublished": {
+        "date_string": "2021-01-12", 
+        "day": "12", 
+        "month": "01", 
+        "year": "2021"
+    }, 
+    "doi": "10.1016/j.celrep.2020.108607", 
+    "issueDate": {
+        "date_string": "2021-01-12", 
+        "day": "12", 
+        "month": "01", 
+        "year": "2021"
+    }, 
+    "issueName": "2", 
+    "journal": "Cell Rep", 
+    "keywords": [
+        "AWC neuron", 
+        "C. elegans", 
+        "REMO-1", 
+        "dauer", 
+        "glia", 
+        "nervous system remodeling"
+    ], 
+    "pages": "108607", 
+    "pubMedType": [
+        "Journal Article"
+    ], 
+    "title": "Stress-Induced Neural Plasticity Mediated by Glial GPCR REMO-1 Promotes C.\u00a0elegans Adaptive Behavior.", 
+    "volume": "34"
+}
