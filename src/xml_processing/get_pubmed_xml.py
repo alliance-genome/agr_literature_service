@@ -39,8 +39,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
 parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
 parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
-parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
+parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
 parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
+parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
 
 args = vars(parser.parse_args())
 
@@ -57,6 +58,8 @@ def download_pubmed_xml():
         pmids_slice = pmids[index:index + pmids_slice_size]
         pmids_joined = (',').join(pmids_slice);
         logger.info("processing PMIDs %s", pmids_joined)
+
+#         https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=10074449&retmode=xml
 
 #         default way without a library, using get
 #         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" + pmids_joined + "&retmode=xml"
@@ -119,6 +122,9 @@ if __name__ == "__main__":
 #    python get_pubmed_xml.py -d
     if args['database']:
         logger.info("Processing database entries")
+
+    elif args['restapi']:
+        logger.info("Processing rest api entries")
 
 #     python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/pmid_file.txt
     elif args['file']:

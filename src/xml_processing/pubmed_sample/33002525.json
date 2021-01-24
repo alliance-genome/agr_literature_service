@@ -1,0 +1,190 @@
+{
+    "abstract": "Beauvericin is an ubiquitous mycotoxin with relevant occurrence in food and feed. It causes a high toxicity in several cell lines, but its general mechanism of action is not fully understood and only limited in vivo studies have been performed. We used Caenorhabditis elegans as a model organism to investigate effects of beauvericin. The mycotoxin displays a moderate acute toxicity at 100 \u03bcM; at this concentration also reproductive toxicity occurred (reduction of total progeny to 32.1 %), developmental toxicity was detectable at 250 \u03bcM. However, even lower concentrations were capable to reduce stress resistance and life span of the nematode: A significant reduction was detected at 10 \u03bcM beauvericin (decrease in mean survival time of 4.3 % and reduction in life span of 12.9 %). An increase in lipofuscin fluorescence was demonstrated starting at 10 \u03bcM suggesting oxidative stress as a mechanism of beauvericin toxicity. Beauvericin (100 \u03bcM) increases the number of apoptotic germ cells comparable to the positive control UV-C (400 J/m<sup>2</sup>). Conclusion: Low concentrations of beauvericin are capable to cause adverse effects in C. elegans, which may be relevant for hazard identification of this compound.", 
+    "authors": [
+        {
+            "authorRank": 1, 
+            "firstinit": "C", 
+            "firstname": "Christian", 
+            "lastname": "B\u00fcchter", 
+            "name": "Christian B\u00fcchter"
+        }, 
+        {
+            "authorRank": 2, 
+            "firstinit": "K", 
+            "firstname": "Karoline", 
+            "lastname": "Koch", 
+            "name": "Karoline Koch"
+        }, 
+        {
+            "authorRank": 3, 
+            "firstinit": "M", 
+            "firstname": "Martin", 
+            "lastname": "Freyer", 
+            "name": "Martin Freyer"
+        }, 
+        {
+            "authorRank": 4, 
+            "firstinit": "S", 
+            "firstname": "Sabrina", 
+            "lastname": "Baier", 
+            "name": "Sabrina Baier"
+        }, 
+        {
+            "authorRank": 5, 
+            "firstinit": "C", 
+            "firstname": "Christina", 
+            "lastname": "Saier", 
+            "name": "Christina Saier"
+        }, 
+        {
+            "authorRank": 6, 
+            "firstinit": "S", 
+            "firstname": "Sebastian", 
+            "lastname": "Honnen", 
+            "name": "Sebastian Honnen"
+        }, 
+        {
+            "authorRank": 7, 
+            "firstinit": "W", 
+            "firstname": "Wim", 
+            "lastname": "W\u00e4tjen", 
+            "name": "Wim W\u00e4tjen"
+        }
+    ], 
+    "dateLastModified": {
+        "date_string": "2020-11-04", 
+        "day": "04", 
+        "month": "11", 
+        "year": "2020"
+    }, 
+    "datePublished": {
+        "date_string": "2020-11-01", 
+        "day": "01", 
+        "month": "11", 
+        "year": "2020"
+    }, 
+    "doi": "10.1016/j.toxlet.2020.09.016", 
+    "issueDate": {
+        "date_string": "2020-11-01", 
+        "day": "01", 
+        "month": "11", 
+        "year": "2020"
+    }, 
+    "journal": "Toxicol Lett", 
+    "keywords": [
+        "Apoptosis", 
+        "Beauvericin", 
+        "Caenorhabditis elegans", 
+        "Development", 
+        "Fertility", 
+        "Mycotoxin"
+    ], 
+    "meshTerms": [
+        {
+            "meshHeadingTerm": "Animals", 
+            "referenceId": "D000818"
+        }, 
+        {
+            "meshHeadingTerm": "Apoptosis", 
+            "referenceId": "D017209"
+        }, 
+        {
+            "meshQualfierTerm": "drug effects", 
+            "referenceId": "Q000187"
+        }, 
+        {
+            "meshHeadingTerm": "Caenorhabditis elegans", 
+            "referenceId": "D017173"
+        }, 
+        {
+            "meshQualfierTerm": "drug effects", 
+            "referenceId": "Q000187"
+        }, 
+        {
+            "meshQualfierTerm": "growth &amp; development", 
+            "referenceId": "Q000254"
+        }, 
+        {
+            "meshQualfierTerm": "metabolism", 
+            "referenceId": "Q000378"
+        }, 
+        {
+            "meshHeadingTerm": "Depsipeptides", 
+            "referenceId": "D047630"
+        }, 
+        {
+            "meshQualfierTerm": "toxicity", 
+            "referenceId": "Q000633"
+        }, 
+        {
+            "meshHeadingTerm": "Dose-Response Relationship, Drug", 
+            "referenceId": "D004305"
+        }, 
+        {
+            "meshHeadingTerm": "Fertility", 
+            "referenceId": "D005298"
+        }, 
+        {
+            "meshQualfierTerm": "drug effects", 
+            "referenceId": "Q000187"
+        }, 
+        {
+            "meshHeadingTerm": "Food Contamination", 
+            "referenceId": "D005506"
+        }, 
+        {
+            "meshHeadingTerm": "Germ Cells", 
+            "referenceId": "D005854"
+        }, 
+        {
+            "meshQualfierTerm": "drug effects", 
+            "referenceId": "Q000187"
+        }, 
+        {
+            "meshQualfierTerm": "pathology", 
+            "referenceId": "Q000473"
+        }, 
+        {
+            "meshHeadingTerm": "Lipofuscin", 
+            "referenceId": "D008062"
+        }, 
+        {
+            "meshQualfierTerm": "metabolism", 
+            "referenceId": "Q000378"
+        }, 
+        {
+            "meshHeadingTerm": "Longevity", 
+            "referenceId": "D008136"
+        }, 
+        {
+            "meshQualfierTerm": "drug effects", 
+            "referenceId": "Q000187"
+        }, 
+        {
+            "meshHeadingTerm": "Motor Activity", 
+            "referenceId": "D009043"
+        }, 
+        {
+            "meshQualfierTerm": "drug effects", 
+            "referenceId": "Q000187"
+        }, 
+        {
+            "meshHeadingTerm": "Mycotoxins", 
+            "referenceId": "D009183"
+        }, 
+        {
+            "meshQualfierTerm": "toxicity", 
+            "referenceId": "Q000633"
+        }, 
+        {
+            "meshHeadingTerm": "Toxicity Tests, Acute", 
+            "referenceId": "D023382"
+        }
+    ], 
+    "pages": "102-109", 
+    "pubMedType": [
+        "Journal Article"
+    ], 
+    "title": "The mycotoxin beauvericin impairs development, fertility and life span in the nematode Caenorhabditis elegans accompanied by increased germ cell apoptosis and lipofuscin accumulation.", 
+    "volume": "334"
+}

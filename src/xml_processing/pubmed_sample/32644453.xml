@@ -1,0 +1,152 @@
+<?xml version="1.0" ?>
+<!DOCTYPE PubmedArticleSet PUBLIC "-//NLM//DTD PubMedArticle, 1st January 2019//EN" "https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_190101.dtd">
+<PubmedArticleSet>
+<PubmedBookArticle>
+    <BookDocument>
+        <PMID Version="1">32644453</PMID>
+        <ArticleIdList>
+            <ArticleId IdType="bookaccession">NBK559027</ArticleId>
+        </ArticleIdList>
+        <Book>
+            <Publisher>
+                <PublisherName>StatPearls Publishing</PublisherName>
+                <PublisherLocation>Treasure Island (FL)</PublisherLocation>
+            </Publisher>
+            <BookTitle book="statpearls">StatPearls</BookTitle>
+            <PubDate>
+                <Year>2020</Year>
+                <Month>01</Month>
+            </PubDate>
+            <BeginningDate>
+                <Year>2020</Year>
+                <Month>01</Month>
+            </BeginningDate>
+            <Medium>Internet</Medium>
+        </Book>
+        <ArticleTitle book="statpearls" part="article-26176">Onchocerciasis</ArticleTitle>
+        <Language>eng</Language>
+        <AuthorList Type="authors">
+            <Author>
+                <LastName>Gyasi</LastName>
+                <ForeName>Michael E.</ForeName>
+                <Initials>ME</Initials>
+                <AffiliationInfo>
+                    <Affiliation>St. Thomas Eye Hospital</Affiliation>
+                </AffiliationInfo>
+            </Author>
+            <Author>
+                <LastName>Okonkwo</LastName>
+                <ForeName>Ogugua N.</ForeName>
+                <Initials>ON</Initials>
+                <AffiliationInfo>
+                    <Affiliation>Eye Foundation Hospital</Affiliation>
+                </AffiliationInfo>
+            </Author>
+            <Author>
+                <LastName>Tripathy</LastName>
+                <ForeName>Koushik</ForeName>
+                <Initials>K</Initials>
+            </Author>
+        </AuthorList>
+        <PublicationType UI="D016454">Review</PublicationType>
+        <Abstract>
+            <AbstractText>Onchocerciasis, also known as the African river blindness, is the second most important cause of infectious blindness worldwide after trachoma. It is caused by the filarial nematode, <i>Onchocerca volvulus</i>, and transmitted by repeated bites of the vector, female black fly of the genus <i>Simulium damnosum</i>. The vector breeds in fast-flowing and oxygen-rich rivers in affected areas with transmission and disease prevalence usually stretching along these river basins and thereby the name river blindness.[1] Aside from blindness, onchocerciasis results in a troubling chronic dermatitis.[1]</AbstractText>
+            <CopyrightInformation>Copyright © 2020, StatPearls Publishing LLC.</CopyrightInformation>
+        </Abstract>
+        <Sections>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s1">Introduction</SectionTitle>
+            </Section>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s2">Etiology</SectionTitle>
+            </Section>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s3">Epidemiology</SectionTitle>
+            </Section>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s4">Pathophysiology</SectionTitle>
+            </Section>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s5">Histopathology</SectionTitle>
+            </Section>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s6">History and Physical</SectionTitle>
+            </Section>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s7">Evaluation</SectionTitle>
+            </Section>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s8">Treatment / Management</SectionTitle>
+            </Section>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s9">Differential Diagnosis</SectionTitle>
+            </Section>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s10">Pertinent Studies and Ongoing Trials</SectionTitle>
+            </Section>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s11">Treatment Planning </SectionTitle>
+            </Section>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s12">Toxicity and Side Effect Management</SectionTitle>
+            </Section>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s13">Prognosis</SectionTitle>
+            </Section>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s14">Complications</SectionTitle>
+            </Section>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s15">Deterrence and Patient Education</SectionTitle>
+            </Section>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s16">Pearls and Other Issues</SectionTitle>
+            </Section>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s17">Enhancing Healthcare Team Outcomes </SectionTitle>
+            </Section>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s18">Continuing Education / Review Questions</SectionTitle>
+            </Section>
+            <Section>
+                <SectionTitle book="statpearls" part="article-26176" sec="article-26176.s23">References</SectionTitle>
+            </Section>
+        </Sections>
+        <ContributionDate>
+            <Year>2020</Year>
+            <Month>11</Month>
+            <Day>8</Day>
+        </ContributionDate>
+    </BookDocument>
+    <PubmedBookData>
+        <History>
+            <PubMedPubDate PubStatus="pubmed">
+                <Year>2020</Year>
+                <Month>7</Month>
+                <Day>10</Day>
+                <Hour>6</Hour>
+                <Minute>1</Minute>
+            </PubMedPubDate>
+            <PubMedPubDate PubStatus="medline">
+                <Year>2020</Year>
+                <Month>7</Month>
+                <Day>10</Day>
+                <Hour>6</Hour>
+                <Minute>1</Minute>
+            </PubMedPubDate>
+            <PubMedPubDate PubStatus="entrez">
+                <Year>2020</Year>
+                <Month>7</Month>
+                <Day>10</Day>
+                <Hour>6</Hour>
+                <Minute>1</Minute>
+            </PubMedPubDate>
+        </History>
+        <PublicationStatus>ppublish</PublicationStatus>
+        <ArticleIdList>
+            <ArticleId IdType="pubmed">32644453</ArticleId>
+        </ArticleIdList>
+    </PubmedBookData>
+</PubmedBookArticle>
+
+</PubmedArticleSet>

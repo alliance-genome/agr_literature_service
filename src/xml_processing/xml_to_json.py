@@ -3,6 +3,14 @@ import xmltodict
 
 #  python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 
+# update sample
+# cp pubmed_json/32542232.json pubmed_sample
+# cp pubmed_json/32644453.json pubmed_sample
+# cp pubmed_json/33408224.json pubmed_sample
+# cp pubmed_json/33002525.json pubmed_sample
+# cp pubmed_json/33440160.json pubmed_sample
+# cp pubmed_json/33410237.json pubmed_sample
+
 
 
 import argparse
@@ -33,8 +41,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
 parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
 parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
-parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
+parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
 parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
+parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
 
 args = vars(parser.parse_args())
 
@@ -52,12 +61,66 @@ storage_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processin
 #     urllib.urlretrieve(url, filename)
 #     time.sleep( 5 )
 
+
+def represents_int(s):
+    try: 
+        int(s)
+        return True
+    except ValueError:
+        return False
   
+def month_name_to_number_string(string):
+    m = {
+        'jan': '01',
+        'feb': '02',
+        'mar': '03',
+        'apr': '04',
+        'may': '05',
+        'jun': '06',
+        'jul': '07',
+        'aug': '08',
+        'sep': '09',
+        'oct': '10',
+        'nov': '11',
+        'dec': '12'
+        }
+    s = string.strip()[:3].lower()
+
+    try:
+        out = m[s]
+        return out
+    except:
+        raise ValueError(string + ' is not a month')
+
+def get_year_month_day_from_xml_date(pub_date):
+    date_list = []
+    year = '';
+    month = '01';
+    day = '01';
+    if re.search("<Year>(.+?)</Year>", pub_date, re.DOTALL):
+        year_group = re.search("<Year>(.+?)</Year>", pub_date, re.DOTALL)
+        year = year_group.group(1)
+    if re.search("<Month>(.+?)</Month>", pub_date):
+        month_group = re.search("<Month>(.+?)</Month>", pub_date)
+        month_text = month_group.group(1)
+        if represents_int(month_text):
+            month = month_text
+        else:
+            month = month_name_to_number_string(month_text)
+    if re.search("<Day>(.+?)</Day>", pub_date):
+        day_group = re.search("<Day>(.+?)</Day>", pub_date)
+        day = day_group.group(1)
+    date_list.append(year)
+    date_list.append(month)
+    date_list.append(day)
+    return date_list
   
 def generate_json():
     # open input xml file and read data in form of python dictionary using xmltodict module 
     for pmid in pmids:
         filename = storage_path + pmid + '.xml'
+        if not path.exists(filename):
+            continue
         with open(filename) as xml_file: 
 
             xml = xml_file.read()
@@ -68,7 +131,7 @@ def generate_json():
 #             data_dict = xmltodict.parse(xml_file.read()) 
             xml_file.close() 
         
-            print (pmid)
+#             print (pmid)
 #             print (data_dict["PubmedArticleSet"]["PubmedArticle"]["MedlineCitation"]["Article"]["ArticleTitle"])
         #     if (data_dict["PubmedArticleSet"]["PubmedArticle"]["MedlineCitation"]["Article"]["ArticleTitle"])
 
@@ -77,47 +140,55 @@ def generate_json():
             if re.search("<ArticleTitle>(.+?)</ArticleTitle>", xml):
                 title_group = re.search("<ArticleTitle>(.+?)</ArticleTitle>", xml)
                 title = title_group.group(1)
-                print title
+#                 print title
                 data_dict['title'] = title
 
             if re.search("<MedlineTA>(.+?)</MedlineTA>", xml):
                 journal_group = re.search("<MedlineTA>(.+?)</MedlineTA>", xml)
                 journal = journal_group.group(1)
-                print journal
+#                 print journal
                 data_dict['journal'] = journal
 
             if re.search("<MedlinePgn>(.+?)</MedlinePgn>", xml):
                 pages_group = re.search("<MedlinePgn>(.+?)</MedlinePgn>", xml)
                 pages = pages_group.group(1)
-                print pages
+#                 print pages
                 data_dict['pages'] = pages
 
             if re.search("<Volume>(.+?)</Volume>", xml):
                 volume_group = re.search("<Volume>(.+?)</Volume>", xml)
                 volume = volume_group.group(1)
-                print volume
+#                 print volume
                 data_dict['volume'] = volume
+
+            if re.search("<Issue>(.+?)</Issue>", xml):
+                issue_group = re.search("<Issue>(.+?)</Issue>", xml)
+                issue = issue_group.group(1)
+#                 print issue
+                data_dict['issueName'] = issue
 
             if re.findall("<PublicationType>(.+?)</PublicationType>", xml):
                 types_group = re.findall("<PublicationType>(.+?)</PublicationType>", xml)
-                print types_group
-                data_dict['types'] = types_group
+#                 print types_group
+                data_dict['pubMedType'] = types_group
             elif re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml):
                 types_group = re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml)
-                print types_group
-                data_dict['types'] = types_group
+#                 print types_group
+                data_dict['pubMedType'] = types_group
 
             if re.search("<ArticleId IdType=\"doi\">(.+?)</ArticleId>", xml):
                 doi_group = re.search("<ArticleId IdType=\"doi\">(.+?)</ArticleId>", xml)
                 doi = doi_group.group(1)
-                print doi
+#                 print doi
                 data_dict['doi'] = doi
 
             # this will need to be restructured to match schema
             if re.findall("<Author.*?>(.+?)</Author>", xml, re.DOTALL):
                 authors_group = re.findall("<Author.*?>(.+?)</Author>", xml, re.DOTALL)
                 authors_list = []
+                authors_rank = 0
                 for author_xml in authors_group:
+                    authors_rank = authors_rank + 1
                     lastname = ''
                     firstname = ''
                     firstinit = ''
@@ -132,27 +203,92 @@ def generate_json():
                         firstinit = firstinit_group.group(1)
                     fullname = firstname + ' ' + lastname
                     author_dict = {}
+#                     if (firstname and firstinit):
+#                         print "GOOD\t" + pmid
+#                     elif firstname:
+#                         print "FN\t" + pmid + "\t" + firstname
+#                     elif firstinit:
+#                         print "FI\t" + pmid + "\t" + firstinit
+#                     else:
+#                         print "NO\t" + pmid
                     author_dict["firstname"] = firstname
                     author_dict["firstinit"] = firstinit
                     author_dict["lastname"] = lastname
-                    author_dict["fullname"] = fullname
-                    print fullname
+                    author_dict["name"] = fullname
+                    author_dict["authorRank"] = authors_rank
+#                     print fullname
                     authors_list.append(author_dict)
                 data_dict['authors'] = authors_list
 
-#   my ($journal) = $page =~ /<MedlineTA>(.+?)\<\/MedlineTA\>/i;
-#   my ($pages) = $page =~ /\<MedlinePgn\>(.+?)\<\/MedlinePgn\>/i;
-#   my ($volume) = $page =~ /\<Volume\>(.+?)\<\/Volume\>/i;
-#   my ($title) = $page =~ /\<ArticleTitle\>(.+?)\<\/ArticleTitle\>/i;
-#   my (@types) = $page =~ /\<PublicationType\>(.+?)\<\/PublicationType\>/gi;
-#   unless ($types[0]) {
-#     (@types) = $page =~ /\<PublicationType UI=\".*?\"\>(.+?)\<\/PublicationType\>/gi; }
-#   my ($doi) = $page =~ /\<ArticleId IdType=\"doi\"\>(.+?)\<\/ArticleId\>/i; if ($doi) { $doi = 'doi' . $doi; }
-#   my @xml_authors = $page =~ /\<Author.*?\>(.+?)\<\/Author\>/ig;
-#   my @authors;
-#   foreach (@xml_authors){
-#       my ($lastname, $initials) = $_ =~ /\<LastName\>(.+?)\<\/LastName\>.+\<Initials\>(.+?)\<\/Initials\>/i;
-#       my $author = $lastname . " " . $initials; push @authors, $author; }
+# parse ORCID
+#                     <Identifier Source="ORCID">0000-0002-0184-8324</Identifier>
+
+
+            if re.search("<PubDate>(.+?)</PubDate>", xml, re.DOTALL):
+                pub_date_group = re.search("<PubDate>(.+?)</PubDate>", xml, re.DOTALL)
+                pub_date = pub_date_group.group(1)
+
+                date_list = get_year_month_day_from_xml_date(pub_date)
+                if date_list[0]:
+                    date_string = "-".join(date_list)
+#                     print date_string
+                    date_dict = {}
+                    date_dict['date_string'] = date_string
+                    date_dict['year'] = date_list[0]
+                    date_dict['month'] = date_list[1]
+                    date_dict['day'] = date_list[2]
+                    data_dict['datePublished'] = date_dict
+                    data_dict['issueDate'] = date_dict
+
+            if re.search("<DateRevised>(.+?)</DateRevised>", xml, re.DOTALL):
+                date_revised_group = re.search("<DateRevised>(.+?)</DateRevised>", xml, re.DOTALL)
+                date_revised = date_revised_group.group(1)
+                date_list = get_year_month_day_from_xml_date(date_revised)
+                if date_list[0]:
+                    date_string = "-".join(date_list)
+#                     print date_string
+                    date_dict = {}
+                    date_dict['date_string'] = date_string
+                    date_dict['year'] = date_list[0]
+                    date_dict['month'] = date_list[1]
+                    date_dict['day'] = date_list[2]
+                    data_dict['dateLastModified'] = date_dict
+
+            if re.search("<PublisherName>(.+?)</PublisherName>", xml):
+                publisher_group = re.search("<PublisherName>(.+?)</PublisherName>", xml)
+                publisher = publisher_group.group(1)
+#                 print publisher
+                data_dict['publisher'] = publisher
+
+            if re.findall("<Keyword .*?>(.+?)</Keyword>", xml, re.DOTALL):
+                keywords_group = re.findall("<Keyword .*?>(.+?)</Keyword>", xml, re.DOTALL)
+                data_dict['keywords'] = keywords_group
+
+            if re.findall("<AbstractText.*?>(.+?)</AbstractText>", xml, re.DOTALL):
+                abstracts_group = re.findall("<AbstractText.*?>(.+?)</AbstractText>", xml, re.DOTALL)
+                abstract = " ".join(abstracts_group)
+                data_dict['abstract'] = abstract
+
+            if re.findall("<MeshHeading>(.+?)</MeshHeading>", xml, re.DOTALL):
+                meshs_group = re.findall("<MeshHeading>(.+?)</MeshHeading>", xml, re.DOTALL)
+                meshs_list = []
+                for mesh_xml in meshs_group:
+                    if re.findall("<DescriptorName.*?UI=\"(.+?)\".*?>(.+?)</DescriptorName>", mesh_xml, re.DOTALL):
+                        descriptor_group = re.findall("<DescriptorName.*?UI=\"(.+?)\".*?>(.+?)</DescriptorName>", mesh_xml, re.DOTALL)
+                        for id_name in descriptor_group:
+                            mesh_dict = {}
+                            mesh_dict["referenceId"] = id_name[0]
+                            mesh_dict["meshHeadingTerm"] = id_name[1]
+                            meshs_list.append(mesh_dict)
+                    if re.findall("<QualifierName.*?UI=\"(.+?)\".*?>(.+?)</QualifierName>", mesh_xml, re.DOTALL):
+                        qualifier_group = re.findall("<QualifierName.*?UI=\"(.+?)\".*?>(.+?)</QualifierName>", mesh_xml, re.DOTALL)
+                        for id_name in qualifier_group:
+                            mesh_dict = {}
+                            mesh_dict["referenceId"] = id_name[0]
+                            mesh_dict["meshQualfierTerm"] = id_name[1]
+                            meshs_list.append(mesh_dict)
+                data_dict['meshTerms'] = meshs_list
+
             
             # generate the object using json.dumps()  
             # corresponding to json data 
@@ -164,6 +300,7 @@ def generate_json():
             json_data = json.dumps(data_dict, indent=4, sort_keys=True) 
         
             # Write the json data to output json file 
+# UNCOMMENT TO write to json directory
             json_storage_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/pubmed_json/'
             json_filename = json_storage_path + pmid + '.json'
             with open(json_filename, "w") as json_file: 
@@ -177,6 +314,9 @@ if __name__ == "__main__":
 #    python xml_to_json.py -d
     if args['database']:
         logger.info("Processing database entries")
+
+    elif args['restapi']:
+        logger.info("Processing rest api entries")
 
 #     python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
     elif args['file']:
