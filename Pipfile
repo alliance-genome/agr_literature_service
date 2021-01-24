@@ -19,6 +19,11 @@ flask-apispec = "*"
 wheel = "*"
 xmltodict = "*"
 marshmallow-enum = "*"
+flask-migrate = "*"
+flask-continuum = "*"
+flask-script = "*"
+python-dotenv = "*"
+psycopg2-binary = "*"
 
 [requires]
 python_version = "3.6"

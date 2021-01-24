@@ -1,4 +1,4 @@
 Pipfile.lock
 src/xml_processing/pubmed_json
 src/xml_processing/pubmed_xml
-
+.env

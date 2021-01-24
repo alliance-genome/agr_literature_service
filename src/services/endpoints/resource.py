@@ -56,7 +56,7 @@ class AddResourceEndpoint(MethodResource):
 
         return 'Created or Updated: AllianceResource:%s' % id
 
-@marshal_with(ResourceSchema)
+@marshal_with(ResourceSchema, envelope="data")
 @doc(description='Get Resource Data', tag=['reference'])
 class GetResourceEndpoint(MethodResource):
     def get(self, id):
