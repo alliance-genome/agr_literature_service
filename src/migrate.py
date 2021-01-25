@@ -30,5 +30,6 @@ from references.models.resource import ResourceEditor
 from references.models.resource import ResourceVolume
 from references.models.resource import Resource
 
+
 if __name__ == '__main__':
     manager.run()
