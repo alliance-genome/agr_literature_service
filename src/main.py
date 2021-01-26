@@ -39,7 +39,6 @@ flask_app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/test.db'
 flask_app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 
 db.init_app(flask_app)
-flask_app.app_context().push()
 docs = FlaskApiSpec(flask_app)
 
 reference_bp = Blueprint('references_api', __name__, url_prefix='/reference/')

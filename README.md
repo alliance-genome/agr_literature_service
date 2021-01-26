@@ -1,4 +1,4 @@
-# AGR Literature Serivice
+# AGR Literature Service
 
 # ElasticSearch
 
