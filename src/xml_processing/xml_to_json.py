@@ -12,6 +12,8 @@ import xmltodict
 # cp pubmed_json/33410237.json pubmed_sample
 
 
+# https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt
+
 
 import argparse
 import re
@@ -118,6 +120,8 @@ def get_year_month_day_from_xml_date(pub_date):
     date_list.append(month)
     date_list.append(day)
     return date_list
+
+
   
 def generate_json():
     # open input xml file and read data in form of python dictionary using xmltodict module 
@@ -291,6 +295,36 @@ def generate_json():
                             print pmid + " has multiple for type " + type
                         data_dict[type] = value
 
+            if re.search("<MedlineJournalInfo>(.*?)</MedlineJournalInfo>", xml, re.DOTALL):
+                medline_journal_info_group = re.search("<MedlineJournalInfo>(.*?)</MedlineJournalInfo>", xml, re.DOTALL)
+                medline_journal_info = medline_journal_info_group.group(1)
+#                 print pmid + " medline_journal_info " + medline_journal_info
+                nlm = '';
+                issn = '';
+                journal_abbrev = '';
+                if re.search("<NlmUniqueID>(.+?)</NlmUniqueID>", medline_journal_info):
+                    nlm_group = re.search("<NlmUniqueID>(.+?)</NlmUniqueID>", medline_journal_info)
+                    nlm = nlm_group.group(1)
+                if re.search("<ISSNLinking>(.+?)</ISSNLinking>", medline_journal_info):
+                    issn_group = re.search("<ISSNLinking>(.+?)</ISSNLinking>", medline_journal_info)
+                    issn = issn_group.group(1)
+                if re.search("<MedlineTA>(.+?)</MedlineTA>", medline_journal_info):
+                    journal_abbrev_group = re.search("<MedlineTA>(.+?)</MedlineTA>", medline_journal_info)
+                    journal_abbrev = journal_abbrev_group.group(1)
+                data_dict['nlm'] = nlm
+                data_dict['issn'] = issn
+                data_dict['resourceAbbreviation'] = journal_abbrev
+#                 check whether all xml has an nlm or issn, for WB set, they all do
+#                 if (nlm and issn):
+#                     print "GOOD\t" + pmid
+#                 elif nlm:
+#                     print "NLM\t" + pmid + "\t" + nlm
+#                 elif issn:
+#                     print "ISSN\t" + pmid + "\t" + issn
+#                 else:
+#                     print "NO\t" + pmid
+
+
             if re.search("<PublisherName>(.+?)</PublisherName>", xml):
                 publisher_group = re.search("<PublisherName>(.+?)</PublisherName>", xml)
                 publisher = publisher_group.group(1)
@@ -325,18 +359,6 @@ def generate_json():
                             mesh_dict["meshQualfierTerm"] = id_name[1]
                             meshs_list.append(mesh_dict)
                 data_dict['meshTerms'] = meshs_list
-
-# TODO  capture ISSN / NLM
-#         <MedlineJournalInfo>
-#             <Country>England</Country>
-#             <MedlineTA>J Travel Med</MedlineTA>
-#             <NlmUniqueID>9434456</NlmUniqueID>
-#             <ISSNLinking>1195-1982</ISSNLinking>
-#         </MedlineJournalInfo>
-# or
-#             <Journal>
-#                 <ISSN IssnType="Electronic">1708-8305</ISSN>
-
 
             
             # generate the object using json.dumps()  
@@ -411,6 +433,17 @@ if __name__ == "__main__":
 #     download_pubmed_xml()
     generate_json()
 
+
+# capture ISSN / NLM
+#         <MedlineJournalInfo>
+#             <Country>England</Country>
+#             <MedlineTA>J Travel Med</MedlineTA>
+#             <NlmUniqueID>9434456</NlmUniqueID>
+#             <ISSNLinking>1195-1982</ISSNLinking>
+#         </MedlineJournalInfo>
+# not from
+#             <Journal>
+#                 <ISSN IssnType="Electronic">1708-8305</ISSN>
 
 
 #   my %month_to_num;
