@@ -12,6 +12,8 @@ import xmltodict
 # cp pubmed_json/33410237.json pubmed_sample
 
 
+# https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt
+
 
 import argparse
 import re
@@ -62,13 +64,17 @@ storage_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processin
 #     time.sleep( 5 )
 
 
+known_article_id_types = { 'pubmed', 'doi', 'pmc', 'pii' }
+unknown_article_id_types = set()
+  
+
 def represents_int(s):
     try: 
         int(s)
         return True
     except ValueError:
         return False
-  
+
 def month_name_to_number_string(string):
     m = {
         'jan': '01',
@@ -114,6 +120,8 @@ def get_year_month_day_from_xml_date(pub_date):
     date_list.append(month)
     date_list.append(day)
     return date_list
+
+
   
 def generate_json():
     # open input xml file and read data in form of python dictionary using xmltodict module 
@@ -176,11 +184,12 @@ def generate_json():
 #                 print types_group
                 data_dict['pubMedType'] = types_group
 
-            if re.search("<ArticleId IdType=\"doi\">(.+?)</ArticleId>", xml):
-                doi_group = re.search("<ArticleId IdType=\"doi\">(.+?)</ArticleId>", xml)
-                doi = doi_group.group(1)
-#                 print doi
-                data_dict['doi'] = doi
+# Do these all together later
+#             if re.search("<ArticleId IdType=\"doi\">(.+?)</ArticleId>", xml):
+#                 doi_group = re.search("<ArticleId IdType=\"doi\">(.+?)</ArticleId>", xml)
+#                 doi = doi_group.group(1)
+# #                 print doi
+#                 data_dict['doi'] = doi
 
             # this will need to be restructured to match schema
             if re.findall("<Author.*?>(.+?)</Author>", xml, re.DOTALL):
@@ -201,6 +210,8 @@ def generate_json():
                     if re.search("<Initials>(.+?)</Initials>", author_xml):
                         firstinit_group = re.search("<Initials>(.+?)</Initials>", author_xml)
                         firstinit = firstinit_group.group(1)
+                    if firstinit and not firstname:
+                        firstname = firstinit
                     fullname = firstname + ' ' + lastname
                     author_dict = {}
 #                     if (firstname and firstinit):
@@ -254,6 +265,66 @@ def generate_json():
                     date_dict['day'] = date_list[2]
                     data_dict['dateLastModified'] = date_dict
 
+            if re.search("<PubMedPubDate PubStatus=\"received\">(.+?)</PubMedPubDate>", xml, re.DOTALL):
+                date_received_group = re.search("<PubMedPubDate PubStatus=\"received\">(.+?)</PubMedPubDate>", xml, re.DOTALL)
+                date_received = date_received_group.group(1)
+                date_list = get_year_month_day_from_xml_date(date_received)
+                if date_list[0]:
+                    date_string = "-".join(date_list)
+#                     print date_string
+                    date_dict = {}
+                    date_dict['date_string'] = date_string
+                    date_dict['year'] = date_list[0]
+                    date_dict['month'] = date_list[1]
+                    date_dict['day'] = date_list[2]
+                    data_dict['dateArrivedInPubmed'] = date_dict
+
+            if re.search("<ArticleIdList>(.*?)</ArticleIdList>", xml, re.DOTALL):
+                article_id_list_group = re.search("<ArticleIdList>(.*?)</ArticleIdList>", xml, re.DOTALL)
+                article_id_list = article_id_list_group.group(1)
+#                 print pmid + " AIDL " + article_id_list
+                if re.findall("<ArticleId IdType=\"(.*?)\">(.+?)</ArticleId>", article_id_list, re.DOTALL):
+                    article_id_group = re.findall("<ArticleId IdType=\"(.*?)\">(.+?)</ArticleId>", article_id_list, re.DOTALL)
+                    for type_value in article_id_group:
+                        type = type_value[0]
+                        value = type_value[1]
+#                         print pmid + " type " + type + " value " + value
+                        if type not in known_article_id_types:
+                            unknown_article_id_types.add(type)
+                        if type in data_dict:
+                            print pmid + " has multiple for type " + type
+                        data_dict[type] = value
+
+            if re.search("<MedlineJournalInfo>(.*?)</MedlineJournalInfo>", xml, re.DOTALL):
+                medline_journal_info_group = re.search("<MedlineJournalInfo>(.*?)</MedlineJournalInfo>", xml, re.DOTALL)
+                medline_journal_info = medline_journal_info_group.group(1)
+#                 print pmid + " medline_journal_info " + medline_journal_info
+                nlm = '';
+                issn = '';
+                journal_abbrev = '';
+                if re.search("<NlmUniqueID>(.+?)</NlmUniqueID>", medline_journal_info):
+                    nlm_group = re.search("<NlmUniqueID>(.+?)</NlmUniqueID>", medline_journal_info)
+                    nlm = nlm_group.group(1)
+                if re.search("<ISSNLinking>(.+?)</ISSNLinking>", medline_journal_info):
+                    issn_group = re.search("<ISSNLinking>(.+?)</ISSNLinking>", medline_journal_info)
+                    issn = issn_group.group(1)
+                if re.search("<MedlineTA>(.+?)</MedlineTA>", medline_journal_info):
+                    journal_abbrev_group = re.search("<MedlineTA>(.+?)</MedlineTA>", medline_journal_info)
+                    journal_abbrev = journal_abbrev_group.group(1)
+                data_dict['nlm'] = nlm
+                data_dict['issn'] = issn
+                data_dict['resourceAbbreviation'] = journal_abbrev
+#                 check whether all xml has an nlm or issn, for WB set, they all do
+#                 if (nlm and issn):
+#                     print "GOOD\t" + pmid
+#                 elif nlm:
+#                     print "NLM\t" + pmid + "\t" + nlm
+#                 elif issn:
+#                     print "ISSN\t" + pmid + "\t" + issn
+#                 else:
+#                     print "NO\t" + pmid
+
+
             if re.search("<PublisherName>(.+?)</PublisherName>", xml):
                 publisher_group = re.search("<PublisherName>(.+?)</PublisherName>", xml)
                 publisher = publisher_group.group(1)
@@ -298,7 +369,7 @@ def generate_json():
         
             # pretty-print
             json_data = json.dumps(data_dict, indent=4, sort_keys=True) 
-        
+
             # Write the json data to output json file 
 # UNCOMMENT TO write to json directory
             json_storage_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/pubmed_json/'
@@ -306,6 +377,10 @@ def generate_json():
             with open(json_filename, "w") as json_file: 
                 json_file.write(json_data) 
                 json_file.close() 
+
+    for unknown_article_id_type in unknown_article_id_types:
+        logger.info("unknown_article_id_type %s", unknown_article_id_type)
+        
 
 
 if __name__ == "__main__":
@@ -358,6 +433,17 @@ if __name__ == "__main__":
 #     download_pubmed_xml()
     generate_json()
 
+
+# capture ISSN / NLM
+#         <MedlineJournalInfo>
+#             <Country>England</Country>
+#             <MedlineTA>J Travel Med</MedlineTA>
+#             <NlmUniqueID>9434456</NlmUniqueID>
+#             <ISSNLinking>1195-1982</ISSNLinking>
+#         </MedlineJournalInfo>
+# not from
+#             <Journal>
+#                 <ISSN IssnType="Electronic">1708-8305</ISSN>
 
 
 #   my %month_to_num;
