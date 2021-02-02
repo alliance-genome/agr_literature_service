@@ -87,7 +87,7 @@ python src/xml_processing/xml_to_json.py  -f /home/azurebrd/git/agr_literature_s
 ## Generate resource JSON from J_Medline.txt
 
 ### Generate from URL at https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt (default if no flag)
-python generate_pubmed_nlm_resource.py -u
+pipenv run python src/xml_processing/generate_pubmed_nlm_resource.py -u
 
 ### Generate from local J_Medline.txt file
-python generate_pubmed_nlm_resource.py -l
+pipenv run python src/xml_processing/generate_pubmed_nlm_resource.py -l
