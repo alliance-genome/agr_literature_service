@@ -13,11 +13,14 @@ services:
       - agr-literature-db-data:/var/lib/postgresql/data
     ports:
       - "54321:5432"
- 
+    networks:
+      - agr-literature
+
   pgadmin:
     image: dpage/pgadmin4:4.29
     restart: always
     environment:
+      PGADMIN_DEFAULT_EMAIL: your@email.com
       PGADMIN_DEFAULT_PASSWORD: ${PSQL_PASSWORD}
       PGADMIN_LISTEN_PORT: 80
     ports:
@@ -26,7 +29,34 @@ services:
       - agr-pgadmin-data:/var/lib/pgadmin
     links:
       - "db:pgsql-server"
-  
+    networks:
+      - agr-literature
+
+  elasticsearch:
+    container_name: agr-literature-es
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.1
+    environment:
+      - node.name=aws-literature-es1
+      - cluster.name=es-docker-cluster
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - agr-es-data:/usr/share/elasticsearch/data
+    ports:
+      - 9201:9200
+    networks:
+      - agr-literature
+
+
 volumes:
   agr-literature-db-data:
   agr-pgadmin-data:
+  agr-es-data:
+
+networks:
+  agr-literature:
