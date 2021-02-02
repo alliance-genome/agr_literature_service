@@ -103,19 +103,19 @@ def get_year_month_day_from_xml_date(pub_date):
     year = '';
     month = '01';
     day = '01';
-    if re.search("<Year>(.+?)</Year>", pub_date, re.DOTALL):
-        year_group = re.search("<Year>(.+?)</Year>", pub_date, re.DOTALL)
-        year = year_group.group(1)
-    if re.search("<Month>(.+?)</Month>", pub_date):
-        month_group = re.search("<Month>(.+?)</Month>", pub_date)
-        month_text = month_group.group(1)
+    year_re_output = re.search("<Year>(.+?)</Year>", pub_date)
+    if year_re_output is not None:
+        year = year_re_output.group(1)
+    month_re_output = re.search("<Month>(.+?)</Month>", pub_date)
+    if month_re_output is not None:
+        month_text = month_re_output.group(1)
         if represents_int(month_text):
             month = month_text
         else:
             month = month_name_to_number_string(month_text)
-    if re.search("<Day>(.+?)</Day>", pub_date):
-        day_group = re.search("<Day>(.+?)</Day>", pub_date)
-        day = day_group.group(1)
+    day_re_output = re.search("<Day>(.+?)</Day>", pub_date)
+    if day_re_output is not None:
+        day = day_re_output.group(1)
     date_list.append(year)
     date_list.append(month)
     date_list.append(day)
@@ -139,41 +139,36 @@ def generate_json():
 #             data_dict = xmltodict.parse(xml_file.read()) 
             xml_file.close() 
         
-#             print (pmid)
+            print (pmid)
 #             print (data_dict["PubmedArticleSet"]["PubmedArticle"]["MedlineCitation"]["Article"]["ArticleTitle"])
         #     if (data_dict["PubmedArticleSet"]["PubmedArticle"]["MedlineCitation"]["Article"]["ArticleTitle"])
 
             data_dict = dict()
 
-            if re.search("<ArticleTitle>(.+?)</ArticleTitle>", xml):
-                title_group = re.search("<ArticleTitle>(.+?)</ArticleTitle>", xml)
-                title = title_group.group(1)
+            title_re_output = re.search("<ArticleTitle>(.+?)</ArticleTitle>", xml)
+            if title_re_output is not None:
 #                 print title
-                data_dict['title'] = title
+                data_dict['title'] = title_re_output.group(1)
 
-            if re.search("<MedlineTA>(.+?)</MedlineTA>", xml):
-                journal_group = re.search("<MedlineTA>(.+?)</MedlineTA>", xml)
-                journal = journal_group.group(1)
+            journal_re_output = re.search("<MedlineTA>(.+?)</MedlineTA>", xml)
+            if journal_re_output is not None:
 #                 print journal
-                data_dict['journal'] = journal
+                data_dict['journal'] = journal_re_output.group(1) 
 
-            if re.search("<MedlinePgn>(.+?)</MedlinePgn>", xml):
-                pages_group = re.search("<MedlinePgn>(.+?)</MedlinePgn>", xml)
-                pages = pages_group.group(1)
+            pages_re_output = re.search("<MedlinePgn>(.+?)</MedlinePgn>", xml)
+            if pages_re_output is not None:
 #                 print pages
-                data_dict['pages'] = pages
+                data_dict['pages'] = pages_re_output.group(1)
 
-            if re.search("<Volume>(.+?)</Volume>", xml):
-                volume_group = re.search("<Volume>(.+?)</Volume>", xml)
-                volume = volume_group.group(1)
+            volume_re_output = re.search("<Volume>(.+?)</Volume>", xml)
+            if volume_re_output is not None:
 #                 print volume
-                data_dict['volume'] = volume
+                data_dict['volume'] = volume_re_output.group(1)
 
-            if re.search("<Issue>(.+?)</Issue>", xml):
-                issue_group = re.search("<Issue>(.+?)</Issue>", xml)
-                issue = issue_group.group(1)
+            issue_re_output = re.search("<Issue>(.+?)</Issue>", xml)
+            if issue_re_output is not None:
 #                 print issue
-                data_dict['issueName'] = issue
+                data_dict['issueName'] = issue_re_output.group(1)
 
             if re.findall("<PublicationType>(.+?)</PublicationType>", xml):
                 types_group = re.findall("<PublicationType>(.+?)</PublicationType>", xml)
@@ -192,8 +187,8 @@ def generate_json():
 #                 data_dict['doi'] = doi
 
             # this will need to be restructured to match schema
-            if re.findall("<Author.*?>(.+?)</Author>", xml, re.DOTALL):
-                authors_group = re.findall("<Author.*?>(.+?)</Author>", xml, re.DOTALL)
+            authors_group = re.findall("<Author.*?>(.+?)</Author>", xml, re.DOTALL)
+            if len(authors_group) > 0:
                 authors_list = []
                 authors_rank = 0
                 for author_xml in authors_group:
@@ -201,15 +196,15 @@ def generate_json():
                     lastname = ''
                     firstname = ''
                     firstinit = ''
-                    if re.search("<LastName>(.+?)</LastName>", author_xml):
-                        lastname_group = re.search("<LastName>(.+?)</LastName>", author_xml)
-                        lastname = lastname_group.group(1)
-                    if re.search("<ForeName>(.+?)</ForeName>", author_xml):
-                        firstname_group = re.search("<ForeName>(.+?)</ForeName>", author_xml)
-                        firstname = firstname_group.group(1)
-                    if re.search("<Initials>(.+?)</Initials>", author_xml):
-                        firstinit_group = re.search("<Initials>(.+?)</Initials>", author_xml)
-                        firstinit = firstinit_group.group(1)
+                    lastname_re_output = re.search("<LastName>(.+?)</LastName>", author_xml)
+                    if lastname_re_output is not None:
+                        lastname = lastname_re_output.group(1)
+                    firstname_re_output = re.search("<ForeName>(.+?)</ForeName>", author_xml)
+                    if firstname_re_output is not None:
+                        firstname = firstname_re_output.group(1)
+                    firstinit_re_output = re.search("<Initials>(.+?)</Initials>", author_xml)
+                    if firstinit_re_output is not None:
+                        firstinit = firstinit_re_output.group(1)
                     if firstinit and not firstname:
                         firstname = firstinit
                     fullname = firstname + ' ' + lastname
@@ -235,10 +230,9 @@ def generate_json():
 #                     <Identifier Source="ORCID">0000-0002-0184-8324</Identifier>
 
 
-            if re.search("<PubDate>(.+?)</PubDate>", xml, re.DOTALL):
-                pub_date_group = re.search("<PubDate>(.+?)</PubDate>", xml, re.DOTALL)
-                pub_date = pub_date_group.group(1)
-
+            pub_date_re_output = re.search("<PubDate>(.+?)</PubDate>", xml, re.DOTALL)
+            if pub_date_re_output is not None:
+                pub_date = pub_date_re_output.group(1)
                 date_list = get_year_month_day_from_xml_date(pub_date)
                 if date_list[0]:
                     date_string = "-".join(date_list)
@@ -251,9 +245,9 @@ def generate_json():
                     data_dict['datePublished'] = date_dict
                     data_dict['issueDate'] = date_dict
 
-            if re.search("<DateRevised>(.+?)</DateRevised>", xml, re.DOTALL):
-                date_revised_group = re.search("<DateRevised>(.+?)</DateRevised>", xml, re.DOTALL)
-                date_revised = date_revised_group.group(1)
+            date_revised_re_output = re.search("<DateRevised>(.+?)</DateRevised>", xml, re.DOTALL)
+            if date_revised_re_output is not None:
+                date_revised = date_revised_re_output.group(1)
                 date_list = get_year_month_day_from_xml_date(date_revised)
                 if date_list[0]:
                     date_string = "-".join(date_list)
@@ -265,9 +259,9 @@ def generate_json():
                     date_dict['day'] = date_list[2]
                     data_dict['dateLastModified'] = date_dict
 
-            if re.search("<PubMedPubDate PubStatus=\"received\">(.+?)</PubMedPubDate>", xml, re.DOTALL):
-                date_received_group = re.search("<PubMedPubDate PubStatus=\"received\">(.+?)</PubMedPubDate>", xml, re.DOTALL)
-                date_received = date_received_group.group(1)
+            date_received_re_output = re.search("<PubMedPubDate PubStatus=\"received\">(.+?)</PubMedPubDate>", xml, re.DOTALL)
+            if date_received_re_output is not None:
+                date_received = date_received_re_output.group(1)
                 date_list = get_year_month_day_from_xml_date(date_received)
                 if date_list[0]:
                     date_string = "-".join(date_list)
@@ -279,12 +273,12 @@ def generate_json():
                     date_dict['day'] = date_list[2]
                     data_dict['dateArrivedInPubmed'] = date_dict
 
-            if re.search("<ArticleIdList>(.*?)</ArticleIdList>", xml, re.DOTALL):
-                article_id_list_group = re.search("<ArticleIdList>(.*?)</ArticleIdList>", xml, re.DOTALL)
-                article_id_list = article_id_list_group.group(1)
+            article_id_list_re_output = re.search("<ArticleIdList>(.*?)</ArticleIdList>", xml, re.DOTALL)
+            if article_id_list_re_output is not None:
+                article_id_list = article_id_list_re_output.group(1)
 #                 print pmid + " AIDL " + article_id_list
-                if re.findall("<ArticleId IdType=\"(.*?)\">(.+?)</ArticleId>", article_id_list, re.DOTALL):
-                    article_id_group = re.findall("<ArticleId IdType=\"(.*?)\">(.+?)</ArticleId>", article_id_list, re.DOTALL)
+                article_id_group = re.findall("<ArticleId IdType=\"(.*?)\">(.+?)</ArticleId>", article_id_list, re.DOTALL)
+                if len(article_id_group) > 0:
                     for type_value in article_id_group:
                         type = type_value[0]
                         value = type_value[1]
@@ -295,22 +289,22 @@ def generate_json():
                             print pmid + " has multiple for type " + type
                         data_dict[type] = value
 
-            if re.search("<MedlineJournalInfo>(.*?)</MedlineJournalInfo>", xml, re.DOTALL):
-                medline_journal_info_group = re.search("<MedlineJournalInfo>(.*?)</MedlineJournalInfo>", xml, re.DOTALL)
-                medline_journal_info = medline_journal_info_group.group(1)
+            medline_journal_info_re_output = re.search("<MedlineJournalInfo>(.*?)</MedlineJournalInfo>", xml, re.DOTALL)
+            if medline_journal_info_re_output is not None:
+                medline_journal_info = medline_journal_info_re_output.group(1)
 #                 print pmid + " medline_journal_info " + medline_journal_info
                 nlm = '';
                 issn = '';
                 journal_abbrev = '';
-                if re.search("<NlmUniqueID>(.+?)</NlmUniqueID>", medline_journal_info):
-                    nlm_group = re.search("<NlmUniqueID>(.+?)</NlmUniqueID>", medline_journal_info)
-                    nlm = nlm_group.group(1)
-                if re.search("<ISSNLinking>(.+?)</ISSNLinking>", medline_journal_info):
-                    issn_group = re.search("<ISSNLinking>(.+?)</ISSNLinking>", medline_journal_info)
-                    issn = issn_group.group(1)
-                if re.search("<MedlineTA>(.+?)</MedlineTA>", medline_journal_info):
-                    journal_abbrev_group = re.search("<MedlineTA>(.+?)</MedlineTA>", medline_journal_info)
-                    journal_abbrev = journal_abbrev_group.group(1)
+                nlm_re_output = re.search("<NlmUniqueID>(.+?)</NlmUniqueID>", medline_journal_info)
+                if nlm_re_output is not None:
+                    nlm = nlm_re_output.group(1)
+                issn_re_output = re.search("<ISSNLinking>(.+?)</ISSNLinking>", medline_journal_info)
+                if issn_re_output is not None:
+                    issn = issn_re_output.group(1)
+                journal_abbrev_re_output = re.search("<MedlineTA>(.+?)</MedlineTA>", medline_journal_info)
+                if journal_abbrev_re_output is not None:
+                    journal_abbrev = journal_abbrev_re_output.group(1)
                 data_dict['nlm'] = nlm
                 data_dict['issn'] = issn
                 data_dict['resourceAbbreviation'] = journal_abbrev
@@ -324,40 +318,59 @@ def generate_json():
 #                 else:
 #                     print "NO\t" + pmid
 
-
-            if re.search("<PublisherName>(.+?)</PublisherName>", xml):
-                publisher_group = re.search("<PublisherName>(.+?)</PublisherName>", xml)
-                publisher = publisher_group.group(1)
+            publisher_re_output = re.search("<PublisherName>(.+?)</PublisherName>", xml)
+            if publisher_re_output is not None:
+                publisher = publisher_re_output.group(1)
 #                 print publisher
                 data_dict['publisher'] = publisher
 
-            if re.findall("<Keyword .*?>(.+?)</Keyword>", xml, re.DOTALL):
-                keywords_group = re.findall("<Keyword .*?>(.+?)</Keyword>", xml, re.DOTALL)
-                data_dict['keywords'] = keywords_group
+            regex_keyword_output = re.findall("<Keyword .*?>(.+?)</Keyword>", xml, re.DOTALL)
+            if len(regex_keyword_output) > 0:
+                data_dict['keywords'] = regex_keyword_output
 
-            if re.findall("<AbstractText.*?>(.+?)</AbstractText>", xml, re.DOTALL):
-                abstracts_group = re.findall("<AbstractText.*?>(.+?)</AbstractText>", xml, re.DOTALL)
-                abstract = " ".join(abstracts_group)
-                data_dict['abstract'] = abstract
+            regex_abstract_output = re.findall("<AbstractText.*?>(.+?)</AbstractText>", xml, re.DOTALL)
+            if len(regex_abstract_output) > 0:
+                data_dict['abstract'] = " ".join(regex_abstract_output)
 
-            if re.findall("<MeshHeading>(.+?)</MeshHeading>", xml, re.DOTALL):
-                meshs_group = re.findall("<MeshHeading>(.+?)</MeshHeading>", xml, re.DOTALL)
+            regex_keyword_output = re.findall("<Keyword .*?>(.+?)</Keyword>", xml, re.DOTALL)
+            if len(regex_keyword_output) > 0:
+                data_dict['keywords'] = regex_keyword_output
+
+            meshs_group = re.findall("<MeshHeading>(.+?)</MeshHeading>", xml, re.DOTALL)
+            if len(meshs_group) > 0:
                 meshs_list = []
                 for mesh_xml in meshs_group:
-                    if re.findall("<DescriptorName.*?UI=\"(.+?)\".*?>(.+?)</DescriptorName>", mesh_xml, re.DOTALL):
-                        descriptor_group = re.findall("<DescriptorName.*?UI=\"(.+?)\".*?>(.+?)</DescriptorName>", mesh_xml, re.DOTALL)
-                        for id_name in descriptor_group:
+                    descriptor_re_output = re.search("<DescriptorName.*?>(.+?)</DescriptorName>", mesh_xml, re.DOTALL)
+                    if descriptor_re_output is not None:
+                        mesh_heading_term = descriptor_re_output.group(1)
+                        qualifier_group = re.findall("<QualifierName.*?>(.+?)</QualifierName>", mesh_xml, re.DOTALL)
+                        if len(qualifier_group) > 0:
+                            for mesh_qualifier_term in qualifier_group:
+                                mesh_dict = {}
+                                mesh_dict["referenceId"] = pmid
+                                mesh_dict["meshHeadingTerm"] = mesh_heading_term
+                                mesh_dict["meshQualfierTerm"] = mesh_qualifier_term
+                                meshs_list.append(mesh_dict)
+                        else:
                             mesh_dict = {}
-                            mesh_dict["referenceId"] = id_name[0]
-                            mesh_dict["meshHeadingTerm"] = id_name[1]
+                            mesh_dict["referenceId"] = pmid
+                            mesh_dict["meshHeadingTerm"] = mesh_heading_term
                             meshs_list.append(mesh_dict)
-                    if re.findall("<QualifierName.*?UI=\"(.+?)\".*?>(.+?)</QualifierName>", mesh_xml, re.DOTALL):
-                        qualifier_group = re.findall("<QualifierName.*?UI=\"(.+?)\".*?>(.+?)</QualifierName>", mesh_xml, re.DOTALL)
-                        for id_name in qualifier_group:
-                            mesh_dict = {}
-                            mesh_dict["referenceId"] = id_name[0]
-                            mesh_dict["meshQualfierTerm"] = id_name[1]
-                            meshs_list.append(mesh_dict)
+#                 for mesh_xml in meshs_group:
+#                     descriptor_group = re.findall("<DescriptorName.*?UI=\"(.+?)\".*?>(.+?)</DescriptorName>", mesh_xml, re.DOTALL)
+#                     if len(descriptor_group) > 0:
+#                         for id_name in descriptor_group:
+#                             mesh_dict = {}
+#                             mesh_dict["referenceId"] = id_name[0]
+#                             mesh_dict["meshHeadingTerm"] = id_name[1]
+#                             meshs_list.append(mesh_dict)
+#                     qualifier_group = re.findall("<QualifierName.*?UI=\"(.+?)\".*?>(.+?)</QualifierName>", mesh_xml, re.DOTALL)
+#                     if len(qualifier_group) > 0:
+#                         for id_name in qualifier_group:
+#                             mesh_dict = {}
+#                             mesh_dict["referenceId"] = id_name[0]
+#                             mesh_dict["meshQualfierTerm"] = id_name[1]
+#                             meshs_list.append(mesh_dict)
                 data_dict['meshTerms'] = meshs_list
 
             
