@@ -79,3 +79,15 @@ python src/xml_processing/get_pubmed_xml.py -r
 ### Download xml from a hardcoded sample
 python src/xml_processing/get_pubmed_xml.py -s
 
+## Convert PubMed XML to JSON
+
+### Has same flags as get_pubmed_xml.py, e.g.
+python src/xml_processing/xml_to_json.py  -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
+
+## Generate resource JSON from J_Medline.txt
+
+### Generate from URL at https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt (default if no flag)
+python generate_pubmed_nlm_resource.py -u
+
+### Generate from local J_Medline.txt file
+python generate_pubmed_nlm_resource.py -l
