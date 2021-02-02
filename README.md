@@ -85,9 +85,12 @@ python src/xml_processing/get_pubmed_xml.py -s
 python src/xml_processing/xml_to_json.py  -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 
 ## Generate resource JSON from J_Medline.txt
+To use pubmed url file -u flag
+To use local file use -l flag
+To upload to aws s3 agr-literature/develop/resource/metadata/resource_pubmed_all.json use -s flag
 
-### Generate from URL at https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt (default if no flag)
-pipenv run python src/xml_processing/generate_pubmed_nlm_resource.py -u
+### Generate from URL at https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt (default if no flag), and upload to s3 bucket
+pipenv run python src/xml_processing/generate_pubmed_nlm_resource.py -u -s
 
-### Generate from local J_Medline.txt file
+### Generate from local J_Medline.txt file and no upload
 pipenv run python src/xml_processing/generate_pubmed_nlm_resource.py -l
