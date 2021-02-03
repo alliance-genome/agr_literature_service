@@ -15,7 +15,6 @@ from flask_apispec.annotations import doc
 from shared.models import db
 
 from references.models.resource import Resource
-from references.models.resource import ResourcePrimaryId
 
 from references.schemas.resource import ResourceSchema
 
@@ -43,7 +42,7 @@ class AddResourceEndpoint(MethodResource):
               return "ERROR: Could not process - Resource id not found " + str(data['id'])
         elif 'primaryId' in data:
            print("primaryId exists")
-           primary_id = ResourcePrimaryId.query.filter_by(id=data['primaryId']).first()
+           primary_id = Resource.query.filter_by(id=data['primaryId']).first()
            if primary_id:
               print(primary_id)
               resource = Resource.query.filter_by(id=primary_id.resourceId).first()
@@ -56,7 +55,7 @@ class AddResourceEndpoint(MethodResource):
 
         return 'Created or Updated: AllianceResource:%s' % id
 
-@marshal_with(ResourceSchema, envelope="data")
+@marshal_with(ResourceSchema)
 @doc(description='Get Resource Data', tag=['reference'])
 class GetResourceEndpoint(MethodResource):
     def get(self, id):

@@ -55,7 +55,7 @@ services:
   agr_literature:
     image: 100225593120.dkr.ecr.us-east-1.amazonaws.com/agr_literature_run:latest
     ports:
-       - 5000:5000
+      - 49160:8080
     networks:
       - agr-literature
 

@@ -28,7 +28,7 @@ logger = logging.getLogger('literature logger')
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-p', '--port', type=int, help='Port to run the server on')
-parser.add_argument('-i', '--ip-adress', type=str, help='IP address of the host', default='localhost', nargs='?')
+parser.add_argument('-i', '--ip-adress', type=str, help='IP address of the host', default='0.0.0.0', nargs='?')
 parser.add_argument('--prod', help='Run WSGI server in production environment', action='store_true')
 parser.add_argument('-v', dest='verbose', action='store_true')
 
@@ -64,7 +64,7 @@ docs.register(GetResourceEndpoint, blueprint="resources_api", endpoint='GetResou
 if __name__ == "__main__":
     """ call main start function """
 
-    db.create_all()
+    #db.create_all()
     if args['prod']:
         serve(app, host=args['ip_adress'], port=args['port'])
     else:
