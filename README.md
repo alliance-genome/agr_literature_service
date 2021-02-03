@@ -95,6 +95,9 @@ pipenv run python src/xml_processing/generate_pubmed_nlm_resource.py -u -s
 ### Generate from local J_Medline.txt file and no upload
 pipenv run python src/xml_processing/generate_pubmed_nlm_resource.py -l
 
+## Download DQM MOD data from FMS
+python get_dqm_data.py
+
 ## Generating login credentials (must repeat every 12 hours to access base linux image and neo4j env image)
 - make sure you have AWS-CLI installed locally
 - make sure you have AWS login credentials for the agr_aws account, with the permission group - AWS group for ECR access.
