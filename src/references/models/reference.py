@@ -30,7 +30,7 @@ class Author(db.Model):
     name = db.Column(db.String(255), unique=False, nullable=True)
     firstName = db.Column(db.String(255), unique=False, nullable=True)
     lastName = db.Column(db.String(255), unique=False, nullable=True)
-    middleNames = db.relationship('MiddleName' , backref='author', lazy=True)
+    #middleNames = db.relationship('MiddleName' , backref='author', lazy=True)
     #crossreferences
     valid = db.Column(db.Boolean)
     dateCreated = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -92,7 +92,7 @@ class Reference(db.Model):
     modReferenceTypes = db.relationship('ModReferenceType' , backref='reference', lazy=True)
     issueName = db.Column(db.String(255), unique=False, nullable=True)
     issueDate = db.Column(db.String(255), unique=False, nullable=True)
-    tags = db.relationship('Tags' , backref='reference', lazy=True)
+    #tags = db.relationship('Tags' , backref='reference', lazy=True)
     meshTerms = db.relationship('MeshTerm' , backref='reference', lazy=True)
     #crossReferences
     resourceAbbreviation = db.Column(db.String(255), unique=False, nullable=True)

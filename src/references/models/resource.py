@@ -49,7 +49,7 @@ class ResourceVolume(db.Model):
 class Resource(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     primaryId = db.Column(db.Integer, db.ForeignKey('resource.id'), nullable=False)
-    title = db.relationship('ResourceTitle' , backref='resource', lazy=True)
+    title = db.Column(db.String(), nullable=True)
     titleSynonyms = db.relationship('ResourceTitleSynonym' , backref='resource', lazy=True)
     isoAbbreviation = db.Column(db.String(255), unique=False, nullable=True)
     medlineAbbreviation = db.Column(db.String(255), unique=False, nullable=True)
