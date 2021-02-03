@@ -96,6 +96,7 @@ pipenv run python src/xml_processing/generate_pubmed_nlm_resource.py -u -s
 pipenv run python src/xml_processing/generate_pubmed_nlm_resource.py -l
 
 ## Download DQM MOD data from FMS
+get_dqm_data.py downloads DQM MOD JSON from FMS and uncompresses.  compares md5sum to current file to prevent downloading if it's the same
 python get_dqm_data.py
 
 ## Generating login credentials (must repeat every 12 hours to access base linux image and neo4j env image)
