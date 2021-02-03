@@ -99,9 +99,9 @@ python src/xml_processing/xml_to_json.py  -f /home/azurebrd/git/agr_literature_s
 ```
 
 ## Generate resource JSON from J_Medline.txt
-To use pubmed url file -u flag
-To use local file use -l flag
-To upload to aws s3 agr-literature/develop/resource/metadata/resource_pubmed_all.json use -s flag
+To use pubmed url file -u flag<br/>
+To use local file use -l flag<br/>
+To upload to aws s3 agr-literature/develop/resource/metadata/resource_pubmed_all.json use -s flag<br/>
 
 ### Generate from URL at https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt (default if no flag), and upload to s3 bucket
 ```bash
