@@ -1,7 +1,8 @@
 version: "3.7"
 
 services:
-  db:
+  pg:
+    container_name: agr-literature-pg
     image: postgres:13.1
     restart: always
     environment:
@@ -11,22 +12,22 @@ services:
       POSTGRES_DB: ${PSQL_DATABASE}
     volumes:
       - agr-literature-db-data:/var/lib/postgresql/data
+      - $PWD/postgresql.conf:/etc/postgresql.conf
     networks:
       - agr-literature
 
   pgadmin:
+    container_name: agr-literature-pgadmin
     image: dpage/pgadmin4:4.29
     restart: always
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
-      PGADMIN_LISTEN_PORT: 80
+      PGADMIN_LISTEN_PORT: 81
     ports:
-      - "8882:80"
+      - "8882:81"
     volumes:
       - agr-pgadmin-data:/var/lib/pgadmin
-    links:
-      - "db:pgsql-server"
     networks:
       - agr-literature
 
@@ -66,7 +67,7 @@ services:
 
   agr_literature:
     container_name: agr-literature-app
-    image: 100225593120.dkr.ecr.us-east-1.amazonaws.com/agr_literature_run:latest
+    image: ${REG}/agr_literature_run:latest
     ports:
       - 49160:8080
     networks:
