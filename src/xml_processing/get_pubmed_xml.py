@@ -53,7 +53,9 @@ pmids_found = set()
 
 def download_pubmed_xml():
       # 4.5 minutes to download 28994 wormbase records in 10000 chunks
-    pmids_slice_size = 10000
+      # 61 minutes to download 429899 alliance records in 10000 chunks
+      # 127 minutes to download 646714 alliance records in 5000 chunks, failed on 280
+    pmids_slice_size = 5000
     for index in range(0, len(pmids), pmids_slice_size):
         pmids_slice = pmids[index:index + pmids_slice_size]
         pmids_joined = (',').join(pmids_slice);

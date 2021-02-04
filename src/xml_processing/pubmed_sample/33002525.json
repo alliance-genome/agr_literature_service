@@ -51,6 +51,12 @@
             "name": "Wim W\u00e4tjen"
         }
     ], 
+    "dateArrivedInPubmed": {
+        "date_string": "2020-04-09", 
+        "day": "09", 
+        "month": "04", 
+        "year": "2020"
+    }, 
     "dateLastModified": {
         "date_string": "2020-11-04", 
         "day": "04", 
@@ -64,6 +70,7 @@
         "year": "2020"
     }, 
     "doi": "10.1016/j.toxlet.2020.09.016", 
+    "issn": "0378-4274", 
     "issueDate": {
         "date_string": "2020-11-01", 
         "day": "01", 
@@ -82,109 +89,125 @@
     "meshTerms": [
         {
             "meshHeadingTerm": "Animals", 
-            "referenceId": "D000818"
+            "referenceId": "33002525"
         }, 
         {
             "meshHeadingTerm": "Apoptosis", 
-            "referenceId": "D017209"
-        }, 
-        {
-            "meshQualfierTerm": "drug effects", 
-            "referenceId": "Q000187"
+            "meshQualfierTerm": [
+                "Q000187", 
+                "drug effects"
+            ], 
+            "referenceId": "33002525"
         }, 
         {
             "meshHeadingTerm": "Caenorhabditis elegans", 
-            "referenceId": "D017173"
+            "meshQualfierTerm": [
+                "Q000187", 
+                "drug effects"
+            ], 
+            "referenceId": "33002525"
         }, 
         {
-            "meshQualfierTerm": "drug effects", 
-            "referenceId": "Q000187"
+            "meshHeadingTerm": "Caenorhabditis elegans", 
+            "meshQualfierTerm": [
+                "Q000254", 
+                "growth &amp; development"
+            ], 
+            "referenceId": "33002525"
         }, 
         {
-            "meshQualfierTerm": "growth &amp; development", 
-            "referenceId": "Q000254"
-        }, 
-        {
-            "meshQualfierTerm": "metabolism", 
-            "referenceId": "Q000378"
+            "meshHeadingTerm": "Caenorhabditis elegans", 
+            "meshQualfierTerm": [
+                "Q000378", 
+                "metabolism"
+            ], 
+            "referenceId": "33002525"
         }, 
         {
             "meshHeadingTerm": "Depsipeptides", 
-            "referenceId": "D047630"
-        }, 
-        {
-            "meshQualfierTerm": "toxicity", 
-            "referenceId": "Q000633"
+            "meshQualfierTerm": [
+                "Q000633", 
+                "toxicity"
+            ], 
+            "referenceId": "33002525"
         }, 
         {
             "meshHeadingTerm": "Dose-Response Relationship, Drug", 
-            "referenceId": "D004305"
+            "referenceId": "33002525"
         }, 
         {
             "meshHeadingTerm": "Fertility", 
-            "referenceId": "D005298"
-        }, 
-        {
-            "meshQualfierTerm": "drug effects", 
-            "referenceId": "Q000187"
+            "meshQualfierTerm": [
+                "Q000187", 
+                "drug effects"
+            ], 
+            "referenceId": "33002525"
         }, 
         {
             "meshHeadingTerm": "Food Contamination", 
-            "referenceId": "D005506"
+            "referenceId": "33002525"
         }, 
         {
             "meshHeadingTerm": "Germ Cells", 
-            "referenceId": "D005854"
+            "meshQualfierTerm": [
+                "Q000187", 
+                "drug effects"
+            ], 
+            "referenceId": "33002525"
         }, 
         {
-            "meshQualfierTerm": "drug effects", 
-            "referenceId": "Q000187"
-        }, 
-        {
-            "meshQualfierTerm": "pathology", 
-            "referenceId": "Q000473"
+            "meshHeadingTerm": "Germ Cells", 
+            "meshQualfierTerm": [
+                "Q000473", 
+                "pathology"
+            ], 
+            "referenceId": "33002525"
         }, 
         {
             "meshHeadingTerm": "Lipofuscin", 
-            "referenceId": "D008062"
-        }, 
-        {
-            "meshQualfierTerm": "metabolism", 
-            "referenceId": "Q000378"
+            "meshQualfierTerm": [
+                "Q000378", 
+                "metabolism"
+            ], 
+            "referenceId": "33002525"
         }, 
         {
             "meshHeadingTerm": "Longevity", 
-            "referenceId": "D008136"
-        }, 
-        {
-            "meshQualfierTerm": "drug effects", 
-            "referenceId": "Q000187"
+            "meshQualfierTerm": [
+                "Q000187", 
+                "drug effects"
+            ], 
+            "referenceId": "33002525"
         }, 
         {
             "meshHeadingTerm": "Motor Activity", 
-            "referenceId": "D009043"
-        }, 
-        {
-            "meshQualfierTerm": "drug effects", 
-            "referenceId": "Q000187"
+            "meshQualfierTerm": [
+                "Q000187", 
+                "drug effects"
+            ], 
+            "referenceId": "33002525"
         }, 
         {
             "meshHeadingTerm": "Mycotoxins", 
-            "referenceId": "D009183"
-        }, 
-        {
-            "meshQualfierTerm": "toxicity", 
-            "referenceId": "Q000633"
+            "meshQualfierTerm": [
+                "Q000633", 
+                "toxicity"
+            ], 
+            "referenceId": "33002525"
         }, 
         {
             "meshHeadingTerm": "Toxicity Tests, Acute", 
-            "referenceId": "D023382"
+            "referenceId": "33002525"
         }
     ], 
+    "nlm": "7709027", 
     "pages": "102-109", 
+    "pii": "S0378-4274(20)30426-4", 
     "pubMedType": [
         "Journal Article"
     ], 
+    "pubmed": "33002525", 
+    "resourceAbbreviation": "Toxicol Lett", 
     "title": "The mycotoxin beauvericin impairs development, fertility and life span in the nematode Caenorhabditis elegans accompanied by increased germ cell apoptosis and lipofuscin accumulation.", 
     "volume": "334"
 }
