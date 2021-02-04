@@ -8,10 +8,14 @@ from os import path
 import logging
 import logging.config
 
+# This takes about 90 seconds to run
+
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
+
+base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 
 
 def split_identifier(identifier, ignore_error=False):
@@ -58,7 +62,7 @@ def process_dqm_references():
 
     for mod in mods:
 #         filename = 'dqm_data/1.0.1.4_REFERENCE_WB_0.json'
-       filename = 'dqm_data/REFERENCE_' + mod + '.json'
+       filename = base_path + 'dqm_data/REFERENCE_' + mod + '.json'
        f = open(filename)
        dqm_data = json.load(f) 
 
@@ -153,26 +157,29 @@ def process_dqm_references():
         logger.info("WARNING: unknown prefix %s", prefix)
 
 # output set of identifiers that will need XML downloaded
-    output_pmid_file = 'inputs/alliance_pmids'
+    output_pmid_file = base_path + 'inputs/alliance_pmids'
     with open(output_pmid_file, "w") as pmid_file:
         for pmid in sorted(pmid_stats.iterkeys(), key=int):
-            pmid_file.write(pmid)
-            pmid_file.write("\n")
+            pmid_file.write("%s\n" % (pmid))
         pmid_file.close()
 
 # output pmids and the mods that have them
-#     for identifier in pmid_stats:
-#         ref_mods_list = pmid_stats[identifier]
-#         count = len(ref_mods_list)
-#         ref_mods_str = ", ".join(ref_mods_list)
-#         print("pmid %s\t%s\t%s" % (identifier, count, ref_mods_str))
-#         logger.info("pmid %s\t%s\t%s", identifier, count, ref_mods_str)
-    
-    
+    output_pmid_mods_file = base_path + 'pmids_by_mods'
+    with open(output_pmid_mods_file, "w") as pmid_mods_file:
+        for identifier in pmid_stats:
+            ref_mods_list = pmid_stats[identifier]
+            count = len(ref_mods_list)
+            ref_mods_str = ", ".join(ref_mods_list)
+            pmid_mods_file.write("%s\t%s\t%s\n" % (identifier, count, ref_mods_str))
+#             logger.info("pmid %s\t%s\t%s", identifier, count, ref_mods_str)
+        pmid_mods_file.close()
+
     # for primary_id in primary_ids:
     #     logger.info("primary_id %s", primary_id)
 
 if __name__ == "__main__":
     """ call main start function """
+    logger.info("starting parse_dqm_json.py")
     process_dqm_references()
+    logger.info("ending parse_dqm_json.py")
 

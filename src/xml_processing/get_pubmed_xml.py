@@ -46,7 +46,9 @@ parser.add_argument('-u', '--url', action='store', help='take input from entries
 args = vars(parser.parse_args())
 
 # todo: save this in an env variable
-storage_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/pubmed_xml/'
+base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+storage_path = base_path + 'pubmed_xml/'
+
 
 pmids = []
 pmids_found = set()
@@ -59,7 +61,7 @@ def download_pubmed_xml():
     for index in range(0, len(pmids), pmids_slice_size):
         pmids_slice = pmids[index:index + pmids_slice_size]
         pmids_joined = (',').join(pmids_slice);
-        logger.info("processing PMIDs %s", pmids_joined)
+        logger.debug("processing PMIDs %s", pmids_joined)
 
 #         https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=10074449&retmode=xml
 
@@ -101,9 +103,14 @@ def download_pubmed_xml():
             logger.info("waiting to process more pmids")
             time.sleep( 5 )
 
-    for pmid in pmids:
-        if pmid not in pmids_found:
-            logger.info("PMID %s not found in pubmed query", pmid)
+    output_pmids_not_found_file = base_path + 'pmids_not_found'
+    with open(output_pmids_not_found_file, "w") as pmids_not_found_file:
+        for pmid in pmids:
+            if pmid not in pmids_found:
+                pmids_not_found_file.write("%s\n" % (pmid))
+                logger.info("PMID %s not found in pubmed query", pmid)
+        pmids_not_found_file.close()
+
 
 # to process one by one
 #   for pmid in pmids:
