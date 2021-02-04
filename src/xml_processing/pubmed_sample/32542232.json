@@ -27,6 +27,7 @@
         "month": "01", 
         "year": "2020"
     }, 
+    "issn": "2578-9430", 
     "issueDate": {
         "date_string": "2020-01-01", 
         "day": "01", 
@@ -34,9 +35,14 @@
         "year": "2020"
     }, 
     "journal": "MicroPubl Biol", 
+    "mid": "NIHMS1596474", 
+    "nlm": "101759238", 
+    "pmc": "PMC7295153", 
     "pubMedType": [
         "Journal Article"
     ], 
+    "pubmed": "32542232", 
+    "resourceAbbreviation": "MicroPubl Biol", 
     "title": "Disruption of the <i>mutator</i> complex triggers a low penetrance larval arrest phenotype.", 
     "volume": "2020"
 }

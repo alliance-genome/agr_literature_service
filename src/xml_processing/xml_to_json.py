@@ -10,6 +10,12 @@ import xmltodict
 # cp pubmed_json/33002525.json pubmed_sample
 # cp pubmed_json/33440160.json pubmed_sample
 # cp pubmed_json/33410237.json pubmed_sample
+# git add pubmed_sample/32542232.json 
+# git add pubmed_sample/32644453.json 
+# git add pubmed_sample/33408224.json 
+# git add pubmed_sample/33002525.json 
+# git add pubmed_sample/33440160.json 
+# git add pubmed_sample/33410237.json 
 
 
 # https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt
