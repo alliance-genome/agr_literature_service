@@ -1,8 +1,8 @@
 
 import json
 
-import argparse
-import re
+# import argparse
+# import re
 
 from os import path
 import logging
@@ -46,6 +46,12 @@ def process_dqm_references():
 
     pmid_stats = dict()
     unknown_prefix = set()
+    pmid_references = dict()
+    for mod in mods:
+        pmid_references[mod] = []
+    non_pmid_references = dict()
+    for mod in mods:
+        non_pmid_references[mod] = []
 
     check_primary_id_is_unique = True
     check_pmid_is_unique = True
@@ -101,11 +107,16 @@ def process_dqm_references():
                        pmid_unique[pmid] = pmid_unique[pmid] + 1
                    except KeyError:
                        pmid_unique[pmid] = 1
+               pmid_references[mod].append(pmid)
+           else:
+               non_pmid_references[mod].append(entry['primaryId'])
 
+# output check of a mod's non-unique primaryIds
        if check_primary_id_is_unique:
            for primary_id in primary_id_unique:
                if primary_id_unique[primary_id] > 1:
                     print("%s primary_id %s has %s mentions" % (mod, primary_id, primary_id_unique[primary_id]))
+# output check of a mod's non-unique pmids (different from above because could be crossReferences
        if check_pmid_is_unique:
            for pmid in pmid_unique:
                if pmid_unique[pmid] > 1:
@@ -119,15 +130,43 @@ def process_dqm_references():
        
 # TODO create a sample of 100 entries per MOD to play with
 
-    for prefix in unknown_prefix:
-        logger.info("unknown prefix %s", prefix)
+# output each mod's count of pmid references
+    for mod in pmid_references:
+        count = len(pmid_references[mod])
+        print("%s has %s pmid references" % (mod, count))
+#         logger.info("%s has %s pmid references", mod, count)
 
-    for identifier in pmid_stats:
-        ref_mods_list = pmid_stats[identifier]
-        count = len(ref_mods_list)
-        ref_mods_str = ", ".join(ref_mods_list)
-#         print(identifier + "\t" + count + "\t" + ref_mods_str)
-        print("%s\t%s\t%s" % (identifier, count, ref_mods_str))
+# output each mod's count of non-pmid references
+    for mod in non_pmid_references:
+        count = len(non_pmid_references[mod])
+        print("%s has %s non-pmid references" % (mod, count))
+#         logger.info("%s has %s non-pmid references", mod, count)
+
+# output actual reference identifiers that are not pmid
+#     for mod in non_pmid_references:
+#         for primary_id in non_pmid_references[mod]:
+#             print("%s non-pmid %s" % (mod, primary_id))
+# #             logger.info("%s non-pmid %s", mod, primary_id)
+
+# if a reference has an unexpected prefix, give a warning
+    for prefix in unknown_prefix:
+        logger.info("WARNING: unknown prefix %s", prefix)
+
+# output set of identifiers that will need XML downloaded
+    output_pmid_file = 'inputs/alliance_pmids'
+    with open(output_pmid_file, "w") as pmid_file:
+        for pmid in sorted(pmid_stats.iterkeys(), key=int):
+            pmid_file.write(pmid)
+            pmid_file.write("\n")
+        pmid_file.close()
+
+# output pmids and the mods that have them
+#     for identifier in pmid_stats:
+#         ref_mods_list = pmid_stats[identifier]
+#         count = len(ref_mods_list)
+#         ref_mods_str = ", ".join(ref_mods_list)
+#         print("pmid %s\t%s\t%s" % (identifier, count, ref_mods_str))
+#         logger.info("pmid %s\t%s\t%s", identifier, count, ref_mods_str)
     
     
     # for primary_id in primary_ids:
