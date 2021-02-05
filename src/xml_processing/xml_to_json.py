@@ -2,6 +2,8 @@ import json
 import xmltodict 
 
 #  python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
+#
+# 21 minutes for 646727 documents from filesystem. 12G of xml to 5.0G of json
 
 # update sample
 # cp pubmed_json/32542232.json pubmed_sample
@@ -452,6 +454,7 @@ if __name__ == "__main__":
 
 #     download_pubmed_xml()
     generate_json()
+    logger.info("Done converting XML to JSON")
 
 
 # capture ISSN / NLM
