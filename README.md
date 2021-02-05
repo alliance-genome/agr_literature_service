@@ -124,6 +124,11 @@ get_dqm_data.py downloads DQM MOD JSON from FMS and uncompresses.  compares md5s
 ```bash
 python src/xml_processing/get_dqm_data.py
 ```
+## Sort PMIDs without XML by MOD
+sort_not_found_pmids_by_mod.py takes pmids_not_found from get_pubmed_xml.py, and pmids_by_mods from parse_dqm_json.py, and generates a set sorted by MODs of pmids that were not found in pubmed.
+```bash
+python src/xml_processing/sort_not_found_pmids_by_mod.py
+```
 
 ## Generating login credentials (must repeat every 12 hours to access base linux image and neo4j env image)
 - make sure you have AWS-CLI installed locally
