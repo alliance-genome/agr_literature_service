@@ -24,7 +24,8 @@ logger = logging.getLogger('literature logger')
 
 
 # todo: save this in an env variable
-storage_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_data/'
+base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+storage_path = base_path + 'dqm_data/'
 
 
 def get_md5_sum_from_path(filename):

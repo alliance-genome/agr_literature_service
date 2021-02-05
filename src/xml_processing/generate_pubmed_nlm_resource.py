@@ -34,8 +34,8 @@ args = vars(parser.parse_args())
 
 # todo: save this in an env variable
 root_path = '/home/azurebrd/git/agr_literature_service_demo/'
-section_path = root_path + 'src/xml_processing/'
-storage_path = section_path + 'pubmed_resource_json/'
+base_path = root_path + 'src/xml_processing/'
+storage_path = base_path + 'pubmed_resource_json/'
 
 
 
@@ -138,7 +138,7 @@ def populate_from_url():
         return file_data
 
 def populate_from_local_file():
-    filename = section_path + 'J_Medline.txt'
+    filename = base_path + 'J_Medline.txt'
     with open(filename) as txt_file: 
         if not path.exists(filename):
             return "journal info file not found"

@@ -2,6 +2,8 @@ import json
 import xmltodict 
 
 #  python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
+#
+# 21 minutes for 646727 documents from filesystem. 12G of xml to 5.0G of json
 
 # update sample
 # cp pubmed_json/32542232.json pubmed_sample
@@ -56,7 +58,7 @@ parser.add_argument('-u', '--url', action='store', help='take input from entries
 args = vars(parser.parse_args())
 
 # todo: save this in an env variable
-storage_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/pubmed_xml/'
+base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 
 # def download_pubmed_xml():
 #   for pmid in pmids:
@@ -132,6 +134,7 @@ def get_year_month_day_from_xml_date(pub_date):
 def generate_json():
     # open input xml file and read data in form of python dictionary using xmltodict module 
     for pmid in pmids:
+        storage_path = base_path + 'pubmed_xml/'
         filename = storage_path + pmid + '.xml'
         if not path.exists(filename):
             continue
@@ -391,7 +394,7 @@ def generate_json():
 
             # Write the json data to output json file 
 # UNCOMMENT TO write to json directory
-            json_storage_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/pubmed_json/'
+            json_storage_path = base_path + 'pubmed_json/'
             json_filename = json_storage_path + pmid + '.json'
             with open(json_filename, "w") as json_file: 
                 json_file.write(json_data) 
@@ -451,6 +454,7 @@ if __name__ == "__main__":
 
 #     download_pubmed_xml()
     generate_json()
+    logger.info("Done converting XML to JSON")
 
 
 # capture ISSN / NLM
