@@ -1,19 +1,15 @@
 # AGR Literature Service
 
-# ElasticSearch
+## Spin up stack
 
-Resource: https://www.elastic.co/guide/en/elasticsearch/reference/current/docker.html
-
-## Pull image
+Create an application container with your local changes
 ```bash
-docker pull docker.elastic.co/elasticsearch/elasticsearch:7.10.1
+Make build
 ```
 
-
-## Run Single Node
-
+To spin up all the components of the stack
 ```bash
-docker run -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" docker.elastic.co/elasticsearch/elasticsearch:7.10.1
+docker-compose up
 ```
 
 # RESTful
@@ -23,10 +19,6 @@ https://flask-restful.readthedocs.io/en/latest/quickstart.html
 # Development
 
 Setup development environment
-
-```bash
-python3 -m venv venv
-```
 
 Install Pipenv
 
