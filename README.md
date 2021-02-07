@@ -61,8 +61,9 @@ use --prod argument to use the WSGI server in production
 - `generate_pubmed_nlm_resource.py` download pubmed resouce data, generate json and upload to s3
 - `get_dqm_data.py` download dqm data if it's got a new md5sum
 - `parse_dqm_json.py` process dqm data to generate list of PMIDs to download
+- `generate_dqm_json_test_set.py` optionally generate a small sample set from DQM MOD data
 - `get_pubmed_xml.py` download pubmed xml from list to local directory
-- `sort_not_found_pmids_by_mod.py` take list of pmids not found and sort by mods
+- `sort_not_found_pmids_by_mod.py` optionally take list of pmids not found and sort by mods
 - `xml_to_json.py` process pubmed xml into json to local directory
 
 ## Downloading PubMed XML
@@ -124,6 +125,13 @@ get_dqm_data.py downloads DQM MOD JSON from FMS and uncompresses.  compares md5s
 ```bash
 python src/xml_processing/get_dqm_data.py
 ```
+
+## Generate testing sample of DQM MOD data
+generate_dqm_json_test_set.py generates a small sample set from DQM MOD JSON in dqm_data/ and outputs to dqm_sample/
+```bash
+python src/xml_processing/generate_dqm_json_test_set.py
+```
+
 ## Sort PMIDs without XML by MOD
 sort_not_found_pmids_by_mod.py takes pmids_not_found from get_pubmed_xml.py, and pmids_by_mods from parse_dqm_json.py, and generates a set sorted by MODs of pmids that were not found in pubmed.
 ```bash
