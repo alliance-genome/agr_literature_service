@@ -12,6 +12,12 @@ To spin up all the components of the stack
 docker-compose up
 ```
 
+## Dependencies
+
+- Postgres
+- ElasticSearch
+- Redis
+
 # RESTful
 
 https://flask-restful.readthedocs.io/en/latest/quickstart.html
