@@ -36,8 +36,6 @@ class ResourceEditor(db.Model):
     #crossreferences
     dateCreated = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
-
-
 class ResourceVolume(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     referenceId = db.Column(db.Integer, db.ForeignKey('resource.id'), nullable=False)

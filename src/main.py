@@ -1,7 +1,5 @@
 from os import path
-import sys
 import argparse
-import json
 
 import logging
 import logging.config
@@ -9,7 +7,6 @@ import logging.config
 from flask import Flask
 from flask import Blueprint
 
-from flask_sqlalchemy import SQLAlchemy
 from flask_apispec.extension import FlaskApiSpec
 
 from waitress import serve
@@ -35,8 +32,7 @@ parser.add_argument('-v', dest='verbose', action='store_true')
 args = vars(parser.parse_args())
 
 flask_app = Flask(__name__)
-flask_app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/test.db'
-flask_app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
+flask_app.config.from_object('config.Config')
 
 db.init_app(flask_app)
 docs = FlaskApiSpec(flask_app)
@@ -64,7 +60,6 @@ docs.register(GetResourceEndpoint, blueprint="resources_api", endpoint='GetResou
 if __name__ == "__main__":
     """ call main start function """
 
-    #db.create_all()
     if args['prod']:
         serve(app, host=args['ip_adress'], port=args['port'])
     else:
