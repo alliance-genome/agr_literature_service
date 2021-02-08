@@ -24,6 +24,7 @@ from references.schemas.reference import ReferenceSchema
 logger = logging.getLogger('literature logger')
 
 
+@marshal_with(ReferenceSchema)
 @doc(description='Add reference', tags=['reference'])
 class AddReferenceEndpoint(MethodResource):
     def post(self):
@@ -81,8 +82,61 @@ class AddReferenceEndpoint(MethodResource):
                 db.session.commit()
                 id = Pubmod.query.filter_by(id=data['pubmodId']).first().referenceId
 
+
+        reference = Reference.query.filter_by(id=id).first()
+
+        update_reference = False
+        if 'primaryId' in data:
+             reference.primaryId = data['primaryId']
+             update_reference = True
         if 'title' in data:
-            print("Adding title")
+             reference.title = data['title']
+             update_reference = True
+        if 'datePublished' in data:
+             reference.datePublished = data['datePublished']
+             upate_reference = True
+        if 'dateArrivedInPubMed' in data:
+             refrence.dateArrivedInPubMed = data['dateArrivedInPubMed']
+             update_reference = True
+        if 'dateLastModified' in data:
+             reference.dateLastModified = data['dateLastModified']
+             update_reference = True
+        if 'volume' in data:
+             reference.volume = data['volume']
+             update_reference = True
+        if 'abstract' in data:
+             reference.abstract = data['abstract']
+             update_reference = True
+        if 'citation' in data:
+             reference.citation = data['citation']
+             update_reference = True
+        if 'pubMedType' in data:
+             reference.pubMedType = data['pubMedType']
+             update_reference = True
+        if 'publisher' in data:
+             reference.publisher = data['publisher']
+             update_reference = True
+        if 'allianceCategory' in data:
+             reference.allianceCategory = data['allianceCategory']
+             update_reference = True
+        if 'issueName' in data:
+             reference.issueName = data['issueName']
+             update_reference = True
+        if 'issueDate' in data:
+             reference.issueDate = data['issueDate']
+             update_reference = True
+        if 'resourceAbbreviation' in data:
+             reference.resourceAbbreviation = data['resourceAbbreviation']
+             update_reference = True
+        if 'updatedBy' in data:
+             reference.updatedBy = data['updatedBy']
+             update_reference = True
+
+        #relation fields to add: author, pages, modReferenceTypes, meshTerms, tags, crossReferences
+
+        if update_reference:
+             db.session.add(reference)
+             db.session.commit()
 
         return 'Created or Updated: AllianceReference:%s' % id
 

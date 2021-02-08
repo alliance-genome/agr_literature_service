@@ -73,7 +73,7 @@ class MeshTerm(db.Model):
 
 class Reference(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    primaryId = db.Column(db.Integer, unique=True, nullable=True)
+    primaryId = db.Column(db.String, unique=True, nullable=True)
     pubmedIds = db.relationship('Pubmed', backref='reference', lazy=True)
     pubmodIds = db.relationship('Pubmod', backref='reference', lazy=True)
     title = db.Column(db.String, unique=False, nullable=True)
