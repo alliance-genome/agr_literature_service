@@ -36,8 +36,6 @@ class ResourceEditor(db.Model):
     #crossreferences
     dateCreated = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
-
-
 class ResourceVolume(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     referenceId = db.Column(db.Integer, db.ForeignKey('resource.id'), nullable=False)
@@ -48,7 +46,7 @@ class ResourceVolume(db.Model):
 
 class Resource(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    primaryId = db.Column(db.Integer, db.ForeignKey('resource.id'), nullable=False)
+    primaryId = db.Column(db.Integer, nullable=True)
     title = db.Column(db.String(), nullable=True)
     titleSynonyms = db.relationship('ResourceTitleSynonym' , backref='resource', lazy=True)
     isoAbbreviation = db.Column(db.String(255), unique=False, nullable=True)

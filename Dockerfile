@@ -19,4 +19,4 @@ RUN pip install -r ${PROJECT_DIR}/requirements.txt
 
 ADD . .
 
-CMD ["python3", "src/main.py", "--port=8080", "--prod"]
+CMD ["python3", "src/main.py", "--port=8080"]

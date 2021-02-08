@@ -18,14 +18,13 @@ from references.models.reference import Reference
 from references.models.reference import Pubmed
 from references.models.reference import Pubmod
 
-#from references.models import Journal
-#from references.models import Title
-
 from references.schemas.reference import ReferenceSchema
 
 
 logger = logging.getLogger('literature logger')
 
+
+@marshal_with(ReferenceSchema)
 @doc(description='Add reference', tags=['reference'])
 class AddReferenceEndpoint(MethodResource):
     def post(self):
@@ -35,42 +34,39 @@ class AddReferenceEndpoint(MethodResource):
         except ValueError as e:
             return print(e)
 
-        #Create and/or Find reference record by ID
+        # Create and/or Find reference record by ID
         id = None
         if 'id' in data:
             reference_obj_from_db = Reference.query.filter_by(id=data['id']).first()
             if reference_obj_from_db:
-               id = data['id']
+                id = data['id']
             else:
-               return "Supplied 'reference_id' not in database"
-        if id == None and 'pubmedId' in data:
+                return "Supplied 'reference_id' not in database"
+        if id is None and 'pubmedId' in data:
             pubmed_obj_from_db = Pubmed.query.filter_by(id=data['pubmedId']).first()
             if pubmed_obj_from_db:
                 id = pubmed_obj_from_db.referenceId
-        elif reference_id == None and 'pubmodId' in data:
+        elif id is None and 'pubmodId' in data:
             pubmod_obj_from_db = Pubmod.query.filter_by(id=data['pubmodId']).first()
             if pubmod_obj_from_db:
                 id = pubmod_obj_from_db.referenceId
 
         datetime_now = datetime.now(timezone.utc)
-
-        if id == None:
-            reference = Reference(dateTimeCreated=datetime_now)
+        if id is None:
+            reference = Reference(dateCreated=datetime_now)
         else:
             reference = Reference.query.filter_by(id=id).first()
 
-
-
-
-        #add secondary IDs to database
+        # add secondary IDs to database
         if 'pubmedId' in data:
             pubmed = Pubmed.query.filter_by(id=data['pubmedId']).first()
             if not pubmed:
                 print("Adding pubmed_id to database")
-                db.session.add(reference_obj)
+                db.session.add(reference)
                 pubmed = Pubmed(id=data['pubmedId'], reference=reference)
                 db.session.add(pubmed)
                 db.session.commit()
+
                 id = Pubmed.query.filter_by(id=data['pubmedId']).first().referenceId
         if 'pubmodId' in data:
             if 'mod' not in data:
@@ -86,11 +82,64 @@ class AddReferenceEndpoint(MethodResource):
                 db.session.commit()
                 id = Pubmod.query.filter_by(id=data['pubmodId']).first().referenceId
 
-        if 'title' in data:
-            print("Adding title")
 
+        reference = Reference.query.filter_by(id=id).first()
+
+        update_reference = False
+        if 'primaryId' in data:
+             reference.primaryId = data['primaryId']
+             update_reference = True
+        if 'title' in data:
+             reference.title = data['title']
+             update_reference = True
+        if 'datePublished' in data:
+             reference.datePublished = data['datePublished']
+             upate_reference = True
+        if 'dateArrivedInPubMed' in data:
+             refrence.dateArrivedInPubMed = data['dateArrivedInPubMed']
+             update_reference = True
+        if 'dateLastModified' in data:
+             reference.dateLastModified = data['dateLastModified']
+             update_reference = True
+        if 'volume' in data:
+             reference.volume = data['volume']
+             update_reference = True
+        if 'abstract' in data:
+             reference.abstract = data['abstract']
+             update_reference = True
+        if 'citation' in data:
+             reference.citation = data['citation']
+             update_reference = True
+        if 'pubMedType' in data:
+             reference.pubMedType = data['pubMedType']
+             update_reference = True
+        if 'publisher' in data:
+             reference.publisher = data['publisher']
+             update_reference = True
+        if 'allianceCategory' in data:
+             reference.allianceCategory = data['allianceCategory']
+             update_reference = True
+        if 'issueName' in data:
+             reference.issueName = data['issueName']
+             update_reference = True
+        if 'issueDate' in data:
+             reference.issueDate = data['issueDate']
+             update_reference = True
+        if 'resourceAbbreviation' in data:
+             reference.resourceAbbreviation = data['resourceAbbreviation']
+             update_reference = True
+        if 'updatedBy' in data:
+             reference.updatedBy = data['updatedBy']
+             update_reference = True
+
+        #relation fields to add: author, pages, modReferenceTypes, meshTerms, tags, crossReferences
+
+        if update_reference:
+             db.session.add(reference)
+             db.session.commit()
 
         return 'Created or Updated: AllianceReference:%s' % id
+
 
 @marshal_with(ReferenceSchema)
 @doc(description='Get Reference Data', tag=['reference'])
@@ -117,7 +166,7 @@ class GetReferenceEndpoint(MethodResource):
                 'issueDate': None,
                 'tags': None,
                 'meshTerms': None,
-                #crossReferences
+                # crossReferences
                 'pubmedIDs': Pubmed.query.filter_by(referenceId=id),
                 'pubmodIDs': Pubmod.query.filter_by(referenceId=id),
                 'resourceAbbreviation': None,

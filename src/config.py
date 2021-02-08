@@ -4,7 +4,7 @@ from os import environ, path
 from dotenv import load_dotenv
 
 basedir = path.abspath(path.dirname(__file__))
-load_dotenv(path.join(basedir, '.env'))
+load_dotenv(path.join(basedir, '../.env'))
 
 
 class Config:
@@ -20,7 +20,10 @@ class Config:
     psql_host = environ.get('PSQL_HOST')
     psql_port = environ.get('PSQL_PORT')
     psql_database = environ.get('PSQL_DATABASE')
-    
-    SQLALCHEMY_DATABASE_URI = "postgresql://" + psql_username + ":" + psql_password + "@" + psql_host + ":" + psql_port + "/" + psql_database
 
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_DATABASE_URI = "postgresql://" \
+        + psql_username + ":" + psql_password \
+        + "@" + psql_host + ":" + psql_port \
+        + "/" + psql_database
+
+    SQLALCHEMY_TRACK_MODIFICATIONS = True

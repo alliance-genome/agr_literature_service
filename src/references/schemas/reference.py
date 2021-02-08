@@ -36,4 +36,3 @@ class ReferenceSchema(Schema):
     pubmedIDs = fields.List(fields.Nested(PubMedIdSchema))
     modIDs = fields.List(fields.Str())
     resourceAbbreviation = fields.Str()
-    dateTimeCreated = fields.DateTime()
