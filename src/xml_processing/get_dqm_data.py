@@ -1,5 +1,5 @@
 
-import urllib
+import urllib.request
 import json
 
 import io
@@ -12,8 +12,8 @@ import logging
 import logging.config
 
 
-# how to run
-# python get_dqm_data.py
+# get_dqm_data.py downloads DQM MOD JSON from FMS and uncompresses. compares md5sum to current file to prevent downloading if it's the same
+# pipenv run python get_dqm_data.py
 
 
 
@@ -52,8 +52,12 @@ def download_dqm_json():
     for datatype in datatypes:
         for mod in mods:
             url = 'https://fms.alliancegenome.org/api/datafile/by/' + release + '/' + datatype + '/' + mod + '?latest=true'
-            response = urllib.urlopen(url)
+            response = urllib.request.urlopen(url)
             data = json.loads(response.read())
+#             data = ''
+#             with urllib.request.urlopen(url) as url_data:
+#                 file_data = url_data.read().decode('utf-8')
+#                 data = json.loads(file_data)
             if len(data) < 1:
                 continue
             if 's3Url' not in data[0]:
@@ -69,7 +73,7 @@ def download_dqm_json():
             if md5sum_local != md5sum_fms:
                 logger.info("downloading %s to %s", file_url, outfile_path_decompressed)
     
-                response = urllib.urlopen(file_url)
+                response = urllib.request.urlopen(file_url)
                 compressed_file = io.BytesIO(response.read())
                 decompressed_file = gzip.GzipFile(fileobj=compressed_file)
                 
