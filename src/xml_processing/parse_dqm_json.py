@@ -1,19 +1,33 @@
 
 import json
+import urllib.request
 
-# import argparse
-# import re
+import argparse
+import re
 
 from os import path
 import logging
 import logging.config
 
-# This takes about 90 seconds to run
+# pipenv run python parse_dqm_json.py -p  takes about 90 seconds to run
+# pipenv run python parse_dqm_json.py -f dqm_data/ -m all > dqm_cross_references  takes 3.5 minutes to run
+
 
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-p', '--generate-pmid-data', action='store_true', help='generate pmid outputs')
+parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
+parser.add_argument('-m', '--mod', action='store', help='which mod, use all or leave blank for all')
+# parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
+# parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
+# parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
+# parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
+
+args = vars(parser.parse_args())
 
 base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 
@@ -44,7 +58,9 @@ def split_identifier(identifier, ignore_error=False):
     return prefix, identifier_processed, separator
 
 
-def process_dqm_references():
+# output set of PMID identifiers that will need XML downloaded
+# output pmids and the mods that have them
+def generate_pmid_data():
     mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
 #     mods = ['SGD']
 
@@ -64,11 +80,11 @@ def process_dqm_references():
 #         filename = 'dqm_data/1.0.1.4_REFERENCE_WB_0.json'
        filename = base_path + 'dqm_data/REFERENCE_' + mod + '.json'
        f = open(filename)
-       dqm_data = json.load(f) 
+       dqm_data = json.load(f)
 
        primary_id_unique = dict()
        pmid_unique = dict()
-       
+
 #        wb_papers = dict()
        mod_papers = dict()
        pmid_papers = dict()
@@ -131,7 +147,7 @@ def process_dqm_references():
 #             entry = pmid_papers[identifier]
 #             print(identifier)
 #         #     print(identifier + ' ' + entry['allianceCategory'])
-       
+
 # TODO create a sample of 100 entries per MOD to play with
 
 # output each mod's count of pmid references
@@ -159,7 +175,8 @@ def process_dqm_references():
 # output set of identifiers that will need XML downloaded
     output_pmid_file = base_path + 'inputs/alliance_pmids'
     with open(output_pmid_file, "w") as pmid_file:
-        for pmid in sorted(pmid_stats.iterkeys(), key=int):
+#         for pmid in sorted(pmid_stats.iterkeys(), key=int):	# python 2
+        for pmid in sorted(pmid_stats, key=int):
             pmid_file.write("%s\n" % (pmid))
         pmid_file.close()
 
@@ -177,9 +194,105 @@ def process_dqm_references():
     # for primary_id in primary_ids:
     #     logger.info("primary_id %s", primary_id)
 
+
+# reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
+# outputs sanitized json to sanitized_reference_json/
+# does checks on dqm crossReferences.  if primaryId is not PMID, and a crossReference is PubMed, assigns PMID to primaryId and to authors's referenceId.
+# if any reference's author doesn't have author Rank, assign authorRank based on array order.
+def aggregate_dqm_with_pubmed(input_path, input_mod):
+    mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
+    if input_mod in mods:
+        mods = [ input_mod ]
+    logger.info("Aggregating DQM and PubMed data from %s using mods %s", input_path, mods)
+    agr_schemas_reference_json_url = 'https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/ingest/resourcesAndReferences/reference.json'
+    schema_data = dict()
+    with urllib.request.urlopen(agr_schemas_reference_json_url) as url:
+        schema_data = json.loads(url.read().decode())
+#         print(schema_data)
+    for mod in mods:
+        filename = args['file'] + '/REFERENCE_' + mod + '.json'
+        logger.info("Processing %s", filename)
+        unexpected_mod_properties = set()
+        dqm_data = dict()
+        with open(filename, 'r') as f:
+            dqm_data = json.load(f)
+            f.close()
+        json_storage_path = base_path + 'sanitized_reference_json/'
+        json_filename = json_storage_path + 'REFERENCE_' + mod + '.json'
+        with open(json_filename, "w") as json_file:
+            entries = dqm_data['data']
+            sanitized_data = []
+            for entry in entries:
+                primary_id = entry['primaryId']
+                update_primary_id = False
+                orig_primary_id = entry['primaryId']
+#                 print("primaryId %s" % (entry['primaryId']))
+                for entry_property in entry:
+                    if entry_property not in schema_data['properties']:
+                        unexpected_mod_properties.add(entry_property)
+                if 'crossReferences' in entry:
+                    for cross_reference in entry['crossReferences']:
+                        if 'pages' in cross_reference:
+                            if len(cross_reference["pages"]) > 1:
+                                logger.info("mod %s primaryId %s has cross reference %s with pages %s", mod, primary_id, cross_reference["id"], cross_reference["pages"])
+                            else:
+                                if not re.match(r"^PMID:[0-9]+", orig_primary_id):
+                                    if cross_reference["pages"][0] == 'PubMed':
+                                        xref_id = cross_reference["id"]
+                                        if re.match(r"^PMID:[0-9]+", xref_id):
+                                            update_primary_id = True
+                                            primary_id = xref_id
+                                            entry['primaryId'] = xref_id
+                        else:
+                            logger.info("mod %s primaryId %s has cross reference %s without pages", mod, primary_id, cross_reference["id"])
+                else:
+                    logger.info("mod %s primaryId %s has no cross references", mod, primary_id)
+                all_authors_have_rank = True
+                for author in entry['authors']:
+                    if 'authorRank' not in entry:
+                        all_authors_have_rank = False
+                if all_authors_have_rank == False:
+                    authors_with_rank = []
+                    for i in range(len(entry['authors'])):
+                        author = entry['authors'][i]
+                        author['authorRank'] = i + 1
+                        authors_with_rank.append(author)
+                    entry['authors'] = authors_with_rank
+                if update_primary_id:
+                    authors_updated = []
+                    for author in entry['authors']:
+                        author['referenceId'] = primary_id
+                        authors_updated.append(author)
+                    entry['authors'] = authors_updated
+                sanitized_data.append(entry)
+# UNCOMMENT TO generate json
+            json_data = json.dumps(sanitized_data, indent=4, sort_keys=True)
+            json_file.write(json_data)
+            json_file.close()
+
+
+        for unexpected_mod_property in unexpected_mod_properties:
+            logger.info("Warning: Unexpected Mod %s Property %s", mod, unexpected_mod_property)
+
 if __name__ == "__main__":
     """ call main start function """
     logger.info("starting parse_dqm_json.py")
-    process_dqm_references()
+
+# pipenv run python parse_dqm_json.py -p
+    if args['generate_pmid_data']:
+        logger.info("Generating PMID files from DQM data")
+        generate_pmid_data()
+
+# pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m WB
+# pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m all
+    elif args['file']:
+        if args['mod']:
+            aggregate_dqm_with_pubmed(args['file'], args['mod'])
+        else:
+            aggregate_dqm_with_pubmed(args['file'], 'all')
+
+    else:
+        logger.info("No flag passed in.  Use -h for help.")
+
     logger.info("ending parse_dqm_json.py")
 
