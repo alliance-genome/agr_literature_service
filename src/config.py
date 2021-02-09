@@ -13,6 +13,7 @@ class Config:
     FLASK_ENV = 'development'
     TESTING = True
     SECRET_KEY = environ.get('SECRET_KEY')
+    APISPEC_SWAGGER_URL = '/swagger/'
 
     # Database
     psql_username = environ.get('PSQL_USERNAME')

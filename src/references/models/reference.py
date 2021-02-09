@@ -1,10 +1,27 @@
 from datetime import datetime
 
+from flask_continuum import VersioningMixin
+
 from shared.models import db
 
-from references.schemas.referenceTag import TagName
-from references.schemas.referenceTag import TagSource
 from references.schemas.allianceCategory import AllianceCategory
+
+from enum import Enum
+
+
+class TagName(Enum):
+      canShowImages = 1
+      PMCOpenAccess = 2
+      inCorpus = 3
+      notRelevant = 4
+
+class TagSource(Enum):
+      SGD = 1
+      ZFIN = 2
+      RGD = 3
+      WB = 4
+      MGI = 5
+      FB = 6
 
 class Pubmed(db.Model):
     id = db.Column(db.String(10), primary_key=True)
@@ -30,8 +47,10 @@ class Author(db.Model):
     name = db.Column(db.String(255), unique=False, nullable=True)
     firstName = db.Column(db.String(255), unique=False, nullable=True)
     lastName = db.Column(db.String(255), unique=False, nullable=True)
-    #middleNames = db.relationship('MiddleName' , backref='author', lazy=True)
-    #crossreferences
+    # Rank
+    # Institutions
+    # middleNames = db.relationship('MiddleName' , backref='author', lazy=True)
+    # crossreferences
     valid = db.Column(db.Boolean)
     dateCreated = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
@@ -71,11 +90,11 @@ class MeshTerm(db.Model):
 
 # crossReferences
 
-class Reference(db.Model):
+class Reference(db.Model, VersioningMixin):
     id = db.Column(db.Integer, primary_key=True)
     primaryId = db.Column(db.String, unique=True, nullable=True)
-    pubmedIds = db.relationship('Pubmed', backref='reference', lazy=True)
-    pubmodIds = db.relationship('Pubmod', backref='reference', lazy=True)
+    #pubmedIds = db.relationship('Pubmed', backref='reference', lazy=True)
+    #pubmodIds = db.relationship('Pubmod', backref='reference', lazy=True)
     title = db.Column(db.String, unique=False, nullable=True)
     authors = db.relationship('Author' , backref='reference', lazy=True)
     datePublished = db.Column(db.String(255), unique=False, nullable=True)
@@ -92,7 +111,7 @@ class Reference(db.Model):
     modReferenceTypes = db.relationship('ModReferenceType' , backref='reference', lazy=True)
     issueName = db.Column(db.String(255), unique=False, nullable=True)
     issueDate = db.Column(db.String(255), unique=False, nullable=True)
-    #tags = db.relationship('Tags' , backref='reference', lazy=True)
+    tags = db.relationship('Tag' , backref='reference', lazy=True)
     meshTerms = db.relationship('MeshTerm' , backref='reference', lazy=True)
     #crossReferences
     resourceAbbreviation = db.Column(db.String(255), unique=False, nullable=True)

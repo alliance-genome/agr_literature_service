@@ -1,10 +1,11 @@
 from marshmallow import Schema, fields
 
-class AuthorSchema(Schema):
-    id = fields.Int()
-    referenceId = fields.Int()
-    name = fields.Str()
-    firstName = fields.Str()
-    lastName = fields.Str()
-    #middleNames = fields.List(fields.Str())
-    #crossreferences
+from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
+from references.models.reference import Author
+
+
+class AuthorSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = Author
+        include_relationships = True
+        load_instance = True

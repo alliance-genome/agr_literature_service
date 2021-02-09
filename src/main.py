@@ -8,6 +8,7 @@ from flask import Flask
 from flask import Blueprint
 
 from flask_apispec.extension import FlaskApiSpec
+from flask_continuum import Continuum
 
 from waitress import serve
 
@@ -31,10 +32,14 @@ parser.add_argument('-v', dest='verbose', action='store_true')
 
 args = vars(parser.parse_args())
 
+continuum = Continuum(db=db)
+
 flask_app = Flask(__name__)
 flask_app.config.from_object('config.Config')
 
 db.init_app(flask_app)
+continuum.init_app(flask_app)
+
 docs = FlaskApiSpec(flask_app)
 
 reference_bp = Blueprint('references_api', __name__, url_prefix='/reference/')

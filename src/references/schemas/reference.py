@@ -1,38 +1,37 @@
 from marshmallow import Schema, fields
 from marshmallow_enum import EnumField
+from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
+
+from references.models.reference import Reference
 
 from .author import AuthorSchema
-from .pubmedid import PubMedIdSchema
-from .pubmodid import PubModIdSchema
-from .crossreference import CrossReferenceSchema
+from .page import PageSchema
+from .meshTerm import MeshTermSchema
+#from .pubmedid import PubMedIdSchema
+#from .pubmodid import PubModIdSchema
+#from .crossreference import CrossReferenceSchema
 from .modReferenceType import ModReferenceTypeSchema
 from .referenceTag import ReferenceTagSchema
-
 from .allianceCategory import AllianceCategory
 
-class ReferenceSchema(Schema):
-    id = fields.Int()
-    primaryId = fields.Str(required=True)
-    title = fields.Str(required=True)
+from marshmallow_sqlalchemy.fields import Nested
+
+
+class ReferenceSchema(SQLAlchemyAutoSchema):
     authors = fields.List(fields.Nested(AuthorSchema))
-    datePublished = fields.Str(required=True)
-    dateArrivedInPubMed = fields.Str()
-    dateLastModified = fields.Str()
-    volume = fields.Str()
-    pages = fields.Str()
-    abstract = fields.Str()
-    citation = fields.Str(required=True)
+    pages = fields.List(fields.Nested(PageSchema))
     keywords = fields.List(fields.Str())
-    pubMedType = fields.Str()
-    publisher = fields.Str()
     allianceCategory = EnumField(AllianceCategory)
     modReferenceTypes = fields.List(fields.Nested(ModReferenceTypeSchema))
-    issueName = fields.Str()
-    issueDate = fields.Str()
-    tags = fields.List(fields.Nested(ReferenceTagSchema))
-    meshTerms = fields.List(fields.Str())
-    crossreferences = fields.List(fields.Nested(CrossReferenceSchema))
-    pubmedIDs = fields.List(fields.Nested(PubMedIdSchema))
-    pubmedIDs = fields.List(fields.Nested(PubMedIdSchema))
-    modIDs = fields.List(fields.Str())
-    resourceAbbreviation = fields.Str()
+    #tags = fields.List(fields.Nested(ReferenceTagSchema))
+    meshTerms = fields.List(fields.Nested(MeshTermSchema))
+#    crossreferences = fields.List(fields.Nested(CrossReferenceSchema))
+#    pubmedIDs = fields.List(fields.Nested(PubMedIdSchema))
+#    pubmedIDs = fields.List(fields.Nested(PubMedIdSchema))
+#    modIDs = fields.List(fields.Str())
+
+    class Meta:
+        model = Reference
+        include_relationships = True
+        load_instance = True
+        exclude = ("dateCreated", "dateUpdated")
