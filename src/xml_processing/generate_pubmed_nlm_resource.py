@@ -1,7 +1,14 @@
 import json 
 import xmltodict 
 
-#  python generate_pubmed_nlm_resource
+# generate from local file and do not upload to s3
+# pipenv run python generate_pubmed_nlm_resource -l
+# 
+# generate from url and do not upload to s3
+# pipenv run python generate_pubmed_nlm_resource -u
+# 
+# generate from url and upload to s3
+# pipenv run python generate_pubmed_nlm_resource -u -s
 
 # https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt
 
