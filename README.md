@@ -68,32 +68,32 @@ use --prod argument to use the WSGI server in production
 
 ### Download xml from an input file in the file system
 ```bash
-python src/xml_processing/get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
+pipenv run python src/xml_processing/get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 ```
 
 ### Download xml from an input file at a URL
 ```bash
-python src/xml_processing/get_pubmed_xml.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
+pipenv run python src/xml_processing/get_pubmed_xml.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
 ```
 
 ### Download xml from commandline flags
 ```bash
-python src/xml_processing/get_pubmed_xml.py -c 12345678 4576890 18280033
+pipenv run python src/xml_processing/get_pubmed_xml.py -c 12345678 4576890 18280033
 ```
 
 ### Download xml from a database-based job (stub)
 ```bash
-python src/xml_processing/get_pubmed_xml.py -d
+pipenv run python src/xml_processing/get_pubmed_xml.py -d
 ```
 
 ### Download xml from a REST API-based job (stub)
 ```bash
-python src/xml_processing/get_pubmed_xml.py -r
+pipenv run python src/xml_processing/get_pubmed_xml.py -r
 ```
 
 ### Download xml from a hardcoded sample
 ```bash
-python src/xml_processing/get_pubmed_xml.py -s
+pipenv run python src/xml_processing/get_pubmed_xml.py -s
 ```
 
 ## Convert PubMed XML to JSON
