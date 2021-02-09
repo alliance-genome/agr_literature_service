@@ -1,7 +1,7 @@
 import json
 import xmltodict
 
-#  python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
+# pipenv run python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 #
 # 21 minutes for 646727 documents from filesystem. 12G of xml to 5.0G of json
 
@@ -295,7 +295,8 @@ def generate_json():
                         if type not in known_article_id_types:
                             unknown_article_id_types.add(type)
                         if type in data_dict:
-                            print pmid + " has multiple for type " + type
+#                             print("%s has multiple for type %s" % (pmid, type))
+                            logger.info("%s has multiple for type %s", pmid, type)
                         data_dict[type] = value
 
             medline_journal_info_re_output = re.search("<MedlineJournalInfo>(.*?)</MedlineJournalInfo>", xml, re.DOTALL)

@@ -100,7 +100,7 @@ python src/xml_processing/get_pubmed_xml.py -s
 
 ### Has same flags as get_pubmed_xml.py, e.g.
 ```bash
-python src/xml_processing/xml_to_json.py  -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
+pipenv run python src/xml_processing/xml_to_json.py  -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 ```
 
 ## Generate resource JSON from J_Medline.txt
@@ -127,7 +127,7 @@ pipenv run python src/xml_processing/get_dqm_data.py
 ## Generate testing sample of DQM MOD data
 - generate_dqm_json_test_set.py generates a small sample set from DQM MOD JSON in dqm_data/ and outputs to dqm_sample/
 ```bash
-python src/xml_processing/generate_dqm_json_test_set.py
+pipenv run python src/xml_processing/generate_dqm_json_test_set.py
 ```
 
 ## Parse DQM data to generate lists of PMIDs
@@ -145,7 +145,7 @@ pipenv run python parse_dqm_json.py -f dqm_sample -m WB
 ## Sort PMIDs without XML by MOD
 - sort_not_found_pmids_by_mod.py takes pmids_not_found from get_pubmed_xml.py, and pmids_by_mods from parse_dqm_json.py, and generates a set sorted by MODs of pmids that were not found in pubmed.
 ```bash
-python src/xml_processing/sort_not_found_pmids_by_mod.py
+pipenv run python src/xml_processing/sort_not_found_pmids_by_mod.py
 ```
 
 ## Generating login credentials (must repeat every 12 hours to access base linux image and neo4j env image)
