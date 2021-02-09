@@ -9,6 +9,7 @@ from flask import jsonify
 from flask_sqlalchemy import SQLAlchemy
 
 from flask_apispec import marshal_with
+from flask_apispec import use_kwargs
 from flask_apispec.views import MethodResource
 from flask_apispec.annotations import doc
 
@@ -27,10 +28,10 @@ logger = logging.getLogger('literature logger')
 @marshal_with(ReferenceSchema)
 @doc(description='Add reference', tags=['reference'])
 class AddReferenceEndpoint(MethodResource):
+
     def post(self):
-        data_string = request.form['data']
         try:
-            data = json.loads(data_string)
+            data = request.json
         except ValueError as e:
             return print(e)
 
@@ -81,7 +82,6 @@ class AddReferenceEndpoint(MethodResource):
                 db.session.add(pubmod)
                 db.session.commit()
                 id = Pubmod.query.filter_by(id=data['pubmodId']).first().referenceId
-
 
         reference = Reference.query.filter_by(id=id).first()
 
@@ -134,11 +134,17 @@ class AddReferenceEndpoint(MethodResource):
 
         #relation fields to add: author, pages, modReferenceTypes, meshTerms, tags, crossReferences
 
+        if 'authors' in data:
+             if not isinstance(data['authors'], list):
+                return "Make sure 'authors' field is populated with a list"
+             for author in data['authors']:
+                 print(author)
+
         if update_reference:
              db.session.add(reference)
              db.session.commit()
 
-        return 'Created or Updated: AllianceReference:%s' % id
+        return reference
 
 
 @marshal_with(ReferenceSchema)

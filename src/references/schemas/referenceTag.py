@@ -1,22 +1,10 @@
-from marshmallow import Schema, fields
-from marshmallow_enum import EnumField
-from enum import Enum
+from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
-class TagName(Enum):
-    canShowImages = 1
-    PMCOpenAccess = 2
-    inCorpus = 3
-    notRelevant = 4
 
-class TagSource(Enum):
-    SGD = 1
-    ZFIN = 2
-    RGD = 3
-    WB = 4
-    MGI = 5
-    FB = 6
+from references.models.reference import Tag
 
-class ReferenceTagSchema(Schema):
-    id = fields.Int()
-    tagName = EnumField(TagName)
-    tagSource = EnumField(TagSource)
+class ReferenceTagSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = Tag
+        include_relationships = True
+        load_instance = True
