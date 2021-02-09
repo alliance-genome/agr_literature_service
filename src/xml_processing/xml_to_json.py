@@ -1,5 +1,5 @@
-import json 
-import xmltodict 
+import json
+import xmltodict
 
 #  python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 #
@@ -12,12 +12,12 @@ import xmltodict
 # cp pubmed_json/33002525.json pubmed_sample
 # cp pubmed_json/33440160.json pubmed_sample
 # cp pubmed_json/33410237.json pubmed_sample
-# git add pubmed_sample/32542232.json 
-# git add pubmed_sample/32644453.json 
-# git add pubmed_sample/33408224.json 
-# git add pubmed_sample/33002525.json 
-# git add pubmed_sample/33440160.json 
-# git add pubmed_sample/33410237.json 
+# git add pubmed_sample/32542232.json
+# git add pubmed_sample/32644453.json
+# git add pubmed_sample/33408224.json
+# git add pubmed_sample/33002525.json
+# git add pubmed_sample/33440160.json
+# git add pubmed_sample/33410237.json
 
 
 # https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt
@@ -74,10 +74,10 @@ base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 
 known_article_id_types = { 'pubmed', 'doi', 'pmc', 'pii' }
 unknown_article_id_types = set()
-  
+
 
 def represents_int(s):
-    try: 
+    try:
         int(s)
         return True
     except ValueError:
@@ -130,24 +130,24 @@ def get_year_month_day_from_xml_date(pub_date):
     return date_list
 
 
-  
+
 def generate_json():
-    # open input xml file and read data in form of python dictionary using xmltodict module 
+    # open input xml file and read data in form of python dictionary using xmltodict module
     for pmid in pmids:
         storage_path = base_path + 'pubmed_xml/'
         filename = storage_path + pmid + '.xml'
         if not path.exists(filename):
             continue
-        with open(filename) as xml_file: 
+        with open(filename) as xml_file:
 
             xml = xml_file.read()
 #             print (xml)
-              
-            # xmltodict is treating html markup like <i>text</i> as xml, which is creating mistaken structure in the conversion.  
+
+            # xmltodict is treating html markup like <i>text</i> as xml, which is creating mistaken structure in the conversion.
             # may be better to parse full xml instead.
-#             data_dict = xmltodict.parse(xml_file.read()) 
-            xml_file.close() 
-        
+#             data_dict = xmltodict.parse(xml_file.read())
+            xml_file.close()
+
             print (pmid)
 #             print (data_dict["PubmedArticleSet"]["PubmedArticle"]["MedlineCitation"]["Article"]["ArticleTitle"])
         #     if (data_dict["PubmedArticleSet"]["PubmedArticle"]["MedlineCitation"]["Article"]["ArticleTitle"])
@@ -162,7 +162,7 @@ def generate_json():
             journal_re_output = re.search("<MedlineTA>(.+?)</MedlineTA>", xml)
             if journal_re_output is not None:
 #                 print journal
-                data_dict['journal'] = journal_re_output.group(1) 
+                data_dict['journal'] = journal_re_output.group(1)
 
             pages_re_output = re.search("<MedlinePgn>(.+?)</MedlinePgn>", xml)
             if pages_re_output is not None:
@@ -302,9 +302,9 @@ def generate_json():
             if medline_journal_info_re_output is not None:
                 medline_journal_info = medline_journal_info_re_output.group(1)
 #                 print pmid + " medline_journal_info " + medline_journal_info
-                nlm = '';
-                issn = '';
-                journal_abbrev = '';
+                nlm = ''
+                issn = ''
+                journal_abbrev = ''
                 nlm_re_output = re.search("<NlmUniqueID>(.+?)</NlmUniqueID>", medline_journal_info)
                 if nlm_re_output is not None:
                     nlm = nlm_re_output.group(1)
@@ -382,27 +382,25 @@ def generate_json():
 #                             meshs_list.append(mesh_dict)
                 data_dict['meshTerms'] = meshs_list
 
-            
-            # generate the object using json.dumps()  
-            # corresponding to json data 
-              
-            # minified
-            # json_data = json.dumps(data_dict) 
-        
-            # pretty-print
-            json_data = json.dumps(data_dict, indent=4, sort_keys=True) 
+            # generate the object using json.dumps()
+            # corresponding to json data
 
-            # Write the json data to output json file 
+            # minified
+            # json_data = json.dumps(data_dict)
+
+            # pretty-print
+            json_data = json.dumps(data_dict, indent=4, sort_keys=True)
+
+            # Write the json data to output json file
 # UNCOMMENT TO write to json directory
             json_storage_path = base_path + 'pubmed_json/'
             json_filename = json_storage_path + pmid + '.json'
-            with open(json_filename, "w") as json_file: 
-                json_file.write(json_data) 
-                json_file.close() 
+            with open(json_filename, "w") as json_file:
+                json_file.write(json_data)
+                json_file.close()
 
     for unknown_article_id_type in unknown_article_id_types:
         logger.info("unknown_article_id_type %s", unknown_article_id_type)
-        
 
 
 if __name__ == "__main__":
@@ -482,7 +480,7 @@ if __name__ == "__main__":
 #   $month_to_num{Oct} = '10';
 #   $month_to_num{Nov} = '11';
 #   $month_to_num{Dec} = '12';
-# 
+#
 #   my ($title) = $page =~ /\<ArticleTitle\>(.+?)\<\/ArticleTitle\>/i;
 #   my ($journal) = $page =~ /<MedlineTA>(.+?)\<\/MedlineTA\>/i;
 #   my ($pages) = $page =~ /\<MedlinePgn\>(.+?)\<\/MedlinePgn\>/i;
@@ -514,7 +512,7 @@ if __name__ == "__main__":
 #   if ($medline_citation =~ /\<MedlineCitation .*Status=\"MEDLINE\"\>/i) { $pubmed_final = 'final'; }    # final version
 #   elsif ($medline_citation =~ /\<MedlineCitation .*Status=\"PubMed-not-MEDLINE\"\>/i) { $pubmed_final = 'final'; }      # final version
 #   elsif ($medline_citation =~ /\<MedlineCitation .*Status=\"OLDMEDLINE\"\>/i) { $pubmed_final = 'final'; }      # final version
-# 
+#
 #   my @xml_authors = $page =~ /\<Author.*?\>(.+?)\<\/Author\>/ig;
 #   my @authors;
 #   foreach (@xml_authors){
