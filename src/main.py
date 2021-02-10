@@ -12,8 +12,7 @@ from flask_continuum import Continuum
 
 from waitress import serve
 
-from services.endpoints.reference import AddReferenceEndpoint
-from services.endpoints.reference import GetReferenceEndpoint
+from services.endpoints.reference import ReferenceEndpoint
 from services.endpoints.resource import AddResourceEndpoint
 from services.endpoints.resource import GetResourceEndpoint
 
@@ -43,9 +42,7 @@ continuum.init_app(flask_app)
 docs = FlaskApiSpec(flask_app)
 
 reference_bp = Blueprint('references_api', __name__, url_prefix='/reference/')
-reference_bp.add_url_rule('/add/', view_func=AddReferenceEndpoint.as_view('AddReferenceEndpoint'))
-reference_bp.add_url_rule('/<string:id>/get/',
-                           view_func=GetReferenceEndpoint.as_view('GetReferenceEndpoint'))
+reference_bp.add_url_rule('/', view_func=ReferenceEndpoint.as_view('ReferenceEndpoint'))
 
 resource_bp = Blueprint('resources_api', __name__, url_prefix='/resource/')
 resource_bp.add_url_rule('/add/', view_func=AddResourceEndpoint.as_view('AddResourceEndpoint'))
@@ -54,8 +51,7 @@ resource_bp.add_url_rule('/<string:id>/get/',
 
 app = flask_app
 app.register_blueprint(reference_bp)
-docs.register(AddReferenceEndpoint, blueprint="references_api", endpoint='AddReferenceEndpoint')
-docs.register(GetReferenceEndpoint, blueprint="references_api", endpoint='GetReferenceEndpoint')
+docs.register(ReferenceEndpoint, blueprint="references_api", endpoint='ReferenceEndpoint')
 
 app.register_blueprint(resource_bp)
 docs.register(AddResourceEndpoint, blueprint="resources_api", endpoint='AddResourceEndpoint')

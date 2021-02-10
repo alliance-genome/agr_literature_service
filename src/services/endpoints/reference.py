@@ -19,42 +19,45 @@ from references.models.reference import Reference
 from references.models.reference import Pubmed
 from references.models.reference import Pubmod
 
-from references.schemas.reference import ReferenceSchema
+from references.schemas.reference import ReferenceSchemaIn
+from references.schemas.reference import ReferenceSchemaOut
 
 
 logger = logging.getLogger('literature logger')
 
 
-@marshal_with(ReferenceSchema)
-@doc(description='Add reference', tags=['reference'])
-class AddReferenceEndpoint(MethodResource):
+@marshal_with(ReferenceSchemaOut)
+@doc(description='Reference', tags=['reference'])
+class ReferenceEndpoint(MethodResource):
 
-    def post(self):
-        try:
-            data = request.json
-        except ValueError as e:
-            return print(e)
-
+    @use_kwargs(ReferenceSchemaIn)
+    def post(self, **data):
+        print('data')
+        print(data)
+        
         # Create and/or Find reference record by ID
-        id = None
-        if 'id' in data:
-            reference_obj_from_db = Reference.query.filter_by(id=data['id']).first()
-            if reference_obj_from_db:
-                id = data['id']
-            else:
-                return "Supplied 'reference_id' not in database"
-        if id is None and 'pubmedId' in data:
-            pubmed_obj_from_db = Pubmed.query.filter_by(id=data['pubmedId']).first()
-            if pubmed_obj_from_db:
-                id = pubmed_obj_from_db.referenceId
-        elif id is None and 'pubmodId' in data:
-            pubmod_obj_from_db = Pubmod.query.filter_by(id=data['pubmodId']).first()
-            if pubmod_obj_from_db:
-                id = pubmod_obj_from_db.referenceId
+        reference_obj_from_db = Reference.query.filter_by(primaryId=data['primaryId']).first()
+        if not reference_obj_from_db:
+            reference = Reference(**data)
+            db.session.add(reference)
+            db.session.commit()
+            reference_obj_from_db = Reference.query.filter_by(primaryId=data['primaryId']).first()
+
+        return reference_obj_from_db
+        #if id is None and 'pubmedId' in data:
+        #    pubmed_obj_from_db = Pubmed.query.filter_by(id=data['pubmedId']).first()
+        #    if pubmed_obj_from_db:
+        #        id = pubmed_obj_from_db.referenceId
+        #elif id is None and 'pubmodId' in data:
+        #    pubmod_obj_from_db = Pubmod.query.filter_by(id=data['pubmodId']).first()
+        #    if pubmod_obj_from_db:
+        #        id = pubmod_obj_from_db.referenceId
 
         datetime_now = datetime.now(timezone.utc)
         if id is None:
-            reference = Reference(dateCreated=datetime_now)
+            reference = Reference(data)
+            print("created reference")
+            print(reference)
         else:
             reference = Reference.query.filter_by(id=id).first()
 
@@ -83,9 +86,22 @@ class AddReferenceEndpoint(MethodResource):
                 db.session.commit()
                 id = Pubmod.query.filter_by(id=data['pubmodId']).first().referenceId
 
+        if not 'pubmedId' in data and not 'pubmodId' in data:
+            db.session.add(reference)
+            db.session.commit()
+            
+
+
+
         reference = Reference.query.filter_by(id=id).first()
+        #if reference is None:
+             
+
 
         update_reference = False
+        print(data)
+        print(str(type(data)))
+        print(reference)
         if 'primaryId' in data:
              reference.primaryId = data['primaryId']
              update_reference = True
@@ -146,11 +162,7 @@ class AddReferenceEndpoint(MethodResource):
 
         return reference
 
-
-@marshal_with(ReferenceSchema)
-@doc(description='Get Reference Data', tag=['reference'])
-class GetReferenceEndpoint(MethodResource):
-    def get(self, id):
+    def get(self):
         reference = Reference.query.filter_by(id=id).one()
         return {'id': reference.id,
                 'primaryId': None,

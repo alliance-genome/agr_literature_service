@@ -17,14 +17,14 @@ from .allianceCategory import AllianceCategory
 from marshmallow_sqlalchemy.fields import Nested
 
 
-class ReferenceSchema(SQLAlchemyAutoSchema):
-    authors = fields.List(fields.Nested(AuthorSchema))
-    pages = fields.List(fields.Nested(PageSchema))
-    keywords = fields.List(fields.Str())
-    allianceCategory = EnumField(AllianceCategory)
-    modReferenceTypes = fields.List(fields.Nested(ModReferenceTypeSchema))
+class ReferenceSchemaIn(SQLAlchemyAutoSchema):
+    #authors = fields.List(fields.Nested(AuthorSchema))
+    #pages = fields.List(fields.Nested(PageSchema))
+    #keywords = fields.List(fields.Str())
+    #allianceCategory = EnumField(AllianceCategory)
+    #modReferenceTypes = fields.List(fields.Nested(ModReferenceTypeSchema))
     #tags = fields.List(fields.Nested(ReferenceTagSchema))
-    meshTerms = fields.List(fields.Nested(MeshTermSchema))
+    #meshTerms = fields.List(fields.Nested(MeshTermSchema))
 #    crossreferences = fields.List(fields.Nested(CrossReferenceSchema))
 #    pubmedIDs = fields.List(fields.Nested(PubMedIdSchema))
 #    pubmedIDs = fields.List(fields.Nested(PubMedIdSchema))
@@ -32,6 +32,14 @@ class ReferenceSchema(SQLAlchemyAutoSchema):
 
     class Meta:
         model = Reference
+        #include_relationships = True
+        #load_instance = True
+        exclude = ("dateCreated", "dateUpdated", "id")
+
+
+class ReferenceSchemaOut(ReferenceSchemaIn):
+    class Meta:
+        model = Reference
         include_relationships = True
         load_instance = True
-        exclude = ("dateCreated", "dateUpdated")
+        exclude = ("id",)

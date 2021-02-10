@@ -32,6 +32,18 @@ Install Pipenv
 pip3 install pipenv
 ```
 
+## Runnin Tests
+
+```bash
+pipenv run pytest
+```
+
+### Coverage
+
+```bash
+pipenv run pytest --cov --cov-fail-under=100
+```
+
 ## Running Server
 
 ```bash

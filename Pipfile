@@ -5,6 +5,7 @@ verify_ssl = true
 
 [dev-packages]
 pytest = "*"
+pytest-cov = "*"
 flake8 = "*"
 yapf = "*"
 pre-commit = "*"
