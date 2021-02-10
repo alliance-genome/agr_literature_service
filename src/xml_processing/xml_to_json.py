@@ -357,13 +357,13 @@ def generate_json():
                         if len(qualifier_group) > 0:
                             for mesh_qualifier_term in qualifier_group:
                                 mesh_dict = {}
-                                mesh_dict["referenceId"] = pmid
+                                mesh_dict["referenceId"] = 'PMID:' + pmid
                                 mesh_dict["meshHeadingTerm"] = mesh_heading_term
                                 mesh_dict["meshQualfierTerm"] = mesh_qualifier_term
                                 meshs_list.append(mesh_dict)
                         else:
                             mesh_dict = {}
-                            mesh_dict["referenceId"] = pmid
+                            mesh_dict["referenceId"] = 'PMID:' + pmid
                             mesh_dict["meshHeadingTerm"] = mesh_heading_term
                             meshs_list.append(mesh_dict)
 #                 for mesh_xml in meshs_group:
