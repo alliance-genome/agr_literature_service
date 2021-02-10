@@ -27,6 +27,7 @@ psycopg2-binary = "*"
 boto3 = "*"
 pgsync = "*"
 marshmallow_sqlalchemy = "*"
+requests = "*"
 
 [requires]
 python_version = "3.6"

@@ -68,45 +68,45 @@ use --prod argument to use the WSGI server in production
 
 ### Download xml from an input file in the file system
 ```bash
-python src/xml_processing/get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
+pipenv run python src/xml_processing/get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 ```
 
 ### Download xml from an input file at a URL
 ```bash
-python src/xml_processing/get_pubmed_xml.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
+pipenv run python src/xml_processing/get_pubmed_xml.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
 ```
 
 ### Download xml from commandline flags
 ```bash
-python src/xml_processing/get_pubmed_xml.py -c 12345678 4576890 18280033
+pipenv run python src/xml_processing/get_pubmed_xml.py -c 12345678 4576890 18280033
 ```
 
 ### Download xml from a database-based job (stub)
 ```bash
-python src/xml_processing/get_pubmed_xml.py -d
+pipenv run python src/xml_processing/get_pubmed_xml.py -d
 ```
 
 ### Download xml from a REST API-based job (stub)
 ```bash
-python src/xml_processing/get_pubmed_xml.py -r
+pipenv run python src/xml_processing/get_pubmed_xml.py -r
 ```
 
 ### Download xml from a hardcoded sample
 ```bash
-python src/xml_processing/get_pubmed_xml.py -s
+pipenv run python src/xml_processing/get_pubmed_xml.py -s
 ```
 
 ## Convert PubMed XML to JSON
 
 ### Has same flags as get_pubmed_xml.py, e.g.
 ```bash
-python src/xml_processing/xml_to_json.py  -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
+pipenv run python src/xml_processing/xml_to_json.py  -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 ```
 
 ## Generate resource JSON from J_Medline.txt
-To use pubmed url file -u flag<br/>
-To use local file use -l flag<br/>
-To upload to aws s3 agr-literature/develop/resource/metadata/resource_pubmed_all.json use -s flag<br/>
+- To use pubmed url file -u flag<br/>
+- To use local file use -l flag<br/>
+- To upload to aws s3 agr-literature/develop/resource/metadata/resource_pubmed_all.json use -s flag<br/>
 
 ### Generate from URL at https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt (default if no flag), and upload to s3 bucket
 ```bash
@@ -119,21 +119,33 @@ pipenv run python src/xml_processing/generate_pubmed_nlm_resource.py -l
 ```
 
 ## Download DQM MOD data from FMS
-get_dqm_data.py downloads DQM MOD JSON from FMS and uncompresses.  compares md5sum to current file to prevent downloading if it's the same
+- get_dqm_data.py downloads DQM MOD JSON from FMS and uncompresses.  compares md5sum to current file to prevent downloading if it's the same
 ```bash
-python src/xml_processing/get_dqm_data.py
+pipenv run python src/xml_processing/get_dqm_data.py
 ```
 
 ## Generate testing sample of DQM MOD data
-generate_dqm_json_test_set.py generates a small sample set from DQM MOD JSON in dqm_data/ and outputs to dqm_sample/
+- generate_dqm_json_test_set.py generates a small sample set from DQM MOD JSON in dqm_data/ and outputs to dqm_sample/
 ```bash
-python src/xml_processing/generate_dqm_json_test_set.py
+pipenv run python src/xml_processing/generate_dqm_json_test_set.py
+```
+
+## Parse DQM data to generate lists of PMIDs
+- Parse DQM data to generate list of PMIDs that will need XML downloaded, and generate mapping of PMIDs and MODs that have them
+```bash
+pipenv run python parse_dqm_json.py -p
+```
+
+## Parse DQM and PubMed data generate validated JSON for REST API ingest
+- Aggregate and validate DQM data against agr_schemas's reference.json, resolve if PubMed id or PubMod id, create sanitized JSON for REST API (in progress)
+```bash
+pipenv run python parse_dqm_json.py -f dqm_sample -m WB
 ```
 
 ## Sort PMIDs without XML by MOD
-sort_not_found_pmids_by_mod.py takes pmids_not_found from get_pubmed_xml.py, and pmids_by_mods from parse_dqm_json.py, and generates a set sorted by MODs of pmids that were not found in pubmed.
+- sort_not_found_pmids_by_mod.py takes pmids_not_found from get_pubmed_xml.py, and pmids_by_mods from parse_dqm_json.py, and generates a set sorted by MODs of pmids that were not found in pubmed.
 ```bash
-python src/xml_processing/sort_not_found_pmids_by_mod.py
+pipenv run python src/xml_processing/sort_not_found_pmids_by_mod.py
 ```
 
 ## Generating login credentials (must repeat every 12 hours to access base linux image and neo4j env image)

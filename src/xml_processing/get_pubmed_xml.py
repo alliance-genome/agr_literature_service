@@ -78,9 +78,10 @@ def download_pubmed_xml():
         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
         parameters = {'db': 'pubmed', 'retmode': 'xml', 'id': pmids_joined}
         r = requests.post(url, data=parameters)
-        xml_all = r.text.encode('utf-8').strip()
-
+        xml_all = r.text
+#         xml_all = r.text.encode('utf-8').strip()		# python2
         xml_split = xml_all.split("\n<Pubmed")		# some types are not PubmedArticle, like PubmedBookArticle, e.g. 32644453
+
         header = xml_split.pop(0);
         header = header + "\n<Pubmed" + xml_split.pop(0);
         footer = "\n\n</PubmedArticleSet>"
