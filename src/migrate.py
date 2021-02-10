@@ -5,16 +5,6 @@ from flask_migrate import Migrate, MigrateCommand
 
 from shared.models import db
 
-
-app = Flask(__name__)
-app.config.from_object('config.Config')
-
-db.init_app(app)
-migrate = Migrate(app, db)
-manager = Manager(app)
-
-manager.add_command('db', MigrateCommand)
-
 from references.models.reference import Pubmed
 from references.models.reference import Pubmod
 from references.models.reference import Author
@@ -30,6 +20,16 @@ from references.models.resource import ResourceAuthor
 from references.models.resource import ResourceEditor
 from references.models.resource import ResourceVolume
 from references.models.resource import Resource
+
+
+app = Flask(__name__)
+app.config.from_object('config.Config')
+
+db.init_app(app)
+migrate = Migrate(app, db)
+manager = Manager(app)
+
+manager.add_command('db', MigrateCommand)
 
 
 if __name__ == '__main__':

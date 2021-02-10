@@ -26,14 +26,32 @@ https://flask-restful.readthedocs.io/en/latest/quickstart.html
 
 Setup development environment
 
-Install Pipenv
+### Install Pipenv
 
 ```bash
 pip3 install pipenv
 ```
 
+### Install pipenv packages
+
+Dev environment
+```bash
+pipenv install  --dev
+```
+
+App packeages
+```bash
+pipenv install
+```
+
 ## Runnin Tests
 
+flake8
+```bash
+pipenv run flake8
+```
+
+pytest
 ```bash
 pipenv run pytest
 ```
