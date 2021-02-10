@@ -10,7 +10,14 @@ import logging
 import logging.config
 
 # pipenv run python parse_dqm_json.py -p  takes about 90 seconds to run
-# pipenv run python parse_dqm_json.py -f dqm_data/ -m all > dqm_cross_references  takes 3.5 minutes to run
+# pipenv run python parse_dqm_json.py -f dqm_data/ -m all > dqm_cross_references  takes 3.5 minutes without looking at pubmed json
+# pipenv run python parse_dqm_json.py -f dqm_data/ -m all > dqm_cross_references  takes 12 minutes with comparing to pubmed json, but dying at MGI
+
+#  pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_data/ -m MGI > log_mgi
+# Loading .env environment variables...
+# Killed
+# in 4.5 minutes, logs show it read the last pmid
+
 
 
 
@@ -244,35 +251,93 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                                             primary_id = xref_id
                                             entry['primaryId'] = xref_id
                         else:
-                            logger.info("mod %s primaryId %s has cross reference %s without pages", mod, primary_id, cross_reference["id"])
+                            logger.debug("mod %s primaryId %s has cross reference %s without pages", mod, primary_id, cross_reference["id"])
                 else:
                     logger.info("mod %s primaryId %s has no cross references", mod, primary_id)
-                all_authors_have_rank = True
-                for author in entry['authors']:
-                    if 'authorRank' not in entry:
-                        all_authors_have_rank = False
-                if all_authors_have_rank == False:
-                    authors_with_rank = []
-                    for i in range(len(entry['authors'])):
-                        author = entry['authors'][i]
-                        author['authorRank'] = i + 1
-                        authors_with_rank.append(author)
-                    entry['authors'] = authors_with_rank
-                if update_primary_id:
-                    authors_updated = []
-                    for author in entry['authors']:
-                        author['referenceId'] = primary_id
-                        authors_updated.append(author)
-                    entry['authors'] = authors_updated
+                pmid_group = re.search(r"^PMID:([0-9]+)", primary_id)
+                if pmid_group is None:
+#                     print("primaryKey %s is None" % (primary_id))
+                    if 'authors' in entry:
+                        all_authors_have_rank = True
+                        for author in entry['authors']:
+                            if 'authorRank' not in entry:
+                                all_authors_have_rank = False
+                        if all_authors_have_rank == False:
+                            authors_with_rank = []
+                            for i in range(len(entry['authors'])):
+                                author = entry['authors'][i]
+                                author['authorRank'] = i + 1
+                                authors_with_rank.append(author)
+                            entry['authors'] = authors_with_rank
+                        if update_primary_id:
+                            authors_updated = []
+                            for author in entry['authors']:
+                                author['referenceId'] = primary_id
+                                authors_updated.append(author)
+                            entry['authors'] = authors_updated
+                else:
+                    pmid = pmid_group[1]
+                    print(pmid)
+                    filename = base_path + 'pubmed_json/' + pmid + '.json'
+#                     print("primary_id %s is None reading %s" % (primary_id, filename))
+                    pubmed_data = dict()
+                    try:
+                        with open(filename, 'r') as f:
+                            pubmed_data = json.load(f)
+                            f.close()
+                    except IOError:
+                        logger.info("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s", pmid, mod, orig_primary_id)
+#                     print("primary_id %s is None data %s" % (primary_id, pubmed_data['authors']))
+                    if 'authors' in pubmed_data:
+                        entry['authors'] = pubmed_data['authors']
+                    if 'volume' in pubmed_data:
+                        entry['volume'] = pubmed_data['volume']
+                    if 'title' in pubmed_data:
+                        entry['title'] = pubmed_data['title']
+                    if 'pages' in pubmed_data:
+                        entry['pages'] = pubmed_data['pages']
+                    if 'issueName' in pubmed_data:
+                        entry['issueName'] = pubmed_data['issueName']
+                    if 'issueDate' in pubmed_data:
+                        entry['issueDate'] = pubmed_data['issueDate']['date_string']
+                    if 'datePublished' in pubmed_data:
+                        entry['datePublished'] = pubmed_data['datePublished']['date_string']
+                    if 'dateArrivedInPubmed' in pubmed_data:
+                        entry['dateArrivedInPubmed'] = pubmed_data['dateArrivedInPubmed']['date_string']
+                    if 'dateLastModified' in pubmed_data:
+                        entry['dateLastModified'] = pubmed_data['dateLastModified']['date_string']
+                    if 'abstract' in pubmed_data:
+                        entry['abstract'] = pubmed_data['abstract']
+                    if 'pubMedType' in pubmed_data:
+                        entry['pubMedType'] = pubmed_data['pubMedType']
+                    if 'publisher' in pubmed_data:
+                        entry['publisher'] = pubmed_data['publisher']
+                    if 'meshTerms' in pubmed_data:
+                        entry['meshTerms'] = pubmed_data['meshTerms']
+# some papers, like 8805 don't have keyword data, but have data from WB, aggregate from mods ?
+                    if 'keywords' in pubmed_data:
+                        entry['keywords'] = pubmed_data['keywords']
+# these probably need to be aggregated
+#                     if 'crossReferences' in pubmed_data:
+#                         entry['crossReferences'] = pubmed_data['crossReferences']
                 sanitized_data.append(entry)
 # UNCOMMENT TO generate json
             json_data = json.dumps(sanitized_data, indent=4, sort_keys=True)
             json_file.write(json_data)
             json_file.close()
 
-
         for unexpected_mod_property in unexpected_mod_properties:
             logger.info("Warning: Unexpected Mod %s Property %s", mod, unexpected_mod_property)
+
+# hash sanitized entries per mod into %sanitized{pmid}{mod} = data
+# go through those to aggregate data that should be aggregated
+# check for single fields that have different values across mods
+
+# allianceCategory - single value, check they aren't different for entries with same PMID
+# MODReferenceTypes - array of hashes, aggregate the hashes
+# tags - array of hashes, aggregate the hashes
+# resourceAbbreviation - single value, keep for mod data, try to resolve to journal from PMID
+
 
 if __name__ == "__main__":
     """ call main start function """
@@ -283,6 +348,7 @@ if __name__ == "__main__":
         logger.info("Generating PMID files from DQM data")
         generate_pmid_data()
 
+# pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m SGD
 # pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m WB
 # pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m all
     elif args['file']:
