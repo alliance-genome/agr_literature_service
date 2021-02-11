@@ -201,6 +201,22 @@ def generate_pmid_data():
     # for primary_id in primary_ids:
     #     logger.info("primary_id %s", primary_id)
 
+def simplify_text(text):
+    no_html = re.sub('<[^<]+?>', '', text)
+    stripped = re.sub("[^a-zA-Z]+", "", no_html)
+    clean = stripped.lower()
+    return clean
+
+def compare_dqm_pubmed(pmid, field, dqm_data, pubmed_data):
+    dqm_clean = simplify_text(dqm_data)
+    pubmed_clean = simplify_text(pubmed_data)
+    if dqm_clean != pubmed_clean:
+#         logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_clean, pubmed_clean)
+        logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_data, pubmed_data)
+    else:
+        logger.info("%s\t%s\t%s", field, pmid, 'GOOD')
+
+
 
 # reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
 # outputs sanitized json to sanitized_reference_json/
@@ -216,6 +232,15 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
     with urllib.request.urlopen(agr_schemas_reference_json_url) as url:
         schema_data = json.loads(url.read().decode())
 #         print(schema_data)
+
+# not using this, instead checking if the .xml file exists, which needs to happen anyway
+#     pmids_not_found = set()
+#     filename = base_path + 'pmids_not_found'
+#     with open(filename, 'r') as f:
+#         for pmid in f:
+#             pmids_not_found.add(pmid)
+#         f.close()
+
     for mod in mods:
         filename = args['file'] + '/REFERENCE_' + mod + '.json'
         logger.info("Processing %s", filename)
@@ -285,46 +310,61 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                         with open(filename, 'r') as f:
                             pubmed_data = json.load(f)
                             f.close()
+#                         print("primary_id %s is None data %s" % (primary_id, pubmed_data['authors']))
+                        if 'authors' in pubmed_data:
+                            entry['authors'] = pubmed_data['authors']
+                        if 'volume' in pubmed_data:
+                            entry['volume'] = pubmed_data['volume']
+
+                        if 'title' in pubmed_data:
+                            compare_dqm_pubmed(pmid, 'title', entry['title'], pubmed_data['title'])
+                            entry['title'] = pubmed_data['title']
+                        else:
+                            compare_dqm_pubmed(pmid, 'title', entry['title'], '')
+
+#                         pubmed_abstract = ''
+#                         if 'abstract' in pubmed_data:
+#                             pubmed_abstract = pubmed_data['abstract']
+#                             entry['abstract'] = pubmed_data['abstract']
+#                         if entry['abstract'] != pubmed_abstract:
+#                             logger.info("abstract\t%s\t%s\t%s", pmid, entry['abstract'], pubmed_abstract)
+#                         else:
+#                             logger.info("abstract\t%s\t%s", pmid, 'GOOD')
+
+                        if 'pages' in pubmed_data:
+                            entry['pages'] = pubmed_data['pages']
+                        if 'issueName' in pubmed_data:
+                            entry['issueName'] = pubmed_data['issueName']
+                        if 'issueDate' in pubmed_data:
+                            entry['issueDate'] = pubmed_data['issueDate']['date_string']
+                        if 'datePublished' in pubmed_data:
+                            entry['datePublished'] = pubmed_data['datePublished']['date_string']
+                        if 'dateArrivedInPubmed' in pubmed_data:
+                            entry['dateArrivedInPubmed'] = pubmed_data['dateArrivedInPubmed']['date_string']
+                        if 'dateLastModified' in pubmed_data:
+                            entry['dateLastModified'] = pubmed_data['dateLastModified']['date_string']
+                        if 'abstract' in pubmed_data:
+                            entry['abstract'] = pubmed_data['abstract']
+                        if 'pubMedType' in pubmed_data:
+                            entry['pubMedType'] = pubmed_data['pubMedType']
+                        if 'publisher' in pubmed_data:
+                            entry['publisher'] = pubmed_data['publisher']
+                        if 'meshTerms' in pubmed_data:
+                            entry['meshTerms'] = pubmed_data['meshTerms']
+#     some papers, like 8805 don't have keyword data, but have data from WB, aggregate from mods ?
+                        if 'keywords' in pubmed_data:
+                            entry['keywords'] = pubmed_data['keywords']
+#     these probably need to be aggregated
+#                         if 'crossReferences' in pubmed_data:
+#                             entry['crossReferences'] = pubmed_data['crossReferences']
                     except IOError:
                         logger.info("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s", pmid, mod, orig_primary_id)
-#                     print("primary_id %s is None data %s" % (primary_id, pubmed_data['authors']))
-                    if 'authors' in pubmed_data:
-                        entry['authors'] = pubmed_data['authors']
-                    if 'volume' in pubmed_data:
-                        entry['volume'] = pubmed_data['volume']
-                    if 'title' in pubmed_data:
-                        entry['title'] = pubmed_data['title']
-                    if 'pages' in pubmed_data:
-                        entry['pages'] = pubmed_data['pages']
-                    if 'issueName' in pubmed_data:
-                        entry['issueName'] = pubmed_data['issueName']
-                    if 'issueDate' in pubmed_data:
-                        entry['issueDate'] = pubmed_data['issueDate']['date_string']
-                    if 'datePublished' in pubmed_data:
-                        entry['datePublished'] = pubmed_data['datePublished']['date_string']
-                    if 'dateArrivedInPubmed' in pubmed_data:
-                        entry['dateArrivedInPubmed'] = pubmed_data['dateArrivedInPubmed']['date_string']
-                    if 'dateLastModified' in pubmed_data:
-                        entry['dateLastModified'] = pubmed_data['dateLastModified']['date_string']
-                    if 'abstract' in pubmed_data:
-                        entry['abstract'] = pubmed_data['abstract']
-                    if 'pubMedType' in pubmed_data:
-                        entry['pubMedType'] = pubmed_data['pubMedType']
-                    if 'publisher' in pubmed_data:
-                        entry['publisher'] = pubmed_data['publisher']
-                    if 'meshTerms' in pubmed_data:
-                        entry['meshTerms'] = pubmed_data['meshTerms']
-# some papers, like 8805 don't have keyword data, but have data from WB, aggregate from mods ?
-                    if 'keywords' in pubmed_data:
-                        entry['keywords'] = pubmed_data['keywords']
-# these probably need to be aggregated
-#                     if 'crossReferences' in pubmed_data:
-#                         entry['crossReferences'] = pubmed_data['crossReferences']
+
                 sanitized_data.append(entry)
 # UNCOMMENT TO generate json
-            json_data = json.dumps(sanitized_data, indent=4, sort_keys=True)
-            json_file.write(json_data)
-            json_file.close()
+#             json_data = json.dumps(sanitized_data, indent=4, sort_keys=True)
+#             json_file.write(json_data)
+#             json_file.close()
 
         for unexpected_mod_property in unexpected_mod_properties:
             logger.info("Warning: Unexpected Mod %s Property %s", mod, unexpected_mod_property)
@@ -348,6 +388,7 @@ if __name__ == "__main__":
         logger.info("Generating PMID files from DQM data")
         generate_pmid_data()
 
+# pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m ZFIN
 # pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m SGD
 # pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m WB
 # pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m all
