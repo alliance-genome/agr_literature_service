@@ -201,6 +201,9 @@ def generate_pmid_data():
     # for primary_id in primary_ids:
     #     logger.info("primary_id %s", primary_id)
 
+
+
+
 def simplify_text(text):
     no_html = re.sub('<[^<]+?>', '', text)
     stripped = re.sub("[^a-zA-Z]+", "", no_html)
@@ -317,19 +320,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                             entry['volume'] = pubmed_data['volume']
 
                         if 'title' in pubmed_data:
-                            compare_dqm_pubmed(pmid, 'title', entry['title'], pubmed_data['title'])
+#                             compare_dqm_pubmed(pmid, 'title', entry['title'], pubmed_data['title'])
                             entry['title'] = pubmed_data['title']
-                        else:
-                            compare_dqm_pubmed(pmid, 'title', entry['title'], '')
-
-#                         pubmed_abstract = ''
-#                         if 'abstract' in pubmed_data:
-#                             pubmed_abstract = pubmed_data['abstract']
-#                             entry['abstract'] = pubmed_data['abstract']
-#                         if entry['abstract'] != pubmed_abstract:
-#                             logger.info("abstract\t%s\t%s\t%s", pmid, entry['abstract'], pubmed_abstract)
 #                         else:
-#                             logger.info("abstract\t%s\t%s", pmid, 'GOOD')
+#                             compare_dqm_pubmed(pmid, 'title', entry['title'], '')
 
                         if 'pages' in pubmed_data:
                             entry['pages'] = pubmed_data['pages']
