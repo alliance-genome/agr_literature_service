@@ -1,6 +1,6 @@
-pytest = "*"
-pytest-cov = "*"
-flake8 = "*"
-yapf = "*"
-pre-commit = "*"
-flake8-bugbear = "*"
+pytest==6.2.2
+pytest-cov==2.11.1
+flake8==3.8.4
+yapf==0.30.0
+pre-commit==2.10.1
+flake8-bugbear==20.11.1

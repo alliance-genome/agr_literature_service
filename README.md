@@ -22,67 +22,77 @@ docker-compose up
 
 https://flask-restful.readthedocs.io/en/latest/quickstart.html
 
-# Development
+## Building Images
 
-Setup development environment
-
-### Install Pipenv
+Create a base image with the necessary requirments to run the app
 
 ```bash
-pip3 install pipenv
+make build-env
 ```
 
-### Install pipenv packages
+Create base image that can be use to run pytest and flake8 etc...
 
-Dev environment
 ```bash
-pipenv install  --dev
+make build-dev
 ```
 
-App packeages
+Creating application image
+
 ```bash
-pipenv install
+make build-app
 ```
 
-## Runnin Tests
+## Testing
 
-flake8
+Run flake8
+
 ```bash
-pipenv run flake8
+make run-flake8
 ```
-
-pytest
-```bash
-pipenv run pytest
-```
-
 ### Coverage
 
+This will
+
 ```bash
-pipenv run pytest --cov --cov-fail-under=100
+make run-dev-bash
+pytest --cov --cov-fail-under=100
 ```
 
-## Running Server
+
+# Development
+
+First creat application image
+
+Use Docker Compose to spin up all the containers
+
+spin up development environment
 
 ```bash
-pipenv run python src/main.py --port=<port>
+docker-compose up
+```
+
+## Develop and run applicatoin server in Docker
+
+```bash
+make run-dev-bash
+python src/main.py --port=<port>
 ```
 
 ## Curling endpoint
 
 Add a reference
 ```bash
-curl http://localhost:5003/references/add/ -d 'data={"title": "Worms abi-1", "pubmed_id": "PMID:53e565", "mod": "WB", "pubmod_id": "WBPub:0e0000003"}' -X POST
+curl http://localhost:<app port>/references/add/ -d 'data={"title": "Worms abi-1", "pubmed_id": "PMID:53e565", "mod": "WB", "pubmod_id": "WBPub:0e0000003"}' -X POST
 ```
 
 Get a Reference
 ```bash
-curl http://localhost:5004/reference/PMID:4040
+curl http://localhost:<app-port>/reference/PMID:4040
 ```
 
 # Production
 
-use --prod argument to use the WSGI server in production
+use --prod argument to use the WSGI server in production when running the application
 
 
 # XML Processing

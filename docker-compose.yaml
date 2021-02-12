@@ -77,7 +77,7 @@ services:
   agr_literature:
     container_name: agr-literature-app
     restart: always
-    image: ${REG}/agr_literature_run:latest
+    image: ${REG}/agr_literature_app:latest
     ports:
       - 49160:8080
     networks:
