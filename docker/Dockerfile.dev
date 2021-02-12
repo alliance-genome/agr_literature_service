@@ -1,0 +1,9 @@
+ARG ALLIANCE_RELEASE=latest
+ARG REG=agrdocker
+FROM ${REG}/agr_literature_env:${ALLIANCE_RELEASE}
+
+ADD requirements.dev.txt .
+
+RUN pip3 install -r requirements.dev.txt
+
+CMD ["python3" "-m pip3" "list"]

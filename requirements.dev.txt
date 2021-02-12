@@ -1,0 +1,6 @@
+pytest = "*"
+pytest-cov = "*"
+flake8 = "*"
+yapf = "*"
+pre-commit = "*"
+flake8-bugbear = "*"
