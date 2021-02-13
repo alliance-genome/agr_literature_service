@@ -356,9 +356,13 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 
                 sanitized_data.append(entry)
 # UNCOMMENT TO generate json
-#             json_data = json.dumps(sanitized_data, indent=4, sort_keys=True)
-#             json_file.write(json_data)
-#             json_file.close()
+            logger.info("Generating JSON")
+            json_data = json.dumps(sanitized_data, indent=4, sort_keys=True)
+            logger.info("Writing JSON")
+            json_file.write(json_data)
+            logger.info("Closing JSON file")
+            json_file.close()
+            logger.info("Done with JSON")
 
         for unexpected_mod_property in unexpected_mod_properties:
             logger.info("Warning: Unexpected Mod %s Property %s", mod, unexpected_mod_property)
