@@ -1,43 +1,43 @@
 {
-    "abstract": "Onchocerciasis, also known as the African river blindness, is the second most important cause of infectious blindness worldwide after trachoma. It is caused by the filarial nematode, <i>Onchocerca volvulus</i>, and transmitted by repeated bites of the vector, female black fly of the genus <i>Simulium damnosum</i>. The vector breeds in fast-flowing and oxygen-rich rivers in affected areas with transmission and disease prevalence usually stretching along these river basins and thereby the name river blindness.[1]\u00a0Aside from blindness, onchocerciasis results in a troubling chronic dermatitis.[1]", 
+    "abstract": "Onchocerciasis, also known as the African river blindness, is the second most important cause of infectious blindness worldwide after trachoma. It is caused by the filarial nematode, <i>Onchocerca volvulus</i>, and transmitted by repeated bites of the vector, female black fly of the genus <i>Simulium damnosum</i>. The vector breeds in fast-flowing and oxygen-rich rivers in affected areas with transmission and disease prevalence usually stretching along these river basins and thereby the name river blindness.[1]\u00a0Aside from blindness, onchocerciasis results in a troubling chronic dermatitis.[1]",
     "authors": [
         {
-            "authorRank": 1, 
-            "firstinit": "ME", 
-            "firstname": "Michael E.", 
-            "lastname": "Gyasi", 
+            "authorRank": 1,
+            "firstinit": "ME",
+            "firstname": "Michael E.",
+            "lastname": "Gyasi",
             "name": "Michael E. Gyasi"
-        }, 
+        },
         {
-            "authorRank": 2, 
-            "firstinit": "ON", 
-            "firstname": "Ogugua N.", 
-            "lastname": "Okonkwo", 
+            "authorRank": 2,
+            "firstinit": "ON",
+            "firstname": "Ogugua N.",
+            "lastname": "Okonkwo",
             "name": "Ogugua N. Okonkwo"
-        }, 
+        },
         {
-            "authorRank": 3, 
-            "firstinit": "K", 
-            "firstname": "Koushik", 
-            "lastname": "Tripathy", 
+            "authorRank": 3,
+            "firstinit": "K",
+            "firstname": "Koushik",
+            "lastname": "Tripathy",
             "name": "Koushik Tripathy"
         }
-    ], 
-    "bookaccession": "NBK559027", 
+    ],
+    "bookaccession": "NBK559027",
     "datePublished": {
-        "date_string": "2020-01-01", 
-        "day": "01", 
-        "month": "01", 
+        "date_string": "2020-01-01",
+        "day": "01",
+        "month": "01",
         "year": "2020"
-    }, 
+    },
     "issueDate": {
-        "date_string": "2020-01-01", 
-        "day": "01", 
-        "month": "01", 
+        "date_string": "2020-01-01",
+        "day": "01",
+        "month": "01",
         "year": "2020"
-    }, 
+    },
     "pubMedType": [
         "Review"
-    ], 
+    ],
     "publisher": "StatPearls Publishing"
 }

@@ -1,48 +1,48 @@
 {
     "authors": [
         {
-            "authorRank": 1, 
-            "firstinit": "AK", 
-            "firstname": "Alicia Kathryn", 
-            "lastname": "Rogers", 
+            "authorRank": 1,
+            "firstinit": "AK",
+            "firstname": "Alicia Kathryn",
+            "lastname": "Rogers",
             "name": "Alicia Kathryn Rogers"
-        }, 
+        },
         {
-            "authorRank": 2, 
-            "firstinit": "CM", 
-            "firstname": "Carolyn Marie", 
-            "lastname": "Phillips", 
+            "authorRank": 2,
+            "firstinit": "CM",
+            "firstname": "Carolyn Marie",
+            "lastname": "Phillips",
             "name": "Carolyn Marie Phillips"
         }
-    ], 
+    ],
     "dateLastModified": {
-        "date_string": "2020-09-28", 
-        "day": "28", 
-        "month": "09", 
+        "date_string": "2020-09-28",
+        "day": "28",
+        "month": "09",
         "year": "2020"
-    }, 
+    },
     "datePublished": {
-        "date_string": "2020-01-01", 
-        "day": "01", 
-        "month": "01", 
+        "date_string": "2020-01-01",
+        "day": "01",
+        "month": "01",
         "year": "2020"
-    }, 
-    "issn": "2578-9430", 
+    },
+    "issn": "2578-9430",
     "issueDate": {
-        "date_string": "2020-01-01", 
-        "day": "01", 
-        "month": "01", 
+        "date_string": "2020-01-01",
+        "day": "01",
+        "month": "01",
         "year": "2020"
-    }, 
-    "journal": "MicroPubl Biol", 
-    "mid": "NIHMS1596474", 
-    "nlm": "101759238", 
-    "pmc": "PMC7295153", 
+    },
+    "journal": "MicroPubl Biol",
+    "mid": "NIHMS1596474",
+    "nlm": "101759238",
+    "pmc": "PMC7295153",
     "pubMedType": [
         "Journal Article"
-    ], 
-    "pubmed": "32542232", 
-    "resourceAbbreviation": "MicroPubl Biol", 
-    "title": "Disruption of the <i>mutator</i> complex triggers a low penetrance larval arrest phenotype.", 
+    ],
+    "pubmed": "32542232",
+    "resourceAbbreviation": "MicroPubl Biol",
+    "title": "Disruption of the <i>mutator</i> complex triggers a low penetrance larval arrest phenotype.",
     "volume": "2020"
 }
