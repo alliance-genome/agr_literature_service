@@ -210,14 +210,18 @@ def simplify_text(text):
     clean = stripped.lower()
     return clean
 
-def compare_dqm_pubmed(pmid, field, dqm_data, pubmed_data):
+def compare_dqm_pubmed(fh, pmid, field, dqm_data, pubmed_data):
+#     to_return = ''
+#     logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_data, pubmed_data)
     dqm_clean = simplify_text(dqm_data)
     pubmed_clean = simplify_text(pubmed_data)
     if dqm_clean != pubmed_clean:
+        fh.write("dqm and pubmed differ\t%s\t%s\t%s\t%s\n" % (field, pmid, dqm_data, pubmed_data))
 #         logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_clean, pubmed_clean)
-        logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_data, pubmed_data)
-    else:
-        logger.info("%s\t%s\t%s", field, pmid, 'GOOD')
+#         logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_data, pubmed_data)
+#         return "%s\t%s\t%s\t%s" % (field, pmid, dqm_data, pubmed_data)
+#     else:
+#         logger.info("%s\t%s\t%s", field, pmid, 'GOOD')
 
 
 
@@ -226,9 +230,24 @@ def compare_dqm_pubmed(pmid, field, dqm_data, pubmed_data):
 # does checks on dqm crossReferences.  if primaryId is not PMID, and a crossReference is PubMed, assigns PMID to primaryId and to authors's referenceId.
 # if any reference's author doesn't have author Rank, assign authorRank based on array order.
 def aggregate_dqm_with_pubmed(input_path, input_mod):
+#     pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms']
+#     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher']
+    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher', 'meshTerms']
+    single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher']
+    date_fields = ['issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified']
+
+    compare_if_dqm_empty = False		# do dqm vs pmid comparison even if dqm has no data, by default skip
+
     mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
     if input_mod in mods:
         mods = [ input_mod ]
+
+    fh_mod_report = dict()
+    for mod in mods:
+        filename = base_path + 'report_files/' + mod
+        fh_mod_report.setdefault(mod, open(filename,'w')) 
+
+
     logger.info("Aggregating DQM and PubMed data from %s using mods %s", input_path, mods)
     agr_schemas_reference_json_url = 'https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/ingest/resourcesAndReferences/reference.json'
     schema_data = dict()
@@ -252,120 +271,158 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
         with open(filename, 'r') as f:
             dqm_data = json.load(f)
             f.close()
+#         json_storage_path = base_path + 'sanitized_reference_json/'
+#         json_filename = json_storage_path + 'REFERENCE_' + mod + '.json'
+#         with open(json_filename, "w") as json_file:
+        entries = dqm_data['data']
+        sanitized_data = []
+        for entry in entries:
+            primary_id = entry['primaryId']
+            update_primary_id = False
+            orig_primary_id = entry['primaryId']
+#             print("primaryId %s" % (entry['primaryId']))
+            for entry_property in entry:
+                if entry_property not in schema_data['properties']:
+                    unexpected_mod_properties.add(entry_property)
+            if 'crossReferences' in entry:
+                for cross_reference in entry['crossReferences']:
+                    if 'pages' in cross_reference:
+                        if len(cross_reference["pages"]) > 1:
+                            fh_mod_report[mod].write("mod %s primaryId %s has cross reference %s with pages %s\n" % (mod, primary_id, cross_reference["id"], cross_reference["pages"]))
+#                             logger.info("mod %s primaryId %s has cross reference %s with pages %s", mod, primary_id, cross_reference["id"], cross_reference["pages"])
+                        else:
+                            if not re.match(r"^PMID:[0-9]+", orig_primary_id):
+                                if cross_reference["pages"][0] == 'PubMed':
+                                    xref_id = cross_reference["id"]
+                                    if re.match(r"^PMID:[0-9]+", xref_id):
+                                        update_primary_id = True
+                                        primary_id = xref_id
+                                        entry['primaryId'] = xref_id
+                    else:
+                        fh_mod_report[mod].write("mod %s primaryId %s has cross reference %s without pages\n" % (mod, primary_id, cross_reference["id"]))
+#                         logger.debug("mod %s primaryId %s has cross reference %s without pages", mod, primary_id, cross_reference["id"])
+            else:
+                fh_mod_report[mod].write("mod %s primaryId %s has no cross references\n" % (mod, primary_id))
+#                 logger.info("mod %s primaryId %s has no cross references", mod, primary_id)
+            pmid_group = re.search(r"^PMID:([0-9]+)", primary_id)
+            if pmid_group is None:
+#                 print("primaryKey %s is None" % (primary_id))
+                if 'authors' in entry:
+                    all_authors_have_rank = True
+                    for author in entry['authors']:
+                        if 'authorRank' not in entry:
+                            all_authors_have_rank = False
+                    if all_authors_have_rank == False:
+                        authors_with_rank = []
+                        for i in range(len(entry['authors'])):
+                            author = entry['authors'][i]
+                            author['authorRank'] = i + 1
+                            authors_with_rank.append(author)
+                        entry['authors'] = authors_with_rank
+                    if update_primary_id:
+                        authors_updated = []
+                        for author in entry['authors']:
+                            author['referenceId'] = primary_id
+                            authors_updated.append(author)
+                        entry['authors'] = authors_updated
+            else:
+                pmid = pmid_group[1]
+#                 print(pmid)
+                filename = base_path + 'pubmed_json/' + pmid + '.json'
+#                 print("primary_id %s is None reading %s" % (primary_id, filename))
+                pubmed_data = dict()
+                try:
+                    with open(filename, 'r') as f:
+                        pubmed_data = json.load(f)
+                        f.close()
+#                     print("primary_id %s is None data %s" % (primary_id, pubmed_data['authors']))
+
+#     pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms']
+                    for pmid_field in pmid_fields:
+                        if pmid_field in single_value_fields:
+                            pmid_data = ''
+                            dqm_data = ''
+                            if pmid_field in pubmed_data:
+                                if pmid_field in date_fields:
+                                    pmid_data = pubmed_data[pmid_field]['date_string']
+                                else:
+                                    pmid_data = pubmed_data[pmid_field]
+                            if pmid_field in entry:
+                                dqm_data = entry[pmid_field]
+                            if (dqm_data != '') or (compare_if_dqm_empty):
+                               compare_dqm_pubmed(fh_mod_report[mod], pmid, pmid_field, dqm_data, pmid_data)
+#                         if message != '':
+#                             entry[pmid_field] = pubmed_data[pmid_field]
+                            entry[pmid_field] = pmid_data
+
+#                     if 'title' in pubmed_data:
+# #                         compare_dqm_pubmed(pmid, 'title', entry['title'], pubmed_data['title'])
+#                         entry['title'] = pubmed_data['title']
+# #                     else:
+# #                         compare_dqm_pubmed(pmid, 'title', entry['title'], '')
+# 
+#                     if 'authors' in pubmed_data:
+#                         entry['authors'] = pubmed_data['authors']
+#                     if 'volume' in pubmed_data:
+#                         entry['volume'] = pubmed_data['volume']
+# 
+#                     if 'pages' in pubmed_data:
+#                         entry['pages'] = pubmed_data['pages']
+#                     if 'issueName' in pubmed_data:
+#                         entry['issueName'] = pubmed_data['issueName']
+#                     if 'issueDate' in pubmed_data:
+#                         entry['issueDate'] = pubmed_data['issueDate']['date_string']
+#                     if 'datePublished' in pubmed_data:
+#                         entry['datePublished'] = pubmed_data['datePublished']['date_string']
+#                     if 'dateArrivedInPubmed' in pubmed_data:
+#                         entry['dateArrivedInPubmed'] = pubmed_data['dateArrivedInPubmed']['date_string']
+#                     if 'dateLastModified' in pubmed_data:
+#                         entry['dateLastModified'] = pubmed_data['dateLastModified']['date_string']
+#                     if 'abstract' in pubmed_data:
+#                         entry['abstract'] = pubmed_data['abstract']
+#                     if 'pubMedType' in pubmed_data:
+#                         entry['pubMedType'] = pubmed_data['pubMedType']
+#                     if 'publisher' in pubmed_data:
+#                         entry['publisher'] = pubmed_data['publisher']
+#                     if 'meshTerms' in pubmed_data:
+#                         entry['meshTerms'] = pubmed_data['meshTerms']
+
+# these are lists or dicts to be processed differently
+# #                     if 'pubMedType' in pubmed_data:
+# #                         entry['pubMedType'] = pubmed_data['pubMedType']
+# #     some papers, like 8805 don't have keyword data, but have data from WB, aggregate from mods ?
+# #                     if 'keywords' in pubmed_data:
+# #                         entry['keywords'] = pubmed_data['keywords']
+# #     these probably need to be aggregated
+# #                     if 'crossReferences' in pubmed_data:
+# #                         entry['crossReferences'] = pubmed_data['crossReferences']
+                except IOError:
+                    fh_mod_report[mod].write("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s" % (pmid, mod, orig_primary_id))
+#                     logger.info("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s", pmid, mod, orig_primary_id)
+
+            sanitized_data.append(entry)
+
         json_storage_path = base_path + 'sanitized_reference_json/'
         json_filename = json_storage_path + 'REFERENCE_' + mod + '.json'
-        with open(json_filename, "w") as json_file:
-            entries = dqm_data['data']
-            sanitized_data = []
-            for entry in entries:
-                primary_id = entry['primaryId']
-                update_primary_id = False
-                orig_primary_id = entry['primaryId']
-#                 print("primaryId %s" % (entry['primaryId']))
-                for entry_property in entry:
-                    if entry_property not in schema_data['properties']:
-                        unexpected_mod_properties.add(entry_property)
-                if 'crossReferences' in entry:
-                    for cross_reference in entry['crossReferences']:
-                        if 'pages' in cross_reference:
-                            if len(cross_reference["pages"]) > 1:
-                                logger.info("mod %s primaryId %s has cross reference %s with pages %s", mod, primary_id, cross_reference["id"], cross_reference["pages"])
-                            else:
-                                if not re.match(r"^PMID:[0-9]+", orig_primary_id):
-                                    if cross_reference["pages"][0] == 'PubMed':
-                                        xref_id = cross_reference["id"]
-                                        if re.match(r"^PMID:[0-9]+", xref_id):
-                                            update_primary_id = True
-                                            primary_id = xref_id
-                                            entry['primaryId'] = xref_id
-                        else:
-                            logger.debug("mod %s primaryId %s has cross reference %s without pages", mod, primary_id, cross_reference["id"])
-                else:
-                    logger.info("mod %s primaryId %s has no cross references", mod, primary_id)
-                pmid_group = re.search(r"^PMID:([0-9]+)", primary_id)
-                if pmid_group is None:
-#                     print("primaryKey %s is None" % (primary_id))
-                    if 'authors' in entry:
-                        all_authors_have_rank = True
-                        for author in entry['authors']:
-                            if 'authorRank' not in entry:
-                                all_authors_have_rank = False
-                        if all_authors_have_rank == False:
-                            authors_with_rank = []
-                            for i in range(len(entry['authors'])):
-                                author = entry['authors'][i]
-                                author['authorRank'] = i + 1
-                                authors_with_rank.append(author)
-                            entry['authors'] = authors_with_rank
-                        if update_primary_id:
-                            authors_updated = []
-                            for author in entry['authors']:
-                                author['referenceId'] = primary_id
-                                authors_updated.append(author)
-                            entry['authors'] = authors_updated
-                else:
-                    pmid = pmid_group[1]
-                    print(pmid)
-                    filename = base_path + 'pubmed_json/' + pmid + '.json'
-#                     print("primary_id %s is None reading %s" % (primary_id, filename))
-                    pubmed_data = dict()
-                    try:
-                        with open(filename, 'r') as f:
-                            pubmed_data = json.load(f)
-                            f.close()
-#                         print("primary_id %s is None data %s" % (primary_id, pubmed_data['authors']))
-                        if 'authors' in pubmed_data:
-                            entry['authors'] = pubmed_data['authors']
-                        if 'volume' in pubmed_data:
-                            entry['volume'] = pubmed_data['volume']
-
-                        if 'title' in pubmed_data:
-#                             compare_dqm_pubmed(pmid, 'title', entry['title'], pubmed_data['title'])
-                            entry['title'] = pubmed_data['title']
-#                         else:
-#                             compare_dqm_pubmed(pmid, 'title', entry['title'], '')
-
-                        if 'pages' in pubmed_data:
-                            entry['pages'] = pubmed_data['pages']
-                        if 'issueName' in pubmed_data:
-                            entry['issueName'] = pubmed_data['issueName']
-                        if 'issueDate' in pubmed_data:
-                            entry['issueDate'] = pubmed_data['issueDate']['date_string']
-                        if 'datePublished' in pubmed_data:
-                            entry['datePublished'] = pubmed_data['datePublished']['date_string']
-                        if 'dateArrivedInPubmed' in pubmed_data:
-                            entry['dateArrivedInPubmed'] = pubmed_data['dateArrivedInPubmed']['date_string']
-                        if 'dateLastModified' in pubmed_data:
-                            entry['dateLastModified'] = pubmed_data['dateLastModified']['date_string']
-                        if 'abstract' in pubmed_data:
-                            entry['abstract'] = pubmed_data['abstract']
-                        if 'pubMedType' in pubmed_data:
-                            entry['pubMedType'] = pubmed_data['pubMedType']
-                        if 'publisher' in pubmed_data:
-                            entry['publisher'] = pubmed_data['publisher']
-                        if 'meshTerms' in pubmed_data:
-                            entry['meshTerms'] = pubmed_data['meshTerms']
-#     some papers, like 8805 don't have keyword data, but have data from WB, aggregate from mods ?
-                        if 'keywords' in pubmed_data:
-                            entry['keywords'] = pubmed_data['keywords']
-#     these probably need to be aggregated
-#                         if 'crossReferences' in pubmed_data:
-#                             entry['crossReferences'] = pubmed_data['crossReferences']
-                    except IOError:
-                        logger.info("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s", pmid, mod, orig_primary_id)
-
-                sanitized_data.append(entry)
 # UNCOMMENT TO generate json
-            logger.info("Generating JSON")
-            json_data = json.dumps(sanitized_data, indent=4, sort_keys=True)
-            logger.info("Writing JSON")
-            json_file.write(json_data)
-            logger.info("Closing JSON file")
-            json_file.close()
-            logger.info("Done with JSON")
+#         with open(json_filename, "w") as json_file:
+#             logger.info("Generating JSON")
+#             json_data = json.dumps(sanitized_data, indent=4, sort_keys=True)
+#             logger.info("Writing JSON")
+#             json_file.write(json_data)
+#             logger.info("Closing JSON file")
+#             json_file.close()
+#             logger.info("Done with JSON")
 
         for unexpected_mod_property in unexpected_mod_properties:
             logger.info("Warning: Unexpected Mod %s Property %s", mod, unexpected_mod_property)
+
+    for mod in fh_mod_report:
+        fh_mod_report[mod].close()
+
+# file of pmids to modcount to mod list
+#     output_pmid_mods_file = base_path + 'pmids_by_mods'
+#     with open(output_pmid_mods_file, "w") as pmid_mods_file:
 
 # hash sanitized entries per mod into %sanitized{pmid}{mod} = data
 # go through those to aggregate data that should be aggregated
