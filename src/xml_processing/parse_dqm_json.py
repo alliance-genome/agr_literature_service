@@ -11,12 +11,13 @@ import logging.config
 
 # pipenv run python parse_dqm_json.py -p  takes about 90 seconds to run
 # pipenv run python parse_dqm_json.py -f dqm_data/ -m all > dqm_cross_references  takes 3.5 minutes without looking at pubmed json
-# pipenv run python parse_dqm_json.py -f dqm_data/ -m all > dqm_cross_references  takes 12 minutes with comparing to pubmed json, but dying at MGI
+# pipenv run python parse_dqm_json.py -f dqm_data/ -m all > dqm_cross_references  takes 13.5 minutes with comparing to pubmed json into output chunks without comparing fields for differences
 
 #  pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_data/ -m MGI > log_mgi
 # Loading .env environment variables...
 # Killed
 # in 4.5 minutes, logs show it read the last pmid
+# rewrote to split into chunks of 100000 entries by pubmed vs pubmod, MGI now runs in 3.5 minutes (without doing data comparison)
 
 
 
@@ -223,6 +224,19 @@ def compare_dqm_pubmed(fh, pmid, field, dqm_data, pubmed_data):
 #     else:
 #         logger.info("%s\t%s\t%s", field, pmid, 'GOOD')
 
+def chunks(list, size):
+    for i in range(0, len(list), size):
+        yield list[i:i+size]
+
+def write_json(json_filename, dict_to_output):
+    with open(json_filename, "w") as json_file:
+        logger.info("Generating JSON for %s", json_filename)
+        json_data = json.dumps(dict_to_output, indent=4, sort_keys=True)
+#         logger.info("Writing JSON")
+        json_file.write(json_data)
+#         logger.info("Closing JSON file")
+        json_file.close()
+#         logger.info("Done with JSON")
 
 
 # reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
@@ -230,10 +244,10 @@ def compare_dqm_pubmed(fh, pmid, field, dqm_data, pubmed_data):
 # does checks on dqm crossReferences.  if primaryId is not PMID, and a crossReference is PubMed, assigns PMID to primaryId and to authors's referenceId.
 # if any reference's author doesn't have author Rank, assign authorRank based on array order.
 def aggregate_dqm_with_pubmed(input_path, input_mod):
-#     pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms']
 #     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher']
-    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher', 'meshTerms']
+    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms']
     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher']
+    replace_value_fields = ['pubMedType', 'meshTerms']
     date_fields = ['issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified']
 
     compare_if_dqm_empty = False		# do dqm vs pmid comparison even if dqm has no data, by default skip
@@ -241,6 +255,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
     mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
     if input_mod in mods:
         mods = [ input_mod ]
+
+    json_storage_path = base_path + 'sanitized_reference_json/'
 
     fh_mod_report = dict()
     for mod in mods:
@@ -263,6 +279,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 #             pmids_not_found.add(pmid)
 #         f.close()
 
+# TODO get rid of sanitized_data, read mixed-mod-pmids and bin into mixed data instead of sanitized_pubm*d_data
+
     for mod in mods:
         filename = args['file'] + '/REFERENCE_' + mod + '.json'
         logger.info("Processing %s", filename)
@@ -276,9 +294,13 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 #         with open(json_filename, "w") as json_file:
         entries = dqm_data['data']
         sanitized_data = []
+        sanitized_pubmod_data = []
+        sanitized_pubmed_data = []
         for entry in entries:
-            primary_id = entry['primaryId']
+            is_pubmed = False
+            is_pubmod = True
             update_primary_id = False
+            primary_id = entry['primaryId']
             orig_primary_id = entry['primaryId']
 #             print("primaryId %s" % (entry['primaryId']))
             for entry_property in entry:
@@ -327,6 +349,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                         entry['authors'] = authors_updated
             else:
                 pmid = pmid_group[1]
+                is_pubmed = True
+                is_pubmod = False
 #                 print(pmid)
                 filename = base_path + 'pubmed_json/' + pmid + '.json'
 #                 print("primary_id %s is None reading %s" % (primary_id, filename))
@@ -349,11 +373,14 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                                     pmid_data = pubmed_data[pmid_field]
                             if pmid_field in entry:
                                 dqm_data = entry[pmid_field]
-                            if (dqm_data != '') or (compare_if_dqm_empty):
-                               compare_dqm_pubmed(fh_mod_report[mod], pmid, pmid_field, dqm_data, pmid_data)
-#                         if message != '':
-#                             entry[pmid_field] = pubmed_data[pmid_field]
+# UNCOMMENT to output log of data comparison between dqm and pubmed
+#                             if (dqm_data != '') or (compare_if_dqm_empty):
+#                                compare_dqm_pubmed(fh_mod_report[mod], pmid, pmid_field, dqm_data, pmid_data)
                             entry[pmid_field] = pmid_data
+                        elif pmid_field in replace_value_fields:
+                            if pmid_field in pubmed_data:
+#                                 logger.info("PMID %s pmid_field %s data %s", pmid, pmid_field, pubmed_data[pmid_field])
+                                entry[pmid_field] = pubmed_data[pmid_field]
 
 #                     if 'title' in pubmed_data:
 # #                         compare_dqm_pubmed(pmid, 'title', entry['title'], pubmed_data['title'])
@@ -387,9 +414,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 #                     if 'meshTerms' in pubmed_data:
 #                         entry['meshTerms'] = pubmed_data['meshTerms']
 
-# these are lists or dicts to be processed differently
-# #                     if 'pubMedType' in pubmed_data:
-# #                         entry['pubMedType'] = pubmed_data['pubMedType']
+# TODO keywords and crossReferences
 # #     some papers, like 8805 don't have keyword data, but have data from WB, aggregate from mods ?
 # #                     if 'keywords' in pubmed_data:
 # #                         entry['keywords'] = pubmed_data['keywords']
@@ -401,10 +426,26 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 #                     logger.info("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s", pmid, mod, orig_primary_id)
 
             sanitized_data.append(entry)
+            if is_pubmod:
+                sanitized_pubmod_data.append(entry)
+            else:
+                sanitized_pubmed_data.append(entry)
 
-        json_storage_path = base_path + 'sanitized_reference_json/'
-        json_filename = json_storage_path + 'REFERENCE_' + mod + '.json'
+        entries_size = 100000
+        sanitized_pubmod_list = list(chunks(sanitized_pubmod_data, entries_size))
+        for i in range(len(sanitized_pubmod_list)):
+            dict_to_output = sanitized_pubmod_list[i]
+            json_filename = json_storage_path + 'REFERENCE_PUBMOD_' + mod + '_' + str(i+1) + '.json'
+            write_json(json_filename, dict_to_output)
+
+        sanitized_pubmed_list = list(chunks(sanitized_pubmed_data, entries_size))
+        for i in range(len(sanitized_pubmed_list)):
+            dict_to_output = sanitized_pubmed_list[i]
+            json_filename = json_storage_path + 'REFERENCE_PUBMED_' + mod + '_' + str(i+1) + '.json'
+            write_json(json_filename, dict_to_output)
+
 # UNCOMMENT TO generate json
+#         json_filename = json_storage_path + 'REFERENCE_' + mod + '.json'
 #         with open(json_filename, "w") as json_file:
 #             logger.info("Generating JSON")
 #             json_data = json.dumps(sanitized_data, indent=4, sort_keys=True)
