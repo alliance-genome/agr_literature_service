@@ -1,15 +1,19 @@
 {
     "authors": [
         {
+            "affiliation": [
+                "Department of Biological Sciences, University of Southern California, Los Angeles, California, United States of America."
+            ],
             "authorRank": 1,
-            "firstinit": "AK",
             "firstname": "Alicia Kathryn",
             "lastname": "Rogers",
             "name": "Alicia Kathryn Rogers"
         },
         {
+            "affiliation": [
+                "Department of Biological Sciences, University of Southern California, Los Angeles, California, United States of America."
+            ],
             "authorRank": 2,
-            "firstinit": "CM",
             "firstname": "Carolyn Marie",
             "lastname": "Phillips",
             "name": "Carolyn Marie Phillips"

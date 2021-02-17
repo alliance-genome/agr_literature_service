@@ -1,9 +1,11 @@
 import json
-import xmltodict
+# import xmltodict
 
 # pipenv run python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 #
-# 21 minutes for 646727 documents from filesystem. 12G of xml to 5.0G of json
+# 22 minutes for 646727 documents from filesystem. 12G of xml to 6.0G of json
+
+# not using author firstinit, nlm, issn
 
 # update sample
 # cp pubmed_json/32542232.json pubmed_sample
@@ -60,19 +62,12 @@ args = vars(parser.parse_args())
 # todo: save this in an env variable
 base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 
-# def download_pubmed_xml():
-#   for pmid in pmids:
-# #    add some validation here
-#     url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" + pmid + "&retmode=xml"
-#     filename = storage_path + pmid + '.xml'
-# #     print url
-# #     print filename
-#     logger.info("Downloading %s into %s", url, filename)
-#     urllib.urlretrieve(url, filename)
-#     time.sleep( 5 )
 
-
-known_article_id_types = { 'pubmed', 'doi', 'pmc', 'pii' }
+known_article_id_types = {
+    'pubmed': { 'pages': 'PubMed', 'prefix': 'PMID:'},
+    'doi': { 'pages': 'DOI', 'prefix': 'DOI:' },
+    'pmc': { 'pages': 'PMC', 'prefix': 'PMCID:' } }
+ignore_article_id_types = { 'bookaccession', 'mid', 'pii', 'pmcid' }
 unknown_article_id_types = set()
 
 
@@ -148,16 +143,33 @@ def generate_json():
 #             data_dict = xmltodict.parse(xml_file.read())
             xml_file.close()
 
-            print (pmid)
-#             print (data_dict["PubmedArticleSet"]["PubmedArticle"]["MedlineCitation"]["Article"]["ArticleTitle"])
-        #     if (data_dict["PubmedArticleSet"]["PubmedArticle"]["MedlineCitation"]["Article"]["ArticleTitle"])
-
+#             print (pmid)
             data_dict = dict()
 
-            title_re_output = re.search("<ArticleTitle>(.+?)</ArticleTitle>", xml)
+            title_re_output = re.search("<ArticleTitle[^>]*?>(.+?)</ArticleTitle>", xml, re.DOTALL)
             if title_re_output is not None:
 #                 print title
-                data_dict['title'] = title_re_output.group(1)
+                title = title_re_output.group(1).replace('\n', ' ').replace('\r', '')
+                title = re.sub('\s+', ' ', title)
+                data_dict['title'] = title
+            else:
+                # e.g. 33054145 21413221
+                book_title_re_output = re.search("<BookTitle[^>]*?>(.+?)</BookTitle>", xml, re.DOTALL)
+                if book_title_re_output is not None:
+#                     print title
+                    title = book_title_re_output.group(1).replace('\n', ' ').replace('\r', '')
+                    title = re.sub('\s+', ' ', title)
+                    data_dict['title'] = title
+                else:
+                    # e.g. 28304499 28308877
+                    vernacular_title_re_output = re.search("<VernacularTitle[^>]*?>(.+?)</VernacularTitle>", xml, re.DOTALL)
+                    if vernacular_title_re_output is not None:
+#                         print title
+                        title = vernacular_title_re_output.group(1).replace('\n', ' ').replace('\r', '')
+                        title = re.sub('\s+', ' ', title)
+                        data_dict['title'] = title
+                    else:
+                        logger.info("%s has no title", pmid)
 
             journal_re_output = re.search("<MedlineTA>(.+?)</MedlineTA>", xml)
             if journal_re_output is not None:
@@ -188,13 +200,6 @@ def generate_json():
 #                 print types_group
                 data_dict['pubMedType'] = types_group
 
-# Do these all together later
-#             if re.search("<ArticleId IdType=\"doi\">(.+?)</ArticleId>", xml):
-#                 doi_group = re.search("<ArticleId IdType=\"doi\">(.+?)</ArticleId>", xml)
-#                 doi = doi_group.group(1)
-# #                 print doi
-#                 data_dict['doi'] = doi
-
             # this will need to be restructured to match schema
             authors_group = re.findall("<Author.*?>(.+?)</Author>", xml, re.DOTALL)
             if len(authors_group) > 0:
@@ -205,6 +210,9 @@ def generate_json():
                     lastname = ''
                     firstname = ''
                     firstinit = ''
+                    orcid = ''
+                    affiliation = []
+                    author_cross_references = []
                     lastname_re_output = re.search("<LastName>(.+?)</LastName>", author_xml)
                     if lastname_re_output is not None:
                         lastname = lastname_re_output.group(1)
@@ -217,6 +225,25 @@ def generate_json():
                     if firstinit and not firstname:
                         firstname = firstinit
                     fullname = firstname + ' ' + lastname
+
+#                     <Identifier Source="ORCID">0000-0002-0184-8324</Identifier>
+                    orcid_re_output = re.search("<Identifier Source=\"ORCID\">(.+?)</Identifier>", author_xml)
+                    if orcid_re_output is not None:
+                        orcid_dict = {}
+                        orcid_dict["id"] = 'ORCID:' + orcid_re_output.group(1)
+                        orcid_dict["pages"] = [ "person/orcid" ]
+                        author_cross_references.append(orcid_dict)
+
+#                     <AffiliationInfo>
+#                         <Affiliation>Department of Animal Medical Sciences, Faculty of Life Sciences, Kyoto Sangyo University , Kyoto , Japan.</Affiliation>
+#                     </AffiliationInfo>
+                    affiliation_info_re_output = re.search("<AffiliationInfo>(.*?)</AffiliationInfo>", xml, re.DOTALL)
+                    if affiliation_info_re_output is not None:
+                        affiliation_info = affiliation_info_re_output.group(1)
+#                         print pmid + " AIDL " + affiliation_info
+                        affiliation = re.findall("<Affiliation>(.+?)</Affiliation>", affiliation_info, re.DOTALL)
+
+
                     author_dict = {}
 #                     if (firstname and firstinit):
 #                         print "GOOD\t" + pmid
@@ -231,13 +258,13 @@ def generate_json():
                     author_dict["lastname"] = lastname
                     author_dict["name"] = fullname
                     author_dict["authorRank"] = authors_rank
+                    if len(affiliation) > 0:
+                        author_dict["affiliation"] = affiliation
+                    if len(author_cross_references) > 0:
+                        author_dict["crossReferences"] = author_cross_references
 #                     print fullname
                     authors_list.append(author_dict)
                 data_dict['authors'] = authors_list
-
-# parse ORCID
-#                     <Identifier Source="ORCID">0000-0002-0184-8324</Identifier>
-
 
             pub_date_re_output = re.search("<PubDate>(.+?)</PubDate>", xml, re.DOTALL)
             if pub_date_re_output is not None:
@@ -282,22 +309,28 @@ def generate_json():
                     date_dict['day'] = date_list[2]
                     data_dict['dateArrivedInPubmed'] = date_dict
 
+            cross_references = []
             article_id_list_re_output = re.search("<ArticleIdList>(.*?)</ArticleIdList>", xml, re.DOTALL)
             if article_id_list_re_output is not None:
                 article_id_list = article_id_list_re_output.group(1)
 #                 print pmid + " AIDL " + article_id_list
-                article_id_group = re.findall("<ArticleId IdType=\"(.*?)\">(.+?)</ArticleId>", article_id_list, re.DOTALL)
+                article_id_group = re.findall("<ArticleId IdType=\"(.*?)\">(.+?)</ArticleId>", article_id_list)
                 if len(article_id_group) > 0:
+                    type_has_value = set()
                     for type_value in article_id_group:
                         type = type_value[0]
                         value = type_value[1]
 #                         print pmid + " type " + type + " value " + value
-                        if type not in known_article_id_types:
-                            unknown_article_id_types.add(type)
-                        if type in data_dict:
-#                             print("%s has multiple for type %s" % (pmid, type))
-                            logger.info("%s has multiple for type %s", pmid, type)
-                        data_dict[type] = value
+                        if type in known_article_id_types:
+                            if type in type_has_value:
+                                logger.info("%s has multiple for type %s", pmid, type)
+                            type_has_value.add(type)
+                            a_dict = {'id': known_article_id_types[type]['prefix'] + value, 'pages': [ known_article_id_types[type]['pages'] ]}
+                            cross_references.append({'id': known_article_id_types[type]['prefix'] + value, 'pages': [ known_article_id_types[type]['pages'] ] })
+                        else:
+                            if type not in ignore_article_id_types:
+                                logger.info("%s has unexpected type %s", pmid, type)
+                                unknown_article_id_types.add(type)
 
             medline_journal_info_re_output = re.search("<MedlineJournalInfo>(.*?)</MedlineJournalInfo>", xml, re.DOTALL)
             if medline_journal_info_re_output is not None:
@@ -309,14 +342,16 @@ def generate_json():
                 nlm_re_output = re.search("<NlmUniqueID>(.+?)</NlmUniqueID>", medline_journal_info)
                 if nlm_re_output is not None:
                     nlm = nlm_re_output.group(1)
+                    cross_references.append({'id': 'NLM:' + nlm, 'pages': [ 'NLM' ] })
                 issn_re_output = re.search("<ISSNLinking>(.+?)</ISSNLinking>", medline_journal_info)
                 if issn_re_output is not None:
                     issn = issn_re_output.group(1)
+                    cross_references.append({'id': 'ISSN:' + issn, 'pages': [ 'ISSN' ] })
                 journal_abbrev_re_output = re.search("<MedlineTA>(.+?)</MedlineTA>", medline_journal_info)
                 if journal_abbrev_re_output is not None:
                     journal_abbrev = journal_abbrev_re_output.group(1)
-                data_dict['nlm'] = nlm
-                data_dict['issn'] = issn
+                data_dict['nlm'] = nlm			# for mapping to resource
+                data_dict['issn'] = issn		# for mapping to resource
                 data_dict['resourceAbbreviation'] = journal_abbrev
 #                 check whether all xml has an nlm or issn, for WB set, they all do
 #                 if (nlm and issn):
@@ -327,6 +362,9 @@ def generate_json():
 #                     print "ISSN\t" + pmid + "\t" + issn
 #                 else:
 #                     print "NO\t" + pmid
+
+            if len(cross_references) > 0:
+                data_dict["crossReferences"] = cross_references
 
             publisher_re_output = re.search("<PublisherName>(.+?)</PublisherName>", xml)
             if publisher_re_output is not None:
@@ -340,7 +378,8 @@ def generate_json():
 
             regex_abstract_output = re.findall("<AbstractText.*?>(.+?)</AbstractText>", xml, re.DOTALL)
             if len(regex_abstract_output) > 0:
-                data_dict['abstract'] = " ".join(regex_abstract_output)
+                abstract = " ".join(regex_abstract_output)
+                data_dict['abstract'] = re.sub('\s+', ' ', abstract)
 
             regex_keyword_output = re.findall("<Keyword .*?>(.+?)</Keyword>", xml, re.DOTALL)
             if len(regex_keyword_output) > 0:
@@ -451,10 +490,8 @@ if __name__ == "__main__":
     else:
         logger.info("Processing database entries")
 
-#     download_pubmed_xml()
     generate_json()
     logger.info("Done converting XML to JSON")
-
 
 # capture ISSN / NLM
 #         <MedlineJournalInfo>
@@ -466,57 +503,3 @@ if __name__ == "__main__":
 # not from
 #             <Journal>
 #                 <ISSN IssnType="Electronic">1708-8305</ISSN>
-
-
-#   my %month_to_num;
-#   $month_to_num{Jan} = '1';
-#   $month_to_num{Feb} = '2';
-#   $month_to_num{Mar} = '3';
-#   $month_to_num{Apr} = '4';
-#   $month_to_num{May} = '5';
-#   $month_to_num{Jun} = '6';
-#   $month_to_num{Jul} = '7';
-#   $month_to_num{Aug} = '8';
-#   $month_to_num{Sep} = '9';
-#   $month_to_num{Oct} = '10';
-#   $month_to_num{Nov} = '11';
-#   $month_to_num{Dec} = '12';
-#
-#   my ($title) = $page =~ /\<ArticleTitle\>(.+?)\<\/ArticleTitle\>/i;
-#   my ($journal) = $page =~ /<MedlineTA>(.+?)\<\/MedlineTA\>/i;
-#   my ($pages) = $page =~ /\<MedlinePgn\>(.+?)\<\/MedlinePgn\>/i;
-#   my ($volume) = $page =~ /\<Volume\>(.+?)\<\/Volume\>/i;
-#   my $year = ''; my $month = ''; my $day = '';
-#   if ( $page =~ /\<PubDate\>(.+?)\<\/PubDate\>/si ) {
-#     my ($PubDate) = $page =~ /\<PubDate\>(.+?)\<\/PubDate\>/si;
-#     if ( $PubDate =~ /\<Year\>(.+?)\<\/Year\>/i ) { $year = $1; }
-#     if ( $PubDate =~ /\<Month\>(.+?)\<\/Month\>/i ) { $month = $1;
-#       if ($month_to_num{$month}) { $month = $month_to_num{$month}; }
-#       else {          # in one case 00013115 / pmid12167287, it says Jul-Sep
-#         foreach my $key (keys %month_to_num) {        # so see if it begins with any month and use that
-#           if ($month =~ m/^$key/) { $month = $month_to_num{$key}; } } } }
-#     if ( $PubDate =~ /\<Day\>(.+?)\<\/Day\>/i ) { $day = $1; if ($day =~ m/^0/) { $day =~ s/^0//; } } }
-#   my (@types) = $page =~ /\<PublicationType\>(.+?)\<\/PublicationType\>/gi;
-#   unless ($types[0]) {
-#     (@types) = $page =~ /\<PublicationType UI=\".*?\"\>(.+?)\<\/PublicationType\>/gi; }
-#   my ($abstract) = $page =~ /\<AbstractText\>(.+?)\<\/AbstractText\>/i;
-#   unless ($abstract) {                          # if there is no abstract match, try to get label and concatenate multiple matches.
-#     my @abstracts = $page =~ /\<AbstractText(.+?)\<\/AbstractText\>/gi;
-#     foreach my $ab (@abstracts) {
-#       if ($ab =~ m/Label=\"(.*?)\"/i) { $abstract .= "${1}: "; }
-#       if ($ab =~ m/^.*\>/) { $ab =~ s/^.*\>//; } $abstract .= "$ab "; }
-#     if ($abstract =~ m/ +$/) { $abstract =~ s/ +$//; } }
-#   my ($doi) = $page =~ /\<ArticleId IdType=\"doi\"\>(.+?)\<\/ArticleId\>/i; if ($doi) { $doi = 'doi' . $doi; }
-#   my $pubmed_final = 'not_final';
-#   my $medline_citation = '';
-#   if ($page =~ m/(\<MedlineCitation.*?>)/) { $medline_citation = $1; }
-#   if ($medline_citation =~ /\<MedlineCitation .*Status=\"MEDLINE\"\>/i) { $pubmed_final = 'final'; }    # final version
-#   elsif ($medline_citation =~ /\<MedlineCitation .*Status=\"PubMed-not-MEDLINE\"\>/i) { $pubmed_final = 'final'; }      # final version
-#   elsif ($medline_citation =~ /\<MedlineCitation .*Status=\"OLDMEDLINE\"\>/i) { $pubmed_final = 'final'; }      # final version
-#
-#   my @xml_authors = $page =~ /\<Author.*?\>(.+?)\<\/Author\>/ig;
-#   my @authors;
-#   foreach (@xml_authors){
-#       my ($lastname, $initials) = $_ =~ /\<LastName\>(.+?)\<\/LastName\>.+\<Initials\>(.+?)\<\/Initials\>/i;
-#       my $author = $lastname . " " . $initials; push @authors, $author; }
-

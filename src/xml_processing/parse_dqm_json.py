@@ -414,7 +414,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 #                     if 'meshTerms' in pubmed_data:
 #                         entry['meshTerms'] = pubmed_data['meshTerms']
 
-# TODO keywords and crossReferences
+# TODO datePublished, keywords, and crossReferences
+# if datePublished empty in pubmed but has dqm, use dqm.
 # #     some papers, like 8805 don't have keyword data, but have data from WB, aggregate from mods ?
 # #                     if 'keywords' in pubmed_data:
 # #                         entry['keywords'] = pubmed_data['keywords']
