@@ -12,6 +12,7 @@ import logging.config
 # pipenv run python parse_dqm_json.py -p  takes about 90 seconds to run
 # pipenv run python parse_dqm_json.py -f dqm_data/ -m all > dqm_cross_references  takes 3.5 minutes without looking at pubmed json
 # pipenv run python parse_dqm_json.py -f dqm_data/ -m all > dqm_cross_references  takes 13.5 minutes with comparing to pubmed json into output chunks without comparing fields for differences
+# pipenv run python parse_dqm_json.py -f dqm_data/ -m all > dqm_cross_references  takes 19 minutes with comparing to pubmed json into output chunks and comparing fields for differences
 
 #  pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_data/ -m MGI > log_mgi
 # Loading .env environment variables...
