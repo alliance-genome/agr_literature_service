@@ -1,8 +1,5 @@
-from os import path
+from sys import version_info
 import argparse
-
-import logging
-import logging.config
 
 from flask import Flask
 from flask import Blueprint
@@ -16,12 +13,10 @@ from services.endpoints.reference import ReferenceEndpoint
 from services.endpoints.resource import AddResourceEndpoint
 from services.endpoints.resource import GetResourceEndpoint
 
-from shared.models import db
+from shared.app import app, db
 
-
-log_file_path = path.join(path.dirname(path.abspath(__file__)), 'logging.conf')
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+if version_info[0] < 3:
+    raise Exception("Must be using Python 3")
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-p', '--port', type=int, help='Port to run the server on')
@@ -31,15 +26,7 @@ parser.add_argument('-v', dest='verbose', action='store_true')
 
 args = vars(parser.parse_args())
 
-continuum = Continuum(db=db)
-
-flask_app = Flask(__name__)
-flask_app.config.from_object('config.Config')
-
-db.init_app(flask_app)
-continuum.init_app(flask_app)
-
-docs = FlaskApiSpec(flask_app)
+docs = FlaskApiSpec(app)
 
 reference_bp = Blueprint('references_api', __name__, url_prefix='/reference/')
 reference_bp.add_url_rule('/', view_func=ReferenceEndpoint.as_view('ReferenceEndpoint'))
@@ -49,7 +36,6 @@ resource_bp.add_url_rule('/add/', view_func=AddResourceEndpoint.as_view('AddReso
 resource_bp.add_url_rule('/<string:id>/get/',
                            view_func=GetResourceEndpoint.as_view('GetResourceEndpoint'))
 
-app = flask_app
 app.register_blueprint(reference_bp)
 docs.register(ReferenceEndpoint, blueprint="references_api", endpoint='ReferenceEndpoint')
 

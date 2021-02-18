@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from shared.models import db
+from shared.app import db
 
 from references.schemas.allianceCategory import AllianceCategory
 

@@ -13,7 +13,7 @@ from flask_apispec import use_kwargs
 from flask_apispec.views import MethodResource
 from flask_apispec.annotations import doc
 
-from shared.models import db
+from shared.app import db
 
 from references.models.reference import Reference
 from references.models.reference import Pubmed

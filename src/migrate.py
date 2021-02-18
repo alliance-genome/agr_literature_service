@@ -3,7 +3,7 @@ from flask import Flask
 from flask_script import Manager
 from flask_migrate import Migrate, MigrateCommand
 
-from shared.models import db
+from shared.app import db
 
 from references.models.reference import Pubmed
 from references.models.reference import Pubmod

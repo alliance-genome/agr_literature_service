@@ -176,4 +176,3 @@ if __name__ == "__main__":
 
     nlm_info = populate_nlm_info(file_data)
     generate_json(nlm_info, upload_to_s3)
-
