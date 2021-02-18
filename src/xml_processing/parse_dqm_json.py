@@ -12,6 +12,7 @@ import logging.config
 # pipenv run python parse_dqm_json.py -p  takes about 90 seconds to run
 # pipenv run python parse_dqm_json.py -f dqm_data/ -m all > dqm_cross_references  takes 3.5 minutes without looking at pubmed json
 # pipenv run python parse_dqm_json.py -f dqm_data/ -m all > dqm_cross_references  takes 13.5 minutes with comparing to pubmed json into output chunks without comparing fields for differences
+# pipenv run python parse_dqm_json.py -f dqm_data/ -m all > dqm_cross_references  takes 19 minutes with comparing to pubmed json into output chunks and comparing fields for differences
 
 #  pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_data/ -m MGI > log_mgi
 # Loading .env environment variables...
@@ -414,7 +415,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 #                     if 'meshTerms' in pubmed_data:
 #                         entry['meshTerms'] = pubmed_data['meshTerms']
 
-# TODO keywords and crossReferences
+# TODO datePublished, keywords, and crossReferences
+# if datePublished empty in pubmed but has dqm, use dqm.
 # #     some papers, like 8805 don't have keyword data, but have data from WB, aggregate from mods ?
 # #                     if 'keywords' in pubmed_data:
 # #                         entry['keywords'] = pubmed_data['keywords']
