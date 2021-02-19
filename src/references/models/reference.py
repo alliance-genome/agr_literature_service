@@ -93,8 +93,6 @@ class MeshTerm(db.Model):
 class Reference(db.Model, VersioningMixin):
     id = db.Column(db.Integer, primary_key=True)
     primaryId = db.Column(db.String, unique=True, nullable=True)
-    #pubmedIds = db.relationship('Pubmed', backref='reference', lazy=True)
-    #pubmodIds = db.relationship('Pubmod', backref='reference', lazy=True)
     title = db.Column(db.String, unique=False, nullable=True)
     authors = db.relationship('Author' , backref='reference', lazy=True)
     datePublished = db.Column(db.String(255), unique=False, nullable=True)
