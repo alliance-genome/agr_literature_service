@@ -64,6 +64,7 @@ def populate_nlm_info(file_data):
             continue
         data_dict = {}
         data_dict['primaryId'] = 'NLM:' + nlm
+        data_dict['nlm'] = nlm
         data_dict['crossReferences'] = [{'id': 'NLM:' + nlm}]
         if re.search("JournalTitle: (.+)", entry):
             title_group = re.search("JournalTitle: (.+)", entry)
