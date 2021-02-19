@@ -1,14 +1,13 @@
 import json 
-import xmltodict 
 
 # generate from local file and do not upload to s3
-# pipenv run python generate_pubmed_nlm_resource -l
+# pipenv run python generate_pubmed_nlm_resource.py -l
 # 
 # generate from url and do not upload to s3
-# pipenv run python generate_pubmed_nlm_resource -u
+# pipenv run python generate_pubmed_nlm_resource.py -u
 # 
 # generate from url and upload to s3
-# pipenv run python generate_pubmed_nlm_resource -u -s
+# pipenv run python generate_pubmed_nlm_resource.py -u -s
 
 # https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt
 
@@ -64,7 +63,9 @@ def populate_nlm_info(file_data):
 #             print "skip"
             continue
         data_dict = {}
-        data_dict['primaryId'] = nlm
+        data_dict['primaryId'] = 'NLM:' + nlm
+        data_dict['nlm'] = nlm
+        data_dict['crossReferences'] = [{'id': 'NLM:' + nlm}]
         if re.search("JournalTitle: (.+)", entry):
             title_group = re.search("JournalTitle: (.+)", entry)
             title = title_group.group(1)
