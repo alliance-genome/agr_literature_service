@@ -12,7 +12,7 @@ from flask_apispec import marshal_with
 from flask_apispec.views import MethodResource
 from flask_apispec.annotations import doc
 
-from shared.models import db
+from shared.app import db
 
 from references.models.resource import Resource
 

@@ -2,7 +2,7 @@ from datetime import datetime
 
 from flask_continuum import VersioningMixin
 
-from shared.models import db
+from shared.app import db
 
 from references.schemas.allianceCategory import AllianceCategory
 

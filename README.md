@@ -75,7 +75,7 @@ docker-compose up
 
 ```bash
 make run-dev-bash
-python src/main.py --port=<port>
+python src/server.py --port=<port>
 ```
 
 ## Curling endpoint

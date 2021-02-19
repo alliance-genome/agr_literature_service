@@ -32,8 +32,8 @@ class ReferenceSchemaIn(SQLAlchemyAutoSchema):
 
     class Meta:
         model = Reference
-        #include_relationships = True
-        #load_instance = True
+        include_relationships = True
+        load_instance = True
         exclude = ("dateCreated", "dateUpdated", "id")
 
 
