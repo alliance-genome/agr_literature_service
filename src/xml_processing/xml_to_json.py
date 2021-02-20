@@ -152,6 +152,7 @@ def generate_json():
                 title = title_re_output.group(1).replace('\n', ' ').replace('\r', '')
                 title = re.sub('\s+', ' ', title)
                 data_dict['title'] = title
+                data_dict['is_journal'] = 'journal'
             else:
                 # e.g. 33054145 21413221
                 book_title_re_output = re.search("<BookTitle[^>]*?>(.+?)</BookTitle>", xml, re.DOTALL)
@@ -160,6 +161,7 @@ def generate_json():
                     title = book_title_re_output.group(1).replace('\n', ' ').replace('\r', '')
                     title = re.sub('\s+', ' ', title)
                     data_dict['title'] = title
+                    data_dict['is_book'] = 'book'
                 else:
                     # e.g. 28304499 28308877
                     vernacular_title_re_output = re.search("<VernacularTitle[^>]*?>(.+?)</VernacularTitle>", xml, re.DOTALL)
@@ -168,6 +170,7 @@ def generate_json():
                         title = vernacular_title_re_output.group(1).replace('\n', ' ').replace('\r', '')
                         title = re.sub('\s+', ' ', title)
                         data_dict['title'] = title
+                        data_dict['is_vernacular'] = 'vernacular'
                     else:
                         logger.info("%s has no title", pmid)
 
