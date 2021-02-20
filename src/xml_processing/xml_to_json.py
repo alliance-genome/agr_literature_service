@@ -146,13 +146,19 @@ def generate_json():
 #             print (pmid)
             data_dict = dict()
 
+            # e.g. 21290765 has BookDocument and ArticleTitle
+            book_re_output = re.search("<BookDocument>", xml)
+            if book_re_output is not None:
+                data_dict['is_book'] = 'book'
+
             title_re_output = re.search("<ArticleTitle[^>]*?>(.+?)</ArticleTitle>", xml, re.DOTALL)
             if title_re_output is not None:
 #                 print title
                 title = title_re_output.group(1).replace('\n', ' ').replace('\r', '')
                 title = re.sub('\s+', ' ', title)
                 data_dict['title'] = title
-                data_dict['is_journal'] = 'journal'
+                if 'is_book' not in data_dict:
+                    data_dict['is_journal'] = 'journal'
             else:
                 # e.g. 33054145 21413221
                 book_title_re_output = re.search("<BookTitle[^>]*?>(.+?)</BookTitle>", xml, re.DOTALL)
