@@ -1,4 +1,5 @@
-from os import path, getcwd
+from os import path
+from os import getcwd
 
 import logging
 import logging.config
