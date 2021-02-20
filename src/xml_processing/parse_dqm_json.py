@@ -10,9 +10,9 @@ import logging
 import logging.config
 
 # pipenv run python parse_dqm_json.py -p  takes about 90 seconds to run
-# pipenv run python parse_dqm_json.py -f dqm_data/ -m all > dqm_cross_references  takes 3.5 minutes without looking at pubmed json
-# pipenv run python parse_dqm_json.py -f dqm_data/ -m all > dqm_cross_references  takes 13.5 minutes with comparing to pubmed json into output chunks without comparing fields for differences
-# pipenv run python parse_dqm_json.py -f dqm_data/ -m all > dqm_cross_references  takes 19 minutes with comparing to pubmed json into output chunks and comparing fields for differences
+# pipenv run python parse_dqm_json.py -f dqm_data/ -m all   takes 3.5 minutes without looking at pubmed json
+# pipenv run python parse_dqm_json.py -f dqm_data/ -m all   takes 13.5 minutes with comparing to pubmed json into output chunks without comparing fields for differences
+# pipenv run python parse_dqm_json.py -f dqm_data/ -m all   takes 19 minutes with comparing to pubmed json into output chunks and comparing fields for differences
 
 #  pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_data/ -m MGI > log_mgi
 # Loading .env environment variables...
@@ -67,9 +67,9 @@ def split_identifier(identifier, ignore_error=False):
     return prefix, identifier_processed, separator
 
 
-# output set of PMID identifiers that will need XML downloaded
-# output pmids and the mods that have them
 def generate_pmid_data():
+        # output set of PMID identifiers that will need XML downloaded
+        # output pmids and the mods that have them
     mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
 #     mods = ['SGD']
 
@@ -240,16 +240,46 @@ def write_json(json_filename, dict_to_output):
 #         logger.info("Done with JSON")
 
 
-# reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
-# outputs sanitized json to sanitized_reference_json/
-# does checks on dqm crossReferences.  if primaryId is not PMID, and a crossReference is PubMed, assigns PMID to primaryId and to authors's referenceId.
-# if any reference's author doesn't have author Rank, assign authorRank based on array order.
+def load_pubmed_resource():
+   filename = base_path + 'pubmed_resource_json/resource_pubmed_all.json'
+   f = open(filename)
+   resource_data = json.load(f)
+   resource_to_nlm = dict()
+   resource_fields = ['primaryId', 'nlm', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
+   for entry in resource_data:
+       primary_id = entry['primaryId']
+       for field in resource_fields:
+           if field in entry:
+               value = entry[field].lower()
+#                if value == '2985088r':
+#                    print("2985088r loaded\n")
+               if value in resource_to_nlm:
+#                    if value == '2985088r':
+#                        print("already in 2985088r to %s loaded\n" % (value))
+                   if primary_id not in resource_to_nlm[value]:
+                       resource_to_nlm[value].append(primary_id)
+#                        if value == '2985088r':
+#                            print("append in 2985088r to %s loaded\n" % (value))
+               else:
+                   resource_to_nlm[value] = [ primary_id ]
+#                    if value == '2985088r':
+#                        print("orig 2985088r to %s loaded\n" % (value))
+   return resource_to_nlm
+       
+
 def aggregate_dqm_with_pubmed(input_path, input_mod):
-#     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher']
+        # reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
+        # outputs sanitized json to sanitized_reference_json/
+        # does checks on dqm crossReferences.  if primaryId is not PMID, and a crossReference is PubMed, assigns PMID to primaryId and to authors's referenceId.
+        # if any reference's author doesn't have author Rank, assign authorRank based on array order.
+    cross_ref_no_pages_ok_fields = ['DOI', 'PMID', 'PMC', 'PMCID']
     pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms']
+#     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher']
     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher']
     replace_value_fields = ['pubMedType', 'meshTerms']
     date_fields = ['issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified']
+
+    resource_to_nlm = load_pubmed_resource()
 
     compare_if_dqm_empty = False		# do dqm vs pmid comparison even if dqm has no data, by default skip
 
@@ -322,8 +352,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                                         primary_id = xref_id
                                         entry['primaryId'] = xref_id
                     else:
-                        fh_mod_report[mod].write("mod %s primaryId %s has cross reference %s without pages\n" % (mod, primary_id, cross_reference["id"]))
-#                         logger.debug("mod %s primaryId %s has cross reference %s without pages", mod, primary_id, cross_reference["id"])
+                        prefix, identifier, separator = split_identifier(cross_reference["id"])
+                        if prefix not in cross_ref_no_pages_ok_fields:
+                            fh_mod_report[mod].write("mod %s primaryId %s has cross reference %s without pages\n" % (mod, primary_id, cross_reference["id"]))
+    #                         logger.debug("mod %s primaryId %s has cross reference %s without pages", mod, primary_id, cross_reference["id"])
             else:
                 fh_mod_report[mod].write("mod %s primaryId %s has no cross references\n" % (mod, primary_id))
 #                 logger.info("mod %s primaryId %s has no cross references", mod, primary_id)
@@ -348,6 +380,14 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                             author['referenceId'] = primary_id
                             authors_updated.append(author)
                         entry['authors'] = authors_updated
+                if 'resourceAbbreviation' in entry:
+                    journal = entry['resourceAbbreviation'].lower()
+                    if journal not in resource_to_nlm:
+                        fh_mod_report[mod].write("primaryId %s has resourceAbbreviation %s not in NLM source file.\n" % (primary_id, entry['resourceAbbreviation']))
+                    else:
+                        entry['nlm'] = resource_to_nlm[journal]
+                else:
+                    fh_mod_report[mod].write("primaryId %s does not have a resourceAbbreviation.\n" % (primary_id))
             else:
                 pmid = pmid_group[1]
                 is_pubmed = True
@@ -382,6 +422,16 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                             if pmid_field in pubmed_data:
 #                                 logger.info("PMID %s pmid_field %s data %s", pmid, pmid_field, pubmed_data[pmid_field])
                                 entry[pmid_field] = pubmed_data[pmid_field]
+
+                    if 'nlm' in pubmed_data:
+                        nlm = pubmed_data['nlm'].lower()
+                        if nlm not in resource_to_nlm:
+                            fh_mod_report[mod].write("NLM value %s from PMID %s XML does not map to a proper resource.\n" % (pubmed_data['nlm'], pmid))
+                    else:
+                        if 'is_journal' in pubmed_data:
+                            fh_mod_report[mod].write("PMID %s does not have an NLM resource.\n" % (pmid))
+
+#                     fh_mod_report[mod].write("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s\n" % (pmid, mod, orig_primary_id))
 
 #                     if 'title' in pubmed_data:
 # #                         compare_dqm_pubmed(pmid, 'title', entry['title'], pubmed_data['title'])
@@ -424,7 +474,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 # #                     if 'crossReferences' in pubmed_data:
 # #                         entry['crossReferences'] = pubmed_data['crossReferences']
                 except IOError:
-                    fh_mod_report[mod].write("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s" % (pmid, mod, orig_primary_id))
+                    fh_mod_report[mod].write("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s\n" % (pmid, mod, orig_primary_id))
 #                     logger.info("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s", pmid, mod, orig_primary_id)
 
             sanitized_data.append(entry)
