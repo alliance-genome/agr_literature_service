@@ -240,31 +240,71 @@ def write_json(json_filename, dict_to_output):
 #         logger.info("Done with JSON")
 
 
+#       "abbreviationSynonyms": [
+#         "Int. Rev. Cytol."
+#       ],
+#     "primaryId" : "ZFIN:ZDB-JRNL-050621-1025",
+#     "title" : "Médecine et hygiène",
+#     "medlineAbbreviation" : "Médecine et hygiène",
+#     "isoAbbreviation" : "Médecine et hygiène",
+
+def load_mod_resource(mods):
+    resource_fields = ['primaryId', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
+    resource_to_mod = dict()
+    for mod in mods:
+        resource_to_mod[mod] = dict()
+        filename = base_path + 'dqm_data/RESOURCE_' + mod + '.json'
+        try:
+            with open(filename, 'r') as f:
+                dqm_data = json.load(f)
+                for entry in dqm_data['data']:
+                    primary_id = entry['primaryId']
+                    values_to_add = []
+                    for field in resource_fields:
+                        if field in entry:
+                            value = simplify_text(entry[field])
+                            values_to_add.append(value)
+                    if 'abbreviationSynonyms' in entry:
+                        for synonym in entry['abbreviationSynonyms']:
+                            value = simplify_text(synonym)
+                            values_to_add.append(value)
+                    for value in values_to_add:
+                        if value in resource_to_mod:
+                            if primary_id not in resource_to_mod[mod][value]:
+                                resource_to_mod[mod][value].append(primary_id)
+                        else:
+                            resource_to_mod[mod][value] = [ primary_id ]
+        except IOError:
+            pass	# most mods don't have a resource file
+    return resource_to_mod
+
+
 def load_pubmed_resource():
-   filename = base_path + 'pubmed_resource_json/resource_pubmed_all.json'
-   f = open(filename)
-   resource_data = json.load(f)
-   resource_to_nlm = dict()
-   resource_fields = ['primaryId', 'nlm', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
-   for entry in resource_data:
-       primary_id = entry['primaryId']
-       for field in resource_fields:
-           if field in entry:
-               value = entry[field].lower()
-#                if value == '2985088r':
-#                    print("2985088r loaded\n")
-               if value in resource_to_nlm:
-#                    if value == '2985088r':
-#                        print("already in 2985088r to %s loaded\n" % (value))
-                   if primary_id not in resource_to_nlm[value]:
-                       resource_to_nlm[value].append(primary_id)
-#                        if value == '2985088r':
-#                            print("append in 2985088r to %s loaded\n" % (value))
-               else:
-                   resource_to_nlm[value] = [ primary_id ]
-#                    if value == '2985088r':
-#                        print("orig 2985088r to %s loaded\n" % (value))
-   return resource_to_nlm
+    filename = base_path + 'pubmed_resource_json/resource_pubmed_all.json'
+    f = open(filename)
+    resource_data = json.load(f)
+    resource_to_nlm = dict()
+    resource_fields = ['primaryId', 'nlm', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
+    for entry in resource_data:
+        primary_id = entry['primaryId']
+        for field in resource_fields:
+            if field in entry:
+#                 value = entry[field].lower()
+                value = simplify_text(entry[field])
+#                 if value == '2985088r':
+#                     print("2985088r loaded\n")
+                if value in resource_to_nlm:
+#                     if value == '2985088r':
+#                         print("already in 2985088r to %s loaded\n" % (value))
+                    if primary_id not in resource_to_nlm[value]:
+                        resource_to_nlm[value].append(primary_id)
+#                         if value == '2985088r':
+#                             print("append in 2985088r to %s loaded\n" % (value))
+                else:
+                    resource_to_nlm[value] = [ primary_id ]
+#                     if value == '2985088r':
+#                         print("orig 2985088r to %s loaded\n" % (value))
+    return resource_to_nlm
        
 
 def aggregate_dqm_with_pubmed(input_path, input_mod):
@@ -279,18 +319,21 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
     replace_value_fields = ['pubMedType', 'meshTerms']
     date_fields = ['issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified']
 
-    resource_to_nlm = load_pubmed_resource()
-
     compare_if_dqm_empty = False		# do dqm vs pmid comparison even if dqm has no data, by default skip
 
     mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
     if input_mod in mods:
         mods = [ input_mod ]
 
+    resource_to_nlm = load_pubmed_resource()
+    resource_to_mod = load_mod_resource(mods)
+    resource_not_found = dict()
+
     json_storage_path = base_path + 'sanitized_reference_json/'
 
     fh_mod_report = dict()
     for mod in mods:
+        resource_not_found[mod] = dict()
         filename = base_path + 'report_files/' + mod
         fh_mod_report.setdefault(mod, open(filename,'w')) 
 
@@ -381,11 +424,20 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                             authors_updated.append(author)
                         entry['authors'] = authors_updated
                 if 'resourceAbbreviation' in entry:
-                    journal = entry['resourceAbbreviation'].lower()
-                    if journal not in resource_to_nlm:
-                        fh_mod_report[mod].write("primaryId %s has resourceAbbreviation %s not in NLM source file.\n" % (primary_id, entry['resourceAbbreviation']))
+#                     journal = entry['resourceAbbreviation'].lower()
+#                     if journal not in resource_to_nlm:
+                    journal_simplified = simplify_text(entry['resourceAbbreviation'])
+                    if journal_simplified in resource_to_nlm:
+                        entry['nlm'] = resource_to_nlm[journal_simplified]
                     else:
-                        entry['nlm'] = resource_to_nlm[journal]
+                        if journal_simplified in resource_to_mod[mod]:
+                            entry['modResource'] = resource_to_mod[mod][journal_simplified]
+                        else:
+                            fh_mod_report[mod].write("primaryId %s has resourceAbbreviation %s not in NLM nor DQM resource file.\n" % (primary_id, entry['resourceAbbreviation']))
+                            if entry['resourceAbbreviation'] in resource_not_found[mod]:
+                                resource_not_found[mod][entry['resourceAbbreviation']] += 1
+                            else:
+                                resource_not_found[mod][entry['resourceAbbreviation']] = 1
                 else:
                     fh_mod_report[mod].write("primaryId %s does not have a resourceAbbreviation.\n" % (primary_id))
             else:
@@ -424,8 +476,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                                 entry[pmid_field] = pubmed_data[pmid_field]
 
                     if 'nlm' in pubmed_data:
-                        nlm = pubmed_data['nlm'].lower()
-                        if nlm not in resource_to_nlm:
+#                         nlm = pubmed_data['nlm'].lower()
+#                         if nlm not in resource_to_nlm:
+                        nlm_simplified = simplify_text(pubmed_data['nlm'])
+                        if nlm_simplified not in resource_to_nlm:
                             fh_mod_report[mod].write("NLM value %s from PMID %s XML does not map to a proper resource.\n" % (pubmed_data['nlm'], pmid))
                     else:
                         if 'is_journal' in pubmed_data:
@@ -509,6 +563,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 
         for unexpected_mod_property in unexpected_mod_properties:
             logger.info("Warning: Unexpected Mod %s Property %s", mod, unexpected_mod_property)
+
+    for mod in resource_not_found:
+        for resource_abbrev in resource_not_found[mod]:
+            fh_mod_report[mod].write("Summary: resourceAbbreviation %s not found %s times.\n" % (resource_abbrev, resource_not_found[mod][resource_abbrev]))
 
     for mod in fh_mod_report:
         fh_mod_report[mod].close()
