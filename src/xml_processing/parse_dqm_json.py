@@ -564,9 +564,18 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
         for unexpected_mod_property in unexpected_mod_properties:
             logger.info("Warning: Unexpected Mod %s Property %s", mod, unexpected_mod_property)
 
+    resource_abbreviations_not_found = set()
     for mod in resource_not_found:
         for resource_abbrev in resource_not_found[mod]:
+            resource_abbreviations_not_found.add(resource_abbrev) 
             fh_mod_report[mod].write("Summary: resourceAbbreviation %s not found %s times.\n" % (resource_abbrev, resource_not_found[mod][resource_abbrev]))
+
+    # output resourceAbbreviations not matched to NLMs or resource MOD IDs to a file for attempt to download from other source
+    resource_abbreviation_not_found_filename = base_path + 'resource_xml/resource_abbreviation_not_matched'
+    with open(resource_abbreviation_not_found_filename, "w") as resource_abbreviation_not_found_fh:
+        for resource_abbrev in resource_abbreviations_not_found:
+            resource_abbreviation_not_found_fh.write(resource_abbrev + "\n")
+        resource_abbreviation_not_found_fh.close()
 
     for mod in fh_mod_report:
         fh_mod_report[mod].close()
