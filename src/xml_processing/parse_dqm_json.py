@@ -321,12 +321,20 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 
     compare_if_dqm_empty = False		# do dqm vs pmid comparison even if dqm has no data, by default skip
 
-    mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
+#     mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
+    mods = ['MGI', 'SGD', 'RGD', 'FB', 'WB', 'ZFIN']
     if input_mod in mods:
         mods = [ input_mod ]
 
+# UNCOMMENT, put this back
     resource_to_nlm = load_pubmed_resource()
     resource_to_mod = load_mod_resource(mods)
+#     resource_to_nlm = dict()
+#     resource_to_mod = dict()
+#     for mod in mods:
+#         resource_to_mod[mod] = dict()
+# UNCOMMENT, put this back
+
     resource_not_found = dict()
 
     json_storage_path = base_path + 'sanitized_reference_json/'
@@ -355,6 +363,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 
 # TODO get rid of sanitized_data, read mixed-mod-pmids and bin into mixed data instead of sanitized_pubm*d_data
 
+    sanitized_pubmed_data = []
+    unmerged_pubmed_data = dict()			# pubmed data by pmid and mod that needs some fields merged
     for mod in mods:
         filename = args['file'] + '/REFERENCE_' + mod + '.json'
         logger.info("Processing %s", filename)
@@ -367,12 +377,13 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 #         json_filename = json_storage_path + 'REFERENCE_' + mod + '.json'
 #         with open(json_filename, "w") as json_file:
         entries = dqm_data['data']
-        sanitized_data = []
+#         sanitized_data = []
         sanitized_pubmod_data = []
-        sanitized_pubmed_data = []
+#         sanitized_pubmed_data = []
         for entry in entries:
             is_pubmed = False
             is_pubmod = True
+            pmid = None
             update_primary_id = False
             primary_id = entry['primaryId']
             orig_primary_id = entry['primaryId']
@@ -402,6 +413,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
             else:
                 fh_mod_report[mod].write("mod %s primaryId %s has no cross references\n" % (mod, primary_id))
 #                 logger.info("mod %s primaryId %s has no cross references", mod, primary_id)
+
             pmid_group = re.search(r"^PMID:([0-9]+)", primary_id)
             if pmid_group is None:
 #                 print("primaryKey %s is None" % (primary_id))
@@ -470,6 +482,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 #                             if (dqm_data != '') or (compare_if_dqm_empty):
 #                                compare_dqm_pubmed(fh_mod_report[mod], pmid, pmid_field, dqm_data, pmid_data)
                             entry[pmid_field] = pmid_data
+                            if pmid_field == 'datePublished':
+                                if (pmid_data == '') and (dqm_data != ''):
+                                    entry[pmid_field] = dqm_data
                         elif pmid_field in replace_value_fields:
                             if pmid_field in pubmed_data:
 #                                 logger.info("PMID %s pmid_field %s data %s", pmid, pmid_field, pubmed_data[pmid_field])
@@ -531,24 +546,27 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                     fh_mod_report[mod].write("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s\n" % (pmid, mod, orig_primary_id))
 #                     logger.info("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s", pmid, mod, orig_primary_id)
 
-            sanitized_data.append(entry)
+#             sanitized_data.append(entry)
             if is_pubmod:
                 sanitized_pubmod_data.append(entry)
             else:
-                sanitized_pubmed_data.append(entry)
+#                 sanitized_pubmed_data.append(entry)
+                if pmid in unmerged_pubmed_data:
+                    unmerged_pubmed_data[pmid][mod] = entry
+                else: 
+                    unmerged_pubmed_data[pmid] = dict()
+                    unmerged_pubmed_data[pmid][mod] = entry
 
-        entries_size = 100000
+        logger.info("Generating .json otput for mod %s", mod)
+
+        entries_size = 10000
         sanitized_pubmod_list = list(chunks(sanitized_pubmod_data, entries_size))
         for i in range(len(sanitized_pubmod_list)):
             dict_to_output = sanitized_pubmod_list[i]
             json_filename = json_storage_path + 'REFERENCE_PUBMOD_' + mod + '_' + str(i+1) + '.json'
             write_json(json_filename, dict_to_output)
 
-        sanitized_pubmed_list = list(chunks(sanitized_pubmed_data, entries_size))
-        for i in range(len(sanitized_pubmed_list)):
-            dict_to_output = sanitized_pubmed_list[i]
-            json_filename = json_storage_path + 'REFERENCE_PUBMED_' + mod + '_' + str(i+1) + '.json'
-            write_json(json_filename, dict_to_output)
+
 
 # UNCOMMENT TO generate json
 #         json_filename = json_storage_path + 'REFERENCE_' + mod + '.json'
@@ -563,6 +581,40 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 
         for unexpected_mod_property in unexpected_mod_properties:
             logger.info("Warning: Unexpected Mod %s Property %s", mod, unexpected_mod_property)
+
+    logger.info("processing unmerged pubmed_data")
+
+    for pmid in unmerged_pubmed_data:
+        if len(unmerged_pubmed_data[pmid]) > 1:
+            this_mods = ", ".join(unmerged_pubmed_data[pmid])
+            logger.info("pmid %s length %s", pmid, this_mods)
+#         else:
+#             sanitized_pubmod_data.append(entry)
+        date_published_set = set()
+        sanitized_entry = dict()
+        for mod in unmerged_pubmed_data[pmid]:
+            entry = unmerged_pubmed_data[pmid][mod]
+            sanitized_entry['primaryId'] = entry['primaryId']
+            if entry['datePublished']:
+                date_published_set.add(entry['datePublished'])
+# account for fields that need to be merged
+            for pmid_field in pmid_fields:
+                if pmid_field in entry:
+                    if pmid_field not in sanitized_entry:
+                        sanitized_entry[pmid_field] = entry[pmid_field]
+        sanitized_pubmed_data.append(sanitized_entry)
+        if len(date_published_set) > 1:
+            dates_published = "\t".join(date_published_set)
+            logger.info("MULTIPLE DATES PUBLISHED pmid %s dates published %s", pmid, dates_published)
+
+    logger.info("outputting sanitizied pubmed_data")
+
+    entries_size = 10000
+    sanitized_pubmed_list = list(chunks(sanitized_pubmed_data, entries_size))
+    for i in range(len(sanitized_pubmed_list)):
+        dict_to_output = sanitized_pubmed_list[i]
+        json_filename = json_storage_path + 'REFERENCE_PUBMED_' + str(i+1) + '.json'
+        write_json(json_filename, dict_to_output)
 
     resource_abbreviations_not_found = set()
     for mod in resource_not_found:
@@ -580,13 +632,15 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
     for mod in fh_mod_report:
         fh_mod_report[mod].close()
 
-# file of pmids to modcount to mod list
-#     output_pmid_mods_file = base_path + 'pmids_by_mods'
-#     with open(output_pmid_mods_file, "w") as pmid_mods_file:
 
 # hash sanitized entries per mod into %sanitized{pmid}{mod} = data
 # go through those to aggregate data that should be aggregated
 # check for single fields that have different values across mods
+
+# check merging with these pmids and mod with data in dqm_merge/ manually generated files, based on pmids_by_mods
+# 27639630        3       SGD, WB, ZFIN
+# 27656112        2       SGD, WB
+
 
 # allianceCategory - single value, check they aren't different for entries with same PMID
 # MODReferenceTypes - array of hashes, aggregate the hashes
@@ -607,6 +661,7 @@ if __name__ == "__main__":
 # pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m SGD
 # pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m WB
 # pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m all
+# pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_merge/ -m all
     elif args['file']:
         if args['mod']:
             aggregate_dqm_with_pubmed(args['file'], args['mod'])
