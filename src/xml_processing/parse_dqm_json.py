@@ -306,6 +306,16 @@ def load_pubmed_resource():
 #                         print("orig 2985088r to %s loaded\n" % (value))
     return resource_to_nlm
        
+def load_pmid_mods():
+    pmid_mods = dict()
+    output_pmid_mods_file = base_path + 'pmids_by_mods'
+    with open(output_pmid_mods_file, 'r') as f:
+        for line in f:
+            cols = line.split("\t")
+            if int(cols[1]) > 1:
+                pmid_mods[cols[0]] = cols[1]
+        f.close()
+    return pmid_mods
 
 def aggregate_dqm_with_pubmed(input_path, input_mod):
         # reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
@@ -325,6 +335,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
     mods = ['MGI', 'SGD', 'RGD', 'FB', 'WB', 'ZFIN']
     if input_mod in mods:
         mods = [ input_mod ]
+
+    # this has to be loaded, if the mod data is hashed by pmid+mod and sorted for those with multiple mods, there's an out-of-memory crash
+    pmid_mods = load_pmid_mods()
 
 # UNCOMMENT, put this back
     resource_to_nlm = load_pubmed_resource()
@@ -363,7 +376,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 
 # TODO get rid of sanitized_data, read mixed-mod-pmids and bin into mixed data instead of sanitized_pubm*d_data
 
-    sanitized_pubmed_data = []
+    sanitized_pubmed_multi_mod_data = []
     unmerged_pubmed_data = dict()			# pubmed data by pmid and mod that needs some fields merged
     for mod in mods:
         filename = args['file'] + '/REFERENCE_' + mod + '.json'
@@ -379,7 +392,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
         entries = dqm_data['data']
 #         sanitized_data = []
         sanitized_pubmod_data = []
-#         sanitized_pubmed_data = []
+        sanitized_pubmed_single_mod_data = []
         for entry in entries:
             is_pubmed = False
             is_pubmod = True
@@ -546,26 +559,43 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                     fh_mod_report[mod].write("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s\n" % (pmid, mod, orig_primary_id))
 #                     logger.info("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s", pmid, mod, orig_primary_id)
 
+
 #             sanitized_data.append(entry)
             if is_pubmod:
                 sanitized_pubmod_data.append(entry)
             else:
-#                 sanitized_pubmed_data.append(entry)
-                if pmid in unmerged_pubmed_data:
-                    unmerged_pubmed_data[pmid][mod] = entry
-                else: 
-                    unmerged_pubmed_data[pmid] = dict()
-                    unmerged_pubmed_data[pmid][mod] = entry
+                if pmid in pmid_mods:
+#                     logger.info("MULTIPLE pmid %s mod %s", pmid, mod)
+                    if pmid in unmerged_pubmed_data:
+                        unmerged_pubmed_data[pmid][mod] = entry
+                    else: 
+                        unmerged_pubmed_data[pmid] = dict()
+                        unmerged_pubmed_data[pmid][mod] = entry
+                else:
+                    sanitized_pubmed_single_mod_data.append(entry)
+
+#                 if pmid in unmerged_pubmed_data:
+#                     unmerged_pubmed_data[pmid][mod] = entry
+#                 else: 
+#                     unmerged_pubmed_data[pmid] = dict()
+#                     unmerged_pubmed_data[pmid][mod] = entry
+
+
 
         logger.info("Generating .json otput for mod %s", mod)
 
-        entries_size = 10000
+        entries_size = 100000
         sanitized_pubmod_list = list(chunks(sanitized_pubmod_data, entries_size))
         for i in range(len(sanitized_pubmod_list)):
             dict_to_output = sanitized_pubmod_list[i]
             json_filename = json_storage_path + 'REFERENCE_PUBMOD_' + mod + '_' + str(i+1) + '.json'
             write_json(json_filename, dict_to_output)
 
+        sanitized_pubmed_list = list(chunks(sanitized_pubmed_single_mod_data, entries_size))
+        for i in range(len(sanitized_pubmed_list)):
+            dict_to_output = sanitized_pubmed_list[i]
+            json_filename = json_storage_path + 'REFERENCE_PUBMED_' + mod + '_' + str(i+1) + '.json'
+            write_json(json_filename, dict_to_output)
 
 
 # UNCOMMENT TO generate json
@@ -602,15 +632,15 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                 if pmid_field in entry:
                     if pmid_field not in sanitized_entry:
                         sanitized_entry[pmid_field] = entry[pmid_field]
-        sanitized_pubmed_data.append(sanitized_entry)
+        sanitized_pubmed_multi_mod_data.append(sanitized_entry)
         if len(date_published_set) > 1:
             dates_published = "\t".join(date_published_set)
             logger.info("MULTIPLE DATES PUBLISHED pmid %s dates published %s", pmid, dates_published)
 
     logger.info("outputting sanitizied pubmed_data")
 
-    entries_size = 10000
-    sanitized_pubmed_list = list(chunks(sanitized_pubmed_data, entries_size))
+    entries_size = 100000
+    sanitized_pubmed_list = list(chunks(sanitized_pubmed_multi_mod_data, entries_size))
     for i in range(len(sanitized_pubmed_list)):
         dict_to_output = sanitized_pubmed_list[i]
         json_filename = json_storage_path + 'REFERENCE_PUBMED_' + str(i+1) + '.json'
