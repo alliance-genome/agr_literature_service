@@ -65,13 +65,14 @@ def download_pubmed_xml():
 
     # this section reads pubmed xml files already acquired to skip downloading them.  
     # to get full set, clear out storage_path, or comment out this section
+    # takes a bit under 2 minutes to read 646721 files
     logger.info("Reading PubMed XML previously acquired")
-    pmids_already_had = []
+#     pmids_already_had = []
     full_path_pmid_xml = glob.glob(storage_path + "*.xml")
     for elem in full_path_pmid_xml:
         elem = elem.replace(storage_path, '')
         elem = elem.replace('.xml', '')
-        pmids_already_had.append(elem)
+#         pmids_already_had.append(elem)
         if elem in pmids_wanted:
             pmids_wanted.remove(elem)
 
