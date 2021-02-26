@@ -10,6 +10,7 @@ import os
 from os import path
 import logging
 import logging.config
+import glob
 
 
 # python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
@@ -53,7 +54,7 @@ base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 storage_path = base_path + 'pubmed_xml/'
 
 
-pmids = []
+pmids_wanted = []
 pmids_found = set()
 
 def download_pubmed_xml():
@@ -61,8 +62,26 @@ def download_pubmed_xml():
       # 61 minutes to download 429899 alliance records in 10000 chunks
       # 127 minutes to download 646714 alliance records in 5000 chunks, failed on 280
     pmids_slice_size = 5000
-    for index in range(0, len(pmids), pmids_slice_size):
-        pmids_slice = pmids[index:index + pmids_slice_size]
+
+    # this section reads pubmed xml files already acquired to skip downloading them.  
+    # to get full set, clear out storage_path, or comment out this section
+    logger.info("Reading PubMed XML previously acquired")
+    pmids_already_had = []
+    full_path_pmid_xml = glob.glob(storage_path + "*.xml")
+    for elem in full_path_pmid_xml:
+        elem = elem.replace(storage_path, '')
+        elem = elem.replace('.xml', '')
+        pmids_already_had.append(elem)
+        if elem in pmids_wanted:
+            pmids_wanted.remove(elem)
+
+#     for pmid in pmids_wanted:
+#         print(pmid)
+
+    logger.info("Starting download of new PubMed XML")
+
+    for index in range(0, len(pmids_wanted), pmids_slice_size):
+        pmids_slice = pmids_wanted[index:index + pmids_slice_size]
         pmids_joined = (',').join(pmids_slice);
         logger.debug("processing PMIDs %s", pmids_joined)
 
@@ -107,17 +126,20 @@ def download_pubmed_xml():
             logger.info("waiting to process more pmids")
             time.sleep( 5 )
 
+    logger.info("Writing log of pmids_not_found")
     output_pmids_not_found_file = base_path + 'pmids_not_found'
     with open(output_pmids_not_found_file, "w") as pmids_not_found_file:
-        for pmid in pmids:
+        for pmid in pmids_wanted:
             if pmid not in pmids_found:
                 pmids_not_found_file.write("%s\n" % (pmid))
                 logger.info("PMID %s not found in pubmed query", pmid)
         pmids_not_found_file.close()
 
+    logger.info("Getting PubMed XML complete")
+
 
 # to process one by one
-#   for pmid in pmids:
+#   for pmid in pmids_wanted:
 # #    add some validation here
 #     url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" + pmid + "&retmode=xml"
 #     filename = storage_path + pmid + '.xml'
@@ -145,7 +167,7 @@ if __name__ == "__main__":
         with open(args['file'], 'r') as fp:
             pmid = fp.readline()
             while pmid:
-                pmids.append(pmid.rstrip())
+                pmids_wanted.append(pmid.rstrip())
                 pmid = fp.readline()
 
 #     python get_pubmed_xml.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
@@ -155,23 +177,23 @@ if __name__ == "__main__":
         data = req.read()
         lines = data.splitlines()
         for pmid in lines:
-            pmids.append(pmid)
+            pmids_wanted.append(pmid)
 
 #    python get_pubmed_xml.py -c 1234 4576 1828
     elif args['commandline']:
         logger.info("Processing commandline input")
         for pmid in args['commandline']:
-            pmids.append(pmid)
+            pmids_wanted.append(pmid)
 
 #    python get_pubmed_xml.py -s
     elif args['sample']:
         logger.info("Processing hardcoded sample input")
         pmid = '12345678'
-        pmids.append(pmid)
+        pmids_wanted.append(pmid)
         pmid = '12345679'
-        pmids.append(pmid)
+        pmids_wanted.append(pmid)
         pmid = '12345680'
-        pmids.append(pmid)
+        pmids_wanted.append(pmid)
 
     else:
         logger.info("Processing database entries")
