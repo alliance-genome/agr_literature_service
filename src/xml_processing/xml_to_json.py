@@ -291,7 +291,8 @@ def generate_json():
                     date_dict['year'] = date_list[0]
                     date_dict['month'] = date_list[1]
                     date_dict['day'] = date_list[2]
-                    data_dict['datePublished'] = date_dict
+                    # datePublished is a string, not a date-time
+                    data_dict['datePublished'] = date_string
                     data_dict['issueDate'] = date_dict
                 else:
                     # 1524678 2993907 have MedlineDate instead of Year Month Day 
