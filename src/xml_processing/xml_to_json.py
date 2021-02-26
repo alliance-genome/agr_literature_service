@@ -124,12 +124,16 @@ def get_year_month_day_from_xml_date(pub_date):
     date_list.append(day)
     return date_list
 
-
+def get_medline_date_from_xml_date(pub_date):
+    medline_re_output = re.search("<MedlineDate>(.+?)</MedlineDate>", pub_date)
+    if medline_re_output is not None:
+        return medline_re_output.group(1)
 
 def generate_json():
     # open input xml file and read data in form of python dictionary using xmltodict module
     for pmid in pmids:
         storage_path = base_path + 'pubmed_xml/'
+#         storage_path = base_path + 'pubmed_xml_20210205/'
         filename = storage_path + pmid + '.xml'
         if not path.exists(filename):
             continue
@@ -289,6 +293,12 @@ def generate_json():
                     date_dict['day'] = date_list[2]
                     data_dict['datePublished'] = date_dict
                     data_dict['issueDate'] = date_dict
+                else:
+                    # 1524678 2993907 have MedlineDate instead of Year Month Day 
+                    medline_date = get_medline_date_from_xml_date(pub_date)
+                    if medline_date:
+                        data_dict['date_string'] = medline_date
+                        data_dict['datePublished'] = medline_date
 
             date_revised_re_output = re.search("<DateRevised>(.+?)</DateRevised>", xml, re.DOTALL)
             if date_revised_re_output is not None:
