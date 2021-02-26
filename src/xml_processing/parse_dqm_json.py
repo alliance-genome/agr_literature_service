@@ -13,6 +13,7 @@ import logging.config
 # pipenv run python parse_dqm_json.py -f dqm_data/ -m all   takes 3.5 minutes without looking at pubmed json
 # pipenv run python parse_dqm_json.py -f dqm_data/ -m all   takes 13.5 minutes with comparing to pubmed json into output chunks without comparing fields for differences
 # pipenv run python parse_dqm_json.py -f dqm_data/ -m all   takes 19 minutes with comparing to pubmed json into output chunks and comparing fields for differences
+# pipenv run python parse_dqm_json.py -f dqm_data/ -m all   takes 17 minutes with comparing to pubmed json into output chunks, without comparing fields for differences, splitting into unmerged_pubmed_data for multi_mod pmids.
 
 #  pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_data/ -m MGI > log_mgi
 # Loading .env environment variables...
@@ -306,16 +307,16 @@ def load_pubmed_resource():
 #                         print("orig 2985088r to %s loaded\n" % (value))
     return resource_to_nlm
        
-def load_pmid_mods():
-    pmid_mods = dict()
-    output_pmid_mods_file = base_path + 'pmids_by_mods'
-    with open(output_pmid_mods_file, 'r') as f:
+def load_pmid_multi_mods():
+    pmid_multi_mods = dict()
+    pmid_multi_mods_file = base_path + 'pmids_by_mods'
+    with open(pmid_multi_mods_file, 'r') as f:
         for line in f:
             cols = line.split("\t")
             if int(cols[1]) > 1:
-                pmid_mods[cols[0]] = cols[1]
+                pmid_multi_mods[cols[0]] = cols[1]
         f.close()
-    return pmid_mods
+    return pmid_multi_mods
 
 def aggregate_dqm_with_pubmed(input_path, input_mod):
         # reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
@@ -327,7 +328,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 #     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher']
     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher']
     replace_value_fields = ['pubMedType', 'meshTerms']
-    date_fields = ['issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified']
+#     date_fields = ['issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified']
+    # datePublished is a string, not a proper date field
+    date_fields = ['issueDate', 'dateArrivedInPubmed', 'dateLastModified']	
 
     compare_if_dqm_empty = False		# do dqm vs pmid comparison even if dqm has no data, by default skip
 
@@ -337,7 +340,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
         mods = [ input_mod ]
 
     # this has to be loaded, if the mod data is hashed by pmid+mod and sorted for those with multiple mods, there's an out-of-memory crash
-    pmid_mods = load_pmid_mods()
+    pmid_multi_mods = load_pmid_multi_mods()
 
 # UNCOMMENT, put this back
     resource_to_nlm = load_pubmed_resource()
@@ -494,7 +497,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 # UNCOMMENT to output log of data comparison between dqm and pubmed
 #                             if (dqm_data != '') or (compare_if_dqm_empty):
 #                                compare_dqm_pubmed(fh_mod_report[mod], pmid, pmid_field, dqm_data, pmid_data)
-                            entry[pmid_field] = pmid_data
+                            if pmid_data != '':
+                                entry[pmid_field] = pmid_data
                             if pmid_field == 'datePublished':
                                 if (pmid_data == '') and (dqm_data != ''):
                                     entry[pmid_field] = dqm_data
@@ -564,7 +568,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
             if is_pubmod:
                 sanitized_pubmod_data.append(entry)
             else:
-                if pmid in pmid_mods:
+                if pmid in pmid_multi_mods:
 #                     logger.info("MULTIPLE pmid %s mod %s", pmid, mod)
                     if pmid in unmerged_pubmed_data:
                         unmerged_pubmed_data[pmid][mod] = entry
@@ -615,9 +619,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
     logger.info("processing unmerged pubmed_data")
 
     for pmid in unmerged_pubmed_data:
-        if len(unmerged_pubmed_data[pmid]) > 1:
-            this_mods = ", ".join(unmerged_pubmed_data[pmid])
-            logger.info("pmid %s length %s", pmid, this_mods)
+#         this was when trying to send all mod-pubmed data to a hash, and sort those with muliple mods, but script crashed out of memory
+#         if len(unmerged_pubmed_data[pmid]) > 1:
+#             this_mods = ", ".join(unmerged_pubmed_data[pmid])
+#             logger.info("pmid %s length %s", pmid, this_mods)
 #         else:
 #             sanitized_pubmod_data.append(entry)
         date_published_set = set()
@@ -625,7 +630,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
         for mod in unmerged_pubmed_data[pmid]:
             entry = unmerged_pubmed_data[pmid][mod]
             sanitized_entry['primaryId'] = entry['primaryId']
-            if entry['datePublished']:
+            if 'datePublished' in entry:
                 date_published_set.add(entry['datePublished'])
 # account for fields that need to be merged
             for pmid_field in pmid_fields:
@@ -643,7 +648,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
     sanitized_pubmed_list = list(chunks(sanitized_pubmed_multi_mod_data, entries_size))
     for i in range(len(sanitized_pubmed_list)):
         dict_to_output = sanitized_pubmed_list[i]
-        json_filename = json_storage_path + 'REFERENCE_PUBMED_' + str(i+1) + '.json'
+        json_filename = json_storage_path + 'REFERENCE_PUBMED_MULTI_' + str(i+1) + '.json'
         write_json(json_filename, dict_to_output)
 
     resource_abbreviations_not_found = set()
