@@ -285,9 +285,13 @@ def load_pubmed_resource():
     f = open(filename)
     resource_data = json.load(f)
     resource_to_nlm = dict()
+    resource_nlm_to_title = dict()
     resource_fields = ['primaryId', 'nlm', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
     for entry in resource_data:
         primary_id = entry['primaryId']
+        nlm = entry['nlm']
+        title = entry['title']
+        resource_nlm_to_title[nlm] = title
         for field in resource_fields:
             if field in entry:
 #                 value = entry[field].lower()
@@ -305,7 +309,7 @@ def load_pubmed_resource():
                     resource_to_nlm[value] = [ primary_id ]
 #                     if value == '2985088r':
 #                         print("orig 2985088r to %s loaded\n" % (value))
-    return resource_to_nlm
+    return resource_to_nlm, resource_nlm_to_title
        
 def load_pmid_multi_mods():
     pmid_multi_mods = dict()
@@ -343,9 +347,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
     pmid_multi_mods = load_pmid_multi_mods()
 
 # UNCOMMENT, put this back
-    resource_to_nlm = load_pubmed_resource()
+    resource_to_nlm, resource_nlm_to_title = load_pubmed_resource()
     resource_to_mod = load_mod_resource(mods)
 #     resource_to_nlm = dict()
+#     resource_nlm_to_title = dict()
 #     resource_to_mod = dict()
 #     for mod in mods:
 #         resource_to_mod[mod] = dict()
@@ -456,7 +461,11 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 #                     if journal not in resource_to_nlm:
                     journal_simplified = simplify_text(entry['resourceAbbreviation'])
                     if journal_simplified in resource_to_nlm:
-                        entry['nlm'] = resource_to_nlm[journal_simplified]
+                        nlm = resource_to_nlm[journal_simplified]
+                        # we a resourceAbbreviation can resolve to multiple NLMs, so we cannot use a list of NLMs to get a single canonical NLM title
+#                         if nlm in resource_nlm_to_title:
+#                             entry['resourceAbbreviation'] = resource_nlm_to_title[nlm]
+                        entry['nlm'] = nlm
                     else:
                         if journal_simplified in resource_to_mod[mod]:
                             entry['modResource'] = resource_to_mod[mod][journal_simplified]
@@ -508,14 +517,42 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                                 entry[pmid_field] = pubmed_data[pmid_field]
 
                     if 'nlm' in pubmed_data:
-#                         nlm = pubmed_data['nlm'].lower()
-#                         if nlm not in resource_to_nlm:
+                        nlm = pubmed_data['nlm']
+                        if nlm in resource_nlm_to_title:
+#                             logger.info("PMID %s has NLM %s setting to title %s", pmid, nlm, resource_nlm_to_title[nlm])
+                            entry['resourceAbbreviation'] = resource_nlm_to_title[nlm]
                         nlm_simplified = simplify_text(pubmed_data['nlm'])
                         if nlm_simplified not in resource_to_nlm:
                             fh_mod_report[mod].write("NLM value %s from PMID %s XML does not map to a proper resource.\n" % (pubmed_data['nlm'], pmid))
                     else:
                         if 'is_journal' in pubmed_data:
                             fh_mod_report[mod].write("PMID %s does not have an NLM resource.\n" % (pmid))
+
+                    if 'keywords' in pubmed_data:
+                        # aggregate for all MODs except ZFIN, which has misformed data and can't fix it.
+                        if mod == 'ZFIN':
+                            entry['keywords'] = pubmed_data['keywords']
+                        else:
+                            if 'keywords' not in entry:
+                                entry['keywords'] = []
+                            # 19308247 aggregates keywords for WB
+                            for mod_keyword in pubmed_data['keywords']:
+                                entry['keywords'].append(mod_keyword)
+                    else:
+                        # keep the MOD's value for all MODs except ZFIN, which has misformed data and can't fix it.
+                        if mod == 'ZFIN':
+                            if 'keywords' in entry:
+                                if entry['keywords'][0] != '':
+                                    zfin_value = entry['keywords'][0]
+                                    if ", " in zfin_value:
+                                        entry['keywords'] = zfin_value.split(", ")
+                                    else:
+                                        if "; " in zfin_value:
+                                            entry['keywords'] = zfin_value.split("; ")
+                                        else:
+                                            entry['keywords'] = zfin_value
+#                                     logger.info("PMID %s does not have keywords, ZFIN has %s", pmid, entry['keywords'])
+
 
 #                     fh_mod_report[mod].write("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s\n" % (pmid, mod, orig_primary_id))
 
@@ -551,7 +588,17 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 #                     if 'meshTerms' in pubmed_data:
 #                         entry['meshTerms'] = pubmed_data['meshTerms']
 
-# TODO datePublished, keywords, and crossReferences
+# TODO output multiple things into a report_files output
+
+# # TODO datePublished, keywords, and crossReferences, MODReferenceTypes, tags, allianceCategory, resourceAbbreviation
+# # datePublished - pubmed value, if no value use mod's, if multiple mod's different, error
+# # resourceAbbreviation - if pmid always use NLM's name
+# # keywords - aggregate
+# # tags - aggregate
+# # MODReferenceTypes - aggregate
+# # crossReferences - aggregate and clean up pages
+# # allianceCategory - single value, error if there's more than 1 unique value because of different MODs
+
 # if datePublished empty in pubmed but has dqm, use dqm.
 # #     some papers, like 8805 don't have keyword data, but have data from WB, aggregate from mods ?
 # #                     if 'keywords' in pubmed_data:
@@ -618,6 +665,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 
     logger.info("processing unmerged pubmed_data")
 
+    aggregate_fields = ['keywords', 'MODReferenceTypes', 'tags']
+# crossReferences - aggregate and clean up pages
+
     for pmid in unmerged_pubmed_data:
 #         this was when trying to send all mod-pubmed data to a hash, and sort those with muliple mods, but script crashed out of memory
 #         if len(unmerged_pubmed_data[pmid]) > 1:
@@ -626,21 +676,82 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 #         else:
 #             sanitized_pubmod_data.append(entry)
         date_published_set = set()
+        alliance_category_set = set()
         sanitized_entry = dict()
+        cross_references_dict = dict()
         for mod in unmerged_pubmed_data[pmid]:
             entry = unmerged_pubmed_data[pmid][mod]
             sanitized_entry['primaryId'] = entry['primaryId']
-            if 'datePublished' in entry:
-                date_published_set.add(entry['datePublished'])
 # account for fields that need to be merged
             for pmid_field in pmid_fields:
                 if pmid_field in entry:
                     if pmid_field not in sanitized_entry:
                         sanitized_entry[pmid_field] = entry[pmid_field]
-        sanitized_pubmed_multi_mod_data.append(sanitized_entry)
+            if 'datePublished' in entry:
+                date_published_set.add(entry['datePublished'])
+
+            if 'allianceCategory' in entry:
+                sanitized_entry['allianceCategory'] = entry['allianceCategory']
+                alliance_category_set.add(entry['allianceCategory'])
+
+            for aggregate_field in aggregate_fields:
+                if aggregate_field in entry:
+                    for value in entry[aggregate_field]:
+                        if aggregate_field in sanitized_entry:
+                            sanitized_entry[aggregate_field].append(value)
+                        else:
+                            sanitized_entry[aggregate_field] = [value]
+
+            if 'crossReferences' in entry:
+                for cross_ref in entry['crossReferences']:
+                    id = cross_ref['id']
+                    pages = []
+                    if 'pages' in cross_ref:
+                        pages = cross_ref['pages']
+                    cross_references_dict[id] = pages
+
+# DELETE THIS
+#             if 'keywords' in entry:
+#                 for keyword in entry['keywords']:
+#                     if 'keywords' in sanitized_entry:
+#                         sanitized_entry['keywords'].append(keyword)
+#                     else:
+#                         sanitized_entry['keywords'] = [keyword]
+#             if 'MODReferenceTypes' in entry:
+#                 for mod_reference_type in entry['MODReferenceTypes']:
+#                     if 'MODReferenceTypes' in sanitized_entry:
+#                         sanitized_entry['MODReferenceTypes'].append(mod_reference_type)
+#                     else:
+#                         sanitized_entry['MODReferenceTypes'] = [mod_reference_type]
+#             if 'tags' in entry:
+#                 for tag in entry['tags']:
+#                     if 'tags' in sanitized_entry:
+#                         sanitized_entry['tags'].append(tag)
+#                     else:
+#                         sanitized_entry['tags'] = [tag]
+
+# # When back, check that data is good for kw modreftype, tags, then back it up.  run it again with this code, check still good, check allianceCategory
+
+        for cross_ref_id in cross_references_dict:
+            pages = cross_references_dict[cross_ref_id]
+            sanitized_cross_ref_dict = dict()
+            sanitized_cross_ref_dict["id"] = cross_ref_id
+            if len(pages) > 0:
+                sanitized_cross_ref_dict["pages"] = pages
+            if 'crossReferences' in sanitized_entry:
+                sanitized_entry['crossReferences'].append(sanitized_cross_ref_dict)
+            else:
+                sanitized_entry['crossReferences'] = [sanitized_cross_ref_dict]
+
+        if 'allianceCategory' in sanitized_entry:
+            if len(alliance_category_set) > 1:
+                multiple_alliance_categories = "\t".join(alliance_category_set)
+                logger.info("MULTIPLE ALLIANCE CATEGORY pmid %s alliance categories %s", pmid, multiple_alliance_categories)
         if len(date_published_set) > 1:
             dates_published = "\t".join(date_published_set)
             logger.info("MULTIPLE DATES PUBLISHED pmid %s dates published %s", pmid, dates_published)
+
+        sanitized_pubmed_multi_mod_data.append(sanitized_entry)
 
     logger.info("outputting sanitizied pubmed_data")
 
