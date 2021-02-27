@@ -366,6 +366,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
         filename = base_path + 'report_files/' + mod
         fh_mod_report.setdefault(mod, open(filename,'w')) 
 
+    multi_report_filename = base_path + 'report_files/multi_mod'
+    fh_mod_report.setdefault('multi', open(multi_report_filename,'w'))
 
     logger.info("Aggregating DQM and PubMed data from %s using mods %s", input_path, mods)
     agr_schemas_reference_json_url = 'https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/ingest/resourcesAndReferences/reference.json'
@@ -505,7 +507,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                                 dqm_data = entry[pmid_field]
 # UNCOMMENT to output log of data comparison between dqm and pubmed
 #                             if (dqm_data != '') or (compare_if_dqm_empty):
-#                                compare_dqm_pubmed(fh_mod_report[mod], pmid, pmid_field, dqm_data, pmid_data)
+#                                 compare_dqm_pubmed(fh_mod_report[mod], pmid, pmid_field, dqm_data, pmid_data)
                             if pmid_data != '':
                                 entry[pmid_field] = pmid_data
                             if pmid_field == 'datePublished':
@@ -589,8 +591,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 #                         entry['meshTerms'] = pubmed_data['meshTerms']
 
 # TODO output multiple things into a report_files output
+# TODO clean up crossReference pages
 
-# # TODO datePublished, keywords, and crossReferences, MODReferenceTypes, tags, allianceCategory, resourceAbbreviation
+# # datePublished, keywords, and crossReferences, MODReferenceTypes, tags, allianceCategory, resourceAbbreviation
 # # datePublished - pubmed value, if no value use mod's, if multiple mod's different, error
 # # resourceAbbreviation - if pmid always use NLM's name
 # # keywords - aggregate
@@ -648,25 +651,12 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
             json_filename = json_storage_path + 'REFERENCE_PUBMED_' + mod + '_' + str(i+1) + '.json'
             write_json(json_filename, dict_to_output)
 
-
-# UNCOMMENT TO generate json
-#         json_filename = json_storage_path + 'REFERENCE_' + mod + '.json'
-#         with open(json_filename, "w") as json_file:
-#             logger.info("Generating JSON")
-#             json_data = json.dumps(sanitized_data, indent=4, sort_keys=True)
-#             logger.info("Writing JSON")
-#             json_file.write(json_data)
-#             logger.info("Closing JSON file")
-#             json_file.close()
-#             logger.info("Done with JSON")
-
         for unexpected_mod_property in unexpected_mod_properties:
             logger.info("Warning: Unexpected Mod %s Property %s", mod, unexpected_mod_property)
 
     logger.info("processing unmerged pubmed_data")
 
     aggregate_fields = ['keywords', 'MODReferenceTypes', 'tags']
-# crossReferences - aggregate and clean up pages
 
     for pmid in unmerged_pubmed_data:
 #         this was when trying to send all mod-pubmed data to a hash, and sort those with muliple mods, but script crashed out of memory
@@ -681,12 +671,14 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
         cross_references_dict = dict()
         for mod in unmerged_pubmed_data[pmid]:
             entry = unmerged_pubmed_data[pmid][mod]
+
             sanitized_entry['primaryId'] = entry['primaryId']
-# account for fields that need to be merged
+
             for pmid_field in pmid_fields:
                 if pmid_field in entry:
                     if pmid_field not in sanitized_entry:
                         sanitized_entry[pmid_field] = entry[pmid_field]
+
             if 'datePublished' in entry:
                 date_published_set.add(entry['datePublished'])
 
@@ -710,28 +702,6 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                         pages = cross_ref['pages']
                     cross_references_dict[id] = pages
 
-# DELETE THIS
-#             if 'keywords' in entry:
-#                 for keyword in entry['keywords']:
-#                     if 'keywords' in sanitized_entry:
-#                         sanitized_entry['keywords'].append(keyword)
-#                     else:
-#                         sanitized_entry['keywords'] = [keyword]
-#             if 'MODReferenceTypes' in entry:
-#                 for mod_reference_type in entry['MODReferenceTypes']:
-#                     if 'MODReferenceTypes' in sanitized_entry:
-#                         sanitized_entry['MODReferenceTypes'].append(mod_reference_type)
-#                     else:
-#                         sanitized_entry['MODReferenceTypes'] = [mod_reference_type]
-#             if 'tags' in entry:
-#                 for tag in entry['tags']:
-#                     if 'tags' in sanitized_entry:
-#                         sanitized_entry['tags'].append(tag)
-#                     else:
-#                         sanitized_entry['tags'] = [tag]
-
-# # When back, check that data is good for kw modreftype, tags, then back it up.  run it again with this code, check still good, check allianceCategory
-
         for cross_ref_id in cross_references_dict:
             pages = cross_references_dict[cross_ref_id]
             sanitized_cross_ref_dict = dict()
@@ -746,10 +716,12 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
         if 'allianceCategory' in sanitized_entry:
             if len(alliance_category_set) > 1:
                 multiple_alliance_categories = "\t".join(alliance_category_set)
-                logger.info("MULTIPLE ALLIANCE CATEGORY pmid %s alliance categories %s", pmid, multiple_alliance_categories)
+#                 logger.info("MULTIPLE ALLIANCE CATEGORY pmid %s alliance categories %s", pmid, multiple_alliance_categories)
+                fh_mod_report['multi'].write("Multiple allianceCategory pmid %s alliance categories %s\n" % (pmid, multiple_alliance_categories))
         if len(date_published_set) > 1:
             dates_published = "\t".join(date_published_set)
-            logger.info("MULTIPLE DATES PUBLISHED pmid %s dates published %s", pmid, dates_published)
+#             logger.info("MULTIPLE DATES PUBLISHED pmid %s dates published %s", pmid, dates_published)
+            fh_mod_report['multi'].write("Multiple datePublished pmid %s dates published %s\n" % (pmid, dates_published))
 
         sanitized_pubmed_multi_mod_data.append(sanitized_entry)
 
@@ -775,13 +747,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
             resource_abbreviation_not_found_fh.write(resource_abbrev + "\n")
         resource_abbreviation_not_found_fh.close()
 
+    fh_mod_report['multi'].close()
     for mod in fh_mod_report:
         fh_mod_report[mod].close()
-
-
-# hash sanitized entries per mod into %sanitized{pmid}{mod} = data
-# go through those to aggregate data that should be aggregated
-# check for single fields that have different values across mods
 
 # check merging with these pmids and mod with data in dqm_merge/ manually generated files, based on pmids_by_mods
 # 27639630        3       SGD, WB, ZFIN
