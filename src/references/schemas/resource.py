@@ -1,11 +1,12 @@
 from marshmallow import Schema, fields
 
 from .author import AuthorSchema
-from .crossreference import CrossReferenceSchema
+from .identifier import IdentifierSchema
 
 class ResourceSchema(Schema):
     id = fields.Int()
     primaryId = fields.Str(required=True)
+    identifiers = fields.List(fields.Nested(IdentifierSchema))
     title = fields.Str(required=True)
     titleSynonyms = fields.List(fields.Str(), unique=True)
     isoAbbreviation = fields.Str()
@@ -18,4 +19,4 @@ class ResourceSchema(Schema):
     volumes = fields.List(fields.Str())
     pages = fields.Int()
     abstractOrSummary = fields.Str()
-    #crossReferences = fields.List(fields.Nested(CrossReferenceSchema))
+

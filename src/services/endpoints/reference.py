@@ -28,7 +28,7 @@ logger = logging.getLogger('literature logger')
 
 @marshal_with(ReferenceSchemaOut)
 @doc(description='Reference', tags=['reference'])
-class ReferenceEndpoint(MethodResource):
+class ReferencesEndpoint(MethodResource):
 
     @use_kwargs(ReferenceSchemaIn)
     def post(self, **data):
@@ -162,7 +162,12 @@ class ReferenceEndpoint(MethodResource):
 
         return reference
 
-    def get(self):
+
+@marshal_with(ReferenceSchemaOut)
+@doc(description='Reference', tags=['reference'])
+class ReferenceEndpoint(MethodResource):
+    @use_kwargs(ReferenceSchemaOut)
+    def get(self, reference_id):
         reference = Reference.query.filter_by(id=id).one()
         return {'id': reference.id,
                 'primaryId': None,
@@ -189,3 +194,18 @@ class ReferenceEndpoint(MethodResource):
                 'pubmodIDs': Pubmod.query.filter_by(referenceId=id),
                 'resourceAbbreviation': None,
                 'dateTimeCreated': None}
+
+    @use_kwargs(ReferenceSchemaOut)
+    def put(self, reference_id, **kwargs):
+        reference = Reference.query.filter_by(id=refernece_id).one()
+        for key, value in kwargs.items():
+            setattr(reference, key, value)
+        session.add(reference)
+        session.commit()
+
+    @marshal_with(None, code=204)
+    def delete(self, reference_id):
+        reference = Reference.query.filter_by(id=refernece_id).one()
+        db.session.delete(reference)
+        db.session.commit()
+        return None

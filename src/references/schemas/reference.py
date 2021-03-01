@@ -10,7 +10,7 @@ from references.models.reference import Reference
 from .author import AuthorSchema
 from .page import PageSchema
 from .meshTerm import MeshTermSchema
-#from .crossreference import CrossReferenceSchema
+from .identifier import IdentifierSchema
 from .modReferenceType import ModReferenceTypeSchema
 from .referenceTag import ReferenceTagSchema
 from .allianceCategory import AllianceCategory
@@ -30,14 +30,14 @@ class ReferenceSchemaIn(SQLAlchemyAutoSchema):
     tags = fields.List(fields.Nested(ReferenceTagSchema))
     meshTerms = Nested(MeshTermSchema, exclude=('id', 'reference'),  many=True)
     tags = Nested(ReferenceTagSchema, exclude=('id', 'reference'),  many=True)
-#    crossreferences = fields.List(fields.Nested(CrossReferenceSchema))
+    identifiers = fields.List(fields.Nested(IdentifierSchema))
 #    modIDs = fields.List(fields.Str())
 
     class Meta:
         model = Reference
         include_relationships = True
         load_instance = True
-        exclude = ("dateCreated", "dateUpdated", "id")
+        exclude = ("dateCreated", "dateUpdated", "id", "versions")
 
 
 class ReferenceSchemaOut(SQLAlchemyAutoSchema):

@@ -88,11 +88,19 @@ class MeshTerm(db.Model):
     meshQualifierTerm = db.Column(db.String(255), unique=False, nullable=True)
     dateCreated = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
-# crossReferences
+class Identifier(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    referenceId = db.Column(db.Integer, db.ForeignKey('reference.id'), nullable=False)
+    primaryKey = db.Column(db.String, unique=True)
+    displayName = db.Column(db.String, unique=True)
+    prefix = db.Column(db.String)
+    localId = db.Column(db.String)
+    crossRefType = db.Column(db.String)
 
 class Reference(db.Model, VersioningMixin):
     id = db.Column(db.Integer, primary_key=True)
     primaryId = db.Column(db.String, unique=True, nullable=True)
+    identifiers = db.relationship('Identifier' , backref='reference', lazy=True)
     title = db.Column(db.String, unique=False, nullable=True)
     authors = db.relationship('Author' , backref='reference', lazy=True)
     datePublished = db.Column(db.String(255), unique=False, nullable=True)
@@ -111,7 +119,6 @@ class Reference(db.Model, VersioningMixin):
     issueDate = db.Column(db.String(255), unique=False, nullable=True)
     tags = db.relationship('Tag' , backref='reference', lazy=True)
     meshTerms = db.relationship('MeshTerm' , backref='reference', lazy=True)
-    #crossReferences
     resourceAbbreviation = db.Column(db.String(255), unique=False, nullable=True)
     updatedBy = db.Column(db.String(255), unique=False, nullable=True)
     dateUpdated = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
