@@ -2,6 +2,8 @@
 
 from os import environ, path
 from dotenv import load_dotenv
+from apispec import APISpec
+from apispec.ext.marshmallow import MarshmallowPlugin
 
 basedir = path.abspath(path.dirname(__file__))
 load_dotenv()
@@ -14,6 +16,10 @@ class Config:
     TESTING = True
     SECRET_KEY = environ.get('SECRET_KEY')
     APISPEC_SWAGGER_URL = '/swagger/'
+    APISPEC_SPEC = APISpec(title='Alliance Bibliographic Corpus (ABC)',
+                           version='v1',
+                           openapi_version="3.0.3",
+                           plugins=[MarshmallowPlugin()])
 
     # Database
     psql_username = environ.get('PSQL_USERNAME')
