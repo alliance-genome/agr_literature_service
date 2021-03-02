@@ -238,6 +238,26 @@ def write_json(json_filename, dict_to_output):
         json_file.close()
 #         logger.info("Done with JSON")
 
+def populate_expected_cross_reference_type():
+    # if pages should be stripped from some crossReferences, make this a dict and set some to have or not have, and strip when matched against this
+    expected_cross_reference_type = set()
+    expected_cross_reference_type.add('PMID:'.lower())
+    expected_cross_reference_type.add('PMCID:PMC'.lower())
+    expected_cross_reference_type.add('DOI:'.lower())
+    expected_cross_reference_type.add('WB:WBPaper'.lower())
+    expected_cross_reference_type.add('SGD:S'.lower())
+    expected_cross_reference_type.add('RGD:'.lower())
+    expected_cross_reference_type.add('MGI:'.lower())
+    expected_cross_reference_type.add('FB:FBrf'.lower())
+    expected_cross_reference_type.add('ZFIN:ZDB-PUB-'.lower())
+
+    exclude_cross_reference_type = set()
+    exclude_cross_reference_type.add('WB:WBTransgene'.lower())
+    exclude_cross_reference_type.add('WB:WBGene'.lower())
+    exclude_cross_reference_type.add('WB:WBVar'.lower())
+
+    return expected_cross_reference_type, exclude_cross_reference_type
+
 def load_mod_resource(mods):
     resource_fields = ['primaryId', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
     resource_to_mod = dict()
@@ -345,13 +365,17 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 #         resource_to_mod[mod] = dict()
 # UNCOMMENT, put this back
 
+    expected_cross_reference_type, exclude_cross_reference_type = populate_expected_cross_reference_type()
+
     resource_not_found = dict()
+    cross_reference_types = dict()
 
     json_storage_path = base_path + 'sanitized_reference_json/'
 
     fh_mod_report = dict()
     for mod in mods:
         resource_not_found[mod] = dict()
+        cross_reference_types[mod] = set()
         filename = base_path + 'report_files/' + mod
         fh_mod_report.setdefault(mod, open(filename,'w')) 
 
@@ -390,6 +414,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                 if entry_property not in schema_data['properties']:
                     unexpected_mod_properties.add(entry_property)
             if 'crossReferences' in entry:
+                sanitized_cross_references = []
                 for cross_reference in entry['crossReferences']:
                     if 'pages' in cross_reference:
                         if len(cross_reference["pages"]) > 1:
@@ -408,6 +433,16 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                         if prefix not in cross_ref_no_pages_ok_fields:
                             fh_mod_report[mod].write("mod %s primaryId %s has cross reference %s without pages\n" % (mod, primary_id, cross_reference["id"]))
     #                         logger.debug("mod %s primaryId %s has cross reference %s without pages", mod, primary_id, cross_reference["id"])
+
+                    id = cross_reference['id']
+                    cross_ref_type_group = re.search(r"^([^0-9]+)[0-9]", id)
+                    if cross_ref_type_group is not None:
+                        if cross_ref_type_group[1].lower() not in expected_cross_reference_type:
+                            cross_reference_types[mod].add(cross_ref_type_group[1])
+                        if cross_ref_type_group[1].lower() not in exclude_cross_reference_type:
+                            sanitized_cross_references.append(cross_reference)
+                entry['crossReferences'] = sanitized_cross_references
+
             else:
                 fh_mod_report[mod].write("mod %s primaryId %s has no cross references\n" % (mod, primary_id))
 #                 logger.info("mod %s primaryId %s has no cross references", mod, primary_id)
@@ -529,9 +564,6 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                                         else:
                                             entry['keywords'] = zfin_value
 #                                     logger.info("PMID %s does not have keywords, ZFIN has %s", pmid, entry['keywords'])
-
-
-# TODO clean up crossReference pages
 
 # # datePublished, keywords, and crossReferences, MODReferenceTypes, tags, allianceCategory, resourceAbbreviation
 # # datePublished - pubmed value, if no value use mod's, if multiple mod's different, error
@@ -664,6 +696,11 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
         for resource_abbrev in resource_not_found[mod]:
             resource_abbreviations_not_found.add(resource_abbrev) 
             fh_mod_report[mod].write("Summary: resourceAbbreviation %s not found %s times.\n" % (resource_abbrev, resource_not_found[mod][resource_abbrev]))
+
+    for mod in cross_reference_types:
+        for cross_reference_type in cross_reference_types[mod]:
+            logger.info("unexpected crossReferences mod %s type: %s", mod, cross_reference_type)
+            fh_mod_report[mod].write("Warning: unexpected crossReferences type: %s\n" % (cross_reference_type))
 
     # output resourceAbbreviations not matched to NLMs or resource MOD IDs to a file for attempt to download from other source
     resource_abbreviation_not_found_filename = base_path + 'resource_xml/resource_abbreviation_not_matched'
