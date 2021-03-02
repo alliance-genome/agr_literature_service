@@ -158,8 +158,6 @@ def generate_pmid_data():
 #             print(identifier)
 #         #     print(identifier + ' ' + entry['allianceCategory'])
 
-# TODO create a sample of 100 entries per MOD to play with
-
 # output each mod's count of pmid references
     for mod in pmid_references:
         count = len(pmid_references[mod])
@@ -239,15 +237,6 @@ def write_json(json_filename, dict_to_output):
 #         logger.info("Closing JSON file")
         json_file.close()
 #         logger.info("Done with JSON")
-
-
-#       "abbreviationSynonyms": [
-#         "Int. Rev. Cytol."
-#       ],
-#     "primaryId" : "ZFIN:ZDB-JRNL-050621-1025",
-#     "title" : "Médecine et hygiène",
-#     "medlineAbbreviation" : "Médecine et hygiène",
-#     "isoAbbreviation" : "Médecine et hygiène",
 
 def load_mod_resource(mods):
     resource_fields = ['primaryId', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
@@ -376,16 +365,6 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
         schema_data = json.loads(url.read().decode())
 #         print(schema_data)
 
-# not using this, instead checking if the .xml file exists, which needs to happen anyway
-#     pmids_not_found = set()
-#     filename = base_path + 'pmids_not_found'
-#     with open(filename, 'r') as f:
-#         for pmid in f:
-#             pmids_not_found.add(pmid)
-#         f.close()
-
-# TODO get rid of sanitized_data, read mixed-mod-pmids and bin into mixed data instead of sanitized_pubm*d_data
-
     sanitized_pubmed_multi_mod_data = []
     unmerged_pubmed_data = dict()			# pubmed data by pmid and mod that needs some fields merged
     for mod in mods:
@@ -396,11 +375,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
         with open(filename, 'r') as f:
             dqm_data = json.load(f)
             f.close()
-#         json_storage_path = base_path + 'sanitized_reference_json/'
-#         json_filename = json_storage_path + 'REFERENCE_' + mod + '.json'
-#         with open(json_filename, "w") as json_file:
         entries = dqm_data['data']
-#         sanitized_data = []
         sanitized_pubmod_data = []
         sanitized_pubmed_single_mod_data = []
         for entry in entries:
@@ -556,41 +531,6 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 #                                     logger.info("PMID %s does not have keywords, ZFIN has %s", pmid, entry['keywords'])
 
 
-#                     fh_mod_report[mod].write("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s\n" % (pmid, mod, orig_primary_id))
-
-#                     if 'title' in pubmed_data:
-# #                         compare_dqm_pubmed(pmid, 'title', entry['title'], pubmed_data['title'])
-#                         entry['title'] = pubmed_data['title']
-# #                     else:
-# #                         compare_dqm_pubmed(pmid, 'title', entry['title'], '')
-# 
-#                     if 'authors' in pubmed_data:
-#                         entry['authors'] = pubmed_data['authors']
-#                     if 'volume' in pubmed_data:
-#                         entry['volume'] = pubmed_data['volume']
-# 
-#                     if 'pages' in pubmed_data:
-#                         entry['pages'] = pubmed_data['pages']
-#                     if 'issueName' in pubmed_data:
-#                         entry['issueName'] = pubmed_data['issueName']
-#                     if 'issueDate' in pubmed_data:
-#                         entry['issueDate'] = pubmed_data['issueDate']['date_string']
-#                     if 'datePublished' in pubmed_data:
-#                         entry['datePublished'] = pubmed_data['datePublished']['date_string']
-#                     if 'dateArrivedInPubmed' in pubmed_data:
-#                         entry['dateArrivedInPubmed'] = pubmed_data['dateArrivedInPubmed']['date_string']
-#                     if 'dateLastModified' in pubmed_data:
-#                         entry['dateLastModified'] = pubmed_data['dateLastModified']['date_string']
-#                     if 'abstract' in pubmed_data:
-#                         entry['abstract'] = pubmed_data['abstract']
-#                     if 'pubMedType' in pubmed_data:
-#                         entry['pubMedType'] = pubmed_data['pubMedType']
-#                     if 'publisher' in pubmed_data:
-#                         entry['publisher'] = pubmed_data['publisher']
-#                     if 'meshTerms' in pubmed_data:
-#                         entry['meshTerms'] = pubmed_data['meshTerms']
-
-# TODO output multiple things into a report_files output
 # TODO clean up crossReference pages
 
 # # datePublished, keywords, and crossReferences, MODReferenceTypes, tags, allianceCategory, resourceAbbreviation
@@ -602,19 +542,11 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 # # crossReferences - aggregate and clean up pages
 # # allianceCategory - single value, error if there's more than 1 unique value because of different MODs
 
-# if datePublished empty in pubmed but has dqm, use dqm.
-# #     some papers, like 8805 don't have keyword data, but have data from WB, aggregate from mods ?
-# #                     if 'keywords' in pubmed_data:
-# #                         entry['keywords'] = pubmed_data['keywords']
-# #     these probably need to be aggregated
-# #                     if 'crossReferences' in pubmed_data:
-# #                         entry['crossReferences'] = pubmed_data['crossReferences']
                 except IOError:
                     fh_mod_report[mod].write("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s\n" % (pmid, mod, orig_primary_id))
 #                     logger.info("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s", pmid, mod, orig_primary_id)
 
 
-#             sanitized_data.append(entry)
             if is_pubmod:
                 sanitized_pubmod_data.append(entry)
             else:
@@ -627,14 +559,6 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                         unmerged_pubmed_data[pmid][mod] = entry
                 else:
                     sanitized_pubmed_single_mod_data.append(entry)
-
-#                 if pmid in unmerged_pubmed_data:
-#                     unmerged_pubmed_data[pmid][mod] = entry
-#                 else: 
-#                     unmerged_pubmed_data[pmid] = dict()
-#                     unmerged_pubmed_data[pmid][mod] = entry
-
-
 
         logger.info("Generating .json otput for mod %s", mod)
 
@@ -665,6 +589,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 #             logger.info("pmid %s length %s", pmid, this_mods)
 #         else:
 #             sanitized_pubmod_data.append(entry)
+
         date_published_set = set()
         alliance_category_set = set()
         sanitized_entry = dict()
