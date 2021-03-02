@@ -454,7 +454,7 @@ def generate_json():
 
             # Write the json data to output json file
 # UNCOMMENT TO write to json directory
-            json_storage_path = base_path + 'pubmed_json_temp/'
+            json_storage_path = base_path + 'pubmed_json/'
             json_filename = json_storage_path + pmid + '.json'
             with open(json_filename, "w") as json_file:
                 json_file.write(json_data)
