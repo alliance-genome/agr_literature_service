@@ -1,4 +1,5 @@
 import json
+import urllib
 # import xmltodict
 
 # pipenv run python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
@@ -33,7 +34,6 @@ import logging
 import logging.config
 
 
-
 # Need to set up a queue that queries postgres to get a list of pubmed id that don't have a pubmed final flag
 # Need to set up an S3 bucket to store xml
 # Need to set up flags to take in pmids from postgres queue, file in filesystem, file in URL, list from command line
@@ -64,10 +64,10 @@ base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 
 
 known_article_id_types = {
-    'pubmed': { 'pages': 'PubMed', 'prefix': 'PMID:'},
-    'doi': { 'pages': 'DOI', 'prefix': 'DOI:' },
-    'pmc': { 'pages': 'PMC', 'prefix': 'PMCID:' } }
-ignore_article_id_types = { 'bookaccession', 'mid', 'pii', 'pmcid' }
+    'pubmed': {'pages': 'PubMed', 'prefix': 'PMID:'},
+    'doi': {'pages': 'DOI', 'prefix': 'DOI:'},
+    'pmc': {'pages': 'PMC', 'prefix': 'PMCID:'}}
+ignore_article_id_types = {'bookaccession', 'mid', 'pii', 'pmcid'}
 unknown_article_id_types = set()
 
 
@@ -77,6 +77,7 @@ def represents_int(s):
         return True
     except ValueError:
         return False
+
 
 def month_name_to_number_string(string):
     m = {
@@ -91,21 +92,21 @@ def month_name_to_number_string(string):
         'sep': '09',
         'oct': '10',
         'nov': '11',
-        'dec': '12'
-        }
+        'dec': '12'}
     s = string.strip()[:3].lower()
 
     try:
         out = m[s]
         return out
-    except:
+    except ValueError:
         raise ValueError(string + ' is not a month')
+
 
 def get_year_month_day_from_xml_date(pub_date):
     date_list = []
-    year = '';
-    month = '01';
-    day = '01';
+    year = ''
+    month = '01'
+    day = '01'
     year_re_output = re.search("<Year>(.+?)</Year>", pub_date)
     if year_re_output is not None:
         year = year_re_output.group(1)
@@ -124,10 +125,12 @@ def get_year_month_day_from_xml_date(pub_date):
     date_list.append(day)
     return date_list
 
+
 def get_medline_date_from_xml_date(pub_date):
     medline_re_output = re.search("<MedlineDate>(.+?)</MedlineDate>", pub_date)
     if medline_re_output is not None:
         return medline_re_output.group(1)
+
 
 def generate_json():
     # open input xml file and read data in form of python dictionary using xmltodict module
@@ -157,9 +160,9 @@ def generate_json():
 
             title_re_output = re.search("<ArticleTitle[^>]*?>(.+?)</ArticleTitle>", xml, re.DOTALL)
             if title_re_output is not None:
-#                 print title
+                # print title
                 title = title_re_output.group(1).replace('\n', ' ').replace('\r', '')
-                title = re.sub('\s+', ' ', title)
+                title = re.sub(r'\s+', ' ', title)
                 data_dict['title'] = title
                 if 'is_book' not in data_dict:
                     data_dict['is_journal'] = 'journal'
@@ -167,18 +170,18 @@ def generate_json():
                 # e.g. 33054145 21413221
                 book_title_re_output = re.search("<BookTitle[^>]*?>(.+?)</BookTitle>", xml, re.DOTALL)
                 if book_title_re_output is not None:
-#                     print title
+                    # print title
                     title = book_title_re_output.group(1).replace('\n', ' ').replace('\r', '')
-                    title = re.sub('\s+', ' ', title)
+                    title = re.sub(r'\s+', ' ', title)
                     data_dict['title'] = title
                     data_dict['is_book'] = 'book'
                 else:
                     # e.g. 28304499 28308877
                     vernacular_title_re_output = re.search("<VernacularTitle[^>]*?>(.+?)</VernacularTitle>", xml, re.DOTALL)
                     if vernacular_title_re_output is not None:
-#                         print title
+                        # print title
                         title = vernacular_title_re_output.group(1).replace('\n', ' ').replace('\r', '')
-                        title = re.sub('\s+', ' ', title)
+                        title = re.sub(r'\s+', ' ', title)
                         data_dict['title'] = title
                         data_dict['is_vernacular'] = 'vernacular'
                     else:
@@ -186,22 +189,22 @@ def generate_json():
 
             journal_re_output = re.search("<MedlineTA>(.+?)</MedlineTA>", xml)
             if journal_re_output is not None:
-#                 print journal
+                # print journal
                 data_dict['journal'] = journal_re_output.group(1)
 
             pages_re_output = re.search("<MedlinePgn>(.+?)</MedlinePgn>", xml)
             if pages_re_output is not None:
-#                 print pages
+                # print pages
                 data_dict['pages'] = pages_re_output.group(1)
 
             volume_re_output = re.search("<Volume>(.+?)</Volume>", xml)
             if volume_re_output is not None:
-#                 print volume
+                # print volume
                 data_dict['volume'] = volume_re_output.group(1)
 
             issue_re_output = re.search("<Issue>(.+?)</Issue>", xml)
             if issue_re_output is not None:
-#                 print issue
+                # print issue
                 data_dict['issueName'] = issue_re_output.group(1)
 
             if re.findall("<PublicationType>(.+?)</PublicationType>", xml):
@@ -223,7 +226,6 @@ def generate_json():
                     lastname = ''
                     firstname = ''
                     firstinit = ''
-                    orcid = ''
                     affiliation = []
                     author_cross_references = []
                     lastname_re_output = re.search("<LastName>(.+?)</LastName>", author_xml)
@@ -244,7 +246,7 @@ def generate_json():
                     if orcid_re_output is not None:
                         orcid_dict = {}
                         orcid_dict["id"] = 'ORCID:' + orcid_re_output.group(1)
-                        orcid_dict["pages"] = [ "person/orcid" ]
+                        orcid_dict["pages"] = ["person/orcid"]
                         author_cross_references.append(orcid_dict)
 
 #                     <AffiliationInfo>
@@ -255,7 +257,6 @@ def generate_json():
                         affiliation_info = affiliation_info_re_output.group(1)
 #                         print pmid + " AIDL " + affiliation_info
                         affiliation = re.findall("<Affiliation>(.+?)</Affiliation>", affiliation_info, re.DOTALL)
-
 
                     author_dict = {}
 #                     if (firstname and firstinit):
@@ -295,7 +296,7 @@ def generate_json():
                     data_dict['datePublished'] = date_string
                     data_dict['issueDate'] = date_dict
                 else:
-                    # 1524678 2993907 have MedlineDate instead of Year Month Day 
+                    # 1524678 2993907 have MedlineDate instead of Year Month Day
                     medline_date = get_medline_date_from_xml_date(pub_date)
                     if medline_date:
                         data_dict['date_string'] = medline_date
@@ -345,8 +346,8 @@ def generate_json():
                             if type in type_has_value:
                                 logger.info("%s has multiple for type %s", pmid, type)
                             type_has_value.add(type)
-                            a_dict = {'id': known_article_id_types[type]['prefix'] + value, 'pages': [ known_article_id_types[type]['pages'] ]}
-                            cross_references.append({'id': known_article_id_types[type]['prefix'] + value, 'pages': [ known_article_id_types[type]['pages'] ] })
+#                             a_dict = {'id': known_article_id_types[type]['prefix'] + value, 'pages': [known_article_id_types[type]['pages']]}
+                            cross_references.append({'id': known_article_id_types[type]['prefix'] + value, 'pages': [known_article_id_types[type]['pages']]})
                         else:
                             if type not in ignore_article_id_types:
                                 logger.info("%s has unexpected type %s", pmid, type)
@@ -362,11 +363,11 @@ def generate_json():
                 nlm_re_output = re.search("<NlmUniqueID>(.+?)</NlmUniqueID>", medline_journal_info)
                 if nlm_re_output is not None:
                     nlm = nlm_re_output.group(1)
-                    cross_references.append({'id': 'NLM:' + nlm, 'pages': [ 'NLM' ] })
+                    cross_references.append({'id': 'NLM:' + nlm, 'pages': ['NLM']})
                 issn_re_output = re.search("<ISSNLinking>(.+?)</ISSNLinking>", medline_journal_info)
                 if issn_re_output is not None:
                     issn = issn_re_output.group(1)
-                    cross_references.append({'id': 'ISSN:' + issn, 'pages': [ 'ISSN' ] })
+                    cross_references.append({'id': 'ISSN:' + issn, 'pages': ['ISSN']})
                 journal_abbrev_re_output = re.search("<MedlineTA>(.+?)</MedlineTA>", medline_journal_info)
                 if journal_abbrev_re_output is not None:
                     journal_abbrev = journal_abbrev_re_output.group(1)
@@ -399,7 +400,7 @@ def generate_json():
             regex_abstract_output = re.findall("<AbstractText.*?>(.+?)</AbstractText>", xml, re.DOTALL)
             if len(regex_abstract_output) > 0:
                 abstract = " ".join(regex_abstract_output)
-                data_dict['abstract'] = re.sub('\s+', ' ', abstract)
+                data_dict['abstract'] = re.sub(r'\s+', ' ', abstract)
 
             regex_keyword_output = re.findall("<Keyword .*?>(.+?)</Keyword>", xml, re.DOTALL)
             if len(regex_keyword_output) > 0:
@@ -453,7 +454,7 @@ def generate_json():
 
             # Write the json data to output json file
 # UNCOMMENT TO write to json directory
-            json_storage_path = base_path + 'pubmed_json/'
+            json_storage_path = base_path + 'pubmed_json_temp/'
             json_filename = json_storage_path + pmid + '.json'
             with open(json_filename, "w") as json_file:
                 json_file.write(json_data)
