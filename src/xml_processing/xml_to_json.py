@@ -64,9 +64,12 @@ base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 
 
 known_article_id_types = {
-    'pubmed': {'pages': 'PubMed', 'prefix': 'PMID:'},
-    'doi': {'pages': 'DOI', 'prefix': 'DOI:'},
-    'pmc': {'pages': 'PMC', 'prefix': 'PMCID:'}}
+    'pubmed': {'prefix': 'PMID:'},
+    'doi': {'prefix': 'DOI:'},
+    'pmc': {'prefix': 'PMCID:'}}
+#     'pubmed': {'pages': 'PubMed', 'prefix': 'PMID:'},
+#     'doi': {'pages': 'DOI', 'prefix': 'DOI:'},
+#     'pmc': {'pages': 'PMC', 'prefix': 'PMCID:'}}
 ignore_article_id_types = {'bookaccession', 'mid', 'pii', 'pmcid'}
 unknown_article_id_types = set()
 
@@ -347,7 +350,9 @@ def generate_json():
                                 logger.info("%s has multiple for type %s", pmid, type)
                             type_has_value.add(type)
 #                             a_dict = {'id': known_article_id_types[type]['prefix'] + value, 'pages': [known_article_id_types[type]['pages']]}
-                            cross_references.append({'id': known_article_id_types[type]['prefix'] + value, 'pages': [known_article_id_types[type]['pages']]})
+#                             cross_references.append({'id': known_article_id_types[type]['prefix'] + value, 'pages': [known_article_id_types[type]['pages']]})
+                            cross_references.append({'id': known_article_id_types[type]['prefix'] + value})
+                            data_dict[type] = value			# for cleaning up crossReferences when reading dqm data
                         else:
                             if type not in ignore_article_id_types:
                                 logger.info("%s has unexpected type %s", pmid, type)
@@ -363,11 +368,13 @@ def generate_json():
                 nlm_re_output = re.search("<NlmUniqueID>(.+?)</NlmUniqueID>", medline_journal_info)
                 if nlm_re_output is not None:
                     nlm = nlm_re_output.group(1)
-                    cross_references.append({'id': 'NLM:' + nlm, 'pages': ['NLM']})
+                    cross_references.append({'id': 'NLM:' + nlm})
+                    # cross_references.append({'id': 'NLM:' + nlm, 'pages': ['NLM']})
                 issn_re_output = re.search("<ISSNLinking>(.+?)</ISSNLinking>", medline_journal_info)
                 if issn_re_output is not None:
                     issn = issn_re_output.group(1)
-                    cross_references.append({'id': 'ISSN:' + issn, 'pages': ['ISSN']})
+                    cross_references.append({'id': 'ISSN:' + issn})
+                    # cross_references.append({'id': 'ISSN:' + issn, 'pages': ['ISSN']})
                 journal_abbrev_re_output = re.search("<MedlineTA>(.+?)</MedlineTA>", medline_journal_info)
                 if journal_abbrev_re_output is not None:
                     journal_abbrev = journal_abbrev_re_output.group(1)
