@@ -1,11 +1,11 @@
-import json 
+import json
 
 # generate from local file and do not upload to s3
 # pipenv run python generate_pubmed_nlm_resource.py -l
-# 
+#
 # generate from url and do not upload to s3
 # pipenv run python generate_pubmed_nlm_resource.py -u
-# 
+#
 # generate from url and upload to s3
 # pipenv run python generate_pubmed_nlm_resource.py -u -s
 
@@ -24,7 +24,6 @@ import boto3
 from botocore.exceptions import ClientError
 
 
-
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
@@ -36,13 +35,10 @@ parser.add_argument('-s', '--upload-s3', action='store_true', help='upload json 
 args = vars(parser.parse_args())
 
 
-
-
 # todo: save this in an env variable
 root_path = '/home/azurebrd/git/agr_literature_service_demo/'
 base_path = root_path + 'src/xml_processing/'
 storage_path = base_path + 'pubmed_resource_json/'
-
 
 
 def populate_nlm_info(file_data):
@@ -52,15 +48,15 @@ def populate_nlm_info(file_data):
 
 #     counter = 0
     for entry in entries:
-#         counter = counter + 1
-#         if counter > 5:
-#             continue
+        # counter = counter + 1
+        # if counter > 5:
+        #     continue
         nlm = ''
         if re.search("NlmId: (.+)", entry):
             nlm_group = re.search("NlmId: (.+)", entry)
             nlm = nlm_group.group(1)
         if not nlm:
-#             print "skip"
+            # print "skip"
             continue
         data_dict = {}
         data_dict['primaryId'] = 'NLM:' + nlm
@@ -78,12 +74,12 @@ def populate_nlm_info(file_data):
             medline_abbreviation_group = re.search("MedAbbr: (.+)", entry)
             medline_abbreviation = medline_abbreviation_group.group(1)
             data_dict['medlineAbbreviation'] = medline_abbreviation
-        if re.search("ISSN \(Print\): (.+)", entry):
-            print_issn_group = re.search("ISSN \(Print\): (.+)", entry)
+        if re.search(r"ISSN \(Print\): (.+)", entry):
+            print_issn_group = re.search(r"ISSN \(Print\): (.+)", entry)
             print_issn = print_issn_group.group(1)
             data_dict['printISSN'] = print_issn
-        if re.search("ISSN \(Online\): (.+)", entry):
-            online_issn_group = re.search("ISSN \(Online\): (.+)", entry)
+        if re.search(r"ISSN \(Online\): (.+)", entry):
+            online_issn_group = re.search(r"ISSN \(Online\): (.+)", entry)
             online_issn = online_issn_group.group(1)
             data_dict['onlineISSN'] = online_issn
 
@@ -111,22 +107,27 @@ def upload_file_to_s3(file_name, bucket, object_name=None):
     s3_client = boto3.client('s3')
     try:
         response = s3_client.upload_file(file_name, bucket, object_name)
+        if response is not None:
+            logger.info("boto 3 uploaded response: %s", response)
+        else:
+            logger.info("uploaded to s3 %s %s", bucket, file_name)
     except ClientError as e:
         logging.error(e)
         return False
     return True
-  
+
+
 def generate_json(nlm_info, upload_to_s3):
     logger.info("Generating JSON from NLM data and saving to outfile")
-    json_data = json.dumps(nlm_info, indent=4, sort_keys=True) 
+    json_data = json.dumps(nlm_info, indent=4, sort_keys=True)
 
-            # Write the json data to output json file 
+# Write the json data to output json file
 # UNCOMMENT TO write to json directory
     filename = 'resource_pubmed_all.json'
     output_json_file = storage_path + filename
-    with open(output_json_file, "w") as json_file: 
-        json_file.write(json_data) 
-        json_file.close() 
+    with open(output_json_file, "w") as json_file:
+        json_file.write(json_data)
+        json_file.close()
 
     if upload_to_s3:
         s3_bucket = 'agr-literature'
@@ -145,15 +146,15 @@ def populate_from_url():
         file_data = url.read().decode('utf-8')
         return file_data
 
+
 def populate_from_local_file():
     filename = base_path + 'J_Medline.txt'
-    with open(filename) as txt_file: 
+    with open(filename) as txt_file:
         if not path.exists(filename):
             return "journal info file not found"
         file_data = txt_file.read()
-        txt_file.close() 
+        txt_file.close()
         return file_data
-
 
 
 if __name__ == "__main__":
