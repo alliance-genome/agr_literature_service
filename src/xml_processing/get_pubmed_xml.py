@@ -57,13 +57,14 @@ storage_path = base_path + 'pubmed_xml/'
 pmids_wanted = []
 pmids_found = set()
 
+
 def download_pubmed_xml():
-      # 4.5 minutes to download 28994 wormbase records in 10000 chunks
-      # 61 minutes to download 429899 alliance records in 10000 chunks
-      # 127 minutes to download 646714 alliance records in 5000 chunks, failed on 280
+    # 4.5 minutes to download 28994 wormbase records in 10000 chunks
+    # 61 minutes to download 429899 alliance records in 10000 chunks
+    # 127 minutes to download 646714 alliance records in 5000 chunks, failed on 280
     pmids_slice_size = 5000
 
-    # this section reads pubmed xml files already acquired to skip downloading them.  
+    # this section reads pubmed xml files already acquired to skip downloading them.
     # to get full set, clear out storage_path, or comment out this section
     # takes a bit under 2 minutes to read 646721 files
     logger.info("Reading PubMed XML previously acquired")
@@ -83,7 +84,7 @@ def download_pubmed_xml():
 
     for index in range(0, len(pmids_wanted), pmids_slice_size):
         pmids_slice = pmids_wanted[index:index + pmids_slice_size]
-        pmids_joined = (',').join(pmids_slice);
+        pmids_joined = (',').join(pmids_slice)
         logger.debug("processing PMIDs %s", pmids_joined)
 
 #         https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=10074449&retmode=xml
@@ -102,8 +103,8 @@ def download_pubmed_xml():
 #         xml_all = r.text.encode('utf-8').strip()		# python2
         xml_split = xml_all.split("\n<Pubmed")		# some types are not PubmedArticle, like PubmedBookArticle, e.g. 32644453
 
-        header = xml_split.pop(0);
-        header = header + "\n<Pubmed" + xml_split.pop(0);
+        header = xml_split.pop(0)
+        header = header + "\n<Pubmed" + xml_split.pop(0)
         footer = "\n\n</PubmedArticleSet>"
 
         for n in range(len(xml_split)):
@@ -114,8 +115,8 @@ def download_pubmed_xml():
             xml_split[n] += footer
 
         for xml in xml_split:
-            if re.search("<PMID[^>]*?>(\d+)</PMID>", xml):
-                pmid_group = re.search("<PMID[^>]*?>(\d+)</PMID>", xml)
+            if re.search(r"<PMID[^>]*?>(\d+)</PMID>", xml):
+                pmid_group = re.search(r"<PMID[^>]*?>(\d+)</PMID>", xml)
                 pmid = pmid_group.group(1)
                 pmids_found.add(pmid)
                 filename = storage_path + pmid + '.xml'
@@ -125,7 +126,7 @@ def download_pubmed_xml():
 
         if len(pmids_slice) == pmids_slice_size:
             logger.info("waiting to process more pmids")
-            time.sleep( 5 )
+            time.sleep(5)
 
     logger.info("Writing log of pmids_not_found")
     output_pmids_not_found_file = base_path + 'pmids_not_found'
@@ -149,7 +150,6 @@ def download_pubmed_xml():
 #     logger.info("Downloading %s into %s", url, filename)
 #     urllib.urlretrieve(url, filename)
 #     time.sleep( 5 )
-
 
 
 if __name__ == "__main__":
@@ -200,4 +200,3 @@ if __name__ == "__main__":
         logger.info("Processing database entries")
 
     download_pubmed_xml()
-
