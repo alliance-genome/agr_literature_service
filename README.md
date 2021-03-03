@@ -188,6 +188,12 @@ pipenv run python parse_dqm_json.py -f dqm_sample -m WB
 pipenv run python src/xml_processing/sort_not_found_pmids_by_mod.py
 ```
 
+## (Optional) Query PubMed for DQM resourceAbbreviations not matched in J_Medline.txt
+- get_pubmed_nlm_resource_unmatched.py takes resourceAbbreviations not matched in J_Medline.txt from resource_xml/resource_abbreviation_not_matched, queries pubmed for their xml and stores in a simplified filename at resource_xml/
+```bash
+pipenv run python src/xml_processing/get_pubmed_nlm_resource_unmatched.py
+```
+
 ## Generating login credentials (must repeat every 12 hours to access base linux image and neo4j env image)
 - make sure you have AWS-CLI installed locally
 - make sure you have AWS login credentials for the agr_aws account, with the permission group - AWS group for ECR access.

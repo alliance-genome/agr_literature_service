@@ -702,7 +702,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
             logger.info("unexpected crossReferences mod %s type: %s", mod, cross_reference_type)
             fh_mod_report[mod].write("Warning: unexpected crossReferences type: %s\n" % (cross_reference_type))
 
-    # output resourceAbbreviations not matched to NLMs or resource MOD IDs to a file for attempt to download from other source
+    # output resourceAbbreviations not matched to NLMs or resource MOD IDs to a file for attempt to download from other source 
+    # with get_pubmed_nlm_resource_unmatched.py
     resource_abbreviation_not_found_filename = base_path + 'resource_xml/resource_abbreviation_not_matched'
     with open(resource_abbreviation_not_found_filename, "w") as resource_abbreviation_not_found_fh:
         for resource_abbrev in resource_abbreviations_not_found:
