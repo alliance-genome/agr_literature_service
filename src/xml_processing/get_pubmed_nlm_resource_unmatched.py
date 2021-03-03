@@ -1,12 +1,12 @@
 
 import time
 # import urllib
-import argparse
+# import argparse
 
 import re
 import requests
 
-import os
+# import os
 from os import path
 import logging
 import logging.config
