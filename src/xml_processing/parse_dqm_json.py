@@ -68,8 +68,10 @@ def split_identifier(identifier, ignore_error=False):
 def generate_pmid_data():
     # output set of PMID identifiers that will need XML downloaded
     # output pmids and the mods that have them
-    mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
-#     mods = ['SGD']
+
+    # RGD should be first in mods list.  if conflicting allianceCategories the later mod gets priority
+    mods = ['RGD', 'SGD', 'FB', 'MGI', 'ZFIN', 'WB']
+    # mods = ['SGD']
 
     pmid_stats = dict()
     unknown_prefix = set()
@@ -243,6 +245,8 @@ def populate_expected_cross_reference_type():
     expected_cross_reference_type.add('PMID:'.lower())
     expected_cross_reference_type.add('PMCID:PMC'.lower())
     expected_cross_reference_type.add('DOI:'.lower())
+    expected_cross_reference_type.add('DOI:/S'.lower())
+    expected_cross_reference_type.add('DOI:IJIv'.lower())
     expected_cross_reference_type.add('WB:WBPaper'.lower())
     expected_cross_reference_type.add('SGD:S'.lower())
     expected_cross_reference_type.add('RGD:'.lower())
@@ -250,12 +254,19 @@ def populate_expected_cross_reference_type():
     expected_cross_reference_type.add('FB:FBrf'.lower())
     expected_cross_reference_type.add('ZFIN:ZDB-PUB-'.lower())
 
+    pubmed_not_dqm_cross_reference_type = set()
+    pubmed_not_dqm_cross_reference_type.add('PMID:'.lower())
+    pubmed_not_dqm_cross_reference_type.add('PMCID:PMC'.lower())
+    pubmed_not_dqm_cross_reference_type.add('DOI:'.lower())
+    pubmed_not_dqm_cross_reference_type.add('DOI:/S'.lower())
+    pubmed_not_dqm_cross_reference_type.add('DOI:IJIv'.lower())
+
     exclude_cross_reference_type = set()
     exclude_cross_reference_type.add('WB:WBTransgene'.lower())
     exclude_cross_reference_type.add('WB:WBGene'.lower())
     exclude_cross_reference_type.add('WB:WBVar'.lower())
 
-    return expected_cross_reference_type, exclude_cross_reference_type
+    return expected_cross_reference_type, exclude_cross_reference_type, pubmed_not_dqm_cross_reference_type
 
 
 def load_mod_resource(mods):
@@ -342,7 +353,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
     pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms']
 #     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher']
     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher']
-    replace_value_fields = ['pubMedType', 'meshTerms']
+    replace_value_fields = ['authors', 'pubMedType', 'meshTerms']
 #     date_fields = ['issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified']
     # datePublished is a string, not a proper date field
     date_fields = ['issueDate', 'dateArrivedInPubmed', 'dateLastModified']
@@ -367,7 +378,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 #         resource_to_mod[mod] = dict()
 # UNCOMMENT, put this back
 
-    expected_cross_reference_type, exclude_cross_reference_type = populate_expected_cross_reference_type()
+    expected_cross_reference_type, exclude_cross_reference_type, pubmed_not_dqm_cross_reference_type = populate_expected_cross_reference_type()
 
     resource_not_found = dict()
     cross_reference_types = dict()
@@ -377,7 +388,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
     fh_mod_report = dict()
     for mod in mods:
         resource_not_found[mod] = dict()
-        cross_reference_types[mod] = set()
+        # cross_reference_types[mod] = set()
+        cross_reference_types[mod] = dict()
         filename = base_path + 'report_files/' + mod
         fh_mod_report.setdefault(mod, open(filename, 'w'))
 
@@ -415,8 +427,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
             for entry_property in entry:
                 if entry_property not in schema_data['properties']:
                     unexpected_mod_properties.add(entry_property)
+            # need to process crossReferences once to reassign primaryId if PMID and filter out unexpected crossReferences,
+            # then again later to clean up crossReferences that get data from pubmed xml (once the PMID is known)
             if 'crossReferences' in entry:
-                sanitized_cross_references = []
+                expected_cross_references = []
                 for cross_reference in entry['crossReferences']:
                     if 'pages' in cross_reference:
                         if len(cross_reference["pages"]) > 1:
@@ -434,20 +448,24 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                         prefix, identifier, separator = split_identifier(cross_reference["id"])
                         if prefix not in cross_ref_no_pages_ok_fields:
                             fh_mod_report[mod].write("mod %s primaryId %s has cross reference %s without pages\n" % (mod, primary_id, cross_reference["id"]))
-    #                         logger.debug("mod %s primaryId %s has cross reference %s without pages", mod, primary_id, cross_reference["id"])
+                            # logger.debug("mod %s primaryId %s has cross reference %s without pages", mod, primary_id, cross_reference["id"])
 
                     id = cross_reference['id']
                     cross_ref_type_group = re.search(r"^([^0-9]+)[0-9]", id)
                     if cross_ref_type_group is not None:
                         if cross_ref_type_group[1].lower() not in expected_cross_reference_type:
-                            cross_reference_types[mod].add(cross_ref_type_group[1])
+                            if cross_ref_type_group[1] in cross_reference_types[mod]:
+                                cross_reference_types[mod][cross_ref_type_group[1]].append(primary_id + ' ' + id)
+                            else:
+                                cross_reference_types[mod][cross_ref_type_group[1]] = [primary_id + ' ' + id]
+                            # cross_reference_types[mod].add(cross_ref_type_group[1])
                         if cross_ref_type_group[1].lower() not in exclude_cross_reference_type:
-                            sanitized_cross_references.append(cross_reference)
-                entry['crossReferences'] = sanitized_cross_references
+                            expected_cross_references.append(cross_reference)
+                entry['crossReferences'] = expected_cross_references
 
             else:
                 fh_mod_report[mod].write("mod %s primaryId %s has no cross references\n" % (mod, primary_id))
-#                 logger.info("mod %s primaryId %s has no cross references", mod, primary_id)
+                # logger.info("mod %s primaryId %s has no cross references", mod, primary_id)
 
             pmid_group = re.search(r"^PMID:([0-9]+)", primary_id)
             if pmid_group is None:
@@ -495,17 +513,16 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                 pmid = pmid_group[1]
                 # is_pubmed = True
                 is_pubmod = False
-#                 print(pmid)
+                # print(pmid)
                 filename = base_path + 'pubmed_json/' + pmid + '.json'
-#                 print("primary_id %s is None reading %s" % (primary_id, filename))
+                # print("primary_id %s reading %s" % (primary_id, filename))
                 pubmed_data = dict()
                 try:
                     with open(filename, 'r') as f:
                         pubmed_data = json.load(f)
                         f.close()
-#                     print("primary_id %s is None data %s" % (primary_id, pubmed_data['authors']))
 
-#     pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms']
+                    # pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms']
                     for pmid_field in pmid_fields:
                         if pmid_field in single_value_fields:
                             pmid_data = ''
@@ -529,6 +546,21 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                             if pmid_field in pubmed_data:
                                 # logger.info("PMID %s pmid_field %s data %s", pmid, pmid_field, pubmed_data[pmid_field])
                                 entry[pmid_field] = pubmed_data[pmid_field]
+
+                    sanitized_cross_references = []
+                    if 'crossReferences' in pubmed_data:
+                        sanitized_cross_references = pubmed_data['crossReferences']
+                    if 'crossReferences' in entry:
+                        for cross_reference in entry['crossReferences']:
+                            id = cross_reference['id']
+                            cross_ref_type_group = re.search(r"^([^0-9]+)[0-9]", id)
+                            keep_cross_reference = True
+                            if cross_ref_type_group is not None:
+                                if cross_ref_type_group[1].lower() in pubmed_not_dqm_cross_reference_type:
+                                    keep_cross_reference = False
+                            if keep_cross_reference:
+                                sanitized_cross_references.append(cross_reference)
+                    entry['crossReferences'] = sanitized_cross_references
 
                     if 'nlm' in pubmed_data:
                         nlm = pubmed_data['nlm']
@@ -699,9 +731,17 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
             fh_mod_report[mod].write("Summary: resourceAbbreviation %s not found %s times.\n" % (resource_abbrev, resource_not_found[mod][resource_abbrev]))
 
     for mod in cross_reference_types:
+        # for cross_reference_type in cross_reference_types[mod]:
+        #     logger.info("unexpected crossReferences mod %s type: %s", mod, cross_reference_type)
+        #     fh_mod_report[mod].write("Warning: unexpected crossReferences type: %s\n" % (cross_reference_type))
         for cross_reference_type in cross_reference_types[mod]:
-            logger.info("unexpected crossReferences mod %s type: %s", mod, cross_reference_type)
-            fh_mod_report[mod].write("Warning: unexpected crossReferences type: %s\n" % (cross_reference_type))
+            if cross_reference_type.lower() in exclude_cross_reference_type:
+                logger.info("unexpected crossReferences mod %s type: %s", mod, cross_reference_type)
+                fh_mod_report[mod].write("Warning: unexpected crossReferences type: %s\n" % (cross_reference_type))
+            else:
+                for cross_reference_type_message in cross_reference_types[mod][cross_reference_type]:
+                    logger.info("unexpected crossReferences mod %s type: %s values: %s", mod, cross_reference_type, cross_reference_type_message)
+                    fh_mod_report[mod].write("Warning: unexpected crossReferences type: %s values: %s\n" % (cross_reference_type, cross_reference_type_message))
 
     # output resourceAbbreviations not matched to NLMs or resource MOD IDs to a file for attempt to download from other source
     # with get_pubmed_nlm_resource_unmatched.py
