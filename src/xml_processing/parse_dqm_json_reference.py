@@ -361,7 +361,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
     compare_if_dqm_empty = False		# do dqm vs pmid comparison even if dqm has no data, by default skip
 
 #     mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
-    mods = ['MGI', 'SGD', 'RGD', 'FB', 'WB', 'ZFIN']
+    # RGD should be first in mods list.  if conflicting allianceCategories the later mod gets priority
+    mods = ['RGD', 'SGD', 'FB', 'MGI', 'ZFIN', 'WB']
     if input_mod in mods:
         mods = [input_mod]
 
@@ -403,6 +404,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
         schema_data = json.loads(url.read().decode())
 #         print(schema_data)
 
+    # fb have fb ids for resources, but from the resourceAbbreviation and pubmed xml's nlm, we can update fb resource data to primary key off of nlm
+    fb_resource_abbreviation_to_nlm = dict()
+ 
     sanitized_pubmed_multi_mod_data = []
     unmerged_pubmed_data = dict()			# pubmed data by pmid and mod that needs some fields merged
     for mod in mods:
@@ -564,6 +568,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 
                     if 'nlm' in pubmed_data:
                         nlm = pubmed_data['nlm']
+                        if mod == 'FB':
+                            if 'resourceAbbreviation' in entry:
+                                fb_resource_abbreviation_to_nlm[entry['resourceAbbreviation']] = nlm
                         if nlm in resource_nlm_to_title:
                             # logger.info("PMID %s has NLM %s setting to title %s", pmid, nlm, resource_nlm_to_title[nlm])
                             entry['resourceAbbreviation'] = resource_nlm_to_title[nlm]
@@ -625,9 +632,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                 else:
                     sanitized_pubmed_single_mod_data.append(entry)
 
-        logger.info("Generating .json otput for mod %s", mod)
+        logger.info("Generating .json output for mod %s", mod)
 
-        entries_size = 100000
+        entries_size = 50000
         sanitized_pubmod_list = list(chunks(sanitized_pubmod_data, entries_size))
         for i in range(len(sanitized_pubmod_list)):
             dict_to_output = sanitized_pubmod_list[i]
@@ -717,7 +724,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 
     logger.info("outputting sanitizied pubmed_data")
 
-    entries_size = 100000
+    entries_size = 10000
     sanitized_pubmed_list = list(chunks(sanitized_pubmed_multi_mod_data, entries_size))
     for i in range(len(sanitized_pubmed_list)):
         dict_to_output = sanitized_pubmed_list[i]
@@ -754,6 +761,11 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
     fh_mod_report['multi'].close()
     for mod in fh_mod_report:
         fh_mod_report[mod].close()
+
+    # fb have fb ids for resources, but from the resourceAbbreviation and pubmed xml's nlm, we can update fb resource data to primary key off of nlm
+    json_filename = base_path + 'FB_resourceAbbreviation_to_NLM.json'
+    write_json(json_filename, fb_resource_abbreviation_to_nlm)
+ 
 
 # check merging with these pmids and mod with data in dqm_merge/ manually generated files, based on pmids_by_mods
 # 27639630        3       SGD, WB, ZFIN

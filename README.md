@@ -178,8 +178,13 @@ pipenv run python parse_dqm_json_reference.py -p
 
 ## Parse DQM and PubMed reference data, generate validated JSON for REST API ingest
 - Aggregate and validate DQM data against agr_schemas's reference.json, resolve if PubMed id or PubMod id, create sanitized JSON for REST API
+- Using sample set from generate_dqm_json_test_set.py
 ```bash
 pipenv run python parse_dqm_json_reference.py -f dqm_sample -m WB
+```
+- Using full dqm data from get_dqm_data.py
+```bash
+pipenv run python parse_dqm_json_reference.py -f dqm_data -m all
 ```
 
 ## Parse DQM and PubMed resource data, generate validated JSON for REST API ingest
