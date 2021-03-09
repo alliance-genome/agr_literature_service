@@ -176,10 +176,16 @@ pipenv run python src/xml_processing/generate_dqm_json_test_set.py
 pipenv run python parse_dqm_json_reference.py -p
 ```
 
-## Parse DQM and PubMed data generate validated JSON for REST API ingest
-- Aggregate and validate DQM data against agr_schemas's reference.json, resolve if PubMed id or PubMod id, create sanitized JSON for REST API (in progress)
+## Parse DQM and PubMed reference data, generate validated JSON for REST API ingest
+- Aggregate and validate DQM data against agr_schemas's reference.json, resolve if PubMed id or PubMod id, create sanitized JSON for REST API
 ```bash
 pipenv run python parse_dqm_json_reference.py -f dqm_sample -m WB
+```
+
+## Parse DQM and PubMed resource data, generate validated JSON for REST API ingest
+- create sanitized MOD JSON for REST API (in progress)
+```bash
+pipenv run python parse_dqm_json_resource.py
 ```
 
 ## Sort PMIDs without XML by MOD
