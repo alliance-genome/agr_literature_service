@@ -634,7 +634,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 
         logger.info("Generating .json output for mod %s", mod)
 
-        entries_size = 50000
+        entries_size = 100000
         sanitized_pubmod_list = list(chunks(sanitized_pubmod_data, entries_size))
         for i in range(len(sanitized_pubmod_list)):
             dict_to_output = sanitized_pubmod_list[i]
@@ -724,7 +724,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 
     logger.info("outputting sanitizied pubmed_data")
 
-    entries_size = 10000
+    entries_size = 100000
     sanitized_pubmed_list = list(chunks(sanitized_pubmed_multi_mod_data, entries_size))
     for i in range(len(sanitized_pubmed_list)):
         dict_to_output = sanitized_pubmed_list[i]
