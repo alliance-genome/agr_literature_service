@@ -9,13 +9,13 @@ from os import path
 import logging
 import logging.config
 
-# pipenv run python parse_dqm_json.py -p  takes about 90 seconds to run
-# pipenv run python parse_dqm_json.py -f dqm_data/ -m all   takes 3.5 minutes without looking at pubmed json
-# pipenv run python parse_dqm_json.py -f dqm_data/ -m all   takes 13.5 minutes with comparing to pubmed json into output chunks without comparing fields for differences
-# pipenv run python parse_dqm_json.py -f dqm_data/ -m all   takes 19 minutes with comparing to pubmed json into output chunks and comparing fields for differences
-# pipenv run python parse_dqm_json.py -f dqm_data/ -m all   takes 17 minutes with comparing to pubmed json into output chunks, without comparing fields for differences, splitting into unmerged_pubmed_data for multi_mod pmids.
+# pipenv run python parse_dqm_json_reference.py -p  takes about 90 seconds to run
+# pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 3.5 minutes without looking at pubmed json
+# pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 13.5 minutes with comparing to pubmed json into output chunks without comparing fields for differences
+# pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 19 minutes with comparing to pubmed json into output chunks and comparing fields for differences
+# pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 17 minutes with comparing to pubmed json into output chunks, without comparing fields for differences, splitting into unmerged_pubmed_data for multi_mod pmids.
 
-#  pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_data/ -m MGI > log_mgi
+#  pipenv run python parse_dqm_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_data/ -m MGI > log_mgi
 # Loading .env environment variables...
 # Killed
 # in 4.5 minutes, logs show it read the last pmid
@@ -768,18 +768,18 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 
 if __name__ == "__main__":
     """ call main start function """
-    logger.info("starting parse_dqm_json.py")
+    logger.info("starting parse_dqm_json_reference.py")
 
-# pipenv run python parse_dqm_json.py -p
+# pipenv run python parse_dqm_json_reference.py -p
     if args['generate_pmid_data']:
         logger.info("Generating PMID files from DQM data")
         generate_pmid_data()
 
-# pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m ZFIN
-# pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m SGD
-# pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m WB
-# pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m all
-# pipenv run python parse_dqm_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_merge/ -m all
+# pipenv run python parse_dqm_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m ZFIN
+# pipenv run python parse_dqm_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m SGD
+# pipenv run python parse_dqm_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m WB
+# pipenv run python parse_dqm_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m all
+# pipenv run python parse_dqm_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_merge/ -m all
     elif args['file']:
         if args['mod']:
             aggregate_dqm_with_pubmed(args['file'], args['mod'])
@@ -789,4 +789,4 @@ if __name__ == "__main__":
     else:
         logger.info("No flag passed in.  Use -h for help.")
 
-    logger.info("ending parse_dqm_json.py")
+    logger.info("ending parse_dqm_json_reference.py")

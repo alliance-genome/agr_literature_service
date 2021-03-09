@@ -98,7 +98,7 @@ use --prod argument to use the WSGI server in production when running the applic
 # XML Processing
 - `generate_pubmed_nlm_resource.py` download pubmed resouce data, generate json and upload to s3
 - `get_dqm_data.py` download dqm data if it's got a new md5sum
-- `parse_dqm_json.py` process dqm data to generate list of PMIDs to download
+- `parse_dqm_json_reference.py` process dqm data to generate list of PMIDs to download
 - `generate_dqm_json_test_set.py` optionally generate a small sample set from DQM MOD data
 - `get_pubmed_xml.py` download pubmed xml from list to local directory
 - `sort_not_found_pmids_by_mod.py` optionally take list of pmids not found and sort by mods
@@ -173,17 +173,17 @@ pipenv run python src/xml_processing/generate_dqm_json_test_set.py
 ## Parse DQM data to generate lists of PMIDs
 - Parse DQM data to generate list of PMIDs that will need XML downloaded, and generate mapping of PMIDs and MODs that have them
 ```bash
-pipenv run python parse_dqm_json.py -p
+pipenv run python parse_dqm_json_reference.py -p
 ```
 
 ## Parse DQM and PubMed data generate validated JSON for REST API ingest
 - Aggregate and validate DQM data against agr_schemas's reference.json, resolve if PubMed id or PubMod id, create sanitized JSON for REST API (in progress)
 ```bash
-pipenv run python parse_dqm_json.py -f dqm_sample -m WB
+pipenv run python parse_dqm_json_reference.py -f dqm_sample -m WB
 ```
 
 ## Sort PMIDs without XML by MOD
-- sort_not_found_pmids_by_mod.py takes pmids_not_found from get_pubmed_xml.py, and pmids_by_mods from parse_dqm_json.py, and generates a set sorted by MODs of pmids that were not found in pubmed.
+- sort_not_found_pmids_by_mod.py takes pmids_not_found from get_pubmed_xml.py, and pmids_by_mods from parse_dqm_json_reference.py, and generates a set sorted by MODs of pmids that were not found in pubmed.
 ```bash
 pipenv run python src/xml_processing/sort_not_found_pmids_by_mod.py
 ```
