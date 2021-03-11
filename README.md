@@ -188,7 +188,7 @@ pipenv run python parse_dqm_json_reference.py -f dqm_data -m all
 ```
 
 ## Parse DQM and PubMed resource data, generate validated JSON for REST API ingest
-- create sanitized MOD JSON for REST API (in progress)
+- Aggregate and validate DQM resource data against processed J_Medline.txt values, and create sanitized JSON for REST API
 ```bash
 pipenv run python parse_dqm_json_resource.py
 ```
