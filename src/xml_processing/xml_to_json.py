@@ -287,7 +287,7 @@ def generate_json():
                         author_dict["collectivename"] = collective_name
                     if (firstname != '') and (lastname != ''):
                         fullname = firstname + ' ' + lastname
-                    elif collective_name != '': 
+                    elif collective_name != '':
                         fullname = collective_name
                     elif lastname != '':
                         fullname = lastname
