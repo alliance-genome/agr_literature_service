@@ -229,6 +229,8 @@ def generate_json():
                     lastname = ''
                     firstname = ''
                     firstinit = ''
+                    collective_name = ''
+                    fullname = ''
                     affiliation = []
                     author_cross_references = []
                     lastname_re_output = re.search("<LastName>(.+?)</LastName>", author_xml)
@@ -242,7 +244,12 @@ def generate_json():
                         firstinit = firstinit_re_output.group(1)
                     if firstinit and not firstname:
                         firstname = firstinit
-                    fullname = firstname + ' ' + lastname
+
+                    # e.g. 27899353 30979869
+                    collective_re_output = re.search("<CollectiveName>(.+?)</CollectiveName>", author_xml, re.DOTALL)
+                    if collective_re_output is not None:
+                        collective_name = collective_re_output.group(1).replace('\n', ' ').replace('\r', '')
+                        collective_name = re.sub(r'\s+', ' ', collective_name)
 
 #                     <Identifier Source="ORCID">0000-0002-0184-8324</Identifier>
                     orcid_re_output = re.search("<Identifier Source=\"ORCID\">(.+?)</Identifier>", author_xml)
@@ -270,9 +277,22 @@ def generate_json():
 #                         print "FI\t" + pmid + "\t" + firstinit
 #                     else:
 #                         print "NO\t" + pmid
-                    author_dict["firstname"] = firstname
-                    author_dict["firstinit"] = firstinit
-                    author_dict["lastname"] = lastname
+                    if firstname != '':
+                        author_dict["firstname"] = firstname
+                    if firstinit != '':
+                        author_dict["firstinit"] = firstinit
+                    if lastname != '':
+                        author_dict["lastname"] = lastname
+                    if collective_name != '':
+                        author_dict["collectivename"] = collective_name
+                    if (firstname != '') and (lastname != ''):
+                        fullname = firstname + ' ' + lastname
+                    elif collective_name != '': 
+                        fullname = collective_name
+                    elif lastname != '':
+                        fullname = lastname
+                    else:
+                        logger.info("%s has no name match %s", pmid, author_xml)
                     author_dict["name"] = fullname
                     author_dict["authorRank"] = authors_rank
                     if len(affiliation) > 0:
