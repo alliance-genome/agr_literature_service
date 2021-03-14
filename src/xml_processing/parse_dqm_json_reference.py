@@ -9,6 +9,10 @@ from os import path
 import logging
 import logging.config
 
+# from BeautifulSoup import BeautifulStoneSoup
+# import BeautifulSoup
+import bs4
+
 # pipenv run python parse_dqm_json_reference.py -p  takes about 90 seconds to run
 # pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 3.5 minutes without looking at pubmed json
 # pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 13.5 minutes with comparing to pubmed json into output chunks without comparing fields for differences
@@ -203,8 +207,8 @@ def generate_pmid_data():
 
 
 def simplify_text(text):
-    no_html = re.sub('<[^<]+?>', '', text)
-    stripped = re.sub("[^a-zA-Z]+", "", no_html)
+    no_html = re.sub('<[^<]+?>', '', str(text))
+    stripped = re.sub("[^a-zA-Z]+", "", str(no_html))
     clean = stripped.lower()
     return clean
 
@@ -406,7 +410,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 
     # fb have fb ids for resources, but from the resourceAbbreviation and pubmed xml's nlm, we can update fb resource data to primary key off of nlm
     fb_resource_abbreviation_to_nlm = dict()
- 
+
     sanitized_pubmed_multi_mod_data = []
     unmerged_pubmed_data = dict()			# pubmed data by pmid and mod that needs some fields merged
     for mod in mods:
@@ -538,6 +542,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                                     pmid_data = pubmed_data[pmid_field]
                             if pmid_field in entry:
                                 dqm_data = entry[pmid_field]
+                            if (dqm_data != ''):
+                                dqm_data = bs4.BeautifulSoup(dqm_data, "html.parser")
 # UNCOMMENT to output log of data comparison between dqm and pubmed
                             if (dqm_data != '') or (compare_if_dqm_empty):
                                 compare_dqm_pubmed(fh_mod_report[mod], pmid, pmid_field, dqm_data, pmid_data)
@@ -581,30 +587,66 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                         if 'is_journal' in pubmed_data:
                             fh_mod_report[mod].write("PMID %s does not have an NLM resource.\n" % (pmid))
 
-                    if 'keywords' in pubmed_data:
-                        # aggregate for all MODs except ZFIN, which has misformed data and can't fix it.
-                        if mod == 'ZFIN':
-                            entry['keywords'] = pubmed_data['keywords']
-                        else:
-                            if 'keywords' not in entry:
-                                entry['keywords'] = []
-                            # 19308247 aggregates keywords for WB
-                            for mod_keyword in pubmed_data['keywords']:
-                                entry['keywords'].append(mod_keyword)
+                    if 'keywords' not in entry:
+                        entry['keywords'] = []
                     else:
-                        # keep the MOD's value for all MODs except ZFIN, which has misformed data and can't fix it.
+                        # e.g. 9882485 25544291 24201188 31188077
                         if mod == 'ZFIN':
                             if 'keywords' in entry:
                                 if entry['keywords'][0] != '':
                                     zfin_value = entry['keywords'][0]
+                                    zfin_value = str(bs4.BeautifulSoup(zfin_value, "html.parser"))
+                                    comma_count = 0
+                                    semicolon_count = 0
                                     if ", " in zfin_value:
+                                        comma_count = zfin_value.count(',')
+                                    if "; " in zfin_value:
+                                        semicolon_count = zfin_value.count(';')
+                                    if (comma_count == 0) and (semicolon_count == 0):
+                                        entry['keywords'] = zfin_value
+                                    elif comma_count >= semicolon_count:
                                         entry['keywords'] = zfin_value.split(", ")
                                     else:
-                                        if "; " in zfin_value:
-                                            entry['keywords'] = zfin_value.split("; ")
-                                        else:
-                                            entry['keywords'] = zfin_value
-#                                     logger.info("PMID %s does not have keywords, ZFIN has %s", pmid, entry['keywords'])
+                                        entry['keywords'] = zfin_value.split("; ")
+                        else:
+                            keywords = []
+                            for mod_keyword in entry['keywords']:
+                                clean_keyword = str(bs4.BeautifulSoup(mod_keyword, "html.parser"))
+                                [keywords].append(clean_keyword)
+                            entry['keywords'] = [keywords]
+
+                    if 'keywords' in pubmed_data:
+                        # aggregate for all MODs except ZFIN, which has misformed data and can't fix it.
+                        # 19308247 aggregates keywords for WB
+                        for mod_keyword in pubmed_data['keywords']:
+                            if mod_keyword.upper() not in map(str.upper, entry['keywords']):
+                                entry['keywords'].append(mod_keyword)
+
+#                     if 'keywords' in pubmed_data:
+#                         # aggregate for all MODs except ZFIN, which has misformed data and can't fix it.
+#                         if mod == 'ZFIN':
+#                             entry['keywords'] = pubmed_data['keywords']
+#                         else:
+#                             if 'keywords' not in entry:
+#                                 entry['keywords'] = []
+#                             # 19308247 aggregates keywords for WB
+#                             for mod_keyword in pubmed_data['keywords']:
+#                                 entry['keywords'].append(mod_keyword)
+#                     else:
+#                         # keep the MOD's value for all MODs except ZFIN, which has misformed data and can't fix it.
+#                         if mod == 'ZFIN':
+#                             if 'keywords' in entry:
+#                                 if entry['keywords'][0] != '':
+#                                     zfin_value = entry['keywords'][0]
+#                                     zfin_value = str(bs4.BeautifulSoup(zfin_value, "html.parser"))
+#                                     if ", " in zfin_value:
+#                                         entry['keywords'] = zfin_value.split(", ")
+#                                     else:
+#                                         if "; " in zfin_value:
+#                                             entry['keywords'] = zfin_value.split("; ")
+#                                         else:
+#                                             entry['keywords'] = zfin_value
+# #                                     logger.info("PMID %s does not have keywords, ZFIN has %s", pmid, entry['keywords'])
 
 # # datePublished, keywords, and crossReferences, MODReferenceTypes, tags, allianceCategory, resourceAbbreviation
 # # datePublished - pubmed value, if no value use mod's, if multiple mod's different, error
@@ -765,7 +807,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
     # fb have fb ids for resources, but from the resourceAbbreviation and pubmed xml's nlm, we can update fb resource data to primary key off of nlm
     json_filename = base_path + 'FB_resourceAbbreviation_to_NLM.json'
     write_json(json_filename, fb_resource_abbreviation_to_nlm)
- 
+
 
 # check merging with these pmids and mod with data in dqm_merge/ manually generated files, based on pmids_by_mods
 # 27639630        3       SGD, WB, ZFIN
