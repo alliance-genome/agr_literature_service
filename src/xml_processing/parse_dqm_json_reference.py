@@ -9,9 +9,10 @@ from os import path
 import logging
 import logging.config
 
-# from BeautifulSoup import BeautifulStoneSoup
-# import BeautifulSoup
 import bs4
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
+
 
 # pipenv run python parse_dqm_json_reference.py -p  takes about 90 seconds to run
 # pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 3.5 minutes without looking at pubmed json
@@ -603,7 +604,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                                     if "; " in zfin_value:
                                         semicolon_count = zfin_value.count(';')
                                     if (comma_count == 0) and (semicolon_count == 0):
-                                        entry['keywords'] = zfin_value
+                                        entry['keywords'] = [zfin_value]
                                     elif comma_count >= semicolon_count:
                                         entry['keywords'] = zfin_value.split(", ")
                                     else:
