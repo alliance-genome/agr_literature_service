@@ -420,18 +420,22 @@ def generate_json():
 #                 print publisher
                 data_dict['publisher'] = publisher
 
-            regex_keyword_output = re.findall("<Keyword .*?>(.+?)</Keyword>", xml, re.DOTALL)
-            if len(regex_keyword_output) > 0:
-                data_dict['keywords'] = regex_keyword_output
-
             regex_abstract_output = re.findall("<AbstractText.*?>(.+?)</AbstractText>", xml, re.DOTALL)
             if len(regex_abstract_output) > 0:
                 abstract = " ".join(regex_abstract_output)
                 data_dict['abstract'] = re.sub(r'\s+', ' ', abstract)
 
+            # some xml has keywords spanning multiple lines e.g. 30110134 ; others get captured inside other keywords e.g. 31188077
             regex_keyword_output = re.findall("<Keyword .*?>(.+?)</Keyword>", xml, re.DOTALL)
             if len(regex_keyword_output) > 0:
-                data_dict['keywords'] = regex_keyword_output
+                keywords = []
+                for keyword in regex_keyword_output:
+                    keyword = re.sub('<[^>]+?>', '', keyword)
+                    keyword = keyword.replace('\n', ' ').replace('\r', '')
+                    keyword = re.sub(r'\s+', ' ', keyword)
+                    keyword = keyword.lstrip()
+                    keywords.append(keyword)
+                data_dict['keywords'] = keywords
 
             meshs_group = re.findall("<MeshHeading>(.+?)</MeshHeading>", xml, re.DOTALL)
             if len(meshs_group) > 0:
