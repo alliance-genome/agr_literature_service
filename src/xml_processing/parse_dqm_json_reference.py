@@ -19,6 +19,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 # pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 13.5 minutes with comparing to pubmed json into output chunks without comparing fields for differences
 # pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 19 minutes with comparing to pubmed json into output chunks and comparing fields for differences
 # pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 17 minutes with comparing to pubmed json into output chunks, without comparing fields for differences, splitting into unmerged_pubmed_data for multi_mod pmids.
+# pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 33 minutes with comparing to pubmed json into output chunks and comparing fields for differences, and using bs4 on dqm inputs
 
 #  pipenv run python parse_dqm_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_data/ -m MGI > log_mgi
 # Loading .env environment variables...
@@ -613,8 +614,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                             keywords = []
                             for mod_keyword in entry['keywords']:
                                 clean_keyword = str(bs4.BeautifulSoup(mod_keyword, "html.parser"))
-                                [keywords].append(clean_keyword)
-                            entry['keywords'] = [keywords]
+                                keywords.append(clean_keyword)
+                            entry['keywords'] = keywords
 
                     if 'keywords' in pubmed_data:
                         # aggregate for all MODs except ZFIN, which has misformed data and can't fix it.
