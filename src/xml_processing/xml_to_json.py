@@ -139,21 +139,21 @@ def generate_json():
     # open input xml file and read data in form of python dictionary using xmltodict module
     for pmid in pmids:
         storage_path = base_path + 'pubmed_xml/'
-#         storage_path = base_path + 'pubmed_xml_20210205/'
+        # storage_path = base_path + 'pubmed_xml_20210205/'
         filename = storage_path + pmid + '.xml'
         if not path.exists(filename):
             continue
         with open(filename) as xml_file:
 
             xml = xml_file.read()
-#             print (xml)
+            # print (xml)
 
             # xmltodict is treating html markup like <i>text</i> as xml, which is creating mistaken structure in the conversion.
             # may be better to parse full xml instead.
-#             data_dict = xmltodict.parse(xml_file.read())
+            # data_dict = xmltodict.parse(xml_file.read())
             xml_file.close()
 
-#             print (pmid)
+            # print (pmid)
             data_dict = dict()
 
             # e.g. 21290765 has BookDocument and ArticleTitle
@@ -212,11 +212,11 @@ def generate_json():
 
             if re.findall("<PublicationType>(.+?)</PublicationType>", xml):
                 types_group = re.findall("<PublicationType>(.+?)</PublicationType>", xml)
-#                 print types_group
+                # print types_group
                 data_dict['pubMedType'] = types_group
             elif re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml):
                 types_group = re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml)
-#                 print types_group
+                # print types_group
                 data_dict['pubMedType'] = types_group
 
             # this will need to be restructured to match schema
@@ -231,6 +231,7 @@ def generate_json():
                     firstinit = ''
                     collective_name = ''
                     fullname = ''
+                    orcid = ''
                     affiliation = []
                     author_cross_references = []
                     lastname_re_output = re.search("<LastName>(.+?)</LastName>", author_xml)
@@ -251,32 +252,40 @@ def generate_json():
                         collective_name = collective_re_output.group(1).replace('\n', ' ').replace('\r', '')
                         collective_name = re.sub(r'\s+', ' ', collective_name)
 
-#                     <Identifier Source="ORCID">0000-0002-0184-8324</Identifier>
-                    orcid_re_output = re.search("<Identifier Source=\"ORCID\">(.+?)</Identifier>", author_xml)
+                    # e.g. 30003105   <Identifier Source="ORCID">0000-0002-9948-4783</Identifier>
+                    # e.g. 30002370   <Identifier Source="ORCID">http://orcid.org/0000-0003-0416-374X</Identifier>
+                    # orcid_re_output = re.search("<Identifier Source=\"ORCID\">(.+?)</Identifier>", author_xml)
+                    orcid_re_output = re.search("<Identifier Source=\"ORCID\">.*?([0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]).*?</Identifier>", author_xml)
                     if orcid_re_output is not None:
+                        orcid = orcid_re_output.group(1)
                         orcid_dict = {}
                         orcid_dict["id"] = 'ORCID:' + orcid_re_output.group(1)
                         orcid_dict["pages"] = ["person/orcid"]
                         author_cross_references.append(orcid_dict)
 
-#                     <AffiliationInfo>
-#                         <Affiliation>Department of Animal Medical Sciences, Faculty of Life Sciences, Kyoto Sangyo University , Kyoto , Japan.</Affiliation>
-#                     </AffiliationInfo>
-                    affiliation_info_re_output = re.search("<AffiliationInfo>(.*?)</AffiliationInfo>", xml, re.DOTALL)
-                    if affiliation_info_re_output is not None:
-                        affiliation_info = affiliation_info_re_output.group(1)
-#                         print pmid + " AIDL " + affiliation_info
-                        affiliation = re.findall("<Affiliation>(.+?)</Affiliation>", affiliation_info, re.DOTALL)
+                    # e.g. 30003105 30002370
+                    # <AffiliationInfo>
+                    #     <Affiliation>Department of Animal Medical Sciences, Faculty of Life Sciences, Kyoto Sangyo University , Kyoto , Japan.</Affiliation>
+                    # </AffiliationInfo>
+                    affiliation_list = []
+                    affiliation_info_group = re.findall("<AffiliationInfo>(.*?)</AffiliationInfo>", author_xml, re.DOTALL)
+                    for affiliation_info in affiliation_info_group:
+                        # print(pmid + " AIDL " + affiliation_info)
+                        affiliation_group = re.findall("<Affiliation>(.+?)</Affiliation>", affiliation_info, re.DOTALL)
+                        for affiliation in affiliation_group:
+                            # print(pmid + " subset " + affiliation)
+                            if affiliation not in affiliation_list:
+                                affiliation_list.append(affiliation)
 
                     author_dict = {}
-#                     if (firstname and firstinit):
-#                         print "GOOD\t" + pmid
-#                     elif firstname:
-#                         print "FN\t" + pmid + "\t" + firstname
-#                     elif firstinit:
-#                         print "FI\t" + pmid + "\t" + firstinit
-#                     else:
-#                         print "NO\t" + pmid
+                    # if (firstname and firstinit):
+                    #     print "GOOD\t" + pmid
+                    # elif firstname:
+                    #     print "FN\t" + pmid + "\t" + firstname
+                    # elif firstinit:
+                    #     print "FI\t" + pmid + "\t" + firstinit
+                    # else:
+                    #     print "NO\t" + pmid
                     if firstname != '':
                         author_dict["firstname"] = firstname
                     if firstinit != '':
@@ -293,13 +302,15 @@ def generate_json():
                         fullname = lastname
                     else:
                         logger.info("%s has no name match %s", pmid, author_xml)
+                    if orcid != '':
+                        author_dict["orcid"] = orcid
                     author_dict["name"] = fullname
                     author_dict["authorRank"] = authors_rank
-                    if len(affiliation) > 0:
-                        author_dict["affiliation"] = affiliation
+                    if len(affiliation_list) > 0:
+                        author_dict["affiliation"] = affiliation_list
                     if len(author_cross_references) > 0:
                         author_dict["crossReferences"] = author_cross_references
-#                     print fullname
+                    # print fullname
                     authors_list.append(author_dict)
                 data_dict['authors'] = authors_list
 
@@ -309,7 +320,7 @@ def generate_json():
                 date_list = get_year_month_day_from_xml_date(pub_date)
                 if date_list[0]:
                     date_string = "-".join(date_list)
-#                     print date_string
+                    # print date_string
                     date_dict = {}
                     date_dict['date_string'] = date_string
                     date_dict['year'] = date_list[0]
@@ -331,7 +342,7 @@ def generate_json():
                 date_list = get_year_month_day_from_xml_date(date_revised)
                 if date_list[0]:
                     date_string = "-".join(date_list)
-#                     print date_string
+                    # print date_string
                     date_dict = {}
                     date_dict['date_string'] = date_string
                     date_dict['year'] = date_list[0]
@@ -345,7 +356,7 @@ def generate_json():
                 date_list = get_year_month_day_from_xml_date(date_received)
                 if date_list[0]:
                     date_string = "-".join(date_list)
-#                     print date_string
+                    # print date_string
                     date_dict = {}
                     date_dict['date_string'] = date_string
                     date_dict['year'] = date_list[0]
@@ -357,20 +368,19 @@ def generate_json():
             article_id_list_re_output = re.search("<ArticleIdList>(.*?)</ArticleIdList>", xml, re.DOTALL)
             if article_id_list_re_output is not None:
                 article_id_list = article_id_list_re_output.group(1)
-#                 print pmid + " AIDL " + article_id_list
+                # print pmid + " AIDL " + article_id_list
                 article_id_group = re.findall("<ArticleId IdType=\"(.*?)\">(.+?)</ArticleId>", article_id_list)
                 if len(article_id_group) > 0:
                     type_has_value = set()
                     for type_value in article_id_group:
                         type = type_value[0]
                         value = type_value[1]
-#                         print pmid + " type " + type + " value " + value
+                        # print pmid + " type " + type + " value " + value
                         if type in known_article_id_types:
                             if type in type_has_value:
                                 logger.info("%s has multiple for type %s", pmid, type)
                             type_has_value.add(type)
-#                             a_dict = {'id': known_article_id_types[type]['prefix'] + value, 'pages': [known_article_id_types[type]['pages']]}
-#                             cross_references.append({'id': known_article_id_types[type]['prefix'] + value, 'pages': [known_article_id_types[type]['pages']]})
+                            # cross_references.append({'id': known_article_id_types[type]['prefix'] + value, 'pages': [known_article_id_types[type]['pages']]})
                             cross_references.append({'id': known_article_id_types[type]['prefix'] + value})
                             data_dict[type] = value			# for cleaning up crossReferences when reading dqm data
                         else:
@@ -381,7 +391,7 @@ def generate_json():
             medline_journal_info_re_output = re.search("<MedlineJournalInfo>(.*?)</MedlineJournalInfo>", xml, re.DOTALL)
             if medline_journal_info_re_output is not None:
                 medline_journal_info = medline_journal_info_re_output.group(1)
-#                 print pmid + " medline_journal_info " + medline_journal_info
+                # print pmid + " medline_journal_info " + medline_journal_info
                 nlm = ''
                 issn = ''
                 journal_abbrev = ''
@@ -401,15 +411,15 @@ def generate_json():
                 data_dict['nlm'] = nlm			# for mapping to resource
                 data_dict['issn'] = issn		# for mapping to resource
                 data_dict['resourceAbbreviation'] = journal_abbrev
-#                 check whether all xml has an nlm or issn, for WB set, they all do
-#                 if (nlm and issn):
-#                     print "GOOD\t" + pmid
-#                 elif nlm:
-#                     print "NLM\t" + pmid + "\t" + nlm
-#                 elif issn:
-#                     print "ISSN\t" + pmid + "\t" + issn
-#                 else:
-#                     print "NO\t" + pmid
+                # check whether all xml has an nlm or issn, for WB set, they all do
+                # if (nlm and issn):
+                #     print "GOOD\t" + pmid
+                # elif nlm:
+                #     print "NLM\t" + pmid + "\t" + nlm
+                # elif issn:
+                #     print "ISSN\t" + pmid + "\t" + issn
+                # else:
+                #     print "NO\t" + pmid
 
             if len(cross_references) > 0:
                 data_dict["crossReferences"] = cross_references
@@ -417,7 +427,7 @@ def generate_json():
             publisher_re_output = re.search("<PublisherName>(.+?)</PublisherName>", xml)
             if publisher_re_output is not None:
                 publisher = publisher_re_output.group(1)
-#                 print publisher
+                # print publisher
                 data_dict['publisher'] = publisher
 
             regex_abstract_output = re.findall("<AbstractText.*?>(.+?)</AbstractText>", xml, re.DOTALL)
