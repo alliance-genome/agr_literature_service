@@ -77,7 +77,7 @@ def generate_pmid_data():
     # output pmids and the mods that have them
 
     # RGD should be first in mods list.  if conflicting allianceCategories the later mod gets priority
-#     mods = ['RGD', 'SGD', 'FB', 'MGI', 'ZFIN', 'WB']
+    # mods = ['RGD', 'SGD', 'FB', 'MGI', 'ZFIN', 'WB']
     mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB']
     # mods = ['SGD']
 
@@ -593,6 +593,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 
                     if 'nlm' in pubmed_data:
                         nlm = pubmed_data['nlm']
+                        entry['nlm'] = ['NLM:' + nlm]
                         entry['resource'] = 'NLM:' + nlm
                         if mod == 'FB':
                             if 'resourceAbbreviation' in entry:
@@ -715,6 +716,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
     logger.info("processing unmerged pubmed_data")
 
     aggregate_fields = ['keywords', 'MODReferenceTypes', 'tags']
+    additional_fields = ['nlm', 'resource']
 
     for pmid in unmerged_pubmed_data:
         # this was when trying to send all mod-pubmed data to a hash, and sort those with muliple mods, but script crashed out of memory
@@ -737,6 +739,11 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                 if pmid_field in entry:
                     if pmid_field not in sanitized_entry:
                         sanitized_entry[pmid_field] = entry[pmid_field]
+
+            for additional_field in additional_fields:
+                if additional_field in entry:
+                    if additional_field not in sanitized_entry:
+                        sanitized_entry[additional_field] = entry[additional_field]
 
             if 'datePublished' in entry:
                 date_published_set.add(entry['datePublished'])
