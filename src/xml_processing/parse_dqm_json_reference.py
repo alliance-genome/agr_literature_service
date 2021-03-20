@@ -505,34 +505,35 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                     # journal = entry['resourceAbbreviation'].lower()
                     # if journal not in resource_to_nlm:
                     journal_simplified = simplify_text(entry['resourceAbbreviation'])
-                    resource_not_resolved = True
-                    if journal_simplified in resource_to_nlm:
-                        nlm = resource_to_nlm[journal_simplified]
-                        # we a resourceAbbreviation can resolve to multiple NLMs, so we cannot use a list of NLMs to get a single canonical NLM title
-#                         if nlm in resource_nlm_to_title:
-#                             entry['resourceAbbreviation'] = resource_nlm_to_title[nlm]
-                        entry['nlm'] = nlm
-                        if len(nlm) > 1:
-                            multiple_nlms = ", ".join(nlm)
-                            fh_mod_report[mod].write("primaryId %s has resourceAbbreviation %s mapping to multiple NLMs %s.\n" % (primary_id, entry['resourceAbbreviation'], multiple_nlms))
-                        else:
-                            resource_not_resolved = False
-                            entry['resource'] = nlm[0]
-                    if resource_not_resolved:
-                        if journal_simplified in resource_to_mod[mod]:
-                            entry['modResources'] = resource_to_mod[mod][journal_simplified]
-                            if len(resource_to_mod[mod][journal_simplified]) > 1:
-                                multiple_mod_resources = ", ".join(resource_to_mod[mod][journal_simplified])
-                                fh_mod_report[mod].write("primaryId %s has resourceAbbreviation %s mapping to multiple MOD resources %s.\n" % (primary_id, entry['resourceAbbreviation'], multiple_mod_resources))
+                    if journal_simplified != '':
+                        resource_not_resolved = True
+                        if journal_simplified in resource_to_nlm:
+                            nlm = resource_to_nlm[journal_simplified]
+                            # we a resourceAbbreviation can resolve to multiple NLMs, so we cannot use a list of NLMs to get a single canonical NLM title
+#                             if nlm in resource_nlm_to_title:
+#                                 entry['resourceAbbreviation'] = resource_nlm_to_title[nlm]
+                            entry['nlm'] = nlm
+                            if len(nlm) > 1:
+                                multiple_nlms = ", ".join(nlm)
+                                fh_mod_report[mod].write("primaryId %s has resourceAbbreviation %s mapping to multiple NLMs %s.\n" % (primary_id, entry['resourceAbbreviation'], multiple_nlms))
                             else:
                                 resource_not_resolved = False
-                                entry['resource'] = resource_to_mod[mod][journal_simplified][0]
-                        else:
-                            fh_mod_report[mod].write("primaryId %s has resourceAbbreviation %s not in NLM nor DQM resource file.\n" % (primary_id, entry['resourceAbbreviation']))
-                            if entry['resourceAbbreviation'] in resource_not_found[mod]:
-                                resource_not_found[mod][entry['resourceAbbreviation']] += 1
+                                entry['resource'] = nlm[0]
+                        if resource_not_resolved:
+                            if journal_simplified in resource_to_mod[mod]:
+                                entry['modResources'] = resource_to_mod[mod][journal_simplified]
+                                if len(resource_to_mod[mod][journal_simplified]) > 1:
+                                    multiple_mod_resources = ", ".join(resource_to_mod[mod][journal_simplified])
+                                    fh_mod_report[mod].write("primaryId %s has resourceAbbreviation %s mapping to multiple MOD resources %s.\n" % (primary_id, entry['resourceAbbreviation'], multiple_mod_resources))
+                                else:
+                                    resource_not_resolved = False
+                                    entry['resource'] = resource_to_mod[mod][journal_simplified][0]
                             else:
-                                resource_not_found[mod][entry['resourceAbbreviation']] = 1
+                                fh_mod_report[mod].write("primaryId %s has resourceAbbreviation %s not in NLM nor DQM resource file.\n" % (primary_id, entry['resourceAbbreviation']))
+                                if entry['resourceAbbreviation'] in resource_not_found[mod]:
+                                    resource_not_found[mod][entry['resourceAbbreviation']] += 1
+                                else:
+                                    resource_not_found[mod][entry['resourceAbbreviation']] = 1
                 else:
                     fh_mod_report[mod].write("primaryId %s does not have a resourceAbbreviation.\n" % (primary_id))
             else:
