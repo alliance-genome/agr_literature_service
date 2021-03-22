@@ -15,3 +15,4 @@ boto3==1.17.6
 pgsync==1.1.26
 marshmallow_sqlalchemy==0.24.2
 requests==2.25.1
+beautifulsoup4==4.9.3
