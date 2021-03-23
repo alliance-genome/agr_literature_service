@@ -109,7 +109,7 @@ use --prod argument to use the WSGI server in production when running the applic
   - datatypes = ['REFERENCE', 'REF-EXCHANGE', 'RESOURCE']
   - 'https://fms.alliancegenome.org/api/datafile/by/' + release + '/' + datatype + '/' + mod + '?latest=true'
 - output
-  - dqm_data/<datatype>_<mod>.json
+  - dqm_data/&lt;datatype&gt;_&lt;mod&gt;.json
 
 ### OPTIONAL generate smaller sample set from dqm data
  
@@ -118,9 +118,9 @@ use --prod argument to use the WSGI server in production when running the applic
 - 2 minutes, 13 seconds
   - python3 generate_dqm_json_test_set.py
 - input
-  - dqm_data/REFERENCE_<mod>.json
+  - dqm_data/REFERENCE_&lt;mod&gt;.json
 - output
-  - dqm_sample/REFERENCE_<mod>.json
+  - dqm_sample/REFERENCE_&lt;mod&gt;.json
 
 ### Extract pmid data from dqm data
 
@@ -134,7 +134,7 @@ use --prod argument to use the WSGI server in production when running the applic
 - 41 seconds
   - python3 parse_dqm_json_reference.py -p
 - input
-  - dqm_data/REFERENCE_<mod>.json
+  - dqm_data/REFERENCE_&lt;mod&gt;.json
 - output
   - inputs/alliance_pmids
   - pmids_by_mods
@@ -146,7 +146,7 @@ use --prod argument to use the WSGI server in production when running the applic
 - 2 hours
   - python3 get_pubmed_xml.py -f inputs/alliance_pmids
 - output
-  - pubmed_xml/<files>.xml
+  - pubmed_xml/&lt;files&gt;.xml
   - pmids_not_found
 
 ### Convert pubmed xml to json
@@ -156,9 +156,9 @@ use --prod argument to use the WSGI server in production when running the applic
   - python3 xml_to_json.py -f inputs/alliance_pmids
 - input
   - inputs/alliance_pmids
-  - pubmed_xml/<pmid>.xml
+  - pubmed_xml/&lt;pmid&gt;.xml
 - output
-  - pubmed_json/<pmid>.json
+  - pubmed_json/&lt;pmid&gt;.json
 
 ### Download pubmed resources
 
@@ -178,19 +178,19 @@ use --prod argument to use the WSGI server in production when running the applic
 - 1 hour 32 minutes on agr-lit-dev, but only 33 minutes on dev.wormbase
   - python3 parse_dqm_json_reference.py -f dqm_data/ -m all
 - input
-  - dqm_data/RESOURCE_<mod>.json
+  - dqm_data/RESOURCE_&lt;mod&gt;.json
   - pubmed_resource_json/resource_pubmed_all.json
   - pmids_by_mods
   - https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/ingest/resourcesAndReferences/reference.json
-  - dqm_data/REFERENCE_<mod>.json
-  - pubmed_json/<pmid>.json
+  - dqm_data/REFERENCE_&lt;mod&gt;.json
+  - pubmed_json/&lt;pmid&gt;.json
 - output
-  - report_files/<mod>
+  - report_files/&lt;mod&gt;
   - report_files/multi_mod
   - resource_xml/resource_abbreviation_not_matched
-  - sanitized_reference_json/REFERENCE_PUBMOD_<mod>_<counter>.json
-  - sanitized_reference_json/REFERENCE_PUBMED_<mod>_<counter>.json
-  - sanitized_reference_json/REFERENCE_PUBMED_MULTI_<counter>.json
+  - sanitized_reference_json/REFERENCE_PUBMOD_&lt;mod&gt;_&lt;counter&gt;.json
+  - sanitized_reference_json/REFERENCE_PUBMED_&lt;mod&gt;_&lt;counter&gt;.json
+  - sanitized_reference_json/REFERENCE_PUBMED_MULTI_&lt;counter&gt;.json
   - FB_resourceAbbreviation_to_NLM.json
 
 ### Process mod+pubmed resources to generate sanitized resource json files
@@ -228,7 +228,7 @@ use --prod argument to use the WSGI server in production when running the applic
 - input
   - resource_xml/resource_abbreviation_not_matched
 - output
-  - resource_xml/<resourceAbbreviation>.xml
+  - resource_xml/&lt;resourceAbbreviation&gt;.xml
 
 ### Compress and upload to s3
 
