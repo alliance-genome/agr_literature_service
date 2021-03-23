@@ -96,6 +96,171 @@ use --prod argument to use the WSGI server in production when running the applic
 
 
 # XML Processing
+
+## Scripts and the order to run them in
+
+### get dqm data from fms
+
+- Get dqm data
+  - mkdir src/xml_processing/dqm_data/
+  - python3 src/xml_processing/get_dqm_data.py
+- input
+  - mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
+  - datatypes = ['REFERENCE', 'REF-EXCHANGE', 'RESOURCE']
+  - 'https://fms.alliancegenome.org/api/datafile/by/' + release + '/' + datatype + '/' + mod + '?latest=true'
+- output
+  - dqm_data/<datatype>_<mod>.json
+
+### OPTIONAL generate smaller sample set from dqm data
+ 
+- optionally generate sample sets, then  parse_dqm_json_reference.py -f can use dqm_sample/ to test changes on smaller set
+  - mkdir src/xml_processing/dqm_sample/
+- 2 minutes, 13 seconds
+  - python3 generate_dqm_json_test_set.py
+- input
+  - dqm_data/REFERENCE_<mod>.json
+- output
+  - dqm_sample/REFERENCE_<mod>.json
+
+### Extract pmid data from dqm data
+
+- create directories for sanitize reference json output, report_files, pubmed_json files converted from xml, resource_xml files, input files
+  - mkdir src/xml_processing/sanitized_reference_json/
+  - mkdir src/xml_processing/report_files/
+  - mkdir src/xml_processing/pubmed_json/
+  - mkdir src/xml_processing/resource_xml/
+  - # mkdir src/xml_processing/inputs/    # part of repo
+- get pmid data from dqm data, create inputs/alliance_pmids listing all pmids among all MODs, and pmids_by_mods sorting PMIDs into which mods have them
+- 41 seconds
+  - python3 parse_dqm_json_reference.py -p
+- input
+  - dqm_data/REFERENCE_<mod>.json
+- output
+  - inputs/alliance_pmids
+  - pmids_by_mods
+
+### Download pubmed xml
+
+- get pubmed xml and store into pubmed_xml/ with list of files not found at pmids_not_found.  skips files already existing in output directory.  downloads in batches of 5000 pmids
+  - mkdir src/xml_processing/pubmed_xml/
+- 2 hours
+  - python3 get_pubmed_xml.py -f inputs/alliance_pmids
+- output
+  - pubmed_xml/<files>.xml
+  - pmids_not_found
+
+### Convert pubmed xml to json
+
+- take input list of pmids, read .xml and convert to .json
+- 2 hours on agr-lit-dev, but only 22 minutes on dev.wormbase
+  - python3 xml_to_json.py -f inputs/alliance_pmids
+- input
+  - inputs/alliance_pmids
+  - pubmed_xml/<pmid>.xml
+- output
+  - pubmed_json/<pmid>.json
+
+### Download pubmed resources
+
+- take input medline resources and create .json (optionally upload to s3)
+ -  mkdir src/xml_processing/pubmed_resource_json/
+- 1 second
+ -  python3 generate_pubmed_nlm_resource.py -u
+- input
+ -  https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt
+- output
+ -  pubmed_resource_json/resource_pubmed_all.json
+ -  optionally upload to s3://agr-literature/develop/resource/metadata/resource_pubmed_all.json
+
+### Process mod+pubmed references+resources to generate sanitized reference json files
+
+- take input mod resources, mod references, pubmed resources, pubmed json, pmids to mod mappings, agr_schemas reference file ; then generate report files for each mod and affecting multiple mods, list of unmatched resourceAbbreviations, sliced json files of mod references / pubmed single-mod references / pubmed multiple-mod reference, mapping of FB resourceAbbreviations to NLM.
+- 1 hour 32 minutes on agr-lit-dev, but only 33 minutes on dev.wormbase
+ -  python3 parse_dqm_json_reference.py -f dqm_data/ -m all
+- input
+ -  dqm_data/RESOURCE_<mod>.json
+ -  pubmed_resource_json/resource_pubmed_all.json
+ -  pmids_by_mods
+ -  https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/ingest/resourcesAndReferences/reference.json
+ -  dqm_data/REFERENCE_<mod>.json
+ -  pubmed_json/<pmid>.json
+- output
+ -  report_files/<mod>
+ -  report_files/multi_mod
+ -  resource_xml/resource_abbreviation_not_matched
+ -  sanitized_reference_json/REFERENCE_PUBMOD_<mod>_<counter>.json
+ -  sanitized_reference_json/REFERENCE_PUBMED_<mod>_<counter>.json
+ -  sanitized_reference_json/REFERENCE_PUBMED_MULTI_<counter>.json
+ -  FB_resourceAbbreviation_to_NLM.json
+
+### Process mod+pubmed resources to generate sanitized resource json files
+
+- take input from pubmed resource, mod resource, fb to nlm mappings ;  produce sanitized files for ingest
+ -  mkdir src/xml_processing/sanitized_resource_json/
+- 2 seconds
+ -  python3 parse_dqm_json_resource.py
+- input
+ -  FB_resourceAbbreviation_to_NLM.json
+ -  dqm_data/RESOURCE_FB.json
+ -  dqm_data/RESOURCE_ZFIN.json
+ -  pubmed_resource_json/resource_pubmed_all.json
+- output
+ -  sanitized_resource_json/RESOURCE_FB.json
+ -  sanitized_resource_json/RESOURCE_ZFIN.json
+ -  sanitized_resource_json/RESOURCE_NLM.json
+
+### OPTIONAL sort pmids not found by mod for curators to look into
+
+- optionally  sort_not_found_pmids_by_mod.py takes pmids_not_found from get_pubmed_xml.py, and pmids_by_mods from parse_dqm_json_reference.py, and generates a set sorted by MODs of pmids that were not found in pubmed in file pmids_not_found_by_mod.
+- 1 second
+ -  python3 sort_not_found_pmids_by_mod.py
+- input
+ -  pmids_by_mods
+ -  pmids_not_found
+- output
+ -  pmids_not_found_by_mod
+
+### OPTIONAL try to find out nlms of resourceAbbreviations that do not match, will need analysis
+
+- optionally  try to find nlm of resource_abbreviation_not_matched, by querying ncbi with 5 second delay, output xml to resource_xml/ for future analysis (some do not match, others give multiple nlms)
+- 5 seconds * amount of resoureAbbreviations in resource_abbreviation_not_matched (64 minutes on agr-literature-dev with 759 entries)
+ -  python3 get_pubmed_nlm_resource_unmatched.py
+- input
+ -  resource_xml/resource_abbreviation_not_matched
+- output
+ -  resource_xml/<resourceAbbreviation>.xml
+
+### Compress and upload to s3
+
+#### pubmed xml
+
+- compress all pubmed xml from directory pubmed_xml/ into 1.3G .tar.gz for faster upload/download (8.5 minutes on dev.wormbase, 1 hour 37 minutes on agr-literature-dev)
+- % tar zvcf alliance_pubmed_xml.tar.gz pubmed_xml/
+- copy tar.gz of all alliance pubmed xml from local computer to s3 (20 seconds to upload 1.3G file)
+- % aws s3 cp alliance_pubmed_xml.tar.gz s3://agr-literature/develop/reference/metadata/pubmed/xml_compressed/
+
+#### pubmed json
+
+- compress all pubmed json from directory pubmed_json/ into 629M .tar.gz for faster upload/download (~5 minutes)
+- % tar zvcf alliance_pubmed_json.tar.gz pubmed_json/
+- upload to s3 (8 seconds)
+- % aws s3 cp alliance_pubmed_json.tar.gz s3://agr-literature/develop/reference/metadata/pubmed/json_from_xml_compressed/
+
+#### sanitized references json
+
+- compress sanitized reference json then cp to s3
+- % tar zvcf alliance_sanitized_reference_json.tar.gz sanitized_reference_json/
+- % aws s3 cp  alliance_sanitized_reference_json.tar.gz s3://agr-literature/develop/reference/metadata/sanitized_for_ingest/
+
+#### sanitized resources json
+
+- compress sanitized resource json then cp to s3
+- % tar cvfz alliance_sanitized_resource_json.tar.gz sanitized_resource_json/
+- % aws s3 cp  alliance_sanitized_resource_json.tar.gz s3://agr-literature/develop/resource/metadata/sanitized_for_ingest/
+
+
+## Short description of scripts
+
 - `generate_pubmed_nlm_resource.py` download pubmed resouce data, generate json and upload to s3
 - `get_dqm_data.py` download dqm data if it's got a new md5sum
 - `parse_dqm_json_reference.py` process dqm data to generate list of PMIDs to download
