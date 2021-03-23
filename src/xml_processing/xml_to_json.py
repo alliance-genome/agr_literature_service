@@ -2,9 +2,11 @@ import json
 import urllib
 # import xmltodict
 
+
 # pipenv run python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 #
-# 22 minutes for 646727 documents from filesystem. 12G of xml to 6.0G of json
+# 22 minutes on dev.wormbase for 646727 documents from filesystem. 12G of xml to 6.0G of json
+# 1 hour 55 minutes on agr-literature-dev for 649074 documents from filesystem.  15G of xml to 8.0G of json
 
 # not using author firstinit, nlm, issn
 
@@ -29,9 +31,13 @@ import urllib
 import argparse
 import re
 
-from os import path
+from os import environ, path
 import logging
 import logging.config
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 # Need to set up a queue that queries postgres to get a list of pubmed id that don't have a pubmed final flag
@@ -60,7 +66,8 @@ parser.add_argument('-u', '--url', action='store', help='take input from entries
 args = vars(parser.parse_args())
 
 # todo: save this in an env variable
-base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+base_path = environ.get('XML_PATH')
 
 
 known_article_id_types = {

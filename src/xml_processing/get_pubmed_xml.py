@@ -7,17 +7,24 @@ import re
 import requests
 
 import os
-from os import path
+from os import environ, path
 import logging
 import logging.config
 import glob
 
+from dotenv import load_dotenv
 
+load_dotenv()
+
+
+# python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
 # python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 # python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/wormbase_pmids
 
 # 1 hour 42 minutes to copy 646721 xml files / 12 G / 12466408 to s3 with
 #  aws s3 cp pubmed_xml/ s3://agr-literature/develop/reference/metadata/pubmed/xml/ --recursive
+
+# 1 hour 0 minutes 26 seconds to skip through files already in filesystem in agr-lit-dev, vs 2 minutes at dev.wormbase
 
 # webenv
 # https://www.ncbi.nlm.nih.gov/books/NBK25498/#chapter3.Application_3_Retrieving_large
@@ -50,32 +57,31 @@ parser.add_argument('-u', '--url', action='store', help='take input from entries
 args = vars(parser.parse_args())
 
 # todo: save this in an env variable
-base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+base_path = environ.get('XML_PATH')
 storage_path = base_path + 'pubmed_xml/'
 
 
-pmids_wanted = []
-pmids_found = set()
-
-
-def download_pubmed_xml():
+def download_pubmed_xml(pmids_wanted):
     # 4.5 minutes to download 28994 wormbase records in 10000 chunks
     # 61 minutes to download 429899 alliance records in 10000 chunks
     # 127 minutes to download 646714 alliance records in 5000 chunks, failed on 280
     pmids_slice_size = 5000
 
+    # comparing through a set instead of a list takes 2.6 seconds instead of 4256
+    pmids_found = set()
+
     # this section reads pubmed xml files already acquired to skip downloading them.
     # to get full set, clear out storage_path, or comment out this section
-    # takes a bit under 2 minutes to read 646721 files
     logger.info("Reading PubMed XML previously acquired")
-#     pmids_already_had = []
     full_path_pmid_xml = glob.glob(storage_path + "*.xml")
+    pmids_wanted_set = set(pmids_wanted)
     for elem in full_path_pmid_xml:
         elem = elem.replace(storage_path, '')
         elem = elem.replace('.xml', '')
-#         pmids_already_had.append(elem)
-        if elem in pmids_wanted:
-            pmids_wanted.remove(elem)
+        if elem in pmids_wanted_set:
+            pmids_wanted_set.remove(elem)
+    pmids_wanted = sorted(list(pmids_wanted_set))
 
 #     for pmid in pmids_wanted:
 #         print(pmid)
@@ -154,6 +160,7 @@ def download_pubmed_xml():
 
 if __name__ == "__main__":
     """ call main start function """
+    pmids_wanted = []
 
 #    python get_pubmed_xml.py -d
     if args['database']:
@@ -199,4 +206,4 @@ if __name__ == "__main__":
     else:
         logger.info("Processing database entries")
 
-    download_pubmed_xml()
+    download_pubmed_xml(pmids_wanted)

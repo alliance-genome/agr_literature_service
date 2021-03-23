@@ -1,9 +1,12 @@
 
 import json
-from os import path
+from os import environ, path
 import logging
 import logging.config
 
+from dotenv import load_dotenv
+
+load_dotenv()
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
@@ -11,7 +14,8 @@ logger = logging.getLogger('literature logger')
 
 # pipenv run python parse_dqm_json_resource.py
 
-base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+base_path = environ.get('XML_PATH')
 
 # resource_fields = ['primaryId', 'nlm', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
 # resource_fields_from_pubmed = ['title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']

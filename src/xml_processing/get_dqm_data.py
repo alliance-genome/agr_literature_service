@@ -7,9 +7,13 @@ import gzip
 import hashlib
 
 import os
-from os import path
+from os import environ, path
 import logging
 import logging.config
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 # get_dqm_data.py downloads DQM MOD JSON from FMS and uncompresses. compares md5sum to current file to prevent downloading if it's the same
@@ -22,7 +26,10 @@ logger = logging.getLogger('literature logger')
 
 
 # todo: save this in an env variable
-base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+# base_path = '/home/core/git/azurebrd/agr_literature_service_demo/src/xml_processing/'
+# base_path = '/workdir/src/xml_processing/'
+base_path = environ.get('XML_PATH')
 storage_path = base_path + 'dqm_data/'
 
 

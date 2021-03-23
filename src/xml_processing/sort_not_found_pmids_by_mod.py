@@ -5,18 +5,21 @@
 # python sort_mod_pmids_not_found.py
 
 
-from os import path
+from os import environ, path
 import logging
 import logging.config
 
+from dotenv import load_dotenv
+
+load_dotenv()
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
 
-# todo: save this in an env variable
-base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+base_path = environ.get('XML_PATH')
 
 
 def sort_not_found_pmids_by_mod():

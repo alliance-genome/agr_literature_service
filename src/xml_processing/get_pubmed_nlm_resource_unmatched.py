@@ -7,9 +7,13 @@ import re
 import requests
 
 # import os
-from os import path
+from os import environ, path
 import logging
 import logging.config
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 # pipenv run python get_pubmed_nlm_resource_unmatched.py
@@ -21,8 +25,8 @@ logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
 
-# todo: save this in an env variable
-base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+base_path = environ.get('XML_PATH')
 storage_path = base_path + 'resource_xml/'
 
 

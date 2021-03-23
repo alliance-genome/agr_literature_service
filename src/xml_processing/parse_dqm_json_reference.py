@@ -5,13 +5,17 @@ import urllib.request
 import argparse
 import re
 
-from os import path
+from os import environ, path
 import logging
 import logging.config
+
+from dotenv import load_dotenv
 
 import bs4
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
+
+load_dotenv()
 
 
 # pipenv run python parse_dqm_json_reference.py -p  takes about 90 seconds to run
@@ -21,6 +25,8 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 # pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 17 minutes with comparing to pubmed json into output chunks, without comparing fields for differences, splitting into unmerged_pubmed_data for multi_mod pmids.
 # pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 20.5 minutes with comparing to pubmed json into output chunks and comparing fields for differences, and processing keywords, without using bs4 on dqm inputs
 # pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 33 minutes with comparing to pubmed json into output chunks and comparing fields for differences, and processing keywords, while using bs4 on dqm inputs
+
+# pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 1 hour 32 minutes on agr-literature-dev
 
 #  pipenv run python parse_dqm_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_data/ -m MGI > log_mgi
 # Loading .env environment variables...
@@ -44,7 +50,8 @@ parser.add_argument('-m', '--mod', action='store', help='which mod, use all or l
 
 args = vars(parser.parse_args())
 
-base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+base_path = environ.get('XML_PATH')
 
 
 def split_identifier(identifier, ignore_error=False):
@@ -75,9 +82,9 @@ def split_identifier(identifier, ignore_error=False):
 def generate_pmid_data():
     # output set of PMID identifiers that will need XML downloaded
     # output pmids and the mods that have them
+    logger.info("generating pmid sets from dqm data")
 
     # RGD should be first in mods list.  if conflicting allianceCategories the later mod gets priority
-    # mods = ['RGD', 'SGD', 'FB', 'MGI', 'ZFIN', 'WB']
     mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB']
     # mods = ['SGD']
 
@@ -96,6 +103,7 @@ def generate_pmid_data():
     for mod in mods:
         # filename = 'dqm_data/1.0.1.4_REFERENCE_WB_0.json'
         filename = base_path + 'dqm_data/REFERENCE_' + mod + '.json'
+        logger.info("Loading %s data from %s", mod, filename)
         f = open(filename)
         dqm_data = json.load(f)
 
@@ -486,7 +494,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                 if 'authors' in entry:
                     all_authors_have_rank = True
                     for author in entry['authors']:
-                        if 'authorRank' not in entry:
+                        if 'authorRank' not in author:
                             all_authors_have_rank = False
                     if all_authors_have_rank is False:
                         authors_with_rank = []

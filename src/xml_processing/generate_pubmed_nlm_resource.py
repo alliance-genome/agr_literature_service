@@ -15,13 +15,17 @@ import json
 import re
 import urllib
 
-from os import path
+from os import environ, path
 import logging
 import logging.config
 
 import argparse
 import boto3
 from botocore.exceptions import ClientError
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
@@ -36,8 +40,9 @@ args = vars(parser.parse_args())
 
 
 # todo: save this in an env variable
-root_path = '/home/azurebrd/git/agr_literature_service_demo/'
-base_path = root_path + 'src/xml_processing/'
+# root_path = '/home/azurebrd/git/agr_literature_service_demo/'
+# base_path = root_path + 'src/xml_processing/'
+base_path = environ.get('XML_PATH')
 storage_path = base_path + 'pubmed_resource_json/'
 
 

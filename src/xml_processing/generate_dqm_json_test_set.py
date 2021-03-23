@@ -2,9 +2,14 @@
 import json
 import itertools
 
-from os import path
+from os import environ, path
 import logging
 import logging.config
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 # pipenv run python generate_dqm_json_test_set.py
 # Take large dqm json data and generate a smaller subset to test with, with data from beginning, middle, and end of data array
@@ -15,13 +20,14 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+base_path = environ.get('XML_PATH')
 
 
 def generate_dqm_json_test_set():
     sample_amount = 10
-#     mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
-    mods = ['MGI']
+    mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
+#     mods = ['MGI']
     for mod in mods:
         logger.info("generating sample set for %s", mod)
         input_filename = base_path + 'dqm_data/REFERENCE_' + mod + '.json'
