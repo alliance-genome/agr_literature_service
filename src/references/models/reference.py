@@ -99,7 +99,7 @@ class Identifier(db.Model):
 
 class Reference(db.Model, VersioningMixin):
     id = db.Column(db.Integer, primary_key=True)
-    primaryId = db.Column(db.String, unique=True, nullable=True)
+    primaryId = db.Column(db.String(23), unique=True, nullable=False, index=True)
     identifiers = db.relationship('Identifier' , backref='reference', lazy=True)
     title = db.Column(db.String, unique=False, nullable=True)
     authors = db.relationship('Author' , backref='reference', lazy=True)
