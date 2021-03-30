@@ -29,22 +29,26 @@ args = vars(parser.parse_args())
 
 docs = FlaskApiSpec(app)
 
-reference_bp = Blueprint('reference_api', __name__, url_prefix='/reference/')
-reference_bp.add_url_rule('', view_func=ReferencesEndpoint.as_view('ReferencesEndpoint'))
-reference_bp.add_url_rule('/<string:id>/', view_func=ReferenceEndpoint.as_view('ReferenceEndpoint'))
+api_blueprint = Blueprint('api', __name__, url_prefix='/api/')
 
-resource_bp = Blueprint('resources_api', __name__, url_prefix='/resource/')
-resource_bp.add_url_rule('', view_func=AddResourceEndpoint.as_view('AddResourceEndpoint'))
-resource_bp.add_url_rule('/<string:id>/',
-                           view_func=GetResourceEndpoint.as_view('GetResourceEndpoint'))
+references_view = ReferencesEndpoint.as_view(ReferencesEndpoint.__name__)
+api_blueprint.add_url_rule('/references/', view_func=references_view)
 
-app.register_blueprint(reference_bp)
-docs.register(ReferenceEndpoint, blueprint="reference_api", endpoint='ReferenceEndpoint')
-docs.register(ReferencesEndpoint, blueprint="reference_api", endpoint='ReferenceEndpoint')
+reference_view = ReferenceEndpoint.as_view(ReferenceEndpoint.__name__)
+api_blueprint.add_url_rule('/reference/<string:reference_id>', view_func=reference_view)
 
-app.register_blueprint(resource_bp)
-docs.register(AddResourceEndpoint, blueprint="resources_api", endpoint='AddResourceEndpoint')
-docs.register(GetResourceEndpoint, blueprint="resources_api", endpoint='GetResourceEndpoint')
+#resource_bp = Blueprint('resources_api', __name__, url_prefix='/resource/')
+#resource_bp.add_url_rule('', view_func=AddResourceEndpoint.as_view('AddResourceEndpoint'))
+#resource_bp.add_url_rule('/<string:resource_id>/',
+#                           view_func=GetResourceEndpoint.as_view('GetResourceEndpoint'))
+
+app.register_blueprint(api_blueprint)
+docs.register(ReferenceEndpoint, blueprint=api_blueprint.name, endpoint=ReferenceEndpoint.__name__)
+docs.register(ReferencesEndpoint, blueprint=api_blueprint.name, endpoint=ReferencesEndpoint.__name__)
+
+#app.register_blueprint(resource_bp)
+#docs.register(AddResourceEndpoint, blueprint="resources_api", endpoint='AddResourceEndpoint')
+#docs.register(GetResourceEndpoint, blueprint="resources_api", endpoint='GetResourceEndpoint')
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ from flask_script import Manager
 from flask_migrate import Migrate, MigrateCommand
 
 from shared.app import db
+from shared.app import app
 
 from references.models.reference import Pubmed
 from references.models.reference import Pubmod
@@ -22,12 +23,10 @@ from references.models.resource import ResourceVolume
 from references.models.resource import Resource
 
 
-app = Flask(__name__)
-app.config.from_object('config.Config')
-
 db.init_app(app)
 migrate = Migrate(app, db)
 manager = Manager(app)
+
 
 manager.add_command('db', MigrateCommand)
 

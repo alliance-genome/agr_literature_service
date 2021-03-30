@@ -5,6 +5,8 @@ from datetime import timezone
 
 from flask import request
 from flask import jsonify
+from flask import make_response
+
 
 from flask_sqlalchemy import SQLAlchemy
 
@@ -13,7 +15,12 @@ from flask_apispec import use_kwargs
 from flask_apispec.views import MethodResource
 from flask_apispec.annotations import doc
 
+from sqlalchemy.exc import IntegrityError
+
 from shared.app import db
+
+from marshmallow import fields
+
 
 from references.models.reference import Reference
 from references.models.reference import Pubmed
@@ -26,16 +33,30 @@ from references.schemas.reference import ReferenceSchemaOut
 logger = logging.getLogger('literature logger')
 
 
-@marshal_with(ReferenceSchemaOut)
-@doc(description='Reference', tags=['reference'])
+#@marshal_with(ReferenceSchemaOut)
+@doc(description='References', tags=['references'])
 class ReferencesEndpoint(MethodResource):
 
-    @use_kwargs(ReferenceSchemaIn)
+   # @use_kwargs(ReferenceSchemaIn)
+   # @marshal_with({"status": fields.String(),
+          #         "location": fields.String(),
+    #               "id": fields.String()}, code=201)
     def post(self, **data):
         print('data')
-        print(data)
-        
+
+
+        last_reference_id = "AGR-Reference-000000001"
+        reference_id = "1"
+
+        location =  "/api/reference/1"# + reference_id
+        response = make_response(jsonify({"status": "created",
+                                          "id": reference_id,
+                                          "location": location}), 201)
+        response.headers["Content-Type"] = "application/json"
+        response.headers["Location"] = "/api/reference/" + reference_id
+        return response
         # Create and/or Find reference record by ID
+"""
         reference_obj_from_db = Reference.query.filter_by(primaryId=data['primaryId']).first()
         if not reference_obj_from_db:
             reference = Reference(**data)
@@ -161,51 +182,36 @@ class ReferencesEndpoint(MethodResource):
              db.session.commit()
 
         return reference
+"""
+# might want to use obj = DBOccurence.query.get_or_404(occ_id)
 
-
-@marshal_with(ReferenceSchemaOut)
-@doc(description='Reference', tags=['reference'])
+@doc(description='Reference',
+     tags=['reference'],
+     params={"reference_id": {"description": "Alliance Reference ID",
+                              "schema": {"type": "string"},
+                              "example": "AGRReference:<zero-padded-8-digits>",
+                              "required": True}})
 class ReferenceEndpoint(MethodResource):
-    @use_kwargs(ReferenceSchemaOut)
+    @marshal_with(ReferenceSchemaOut)
     def get(self, reference_id):
-        reference = Reference.query.filter_by(id=id).one()
-        return {'id': reference.id,
-                'primaryId': None,
-                'title': None,
-                'authors': None,
-                'datePublished': None,
-                'dateArrivedInPubMed': None,
-                'dateLastModified': None,
-                'volume': None,
-                'pages': None,
-                'abstract': None,
-                'citation': None,
-                'keywords': None,
-                'pubMedType': None,
-                'publisher': None,
-                'allianceCategory': None,
-                'modReferenceTypes': None,
-                'issueName': None,
-                'issueDate': None,
-                'tags': None,
-                'meshTerms': None,
-                # crossReferences
-                'pubmedIDs': Pubmed.query.filter_by(referenceId=id),
-                'pubmodIDs': Pubmod.query.filter_by(referenceId=id),
-                'resourceAbbreviation': None,
-                'dateTimeCreated': None}
+        reference = Reference.query.filter_by(primaryId=reference_id).first()
+        return reference
 
+    @marshal_with(ReferenceSchemaOut)
     @use_kwargs(ReferenceSchemaOut)
     def put(self, reference_id, **kwargs):
-        reference = Reference.query.filter_by(id=refernece_id).one()
+        reference = Reference.query.filter_by(primaryId=reference_id).first()
         for key, value in kwargs.items():
             setattr(reference, key, value)
         session.add(reference)
         session.commit()
 
+    #@marshal_with({"message": fields.String()})
     @marshal_with(None, code=204)
     def delete(self, reference_id):
-        reference = Reference.query.filter_by(id=refernece_id).one()
-        db.session.delete(reference)
-        db.session.commit()
-        return None
+        reference = Reference.query.filter_by(primaryId=reference_id).first()
+        if not reference:
+            return {"message": "Reference could not be found:" + reference_id }, 404
+        #db.session.delete(reference)
+        #db.session.commit()
+        return None, 204
