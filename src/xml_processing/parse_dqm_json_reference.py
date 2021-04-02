@@ -549,7 +549,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                 # is_pubmed = True
                 is_pubmod = False
                 # print(pmid)
+                # get pmid file from directory with all pmid.json
                 filename = base_path + 'pubmed_json/' + pmid + '.json'
+                # get pmid file from sub directory of split pmid json
+                # filename = get_path_from_pmid(pmid, 'json')
                 # print("primary_id %s reading %s" % (primary_id, filename))
                 pubmed_data = dict()
                 try:

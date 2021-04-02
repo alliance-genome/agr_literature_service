@@ -146,8 +146,9 @@ def generate_json():
     # open input xml file and read data in form of python dictionary using xmltodict module
     for pmid in pmids:
         storage_path = base_path + 'pubmed_xml/'
-        # storage_path = base_path + 'pubmed_xml_20210205/'
         filename = storage_path + pmid + '.xml'
+        # if getting pmids from directories split into multiple sub-subdirectories
+        # filename = get_path_from_pmid(pmid, 'xml')
         if not path.exists(filename):
             continue
         with open(filename) as xml_file:
@@ -504,6 +505,8 @@ def generate_json():
 # UNCOMMENT TO write to json directory
             json_storage_path = base_path + 'pubmed_json/'
             json_filename = json_storage_path + pmid + '.json'
+            # if getting pmids from directories split into multiple sub-subdirectories
+            # json_filename = get_path_from_pmid(pmid, 'json')
             with open(json_filename, "w") as json_file:
                 json_file.write(json_data)
                 json_file.close()
