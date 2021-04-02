@@ -11,8 +11,8 @@ services:
       POSTGRES_DB: ${PSQL_DATABASE}
       POSTGRES_PORT: ${PSQL_PORT}
     volumes:
-      - agr-literature-pg-data:/var/lib/postgresql/data
-      - $PWD/postgresql.conf:/etc/postgresql.conf
+      - "agr-literature-pg-data:/var/lib/postgresql/data"
+      - "./postgresql.conf:/etc/postgresql.conf"
     networks:
       - agr-literature
     healthcheck:
@@ -23,16 +23,17 @@ services:
 
   pgadmin:
     container_name: agr-literature-pgadmin
-    image: dpage/pgadmin4:4.29
+    image: dpage/pgadmin4:5.1
     restart: always
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_ACCESS_CONTROL_ALLOW_ORIGIN: "*"
       PGADMIN_LISTEN_PORT: 81
     ports:
       - "8882:81"
     volumes:
-      - agr-pgadmin-data:/var/lib/pgadmin
+      - "agr-literature-pgadmin-data:/var/lib/pgadmin"
     networks:
       - agr-literature
     depends_on:
@@ -53,7 +54,7 @@ services:
         soft: -1
         hard: -1
     volumes:
-      - agr-es-data:/usr/share/elasticsearch/data
+      - "agr-literature-es-data:/usr/share/elasticsearch/data"
     ports:
       - 9201:9200
     networks:
@@ -68,7 +69,7 @@ services:
      - "6379:6379"
     volumes:
       - agr-literature-redis-data
-      - $PWD/redis.conf:/usr/local/etc/redis/redis.conf
+      - "./redis.conf:/usr/local/etc/redis/redis.conf"
     environment:
      - REDIS_REPLICATION_MODE=master
     networks:
@@ -91,8 +92,8 @@ services:
 volumes:
   agr-literature-pg-data:
   agr-literature-redis-data:
-  agr-pgadmin-data:
-  agr-es-data:
+  agr-literature-pgadmin-data:
+  agr-literature-es-data:
 
 networks:
   agr-literature:
