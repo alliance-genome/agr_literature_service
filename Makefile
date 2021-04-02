@@ -2,7 +2,7 @@ REG=100225593120.dkr.ecr.us-east-1.amazonaws.com
 TAG=latest
 
 login-ecr:
-	docker run --rm -it amazon/aws-cli ecr get-login-password | docker login --username AWS --password-stdin ${REG}
+	docker run -v ~/.aws/credentials:/root/.aws/credentials --rm -it amazon/aws-cli ecr get-login-password | docker login --username AWS --password-stdin ${REG}
 
 build-env:
 	docker build . --build-arg REG=${REG} -t ${REG}/agr_literature_env:${TAG} -f ./docker/Dockerfile.env
