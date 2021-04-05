@@ -317,10 +317,12 @@ def load_mod_resource(mods):
 
 
 def load_pubmed_resource():
+    # logger.info("Starting load_pubmed_resource")
     filename = base_path + 'pubmed_resource_json/resource_pubmed_all.json'
     f = open(filename)
     resource_data = json.load(f)
     resource_to_nlm = dict()
+    resource_to_nlm_highest = dict()
     resource_nlm_to_title = dict()
     resource_fields = ['primaryId', 'nlm', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
     for entry in resource_data:
@@ -339,13 +341,21 @@ def load_pubmed_resource():
                     #     print("already in 2985088r to %s loaded\n" % (value))
                     if primary_id not in resource_to_nlm[value]:
                         resource_to_nlm[value].append(primary_id)
+                        if strip_string_to_integer(nlm) > strip_string_to_integer(resource_to_nlm_highest[value]):
+                            resource_to_nlm_highest[value] = nlm
                         # if value == '2985088r':
                         #     print("append in 2985088r to %s loaded\n" % (value))
                 else:
                     resource_to_nlm[value] = [primary_id]
+                    resource_to_nlm_highest[value] = nlm
                     # if value == '2985088r':
                     #     print("orig 2985088r to %s loaded\n" % (value))
-    return resource_to_nlm, resource_nlm_to_title
+    # logger.info("End load_pubmed_resource")
+    return resource_to_nlm, resource_to_nlm_highest, resource_nlm_to_title
+
+
+def strip_string_to_integer(string):
+    return int("".join(filter(lambda x: x.isdigit(), string)))
 
 
 def load_pmid_multi_mods():
@@ -387,9 +397,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
     pmid_multi_mods = load_pmid_multi_mods()
 
 # UNCOMMENT, put this back
-    resource_to_nlm, resource_nlm_to_title = load_pubmed_resource()
+    resource_to_nlm, resource_to_nlm_highest, resource_nlm_to_title = load_pubmed_resource()
     resource_to_mod = load_mod_resource(mods)
 #     resource_to_nlm = dict()
+#     resource_to_nlm_highest = dict()
 #     resource_nlm_to_title = dict()
 #     resource_to_mod = dict()
 #     for mod in mods:
@@ -514,27 +525,21 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                     # if journal not in resource_to_nlm:
                     journal_simplified = simplify_text(entry['resourceAbbreviation'])
                     if journal_simplified != '':
-                        resource_not_resolved = True
                         if journal_simplified in resource_to_nlm:
-                            nlm = resource_to_nlm[journal_simplified]
-                            # we a resourceAbbreviation can resolve to multiple NLMs, so we cannot use a list of NLMs to get a single canonical NLM title
-#                             if nlm in resource_nlm_to_title:
-#                                 entry['resourceAbbreviation'] = resource_nlm_to_title[nlm]
-                            entry['nlm'] = nlm
-                            if len(nlm) > 1:
-                                multiple_nlms = ", ".join(nlm)
+                            nlm_list = resource_to_nlm[journal_simplified]
+                            # a resourceAbbreviation can resolve to multiple NLMs, so we cannot use a list of NLMs to get a single canonical NLM title
+                            entry['nlm'] = nlm_list
+                            entry['resource'] = 'NLM:' + resource_to_nlm_highest[journal_simplified]
+                            if len(nlm_list) > 1:		# e.g. ZFIN:ZDB-PUB-020604-2  FB:FBrf0009739  WB:WBPaper00000557
+                                multiple_nlms = ", ".join(nlm_list)
                                 fh_mod_report[mod].write("primaryId %s has resourceAbbreviation %s mapping to multiple NLMs %s.\n" % (primary_id, entry['resourceAbbreviation'], multiple_nlms))
-                            else:
-                                resource_not_resolved = False
-                                entry['resource'] = nlm[0]
-                        if resource_not_resolved:
+                        else:
                             if journal_simplified in resource_to_mod[mod]:
                                 entry['modResources'] = resource_to_mod[mod][journal_simplified]
                                 if len(resource_to_mod[mod][journal_simplified]) > 1:
                                     multiple_mod_resources = ", ".join(resource_to_mod[mod][journal_simplified])
                                     fh_mod_report[mod].write("primaryId %s has resourceAbbreviation %s mapping to multiple MOD resources %s.\n" % (primary_id, entry['resourceAbbreviation'], multiple_mod_resources))
                                 else:
-                                    resource_not_resolved = False
                                     entry['resource'] = resource_to_mod[mod][journal_simplified][0]
                             else:
                                 fh_mod_report[mod].write("primaryId %s has resourceAbbreviation %s not in NLM nor DQM resource file.\n" % (primary_id, entry['resourceAbbreviation']))
