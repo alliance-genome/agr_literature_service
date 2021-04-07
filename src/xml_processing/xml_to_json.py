@@ -1,12 +1,26 @@
 import json
-import urllib
+import urllib.request
 # import xmltodict
+
+import argparse
+import re
+
+from os import environ, path
+import logging
+import logging.config
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 # pipenv run python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 #
 # 22 minutes on dev.wormbase for 646727 documents from filesystem. 12G of xml to 6.0G of json
 # 1 hour 55 minutes on agr-literature-dev for 649074 documents from filesystem.  15G of xml to 8.0G of json
+
+# pipenv run python xml_to_json.py -u "http://tazendra.caltech.edu/~azurebrd/cgi-bin/forms/generic.cgi?action=ListPmids"
+
 
 # not using author firstinit, nlm, issn
 
@@ -28,20 +42,7 @@ import urllib
 # https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt
 
 
-import argparse
-import re
-
-from os import environ, path
-import logging
-import logging.config
-
-from dotenv import load_dotenv
-
-load_dotenv()
-
-
 # Need to set up a queue that queries postgres to get a list of pubmed id that don't have a pubmed final flag
-# Need to set up an S3 bucket to store xml
 # Need to set up flags to take in pmids from postgres queue, file in filesystem, file in URL, list from command line
 
 # to get set of pmids with search term 'elegans'
@@ -537,11 +538,11 @@ if __name__ == "__main__":
 #     python xml_to_json.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
     elif args['url']:
         logger.info("Processing url input from %s", args['url'])
-        req = urllib.urlopen(args['url'])
+        req = urllib.request.urlopen(args['url'])
         data = req.read()
         lines = data.splitlines()
         for pmid in lines:
-            pmids.append(pmid)
+            pmids.append(str(int(pmid)))
 
 #    python xml_to_json.py -c 1234 4576 1828
     elif args['commandline']:

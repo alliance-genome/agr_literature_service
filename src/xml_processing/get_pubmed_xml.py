@@ -1,4 +1,3 @@
-
 import time
 import urllib
 import argparse
@@ -20,6 +19,8 @@ load_dotenv()
 # python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
 # python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 # python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/wormbase_pmids
+
+# pipenv run python get_pubmed_xml.py -u "http://tazendra.caltech.edu/~azurebrd/cgi-bin/forms/generic.cgi?action=ListPmids"
 
 # 1 hour 42 minutes to copy 646721 xml files / 12 G / 12466408 to s3 with
 #  aws s3 cp pubmed_xml/ s3://agr-literature/develop/reference/metadata/pubmed/xml/ --recursive
@@ -181,11 +182,11 @@ if __name__ == "__main__":
 #     python get_pubmed_xml.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
     elif args['url']:
         logger.info("Processing url input from %s", args['url'])
-        req = urllib.urlopen(args['url'])
+        req = urllib.request.urlopen(args['url'])
         data = req.read()
         lines = data.splitlines()
         for pmid in lines:
-            pmids_wanted.append(pmid)
+            pmids_wanted.append(str(int(pmid)))
 
 #    python get_pubmed_xml.py -c 1234 4576 1828
     elif args['commandline']:
