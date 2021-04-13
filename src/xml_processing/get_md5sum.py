@@ -8,6 +8,7 @@ import urllib
 
 # generate file mapping directory's pmid files to their md5sums, taking as input xml or json directories.
 
+# 5 minutes 5 seconds for 649073 xml
 
 import argparse
 # import re
