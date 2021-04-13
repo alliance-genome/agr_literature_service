@@ -157,7 +157,7 @@ def generate_json():
         # filename = get_path_from_pmid(pmid, 'xml')
         if not path.exists(filename):
             continue
-        logger.info("processing %s", filename)
+        # logger.info("processing %s", filename)
         with open(filename) as xml_file:
 
             xml = xml_file.read()
