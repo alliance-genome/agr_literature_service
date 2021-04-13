@@ -10,15 +10,16 @@ from os import environ, path
 import logging
 import logging.config
 import glob
+import hashlib
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
 
-# python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
-# python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
-# python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/wormbase_pmids
+# pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
+# pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
+# pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/wormbase_pmids
 
 # pipenv run python get_pubmed_xml.py -u "http://tazendra.caltech.edu/~azurebrd/cgi-bin/forms/generic.cgi?action=ListPmids"
 
@@ -60,7 +61,8 @@ args = vars(parser.parse_args())
 # todo: save this in an env variable
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
-storage_path = base_path + 'pubmed_xml/'
+# storage_path = base_path + 'pubmed_xml/'
+storage_path = base_path + 'pubmed_temp/'
 
 
 def download_pubmed_xml(pmids_wanted):
@@ -88,6 +90,8 @@ def download_pubmed_xml(pmids_wanted):
 #         print(pmid)
 
     logger.info("Starting download of new PubMed XML")
+
+    md5data = ''
 
     for index in range(0, len(pmids_wanted), pmids_slice_size):
         pmids_slice = pmids_wanted[index:index + pmids_slice_size]
@@ -130,10 +134,17 @@ def download_pubmed_xml(pmids_wanted):
                 f = open(filename, "w")
                 f.write(xml)
                 f.close()
+                md5sum = hashlib.md5(xml.encode('utf-8')).hexdigest()
+                md5data += pmid + "\t" + md5sum + "\n"
 
         if len(pmids_slice) == pmids_slice_size:
             logger.info("waiting to process more pmids")
             time.sleep(5)
+
+    md5file = storage_path + 'md5sum'
+    logger.info("Writing md5sum mappings to %s", md5file)
+    with open(md5file, "w") as md5file_fh:
+        md5file_fh.write(md5data)
 
     logger.info("Writing log of pmids_not_found")
     output_pmids_not_found_file = base_path + 'pmids_not_found'
