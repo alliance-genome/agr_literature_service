@@ -8,6 +8,7 @@ import re
 from os import environ, path
 import logging
 import logging.config
+import hashlib
 
 from dotenv import load_dotenv
 
@@ -145,13 +146,18 @@ def get_medline_date_from_xml_date(pub_date):
 
 def generate_json():
     # open input xml file and read data in form of python dictionary using xmltodict module
+    md5data = ''
+    # storage_path = base_path + 'pubmed_xml_20210322/'
+    # json_storage_path = base_path + 'pubmed_json_20210322/'
+    storage_path = base_path + 'pubmed_xml/'
+    json_storage_path = base_path + 'pubmed_json/'
     for pmid in pmids:
-        storage_path = base_path + 'pubmed_xml/'
         filename = storage_path + pmid + '.xml'
         # if getting pmids from directories split into multiple sub-subdirectories
         # filename = get_path_from_pmid(pmid, 'xml')
         if not path.exists(filename):
             continue
+        logger.info("processing %s", filename)
         with open(filename) as xml_file:
 
             xml = xml_file.read()
@@ -504,13 +510,19 @@ def generate_json():
 
             # Write the json data to output json file
 # UNCOMMENT TO write to json directory
-            json_storage_path = base_path + 'pubmed_json/'
             json_filename = json_storage_path + pmid + '.json'
             # if getting pmids from directories split into multiple sub-subdirectories
             # json_filename = get_path_from_pmid(pmid, 'json')
             with open(json_filename, "w") as json_file:
                 json_file.write(json_data)
                 json_file.close()
+            md5sum = hashlib.md5(json_data.encode('utf-8')).hexdigest()
+            md5data += pmid + "\t" + md5sum + "\n"
+
+    md5file = json_storage_path + 'md5sum'
+    logger.info("Writing md5sum mappings to %s", md5file)
+    with open(md5file, "w") as md5file_fh:
+        md5file_fh.write(md5data)
 
     for unknown_article_id_type in unknown_article_id_types:
         logger.info("unknown_article_id_type %s", unknown_article_id_type)
