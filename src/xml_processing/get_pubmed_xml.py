@@ -82,7 +82,6 @@ def download_pubmed_xml(pmids_wanted):
         elem = elem.replace(storage_path, '')
         elem = elem.replace('.xml', '')
         if elem in pmids_wanted_set:
-            pmids_found.add(elem)
             pmids_wanted_set.remove(elem)
     pmids_wanted = sorted(list(pmids_wanted_set))
 
