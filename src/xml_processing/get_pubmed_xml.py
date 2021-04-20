@@ -90,7 +90,15 @@ def download_pubmed_xml(pmids_wanted):
 
     logger.info("Starting download of new PubMed XML")
 
-    md5data = ''
+    md5dict = {}
+    md5file = storage_path + 'md5sum'
+    if path.exists(md5file):
+        logger.info("Reading previous md5sum mappings from %s", md5file)
+        with open(md5file, "r") as md5file_fh:
+            for line in md5file_fh:
+                line_data = line.split("\t")
+                if line_data[0]:
+                    md5dict[line_data[0]] = line_data[1].rstrip()
 
     for index in range(0, len(pmids_wanted), pmids_slice_size):
         pmids_slice = pmids_wanted[index:index + pmids_slice_size]
@@ -134,16 +142,19 @@ def download_pubmed_xml(pmids_wanted):
                 f.write(xml)
                 f.close()
                 md5sum = hashlib.md5(xml.encode('utf-8')).hexdigest()
-                md5data += pmid + "\t" + md5sum + "\n"
+                md5dict[pmid] = md5sum
+                # md5data += pmid + "\t" + md5sum + "\n"
 
         if len(pmids_slice) == pmids_slice_size:
             logger.info("waiting to process more pmids")
             time.sleep(5)
 
-    md5file = storage_path + 'md5sum'
+    # md5file = storage_path + 'md5sum'
     logger.info("Writing md5sum mappings to %s", md5file)
     with open(md5file, "w") as md5file_fh:
-        md5file_fh.write(md5data)
+        # md5file_fh.write(md5data)
+        for key in sorted(md5dict.keys(), key=int):
+            md5file_fh.write("%s\t%s\n" % (key, md5dict[key]))
 
     logger.info("Writing log of pmids_not_found")
     output_pmids_not_found_file = base_path + 'pmids_not_found'
