@@ -1,6 +1,5 @@
 # import json
 import urllib
-# import xmltodict
 
 
 # pipenv run python get_md5sum.py -x -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
@@ -52,7 +51,6 @@ base_path = environ.get('XML_PATH')
 
 
 def generate_md5sums(file_type):
-    # open input xml file and read data in form of python dictionary using xmltodict module
     # storage_path = base_path + 'pubmed_' + file_type + '_20210322/'
     storage_path = base_path + 'pubmed_' + file_type + '/'
     md5data = ''
