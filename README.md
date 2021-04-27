@@ -370,6 +370,23 @@ pipenv run python src/xml_processing/sort_not_found_pmids_by_mod.py
 pipenv run python src/xml_processing/get_pubmed_nlm_resource_unmatched.py
 ```
 
+# Downloading tar.gz from Pubmed Processing
+
+## Download tar.gz to pubmed_tgz/
+- take list of pmids as input
+- download from pubmed oa_file_list.txt with mapping of pmids to their ftp location
+- download if it is in desired pmid list, download to pubmed_tgz/
+```bash
+pipenv run python get_pubmed_tgz.py -f inputs/alliance_pmids
+```
+
+## (Optional) Chunk into directories with 10000 files and upload to s3
+- see chunking_pmids/README
+```bash
+pipenv run python generate_chunk_files.py
+```
+
+
 ## Generating login credentials (must repeat every 12 hours to access base linux image and neo4j env image)
 - make sure you have AWS-CLI installed locally
 - make sure you have AWS login credentials for the agr_aws account, with the permission group - AWS group for ECR access.
