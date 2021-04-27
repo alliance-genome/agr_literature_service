@@ -1,0 +1,47 @@
+cp ../log_get_pubmed_tgz chunking_set
+
+put generate_chunk_files.py up a directory, then
+pipenv run python3 generate_chunk_files.py
+
+for each of the move files, check that they're the full set, then make executable and run to mvoe the files to a subdirectory
+  chmod 755 chunking_pmids/20210426_01.mv
+  ./chunking_pmids/20210426_01.mv 
+
+archive with tar cf and upload archive + index to s3
+  tar czf pubmed_tgz_20210426_01.tar.gz pubmed_tgz_20210426_01
+  aws s3 cp pubmed_tgz_20210426_01.tar.gz s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/
+  aws s3 cp 20210426_01.txt s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/pubmed_tgz_20210426_01.txt
+  rm pubmed_tgz_20210426_01.tar.gz
+
+  tar czf pubmed_tgz_20210426_02.tar.gz pubmed_tgz_20210426_02
+  aws s3 cp pubmed_tgz_20210426_02.tar.gz s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/
+  aws s3 cp 20210426_02.txt s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/pubmed_tgz_20210426_02.txt
+  rm pubmed_tgz_20210426_02.tar.gz
+
+  tar czf pubmed_tgz_20210426_03.tar.gz pubmed_tgz_20210426_03
+  aws s3 cp pubmed_tgz_20210426_03.tar.gz s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/
+  aws s3 cp 20210426_03.txt s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/pubmed_tgz_20210426_03.txt
+  rm pubmed_tgz_20210426_03.tar.gz
+
+  tar czf pubmed_tgz_20210426_04.tar.gz pubmed_tgz_20210426_04
+  aws s3 cp pubmed_tgz_20210426_04.tar.gz s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/
+  aws s3 cp 20210426_04.txt s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/pubmed_tgz_20210426_04.txt
+  rm pubmed_tgz_20210426_04.tar.gz
+
+  tar czf pubmed_tgz_20210426_05.tar.gz pubmed_tgz_20210426_05
+  aws s3 cp pubmed_tgz_20210426_05.tar.gz s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/
+  aws s3 cp 20210426_05.txt s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/pubmed_tgz_20210426_05.txt
+  rm pubmed_tgz_20210426_05.tar.gz
+
+  tar czf pubmed_tgz_20210426_06.tar.gz pubmed_tgz_20210426_06
+  aws s3 cp pubmed_tgz_20210426_06.tar.gz s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/
+  aws s3 cp 20210426_06.txt s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/pubmed_tgz_20210426_06.txt
+  rm pubmed_tgz_20210426_06.tar.gz
+
+  tar czf pubmed_tgz_20210426_07.tar.gz pubmed_tgz_20210426_07
+  aws s3 cp pubmed_tgz_20210426_07.tar.gz s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/
+  aws s3 cp 20210426_07.txt s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/pubmed_tgz_20210426_07.txt
+  rm pubmed_tgz_20210426_07.tar.gz
+
+
+
