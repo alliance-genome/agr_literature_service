@@ -1,9 +1,10 @@
 cp ../log_get_pubmed_tgz chunking_set
 
 put generate_chunk_files.py up a directory, then
-pipenv run python3 generate_chunk_files.py
+  pipenv run python3 generate_chunk_files.py
+to use the chunking_set to generate chunks of 10000 files per directory, to move files into their directories, and generate files with the pmid contents of each directory and the ftp url they came from
 
-for each of the move files, check that they're the full set, then make executable and run to mvoe the files to a subdirectory
+for each of the move files, check that they're the full set, then make executable and run to move the files to a subdirectory. e.g.
   chmod 755 chunking_pmids/20210426_01.mv
   ./chunking_pmids/20210426_01.mv 
 
