@@ -382,6 +382,7 @@ pipenv run python get_pubmed_tgz.py -f inputs/alliance_pmids
 
 ## (Optional) Chunk into directories with 10000 files and upload to s3
 - see chunking_pmids/README
+- upload files to s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/
 ```bash
 pipenv run python generate_chunk_files.py
 ```
