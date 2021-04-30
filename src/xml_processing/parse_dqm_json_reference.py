@@ -5,7 +5,7 @@ import urllib.request
 import argparse
 import re
 
-from os import environ, path
+from os import environ, path, makedirs
 import logging
 import logging.config
 
@@ -218,9 +218,9 @@ def generate_pmid_data():
     #     logger.info("primary_id %s", primary_id)
 
 
-def simplify_text_keep_digits_hyphen(text):
+def simplify_text_keep_digits(text):
     no_html = re.sub('<[^<]+?>', '', str(text))
-    stripped = re.sub(r"[^a-zA-Z0-9\-]+", "", str(no_html))
+    stripped = re.sub(r"[^a-zA-Z0-9]+", "", str(no_html))
     clean = stripped.lower()
     return clean
 
@@ -311,11 +311,11 @@ def load_mod_resource(mods, resource_to_nlm):
                     values_to_add = []
                     for field in resource_fields:
                         if field in entry:
-                            value = simplify_text_keep_digits_hyphen(entry[field])
+                            value = simplify_text_keep_digits(entry[field])
                             values_to_add.append(value)
                     if 'abbreviationSynonyms' in entry:
                         for synonym in entry['abbreviationSynonyms']:
-                            value = simplify_text_keep_digits_hyphen(synonym)
+                            value = simplify_text_keep_digits(synonym)
                             values_to_add.append(value)
                     for value in values_to_add:
                         if value in resource_to_mod:
@@ -331,7 +331,7 @@ def load_mod_resource(mods, resource_to_nlm):
                             issn_group = re.search(r"^ISSN:(.+)$", xref_entry['id'])
                             if issn_group is not None:
                                 issn = issn_group[1]
-                                issn = simplify_text_keep_digits_hyphen(issn)
+                                issn = simplify_text_keep_digits(issn)
                                 # if entry['primaryId'] == 'FB:FBmultipub_1740':
                                 #     logger.info("id %s xref id %s issn %s", entry['primaryId'], xref_entry['id'], issn)
                                 if issn in resource_to_nlm:
@@ -366,7 +366,7 @@ def load_pubmed_resource():
         for field in resource_fields:
             if field in entry:
                 # value = entry[field].lower()
-                value = simplify_text_keep_digits_hyphen(entry[field])
+                value = simplify_text_keep_digits(entry[field])
                 # if (nlm == '8000640'):
                 #     logger.info("field %s value %s", field, value)
                 # if value == '2985088r':
@@ -448,13 +448,19 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
     cross_reference_types = dict()
 
     json_storage_path = base_path + 'sanitized_reference_json/'
+    if not path.exists(json_storage_path):
+        makedirs(json_storage_path)
+
+    report_file_path = base_path + 'report_files/'
+    if not path.exists(report_file_path):
+        makedirs(report_file_path)
 
     fh_mod_report = dict()
     for mod in mods:
         resource_not_found[mod] = dict()
         # cross_reference_types[mod] = set()
         cross_reference_types[mod] = dict()
-        filename = base_path + 'report_files/' + mod
+        filename = report_file_path + mod
         fh_mod_report.setdefault(mod, open(filename, 'w'))
 
     multi_report_filename = base_path + 'report_files/multi_mod'
@@ -558,7 +564,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                 if 'resourceAbbreviation' in entry:
                     # journal = entry['resourceAbbreviation'].lower()
                     # if journal not in resource_to_nlm:
-                    journal_simplified = simplify_text_keep_digits_hyphen(entry['resourceAbbreviation'])
+                    journal_simplified = simplify_text_keep_digits(entry['resourceAbbreviation'])
                     if journal_simplified != '':
                         # logger.info("CHECK mod %s journal_simplified %s", mod, journal_simplified)
                         # highest priority to mod resources from dqm resource file with an issn in crossReferences that maps to a single nlm
@@ -658,7 +664,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                         if nlm in resource_nlm_to_title:
                             # logger.info("PMID %s has NLM %s setting to title %s", pmid, nlm, resource_nlm_to_title[nlm])
                             entry['resourceAbbreviation'] = resource_nlm_to_title[nlm]
-                        nlm_simplified = simplify_text_keep_digits_hyphen(pubmed_data['nlm'])
+                        nlm_simplified = simplify_text_keep_digits(pubmed_data['nlm'])
                         if nlm_simplified not in resource_to_nlm:
                             fh_mod_report[mod].write("NLM value %s from PMID %s XML does not map to a proper resource.\n" % (pubmed_data['nlm'], pmid))
                     else:
