@@ -44,5 +44,28 @@ archive with tar cf and upload archive + index to s3
   aws s3 cp 20210426_07.txt s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/pubmed_tgz_20210426_07.txt
   rm pubmed_tgz_20210426_07.tar.gz
 
+  tar czf pubmed_tgz_20210426_08.tar.gz pubmed_tgz_20210426_08
+  aws s3 cp pubmed_tgz_20210426_08.tar.gz s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/
+  aws s3 cp 20210426_08.txt s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/pubmed_tgz_20210426_08.txt
+  rm pubmed_tgz_20210426_08.tar.gz
 
+  tar czf pubmed_tgz_20210426_09.tar.gz pubmed_tgz_20210426_09
+  aws s3 cp pubmed_tgz_20210426_09.tar.gz s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/
+  aws s3 cp 20210426_09.txt s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/pubmed_tgz_20210426_09.txt
+  rm pubmed_tgz_20210426_09.tar.gz
+
+  tar czf pubmed_tgz_20210426_10.tar.gz pubmed_tgz_20210426_10
+  aws s3 cp pubmed_tgz_20210426_10.tar.gz s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/
+  aws s3 cp 20210426_10.txt s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/pubmed_tgz_20210426_10.txt
+  rm pubmed_tgz_20210426_10.tar.gz
+
+  tar czf pubmed_tgz_20210426_11.tar.gz pubmed_tgz_20210426_11
+  aws s3 cp pubmed_tgz_20210426_11.tar.gz s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/
+  aws s3 cp 20210426_11.txt s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/pubmed_tgz_20210426_11.txt
+  rm pubmed_tgz_20210426_11.tar.gz
+
+  tar czf pubmed_tgz_20210426_12.tar.gz pubmed_tgz_20210426_12
+  aws s3 cp pubmed_tgz_20210426_12.tar.gz s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/
+  aws s3 cp 20210426_12.txt s3://agr-literature/develop/reference/documents/pubmed/tarball_chunks/pubmed_tgz_20210426_12.txt
+  rm pubmed_tgz_20210426_12.tar.gz
 
