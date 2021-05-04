@@ -53,6 +53,8 @@ def expand_tgz(tgz_file, expand_dir):
     this_tarfile.close()
     dir_list = listdir(temp_expand_dir)
     dir_to_move = temp_expand_dir + dir_list[0]
+    if len(dir_list) > 1:
+        logger.info("WARNING %s has %s directories", tgz_file, len(dir_list))
     rename(dir_to_move, expand_dir)
 
 
@@ -96,7 +98,7 @@ def upload_file_to_s3(filepath, bucketname, s3_file_location):
 
 
 def process_tgz():
-    date_file = '20210426_01'
+    date_file = '20210426_02'
     list_file = process_path + date_file + '.txt'
     count = 0
     md5_summary = ''
@@ -104,13 +106,16 @@ def process_tgz():
         line = list_fh.readline()
         while line:
             count += 1
+            # if count > 3:
             if count > 333333:
                 break
             tabs_split = line.split("\t")
             pmid = tabs_split[0]
             tgz_file = process_path + 'pubmed_tgz_' + date_file + '/' + pmid + '.tar.gz'
             expand_dir = process_path + 'expand_tgz/' + pmid
-            expand_tgz(tgz_file, expand_dir)
+            # if this script has not already run on this pmid, expand the tar gz file into a directory for the pmid
+            if not path.exists(expand_dir):
+                expand_tgz(tgz_file, expand_dir)
             copy2(tgz_file, expand_dir)
             md5_info = generate_md5sum(expand_dir, pmid)
             md5_summary += md5_info
@@ -118,10 +123,13 @@ def process_tgz():
             logger.info("pmid %s", pmid)
             line = list_fh.readline()
         list_fh.close()
-    output_md5file = process_path + '/md5sum_' + date_file
+    summary_md5file_filename = date_file + '_md5sum.txt'
+    output_md5file = process_path + '/' + summary_md5file_filename
     with open(output_md5file, "w") as output_fh:
         output_fh.write(md5_summary)
         output_fh.close()
+    s3_file_location = 'develop/reference/documents/pubmed/tarball_chunks/pubmed_tgz_' + summary_md5file_filename
+    upload_file_to_s3(output_md5file, 'agr-literature', s3_file_location)
 
 
 if __name__ == "__main__":
