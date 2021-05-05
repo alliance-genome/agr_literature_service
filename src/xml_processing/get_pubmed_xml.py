@@ -1,4 +1,3 @@
-
 import time
 import urllib
 import argparse
@@ -11,15 +10,18 @@ from os import environ, path
 import logging
 import logging.config
 import glob
+import hashlib
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
 
-# python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
-# python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
-# python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/wormbase_pmids
+# pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
+# pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
+# pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/wormbase_pmids
+
+# pipenv run python get_pubmed_xml.py -u "http://tazendra.caltech.edu/~azurebrd/cgi-bin/forms/generic.cgi?action=ListPmids"
 
 # 1 hour 42 minutes to copy 646721 xml files / 12 G / 12466408 to s3 with
 #  aws s3 cp pubmed_xml/ s3://agr-literature/develop/reference/metadata/pubmed/xml/ --recursive
@@ -88,6 +90,16 @@ def download_pubmed_xml(pmids_wanted):
 
     logger.info("Starting download of new PubMed XML")
 
+    md5dict = {}
+    md5file = storage_path + 'md5sum'
+    if path.exists(md5file):
+        logger.info("Reading previous md5sum mappings from %s", md5file)
+        with open(md5file, "r") as md5file_fh:
+            for line in md5file_fh:
+                line_data = line.split("\t")
+                if line_data[0]:
+                    md5dict[line_data[0]] = line_data[1].rstrip()
+
     for index in range(0, len(pmids_wanted), pmids_slice_size):
         pmids_slice = pmids_wanted[index:index + pmids_slice_size]
         pmids_joined = (',').join(pmids_slice)
@@ -129,10 +141,20 @@ def download_pubmed_xml(pmids_wanted):
                 f = open(filename, "w")
                 f.write(xml)
                 f.close()
+                md5sum = hashlib.md5(xml.encode('utf-8')).hexdigest()
+                md5dict[pmid] = md5sum
+                # md5data += pmid + "\t" + md5sum + "\n"
 
         if len(pmids_slice) == pmids_slice_size:
             logger.info("waiting to process more pmids")
             time.sleep(5)
+
+    # md5file = storage_path + 'md5sum'
+    logger.info("Writing md5sum mappings to %s", md5file)
+    with open(md5file, "w") as md5file_fh:
+        # md5file_fh.write(md5data)
+        for key in sorted(md5dict.keys(), key=int):
+            md5file_fh.write("%s\t%s\n" % (key, md5dict[key]))
 
     logger.info("Writing log of pmids_not_found")
     output_pmids_not_found_file = base_path + 'pmids_not_found'
@@ -181,11 +203,11 @@ if __name__ == "__main__":
 #     python get_pubmed_xml.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
     elif args['url']:
         logger.info("Processing url input from %s", args['url'])
-        req = urllib.urlopen(args['url'])
+        req = urllib.request.urlopen(args['url'])
         data = req.read()
         lines = data.splitlines()
         for pmid in lines:
-            pmids_wanted.append(pmid)
+            pmids_wanted.append(str(int(pmid)))
 
 #    python get_pubmed_xml.py -c 1234 4576 1828
     elif args['commandline']:

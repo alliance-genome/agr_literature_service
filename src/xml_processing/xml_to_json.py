@@ -1,12 +1,27 @@
 import json
-import urllib
+import urllib.request
 # import xmltodict
+
+import argparse
+import re
+
+from os import environ, path
+import logging
+import logging.config
+import hashlib
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 # pipenv run python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 #
 # 22 minutes on dev.wormbase for 646727 documents from filesystem. 12G of xml to 6.0G of json
 # 1 hour 55 minutes on agr-literature-dev for 649074 documents from filesystem.  15G of xml to 8.0G of json
+
+# pipenv run python xml_to_json.py -u "http://tazendra.caltech.edu/~azurebrd/cgi-bin/forms/generic.cgi?action=ListPmids"
+
 
 # not using author firstinit, nlm, issn
 
@@ -28,20 +43,7 @@ import urllib
 # https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt
 
 
-import argparse
-import re
-
-from os import environ, path
-import logging
-import logging.config
-
-from dotenv import load_dotenv
-
-load_dotenv()
-
-
 # Need to set up a queue that queries postgres to get a list of pubmed id that don't have a pubmed final flag
-# Need to set up an S3 bucket to store xml
 # Need to set up flags to take in pmids from postgres queue, file in filesystem, file in URL, list from command line
 
 # to get set of pmids with search term 'elegans'
@@ -144,13 +146,18 @@ def get_medline_date_from_xml_date(pub_date):
 
 def generate_json():
     # open input xml file and read data in form of python dictionary using xmltodict module
+    md5data = ''
+    # storage_path = base_path + 'pubmed_xml_20210322/'
+    # json_storage_path = base_path + 'pubmed_json_20210322/'
+    storage_path = base_path + 'pubmed_xml/'
+    json_storage_path = base_path + 'pubmed_json/'
     for pmid in pmids:
-        storage_path = base_path + 'pubmed_xml/'
         filename = storage_path + pmid + '.xml'
         # if getting pmids from directories split into multiple sub-subdirectories
         # filename = get_path_from_pmid(pmid, 'xml')
         if not path.exists(filename):
             continue
+        # logger.info("processing %s", filename)
         with open(filename) as xml_file:
 
             xml = xml_file.read()
@@ -503,13 +510,19 @@ def generate_json():
 
             # Write the json data to output json file
 # UNCOMMENT TO write to json directory
-            json_storage_path = base_path + 'pubmed_json/'
             json_filename = json_storage_path + pmid + '.json'
             # if getting pmids from directories split into multiple sub-subdirectories
             # json_filename = get_path_from_pmid(pmid, 'json')
             with open(json_filename, "w") as json_file:
                 json_file.write(json_data)
                 json_file.close()
+            md5sum = hashlib.md5(json_data.encode('utf-8')).hexdigest()
+            md5data += pmid + "\t" + md5sum + "\n"
+
+    md5file = json_storage_path + 'md5sum'
+    logger.info("Writing md5sum mappings to %s", md5file)
+    with open(md5file, "w") as md5file_fh:
+        md5file_fh.write(md5data)
 
     for unknown_article_id_type in unknown_article_id_types:
         logger.info("unknown_article_id_type %s", unknown_article_id_type)
@@ -537,11 +550,11 @@ if __name__ == "__main__":
 #     python xml_to_json.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
     elif args['url']:
         logger.info("Processing url input from %s", args['url'])
-        req = urllib.urlopen(args['url'])
+        req = urllib.request.urlopen(args['url'])
         data = req.read()
         lines = data.splitlines()
         for pmid in lines:
-            pmids.append(pmid)
+            pmids.append(str(int(pmid)))
 
 #    python xml_to_json.py -c 1234 4576 1828
     elif args['commandline']:
