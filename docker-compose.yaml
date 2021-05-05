@@ -75,19 +75,19 @@ services:
     networks:
       - agr-literature
 
-  agr_literature:
-    container_name: agr-literature-app
-    restart: always
-    image: ${REG}/agr_literature_app:latest
-    ports:
-      - 49160:8080
-    networks:
-      - agr-literature
-    depends_on:
-      - postgres
-      - redis
-      - elasticsearch
-
+#  agr_literature:
+#    container_name: agr-literature-app
+#    restart: always
+#    image: ${REG}/agr_literature_app:latest
+#    ports:
+#      - 49160:8080
+#    networks:
+#      - agr-literature
+#    depends_on:
+#      - postgres
+#      - redis
+#      - elasticsearch
+#
 
 volumes:
   agr-literature-pg-data:
