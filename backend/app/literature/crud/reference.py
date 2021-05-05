@@ -2,13 +2,15 @@ import sqlalchemy
 from sqlalchemy.orm import Session
 from datetime import datetime
 
+from fastapi import HTTPException
+from fastapi import status
+from fastapi.encoders import jsonable_encoder
+from fastapi_sqlalchemy import db
+
 from literature import schemas
 from literature.models import Reference
 from literature.models import Resource
 from literature.models import Author
-
-from fastapi import HTTPException, status
-from fastapi.encoders import jsonable_encoder
 
 
 def create_next_curie(curie):
@@ -17,15 +19,16 @@ def create_next_curie(curie):
     number = int(number_part) + 1
     return "-".join([curie_parts[0], str(number).rjust(10, '0')])
 
-def get_all(db: Session):
-    references = db.query(Reference).all()
+
+def get_all():
+    references = db.session.query(Reference).all()
     return references
 
 
-def create(reference: schemas.ReferenceSchemaPost, db: Session):
+def create(reference: schemas.ReferenceSchemaPost):
     reference_data = {} # jsonable_encoder(reference)
 
-    last_curie = db.query(Reference.curie).order_by(sqlalchemy.desc(Reference.curie)).first()
+    last_curie = db.session.query(Reference.curie).order_by(sqlalchemy.desc(Reference.curie)).first()
 
     if last_curie == None:
         last_curie = 'AGR:AGR-Reference-0000000000'
@@ -41,7 +44,7 @@ def create(reference: schemas.ReferenceSchemaPost, db: Session):
             for author in value:
                 author_data = jsonable_encoder(author)
                 author_db_obj = Author(**author_data)
-                db.add(author_db_obj)
+                db.session.add(author_db_obj)
                 authors.append(author_db_obj)
             reference_data['authors'] = authors
         else:
@@ -49,33 +52,33 @@ def create(reference: schemas.ReferenceSchemaPost, db: Session):
 
     if 'resource' in reference_data:
         resource_curie = reference_data['resource']
-        resource = db.query(Resource).filter(Resource.curie == resource_curie).first()
+        resource = db.session.query(Resource).filter(Resource.curie == resource_curie).first()
         if not resource:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"Resource with curie {resource_curie} does not exist")
         reference_data['resource'] = resource
 
     reference_db_obj = Reference(**reference_data)
-    db.add(reference_db_obj)
-    db.commit()
+    db.session.add(reference_db_obj)
+    db.session.commit()
 
-    return db.query(Reference).filter(Reference.curie == curie).first()
+    return db.session.query(Reference).filter(Reference.curie == curie).first()
 
 
-def destroy(curie: str, db: Session):
-    reference = db.query(Reference).filter(Reference.curie == curie).first()
+def destroy(curie: str):
+    reference = db.session.query(Reference).filter(Reference.curie == curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie {curie} not found")
-    db.delete(reference)
-    db.commit()
+    db.session.delete(reference)
+    db.session.commit()
 
     return None
 
 
-def update(curie: str, updated_reference: schemas.ReferenceSchemaUpdate, db: Session):
+def update(curie: str, updated_reference: schemas.ReferenceSchemaUpdate):
 
-    reference_db_obj = db.query(Reference).filter(Reference.curie == curie).first()
+    reference_db_obj = db.session.query(Reference).filter(Reference.curie == curie).first()
     if not reference_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie {curie} not found")
@@ -83,7 +86,7 @@ def update(curie: str, updated_reference: schemas.ReferenceSchemaUpdate, db: Ses
     for field, value in vars(updated_reference).items():
         if field == "resource":
           resource_curie = value
-          resource = db.query(Resource).filter(Resource.curie == resource_curie).first()
+          resource = db.session.query(Resource).filter(Resource.curie == resource_curie).first()
           if not resource:
               raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                   detail=f"Resource with curie {resource_curie} does not exist")
@@ -94,21 +97,22 @@ def update(curie: str, updated_reference: schemas.ReferenceSchemaUpdate, db: Ses
             setattr(reference_db_obj, field, value)
 
     reference_db_obj.dateUpdated = datetime.utcnow()
-    db.commit()
+    db.session.commit()
 
-    return db.query(Reference).filter(Reference.curie == curie).first()
+    return db.session.query(Reference).filter(Reference.curie == curie).first()
 
 
-def show(curie: str, db: Session):
-    reference = db.query(Reference).filter(Reference.curie == curie).first()
+def show(curie: str):
+    reference = db.session.query(Reference).filter(Reference.curie == curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the id {curie} is not available")
 
     return reference
 
-def show_changesets(curie: str, db: Session):
-    reference = db.query(Reference).filter(Reference.curie == curie).first()
+
+def show_changesets(curie: str):
+    reference = db.session.query(Reference).filter(Reference.curie == curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the id {curie} is not available")

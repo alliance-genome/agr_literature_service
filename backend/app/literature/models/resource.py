@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Column, ForeignKey, Integer, String, DateTime
 from sqlalchemy.orm import relationship
 
-from literature.database import Base
+from literature.database.main import Base
 
 if TYPE_CHECKING:
     from .user import User  # noqa: F401

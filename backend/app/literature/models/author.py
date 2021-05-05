@@ -13,7 +13,7 @@ from sqlalchemy import ARRAY
 from sqlalchemy.orm import relationship
 #from sqlalchemy_continuum import make_versioned
 
-from literature.database import Base
+from literature.database.main import Base
 
 if TYPE_CHECKING:
     from .user import User  # noqa: F401

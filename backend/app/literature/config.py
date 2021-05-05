@@ -31,7 +31,6 @@ class GlobalConfig(BaseSettings):
 
         env_file: str = ".env"
 
-
 class DevConfig(GlobalConfig):
     """Development configurations."""
 

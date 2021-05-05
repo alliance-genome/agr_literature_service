@@ -2,11 +2,13 @@ import sqlalchemy
 from sqlalchemy.orm import Session
 from datetime import datetime
 
+from fastapi import HTTPException, status
+from fastapi.encoders import jsonable_encoder
+from fastapi_sqlalchemy import db
+
 from literature import schemas
 from literature.models import Reference
 from literature.models import Resource
-from fastapi import HTTPException, status
-from fastapi.encoders import jsonable_encoder
 
 
 def create_next_curie(curie):
@@ -15,15 +17,15 @@ def create_next_curie(curie):
     number = int(number_part) + 1
     return "-".join([curie_parts[0], str(number).rjust(10, '0')])
 
-def get_all(db: Session):
-    resources = db.query(Resource).all()
+def get_all():
+    resources = db.session.query(Resource).all()
     return resources
 
 
-def create(resource: schemas.ResourceSchemaPost, db: Session):
+def create(resource: schemas.ResourceSchemaPost):
     resource_data = jsonable_encoder(resource)
 
-    last_curie = db.query(Resource.curie).order_by(sqlalchemy.desc(Resource.curie)).first()
+    last_curie = db.session.query(Resource.curie).order_by(sqlalchemy.desc(Resource.curie)).first()
 
     if last_curie == None:
         last_curie = 'AGR:AGR-Resource-0000000000'
@@ -33,27 +35,27 @@ def create(resource: schemas.ResourceSchemaPost, db: Session):
     curie = create_next_curie(last_curie)
     resource_data['curie'] = curie
     resource_db_obj = Resource(**resource_data)
-    db.add(resource_db_obj)
-    db.commit()
+    db.session.add(resource_db_obj)
+    db.session.commit()
 
-    return db.query(Resource).filter(Resource.curie == curie).first()
+    return db.session.query(Resource).filter(Resource.curie == curie).first()
 
 
-def destroy(curie: str, db: Session):
-    resource = db.query(Resource).filter(Resource.curie == curie).first()
+def destroy(curie: str):
+    resource = db.session.query(Resource).filter(Resource.curie == curie).first()
 
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Resource with curie {curie} not found")
-    db.delete(resource)
-    db.commit()
+    db.session.delete(resource)
+    db.session.commit()
 
     return None
 
 
-def update(curie: str, updated_resource: schemas.ResourceSchemaPost, db: Session):
+def update(curie: str, updated_resource: schemas.ResourceSchemaPost):
 
-    resource_db_obj = db.query(Resource).filter(Resource.curie == curie).first()
+    resource_db_obj = db.session.query(Resource).filter(Resource.curie == curie).first()
     if not resource_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Resource with curie {curie} not found")
@@ -62,21 +64,21 @@ def update(curie: str, updated_resource: schemas.ResourceSchemaPost, db: Session
         setattr(resource_db_obj, field, value)
 
     resource_db_obj.dateUpdated = datetime.utcnow()
-    db.commit()
+    db.session.commit()
 
-    return db.query(Resource).filter(Resource.curie == curie).first()
+    return db.session.query(Resource).filter(Resource.curie == curie).first()
 
 
-def show(curie: str, db: Session):
-    resource = db.query(Resource).filter(Resource.curie == curie).first()
+def show(curie: str):
+    resource = db.session.query(Resource).filter(Resource.curie == curie).first()
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Resource with the id {curie} is not available")
 
     return resource
 
-def show_changesets(curie: str, db: Session):
-    resource = db.query(Resource).filter(Resource.curie == curie).first()
+def show_changesets(curie: str):
+    resource = db.session.query(Resource).filter(Resource.curie == curie).first()
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Resource with the id {curie} is not available")

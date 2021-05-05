@@ -15,7 +15,7 @@ class BaseModelShow(BaseModel):
 
 
 class AuthorSchemaPost(BaseModel):
-    order: Optional[str] = None
+    order: Optional[int] = None
     name: Optional[str]  = None
     firstName: Optional[str] = None
     lastName: Optional[str] = None

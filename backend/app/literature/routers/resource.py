@@ -12,7 +12,6 @@ from fastapi_auth0 import Auth0User
 from sqlalchemy.orm import Session
 
 from literature import schemas
-from literature import database
 from literature.crud import resource
 from literature.routers.authentication import auth
 
@@ -21,17 +20,14 @@ router = APIRouter(
     tags=['Resource']
 )
 
-get_db = database.get_db
-
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(auth.implicit_scheme)],
              response_model=schemas.ResourceSchemaShow)
 def create(request: schemas.ResourceSchemaPost,
-           db: Session = Depends(get_db),
            user: Auth0User = Security(auth.get_user)):
-    return resource.create(request, db)
+    return resource.create(request)
 
 
 
@@ -39,9 +35,8 @@ def create(request: schemas.ResourceSchemaPost,
                dependencies=[Depends(auth.implicit_scheme)],
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(curie: str,
-            db: Session = Depends(get_db),
             user: Auth0User = Security(auth.get_user)):
-    resource.destroy(curie, db)
+    resource.destroy(curie)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -51,26 +46,24 @@ def destroy(curie: str,
             response_model=schemas.ResourceSchemaShow)
 def update(curie: str,
            request: schemas.ResourceSchemaPost,
-           db: Session = Depends(get_db),
            user: Auth0User = Security(auth.get_user)):
-    return resource.update(curie, request, db)
+    return resource.update(curie, request)
 
 
 @router.get('/',
             response_model=List[schemas.ResourceSchemaShow])
-def all(db: Session = Depends(get_db)):
-    return resource.get_all(db)
+def all():
+    return resource.get_all()
 
 
 @router.get('/{curie}',
             status_code=200,
             response_model=schemas.ResourceSchemaShow)
-def show(curie: str, db: Session = Depends(get_db)):
-    return resource.show(curie, db)
+def show(curie: str):
+    return resource.show(curie)
 
 
 @router.get('/{curie}/versions',
             status_code=200)
-def show(curie: str,
-         db: Session = Depends(get_db)):
-    return resource.show_changesets(curie, db)
+def show(curie: str):
+    return resource.show_changesets(curie)
