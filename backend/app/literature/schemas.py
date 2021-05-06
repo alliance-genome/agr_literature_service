@@ -16,10 +16,13 @@ class BaseModelShow(BaseModel):
 
 class AuthorSchemaPost(BaseModel):
     order: Optional[int] = None
+
     name: Optional[str]  = None
     firstName: Optional[str] = None
-    lastName: Optional[str] = None
     middleNames: Optional[List[str]] = None
+    lastName: Optional[str] = None
+
+    correspondingAuthor: Optional[bool] = None
 
     class Config():
         orm_mode = True
@@ -33,6 +36,60 @@ class AuthorSchemaShow(AuthorSchemaPost):
         orm_mode = True
         extra = "forbid"
 
+class AuthorSchemaCreate(AuthorSchemaPost):
+    reference_curie: Optional[str] = None
+    resource_curie: Optional[str] = None
+
+    class Config():
+        orm_mode = True
+        extra = "forbid"
+
+
+class AuthorSchemaUpdate(AuthorSchemaShow):
+    reference_curie: Optional[str] = None
+    resource_curie: Optional[str] = None
+
+    class Config():
+        orm_mode = True
+        extra = "forbid"
+
+
+class EditorSchemaPost(BaseModel):
+    order: Optional[int] = None
+
+    name: Optional[str]  = None
+    firstName: Optional[str] = None
+    middleNames: Optional[List[str]] = None
+    lastName: Optional[str] = None
+
+    class Config():
+        orm_mode = True
+        extra = "forbid"
+
+
+class EditorSchemaShow(EditorSchemaPost):
+    editor_id: int
+
+    class Config():
+        orm_mode = True
+        extra = "forbid"
+
+class EditorSchemaCreate(EditorSchemaPost):
+    reference_curie: Optional[str] = None
+    resource_curie: Optional[str] = None
+
+    class Config():
+        orm_mode = True
+        extra = "forbid"
+
+
+class EditorSchemaUpdate(EditorSchemaShow):
+    reference_curie: Optional[str] = None
+    resource_curie: Optional[str] = None
+
+    class Config():
+        orm_mode = True
+
 
 class ResourceSchemaPost(BaseModel):
     title: Optional[str] = None
@@ -45,6 +102,8 @@ class ResourceSchemaPost(BaseModel):
     pages: Optional[int] = None
     abstract: Optional[str] = None
     summary: Optional[str] = None
+    authors: Optional[List[AuthorSchemaPost]] = None
+    editors: Optional[List[EditorSchemaPost]] = None
 
     class Config():
         orm_mode = True
@@ -63,6 +122,8 @@ class ResourceSchemaShow(BaseModelShow):
     pages: Optional[int] = None
     abstract: Optional[str] = None
     summary: Optional[str] = None
+    authors: Optional[List[AuthorSchemaShow]] = None
+    editors: Optional[List[EditorSchemaShow]] = None
 
     class Config():
         orm_mode = True
@@ -83,6 +144,7 @@ class ReferenceSchemaPost(BaseModel):
     issueDate: Optional[str] = None
     resourceAbbreviation: Optional[str] = None
     authors: Optional[List[AuthorSchemaPost]] = None
+    editors: Optional[List[EditorSchemaPost]] = None
     resource: Optional[str] = None
 
     class Config():
@@ -125,6 +187,7 @@ class ReferenceSchemaShow(BaseModelShow):
     issueDate: Optional[str] = None
     resource: Optional[ResourceSchemaShow] = None
     authors: Optional[List[AuthorSchemaShow]] = None
+    editors: Optional[List[EditorSchemaShow]] = None
 
     class Config():
         orm_mode = True

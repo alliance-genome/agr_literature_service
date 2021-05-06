@@ -11,6 +11,7 @@ from literature import schemas
 from literature.models import Reference
 from literature.models import Resource
 from literature.models import Author
+from literature.models import Editor
 
 
 def create_next_curie(curie):
@@ -26,7 +27,7 @@ def get_all():
 
 
 def create(reference: schemas.ReferenceSchemaPost):
-    reference_data = {} # jsonable_encoder(reference)
+    reference_data = {}
 
     last_curie = db.session.query(Reference.curie).order_by(sqlalchemy.desc(Reference.curie)).first()
 
@@ -39,14 +40,18 @@ def create(reference: schemas.ReferenceSchemaPost):
     reference_data['curie'] = curie
 
     for field, value in vars(reference).items():
-        if field == 'authors':
-            authors = []
-            for author in value:
-                author_data = jsonable_encoder(author)
-                author_db_obj = Author(**author_data)
-                db.session.add(author_db_obj)
-                authors.append(author_db_obj)
-            reference_data['authors'] = authors
+        if field in ['authors', 'editors']:
+            db_objs = []
+            for obj in value:
+                obj_data = jsonable_encoder(obj)
+                db_obj = None
+                if field == 'authors':
+                    db_obj = Author(**obj_data)
+                elif field == 'editors':
+                    db_obj = Editor(**obj_data)
+                db.session.add(db_obj)
+                db_objs.append(db_obj)
+            reference_data[field] = db_objs
         else:
             reference_data[field] = value
 
@@ -76,14 +81,14 @@ def destroy(curie: str):
     return None
 
 
-def update(curie: str, updated_reference: schemas.ReferenceSchemaUpdate):
+def update(curie: str, reference_update: schemas.ReferenceSchemaUpdate):
 
     reference_db_obj = db.session.query(Reference).filter(Reference.curie == curie).first()
     if not reference_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie {curie} not found")
 
-    for field, value in vars(updated_reference).items():
+    for field, value in vars(reference_update).items():
         if field == "resource":
           resource_curie = value
           resource = db.session.query(Resource).filter(Resource.curie == resource_curie).first()

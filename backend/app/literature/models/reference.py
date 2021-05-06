@@ -59,6 +59,12 @@ class Reference(Base):
         cascade="all, delete, delete-orphan"
     )
 
+    editors = relationship(
+        'Editor',
+        back_populates='reference',
+        cascade="all, delete, delete-orphan"
+    )
+
     datePublished = Column(
         String(255),
         unique=False,

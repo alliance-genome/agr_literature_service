@@ -7,11 +7,11 @@ from sqlalchemy import Column
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
 from sqlalchemy import String
+from sqlalchemy import Boolean
 from sqlalchemy import DateTime
 from sqlalchemy import ARRAY
 
 from sqlalchemy.orm import relationship
-#from sqlalchemy_continuum import make_versioned
 
 from literature.database.main import Base
 
@@ -43,8 +43,24 @@ class Author(Base):
         back_populates="authors"
     )
 
+    resource_id = Column(
+        Integer,
+        ForeignKey('resources.resource_id',
+                   ondelete='CASCADE')
+    )
+
+    resource = relationship(
+        'Resource',
+        back_populates="authors"
+    )
+
     order = Column(
         Integer,
+        nullable=True
+    )
+
+    correspondingAuthor = Column(
+        Boolean(),
         nullable=True
     )
 
@@ -70,9 +86,6 @@ class Author(Base):
         unique=False,
         nullable=True
     )
-
- #   middleNames = relationship('ResourceMiddleName' , backref='resourceAuthor', lazy=True)
-    #crossreferences
 
     dateUpdated = Column(
         DateTime,

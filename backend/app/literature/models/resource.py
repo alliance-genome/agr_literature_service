@@ -78,9 +78,16 @@ class Resource(Base):
         nullable=True
     )
 
+    authors = relationship(
+        'Author',
+        back_populates='resource',
+        cascade="all, delete, delete-orphan"
+    )
+
     editors = relationship(
         'Editor',
         back_populates='resource',
+        cascade="all, delete, delete-orphan"
     )
 
 #    volumes = relationship('ResourceVolume' , backref='resource', lazy=True)

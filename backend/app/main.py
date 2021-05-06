@@ -9,6 +9,8 @@ from literature.database.main import engine
 
 from literature.routers import resource
 from literature.routers import reference
+from literature.routers import author
+from literature.routers import editor
 
 from literature.config import config
 from literature.database.config import SQLALCHEMY_DATABASE_URL
@@ -34,6 +36,8 @@ models.Base.metadata.create_all(engine)
 
 app.include_router(resource.router)
 app.include_router(reference.router)
+app.include_router(author.router)
+app.include_router(editor.router)
 
 app.openapi = custom_openapi
 

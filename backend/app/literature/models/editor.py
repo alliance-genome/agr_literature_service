@@ -3,9 +3,15 @@ import pytz
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, ForeignKey, Integer, String, DateTime
+from sqlalchemy import Column
+from sqlalchemy import ForeignKey
+from sqlalchemy import Integer
+from sqlalchemy import String
+from sqlalchemy import Boolean
+from sqlalchemy import DateTime
+from sqlalchemy import ARRAY
+
 from sqlalchemy.orm import relationship
-#from sqlalchemy_continuum import make_versioned
 
 from literature.database.main import Base
 
@@ -18,7 +24,7 @@ from enum import Enum
 
 class Editor(Base):
     __tablename__ = 'editors'
- #   __versioned__ = {}
+    __versioned__ = {}
 
     editor_id = Column(
         Integer,
@@ -26,14 +32,25 @@ class Editor(Base):
         autoincrement=True
     )
 
+    reference_id = Column(
+         Integer,
+         ForeignKey('references.reference_id',
+                    ondelete='CASCADE')
+    )
+
+    reference = relationship(
+        'Reference',
+        back_populates="editors"
+    )
+
     resource_id = Column(
         Integer,
-        ForeignKey('resources.resource_id')
+        ForeignKey('resources.resource_id',
+                   ondelete='CASCADE')
     )
 
     resource = relationship(
         'Resource',
-        uselist=False,
         back_populates="editors"
     )
 
@@ -54,14 +71,16 @@ class Editor(Base):
         nullable=True
     )
 
-    lastName = Column(
-        String(), 
-        unique=False,
+    middleNames = Column(
+        ARRAY(String()),
         nullable=True
     )
 
- #   middleNames = relationship('ResourceMiddleName' , backref='resourceAuthor', lazy=True)
-    #crossreferences
+    lastName = Column(
+        String(),
+        unique=False,
+        nullable=True
+    )
 
     dateUpdated = Column(
         DateTime,
