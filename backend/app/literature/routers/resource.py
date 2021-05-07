@@ -3,17 +3,17 @@ from typing import List
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import status
-from fastapi import HTTPException
 from fastapi import Response
 from fastapi import Security
 
 from fastapi_auth0 import Auth0User
 
-from sqlalchemy.orm import Session
+from literature.schemas import ResourceSchemaShow
+from literature.schemas import ResourceSchemaPost
 
-from literature import schemas
 from literature.crud import resource
 from literature.routers.authentication import auth
+
 
 router = APIRouter(
     prefix="/resource",
@@ -24,8 +24,8 @@ router = APIRouter(
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(auth.implicit_scheme)],
-             response_model=schemas.ResourceSchemaShow)
-def create(request: schemas.ResourceSchemaPost,
+             response_model=ResourceSchemaShow)
+def create(request: ResourceSchemaPost,
            user: Auth0User = Security(auth.get_user)):
     return resource.create(request)
 
@@ -43,22 +43,22 @@ def destroy(curie: str,
 @router.put('/{curie}',
             status_code=status.HTTP_202_ACCEPTED,
             dependencies=[Depends(auth.implicit_scheme)],
-            response_model=schemas.ResourceSchemaShow)
+            response_model=ResourceSchemaShow)
 def update(curie: str,
-           request: schemas.ResourceSchemaPost,
+           request: ResourceSchemaPost,
            user: Auth0User = Security(auth.get_user)):
     return resource.update(curie, request)
 
 
 @router.get('/',
-            response_model=List[schemas.ResourceSchemaShow])
+            response_model=List[ResourceSchemaShow])
 def all():
     return resource.get_all()
 
 
 @router.get('/{curie}',
             status_code=200,
-            response_model=schemas.ResourceSchemaShow)
+            response_model=ResourceSchemaShow)
 def show(curie: str):
     return resource.show(curie)
 

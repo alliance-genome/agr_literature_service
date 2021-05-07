@@ -3,15 +3,15 @@ from typing import List
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import status
-from fastapi import HTTPException
 from fastapi import Response
 from fastapi import Security
 
 from fastapi_auth0 import Auth0User
 
-from sqlalchemy.orm import Session
+from literature.schemas import AuthorSchemaShow
+from literature.schemas import AuthorSchemaUpdate
+from literature.schemas import AuthorSchemaCreate
 
-from literature import schemas
 from literature.crud import author
 from literature.routers.authentication import auth
 
@@ -23,9 +23,9 @@ router = APIRouter(
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=schemas.AuthorSchemaShow,
+             response_model=AuthorSchemaShow,
              dependencies=[Depends(auth.implicit_scheme)])
-def create(request: schemas.AuthorSchemaCreate,
+def create(request: AuthorSchemaCreate,
            user: Auth0User = Security(auth.get_user)):
     return author.create(request)
 
@@ -41,10 +41,10 @@ def destroy(author_id: int,
 
 @router.put('/{author_id}',
             status_code=status.HTTP_202_ACCEPTED,
-            response_model=schemas.AuthorSchemaShow,
+            response_model=AuthorSchemaShow,
             dependencies=[Depends(auth.implicit_scheme)])
 def update(author_id: int,
-           request: schemas.AuthorSchemaUpdate,
+           request: AuthorSchemaUpdate,
            user: Auth0User = Security(auth.get_user)):
     return author.update(author_id, request)
 

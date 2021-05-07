@@ -7,14 +7,16 @@ from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from fastapi_sqlalchemy import db
 
-from literature import schemas
+from literature.schemas import AuthorSchemaPost
+from literature.schemas import AuthorSchemaUpdate
+
 from literature.models import Reference
 from literature.models import Resource
 from literature.models import Author
 
 
 
-def create(author: schemas.ReferenceSchemaPost):
+def create(author: AuthorSchemaPost):
     author_data = jsonable_encoder(author)
 
     if 'resource_curie' in author_data:
@@ -62,7 +64,7 @@ def destroy(author_id: int):
     return None
 
 
-def update(author_id: int, author_update: schemas.ReferenceSchemaUpdate):
+def update(author_id: int, author_update: AuthorSchemaUpdate):
 
     author_db_obj = db.session.query(Author).filter(Author.author_id == author_id).first()
     if not author_db_obj:

@@ -7,7 +7,10 @@ from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from fastapi_sqlalchemy import db
 
-from literature import schemas
+from literature.schemas import ReferenceSchemaPost
+from literature.schemas import ReferenceSchemaUpdate
+
+
 from literature.models import Reference
 from literature.models import Resource
 from literature.models import Author
@@ -26,7 +29,7 @@ def get_all():
     return references
 
 
-def create(reference: schemas.ReferenceSchemaPost):
+def create(reference: ReferenceSchemaPost):
     reference_data = {}
 
     last_curie = db.session.query(Reference.curie).order_by(sqlalchemy.desc(Reference.curie)).first()
@@ -81,7 +84,7 @@ def destroy(curie: str):
     return None
 
 
-def update(curie: str, reference_update: schemas.ReferenceSchemaUpdate):
+def update(curie: str, reference_update: ReferenceSchemaUpdate):
 
     reference_db_obj = db.session.query(Reference).filter(Reference.curie == curie).first()
     if not reference_db_obj:

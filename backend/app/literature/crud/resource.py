@@ -1,12 +1,12 @@
 import sqlalchemy
-from sqlalchemy.orm import Session
 from datetime import datetime
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from fastapi_sqlalchemy import db
 
-from literature import schemas
+from literature.schemas import ResourceSchemaPost
+
 from literature.models import Reference
 from literature.models import Resource
 from literature.models import Author
@@ -24,7 +24,7 @@ def get_all():
     return resources
 
 
-def create(resource: schemas.ResourceSchemaPost):
+def create(resource: ResourceSchemaPost):
     resource_data = {}
 
     if db.session.query(Resource).filter(Resource.isoAbbreviation == resource.isoAbbreviation).first():
@@ -76,7 +76,7 @@ def destroy(curie: str):
     return None
 
 
-def update(curie: str, resource_update: schemas.ResourceSchemaPost):
+def update(curie: str, resource_update: ResourceSchemaPost):
 
     resource_db_obj = db.session.query(Resource).filter(Resource.curie == curie).first()
     if not resource_db_obj:
