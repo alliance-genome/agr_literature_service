@@ -1,8 +1,6 @@
 from datetime import datetime
 import pytz
 
-from typing import TYPE_CHECKING
-
 from sqlalchemy import Column
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
@@ -13,14 +11,8 @@ from sqlalchemy import ARRAY
 
 from sqlalchemy.orm import relationship
 
-from literature.database.main import Base
+from literature.database.base import Base
 
-if TYPE_CHECKING:
-    from .user import User  # noqa: F401
-
-#from references.schemas.allianceCategory import AllianceCategory
-
-from enum import Enum
 
 class Editor(Base):
     __tablename__ = 'editors'

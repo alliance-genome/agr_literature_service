@@ -9,7 +9,6 @@ from literature.models.reference import Reference
 from literature.models.resource import Resource
 from literature.models.author import Author
 from literature.models.editor import Editor
-
 from literature.models.user import User
 
 configure_mappers()

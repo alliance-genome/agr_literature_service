@@ -1,26 +1,22 @@
-from datetime import datetime
+from sqlalchemy import Column
+from sqlalchemy import String
 
-from typing import TYPE_CHECKING
-
-from sqlalchemy import Column, ForeignKey, Integer, String, DateTime
-from sqlalchemy.orm import relationship
-#from sqlalchemy_continuum import make_versioned
-
-from literature.database.main import Base
-
-if TYPE_CHECKING:
-    from .user import User  # noqa: F401
-
-#from references.schemas.allianceCategory import AllianceCategory
-
-from enum import Enum
+from literature.database.base import Base
+#import literature.database.main
+#print(literature.database.main.__file__)
+#print(dir(literature.database.main))
 
 class User(Base):
     __tablename__ = 'users'
 #    __versioned__ = {}
 
     id = Column(
-        Integer,
+        String,
         primary_key=True,
         index=True
+    )
+
+    email = Column(
+        String,
+        nullable=True
     )

@@ -1,19 +1,16 @@
 from datetime import datetime
 import pytz
 
-from typing import TYPE_CHECKING
+from sqlalchemy import Column
+from sqlalchemy import ForeignKey
+from sqlalchemy import Integer
+from sqlalchemy import String
+from sqlalchemy import DateTime
 
-from sqlalchemy import Column, ForeignKey, Integer, String, DateTime
 from sqlalchemy.orm import relationship
 
-from literature.database.main import Base
+from literature.database.base import Base
 
-if TYPE_CHECKING:
-    from .user import User  # noqa: F401
-
-#from references.schemas.allianceCategory import AllianceCategory
-
-from enum import Enum
 
 class Resource(Base):
     __versioned__ = {}

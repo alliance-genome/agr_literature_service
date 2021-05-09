@@ -8,6 +8,9 @@ from fastapi import Security
 
 from fastapi_auth0 import Auth0User
 
+from literature.user import set_global_user_id
+from literature.user import get_global_user_id
+
 from literature.schemas import ResourceSchemaShow
 from literature.schemas import ResourceSchemaPost
 
@@ -27,6 +30,9 @@ router = APIRouter(
              response_model=ResourceSchemaShow)
 def create(request: ResourceSchemaPost,
            user: Auth0User = Security(auth.get_user)):
+    print(user.id)
+    print(set_global_user_id(user.id))
+    print(get_global_user_id())
     return resource.create(request)
 
 
@@ -36,7 +42,8 @@ def create(request: ResourceSchemaPost,
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(curie: str,
             user: Auth0User = Security(auth.get_user)):
-    resource.destroy(curie)
+    print(user)
+ #   resource.destroy(curie)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

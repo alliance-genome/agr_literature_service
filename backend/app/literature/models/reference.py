@@ -1,16 +1,14 @@
 from datetime import datetime
 import pytz
 
-from typing import TYPE_CHECKING
-
-from sqlalchemy import Column, ForeignKey, Integer, String, DateTime
+from sqlalchemy import Column
+from sqlalchemy import ForeignKey
+from sqlalchemy import Integer
+from sqlalchemy import String
+from sqlalchemy import DateTime
 from sqlalchemy.orm import relationship
-#from sqlalchemy_continuum import make_versioned
 
-from literature.database.main import Base
-
-if TYPE_CHECKING:
-    from .user import User  # noqa: F401
+from literature.database.base import Base
 
 #from references.schemas.allianceCategory import AllianceCategory
 
