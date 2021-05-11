@@ -27,12 +27,11 @@ router = APIRouter(
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(auth.implicit_scheme)],
-             response_model=ResourceSchemaShow)
+             response_model=ResourceSchemaShow
+             )
 def create(request: ResourceSchemaPost,
            user: Auth0User = Security(auth.get_user)):
-    print(user.id)
-    print(set_global_user_id(user.id))
-    print(get_global_user_id())
+    set_global_user_id(user.id)
     return resource.create(request)
 
 
@@ -42,8 +41,7 @@ def create(request: ResourceSchemaPost,
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(curie: str,
             user: Auth0User = Security(auth.get_user)):
-    print(user)
- #   resource.destroy(curie)
+    resource.destroy(curie)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -65,7 +63,8 @@ def all():
 
 @router.get('/{curie}',
             status_code=200,
-            response_model=ResourceSchemaShow)
+            response_model=ResourceSchemaShow
+            )
 def show(curie: str):
     return resource.show(curie)
 

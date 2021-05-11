@@ -62,6 +62,18 @@ class Author(Base):
         nullable=True
     )
 
+    orcid = Column(
+        String(),
+        unique=True,
+        nullable=True
+    )
+
+    affiliation = Column(
+        ARRAY(String),
+        unique=False,
+        nullable=True
+    )
+
     firstName = Column(
         String(),
         unique=False,

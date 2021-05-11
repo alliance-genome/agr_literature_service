@@ -11,6 +11,7 @@ from literature.models import Reference
 from literature.models import Resource
 from literature.models import Author
 from literature.models import Editor
+from literature.models import CrossReference
 
 
 def create_next_curie(curie):
@@ -21,11 +22,23 @@ def create_next_curie(curie):
 
 def get_all():
     resources = db.session.query(Resource).all()
+
     return resources
 
 
 def create(resource: ResourceSchemaPost):
     resource_data = {}
+
+    for author in resource.authors:
+        author_obj = db.session.query(Author).filter(Author.orcid == author.orcid).first()
+        if author_obj:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                detail=f"Author with ORCID {author.orcid} already exists: author_id {author_obj.author_id}")
+
+    for cross_reference in resource.crossReferences:
+        if db.session.query(CrossReference).filter(CrossReference.curie == cross_reference.curie).first():
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                detail=f"CrossReference with curie {cross_reference.curie} already exists")
 
     if db.session.query(Resource).filter(Resource.isoAbbreviation == resource.isoAbbreviation).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
@@ -42,7 +55,7 @@ def create(resource: ResourceSchemaPost):
     resource_data['curie'] = curie
 
     for field, value in vars(resource).items():
-        if field in ['authors', 'editors']:
+        if field in ['authors', 'editors', 'crossReferences']:
             db_objs = []
             for obj in value:
                 obj_data = jsonable_encoder(obj)
@@ -51,6 +64,8 @@ def create(resource: ResourceSchemaPost):
                     db_obj = Author(**obj_data)
                 elif field == 'editors':
                     db_obj = Editor(**obj_data)
+                elif field == 'crossReferences':
+                    db_obj = CrossReference(**obj_data)
                 db.session.add(db_obj)
                 db_objs.append(db_obj)
             resource_data[field] = db_objs
@@ -106,6 +121,7 @@ def show(curie: str):
                             detail=f"Resource with the id {curie} is not available")
 
     return resource
+
 
 def show_changesets(curie: str):
     resource = db.session.query(Resource).filter(Resource.curie == curie).first()

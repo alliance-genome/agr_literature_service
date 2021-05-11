@@ -10,5 +10,8 @@ from literature.models.resource import Resource
 from literature.models.author import Author
 from literature.models.editor import Editor
 from literature.models.user import User
+from literature.models.cross_reference import CrossReference
+from literature.models.mod_reference_type import ModReferenceType
+
 
 configure_mappers()

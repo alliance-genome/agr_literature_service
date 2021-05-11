@@ -10,11 +10,12 @@ from fastapi_sqlalchemy import db
 from literature.schemas import ReferenceSchemaPost
 from literature.schemas import ReferenceSchemaUpdate
 
-
 from literature.models import Reference
 from literature.models import Resource
 from literature.models import Author
 from literature.models import Editor
+from literature.models import CrossReference
+from literature.models import ModReferenceType
 
 
 def create_next_curie(curie):
@@ -32,6 +33,20 @@ def get_all():
 def create(reference: ReferenceSchemaPost):
     reference_data = {}
 
+
+    for author in reference.authors:
+        author_obj = db.session.query(Author).filter(Author.orcid == author.orcid).first()
+        if author_obj:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                detail=f"Author with ORCID {author.orcid} already exists: author_id {author_obj.author_id}")
+
+
+
+    for cross_reference in reference.crossReferences:
+        if db.session.query(CrossReference).filter(CrossReference == cross_reference.curie).first():
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                detail=f"CrossReference with id {cross_reference.curie} already exists")
+
     last_curie = db.session.query(Reference.curie).order_by(sqlalchemy.desc(Reference.curie)).first()
 
     if last_curie == None:
@@ -43,7 +58,7 @@ def create(reference: ReferenceSchemaPost):
     reference_data['curie'] = curie
 
     for field, value in vars(reference).items():
-        if field in ['authors', 'editors']:
+        if field in ['authors', 'editors', 'modReferenceType']:
             db_objs = []
             for obj in value:
                 obj_data = jsonable_encoder(obj)
@@ -52,6 +67,8 @@ def create(reference: ReferenceSchemaPost):
                     db_obj = Author(**obj_data)
                 elif field == 'editors':
                     db_obj = Editor(**obj_data)
+                elif field == 'modReferenceType':
+                    db_obj = ModReferenceType(**obj_data)
                 db.session.add(db_obj)
                 db_objs.append(db_obj)
             reference_data[field] = db_objs

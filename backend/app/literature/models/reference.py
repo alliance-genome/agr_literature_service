@@ -6,13 +6,15 @@ from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
 from sqlalchemy import String
 from sqlalchemy import DateTime
+from sqlalchemy import ARRAY
+from sqlalchemy import Enum
+
 from sqlalchemy.orm import relationship
 
 from literature.database.base import Base
 
-#from references.schemas.allianceCategory import AllianceCategory
+from literature.schemas.referenceCategory import ReferenceCategory
 
-from enum import Enum
 
 class Reference(Base):
     __tablename__ = 'references'
@@ -31,6 +33,12 @@ class Reference(Base):
         index=True
     )
 
+    crossReferences = relationship(
+        'CrossReference',
+        back_populates='reference',
+        cascade="all, delete, delete-orphan"
+    )
+
     resource_id = Column(
         Integer,
         ForeignKey('resources.resource_id'),
@@ -43,12 +51,22 @@ class Reference(Base):
         single_parent=True,
     )
 
-#    identifiers = relationship('Identifier' , backref='reference', lazy=True)
-
     title = Column(
         String,
         unique=False,
         nullable=True
+    )
+
+    language = Column(
+        String,
+        unique=False,
+        nullable=True
+    )
+
+    modReferenceTypes = relationship(
+        'ModReferenceType',
+        back_populates='reference',
+        cascade="all, delete, delete-orphan"
     )
 
     authors = relationship(
@@ -64,69 +82,79 @@ class Reference(Base):
     )
 
     datePublished = Column(
-        String(255),
+        String(),
         unique=False,
         nullable=True
     )
 
     dateArrivedInPubMed = Column(
-        String(255),
+        String(),
         unique=False,
         nullable=True
     )
 
     dateLastModified = Column(
-        String(255),
+        String(),
         unique=False,
         nullable=True
     )
 
     volume = Column(
-        String(255),
+        String(),
         unique=False,
         nullable=True
     )
 
-#    pages = relationship('Page' , backref='reference', lazy=True)
+    pages = Column(
+        String(),
+        unique=False,
+        nullable=True
+    )
 
     abstract = Column(
-        String(255),
+        String(),
         unique=False,
         nullable=True
     )
 
     citation = Column(
-        String(255),
+        String(),
         unique=False,
         nullable=True
     )
 
-#    keywords = relationship('Keyword' , backref='reference', lazy=True)
+    keywords = Column(
+        ARRAY(String()),
+        unique=False,
+        nullable=True
+    )
 
     pubMedType = Column(
-        String(255),
+        ARRAY(String()),
         unique=False,
         nullable=True
     )
 
     publisher = Column(
-        String(255),
+        String(),
         unique=False,
         nullable=True
     )
 
-#    allianceCategory = Column(Enum(AllianceCategory), unique=False, nullable=True)
-
-#    modReferenceTypes = relationship('ModReferenceType' , backref='reference', lazy=True)
+    category = Column(
+        Enum(ReferenceCategory),
+        unique=False,
+        nullable=True
+    )
 
     issueName = Column(
-        String(255),
+        String(),
         unique=False,
         nullable=True
     )
 
     issueDate = Column(
-        String(255),
+        String(),
         unique=False,
         nullable=True
     )
@@ -134,18 +162,6 @@ class Reference(Base):
 #    tags = relationship('Tag' , backref='reference', lazy=True)
 
 #    meshTerms = relationship('MeshTerm' , backref='reference', lazy=True)
-
-    resourceAbbreviation = Column(
-        String(255),
-        unique=False,
-        nullable=True
-    )
-
-#    updatedBy = Column(
-#        String(255),
-#        unique=False,
-#        nullable=True
-#    )
 
     dateUpdated = Column(
         DateTime,

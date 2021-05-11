@@ -6,6 +6,7 @@ from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
 from sqlalchemy import String
 from sqlalchemy import DateTime
+from sqlalchemy import ARRAY
 
 from sqlalchemy.orm import relationship
 
@@ -29,6 +30,13 @@ class Resource(Base):
         nullable=False
     )
 
+    crossReferences = relationship(
+        'CrossReference',
+        lazy='joined',
+        back_populates='resource',
+        cascade="all, delete, delete-orphan"
+    )
+
     references = relationship(
         "Reference",
         back_populates="resource"
@@ -39,16 +47,20 @@ class Resource(Base):
         nullable=True
     )
 
-#    titleSynonyms = relationship('ResourceTitleSynonym' , backref='resource', lazy=True)
+    titleSynonyms = Column(
+        ARRAY(String()),
+        unique=False,
+        nullable=True
+    )
 
     isoAbbreviation = Column(
-        String(255),
+        String(),
         unique=True,
         nullable=True
     )
 
     medlineAbbreviation = Column(
-        String(255),
+        String(),
         unique=False,
         nullable=True
     )
@@ -58,56 +70,71 @@ class Resource(Base):
     )
 
     publisher = Column(
-        String(255),
+        String(),
         unique=False,
         nullable=True
     )
 
     printISSN = Column(
-        String(255),
+        String(),
         unique=False,
         nullable=True
     )
 
     onlineISSN = Column(
-        String(255),
+        String(),
         unique=False,
         nullable=True
     )
 
     authors = relationship(
         'Author',
+        lazy='joined',
         back_populates='resource',
         cascade="all, delete, delete-orphan"
     )
 
     editors = relationship(
         'Editor',
+        lazy='joined',
         back_populates='resource',
         cascade="all, delete, delete-orphan"
     )
 
-#    volumes = relationship('ResourceVolume' , backref='resource', lazy=True)
+    volumes = Column(
+        ARRAY(String()),
+        unique=False,
+        nullable=True
+    )
+
+    abbreviationSynonyms = Column(
+        ARRAY(String()),
+        nullable=True
+    )
+
     pages = Column(
-        Integer,
+        String(),
         unique=False,
         nullable=True
     )
+
     abstract = Column(
-        String(255),
+        String(),
         unique=False,
         nullable=True
     )
+
     summary = Column(
-        String(255),
+        String(),
         unique=False,
         nullable=True
     )
-    #crossReferences
+
     dateUpdated = Column(
         DateTime,
         nullable=True,
     )
+
     dateCreated = Column(
         DateTime,
         nullable=False,

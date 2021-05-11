@@ -13,6 +13,9 @@ class AuthorSchemaPost(BaseModel):
     middleNames: Optional[List[str]] = None
     lastName: Optional[str] = None
 
+    orcid: Optional[str] = None
+    affiliation: Optional[List[str]] = None
+
     correspondingAuthor: Optional[bool] = None
 
     class Config():

@@ -14,3 +14,12 @@ from literature.schemas.editor import EditorSchemaPost
 from literature.schemas.editor import EditorSchemaShow
 from literature.schemas.editor import EditorSchemaCreate
 from literature.schemas.editor import EditorSchemaUpdate
+
+from literature.schemas.referenceTag import ReferenceTag
+from literature.schemas.tagName import TagName
+from literature.schemas.tagSource import TagSource
+from literature.schemas.referenceCategory import ReferenceCategory
+from literature.schemas.modReferenceType import ModReferenceType
+from literature.schemas.crossReference import CrossReference
+
+
