@@ -35,9 +35,18 @@ class Reference(Base):
 
     crossReferences = relationship(
         'CrossReference',
+        lazy='joined',
         back_populates='reference',
         cascade="all, delete, delete-orphan"
     )
+
+    files = relationship(
+        'File',
+        lazy='joined',
+        back_populates='reference',
+    )
+
+
 
     resource_id = Column(
         Integer,
@@ -47,6 +56,7 @@ class Reference(Base):
 
     resource = relationship(
         'Resource',
+        lazy='joined',
         back_populates="references",
         single_parent=True,
     )
@@ -65,18 +75,21 @@ class Reference(Base):
 
     modReferenceTypes = relationship(
         'ModReferenceType',
+        lazy='joined',
         back_populates='reference',
         cascade="all, delete, delete-orphan"
     )
 
     authors = relationship(
         'Author',
+        lazy='joined',
         back_populates='reference',
         cascade="all, delete, delete-orphan"
     )
 
     editors = relationship(
         'Editor',
+        lazy='joined',
         back_populates='reference',
         cascade="all, delete, delete-orphan"
     )

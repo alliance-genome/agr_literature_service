@@ -22,4 +22,4 @@ from literature.schemas.referenceCategory import ReferenceCategory
 from literature.schemas.modReferenceType import ModReferenceType
 from literature.schemas.crossReference import CrossReference
 
-
+from literature.schemas.file_type import FileTypes

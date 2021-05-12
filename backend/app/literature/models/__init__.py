@@ -12,6 +12,10 @@ from literature.models.editor import Editor
 from literature.models.user import User
 from literature.models.cross_reference import CrossReference
 from literature.models.mod_reference_type import ModReferenceType
+from literature.models.s3file import File
 
+
+from literature.models.resource_descriptor import ResourceDescriptor
+from literature.models.resource_descriptor import ResourceDescriptorPage
 
 configure_mappers()
