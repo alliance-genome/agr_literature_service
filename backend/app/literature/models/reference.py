@@ -33,7 +33,7 @@ class Reference(Base):
         index=True
     )
 
-    crossReferences = relationship(
+    cross_references = relationship(
         'CrossReference',
         lazy='joined',
         back_populates='reference',
@@ -172,9 +172,19 @@ class Reference(Base):
         nullable=True
     )
 
-#    tags = relationship('Tag' , backref='reference', lazy=True)
+    tags = relationship(
+        'ReferenceTag',
+        lazy='joined',
+        back_populates='reference',
+        cascade="all, delete, delete-orphan"
+    )
 
-#    meshTerms = relationship('MeshTerm' , backref='reference', lazy=True)
+    mesh_terms = relationship(
+        'MeshDetail',
+        lazy='joined',
+        back_populates='reference',
+        cascade="all, delete, delete-orphan"
+    )
 
     dateUpdated = Column(
         DateTime,

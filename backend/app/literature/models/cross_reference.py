@@ -15,14 +15,8 @@ from literature.database.base import Base
 
 
 class CrossReference(Base):
-    __tablename__ = 'crossReferences'
+    __tablename__ = 'cross_references'
     __versioned__ = {}
-
-#    cross_reference_id = Column(
-#        Integer,
-#        primary_key=True,
-#        autoincrement=True
-#    )
 
     curie = Column(
         String,
@@ -37,7 +31,7 @@ class CrossReference(Base):
 
     reference = relationship(
         'Reference',
-        back_populates="crossReferences"
+        back_populates="cross_references"
     )
 
     resource_id = Column(
@@ -48,7 +42,7 @@ class CrossReference(Base):
 
     resource = relationship(
         'Resource',
-        back_populates="crossReferences"
+        back_populates="cross_references"
     )
 
     pages = Column(

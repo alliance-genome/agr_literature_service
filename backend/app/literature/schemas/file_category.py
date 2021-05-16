@@ -1,6 +1,6 @@
 from enum import Enum
 
-class FileTypes(str, Enum):
+class FileCategories(str, Enum):
     primary = 'primary'
     primary_figure = 'primary figure'
     supplemental = 'supplemental'

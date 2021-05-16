@@ -12,6 +12,7 @@ from literature.models import Resource
 from literature.models import Author
 from literature.models import Editor
 from literature.models import CrossReference
+from literature.models import MeshDetail
 
 
 def create_next_curie(curie):
@@ -35,7 +36,7 @@ def create(resource: ResourceSchemaPost):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                 detail=f"Author with ORCID {author.orcid} already exists: author_id {author_obj.author_id}")
 
-    for cross_reference in resource.crossReferences:
+    for cross_reference in resource.cross_references:
         if db.session.query(CrossReference).filter(CrossReference.curie == cross_reference.curie).first():
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                 detail=f"CrossReference with curie {cross_reference.curie} already exists")
@@ -55,7 +56,7 @@ def create(resource: ResourceSchemaPost):
     resource_data['curie'] = curie
 
     for field, value in vars(resource).items():
-        if field in ['authors', 'editors', 'crossReferences']:
+        if field in ['authors', 'editors', 'cross_references', 'mesh_terms']:
             db_objs = []
             for obj in value:
                 obj_data = jsonable_encoder(obj)
@@ -64,8 +65,10 @@ def create(resource: ResourceSchemaPost):
                     db_obj = Author(**obj_data)
                 elif field == 'editors':
                     db_obj = Editor(**obj_data)
-                elif field == 'crossReferences':
+                elif field == 'cross_references':
                     db_obj = CrossReference(**obj_data)
+                elif field == 'mesh_terms':
+                    db_obj = MeshDetail(**obj_data)
                 db.session.add(db_obj)
                 db_objs.append(db_obj)
             resource_data[field] = db_objs

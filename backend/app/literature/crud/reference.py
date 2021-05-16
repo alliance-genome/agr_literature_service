@@ -16,6 +16,9 @@ from literature.models import Author
 from literature.models import Editor
 from literature.models import CrossReference
 from literature.models import ModReferenceType
+from literature.models import ReferenceTag
+from literature.models import MeshDetail
+
 
 
 def create_next_curie(curie):
@@ -42,8 +45,8 @@ def create(reference: ReferenceSchemaPost):
 
 
 
-    for cross_reference in reference.crossReferences:
-        if db.session.query(CrossReference).filter(CrossReference == cross_reference.curie).first():
+    for cross_reference in reference.cross_references:
+        if db.session.query(CrossReference).filter(CrossReference.curie == cross_reference.curie).first():
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                 detail=f"CrossReference with id {cross_reference.curie} already exists")
 
@@ -58,7 +61,7 @@ def create(reference: ReferenceSchemaPost):
     reference_data['curie'] = curie
 
     for field, value in vars(reference).items():
-        if field in ['authors', 'editors', 'modReferenceType']:
+        if field in ['authors', 'editors', 'modReferenceTypes', 'tags', 'mesh_terms', 'cross_references']:
             db_objs = []
             for obj in value:
                 obj_data = jsonable_encoder(obj)
@@ -67,8 +70,17 @@ def create(reference: ReferenceSchemaPost):
                     db_obj = Author(**obj_data)
                 elif field == 'editors':
                     db_obj = Editor(**obj_data)
-                elif field == 'modReferenceType':
+                elif field == 'modReferenceTypes':
                     db_obj = ModReferenceType(**obj_data)
+                elif field == 'tags':
+                    db_obj =  ReferenceTag(**obj_data)
+                elif field == 'mesh_terms':
+                    db_obj =  MeshDetail(**obj_data)
+                elif field == 'cross_references':
+                    db_obj =  CrossReference(**obj_data)
+
+
+
                 db.session.add(db_obj)
                 db_objs.append(db_obj)
             reference_data[field] = db_objs

@@ -30,7 +30,7 @@ class Resource(Base):
         nullable=False
     )
 
-    crossReferences = relationship(
+    cross_references = relationship(
         'CrossReference',
         lazy='joined',
         back_populates='resource',

@@ -4,5 +4,10 @@ from pydantic import BaseModel
 
 
 class ModReferenceType(BaseModel):
-    referenceType: str
+    reference_type: str
     source: Optional[str] = None
+
+    class Config():
+        orm_mode = True
+        extra = "forbid"
+

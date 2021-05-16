@@ -5,12 +5,15 @@ from fastapi import Depends
 from fastapi import status
 from fastapi import Response
 from fastapi import Security
+from fastapi import File
+from fastapi import UploadFile
 
 from fastapi_auth0 import Auth0User
 
 from literature.schemas import ReferenceSchemaShow
 from literature.schemas import ReferenceSchemaPost
 from literature.schemas import ReferenceSchemaUpdate
+from literature.schemas import FileSchemaUpload
 
 from literature.crud import reference
 from literature.routers.authentication import auth
@@ -20,6 +23,7 @@ router = APIRouter(
     tags=['Reference']
 )
 
+import hashlib
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
@@ -60,6 +64,19 @@ def all():
             response_model=ReferenceSchemaShow)
 def show(curie: str):
     return reference.show(curie)
+
+
+@router.post('/{curie}/upload_file',
+             status_code=200,
+             dependencies=[Depends(auth.implicit_scheme)])
+async def create_upload_file(curie: str,
+                             file: UploadFile = File(...),
+                             user: Auth0User = Security(auth.get_user)):
+   print(file.content_type)
+   file_contents = await file.read()
+   md5sum = hashlib.md5(file_contents).hexdigest()
+   print(md5sum)
+   return {'filename': file.filename}
 
 
 @router.get('/{curie}/versions',

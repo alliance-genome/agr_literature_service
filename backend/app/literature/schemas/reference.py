@@ -10,8 +10,8 @@ from literature.schemas.editor import EditorSchemaShow
 from literature.schemas.resource import ResourceSchemaShow
 from literature.schemas.referenceCategory import ReferenceCategory
 from literature.schemas.modReferenceType import ModReferenceType
-from literature.schemas.referenceTag import ReferenceTag
-from literature.schemas.meshDetail import MeshDetail
+from literature.schemas.reference_tag import ReferenceTag
+from literature.schemas.mesh_detail import MeshDetail
 from literature.schemas.crossReference import CrossReferenceRelated
 
 
@@ -34,9 +34,8 @@ class ReferenceSchemaPost(BaseModel):
     issueName: Optional[str] = None
     issueDate: Optional[str] = None
     tags: Optional[List[ReferenceTag]] = None
-    meshTerms: Optional[List[MeshDetail]] = None
-    crossReferences: Optional[List[CrossReferenceRelated]] = None
-    resourceAbbreviation: Optional[str] = None
+    mesh_terms: Optional[List[MeshDetail]] = None
+    cross_references: Optional[List[CrossReferenceRelated]] = None
     authors: Optional[List[AuthorSchemaPost]] = None
     editors: Optional[List[EditorSchemaPost]] = None
     resource: Optional[str] = None
@@ -65,8 +64,8 @@ class ReferenceSchemaUpdate(BaseModel):
     issueName: Optional[str] = None
     issueDate: Optional[str] = None
     tags: Optional[List[ReferenceTag]] = None
-    meshTerms: Optional[List[MeshDetail]] = None
-    crossReferences: Optional[List[CrossReferenceRelated]] = None
+    mesh_terms: Optional[List[MeshDetail]] = None
+    cross_references: Optional[List[CrossReferenceRelated]] = None
     resource: Optional[str] = None
 
     class Config():
@@ -94,8 +93,8 @@ class ReferenceSchemaShow(BaseModelShow):
     issueName: Optional[str] = None
     issueDate: Optional[str] = None
     tags: Optional[List[ReferenceTag]] = None
-    meshTerms: Optional[List[MeshDetail]] = None
-    crossReferences: Optional[List[CrossReferenceRelated]] = None
+    mesh_terms: Optional[List[MeshDetail]] = None
+    cross_references: Optional[List[CrossReferenceRelated]] = None
     resource: Optional[ResourceSchemaShow] = None
     authors: Optional[List[AuthorSchemaShow]] = None
     editors: Optional[List[EditorSchemaShow]] = None

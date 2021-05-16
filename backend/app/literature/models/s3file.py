@@ -14,7 +14,7 @@ from sqlalchemy.orm import relationship
 
 from literature.database.base import Base
 
-from literature.schemas import FileTypes
+from literature.schemas import FileCategories
 
 class File(Base):
     __tablename__ = 'files'
@@ -44,7 +44,12 @@ class File(Base):
     )
 
     filetype = Column(
-        Enum(FileTypes),
+        String,
+        nullable=True
+    )
+
+    category = Column(
+        Enum(FileCategories),
         nullable=False
     )
 

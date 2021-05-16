@@ -1,15 +1,15 @@
 from enum import Enum
 
 class ReferenceCategory(str, Enum):
-    Research_Article = "Research Article"
-    Review_Article = "Review Article"
+    Research_Article = "ResearchArticle"
+    Review_Article = "ReviewArticle"
     Thesis = "Thesis"
     Book = "Book"
     Other = "Other"
     Preprint = "Preprint"
-    Conference_Publication = "Conference Publication"
-    Personal_Communication = "Personal Communication"
-    Direct_Data_Submission = "Direct Data Submission"
-    Internal_Process_Reference = "Internal Process Reference"
+    Conference_Publication = "ConferencePublication"
+    Personal_Communication = "PersonalCommunication"
+    Direct_Data_Submission = "DirectDataSubmission"
+    Internal_Process_Reference = "InternalProcessReference"
     Unknown = "Unknown"
     Retraction = "Retraction"
