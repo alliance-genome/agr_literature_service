@@ -1,51 +1,30 @@
 import sqlalchemy
+
 from sqlalchemy.orm import Session
 from datetime import datetime
 
 from fastapi import HTTPException
 from fastapi import status
-from fastapi.encoders import jsonable_encoder
-from fastapi_sqlalchemy import db
+from fastapi import UploadFile
 
-from literature.schemas import AuthorSchemaPost
-from literature.schemas import AuthorSchemaUpdate
+from fastapi.encoders import jsonable_encoder
+
+from fastapi_sqlalchemy import db
 
 from literature.models import Reference
 from literature.models import Resource
-from literature.models import Author
+
+from literature.schemas import FileSchemaUpdate
+from literature.schemas import FileSchemaShow
 
 
+def create(file: UploadFile):
+    print(file.content_type)
+    file_contents = file.read()
+    md5sum = hashlib.md5(file_contents).hexdigest()
+    print(md5sum)
+    exit()
 
-def create(s3file: AuthorSchemaPost):
-    author_data = jsonable_encoder(sfile)
-
-    if 'resource_curie' in author_data:
-        resource_curie = author_data['resource_curie']
-        del author_data['resource_curie']
-
-    if 'reference_curie' in author_data:
-        reference_curie = author_data['reference_curie']
-        del author_data['reference_curie']
-
-    db_obj = Author(**author_data)
-    if resource_curie and reference_curie:
-       raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                           detail=f"Only supply either resource_curie or reference_curie")
-    elif resource_curie:
-       resource = db.session.query(Resource).filter(Resource.curie == resource_curie).first()
-       if not resource:
-           raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                               detail=f"Resource with curie {resource_curie} does not exist")
-       db_obj.resource = resource
-    elif reference_curie:
-       reference = db.session.query(Reference).filter(Reference.curie == reference_curie).first()
-       if not reference:
-           raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                               detail=f"Reference with curie {reference_curie} does not exist")
-       db_obj.reference = reference
-    else:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"Supply one of resource_curie or reference_curie")
     db.session.add(db_obj)
     db.session.commit()
     db.session.refresh(db_obj)
@@ -53,82 +32,53 @@ def create(s3file: AuthorSchemaPost):
     return db_obj
 
 
-def destroy(author_id: int):
-    author = db.session.query(Author).filter(Author.author_id == author_id).first()
-    if not author:
+def destroy(filename: str):
+    file = db.session.query(File).filter(File.filename == filename).first()
+    if not file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Author with author_id {author_id} not found")
-    db.session.delete(author)
+                            detail=f"file with name {filename} not found")
+    db.session.delete(file)
     db.session.commit()
 
     return None
 
 
-def update(author_id: int, author_update: AuthorSchemaUpdate):
+def update(filename: str, file_update: FileSchemaUpdate):
 
-    author_db_obj = db.session.query(Author).filter(Author.author_id == author_id).first()
-    if not author_db_obj:
+    file_db_obj = db.session.query(File).filter(file.filename == filename).first()
+    if not file_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Author with author_id {author_id} not found")
+                            detail=f"Filename with filename {filename} not found")
 
 
     if author_update.resource_curie and author_update.reference_curie:
        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                            detail=f"Only supply either resource_curie or reference_curie")
 
-    for field, value in vars(author_update).items():
-        if field == "resource_curie" and value:
-            resource_curie = value
-            resource = db.session.query(Resource).filter(Resource.curie == resource_curie).first()
-            if not resource:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                  detail=f"Resource with curie {resource_curie} does not exist")
-            author_db_obj.resource = resource
-            author_db_obj.reference = None
-        elif field == 'reference_curie' and value:
-            reference_curie = value
-            reference = db.session.query(Reference).filter(Reference.curie == reference_curie).first()
-            if not reference:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                  detail=f"Reference with curie {reference_curie} does not exist")
-            author_db_obj.reference = reference
-            author_db_obj.resource = None
-        else:
-            setattr(author_db_obj, field, value)
-
-    author_db_obj.dateUpdated = datetime.utcnow()
     db.session.commit()
+    db.flush()
 
-    return db.session.query(Author).filter(Author.author_id == author_id).first()
+    return file_db_obj
 
 
-def show(author_id: int):
-    author = db.session.query(Author).filter(Author.author_id == author_id).first()
-    author_data = jsonable_encoder(author)
+def show(filename: str):
+    file = db.session.query(File).filter(File.filename == filename).first()
 
-    if not author:
+    if not file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Author with the author_id {author_id} is not available")
+                            detail=f"File with the filename {filename} is not available")
 
-    if author_data['resource_id']:
-        author_data['resource_curie'] = db.session.query(Resource.curie).filter(Resource.resource_id == author_data['resource_id']).first()[0]
-    del author_data['resource_id']
-
-    if author_data['reference_id']:
-        author_data['reference_curie'] = db.session.query(Reference.curie).filter(Reference.reference_id == author_data['reference_id']).first()[0]
-    del author_data['reference_id']
-
-    return author_data
+    return file
 
 
-def show_changesets(author_id: int):
-    author = db.session.query(Author).filter(Author.author_id == author_id).first()
-    if not author:
+def show_changesets(filename: str):
+    file = db.session.query(File).filter(File.filename == filename).first()
+    if not file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Author with the author_id {author_id} is not available")
+                            detail=f"File with the filename {filename} is not available")
 
     changesets = []
-    for version in author.versions:
+    for version in filename.versions:
         changesets.append(version.changeset)
 
     return changesets

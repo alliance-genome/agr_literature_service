@@ -2,6 +2,9 @@ from typing import Optional
 
 from pydantic import BaseSettings, Field
 
+from literature.schemas import EnvState
+
+
 
 class GlobalConfig(BaseSettings):
     """Global configurations."""
@@ -10,8 +13,12 @@ class GlobalConfig(BaseSettings):
     # shell environment variable having the same name, that will take precedence.
 
     # the class Field is necessary while defining the global variables
-    ENV_STATE: Optional[str] = Field(..., env="ENV_STATE")
+    ENV_STATE: Optional[EnvState] = Field(..., env="ENV_STATE")
     HOST: Optional[str] = Field(..., env="HOST")
+
+    #AWS Creds
+    AWS_SECRET_ACCESS_KEY: Optional[str] = Field(..., env="AWS_SECRET_ACCESS_KEY")
+    AWS_ACCESS_KEY_ID: Optional[str] = Field(..., env="AWS_ACCESS_KEY_ID")
 
     # environment specific configs
     API_USERNAME: Optional[str] = None
@@ -54,7 +61,7 @@ class FactoryConfig:
         self.env_state = env_state
 
     def __call__(self):
-        if self.env_state == "dev":
+        if self.env_state == "build":
             return DevConfig()
 
         elif self.env_state == "prod":
