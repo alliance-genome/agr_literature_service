@@ -27,13 +27,11 @@ router = APIRouter(
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(auth.implicit_scheme)],
-             response_model=ResourceSchemaShow
-             )
+             response_model=ResourceSchemaShow)
 def create(request: ResourceSchemaPost,
            user: Auth0User = Security(auth.get_user)):
     set_global_user_id(user.id)
     return resource.create(request)
-
 
 
 @router.delete('/{curie}',
@@ -63,8 +61,7 @@ def all():
 
 @router.get('/{curie}',
             status_code=200,
-            response_model=ResourceSchemaShow
-            )
+            response_model=ResourceSchemaShow)
 def show(curie: str):
     return resource.show(curie)
 

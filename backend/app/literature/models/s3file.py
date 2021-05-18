@@ -26,7 +26,7 @@ class File(Base):
         autoincrement=True
     )
 
-    filename = Column(
+    s3_filename = Column(
         String,
         unique=True,
         nullable=False
@@ -43,26 +43,32 @@ class File(Base):
         back_populates="files"
     )
 
-    filetype = Column(
+    extension = Column(
         String,
         nullable=True
     )
 
-    category = Column(
-        Enum(FileCategories),
-        nullable=False
+    content_type = Column(
+        String,
+        nullable=True
     )
 
-    s3path = Column(
+
+    category = Column(
+        Enum(FileCategories),
+        nullable=True
+    )
+
+    folder = Column(
         String(),
-        unique=True,
+        unique=False,
         nullable=False
     )
 
     md5sum = Column(
         String(),
         unique=False,
-        nullable=True
+        nullable=False
     )
 
     size = Column(

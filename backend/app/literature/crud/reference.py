@@ -25,11 +25,13 @@ def create_next_curie(curie):
     curie_parts = curie.rsplit('-', 1)
     number_part = curie_parts[1]
     number = int(number_part) + 1
+
     return "-".join([curie_parts[0], str(number).rjust(10, '0')])
 
 
 def get_all():
     references = db.session.query(Reference).all()
+
     return references
 
 
@@ -98,8 +100,9 @@ def create(reference: ReferenceSchemaPost):
     reference_db_obj = Reference(**reference_data)
     db.session.add(reference_db_obj)
     db.session.commit()
+    db.session.flush()
 
-    return db.session.query(Reference).filter(Reference.curie == curie).first()
+    return reference_db_obj
 
 
 def destroy(curie: str):
