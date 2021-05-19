@@ -131,9 +131,9 @@ def update(curie: str, reference_update: ReferenceSchemaUpdate):
               raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                   detail=f"Resource with curie {resource_curie} does not exist")
           reference_data['resource'] = resource
+        if field == "modReferenceType":
+            mod_reference
         else:
-            print(field)
-            print(value)
             setattr(reference_db_obj, field, value)
 
     reference_db_obj.dateUpdated = datetime.utcnow()

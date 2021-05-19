@@ -3,7 +3,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 
-class CrossReferenceRelated(BaseModel):
+class CrossReferenceSchemaRelated(BaseModel):
     curie: str
     pages: Optional[List[str]] = None
 
@@ -12,11 +12,20 @@ class CrossReferenceRelated(BaseModel):
         extra = "forbid"
 
 
-class CrossReference(CrossReferenceRelated):
-    resource_id:  Optional[int] = None
-    reference_id: Optional[int] = None
+class CrossReferenceSchema(CrossReferenceSchemaRelated):
+    resource_curie:  Optional[str] = None
+    reference_curie: Optional[str] = None
 
     class Config():
         orm_mode = True
         extra = "forbid"
 
+
+class CrossReferenceSchemaUpdate(BaseModel):
+    pages: Optional[List[str]] = None
+    resource_curie:  Optional[str] = None
+    reference_curie: Optional[str] = None
+
+    class Config():
+        orm_mode = True
+        extra = "forbid"

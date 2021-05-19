@@ -22,7 +22,10 @@ from literature.schemas.env_state import EnvState
 from literature.schemas.tag_source import TagSource
 from literature.schemas.referenceCategory import ReferenceCategory
 from literature.schemas.modReferenceType import ModReferenceType
-from literature.schemas.crossReference import CrossReference
+
+from literature.schemas.crossReference import CrossReferenceSchemaRelated
+from literature.schemas.crossReference import CrossReferenceSchemaUpdate
+from literature.schemas.crossReference import CrossReferenceSchema
 
 from literature.schemas.file_category import FileCategories
 

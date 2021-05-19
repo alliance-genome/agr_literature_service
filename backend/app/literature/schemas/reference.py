@@ -12,7 +12,7 @@ from literature.schemas.referenceCategory import ReferenceCategory
 from literature.schemas.modReferenceType import ModReferenceType
 from literature.schemas.reference_tag import ReferenceTag
 from literature.schemas.mesh_detail import MeshDetail
-from literature.schemas.crossReference import CrossReferenceRelated
+from literature.schemas.crossReference import CrossReferenceSchemaRelated
 
 
 class ReferenceSchemaPost(BaseModel):
@@ -35,7 +35,7 @@ class ReferenceSchemaPost(BaseModel):
     issueDate: Optional[str] = None
     tags: Optional[List[ReferenceTag]] = None
     mesh_terms: Optional[List[MeshDetail]] = None
-    cross_references: Optional[List[CrossReferenceRelated]] = None
+    cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
     authors: Optional[List[AuthorSchemaPost]] = None
     editors: Optional[List[EditorSchemaPost]] = None
     resource: Optional[str] = None
@@ -65,7 +65,7 @@ class ReferenceSchemaUpdate(BaseModel):
     issueDate: Optional[str] = None
     tags: Optional[List[ReferenceTag]] = None
     mesh_terms: Optional[List[MeshDetail]] = None
-    cross_references: Optional[List[CrossReferenceRelated]] = None
+    cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
     resource: Optional[str] = None
 
     class Config():
@@ -94,7 +94,7 @@ class ReferenceSchemaShow(BaseModelShow):
     issueDate: Optional[str] = None
     tags: Optional[List[ReferenceTag]] = None
     mesh_terms: Optional[List[MeshDetail]] = None
-    cross_references: Optional[List[CrossReferenceRelated]] = None
+    cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
     resource: Optional[ResourceSchemaShow] = None
     authors: Optional[List[AuthorSchemaShow]] = None
     editors: Optional[List[EditorSchemaShow]] = None
