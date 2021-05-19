@@ -14,6 +14,7 @@ from literature.routers import reference
 from literature.routers import author
 from literature.routers import editor
 from literature.routers import cross_reference
+from literature.routers import resource_descriptor
 
 from literature.config import config
 from literature.database.config import SQLALCHEMY_DATABASE_URL
@@ -56,6 +57,7 @@ app.include_router(reference.router)
 app.include_router(author.router)
 app.include_router(editor.router)
 app.include_router(cross_reference.router)
+app.include_router(resource_descriptor.router)
 
 app.openapi = custom_openapi
 

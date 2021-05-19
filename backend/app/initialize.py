@@ -8,7 +8,7 @@ from fastapi_sqlalchemy import db
 from literature.models.resource_descriptor import ResourceDescriptor
 from literature.models.resource_descriptor import ResourceDescriptorPage
 
-def download_resource_descriptor():
+def update_resource_descriptor():
     with urllib.request.urlopen(config.RESOURCE_DESCRIPTOR_URL) as response:
          resource_descriptors = yaml.full_load(response)
 
@@ -39,4 +39,4 @@ def download_resource_descriptor():
 
 
 async def setup_resource_descriptor():
-    resource_descriptor_yaml = download_resource_descriptor()
+    resource_descriptor_yaml = update_resource_descriptor()
