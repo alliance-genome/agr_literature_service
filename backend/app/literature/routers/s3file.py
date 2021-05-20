@@ -6,14 +6,18 @@ from fastapi import status
 from fastapi import Response
 from fastapi import Security
 
+from botocore.client import BaseClient
+
 from fastapi_auth0 import Auth0User
 
 from literature.schemas import FileSchemaShow
 from literature.schemas import FileSchemaUpdate
-from literature.schemas import FileSchemaCreate
+
+from literature.deps import s3_auth
 
 from literature.crud import s3file
 from literature.routers.authentication import auth
+
 
 router = APIRouter(
     prefix="/file",
@@ -21,41 +25,34 @@ router = APIRouter(
 )
 
 
-@router.post('/{reference_id}',
-             status_code=status.HTTP_201_CREATED,
-             response_model=FileSchemaShow,
-             dependencies=[Depends(auth.implicit_scheme)])
-def create(request: FileSchemaCreate,
-           user: Auth0User = Security(auth.get_user)):
-    return s3file.create(request)
-
-
-@router.delete('/{file_id}',
+@router.delete('/{filename}',
                status_code=status.HTTP_204_NO_CONTENT,
                dependencies=[Depends(auth.implicit_scheme)])
-def destroy(file_id: int,
+def destroy(filename: str,
+            s3: BaseClient = Depends(s3_auth),
             user: Auth0User = Security(auth.get_user)):
-    s3file.destroy(file_id)
+    s3file.destroy(s3, filename)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.put('/{file_id}',
+@router.put('/{filename}',
             status_code=status.HTTP_202_ACCEPTED,
             response_model=FileSchemaShow,
             dependencies=[Depends(auth.implicit_scheme)])
-def update(file_id: int,
+def update(filename: str,
            request: FileSchemaUpdate,
            user: Auth0User = Security(auth.get_user)):
-    return s3file.update(file_id, request)
+    return s3file.update(filename, request)
 
 
-@router.get('/{file_id}',
+@router.get('/{filename',
+            response_model=FileSchemaShow,
             status_code=200)
-def show(file_id: int):
-    return s3file.show(file_id)
+def show(filename: str):
+    return s3file.show(filename)
 
 
 @router.get('/{file_id}/versions',
             status_code=200)
-def show(file_id: int):
-    return s3file.show_changesets(file_id)
+def show(filename: str):
+    return s3file.show_changesets(filename)

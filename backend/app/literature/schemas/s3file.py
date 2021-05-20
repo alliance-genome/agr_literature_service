@@ -12,16 +12,16 @@ from literature.schemas import ReferenceSchemaShow
 
 
 class FileSchemaUpdate(BaseModel):
-    public: bool
-    extension: str
-
+    public: Optional[bool] = None
+    extension: Optional[str] =  None
     content_type: Optional[str] = None
+    reference_id: Optional[str] = None
     category: Optional[FileCategories] = None
     display_name: Optional[str] = None
-    reference_id: Optional[str] = None
+    reference_curie: Optional[str] = None
     mod_submitted: Optional[str] = None
-    mod_permission: Optional[List[str]] = None
-    institute_permission: Optional[List[str]] = None
+    mods_permitted: Optional[List[str]] = None
+    institutes_permitted: Optional[List[str]] = None
     synonyms: Optional[List[str]] = None
 
     class Config():
@@ -30,7 +30,6 @@ class FileSchemaUpdate(BaseModel):
 
 
 class FileSchemaShow(BaseModel):
-    file_id: int
     s3_filename: str
     folder: str
 
@@ -46,8 +45,8 @@ class FileSchemaShow(BaseModel):
     display_name: Optional[str] = None
     reference: Optional[ReferenceSchemaShow] = None
     mod_submitted: Optional[str] = None
-    mod_permission: Optional[List[str]] = None
-    institute_permission: Optional[List[str]] = None
+    mods_permitted: Optional[List[str]] = None
+    institutes_permitted: Optional[List[str]] = None
     synonyms: Optional[List[str]] = None
 
     class Config():

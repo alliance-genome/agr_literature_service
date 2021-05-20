@@ -98,12 +98,12 @@ class File(Base):
         nullable=True
     )
 
-    mod_premission = Column(
+    mods_permitted = Column(
         ARRAY(String()),
         nullable=True
     )
 
-    institute_permission = Column(
+    institutes_permitted = Column(
         ARRAY(String()),
         nullable=True
     )

@@ -24,6 +24,7 @@ from literature.schemas import FileSchemaUpdate
 from literature.schemas import FileSchemaShow
 
 from literature.s3.upload import upload_file_to_bucket
+from literature.s3.delete import delete_file_in_bucket
 
 from literature.config import config
 
@@ -34,7 +35,7 @@ def create(s3: BaseClient, parent_entity_type : str, curie: str, file_contents: 
     filename, file_extension = os.path.splitext(display_name)
     bucket_name = 'agr-literature'
     md5sum = hashlib.md5(file_contents).hexdigest()
-    s3_filename = curie + '-' + md5sum + file_extension
+    s3_filename = curie + '-File-' + md5sum + file_extension
     folder= config.ENV_STATE + '/agr/'+ curie
 
     file_data = {'s3_filename': s3_filename,
@@ -62,7 +63,8 @@ def create(s3: BaseClient, parent_entity_type : str, curie: str, file_contents: 
 
 
 
-    upload_obj = upload_file_to_bucket(s3_client=s3, file_obj=io.BytesIO(file_contents),
+    upload_obj = upload_file_to_bucket(s3_client=s3,
+                                       file_obj=io.BytesIO(file_contents),
                                        bucket=bucket_name,
                                        folder=folder,
                                        object_name=s3_filename)
@@ -80,37 +82,51 @@ def create(s3: BaseClient, parent_entity_type : str, curie: str, file_contents: 
     return file_db_obj
 
 
-def destroy(file_id: str):
-    file = db.session.query(File).filter(File.filename == filename).first()
-    if not file:
+def destroy(s3: BaseClient, filename: str):
+    file_obj = db.session.query(File).filter(File.s3_filename == filename).first()
+    if not file_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"file with name {filename} not found")
-    db.session.delete(file)
+
+    bucket_name = 'agr-literature'
+    delete_obj = delete_file_in_bucket(s3_client=s3,
+                                       bucket=bucket_name,
+                                       folder=file_obj.folder,
+                                       object_name=filename)
+
+    db.session.delete(file_obj)
     db.session.commit()
 
     return None
 
 
 def update(filename: str, file_update: FileSchemaUpdate):
-
-    file_db_obj = db.session.query(File).filter(file.filename == filename).first()
+    file_db_obj = db.session.query(File).filter(File.s3_filename == filename).first()
     if not file_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Filename with filename {filename} not found")
+                            detail=f"File with filename {filename} not found")
 
-
-    if author_update.resource_curie and author_update.reference_curie:
-       raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                           detail=f"Only supply either resource_curie or reference_curie")
+    for field, value in vars(file_update).items():
+        if value is None:
+            continue
+        if field == "reference_curie":
+            reference_curie = value
+            reference = db.session.query(Reference).filter(Reference.curie == reference_curie).first()
+            if not reference:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    detail=f"Reference with curie {reference_curie} does not exist")
+            file_db_obj.reference = reference
+        else:
+            setattr(file_db_obj, field, value)
 
     db.session.commit()
-    db.flush()
+    db.session.flush()
 
     return file_db_obj
 
 
 def show(filename: str):
-    file = db.session.query(File).filter(File.filename == filename).first()
+    file = db.session.query(File).filter(File.s3_filename == filename).first()
 
     if not file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -120,13 +136,13 @@ def show(filename: str):
 
 
 def show_changesets(filename: str):
-    file = db.session.query(File).filter(File.filename == filename).first()
-    if not file:
+    file_obj = db.session.query(File).filter(File.s3_filename == filename).first()
+    if not file_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"File with the filename {filename} is not available")
 
     changesets = []
-    for version in filename.versions:
+    for version in file_obj.versions:
         changesets.append(version.changeset)
 
     return changesets

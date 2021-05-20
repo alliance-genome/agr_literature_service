@@ -130,7 +130,7 @@ def update(curie: str, reference_update: ReferenceSchemaUpdate):
           if not resource:
               raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                   detail=f"Resource with curie {resource_curie} does not exist")
-          reference_data['resource'] = resource
+          reference_db_obj.resource = resource
         if field == "modReferenceType":
             mod_reference
         else:
