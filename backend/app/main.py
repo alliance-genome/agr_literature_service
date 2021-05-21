@@ -31,7 +31,13 @@ parser.add_argument('-v', dest='verbose', action='store_true')
 
 args = vars(parser.parse_args())
 
-app = FastAPI()
+title="Alliance Literature Service"
+version="0.1.0"
+description="This service provides access to the Alliance Bibliographic Corpus and metadata"
+
+app = FastAPI(title=title,
+              version=version,
+              description=description)
 
 app.add_middleware(DBSessionMiddleware,
                    db_url=SQLALCHEMY_DATABASE_URL)
@@ -46,9 +52,9 @@ def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
     openapi_schema = get_openapi(
-        title="Alliance Literature Service",
-        version="0.1.0",
-        description="This service provides access to the Alliance Bibliographic Corpus and metadata",
+        title=title,
+        version=version,
+        description=description,
         routes=app.routes,
     )
     app.openapi_schema = openapi_schema
