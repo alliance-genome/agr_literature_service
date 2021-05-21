@@ -10,21 +10,21 @@ from literature.schemas.author import AuthorSchemaPost
 from literature.schemas.author import AuthorSchemaShow
 from literature.schemas.editor import EditorSchemaPost
 from literature.schemas.editor import EditorSchemaShow
-from literature.schemas.crossReference import CrossReferenceSchemaRelated
+from literature.schemas.cross_reference import CrossReferenceSchemaRelated
 
 
 class ResourceSchemaPost(BaseModel):
     title: str
 
-    titleSynonyms: Optional[List[str]] = None
-    abbreviationSynonyms: Optional[List[str]] = None
-    isoAbbreviation: Optional[str] = None
-    abbreviationSynonyms: Optional[List[str]] = None
-    medlineAbbreviation: Optional[str] = None
-    copyrightDate: Optional[datetime] = None
+    title_synonyms: Optional[List[str]] = None
+    abbreviation_synonyms: Optional[List[str]] = None
+    iso_abbreviation: Optional[str] = None
+    abbreviation_synonyms: Optional[List[str]] = None
+    medline_abbreviation: Optional[str] = None
+    copyright_date: Optional[datetime] = None
     publisher: Optional[str] = None
-    printISSN: Optional[str] = None
-    onlineISSN: Optional[str] = None
+    print_issn: Optional[str] = None
+    online_issn: Optional[str] = None
     pages: Optional[str] = None
     volumes: Optional[List[str]] = None
     abstract: Optional[str] = None
@@ -42,14 +42,14 @@ class ResourceSchemaShow(BaseModelShow):
     curie: str
     title: str
 
-    titleSynonyms: Optional[List[str]] = None
-    abbreviationSynonyms: Optional[List[str]] = None
-    isoAbbreviation: Optional[str] = None
-    medlineAbbreviation: Optional[str] = None
-    copyrightDate: Optional[datetime] = None
+    title_synonyms: Optional[List[str]] = None
+    abbreviation_synonyms: Optional[List[str]] = None
+    iso_abbreviation: Optional[str] = None
+    medline_abbreviation: Optional[str] = None
+    copyright_date: Optional[datetime] = None
     publisher: Optional[str] = None
-    printISSN: Optional[str] = None
-    onlineISSN: Optional[str] = None
+    print_issn: Optional[str] = None
+    online_issn: Optional[str] = None
     pages: Optional[str] = None
     volumes: Optional[List[str]] = None
     abstract: Optional[str] = None

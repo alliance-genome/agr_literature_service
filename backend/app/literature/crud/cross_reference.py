@@ -53,7 +53,7 @@ def create(cross_reference: CrossReferenceSchema):
 
 
 def destroy(curie: str):
-    cross_reference = db.session.query(CrossReference).filter(cross_reference.curie == curie).first()
+    cross_reference = db.session.query(CrossReference).filter(CrossReference.curie == curie).first()
     if not cross_reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Cross Reference with curie {curie} not found")
@@ -95,9 +95,9 @@ def update(curie: str, cross_reference_update: CrossReferenceSchemaUpdate):
         else:
             setattr(cross_reference_db_obj, field, value)
 
-    cross_reference_db_obj.dateUpdated = datetime.utcnow()
+    cross_reference_db_obj.date_updated = datetime.utcnow()
     db.session.commit()
-    db.session.flush()
+    db.session.refresh()
 
     return cross_reference_db_obj
 

@@ -51,7 +51,7 @@ class Author(Base):
         nullable=True
     )
 
-    correspondingAuthor = Column(
+    corresponding_author = Column(
         Boolean(),
         nullable=True
     )
@@ -74,13 +74,13 @@ class Author(Base):
         nullable=True
     )
 
-    firstName = Column(
+    first_name = Column(
         String(),
         unique=False,
         nullable=True
     )
 
-    middleNames = Column(
+    middle_names = Column(
        ARRAY(String()),
        nullable=True
     )
@@ -91,13 +91,13 @@ class Author(Base):
         nullable=True
     )
 
-    dateUpdated = Column(
+    date_updated = Column(
         DateTime,
         nullable=True,
         default=datetime.utcnow
     )
 
-    dateCreated = Column(
+    date_created = Column(
         DateTime,
         nullable=False,
         default=datetime.now(tz=pytz.timezone('UTC'))

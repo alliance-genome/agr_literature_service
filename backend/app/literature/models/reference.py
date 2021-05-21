@@ -13,7 +13,7 @@ from sqlalchemy.orm import relationship
 
 from literature.database.base import Base
 
-from literature.schemas.referenceCategory import ReferenceCategory
+from literature.schemas.reference_category import ReferenceCategory
 
 
 class Reference(Base):
@@ -46,8 +46,6 @@ class Reference(Base):
         back_populates='reference',
     )
 
-
-
     resource_id = Column(
         Integer,
         ForeignKey('resources.resource_id'),
@@ -73,7 +71,7 @@ class Reference(Base):
         nullable=True
     )
 
-    modReferenceTypes = relationship(
+    mod_reference_types = relationship(
         'ModReferenceType',
         lazy='joined',
         back_populates='reference',
@@ -94,19 +92,19 @@ class Reference(Base):
         cascade="all, delete, delete-orphan"
     )
 
-    datePublished = Column(
+    date_published = Column(
         String(),
         unique=False,
         nullable=True
     )
 
-    dateArrivedInPubMed = Column(
+    date_arrived_in_pubmed = Column(
         String(),
         unique=False,
         nullable=True
     )
 
-    dateLastModified = Column(
+    date_last_modified = Column(
         String(),
         unique=False,
         nullable=True
@@ -160,13 +158,13 @@ class Reference(Base):
         nullable=True
     )
 
-    issueName = Column(
+    issue_name = Column(
         String(),
         unique=False,
         nullable=True
     )
 
-    issueDate = Column(
+    issue_date = Column(
         String(),
         unique=False,
         nullable=True
@@ -186,13 +184,13 @@ class Reference(Base):
         cascade="all, delete, delete-orphan"
     )
 
-    dateUpdated = Column(
+    date_updated = Column(
         DateTime,
         nullable=True,
         default=datetime.utcnow
     )
 
-    dateCreated = Column(
+    date_created = Column(
         DateTime,
         nullable=False,
         default=datetime.now(tz=pytz.timezone('UTC'))

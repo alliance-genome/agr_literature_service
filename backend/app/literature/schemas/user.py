@@ -11,9 +11,11 @@ class User(BaseModel):
     email:str
     password:str
 
+
 class ShowUser(BaseModel):
     name:str
     email:str
     resources : List[ResourceSchemaShow] =[]
+
     class Config():
         orm_mode = True

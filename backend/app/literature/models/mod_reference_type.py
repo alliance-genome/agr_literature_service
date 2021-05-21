@@ -26,7 +26,7 @@ class ModReferenceType(Base):
 
     reference = relationship(
         'Reference',
-        back_populates="modReferenceTypes"
+        back_populates="mod_reference_types"
     )
 
     reference_type = Column(

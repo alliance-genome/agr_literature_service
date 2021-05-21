@@ -121,7 +121,7 @@ def update(filename: str, file_update: FileSchemaUpdate):
             setattr(file_db_obj, field, value)
 
     db.session.commit()
-    db.session.flush()
+    db.session.refresh()
 
     return file_db_obj
 
@@ -146,9 +146,10 @@ def download(s3: BaseClient, filename: str):
     bucket_name = "agr-literature"
 
     return [download_file_from_bucket(s3,
-                                     bucket_name,
-                                     file_obj.folder,
-                                     file_obj.s3_filename), file_obj.content_type]
+                                      bucket_name,
+                                      file_obj.folder,
+                                      file_obj.s3_filename),
+            file_obj.content_type]
 
 
 def show(filename: str):

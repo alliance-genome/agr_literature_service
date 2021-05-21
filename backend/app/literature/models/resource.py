@@ -47,25 +47,25 @@ class Resource(Base):
         nullable=True
     )
 
-    titleSynonyms = Column(
+    title_synonyms = Column(
         ARRAY(String()),
         unique=False,
         nullable=True
     )
 
-    isoAbbreviation = Column(
+    iso_abbreviation = Column(
         String(),
         unique=True,
         nullable=True
     )
 
-    medlineAbbreviation = Column(
+    medline_abbreviation = Column(
         String(),
         unique=False,
         nullable=True
     )
 
-    copyrightDate = Column(
+    copyright_date = Column(
         DateTime
     )
 
@@ -75,13 +75,13 @@ class Resource(Base):
         nullable=True
     )
 
-    printISSN = Column(
+    print_issn = Column(
         String(),
         unique=False,
         nullable=True
     )
 
-    onlineISSN = Column(
+    online_issn = Column(
         String(),
         unique=False,
         nullable=True
@@ -107,7 +107,7 @@ class Resource(Base):
         nullable=True
     )
 
-    abbreviationSynonyms = Column(
+    abbreviation_Synonyms = Column(
         ARRAY(String()),
         nullable=True
     )
@@ -130,12 +130,12 @@ class Resource(Base):
         nullable=True
     )
 
-    dateUpdated = Column(
+    date_updated = Column(
         DateTime,
         nullable=True,
     )
 
-    dateCreated = Column(
+    date_created = Column(
         DateTime,
         nullable=False,
         default=datetime.now(tz=pytz.timezone('UTC'))

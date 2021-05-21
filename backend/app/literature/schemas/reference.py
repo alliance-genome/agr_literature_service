@@ -8,31 +8,31 @@ from literature.schemas.author import AuthorSchemaShow
 from literature.schemas.editor import EditorSchemaPost
 from literature.schemas.editor import EditorSchemaShow
 from literature.schemas.resource import ResourceSchemaShow
-from literature.schemas.referenceCategory import ReferenceCategory
-from literature.schemas.modReferenceType import ModReferenceType
+from literature.schemas.reference_category import ReferenceCategory
+from literature.schemas.mod_reference_type import ModReferenceType
 from literature.schemas.reference_tag import ReferenceTag
 from literature.schemas.mesh_detail import MeshDetail
-from literature.schemas.crossReference import CrossReferenceSchemaRelated
+from literature.schemas.cross_reference import CrossReferenceSchemaRelated
 
 
 class ReferenceSchemaPost(BaseModel):
     title: str
-    datePublished: str
+    date_published: str
     category: ReferenceCategory
     citation: str
 
-    dateArrivedInPubMed: Optional[str] = None
-    dateLastModified: Optional[str] = None
+    date_arrived_in_pubmed: Optional[str] = None
+    date_last_modified: Optional[str] = None
     volume: Optional[str] = None
     language: Optional[str] = None
     pages: Optional[str] = None
     abstract: Optional[str] = None
     keywords: Optional[List[str]] = None
-    pubMedType: Optional[List[str]] = None
-    modReferenceTypes: Optional[List[ModReferenceType]] = None
+    pubmed_type: Optional[List[str]] = None
+    mod_reference_types: Optional[List[ModReferenceType]] = None
     publisher: Optional[str] = None
-    issueName: Optional[str] = None
-    issueDate: Optional[str] = None
+    issue_name: Optional[str] = None
+    issue_date: Optional[str] = None
     tags: Optional[List[ReferenceTag]] = None
     mesh_terms: Optional[List[MeshDetail]] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
@@ -51,18 +51,18 @@ class ReferenceSchemaUpdate(BaseModel):
     category: ReferenceCategory
     citation: str
 
-    dateArrivedInPubMed: Optional[str] = None
-    dateLastModified: Optional[str] = None
+    date_arrived_in_pubmed: Optional[str] = None
+    date_last_modified: Optional[str] = None
     volume: Optional[str] = None
     language: Optional[str] = None
     pages: Optional[str] = None
     abstract: Optional[str] = None
     keywords: Optional[List[str]] = None
-    pubMedType: Optional[List[str]] = None
-    modReferenceTypes: Optional[List[ModReferenceType]] = None
+    pubmed_type: Optional[List[str]] = None
+    mod_reference_types: Optional[List[ModReferenceType]] = None
     publisher: Optional[str] = None
-    issueName: Optional[str] = None
-    issueDate: Optional[str] = None
+    issue_name: Optional[str] = None
+    issue_date: Optional[str] = None
     tags: Optional[List[ReferenceTag]] = None
     mesh_terms: Optional[List[MeshDetail]] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
@@ -80,18 +80,18 @@ class ReferenceSchemaShow(BaseModelShow):
     category: ReferenceCategory
     citation: str
 
-    dateArrivedInPubMed: Optional[str] = None
-    dateLastModified: Optional[str] = None
+    date_arrived_in_pubmed: Optional[str] = None
+    date_last_modified: Optional[str] = None
     volume: Optional[str] = None
     language: Optional[str] = None
     pages: Optional[str] = None
     abstract: Optional[str] = None
     keywords: Optional[List[str]] = None
-    pubMedType: Optional[List[str]] = None
-    modReferenceTypes: Optional[List[ModReferenceType]] = None
+    pubmed_type: Optional[List[str]] = None
+    mod_reference_types: Optional[List[ModReferenceType]] = None
     publisher: Optional[str] = None
-    issueName: Optional[str] = None
-    issueDate: Optional[str] = None
+    issue_name: Optional[str] = None
+    issue_date: Optional[str] = None
     tags: Optional[List[ReferenceTag]] = None
     mesh_terms: Optional[List[MeshDetail]] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None

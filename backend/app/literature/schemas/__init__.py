@@ -20,12 +20,12 @@ from literature.schemas.reference_tag import ReferenceTag
 from literature.schemas.tag_name import TagName
 from literature.schemas.env_state import EnvState
 from literature.schemas.tag_source import TagSource
-from literature.schemas.referenceCategory import ReferenceCategory
-from literature.schemas.modReferenceType import ModReferenceType
+from literature.schemas.reference_category import ReferenceCategory
+from literature.schemas.mod_reference_type import ModReferenceType
 
-from literature.schemas.crossReference import CrossReferenceSchemaRelated
-from literature.schemas.crossReference import CrossReferenceSchemaUpdate
-from literature.schemas.crossReference import CrossReferenceSchema
+from literature.schemas.cross_reference import CrossReferenceSchemaRelated
+from literature.schemas.cross_reference import CrossReferenceSchemaUpdate
+from literature.schemas.cross_reference import CrossReferenceSchema
 
 from literature.schemas.file_category import FileCategories
 

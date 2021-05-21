@@ -45,7 +45,11 @@ def create(reference: ReferenceSchemaPost):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                 detail=f"Author with ORCID {author.orcid} already exists: author_id {author_obj.author_id}")
 
-
+    for editor in reference.editors:
+        editor_obj = db.session.query(Editor).filter(Editor.orcid == editor.orcid).first()
+        if editor_obj:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                detail=f"Editor with ORCID {editor.orcid} already exists: editor_id {editor_obj.editor_id}")
 
     for cross_reference in reference.cross_references:
         if db.session.query(CrossReference).filter(CrossReference.curie == cross_reference.curie).first():
@@ -63,7 +67,7 @@ def create(reference: ReferenceSchemaPost):
     reference_data['curie'] = curie
 
     for field, value in vars(reference).items():
-        if field in ['authors', 'editors', 'modReferenceTypes', 'tags', 'mesh_terms', 'cross_references']:
+        if field in ['authors', 'editors', 'mod_reference_types', 'tags', 'mesh_terms', 'cross_references']:
             db_objs = []
             for obj in value:
                 obj_data = jsonable_encoder(obj)
@@ -72,7 +76,7 @@ def create(reference: ReferenceSchemaPost):
                     db_obj = Author(**obj_data)
                 elif field == 'editors':
                     db_obj = Editor(**obj_data)
-                elif field == 'modReferenceTypes':
+                elif field == 'mod_reference_types':
                     db_obj = ModReferenceType(**obj_data)
                 elif field == 'tags':
                     db_obj =  ReferenceTag(**obj_data)
@@ -80,8 +84,6 @@ def create(reference: ReferenceSchemaPost):
                     db_obj =  MeshDetail(**obj_data)
                 elif field == 'cross_references':
                     db_obj =  CrossReference(**obj_data)
-
-
 
                 db.session.add(db_obj)
                 db_objs.append(db_obj)
@@ -100,7 +102,7 @@ def create(reference: ReferenceSchemaPost):
     reference_db_obj = Reference(**reference_data)
     db.session.add(reference_db_obj)
     db.session.commit()
-    db.session.flush()
+    db.session.refresh()
 
     return reference_db_obj
 

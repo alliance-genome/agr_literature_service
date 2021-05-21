@@ -21,7 +21,7 @@ class MeshDetail(Base):
     __tablename__ = 'Mesh_details'
     __versioned__ = {}
 
-    reference_tag_id = Column(
+    mesh_detail_id = Column(
         Integer,
         primary_key=True,
         autoincrement=True

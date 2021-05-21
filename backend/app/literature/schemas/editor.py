@@ -9,9 +9,9 @@ class EditorSchemaPost(BaseModel):
     order: Optional[int] = None
 
     name: Optional[str]  = None
-    firstName: Optional[str] = None
-    middleNames: Optional[List[str]] = None
-    lastName: Optional[str] = None
+    first_name: Optional[str] = None
+    middle_names: Optional[List[str]] = None
+    last_name: Optional[str] = None
 
     class Config():
         orm_mode = True

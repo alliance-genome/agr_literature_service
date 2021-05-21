@@ -57,30 +57,36 @@ class Editor(Base):
         nullable=True
     )
 
-    firstName = Column(
+    orcid = Column(
+        String(),
+        unique=True,
+        nullable=True
+    )
+
+    first_name = Column(
         String(),
         unique=False,
         nullable=True
     )
 
-    middleNames = Column(
+    middle_names = Column(
         ARRAY(String()),
         nullable=True
     )
 
-    lastName = Column(
+    last_name = Column(
         String(),
         unique=False,
         nullable=True
     )
 
-    dateUpdated = Column(
+    date_updated = Column(
         DateTime,
         nullable=True,
         default=datetime.utcnow
     )
 
-    dateCreated = Column(
+    date_created = Column(
         DateTime,
         nullable=False,
         default=datetime.now(tz=pytz.timezone('UTC'))
