@@ -19,4 +19,5 @@ def upload_file_to_bucket(s3_client, file_obj, bucket, folder, object_name=None)
     except ClientError as e:
         print(e)
         return False
+
     return True

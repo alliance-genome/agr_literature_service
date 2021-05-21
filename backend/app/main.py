@@ -4,6 +4,7 @@ import argparse
 
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi_sqlalchemy import DBSessionMiddleware
 
 from literature import  models
@@ -30,9 +31,16 @@ parser.add_argument('-v', dest='verbose', action='store_true')
 
 args = vars(parser.parse_args())
 
-
 app = FastAPI()
-app.add_middleware(DBSessionMiddleware, db_url=SQLALCHEMY_DATABASE_URL)
+
+app.add_middleware(DBSessionMiddleware,
+                   db_url=SQLALCHEMY_DATABASE_URL)
+
+app.add_middleware(CORSMiddleware,
+                   allow_credentials=True,
+                   allow_origin_regex=".*",
+                   allow_methods=["*"],
+                   allow_headers=["*"])
 
 def custom_openapi():
     if app.openapi_schema:

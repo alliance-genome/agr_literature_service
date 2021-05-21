@@ -25,6 +25,7 @@ from literature.schemas import FileSchemaShow
 
 from literature.s3.upload import upload_file_to_bucket
 from literature.s3.delete import delete_file_in_bucket
+from literature.s3.download import download_file_from_bucket
 
 from literature.config import config
 
@@ -126,13 +127,38 @@ def update(filename: str, file_update: FileSchemaUpdate):
 
 
 def show(filename: str):
-    file = db.session.query(File).filter(File.s3_filename == filename).first()
+    file_obj = db.session.query(File).filter(File.s3_filename == filename).first()
 
-    if not file:
+    if not file_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"File with the filename {filename} is not available")
 
-    return file
+    return file_obj
+
+
+def download(s3: BaseClient, filename: str):
+    file_obj = db.session.query(File).filter(File.s3_filename == filename).first()
+
+    if not file_obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"File with the filename {filename} is not available")
+
+    bucket_name = "agr-literature"
+
+    return [download_file_from_bucket(s3,
+                                     bucket_name,
+                                     file_obj.folder,
+                                     file_obj.s3_filename), file_obj.content_type]
+
+
+def show(filename: str):
+    file_obj = db.session.query(File).filter(File.s3_filename == filename).first()
+
+    if not file_obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"File with the filename {filename} is not available")
+
+    return file_obj
 
 
 def show_changesets(filename: str):

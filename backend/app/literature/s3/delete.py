@@ -19,4 +19,5 @@ def delete_file_in_bucket(s3_client, bucket, folder, object_name=None):
     except ClientError as e:
         print(e)
         return False
+
     return True

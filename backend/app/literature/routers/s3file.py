@@ -6,6 +6,8 @@ from fastapi import status
 from fastapi import Response
 from fastapi import Security
 
+from fastapi.responses import StreamingResponse
+
 from botocore.client import BaseClient
 
 from fastapi_auth0 import Auth0User
@@ -45,14 +47,25 @@ def update(filename: str,
     return s3file.update(filename, request)
 
 
-@router.get('/{filename',
+@router.get('/{filename}',
             response_model=FileSchemaShow,
             status_code=200)
 def show(filename: str):
     return s3file.show(filename)
 
 
-@router.get('/{file_id}/versions',
+@router.get('/{filename}/download',
+            status_code=200,
+            dependencies=[Depends(auth.implicit_scheme)])
+async def show(filename: str,
+         s3: BaseClient = Depends(s3_auth),
+         user: Auth0User = Security(auth.get_user)):
+   [file_stream, media_type] = s3file.download(s3, filename)
+   return StreamingResponse(file_stream, media_type=media_type)
+
+
+
+@router.get('/{filename}/versions',
             status_code=200)
 def show(filename: str):
     return s3file.show_changesets(filename)
