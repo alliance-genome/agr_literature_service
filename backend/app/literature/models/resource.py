@@ -107,7 +107,7 @@ class Resource(Base):
         nullable=True
     )
 
-    abbreviation_Synonyms = Column(
+    abbreviation_synonyms = Column(
         ARRAY(String()),
         nullable=True
     )

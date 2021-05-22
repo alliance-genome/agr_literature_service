@@ -46,6 +46,12 @@ class Author(Base):
         back_populates="authors"
     )
 
+    primary = Column(
+      Boolean,
+      nullable=True,
+      unique=False
+    )
+
     order = Column(
         Integer,
         nullable=True
@@ -64,7 +70,7 @@ class Author(Base):
 
     orcid = Column(
         String(),
-        unique=True,
+        unique=False,
         nullable=True
     )
 
@@ -85,7 +91,7 @@ class Author(Base):
        nullable=True
     )
 
-    lastName = Column(
+    last_name = Column(
         String(),
         unique=False,
         nullable=True

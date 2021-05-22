@@ -59,7 +59,7 @@ class Editor(Base):
 
     orcid = Column(
         String(),
-        unique=True,
+        unique=False,
         nullable=True
     )
 

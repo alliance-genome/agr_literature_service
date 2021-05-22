@@ -12,3 +12,10 @@ class ModReferenceType(BaseModel):
         orm_mode = True
         extra = "forbid"
 
+
+class ModReferenceTypeShow(ModReferenceType):
+    mod_reference_type_id = int
+
+    class Config():
+        orm_mode = True
+        extra = "forbid"

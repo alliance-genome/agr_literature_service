@@ -39,17 +39,17 @@ def create(reference: ReferenceSchemaPost):
     reference_data = {}
 
 
-    for author in reference.authors:
-        author_obj = db.session.query(Author).filter(Author.orcid == author.orcid).first()
-        if author_obj:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                                detail=f"Author with ORCID {author.orcid} already exists: author_id {author_obj.author_id}")
+#    for author in reference.authors:
+#        author_obj = db.session.query(Author).filter(Author.orcid == author.orcid).first()
+#        if author_obj:
+#            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+#                                detail=f"Author with ORCID {author.orcid} already exists: author_id {author_obj.author_id}")
 
-    for editor in reference.editors:
-        editor_obj = db.session.query(Editor).filter(Editor.orcid == editor.orcid).first()
-        if editor_obj:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                                detail=f"Editor with ORCID {editor.orcid} already exists: editor_id {editor_obj.editor_id}")
+#    for editor in reference.editors:
+#        editor_obj = db.session.query(Editor).filter(Editor.orcid == editor.orcid).first()
+#        if editor_obj:
+#            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+#                                detail=f"Editor with ORCID {editor.orcid} already exists: editor_id {editor_obj.editor_id}")
 
     for cross_reference in reference.cross_references:
         if db.session.query(CrossReference).filter(CrossReference.curie == cross_reference.curie).first():
@@ -102,7 +102,7 @@ def create(reference: ReferenceSchemaPost):
     reference_db_obj = Reference(**reference_data)
     db.session.add(reference_db_obj)
     db.session.commit()
-    db.session.refresh()
+    #db.session.refresh()
 
     return reference_db_obj
 

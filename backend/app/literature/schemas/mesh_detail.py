@@ -9,3 +9,10 @@ class MeshDetail(BaseModel):
    class Config():
         orm_mode = True
         extra = "forbid"
+
+class MeshDetailShow(MeshDetail):
+   mesh_detail_id: int
+
+   class Config():
+        orm_mode = True
+        extra = "forbid"

@@ -140,7 +140,7 @@ class Reference(Base):
         nullable=True
     )
 
-    pubMedType = Column(
+    pubmed_type = Column(
         ARRAY(String()),
         unique=False,
         nullable=True

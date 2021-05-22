@@ -30,17 +30,17 @@ def get_all():
 def create(resource: ResourceSchemaPost):
     resource_data = {}
 
-    for author in resource.authors:
-        author_obj = db.session.query(Author).filter(Author.orcid == author.orcid).first()
-        if author_obj:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                                detail=f"Author with ORCID {author.orcid} already exists: author_id {author_obj.author_id}")
+#    for author in resource.authors:
+#        author_obj = db.session.query(Author).filter(Author.orcid == author.orcid).first()
+#        if author_obj:
+#            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+#                                detail=f"Author with ORCID {author.orcid} already exists: author_id {author_obj.author_id}")
 
-    for editor in resource.editors:
-        editor_obj = db.session.query(Editor).filter(Editor.orcid == editor.orcid).first()
-        if editor_obj:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                                detail=f"Editor with ORCID {editor.orcid} already exists: editor_id {editor_obj.editor_id}")
+#    for editor in resource.editors:
+#        editor_obj = db.session.query(Editor).filter(Editor.orcid == editor.orcid).first()
+#        if editor_obj:
+#            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+#                                detail=f"Editor with ORCID {editor.orcid} already exists: editor_id {editor_obj.editor_id}")
 
     for cross_reference in resource.cross_references:
         if db.session.query(CrossReference).filter(CrossReference.curie == cross_reference.curie).first():
@@ -49,7 +49,7 @@ def create(resource: ResourceSchemaPost):
 
     if db.session.query(Resource).filter(Resource.iso_abbreviation == resource.iso_abbreviation).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail=f"Resource with isoAbbreviation {resource.iso_abbreviation} already exists")
+                            detail=f"Resource with iso_abbreviation {resource.iso_abbreviation} already exists")
 
     last_curie = db.session.query(Resource.curie).order_by(sqlalchemy.desc(Resource.curie)).first()
 
