@@ -12,3 +12,10 @@ class ReferenceTag(BaseModel):
     class Config():
          orm_mode = True
          extra = "forbid"
+
+class ReferenceTagShow(ReferenceTag):
+    reference_tag_id: int
+
+    class Config():
+         orm_mode = True
+         extra = "forbid"

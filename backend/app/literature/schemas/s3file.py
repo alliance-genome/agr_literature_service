@@ -30,6 +30,7 @@ class FileSchemaUpdate(BaseModel):
 
 
 class FileSchemaShow(BaseModel):
+    file_id: int
     s3_filename: str
     folder: str
 

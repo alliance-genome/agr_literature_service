@@ -32,7 +32,7 @@ router = APIRouter(
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=ReferenceSchemaShow,
+             response_model=str,
              dependencies=[Depends(auth.implicit_scheme)])
 def create(request: ReferenceSchemaPost,
            user: Auth0User = Security(auth.get_user)):
@@ -50,7 +50,7 @@ def destroy(curie: str,
 
 @router.put('/{curie}',
             status_code=status.HTTP_202_ACCEPTED,
-            response_model=ReferenceSchemaShow,
+            response_model=str,
             dependencies=[Depends(auth.implicit_scheme)])
 def update(curie: str,
            request: ReferenceSchemaUpdate,
@@ -59,7 +59,7 @@ def update(curie: str,
 
 
 @router.get('/',
-            response_model=List[ReferenceSchemaShow])
+            response_model=List[str])
 def all():
     return reference.get_all()
 
@@ -69,6 +69,13 @@ def all():
             response_model=ReferenceSchemaShow)
 def show(curie: str):
     return reference.show(curie)
+
+
+@router.get('/{curie}/files',
+            status_code=200,
+            response_model=List[FileSchemaShow])
+def show(curie: str):
+    return reference.show_files(curie)
 
 
 @router.post('/{curie}/upload_file',

@@ -54,7 +54,6 @@ class Reference(Base):
 
     resource = relationship(
         'Resource',
-        lazy='joined',
         back_populates="references",
         single_parent=True,
     )

@@ -12,6 +12,7 @@ from literature.schemas.reference_category import ReferenceCategory
 from literature.schemas.mod_reference_type import ModReferenceTypeSchemaCreate
 from literature.schemas.mod_reference_type import ModReferenceTypeSchemaShow
 from literature.schemas.reference_tag import ReferenceTag
+from literature.schemas.reference_tag import ReferenceTagShow
 from literature.schemas.mesh_detail import MeshDetailSchemaCreate
 from literature.schemas.mesh_detail import MeshDetailSchemaShow
 from literature.schemas.cross_reference import CrossReferenceSchemaRelated
@@ -64,7 +65,6 @@ class ReferenceSchemaUpdate(BaseModel):
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     issue_date: Optional[str] = None
-    tags: Optional[List[ReferenceTag]] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
     resource: Optional[str] = None
 
@@ -92,10 +92,10 @@ class ReferenceSchemaShow(BaseModelShow):
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     issue_date: Optional[str] = None
-    tags: Optional[List[ReferenceTag]] = None
+    tags: Optional[List[ReferenceTagShow]] = None
     mesh_terms: Optional[List[MeshDetailSchemaShow]] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
-    resource: Optional[ResourceSchemaShow] = None
+    resource_curie: Optional[str] = None
     authors: Optional[List[AuthorSchemaShow]] = None
     editors: Optional[List[EditorSchemaShow]] = None
 

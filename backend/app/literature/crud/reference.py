@@ -20,7 +20,6 @@ from literature.models import ReferenceTag
 from literature.models import MeshDetail
 
 
-
 def create_next_curie(curie):
     curie_parts = curie.rsplit('-', 1)
     number_part = curie_parts[1]
@@ -30,31 +29,23 @@ def create_next_curie(curie):
 
 
 def get_all():
-    references = db.session.query(Reference).all()
+    references = db.session.query(Reference.curie).all()
 
-    return references
+    reference_data = []
+    for reference in references:
+        reference_data.append(reference[0])
+
+    return reference_data
 
 
 def create(reference: ReferenceSchemaPost):
     reference_data = {}
 
-
-#    for author in reference.authors:
-#        author_obj = db.session.query(Author).filter(Author.orcid == author.orcid).first()
-#        if author_obj:
-#            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-#                                detail=f"Author with ORCID {author.orcid} already exists: author_id {author_obj.author_id}")
-
-#    for editor in reference.editors:
-#        editor_obj = db.session.query(Editor).filter(Editor.orcid == editor.orcid).first()
-#        if editor_obj:
-#            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-#                                detail=f"Editor with ORCID {editor.orcid} already exists: editor_id {editor_obj.editor_id}")
-
-    for cross_reference in reference.cross_references:
-        if db.session.query(CrossReference).filter(CrossReference.curie == cross_reference.curie).first():
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                                detail=f"CrossReference with id {cross_reference.curie} already exists")
+    if reference.cross_references:
+        for cross_reference in reference.cross_references:
+            if db.session.query(CrossReference).filter(CrossReference.curie == cross_reference.curie).first():
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                    detail=f"CrossReference with id {cross_reference.curie} already exists")
 
     last_curie = db.session.query(Reference.curie).order_by(sqlalchemy.desc(Reference.curie)).first()
 
@@ -69,24 +60,25 @@ def create(reference: ReferenceSchemaPost):
     for field, value in vars(reference).items():
         if field in ['authors', 'editors', 'mod_reference_types', 'tags', 'mesh_terms', 'cross_references']:
             db_objs = []
-            for obj in value:
-                obj_data = jsonable_encoder(obj)
-                db_obj = None
-                if field == 'authors':
-                    db_obj = Author(**obj_data)
-                elif field == 'editors':
-                    db_obj = Editor(**obj_data)
-                elif field == 'mod_reference_types':
-                    db_obj = ModReferenceType(**obj_data)
-                elif field == 'tags':
-                    db_obj =  ReferenceTag(**obj_data)
-                elif field == 'mesh_terms':
-                    db_obj =  MeshDetail(**obj_data)
-                elif field == 'cross_references':
-                    db_obj =  CrossReference(**obj_data)
+            if value is not None:
+                for obj in value:
+                    obj_data = jsonable_encoder(obj)
+                    db_obj = None
+                    if field == 'authors':
+                        db_obj = Author(**obj_data)
+                    elif field == 'editors':
+                        db_obj = Editor(**obj_data)
+                    elif field == 'mod_reference_types':
+                        db_obj = ModReferenceType(**obj_data)
+                    elif field == 'tags':
+                        db_obj =  ReferenceTag(**obj_data)
+                    elif field == 'mesh_terms':
+                        db_obj =  MeshDetail(**obj_data)
+                    elif field == 'cross_references':
+                        db_obj =  CrossReference(**obj_data)
 
-                db.session.add(db_obj)
-                db_objs.append(db_obj)
+                    db.session.add(db_obj)
+                    db_objs.append(db_obj)
             reference_data[field] = db_objs
         else:
             reference_data[field] = value
@@ -102,9 +94,8 @@ def create(reference: ReferenceSchemaPost):
     reference_db_obj = Reference(**reference_data)
     db.session.add(reference_db_obj)
     db.session.commit()
-    #db.session.refresh()
 
-    return reference_db_obj
+    return curie
 
 
 def destroy(curie: str):
@@ -141,7 +132,18 @@ def update(curie: str, reference_update: ReferenceSchemaUpdate):
     reference_db_obj.dateUpdated = datetime.utcnow()
     db.session.commit()
 
-    return db.session.query(Reference).filter(Reference.curie == curie).first()
+    return "updated"
+
+
+def show_files(curie:str):
+    reference = db.session.query(Reference).filter(Reference.curie == curie).first()
+    files_data = []
+    for reference_file in reference.files:
+        file_data = jsonable_encoder(reference_file)
+        del file_data['reference_id']
+        files_data.append(file_data)
+
+    return files_data
 
 
 def show(curie: str):
@@ -150,7 +152,37 @@ def show(curie: str):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the id {curie} is not available")
 
-    return reference
+    reference_data = jsonable_encoder(reference)
+
+    if reference.resource_id:
+        reference_data['resource_curie'] = db.session.query(Resource.curie).filter(Resource.resource_id == reference.resource_id).first()[0]
+        del reference_data['reference_id']
+    if reference.cross_references:
+        for cross_reference in reference_data['cross_references']:
+            del cross_reference['reference_id']
+            del cross_reference['resource_id']
+    if reference.mod_reference_types:
+        for mod_reference_type in reference_data['mod_reference_types']:
+            del mod_reference_type['reference_id']
+    if reference.tags:
+        for tag in reference_data['tags']:
+            del tag['reference_id']
+    if reference.mesh_terms:
+        for mesh_term in reference_data['mesh_terms']:
+            del mesh_term['reference_id']
+    if reference.authors:
+        for author in reference_data['authors']:
+            del author['resource_id']
+            del author['reference_id']
+    if reference.editors:
+        for editor in reference_data['editors']:
+            del editor['resource_id']
+            del editor['reference_id']
+
+    del reference_data['files']
+    del reference_data['resource_id']
+
+    return reference_data
 
 
 def show_changesets(curie: str):
