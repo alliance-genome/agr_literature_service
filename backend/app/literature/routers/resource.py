@@ -13,6 +13,7 @@ from literature.user import get_global_user_id
 
 from literature.schemas import ResourceSchemaShow
 from literature.schemas import ResourceSchemaPost
+from literature.schemas import ResourceSchemaUpdate
 
 from literature.crud import resource
 from literature.routers.authentication import auth
@@ -27,7 +28,7 @@ router = APIRouter(
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(auth.implicit_scheme)],
-             response_model=ResourceSchemaShow)
+             response_model=str)
 def create(request: ResourceSchemaPost,
            user: Auth0User = Security(auth.get_user)):
     set_global_user_id(user.id)
@@ -46,15 +47,15 @@ def destroy(curie: str,
 @router.put('/{curie}',
             status_code=status.HTTP_202_ACCEPTED,
             dependencies=[Depends(auth.implicit_scheme)],
-            response_model=ResourceSchemaShow)
+            response_model=str)
 def update(curie: str,
-           request: ResourceSchemaPost,
+           request: ResourceSchemaUpdate,
            user: Auth0User = Security(auth.get_user)):
     return resource.update(curie, request)
 
 
 @router.get('/',
-            response_model=List[ResourceSchemaShow])
+            response_model=List[str])
 def all():
     return resource.get_all()
 

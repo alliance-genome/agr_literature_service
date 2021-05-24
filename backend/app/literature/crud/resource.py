@@ -6,6 +6,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi_sqlalchemy import db
 
 from literature.schemas import ResourceSchemaPost
+from literature.schemas import ResourceSchemaUpdate
 
 from literature.models import Reference
 from literature.models import Resource
@@ -21,10 +22,15 @@ def create_next_curie(curie):
     number = int(number_part) + 1
     return "-".join([curie_parts[0], str(number).rjust(10, '0')])
 
-def get_all():
-    resources = db.session.query(Resource).all()
 
-    return resources
+def get_all():
+    resources = db.session.query(Resource.curie).all()
+
+    resources_data = []
+    for resource in resources:
+         resources_data.append(resource[0])
+
+    return resources_data
 
 
 def create(resource: ResourceSchemaPost):
@@ -75,7 +81,7 @@ def create(resource: ResourceSchemaPost):
     db.session.add(resource_db_obj)
     db.session.commit()
 
-    return db.session.query(Resource).filter(Resource.curie == curie).first()
+    return curie
 
 
 def destroy(curie: str):
@@ -90,27 +96,29 @@ def destroy(curie: str):
     return None
 
 
-def update(curie: str, resource_update: ResourceSchemaPost):
+def update(curie: str, resource_update: ResourceSchemaUpdate):
 
     resource_db_obj = db.session.query(Resource).filter(Resource.curie == curie).first()
     if not resource_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Resource with curie {curie} not found")
 
-    iso_abbreviation_resource = db.session.query(Resource).filter(Resource.iso_abbreviation == resource_update.iso_abbreviation).first()
+    if resource_update.iso_abbreviation not in [None, ""]:
+        iso_abbreviation_resource = db.session.query(Resource).filter(Resource.iso_abbreviation == resource_update.iso_abbreviation).first()
 
-    if iso_abbreviation_resource and iso_abbreviation_resource.curie != curie:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail=f"Resource with iso_abbreviation {resource_update.iso_abbreviation} already exists")
+        if iso_abbreviation_resource and iso_abbreviation_resource.curie != curie:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                detail=f"Resource with iso_abbreviation {resource_update.iso_abbreviation} already exists")
 
 
     for field, value in vars(resource_update).items():
-        setattr(resource_db_obj, field, value)
+        if value is not None:
+            setattr(resource_db_obj, field, value)
 
     resource_db_obj.date_updated = datetime.utcnow()
     db.session.commit()
 
-    return db.session.query(Resource).filter(Resource.curie == curie).first()
+    return "updated"
 
 
 def show(curie: str):

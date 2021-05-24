@@ -1,6 +1,6 @@
 from literature.schemas.resource import ResourceSchemaPost
 from literature.schemas.resource import ResourceSchemaShow
-
+from literature.schemas.resource import ResourceSchemaUpdate
 
 from literature.schemas.reference import ReferenceSchemaPost
 from literature.schemas.reference import ReferenceSchemaUpdate

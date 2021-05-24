@@ -38,6 +38,28 @@ class ResourceSchemaPost(BaseModel):
         extra = "forbid"
 
 
+class ResourceSchemaUpdate(BaseModel):
+    title: str
+
+    title_synonyms: Optional[List[str]] = None
+    abbreviation_synonyms: Optional[List[str]] = None
+    iso_abbreviation: Optional[str] = None
+    abbreviation_synonyms: Optional[List[str]] = None
+    medline_abbreviation: Optional[str] = None
+    copyright_date: Optional[datetime] = None
+    publisher: Optional[str] = None
+    print_issn: Optional[str] = None
+    online_issn: Optional[str] = None
+    pages: Optional[str] = None
+    volumes: Optional[List[str]] = None
+    abstract: Optional[str] = None
+    summary: Optional[str] = None
+
+    class Config():
+        orm_mode = True
+        extra = "forbid"
+
+
 class ResourceSchemaShow(BaseModelShow):
     curie: str
     title: str
