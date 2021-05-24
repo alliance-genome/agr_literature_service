@@ -126,8 +126,12 @@ def show_changesets(editor_id: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Editor with the editor_id {editor_id} is not available")
 
-    changesets = []
-    for version in editor.versions:
-        changesets.append(version.changeset)
+    history = []
+    for version in reference.versions:
+        tx = version.transaction
+        history.append({'transaction': {'id': tx.id,
+                                        'issued_at': tx.issued_at,
+                                        'user_id': tx.user_id},
+                        'changeset': version.changeset})
 
-    return changesets
+    return history

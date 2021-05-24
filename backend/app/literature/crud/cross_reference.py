@@ -127,8 +127,12 @@ def show_changesets(curie: str):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Cross Reference with curie {curie} is not available")
 
-    changesets = []
+    history = []
     for version in cross_reference.versions:
-        changesets.append(version.changeset)
+        tx = version.transaction
+        history.append({'transaction': {'id': tx.id,
+                                        'issued_at': tx.issued_at,
+                                        'user_id': tx.user_id},
+                        'changeset': version.changeset})
 
-    return changesets
+    return history

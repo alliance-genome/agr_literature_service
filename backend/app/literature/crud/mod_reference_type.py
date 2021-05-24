@@ -96,8 +96,12 @@ def show_changesets(mod_reference_type_id: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with the mod_reference_type_id {mod_reference_type_id} is not available")
 
-    changesets = []
+    history = []
     for version in mod_reference_type.versions:
-        changesets.append(version.changeset)
+        tx = version.transaction
+        history.append({'transaction': {'id': tx.id,
+                                        'issued_at': tx.issued_at,
+                                        'user_id': tx.user_id},
+                        'changeset': version.changeset})
 
-    return changesets
+    return history

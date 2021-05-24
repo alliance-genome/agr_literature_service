@@ -96,8 +96,12 @@ def show_changesets(mesh_detail_id: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"MeshDetail with the mesh_detail_id {mesh_detail_id} is not available")
 
-    changesets = []
-    for version in mesh_detail.versions:
-        changesets.append(version.changeset)
+    history = []
+    for version in mesh_details.versions:
+        tx = version.transaction
+        history.append({'transaction': {'id': tx.id,
+                                        'issued_at': tx.issued_at,
+                                        'user_id': tx.user_id},
+                        'changeset': version.changeset})
 
-    return changesets
+    return history
