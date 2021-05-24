@@ -15,7 +15,6 @@ from literature.models import Resource
 from literature.models import Editor
 
 
-
 def create(editor: EditorSchemaPost):
     editor_data = jsonable_encoder(editor)
 

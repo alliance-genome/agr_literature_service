@@ -11,8 +11,8 @@ from literature.schemas.resource import ResourceSchemaShow
 from literature.schemas.reference_category import ReferenceCategory
 from literature.schemas.mod_reference_type import ModReferenceType
 from literature.schemas.reference_tag import ReferenceTag
-from literature.schemas.mesh_detail import MeshDetail
-from literature.schemas.mesh_detail import MeshDetailShow
+from literature.schemas.mesh_detail import MeshDetailSchemaCreate
+from literature.schemas.mesh_detail import MeshDetailSchemaShow
 from literature.schemas.cross_reference import CrossReferenceSchemaRelated
 
 
@@ -35,7 +35,7 @@ class ReferenceSchemaPost(BaseModel):
     issue_name: Optional[str] = None
     issue_date: Optional[str] = None
     tags: Optional[List[ReferenceTag]] = None
-    mesh_terms: Optional[List[MeshDetail]] = None
+    mesh_terms: Optional[List[MeshDetailSchemaCreate]] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
     authors: Optional[List[AuthorSchemaPost]] = None
     editors: Optional[List[EditorSchemaPost]] = None
@@ -60,12 +60,10 @@ class ReferenceSchemaUpdate(BaseModel):
     abstract: Optional[str] = None
     keywords: Optional[List[str]] = None
     pubmed_type: Optional[List[str]] = None
-    mod_reference_types: Optional[List[ModReferenceType]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     issue_date: Optional[str] = None
     tags: Optional[List[ReferenceTag]] = None
-    mesh_terms: Optional[List[MeshDetail]] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
     resource: Optional[str] = None
 
@@ -94,7 +92,7 @@ class ReferenceSchemaShow(BaseModelShow):
     issue_name: Optional[str] = None
     issue_date: Optional[str] = None
     tags: Optional[List[ReferenceTag]] = None
-    mesh_terms: Optional[List[MeshDetailShow]] = None
+    mesh_terms: Optional[List[MeshDetailSchemaShow]] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
     resource: Optional[ResourceSchemaShow] = None
     authors: Optional[List[AuthorSchemaShow]] = None

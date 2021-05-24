@@ -2,7 +2,8 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-class MeshDetail(BaseModel):
+
+class MeshDetailSchemaCreate(BaseModel):
    heading_term: str
    qualifier_term: Optional[str]
 
@@ -10,8 +11,25 @@ class MeshDetail(BaseModel):
         orm_mode = True
         extra = "forbid"
 
-class MeshDetailShow(MeshDetail):
+class MeshDetailSchemaPost(MeshDetailSchemaCreate):
+   reference_curie: str
+
+   class Config():
+        orm_mode = True
+        extra = "forbid"
+
+
+
+class MeshDetailSchemaShow(MeshDetailSchemaCreate):
    mesh_detail_id: int
+
+   class Config():
+        orm_mode = True
+        extra = "forbid"
+
+
+class MeshDetailSchemaUpdate(MeshDetailSchemaShow):
+   reference_curie: str
 
    class Config():
         orm_mode = True

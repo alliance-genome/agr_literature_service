@@ -55,7 +55,7 @@ class Resource(Base):
 
     iso_abbreviation = Column(
         String(),
-        unique=True,
+        unique=False,
         nullable=True
     )
 

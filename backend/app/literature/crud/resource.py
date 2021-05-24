@@ -30,26 +30,15 @@ def get_all():
 def create(resource: ResourceSchemaPost):
     resource_data = {}
 
-#    for author in resource.authors:
-#        author_obj = db.session.query(Author).filter(Author.orcid == author.orcid).first()
-#        if author_obj:
-#            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-#                                detail=f"Author with ORCID {author.orcid} already exists: author_id {author_obj.author_id}")
-
-#    for editor in resource.editors:
-#        editor_obj = db.session.query(Editor).filter(Editor.orcid == editor.orcid).first()
-#        if editor_obj:
-#            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-#                                detail=f"Editor with ORCID {editor.orcid} already exists: editor_id {editor_obj.editor_id}")
-
-    for cross_reference in resource.cross_references:
-        if db.session.query(CrossReference).filter(CrossReference.curie == cross_reference.curie).first():
+    if resource.cross_references is not None:
+        for cross_reference in resource.cross_references:
+            if db.session.query(CrossReference).filter(CrossReference.curie == cross_reference.curie).first():
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                    detail=f"CrossReference with curie {cross_reference.curie} already exists")
+    if resource.iso_abbreviation is not None:
+        if db.session.query(Resource).filter(Resource.iso_abbreviation == resource.iso_abbreviation).first():
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                                detail=f"CrossReference with curie {cross_reference.curie} already exists")
-
-    if db.session.query(Resource).filter(Resource.iso_abbreviation == resource.iso_abbreviation).first():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail=f"Resource with iso_abbreviation {resource.iso_abbreviation} already exists")
+                                detail=f"Resource with iso_abbreviation {resource.iso_abbreviation} already exists")
 
     last_curie = db.session.query(Resource.curie).order_by(sqlalchemy.desc(Resource.curie)).first()
 
@@ -64,20 +53,21 @@ def create(resource: ResourceSchemaPost):
     for field, value in vars(resource).items():
         if field in ['authors', 'editors', 'cross_references', 'mesh_terms']:
             db_objs = []
-            for obj in value:
-                obj_data = jsonable_encoder(obj)
-                db_obj = None
-                if field == 'authors':
-                    db_obj = Author(**obj_data)
-                elif field == 'editors':
-                    db_obj = Editor(**obj_data)
-                elif field == 'cross_references':
-                    db_obj = CrossReference(**obj_data)
-                elif field == 'mesh_terms':
-                    db_obj = MeshDetail(**obj_data)
-                db.session.add(db_obj)
-                db_objs.append(db_obj)
-            resource_data[field] = db_objs
+            if value is not None:
+                for obj in value:
+                    obj_data = jsonable_encoder(obj)
+                    db_obj = None
+                    if field == 'authors':
+                        db_obj = Author(**obj_data)
+                    elif field == 'editors':
+                        db_obj = Editor(**obj_data)
+                    elif field == 'cross_references':
+                        db_obj = CrossReference(**obj_data)
+                    elif field == 'mesh_terms':
+                        db_obj = MeshDetail(**obj_data)
+                    db.session.add(db_obj)
+                    db_objs.append(db_obj)
+                resource_data[field] = db_objs
         else:
             resource_data[field] = value
 

@@ -31,3 +31,8 @@ from literature.schemas.file_category import FileCategories
 
 from literature.schemas.s3file import FileSchemaUpdate
 from literature.schemas.s3file import FileSchemaShow
+
+from literature.schemas.mesh_detail import MeshDetailSchemaShow
+from literature.schemas.mesh_detail import MeshDetailSchemaUpdate
+from literature.schemas.mesh_detail import MeshDetailSchemaCreate
+from literature.schemas.mesh_detail import MeshDetailSchemaPost
