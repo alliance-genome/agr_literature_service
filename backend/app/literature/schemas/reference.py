@@ -96,6 +96,7 @@ class ReferenceSchemaShow(BaseModelShow):
     mesh_terms: Optional[List[MeshDetailSchemaShow]] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
     resource_curie: Optional[str] = None
+    resource_title: Optional[str] = None
     authors: Optional[List[AuthorSchemaShow]] = None
     editors: Optional[List[EditorSchemaShow]] = None
 
