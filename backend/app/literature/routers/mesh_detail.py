@@ -17,8 +17,8 @@ from literature.crud import mesh_detail
 from literature.routers.authentication import auth
 
 router = APIRouter(
-    prefix="/mesh_detail",
-    tags=['Mesh Detail']
+    prefix="/reference/mesh_detail",
+    tags=['Reference']
 )
 
 

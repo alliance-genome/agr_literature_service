@@ -9,7 +9,8 @@ from literature.schemas.editor import EditorSchemaPost
 from literature.schemas.editor import EditorSchemaShow
 from literature.schemas.resource import ResourceSchemaShow
 from literature.schemas.reference_category import ReferenceCategory
-from literature.schemas.mod_reference_type import ModReferenceType
+from literature.schemas.mod_reference_type import ModReferenceTypeSchemaCreate
+from literature.schemas.mod_reference_type import ModReferenceTypeSchemaShow
 from literature.schemas.reference_tag import ReferenceTag
 from literature.schemas.mesh_detail import MeshDetailSchemaCreate
 from literature.schemas.mesh_detail import MeshDetailSchemaShow
@@ -30,7 +31,7 @@ class ReferenceSchemaPost(BaseModel):
     abstract: Optional[str] = None
     keywords: Optional[List[str]] = None
     pubmed_type: Optional[List[str]] = None
-    mod_reference_types: Optional[List[ModReferenceType]] = None
+    mod_reference_types: Optional[List[ModReferenceTypeSchemaCreate]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     issue_date: Optional[str] = None
@@ -87,7 +88,7 @@ class ReferenceSchemaShow(BaseModelShow):
     abstract: Optional[str] = None
     keywords: Optional[List[str]] = None
     pubmed_type: Optional[List[str]] = None
-    mod_reference_types: Optional[List[ModReferenceType]] = None
+    mod_reference_types: Optional[List[ModReferenceTypeSchemaShow]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     issue_date: Optional[str] = None

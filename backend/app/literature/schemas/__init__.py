@@ -21,7 +21,6 @@ from literature.schemas.tag_name import TagName
 from literature.schemas.env_state import EnvState
 from literature.schemas.tag_source import TagSource
 from literature.schemas.reference_category import ReferenceCategory
-from literature.schemas.mod_reference_type import ModReferenceType
 
 from literature.schemas.cross_reference import CrossReferenceSchemaRelated
 from literature.schemas.cross_reference import CrossReferenceSchemaUpdate
@@ -36,3 +35,8 @@ from literature.schemas.mesh_detail import MeshDetailSchemaShow
 from literature.schemas.mesh_detail import MeshDetailSchemaUpdate
 from literature.schemas.mesh_detail import MeshDetailSchemaCreate
 from literature.schemas.mesh_detail import MeshDetailSchemaPost
+
+from literature.schemas.mod_reference_type import ModReferenceTypeSchemaShow
+from literature.schemas.mod_reference_type import ModReferenceTypeSchemaUpdate
+from literature.schemas.mod_reference_type import ModReferenceTypeSchemaCreate
+from literature.schemas.mod_reference_type import ModReferenceTypeSchemaPost
