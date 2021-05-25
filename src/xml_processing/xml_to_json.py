@@ -10,9 +10,9 @@ import logging
 import logging.config
 import hashlib
 
-from dotenv import load_dotenv
-
-load_dotenv()
+# from dotenv import load_dotenv
+# 
+# load_dotenv()
 
 
 # pipenv run python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
@@ -475,7 +475,7 @@ def generate_json():
                                 mesh_dict = {}
                                 mesh_dict["referenceId"] = 'PMID:' + pmid
                                 mesh_dict["meshHeadingTerm"] = mesh_heading_term
-                                mesh_dict["meshQualfierTerm"] = mesh_qualifier_term
+                                mesh_dict["meshQualifierTerm"] = mesh_qualifier_term
                                 meshs_list.append(mesh_dict)
                         else:
                             mesh_dict = {}
@@ -495,7 +495,7 @@ def generate_json():
 #                         for id_name in qualifier_group:
 #                             mesh_dict = {}
 #                             mesh_dict["referenceId"] = id_name[0]
-#                             mesh_dict["meshQualfierTerm"] = id_name[1]
+#                             mesh_dict["meshQualifierTerm"] = id_name[1]
 #                             meshs_list.append(mesh_dict)
                 data_dict['meshTerms'] = meshs_list
 
