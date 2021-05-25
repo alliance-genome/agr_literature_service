@@ -10,7 +10,7 @@ from fastapi_auth0 import Auth0User
 
 #from literature.schemas import ResourceDesciptorSchema
 
-from literature.crud import resource_descriptor
+from literature.crud import resource_descriptor_crud
 from literature.routers.authentication import auth
 
 router = APIRouter(
@@ -29,4 +29,4 @@ def show():
             status_code=status.HTTP_202_ACCEPTED,
             dependencies=[Depends(auth.implicit_scheme)])
 def update(user: Auth0User = Security(auth.get_user)):
-    return resource_descriptor.update()
+    return resource_descriptor_crud.update()

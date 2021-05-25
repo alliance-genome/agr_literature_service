@@ -13,7 +13,7 @@ from literature.schemas import MeshDetailSchemaPost
 from literature.schemas import MeshDetailSchemaCreate
 from literature.schemas import MeshDetailSchemaUpdate
 
-from literature.crud import mesh_detail
+from literature.crud import mesh_detail_crud
 from literature.routers.authentication import auth
 
 router = APIRouter(
@@ -28,7 +28,7 @@ router = APIRouter(
              dependencies=[Depends(auth.implicit_scheme)])
 def create(request: MeshDetailSchemaPost,
            user: Auth0User = Security(auth.get_user)):
-    return mesh_detail.create(request)
+    return mesh_detail_crud.create(request)
 
 
 @router.delete('/{mesh_detail_id}',
@@ -36,7 +36,7 @@ def create(request: MeshDetailSchemaPost,
                dependencies=[Depends(auth.implicit_scheme)])
 def destroy(mesh_detail_id: int,
             user: Auth0User = Security(auth.get_user)):
-    mesh_detail.destroy(mesh_detail_id)
+    mesh_detail_crud.destroy(mesh_detail_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -47,17 +47,17 @@ def destroy(mesh_detail_id: int,
 def update(mesh_detail_id: int,
            request: MeshDetailSchemaUpdate,
            user: Auth0User = Security(auth.get_user)):
-    return mesh_detail.update(mesh_detail_id, request)
+    return mesh_detail_crud.update(mesh_detail_id, request)
 
 
 @router.get('/{mesh_detail_id}',
             response_model=MeshDetailSchemaUpdate,
             status_code=200)
 def show(mesh_detail_id: int):
-    return mesh_detail.show(mesh_detail_id)
+    return mesh_detail_crud.show(mesh_detail_id)
 
 
 @router.get('/{mesh_detail_id}/versions',
             status_code=200)
 def show(mesh_detail_id: int):
-    return mesh_detail.show_changesets(mesh_detail_id)
+    return mesh_detail_crud.show_changesets(mesh_detail_id)

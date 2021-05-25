@@ -1,6 +1,6 @@
 from fastapi_sqlalchemy import db
 
-from literature.crud import user
+from literature.crud import user_crud
 from literature.models.user import User
 
 
@@ -11,7 +11,7 @@ def set_global_user_id(id: str):
     user_id = id
 
     if not db.session.query(User).filter(User.id == user_id).first():
-        user.create(user_id)
+        user_crud.create(user_id)
 
 def get_global_user_id():
     return user_id

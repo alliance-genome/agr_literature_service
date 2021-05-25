@@ -12,7 +12,7 @@ from literature.schemas import AuthorSchemaShow
 from literature.schemas import AuthorSchemaUpdate
 from literature.schemas import AuthorSchemaCreate
 
-from literature.crud import author
+from literature.crud import author_crud
 from literature.routers.authentication import auth
 
 router = APIRouter(
@@ -27,7 +27,7 @@ router = APIRouter(
              dependencies=[Depends(auth.implicit_scheme)])
 def create(request: AuthorSchemaCreate,
            user: Auth0User = Security(auth.get_user)):
-    return author.create(request)
+    return author_crud.create(request)
 
 
 @router.delete('/{author_id}',
@@ -35,7 +35,7 @@ def create(request: AuthorSchemaCreate,
                dependencies=[Depends(auth.implicit_scheme)])
 def destroy(author_id: int,
             user: Auth0User = Security(auth.get_user)):
-    author.destroy(author_id)
+    author_crud.destroy(author_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -46,7 +46,7 @@ def destroy(author_id: int,
 def update(author_id: int,
            request: AuthorSchemaUpdate,
            user: Auth0User = Security(auth.get_user)):
-    return author.update(author_id, request)
+    return author_crud.update(author_id, request)
 
 
 @router.get('/{author_id}',
@@ -58,4 +58,4 @@ def show(author_id: int):
 @router.get('/{author_id}/versions',
             status_code=200)
 def show(author_id: int):
-    return author.show_changesets(author_id)
+    return author_crud.show_changesets(author_id)

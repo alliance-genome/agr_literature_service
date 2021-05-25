@@ -15,7 +15,8 @@ from literature.schemas import ResourceSchemaShow
 from literature.schemas import ResourceSchemaPost
 from literature.schemas import ResourceSchemaUpdate
 
-from literature.crud import resource
+from literature.crud import resource_crud
+
 from literature.routers.authentication import auth
 
 
@@ -32,7 +33,7 @@ router = APIRouter(
 def create(request: ResourceSchemaPost,
            user: Auth0User = Security(auth.get_user)):
     set_global_user_id(user.id)
-    return resource.create(request)
+    return resource_crud.create(request)
 
 
 @router.delete('/{curie}',
@@ -40,7 +41,7 @@ def create(request: ResourceSchemaPost,
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(curie: str,
             user: Auth0User = Security(auth.get_user)):
-    resource.destroy(curie)
+    resource_crud.destroy(curie)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -51,23 +52,23 @@ def destroy(curie: str,
 def update(curie: str,
            request: ResourceSchemaUpdate,
            user: Auth0User = Security(auth.get_user)):
-    return resource.update(curie, request)
+    return resource_crud.update(curie, request)
 
 
 @router.get('/',
             response_model=List[str])
 def all():
-    return resource.get_all()
+    return resource_crud.get_all()
 
 
 @router.get('/{curie}',
             status_code=200,
             response_model=ResourceSchemaShow)
 def show(curie: str):
-    return resource.show(curie)
+    return resource_crud.show(curie)
 
 
 @router.get('/{curie}/versions',
             status_code=200)
 def show(curie: str):
-    return resource.show_changesets(curie)
+    return resource_crud.show_changesets(curie)
