@@ -156,6 +156,7 @@ def show(curie: str):
 
     if reference.resource_id:
         reference_data['resource_curie'] = db.session.query(Resource.curie).filter(Resource.resource_id == reference.resource_id).first()[0]
+        reference_data['resource_title'] = db.session.query(Resource.title).filter(Resource.resource_id == reference.resource_id).first()[0]
         del reference_data['reference_id']
     if reference.cross_references:
         for cross_reference in reference_data['cross_references']:

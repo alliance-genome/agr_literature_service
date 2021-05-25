@@ -97,7 +97,7 @@ def show_changesets(mesh_detail_id: int):
                             detail=f"MeshDetail with the mesh_detail_id {mesh_detail_id} is not available")
 
     history = []
-    for version in mesh_details.versions:
+    for version in mesh_detail.versions:
         tx = version.transaction
         history.append({'transaction': {'id': tx.id,
                                         'issued_at': tx.issued_at,
