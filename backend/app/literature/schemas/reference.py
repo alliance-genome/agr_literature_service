@@ -16,6 +16,7 @@ from literature.schemas.reference_tag import ReferenceTagShow
 from literature.schemas.mesh_detail import MeshDetailSchemaCreate
 from literature.schemas.mesh_detail import MeshDetailSchemaShow
 from literature.schemas.cross_reference import CrossReferenceSchemaRelated
+from literature.schemas.cross_reference import CrossReferenceSchemaShow
 
 
 class ReferenceSchemaPost(BaseModel):
@@ -94,7 +95,7 @@ class ReferenceSchemaShow(BaseModelShow):
     issue_date: Optional[str] = None
     tags: Optional[List[ReferenceTagShow]] = None
     mesh_terms: Optional[List[MeshDetailSchemaShow]] = None
-    cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
+    cross_references: Optional[List[CrossReferenceSchemaShow]] = None
     resource_curie: Optional[str] = None
     resource_title: Optional[str] = None
     authors: Optional[List[AuthorSchemaShow]] = None

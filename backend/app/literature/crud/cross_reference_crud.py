@@ -1,3 +1,5 @@
+import re
+
 import sqlalchemy
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -13,6 +15,7 @@ from literature.schemas import CrossReferenceSchemaUpdate
 from literature.models import CrossReference
 from literature.models import Reference
 from literature.models import Resource
+from literature.models import ResourceDescriptor
 
 
 def create(cross_reference: CrossReferenceSchema):
@@ -47,9 +50,8 @@ def create(cross_reference: CrossReferenceSchema):
                             detail=f"Supply one of resource_curie or reference_curie")
     db.session.add(db_obj)
     db.session.commit()
-    db.session.refresh(db_obj)
 
-    return db_obj
+    return "created"
 
 
 def destroy(curie: str):
@@ -97,9 +99,8 @@ def update(curie: str, cross_reference_update: CrossReferenceSchemaUpdate):
 
     cross_reference_db_obj.date_updated = datetime.utcnow()
     db.session.commit()
-    db.session.refresh()
 
-    return cross_reference_db_obj
+    return "updated"
 
 
 def show(curie: str):
@@ -117,6 +118,25 @@ def show(curie: str):
     if cross_reference_data['reference_id']:
         cross_reference_data['reference_curie'] = db.session.query(Reference.curie).filter(Reference.reference_id == cross_reference_data['reference_id']).first().curie
     del cross_reference_data['reference_id']
+
+
+    [db_prefix, local_id] = curie.split(":")
+    resource_descriptor = db.session.query(ResourceDescriptor).filter(ResourceDescriptor.db_prefix == db_prefix).first()
+    if resource_descriptor:
+        default_url = resource_descriptor.default_url.replace("[%s]", local_id)
+        cross_reference_data['url'] = default_url
+
+        if cross_reference_data['pages']:
+            pages_data = []
+            for cr_page in cross_reference_data['pages']:
+                page_url = ""
+                for rd_page in resource_descriptor.pages:
+                    if rd_page.name == cr_page:
+                        page_url = rd_page.url
+                        break
+                pages_data.append({"name": cr_page,
+                                   "url": page_url.replace("[%s]", local_id)})
+            cross_reference_data['pages'] = pages_data
 
     return cross_reference_data
 

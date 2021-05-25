@@ -41,10 +41,6 @@ def create(resource: ResourceSchemaPost):
             if db.session.query(CrossReference).filter(CrossReference.curie == cross_reference.curie).first():
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"CrossReference with curie {cross_reference.curie} already exists")
-    if resource.iso_abbreviation is not None:
-        if db.session.query(Resource).filter(Resource.iso_abbreviation == resource.iso_abbreviation).first():
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                                detail=f"Resource with iso_abbreviation {resource.iso_abbreviation} already exists")
 
     last_curie = db.session.query(Resource.curie).order_by(sqlalchemy.desc(Resource.curie)).first()
 

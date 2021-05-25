@@ -12,7 +12,7 @@ from literature.schemas import EditorSchemaShow
 from literature.schemas import EditorSchemaCreate
 from literature.schemas import EditorSchemaUpdate
 
-from literature.crud import editor
+from literature.crud import editor_crud
 from literature.routers.authentication import auth
 
 router = APIRouter(
@@ -27,7 +27,7 @@ router = APIRouter(
              dependencies=[Depends(auth.implicit_scheme)])
 def create(request: EditorSchemaCreate,
            user: Auth0User = Security(auth.get_user)):
-    return editor.create(request)
+    return editor_crud.create(request)
 
 
 @router.delete('/{editor_id}',
@@ -35,7 +35,7 @@ def create(request: EditorSchemaCreate,
                dependencies=[Depends(auth.implicit_scheme)])
 def destroy(editor_id: int,
             user: Auth0User = Security(auth.get_user)):
-    editor.destroy(editor_id)
+    editor_crud.destroy(editor_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -46,13 +46,13 @@ def destroy(editor_id: int,
 def update(editor_id: int,
            request: EditorSchemaUpdate,
            user: Auth0User = Security(auth.get_user)):
-    return editor.update(editor_id, request)
+    return editor_crud.update(editor_id, request)
 
 
 @router.get('/{editor_id}',
             status_code=200)
 def show(editor_id: int):
-    return editor.show(editor_id)
+    return editor_crud.show(editor_id)
 
 
 @router.get('/{editor_id}/versions',

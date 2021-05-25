@@ -17,7 +17,8 @@ from literature.schemas import FileSchemaUpdate
 
 from literature.deps import s3_auth
 
-from literature.crud import s3file
+from literature.crud import s3file_crud
+
 from literature.routers.authentication import auth
 
 
@@ -33,7 +34,7 @@ router = APIRouter(
 def destroy(filename: str,
             s3: BaseClient = Depends(s3_auth),
             user: Auth0User = Security(auth.get_user)):
-    s3file.destroy(s3, filename)
+    s3file_crud.destroy(s3, filename)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -44,14 +45,14 @@ def destroy(filename: str,
 def update(filename: str,
            request: FileSchemaUpdate,
            user: Auth0User = Security(auth.get_user)):
-    return s3file.update(filename, request)
+    return s3file_crud.update(filename, request)
 
 
 @router.get('/{filename}',
             response_model=FileSchemaShow,
             status_code=200)
 def show(filename: str):
-    return s3file.show(filename)
+    return s3file_crud.show(filename)
 
 
 @router.get('/{filename}/download',
@@ -60,7 +61,7 @@ def show(filename: str):
 async def show(filename: str,
          s3: BaseClient = Depends(s3_auth),
          user: Auth0User = Security(auth.get_user)):
-   [file_stream, media_type] = s3file.download(s3, filename)
+   [file_stream, media_type] = s3file_crud.download(s3, filename)
    return StreamingResponse(file_stream, media_type=media_type)
 
 
@@ -68,4 +69,4 @@ async def show(filename: str,
 @router.get('/{filename}/versions',
             status_code=200)
 def show(filename: str):
-    return s3file.show_changesets(filename)
+    return s3file_crud.show_changesets(filename)

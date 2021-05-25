@@ -12,7 +12,28 @@ class CrossReferenceSchemaRelated(BaseModel):
         extra = "forbid"
 
 
-class CrossReferenceSchema(CrossReferenceSchemaRelated):
+class CrossReferenceSchemaShow(CrossReferenceSchemaRelated):
+    url: Optional[str] = None
+
+    class Config():
+        orm_mode = True
+        extra = "forbid"
+
+
+class CrossReferencePageSchemaShow(BaseModel):
+    name: str
+    url: Optional[str] = None
+
+    class Config():
+        orm_mode = True
+        extra = "forbid"
+
+
+class CrossReferenceSchema(BaseModel):
+    curie: str
+    pages: Optional[List[CrossReferencePageSchemaShow]] = None
+    url: Optional[str] = None
+
     resource_curie:  Optional[str] = None
     reference_curie: Optional[str] = None
 
