@@ -160,6 +160,7 @@ def show(curie: str):
         reference_data['resource_curie'] = db.session.query(Resource.curie).filter(Resource.resource_id == reference.resource_id).first()[0]
         reference_data['resource_title'] = db.session.query(Resource.title).filter(Resource.resource_id == reference.resource_id).first()[0]
         del reference_data['reference_id']
+
     if reference.cross_references:
         cross_references = []
         for cross_reference in reference_data['cross_references']:
@@ -167,19 +168,24 @@ def show(curie: str):
             del cross_reference_show['reference_curie']
             cross_references.append(cross_reference_show)
         reference_data['cross_references'] = cross_references
+
     if reference.mod_reference_types:
         for mod_reference_type in reference_data['mod_reference_types']:
             del mod_reference_type['reference_id']
+
     if reference.tags:
         for tag in reference_data['tags']:
             del tag['reference_id']
+
     if reference.mesh_terms:
         for mesh_term in reference_data['mesh_terms']:
             del mesh_term['reference_id']
+
     if reference.authors:
         for author in reference_data['authors']:
             del author['resource_id']
             del author['reference_id']
+
     if reference.editors:
         for editor in reference_data['editors']:
             del editor['resource_id']

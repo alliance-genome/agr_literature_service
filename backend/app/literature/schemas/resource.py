@@ -11,6 +11,7 @@ from literature.schemas.author import AuthorSchemaShow
 from literature.schemas.editor import EditorSchemaPost
 from literature.schemas.editor import EditorSchemaShow
 from literature.schemas.cross_reference import CrossReferenceSchemaRelated
+from literature.schemas.cross_reference import CrossReferenceSchema
 
 
 class ResourceSchemaPost(BaseModel):
@@ -76,7 +77,7 @@ class ResourceSchemaShow(BaseModelShow):
     volumes: Optional[List[str]] = None
     abstract: Optional[str] = None
     summary: Optional[str] = None
-    cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
+    cross_references: Optional[List[CrossReferenceSchema]] = None
     authors: Optional[List[AuthorSchemaShow]] = None
     editors: Optional[List[EditorSchemaShow]] = None
 

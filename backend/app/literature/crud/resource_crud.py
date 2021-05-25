@@ -8,6 +8,8 @@ from fastapi_sqlalchemy import db
 from literature.schemas import ResourceSchemaPost
 from literature.schemas import ResourceSchemaUpdate
 
+from literature.crud import cross_reference_crud
+
 from literature.models import Reference
 from literature.models import Resource
 from literature.models import Author
@@ -123,7 +125,29 @@ def show(curie: str):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Resource with the id {curie} is not available")
 
-    return resource
+    resource_data = jsonable_encoder(resource)
+
+    if resource.cross_references:
+        cross_references = []
+        for cross_reference in resource_data['cross_references']:
+            cross_reference_show = jsonable_encoder(cross_reference_crud.show(cross_reference['curie']))
+            del cross_reference_show['resource_curie']
+            cross_references.append(cross_reference_show)
+        resource_data['cross_references'] = cross_references
+
+    if resource.authors:
+        for author in resource_data['authors']:
+            del author['resource_id']
+            del author['reference_id']
+
+    if resource.editors:
+        for editor in resource_data['editors']:
+            del editor['resource_id']
+            del editor['reference_id']
+
+    del resource_data['resource_id']
+
+    return resource_data
 
 
 def show_changesets(curie: str):
