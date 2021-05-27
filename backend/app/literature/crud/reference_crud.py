@@ -60,38 +60,38 @@ def create(reference: ReferenceSchemaPost):
     reference_data['curie'] = curie
 
     for field, value in vars(reference).items():
+        if value is None:
+            continue
         if field in ['authors', 'editors', 'mod_reference_types', 'tags', 'mesh_terms', 'cross_references']:
             db_objs = []
-            if value is not None:
-                for obj in value:
-                    obj_data = jsonable_encoder(obj)
-                    db_obj = None
-                    if field == 'authors':
-                        db_obj = Author(**obj_data)
-                    elif field == 'editors':
-                        db_obj = Editor(**obj_data)
-                    elif field == 'mod_reference_types':
-                        db_obj = ModReferenceType(**obj_data)
-                    elif field == 'tags':
-                        db_obj =  ReferenceTag(**obj_data)
-                    elif field == 'mesh_terms':
-                        db_obj =  MeshDetail(**obj_data)
-                    elif field == 'cross_references':
-                        db_obj =  CrossReference(**obj_data)
+            for obj in value:
+                obj_data = jsonable_encoder(obj)
+                db_obj = None
+                if field == 'authors':
+                    db_obj = Author(**obj_data)
+                elif field == 'editors':
+                    db_obj = Editor(**obj_data)
+                elif field == 'mod_reference_types':
+                    db_obj = ModReferenceType(**obj_data)
+                elif field == 'tags':
+                    db_obj =  ReferenceTag(**obj_data)
+                elif field == 'mesh_terms':
+                    db_obj =  MeshDetail(**obj_data)
+                elif field == 'cross_references':
+                    db_obj =  CrossReference(**obj_data)
 
-                    db.session.add(db_obj)
-                    db_objs.append(db_obj)
+                db.session.add(db_obj)
+                db_objs.append(db_obj)
             reference_data[field] = db_objs
+        elif field == 'resource':
+            resource_curie = reference_data['resource']
+            resource = db.session.query(Resource).filter(Resource.curie == resource_curie).first()
+            if not resource:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    detail=f"Resource with curie {resource_curie} does not exist")
+            reference_data['resource'] = resource
         else:
             reference_data[field] = value
-
-    if 'resource' in reference_data:
-        resource_curie = reference_data['resource']
-        resource = db.session.query(Resource).filter(Resource.curie == resource_curie).first()
-        if not resource:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail=f"Resource with curie {resource_curie} does not exist")
-        reference_data['resource'] = resource
 
     reference_db_obj = Reference(**reference_data)
     db.session.add(reference_db_obj)

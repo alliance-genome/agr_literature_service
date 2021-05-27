@@ -120,7 +120,7 @@ def show(curie: str):
     del cross_reference_data['reference_id']
 
 
-    [db_prefix, local_id] = curie.split(":")
+    [db_prefix, local_id] = curie.split(":", 1)
     resource_descriptor = db.session.query(ResourceDescriptor).filter(ResourceDescriptor.db_prefix == db_prefix).first()
     if resource_descriptor:
         default_url = resource_descriptor.default_url.replace("[%s]", local_id)

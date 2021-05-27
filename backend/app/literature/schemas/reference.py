@@ -21,8 +21,8 @@ from literature.schemas.cross_reference import CrossReferenceSchema
 class ReferenceSchemaPost(BaseModel):
     title: str
     category: ReferenceCategory
-    citation: str
 
+    citation: Optional[str]
     date_published: Optional[str] = None
     date_arrived_in_pubmed: Optional[str] = None
     date_last_modified: Optional[str] = None
@@ -51,8 +51,8 @@ class ReferenceSchemaPost(BaseModel):
 class ReferenceSchemaUpdate(BaseModel):
     title: str
     category: ReferenceCategory
-    citation: str
 
+    citation: Optional[str] = None
     date_published: Optional[str] = None
     date_arrived_in_pubmed: Optional[str] = None
     date_last_modified: Optional[str] = None
@@ -77,8 +77,8 @@ class ReferenceSchemaShow(BaseModelShow):
     curie: str = None
     title: str
     category: ReferenceCategory
-    citation: str
 
+    citation: Optional[str] = None
     date_published: Optional[str] = None
     date_arrived_in_pubmed: Optional[str] = None
     date_last_modified: Optional[str] = None

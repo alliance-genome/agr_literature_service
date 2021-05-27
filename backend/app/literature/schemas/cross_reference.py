@@ -11,7 +11,7 @@ class CrossReferenceSchemaRelated(BaseModel):
 
     @validator('curie')
     def name_must_contain_space(cls, v):
-        if v.count(":") != 1:
+        if v.count(":") != 1 or v.startswith("DOI:"):
             raise ValueError('must contain a single colon')
         return v
 
