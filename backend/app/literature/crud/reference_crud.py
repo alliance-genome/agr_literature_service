@@ -73,8 +73,9 @@ def create(reference: ReferenceSchemaPost):
                          if not cross_reference_obj:
                              cross_reference_obj = CrossReference(curie=obj_data['orcid'])
                              db.session.add(cross_reference_obj)
-                         del obj_data['orcid']
+
                          obj_data['orcid_cross_reference'] = cross_reference_obj
+                    del obj_data['orcid']
                     if field == 'authors':
                         db_obj = Author(**obj_data)
                     else:

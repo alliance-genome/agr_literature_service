@@ -137,6 +137,11 @@ def show(curie: str):
                 pages_data.append({"name": cr_page,
                                    "url": page_url.replace("[%s]", local_id)})
             cross_reference_data['pages'] = pages_data
+    else:
+       pages_data = []
+       for cr_page in cross_reference_data['pages']:
+           pages_data.append({"name": cr_page})
+       cross_reference_data['pages'] = pages_data
 
     return cross_reference_data
 

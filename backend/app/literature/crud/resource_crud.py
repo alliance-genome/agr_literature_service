@@ -57,21 +57,31 @@ def create(resource: ResourceSchemaPost):
     for field, value in vars(resource).items():
         if field in ['authors', 'editors', 'cross_references', 'mesh_terms']:
             db_objs = []
-            if value is not None:
-                for obj in value:
-                    obj_data = jsonable_encoder(obj)
-                    db_obj = None
+            if value is None:
+                continue
+            for obj in value:
+                obj_data = jsonable_encoder(obj)
+                db_obj = None
+                if field in ['authors', 'editors']:
+                    if obj_data['orcid']:
+                        cross_reference_obj = db.session.query(CrossReference).filter(CrossReference.curie == obj_data['orcid']).first()
+                        if not cross_reference_obj:
+                            cross_reference_obj = CrossReference(curie=obj_data['orcid'])
+                            db.session.add(cross_reference_obj)
+
+                        obj_data['orcid_cross_reference'] = cross_reference_obj
+                    del obj_data['orcid']
                     if field == 'authors':
                         db_obj = Author(**obj_data)
-                    elif field == 'editors':
+                    else:
                         db_obj = Editor(**obj_data)
-                    elif field == 'cross_references':
-                        db_obj = CrossReference(**obj_data)
-                    elif field == 'mesh_terms':
-                        db_obj = MeshDetail(**obj_data)
-                    db.session.add(db_obj)
-                    db_objs.append(db_obj)
-                resource_data[field] = db_objs
+                elif field == 'cross_references':
+                    db_obj = CrossReference(**obj_data)
+                elif field == 'mesh_terms':
+                    db_obj = MeshDetail(**obj_data)
+                db.session.add(db_obj)
+                db_objs.append(db_obj)
+            resource_data[field] = db_objs
         else:
             resource_data[field] = value
 
@@ -137,11 +147,21 @@ def show(curie: str):
 
     if resource.authors:
         for author in resource_data['authors']:
+            if author['orcid_id']:
+                author['orcid'] = jsonable_encoder(cross_reference_crud.show(author['orcid_id']))
+            del author['orcid_id']
+            del author['person_id']
+            del author['orcid_cross_reference']
             del author['resource_id']
             del author['reference_id']
 
     if resource.editors:
         for editor in resource_data['editors']:
+            if editor['orcid_id']:
+                editor['orcid'] = jsonable_encoder(cross_reference_crud.show(editor['orcid_id']))
+            del editor['orcid_id']
+            del editor['person_id']
+            del editor['orcid_cross_reference']
             del editor['resource_id']
             del editor['reference_id']
 
