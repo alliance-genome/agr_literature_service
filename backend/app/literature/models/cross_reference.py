@@ -42,7 +42,22 @@ class CrossReference(Base):
 
     resource = relationship(
         'Resource',
-        back_populates="cross_references"
+        back_populates='cross_references'
+    )
+
+    authors = relationship(
+        'Author',
+        back_populates='orcid_cross_reference'
+    )
+
+    editors = relationship(
+        'Editor',
+        back_populates='orcid_cross_reference'
+    )
+
+    people = relationship(
+        'Person',
+        secondary = 'person_orcid_cross_reference_link'
     )
 
     pages = Column(

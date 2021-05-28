@@ -67,10 +67,18 @@ def create(reference: ReferenceSchemaPost):
             for obj in value:
                 obj_data = jsonable_encoder(obj)
                 db_obj = None
-                if field == 'authors':
-                    db_obj = Author(**obj_data)
-                elif field == 'editors':
-                    db_obj = Editor(**obj_data)
+                if field in ['authors', 'editor']:
+                    if obj_data['orcids']:
+                        cross_reference_objs = []
+                        for orcid in obj_data['orcids']:
+                            cross_reference = CrossReference(curie=orcid)
+                            db.session.add(cross_reference)
+                            cross_reference_objs.append(cross_reference)
+                        obj_data['orcids'] = cross_reference_objs
+                    if field == 'author':
+                        db_obj = Author(**obj_data)
+                    else:
+                        db_obj = Editor(**obj_data)
                 elif field == 'mod_reference_types':
                     db_obj = ModReferenceType(**obj_data)
                 elif field == 'tags':
@@ -84,11 +92,10 @@ def create(reference: ReferenceSchemaPost):
                 db_objs.append(db_obj)
             reference_data[field] = db_objs
         elif field == 'resource':
-            resource_curie = reference_data['resource']
-            resource = db.session.query(Resource).filter(Resource.curie == resource_curie).first()
+            resource = db.session.query(Resource).filter(Resource.curie == value).first()
             if not resource:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                    detail=f"Resource with curie {resource_curie} does not exist")
+                                    detail=f"Resource with curie {value} does not exist")
             reference_data['resource'] = resource
         else:
             reference_data[field] = value
@@ -183,11 +190,20 @@ def show(curie: str):
 
     if reference.authors:
         for author in reference_data['authors']:
+            orcids = []
+            for orcid in author['orcids']:
+                orcids.append(jsonable_encoder(cross_reference_crud.show(orcid['curie'])))
+            author['orcids'] = orcids
             del author['resource_id']
             del author['reference_id']
 
     if reference.editors:
         for editor in reference_data['editors']:
+            orcids = []
+            for orcid in editor['orcids']:
+                orcids.append(jsonable_encoder(cross_reference_crud.show(orcid['curie'])))
+            editor['orcids'] = orcids
+
             del editor['resource_id']
             del editor['reference_id']
 

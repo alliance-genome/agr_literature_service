@@ -8,7 +8,6 @@ from fastapi.encoders import jsonable_encoder
 from fastapi_sqlalchemy import db
 
 from literature.schemas import AuthorSchemaPost
-from literature.schemas import AuthorSchemaUpdate
 
 from literature.models import Reference
 from literature.models import Resource
@@ -64,7 +63,7 @@ def destroy(author_id: int):
     return None
 
 
-def update(author_id: int, author_update: AuthorSchemaUpdate):
+def update(author_id: int, author_update: AuthorSchemaPost):
 
     author_db_obj = db.session.query(Author).filter(Author.author_id == author_id).first()
     if not author_db_obj:

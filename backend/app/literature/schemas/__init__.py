@@ -9,12 +9,14 @@ from literature.schemas.reference import ReferenceSchemaShow
 from literature.schemas.author import AuthorSchemaPost
 from literature.schemas.author import AuthorSchemaShow
 from literature.schemas.author import AuthorSchemaCreate
-from literature.schemas.author import AuthorSchemaUpdate
 
 from literature.schemas.editor import EditorSchemaPost
 from literature.schemas.editor import EditorSchemaShow
 from literature.schemas.editor import EditorSchemaCreate
-from literature.schemas.editor import EditorSchemaUpdate
+
+from literature.schemas.person import PersonSchemaPost
+from literature.schemas.person import PersonSchemaShow
+from literature.schemas.person import PersonSchemaCreate
 
 from literature.schemas.reference_tag import ReferenceTag
 from literature.schemas.tag_name import TagName

@@ -5,6 +5,7 @@ from pydantic import ValidationError
 from pydantic import validator
 
 from literature.schemas.base import BaseModelShow
+from literature.schemas.cross_reference import CrossReferenceSchemaShow
 
 
 class EditorSchemaPost(BaseModel):
@@ -14,7 +15,13 @@ class EditorSchemaPost(BaseModel):
     first_name: Optional[str] = None
     middle_names: Optional[List[str]] = None
     last_name: Optional[str] = None
-    orcid: Optional[str] = None
+    orcids: Optional[List[str]] = None
+
+    @validator('orcids', each_item=True)
+    def check_orchids(cls, v):
+        if not v.startswith('ORCID:'):
+            raise ValueError('Orcid ID must start with "ORCID: {v}')
+        return v
 
     class Config():
         orm_mode = True
@@ -29,32 +36,20 @@ class EditorSchemaShow(BaseModelShow):
     first_name: Optional[str] = None
     middle_names: Optional[List[str]] = None
     last_name: Optional[str] = None
-    orcid: Optional[str] = None
+    orcid: Optional[CrossReferenceSchemaShow] = None
+
 
     class Config():
         orm_mode = True
         extra = "forbid"
 
-class EditorSchemaCreate(BaseModel):
+
+class EditorSchemaCreate(EditorSchemaPost):
     reference_curie: Optional[str] = None
     resource_curie: Optional[str] = None
 
-    order: Optional[int] = None
-
-    name: Optional[str]  = None
-    first_name: Optional[str] = None
-    middle_names: Optional[List[str]] = None
-    last_name: Optional[str] = None
-    orcid: Optional[str] = None
-
-
     class Config():
         orm_mode = True
         extra = "forbid"
 
 
-class EditorSchemaUpdate(EditorSchemaCreate):
-    editor_id: int
-
-    class Config():
-        orm_mode = True

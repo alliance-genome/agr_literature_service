@@ -9,7 +9,6 @@ from fastapi import Security
 from fastapi_auth0 import Auth0User
 
 from literature.schemas import AuthorSchemaShow
-from literature.schemas import AuthorSchemaUpdate
 from literature.schemas import AuthorSchemaCreate
 
 from literature.crud import author_crud
@@ -44,7 +43,7 @@ def destroy(author_id: int,
             response_model=AuthorSchemaShow,
             dependencies=[Depends(auth.implicit_scheme)])
 def update(author_id: int,
-           request: AuthorSchemaUpdate,
+           request: AuthorSchemaCreate,
            user: Auth0User = Security(auth.get_user)):
     return author_crud.update(author_id, request)
 

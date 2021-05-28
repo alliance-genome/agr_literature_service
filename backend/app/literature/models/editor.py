@@ -46,6 +46,28 @@ class Editor(Base):
         back_populates="editors"
     )
 
+    orcid_id = Column(
+        String,
+        ForeignKey('cross_references.curie')
+    )
+
+    orcid_cross_reference = relationship(
+        'CrossReference',
+        back_populates="editors"
+    )
+
+    person_id = Column(
+        Integer,
+        ForeignKey('people.person_id'),
+        nullable=True
+    )
+
+    person = relationship(
+        'Person',
+        back_populates="editors",
+        single_parent=True,
+    )
+
     order = Column(
         Integer,
         nullable=True

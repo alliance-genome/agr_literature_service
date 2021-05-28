@@ -7,7 +7,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_sqlalchemy import DBSessionMiddleware
 
-from literature import  models
+from literature import models
 from literature.database.main import engine
 
 from literature.routers import resource
@@ -19,6 +19,7 @@ from literature.routers import cross_reference
 from literature.routers import resource_descriptor
 from literature.routers import mesh_detail
 from literature.routers import mod_reference_type
+from literature.routers import person
 
 from literature.config import config
 from literature.database.config import SQLALCHEMY_DATABASE_URL
@@ -78,6 +79,7 @@ app.include_router(resource_descriptor.router)
 app.include_router(s3file.router)
 app.include_router(mesh_detail.router)
 app.include_router(mod_reference_type.router)
+app.include_router(person.router)
 
 app.openapi = custom_openapi
 

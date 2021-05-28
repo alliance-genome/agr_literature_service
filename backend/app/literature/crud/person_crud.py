@@ -7,25 +7,26 @@ from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from fastapi_sqlalchemy import db
 
-from literature.schemas import EditorSchemaPost
+from literature.schemas import PersonSchemaPost
 
 from literature.models import Reference
 from literature.models import Resource
-from literature.models import Editor
+from literature.models import Person
 
 
-def create(editor: EditorSchemaPost):
-    editor_data = jsonable_encoder(editor)
 
-    if 'resource_curie' in editor_data:
-        resource_curie = editor_data['resource_curie']
-        del editor_data['resource_curie']
+def create(person: PersonSchemaPost):
+    person_data = jsonable_encoder(person)
 
-    if 'reference_curie' in editor_data:
-        reference_curie = editor_data['reference_curie']
-        del editor_data['reference_curie']
+    if 'resource_curie' in person_data:
+        resource_curie = person_data['resource_curie']
+        del person_data['resource_curie']
 
-    db_obj = Editor(**editor_data)
+    if 'reference_curie' in person_data:
+        reference_curie = person_data['reference_curie']
+        del person_data['reference_curie']
+
+    db_obj = Person(**person_data)
     if resource_curie and reference_curie:
        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                            detail=f"Only supply either resource_curie or reference_curie")
@@ -51,90 +52,78 @@ def create(editor: EditorSchemaPost):
     return db_obj
 
 
-def destroy(editor_id: int):
-    editor = db.session.query(Editor).filter(Editor.editor_id == editor_id).first()
-    if not editor:
+def destroy(person_id: int):
+    person = db.session.query(Person).filter(Person.person_id == person_id).first()
+    if not person:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Editor with editor_id {editor_id} not found")
-    db.session.delete(editor)
+                            detail=f"Person with person_id {person_id} not found")
+    db.session.delete(person)
     db.session.commit()
 
     return None
 
 
-def update(editor_id: int, editor_update: EditorSchemaPost):
+def update(person_id: int, person_update: PersonSchemaPost):
 
-    editor_db_obj = db.session.query(Editor).filter(Editor.editor_id == editor_id).first()
-    if not editor_db_obj:
+    person_db_obj = db.session.query(Person).filter(Person.person_id == person_id).first()
+    if not person_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Editor with editor_id {editor_id} not found")
+                            detail=f"Person with person_id {person_id} not found")
 
 
-    if editor_update.resource_curie and editor_update.reference_curie:
+    if person_update.resource_curie and person_update.reference_curie:
        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                            detail=f"Only supply either resource_curie or reference_curie")
 
-    for field, value in vars(editor_update).items():
+    for field, value in vars(person_update).items():
         if field == "resource_curie" and value:
             resource_curie = value
             resource = db.session.query(Resource).filter(Resource.curie == resource_curie).first()
             if not resource:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                   detail=f"Resource with curie {resource_curie} does not exist")
-            editor_db_obj.resource = resource
-            editor_db_obj.reference = None
+            person_db_obj.resource = resource
+            person_db_obj.reference = None
         elif field == 'reference_curie' and value:
             reference_curie = value
             reference = db.session.query(Reference).filter(Reference.curie == reference_curie).first()
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                   detail=f"Reference with curie {reference_curie} does not exist")
-            editor_db_obj.reference = reference
-            editor_db_obj.resource = None
+            person_db_obj.reference = reference
+            person_db_obj.resource = None
         else:
-            setattr(editor_db_obj, field, value)
+            setattr(person_db_obj, field, value)
 
-    editor_db_obj.dateUpdated = datetime.utcnow()
+    person_db_obj.dateUpdated = datetime.utcnow()
     db.session.commit()
 
-    return db.session.query(Editor).filter(Editor.editor_id == editor_id).first()
+    return db.session.query(Person).filter(Person.person_id == person_id).first()
 
 
-def show(editor_id: int):
-    editor = db.session.query(Editor).filter(Editor.editor_id == editor_id).first()
-    editor_data = jsonable_encoder(editor)
+def show(person_id: int):
+    person = db.session.query(Person).filter(Person.person_id == person_id).first()
+    person_data = jsonable_encoder(person)
 
-    if not editor:
+    if not person:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Editor with the editor_id {editor_id} is not available")
+                            detail=f"Person with the person_id {person_id} is not available")
 
-    if editor_data['resource_id']:
-        editor_data['resource_curie'] = db.session.query(Resource.curie).filter(Resource.resource_id == editor_data['resource_id']).first()[0]
-    del editor_data['resource_id']
+    if person_data['reference_id']:
+        person_data['reference_curie'] = db.session.query(Reference.curie).filter(Reference.reference_id == person_data['reference_id']).first()[0]
+    del person_data['reference_id']
 
-    if editor_data['reference_id']:
-        editor_data['reference_curie'] = db.session.query(Reference.curie).filter(Reference.reference_id == editor_data['reference_id']).first()[0]
-    del editor_data['reference_id']
+    return person_data
 
 
-    if editor_data['orcids']:
-        orcids = []
-        for orcid in editor_data['orcids']:
-            orcids.append(jsonable_encoder(cross_reference_crud.show(orcid['curie'])))
-        editor_data['orcids'] = orcids
-
-
-    return editor_data
-
-
-def show_changesets(editor_id: int):
-    editor = db.session.query(Editor).filter(Editor.editor_id == editor_id).first()
-    if not editor:
+def show_changesets(person_id: int):
+    person = db.session.query(Person).filter(Person.person_id == person_id).first()
+    if not person:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Editor with the editor_id {editor_id} is not available")
+                            detail=f"Person with the person_id {person_id} is not available")
 
     history = []
-    for version in reference.versions:
+    for version in person.versions:
         tx = version.transaction
         history.append({'transaction': {'id': tx.id,
                                         'issued_at': tx.issued_at,

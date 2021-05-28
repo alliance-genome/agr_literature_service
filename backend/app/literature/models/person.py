@@ -14,73 +14,39 @@ from sqlalchemy.orm import relationship
 from literature.database.base import Base
 
 
-class Author(Base):
-    __tablename__ = 'authors'
+class Person(Base):
+    __tablename__ = 'people'
     __versioned__ = {}
 
-    author_id = Column(
+    person_id = Column(
         Integer,
         primary_key=True,
         autoincrement=True
     )
 
-    reference_id = Column(
-        Integer,
-        ForeignKey('references.reference_id',
-                   ondelete='CASCADE')
-    )
-
-    reference = relationship(
+    references = relationship(
         'Reference',
-        back_populates="authors"
+        secondary = 'person_reference_link'
     )
 
-    resource_id = Column(
-        Integer,
-        ForeignKey('resources.resource_id',
-                   ondelete='CASCADE')
+    editors = relationship(
+        "Editor",
+        back_populates="person"
     )
 
-    resource = relationship(
-        'Resource',
-        back_populates="authors"
+    authors = relationship(
+        "Author",
+        back_populates="person"
     )
 
-    orcid_id = Column(
-         String,
-         ForeignKey('cross_references.curie')
-    )
-
-    orcid_cross_reference = relationship(
+    orcids = relationship(
         'CrossReference',
-        back_populates="authors"
-    )
-
-    person_id = Column(
-        Integer,
-        ForeignKey('people.person_id'),
-        nullable=True
-    )
-
-    person = relationship(
-        'Person',
-        back_populates="authors",
-        single_parent=True,
-    )
-
-    first_author = Column(
-      Boolean,
-      nullable=True,
-      unique=False
+        lazy='joined',
+        secondary = 'person_orcid_cross_reference_link'
     )
 
     order = Column(
         Integer,
-        nullable=True
-    )
-
-    corresponding_author = Column(
-        Boolean(),
         nullable=True
     )
 

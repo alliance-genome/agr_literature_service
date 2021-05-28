@@ -58,6 +58,12 @@ class Reference(Base):
         single_parent=True,
     )
 
+    verified_people = relationship(
+        'Person',
+        lazy='joined',
+        secondary = 'person_reference_link'
+    )
+
     title = Column(
         String,
         unique=False,
