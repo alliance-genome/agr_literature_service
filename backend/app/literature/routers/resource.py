@@ -41,6 +41,7 @@ def create(request: ResourceSchemaPost,
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(curie: str,
             user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     resource_crud.destroy(curie)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -52,6 +53,7 @@ def destroy(curie: str,
 def update(curie: str,
            request: ResourceSchemaUpdate,
            user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     return resource_crud.update(curie, request)
 
 

@@ -7,6 +7,7 @@ from fastapi import Response
 from fastapi import Security
 
 from fastapi_auth0 import Auth0User
+from literature.user import set_global_user_id
 
 from literature.schemas import MeshDetailSchemaShow
 from literature.schemas import MeshDetailSchemaPost
@@ -28,6 +29,7 @@ router = APIRouter(
              dependencies=[Depends(auth.implicit_scheme)])
 def create(request: MeshDetailSchemaPost,
            user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     return mesh_detail_crud.create(request)
 
 
@@ -36,6 +38,7 @@ def create(request: MeshDetailSchemaPost,
                dependencies=[Depends(auth.implicit_scheme)])
 def destroy(mesh_detail_id: int,
             user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     mesh_detail_crud.destroy(mesh_detail_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -47,6 +50,7 @@ def destroy(mesh_detail_id: int,
 def update(mesh_detail_id: int,
            request: MeshDetailSchemaUpdate,
            user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     return mesh_detail_crud.update(mesh_detail_id, request)
 
 

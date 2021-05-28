@@ -7,6 +7,7 @@ from fastapi import Response
 from fastapi import Security
 
 from fastapi_auth0 import Auth0User
+from literature.user import set_global_user_id
 
 #from literature.schemas import ResourceDesciptorSchema
 
@@ -29,4 +30,5 @@ def show():
             status_code=status.HTTP_202_ACCEPTED,
             dependencies=[Depends(auth.implicit_scheme)])
 def update(user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     return resource_descriptor_crud.update()

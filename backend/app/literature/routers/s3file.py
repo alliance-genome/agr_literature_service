@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 from botocore.client import BaseClient
 
 from fastapi_auth0 import Auth0User
+from literature.user import set_global_user_id
 
 from literature.schemas import FileSchemaShow
 from literature.schemas import FileSchemaUpdate
@@ -34,6 +35,7 @@ router = APIRouter(
 def destroy(filename: str,
             s3: BaseClient = Depends(s3_auth),
             user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     s3file_crud.destroy(s3, filename)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -45,6 +47,7 @@ def destroy(filename: str,
 def update(filename: str,
            request: FileSchemaUpdate,
            user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     return s3file_crud.update(filename, request)
 
 

@@ -11,6 +11,7 @@ from fastapi import File
 from fastapi import UploadFile
 
 from fastapi_auth0 import Auth0User
+from literature.user import set_global_user_id
 
 from literature.schemas import ReferenceSchemaShow
 from literature.schemas import ReferenceSchemaPost
@@ -36,6 +37,7 @@ router = APIRouter(
              dependencies=[Depends(auth.implicit_scheme)])
 def create(request: ReferenceSchemaPost,
            user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     return reference_crud.create(request)
 
 
@@ -44,6 +46,7 @@ def create(request: ReferenceSchemaPost,
                dependencies=[Depends(auth.implicit_scheme)])
 def destroy(curie: str,
             user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     reference_crud.destroy(curie)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -55,6 +58,7 @@ def destroy(curie: str,
 def update(curie: str,
            request: ReferenceSchemaUpdate,
            user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     return reference_crud.update(curie, request)
 
 
@@ -86,6 +90,7 @@ async def create_upload_file(curie: str,
                              file_obj: UploadFile = File(...),
                              s3: BaseClient = Depends(s3_auth),
                              user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     file_contents = await file_obj.read()
     filename = file_obj.filename
     content_type = file_obj.content_type

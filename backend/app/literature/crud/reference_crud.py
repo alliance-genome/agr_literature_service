@@ -126,6 +126,9 @@ def update(curie: str, reference_update: ReferenceSchemaUpdate):
                             detail=f"Reference with curie {curie} not found")
 
     for field, value in vars(reference_update).items():
+        if value is None:
+            continue
+
         if field == "resource":
           resource_curie = value
           resource = db.session.query(Resource).filter(Resource.curie == resource_curie).first()

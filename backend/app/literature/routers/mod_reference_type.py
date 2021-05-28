@@ -7,6 +7,7 @@ from fastapi import Response
 from fastapi import Security
 
 from fastapi_auth0 import Auth0User
+from literature.user import set_global_user_id
 
 from literature.schemas import ModReferenceTypeSchemaShow
 from literature.schemas import ModReferenceTypeSchemaPost
@@ -28,6 +29,7 @@ router = APIRouter(
              dependencies=[Depends(auth.implicit_scheme)])
 def create(request: ModReferenceTypeSchemaPost,
            user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     return mod_reference_type_crud.create(request)
 
 
@@ -36,6 +38,7 @@ def create(request: ModReferenceTypeSchemaPost,
                dependencies=[Depends(auth.implicit_scheme)])
 def destroy(mod_reference_type_id: int,
             user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     mod_reference_type_crud.destroy(mod_reference_type_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -47,6 +50,7 @@ def destroy(mod_reference_type_id: int,
 def update(mod_reference_type_id: int,
            request: ModReferenceTypeSchemaUpdate,
            user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     return mod_reference_type_crud.update(mod_reference_type_id, request)
 
 

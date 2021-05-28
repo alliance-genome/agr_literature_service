@@ -7,6 +7,7 @@ from fastapi import Response
 from fastapi import Security
 
 from fastapi_auth0 import Auth0User
+from literature.user import set_global_user_id
 
 from literature.schemas import CrossReferenceSchema
 from literature.schemas import CrossReferenceSchemaUpdate
@@ -27,6 +28,7 @@ router = APIRouter(
              dependencies=[Depends(auth.implicit_scheme)])
 def create(request: CrossReferenceSchema,
            user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     return cross_reference_crud.create(request)
 
 
@@ -35,6 +37,7 @@ def create(request: CrossReferenceSchema,
                dependencies=[Depends(auth.implicit_scheme)])
 def destroy(curie: str,
             user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     cross_reference_crud.destroy(curie)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -46,6 +49,7 @@ def destroy(curie: str,
 def update(curie: str,
            request: CrossReferenceSchemaUpdate,
            user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     return cross_reference_crud.update(curie, request)
 
 

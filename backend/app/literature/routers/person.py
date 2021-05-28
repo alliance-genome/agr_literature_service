@@ -7,6 +7,7 @@ from fastapi import Response
 from fastapi import Security
 
 from fastapi_auth0 import Auth0User
+from literature.user import set_global_user_id
 
 from literature.schemas import PersonSchemaShow
 from literature.schemas import PersonSchemaCreate
@@ -26,6 +27,7 @@ router = APIRouter(
              dependencies=[Depends(auth.implicit_scheme)])
 def create(request: PersonSchemaCreate,
            user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     return person_crud.create(request)
 
 
@@ -34,6 +36,7 @@ def create(request: PersonSchemaCreate,
                dependencies=[Depends(auth.implicit_scheme)])
 def destroy(person_id: int,
             user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     person_crud.destroy(person_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -45,6 +48,7 @@ def destroy(person_id: int,
 def update(person_id: int,
            request: PersonSchemaCreate,
            user: Auth0User = Security(auth.get_user)):
+    set_global_user_id(user.id)
     return person_crud.update(person_id, request)
 
 
