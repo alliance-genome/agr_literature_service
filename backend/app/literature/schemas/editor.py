@@ -15,9 +15,9 @@ class EditorSchemaPost(BaseModel):
     first_name: Optional[str] = None
     middle_names: Optional[List[str]] = None
     last_name: Optional[str] = None
-    orcids: Optional[List[str]] = None
+    orcid: Optional[str] = None
 
-    @validator('orcids', each_item=True)
+    @validator('orcid')
     def check_orchids(cls, v):
         if not v.startswith('ORCID:'):
             raise ValueError('Orcid ID must start with "ORCID: {v}')
@@ -38,7 +38,6 @@ class EditorSchemaShow(BaseModelShow):
     last_name: Optional[str] = None
     orcid: Optional[CrossReferenceSchemaShow] = None
 
-
     class Config():
         orm_mode = True
         extra = "forbid"
@@ -51,5 +50,3 @@ class EditorSchemaCreate(EditorSchemaPost):
     class Config():
         orm_mode = True
         extra = "forbid"
-
-

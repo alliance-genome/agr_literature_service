@@ -53,6 +53,7 @@ class Editor(Base):
 
     orcid_cross_reference = relationship(
         'CrossReference',
+        lazy="joined",
         back_populates="editors"
     )
 

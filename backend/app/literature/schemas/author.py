@@ -21,9 +21,9 @@ class AuthorSchemaPost(BaseModel):
     affiliation: Optional[List[str]] = None
     corresponding_author: Optional[bool] = None
 
-    orcids: Optional[List[str]] = None
+    orcid: Optional[str] = None
 
-    @validator('orcids', each_item=True)
+    @validator('orcid')
     def check_orchids(cls, v):
         if not v.startswith('ORCID:'):
             raise ValueError('Orcid ID must start with "ORCID: {v}')
@@ -45,7 +45,7 @@ class AuthorSchemaShow(BaseModelShow):
     last_name: Optional[str] = None
 
     first_author: Optional[bool]
-    orcids: Optional[List[CrossReferenceSchemaShow]] = None
+    orcid: Optional[CrossReferenceSchemaShow] = None
     affiliation: Optional[List[str]] = None
 
     corresponding_author: Optional[bool] = None

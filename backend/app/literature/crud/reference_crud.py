@@ -67,15 +67,15 @@ def create(reference: ReferenceSchemaPost):
             for obj in value:
                 obj_data = jsonable_encoder(obj)
                 db_obj = None
-                if field in ['authors', 'editor']:
-                    if obj_data['orcids']:
-                        cross_reference_objs = []
-                        for orcid in obj_data['orcids']:
-                            cross_reference = CrossReference(curie=orcid)
-                            db.session.add(cross_reference)
-                            cross_reference_objs.append(cross_reference)
-                        obj_data['orcids'] = cross_reference_objs
-                    if field == 'author':
+                if field in ['authors', 'editors']:
+                    if obj_data['orcid']:
+                         cross_reference_obj = db.session.query(CrossReference).filter(CrossReference.curie == obj_data['orcid']).first()
+                         if not cross_reference_obj:
+                             cross_reference_obj = CrossReference(curie=obj_data['orcid'])
+                             db.session.add(cross_reference_obj)
+                         del obj_data['orcid']
+                         obj_data['orcid_cross_reference'] = cross_reference_obj
+                    if field == 'authors':
                         db_obj = Author(**obj_data)
                     else:
                         db_obj = Editor(**obj_data)
@@ -190,20 +190,19 @@ def show(curie: str):
 
     if reference.authors:
         for author in reference_data['authors']:
-            orcids = []
-            for orcid in author['orcids']:
-                orcids.append(jsonable_encoder(cross_reference_crud.show(orcid['curie'])))
-            author['orcids'] = orcids
+            if author['orcid_id']:
+                author['orcid'] = jsonable_encoder(cross_reference_crud.show(author['orcid_id']))
+            del author['orcid_id']
+            del author['orcid_cross_reference']
             del author['resource_id']
             del author['reference_id']
 
     if reference.editors:
         for editor in reference_data['editors']:
-            orcids = []
-            for orcid in editor['orcids']:
-                orcids.append(jsonable_encoder(cross_reference_crud.show(orcid['curie'])))
-            editor['orcids'] = orcids
-
+            if editor['orcid_id']:
+                editor['orcid'] = jsonable_encoder(cross_reference_crud.show(editor['orcid_id']))
+            del editor['orcid_id']
+            del editor['orcid_cross_reference']
             del editor['resource_id']
             del editor['reference_id']
 

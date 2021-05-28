@@ -116,13 +116,8 @@ def show(editor_id: int):
         editor_data['reference_curie'] = db.session.query(Reference.curie).filter(Reference.reference_id == editor_data['reference_id']).first()[0]
     del editor_data['reference_id']
 
-
-    if editor_data['orcids']:
-        orcids = []
-        for orcid in editor_data['orcids']:
-            orcids.append(jsonable_encoder(cross_reference_crud.show(orcid['curie'])))
-        editor_data['orcids'] = orcids
-
+    if editor_data['orcid']:
+        editor_data['orcid'] = jsonable_encoder(cross_reference_crud.show(orcid['curie']))
 
     return editor_data
 

@@ -26,6 +26,11 @@ def create(author: AuthorSchemaPost):
         reference_curie = author_data['reference_curie']
         del author_data['reference_curie']
 
+    if 'orchid' in author_data:
+        orcid = author_data['orcid']
+        del author_data['orcid']
+
+
     db_obj = Author(**author_data)
     if resource_curie and reference_curie:
        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -45,6 +50,10 @@ def create(author: AuthorSchemaPost):
     else:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Supply one of resource_curie or reference_curie")
+
+    #add in orcid cross reference
+
+
     db.session.add(db_obj)
     db.session.commit()
     db.session.refresh(db_obj)
