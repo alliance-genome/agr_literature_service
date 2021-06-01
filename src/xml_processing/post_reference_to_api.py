@@ -1,6 +1,7 @@
 
 import json
 import requests
+import argparse
 import re
 from os import environ, path, listdir
 import logging
@@ -14,6 +15,12 @@ logger = logging.getLogger('literature logger')
 
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
+
+auth0_file = base_path + 'auth0_token'
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-a', '--authorization', action='store_true', help='update authorization token')
+args = vars(parser.parse_args())
 
 # keys that exist in data
 # 2021-05-25 21:16:53,372 - literature logger - INFO - key abstract
@@ -105,16 +112,34 @@ def post_references():
 
     keys_found = set()
 
+    token = ''
+    if path.isfile(auth0_file):
+        with open(auth0_file, 'r') as auth0_fh:
+            token = auth0_fh.read().replace("\n", "")
+            auth0_fh.close
+    else:
+        token = update_token()
+    headers = generate_headers(token)
+
     url = 'http://localhost:49161/reference/'
-    headers = {
-        'Authorization': 'Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IllYOGpVX2NObGgzRFBUT2NPNTVKeSJ9.eyJpc3MiOiJodHRwczovL2FsbGlhbmNlZ2Vub21lLnVzLmF1dGgwLmNvbS8iLCJzdWIiOiJWVGhRVENKSzkwSjBjS0s5bG9CbTlZQmRSaDB6YWl1bkBjbGllbnRzIiwiYXVkIjoiYWxsaWFuY2UiLCJpYXQiOjE2MjIyMjQxMzEsImV4cCI6MTYyMjMxMDUzMSwiYXpwIjoiVlRoUVRDSks5MEowY0tLOWxvQm05WUJkUmgwemFpdW4iLCJzY29wZSI6InJlYWQ6bWV0YWRhdGEiLCJndHkiOiJjbGllbnQtY3JlZGVudGlhbHMifQ.Go4IWYfn5FJt30G9XIzWmYEqsi3HGCzPs4Is0q9Xy8GRzw-au1J1DzFmYVpPxhB5W_-Zuw9SdLxm5GlDAlT3dle53RRN3HaeZEzGIjsdcgpiBVV_vcH_zE6C7dCD-rSXg7Grdk9ALEbcaCn3D7t3d71pNP-VUV0ihwPEelk215jtfRkvL4_k5mhI56E9IpqX8QgNOtRZ10SvljjAwEw9dM16g4GWP5btv75cD_Vd_twhMVBhVZ_B0WV9Ud0GXpG0ihcxWyMgWGEKh4sDGvKjN9jAkMHEW3swTT-qMRTmzadtMMrt4CFNZN4eQNAxnJrMTsIJZDDzQkMTSwl7OyE6AA',
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
+#     headers = {
+#         'Authorization': 'Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IllYOGpVX2NObGgzRFBUT2NPNTVKeSJ9.eyJpc3MiOiJodHRwczovL2FsbGlhbmNlZ2Vub21lLnVzLmF1dGgwLmNvbS8iLCJzdWIiOiJWVGhRVENKSzkwSjBjS0s5bG9CbTlZQmRSaDB6YWl1bkBjbGllbnRzIiwiYXVkIjoiYWxsaWFuY2UiLCJpYXQiOjE2MjI0MjM5ODMsImV4cCI6MTYyMjUxMDM4MywiYXpwIjoiVlRoUVRDSks5MEowY0tLOWxvQm05WUJkUmgwemFpdW4iLCJzY29wZSI6InJlYWQ6bWV0YWRhdGEiLCJndHkiOiJjbGllbnQtY3JlZGVudGlhbHMifQ.jYnsk973f6GhBgM2lFwVHbWA1ZDB1oG9Xn2SAQORj0mYTHCattPH1pEWdFojfSo8ipUBh77CBg5H-44VQhQYZk8Rg1ZaapCT_vQat3lmWr214n7ZOAAx16mdW-eXO44QSiLHTq0xqKGimgsijC5rIKNWgGhpUSCOGTsalEYZHwKBuqdCmWIfE8M_tV1LQq6AX6MYhacXcSubTklI3VrhBKumXHP6ZEkM8JR37pY6FQ3Pn34CtIYC7M52nRImxbsPNVOM_b1rDuK-jmCuBp-hXP0zbju_H2_E4bLoWICp0pLApKtabvhaq3ATen3SwpBTo2tUdEWSmjPAxPSKNq5srg',
+#         'Content-Type': 'application/json',
+#         'Accept': 'application/json'
+#     }
 
     resource_primary_id_to_curie_file = base_path + 'resource_primary_id_to_curie'
     reference_primary_id_to_curie_file = base_path + 'reference_primary_id_to_curie'
     errors_in_posting_reference_file = base_path + 'errors_in_posting_reference'
+
+    already_processed_primary_id = set()
+    if path.isfile(reference_primary_id_to_curie_file):
+        with open(reference_primary_id_to_curie_file, 'r') as read_fh:
+            for line in read_fh:
+                line_data = line.split("\t")
+                if line_data[0]:
+                    already_processed_primary_id.add(line_data[0].rstrip())
+            read_fh.close
 
     resource_to_curie = dict()
     with open(resource_primary_id_to_curie_file, 'r') as read_fh:
@@ -145,8 +170,8 @@ def post_references():
                 # print(json_object)
 
                 primary_id = entry['primaryId']
-                # if primary_id in already_processed_primary_id:
-                #     continue
+                if primary_id in already_processed_primary_id:
+                    continue
                 # if primary_id != 'NLM:8404639':
                 #     continue
 
@@ -196,29 +221,8 @@ def post_references():
                 if 'cross_references' in new_entry:
                     new_entry['cross_references'] = list(filter(lambda x: 'curie' in x and 'NLM:' not in x['curie'] and 'ISSN:' not in x['curie'], new_entry['cross_references']))
 
-                # output the json getting posted to the API
-#                 json_object = json.dumps(new_entry, indent = 4)
-#                 print(json_object)
+                headers = process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh)
 
-                post_return = requests.post(url, headers=headers, json=new_entry)
-                response_dict = json.loads(post_return.text)
-
-                print(primary_id + 'text ' + str(post_return.text))
-                print(primary_id + 'status_code ' + str(post_return.status_code))
-
-                if (post_return.status_code == 201):
-                    response_dict = response_dict.replace('"', '')
-                    logger.info("%s\t%s", primary_id, response_dict)
-                    mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
-                elif (post_return.status_code == 500):
-                    logger.info("%s\tFAILURE", primary_id)
-                    mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
-                # if redoing a run and want to skip errors of data having already gone in
-                # elif (post_return.status_code == 409):
-                #     continue
-                else:
-                    logger.info("ERROR %s primaryId %s message %s", post_return.status_code, primary_id, response_dict['detail'])
-                    error_fh.write("ERROR %s primaryId %s message %s\n" % (post_return.status_code, primary_id, response_dict['detail']))
 
 #    if wanting to output keys in data for figuring out mapping
 #         for key in keys_found:
@@ -228,11 +232,84 @@ def post_references():
         error_fh.close
 
 
+def process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh):
+    # output the json getting posted to the API
+    # json_object = json.dumps(new_entry, indent = 4)
+    # print(json_object)
+
+    post_return = requests.post(url, headers=headers, json=new_entry)
+    response_dict = json.loads(post_return.text)
+
+    print(primary_id + 'text ' + str(post_return.text))
+    print(primary_id + 'status_code ' + str(post_return.status_code))
+
+    if (post_return.status_code == 201):
+        response_dict = response_dict.replace('"', '')
+        logger.info("%s\t%s", primary_id, response_dict)
+        mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
+    elif (post_return.status_code == 401):
+        logger.info("%s\texpired token", primary_id)
+        mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
+        token = update_token()
+        headers = generate_headers(token)
+        headers = process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh)
+    elif (post_return.status_code == 500):
+        logger.info("%s\tFAILURE", primary_id)
+        mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
+    # if redoing a run and want to skip errors of data having already gone in
+    # elif (post_return.status_code == 409):
+    #     continue
+    else:
+        logger.info("ERROR %s primaryId %s message %s", post_return.status_code, primary_id, response_dict['detail'])
+        error_fh.write("ERROR %s primaryId %s message %s\n" % (post_return.status_code, primary_id, response_dict['detail']))
+    return headers
+
+
+def generate_headers(token):
+    authorization = 'Bearer ' + token
+    headers = {
+        'Authorization': authorization,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+    return headers
+
+
+def update_token():
+    url = 'https://alliancegenome.us.auth0.com/oauth/token'
+    headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+    header_dict = dict()
+    header_dict['audience'] = 'alliance'
+    header_dict['grant_type'] = 'client_credentials'
+    header_dict['client_id'] = environ.get('AUTH0_CLIENT_ID')
+    header_dict['client_secret'] = environ.get('AUTH0_CLIENT_SECRET')
+    # data for this api must be a string instead of a dict
+    header_entry = json.dumps(header_dict)
+    # logger.info("data %s data end", header_entry)
+    post_return = requests.post(url, headers=headers, data=header_entry)
+    # logger.info("post return %s status end", post_return.status_code)
+    # logger.info("post return %s text end", post_return.text)
+    response_dict = json.loads(post_return.text)
+    token = response_dict['access_token']
+    logger.info("token %s", token)
+    with open(auth0_file, 'w') as auth0_fh:
+        auth0_fh.write("%s" % (token))
+        auth0_fh.close
+    return token
+
+
 if __name__ == "__main__":
     """ call main start function """
     logger.info("starting post_reference_to_api.py")
 
-    post_references()
+    if args['authorization']:
+        update_token()
+
+    else:
+        post_references()
 
     logger.info("ending post_reference_to_api.py")
 
