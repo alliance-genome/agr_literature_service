@@ -80,12 +80,6 @@ class Editor(Base):
         nullable=True
     )
 
-    orcid = Column(
-        String(),
-        unique=False,
-        nullable=True
-    )
-
     first_name = Column(
         String(),
         unique=False,
