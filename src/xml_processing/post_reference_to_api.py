@@ -245,7 +245,14 @@ def process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh):
     post_return = requests.post(url, headers=headers, json=new_entry)
     print(primary_id + 'text ' + str(post_return.text))
     print(primary_id + 'status_code ' + str(post_return.status_code))
-    response_dict = json.loads(post_return.text)
+
+    response_dict = dict()
+    try:
+        response_dict = json.loads(post_return.text)
+    except ValueError:
+        logger.info("%s\tValueError", primary_id)
+        error_fh.write("ERROR %s primaryId did not convert to json\n" % (primary_id))
+        return headers
 
     if (post_return.status_code == 201):
         response_dict = response_dict.replace('"', '')
