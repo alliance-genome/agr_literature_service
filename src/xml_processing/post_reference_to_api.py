@@ -11,7 +11,12 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-# pipenv run python post_reference_to_api.py
+# post to api data from sanitized_reference_json/
+# python post_reference_to_api.py
+#
+# update auth0_token only
+# python post_reference_to_api.py -a
+
 
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
@@ -238,10 +243,16 @@ def process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh):
     # print(json_object)
 
     post_return = requests.post(url, headers=headers, json=new_entry)
-    response_dict = json.loads(post_return.text)
-
     print(primary_id + 'text ' + str(post_return.text))
     print(primary_id + 'status_code ' + str(post_return.status_code))
+
+    response_dict = dict()
+    try:
+        response_dict = json.loads(post_return.text)
+    except ValueError:
+        logger.info("%s\tValueError", primary_id)
+        error_fh.write("ERROR %s primaryId did not convert to json\n" % (primary_id))
+        return headers
 
     if (post_return.status_code == 201):
         response_dict = response_dict.replace('"', '')
