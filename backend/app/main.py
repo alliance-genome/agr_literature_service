@@ -4,12 +4,16 @@ import argparse
 
 from uvicorn.config import LOGGING_CONFIG
 
+from sqlalchemy.orm import Session
+
 from fastapi import FastAPI
+from fastapi import Depends
+
 from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi_sqlalchemy import DBSessionMiddleware
 
 from literature import models
+from literature import database
 from literature.database.main import engine
 
 from literature.routers import resource
@@ -44,12 +48,9 @@ app = FastAPI(title=title,
               version=version,
               description=description)
 
-app.add_middleware(DBSessionMiddleware,
-                   db_url=SQLALCHEMY_DATABASE_URL)
-
 app.add_middleware(CORSMiddleware,
                    allow_credentials=True,
-                   allow_origin_regex=".*",
+                   allow_origins=["*", "http://dev.alliancegenome.org:3001"],
                    allow_methods=["*"],
                    allow_headers=["*"])
 
@@ -66,11 +67,14 @@ def custom_openapi():
     return app.openapi_schema
 
 
+
 models.Base.metadata.create_all(engine)
 
 @app.on_event('startup')
-async def setup_database():
-    await setup_resource_descriptor()
+def setup_database():
+    db = database.get_db
+    setup_resource_descriptor(db)
+
 
 app.include_router(resource.router)
 app.include_router(reference.router)
@@ -85,12 +89,12 @@ app.include_router(person.router)
 
 app.openapi = custom_openapi
 
+
 def run():
     LOGGING_CONFIG["formatters"]["default"]["fmt"] = "%(asctime)s [%(name)s] %(levelprefix)s %(message)s"
     LOGGING_CONFIG["formatters"]["access"]["fmt"] = '%(asctime)s [%(name)s] %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s'
 
     uvicorn.run("main:app", port=args['port'], host=args['ip_adress'])
-
 
 
 if __name__ == '__main__':

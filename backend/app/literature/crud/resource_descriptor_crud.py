@@ -5,15 +5,14 @@ from datetime import datetime
 from fastapi import HTTPException
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
-from fastapi_sqlalchemy import db
 
 from literature.models import ResourceDescriptor
 
 from initialize import update_resource_descriptor
 
-def update():
-    return update_resource_descriptor()
+def update(db: Session):
+    return update_resource_descriptor(db)
 
 
-def show():
-    return db.session.query(ResourceDescriptor).all()
+def show(db: Session):
+    return db.query(ResourceDescriptor).all()

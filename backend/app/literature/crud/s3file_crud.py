@@ -15,8 +15,6 @@ from fastapi import UploadFile
 
 from fastapi.encoders import jsonable_encoder
 
-from fastapi_sqlalchemy import db
-
 from literature.models import Reference
 from literature.models import Resource
 
@@ -32,7 +30,7 @@ from literature.config import config
 from literature.models import File
 
 
-def create(s3: BaseClient, parent_entity_type : str, curie: str, file_contents: str, display_name: str, content_type: str):
+def create(db: Session, s3: BaseClient, parent_entity_type : str, curie: str, file_contents: str, display_name: str, content_type: str):
     filename, file_extension = os.path.splitext(display_name)
     bucket_name = 'agr-literature'
     md5sum = hashlib.md5(file_contents).hexdigest()
@@ -50,13 +48,13 @@ def create(s3: BaseClient, parent_entity_type : str, curie: str, file_contents: 
                  }
 
     if parent_entity_type == 'reference':
-        reference = db.session.query(Reference).filter(Reference.curie == curie).first()
+        reference = db.query(Reference).filter(Reference.curie == curie).first()
         file_data['reference'] = reference
         if not reference:
             HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                           detail=f"Reference with the curie {curie} is not available")
 
-        file_obj = db.session.query(File).filter(File.md5sum == md5sum,
+        file_obj = db.query(File).filter(File.md5sum == md5sum,
                                                  File.reference_id == reference.reference_id).first()
         if file_obj:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
@@ -76,15 +74,15 @@ def create(s3: BaseClient, parent_entity_type : str, curie: str, file_contents: 
 
     file_db_obj = File(**file_data)
 
-    db.session.add(file_db_obj)
-    db.session.commit()
-    db.session.refresh(file_db_obj)
+    db.add(file_db_obj)
+    db.commit()
+    db.refresh(file_db_obj)
 
     return file_db_obj
 
 
-def destroy(s3: BaseClient, filename: str):
-    file_obj = db.session.query(File).filter(File.s3_filename == filename).first()
+def destroy(db: Session, s3: BaseClient, filename: str):
+    file_obj = db.query(File).filter(File.s3_filename == filename).first()
     if not file_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"file with name {filename} not found")
@@ -95,14 +93,14 @@ def destroy(s3: BaseClient, filename: str):
                                        folder=file_obj.folder,
                                        object_name=filename)
 
-    db.session.delete(file_obj)
-    db.session.commit()
+    db.delete(file_obj)
+    db.commit()
 
     return None
 
 
-def update(filename: str, file_update: FileSchemaUpdate):
-    file_db_obj = db.session.query(File).filter(File.s3_filename == filename).first()
+def update(db: Session, filename: str, file_update: FileSchemaUpdate):
+    file_db_obj = db.query(File).filter(File.s3_filename == filename).first()
     if not file_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"File with filename {filename} not found")
@@ -112,7 +110,7 @@ def update(filename: str, file_update: FileSchemaUpdate):
             continue
         if field == "reference_curie":
             reference_curie = value
-            reference = db.session.query(Reference).filter(Reference.curie == reference_curie).first()
+            reference = db.query(Reference).filter(Reference.curie == reference_curie).first()
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Reference with curie {reference_curie} does not exist")
@@ -120,14 +118,14 @@ def update(filename: str, file_update: FileSchemaUpdate):
         else:
             setattr(file_db_obj, field, value)
 
-    db.session.commit()
-    db.session.refresh()
+    db.commit()
+    db.refresh()
 
     return file_db_obj
 
 
-def show(filename: str):
-    file_obj = db.session.query(File).filter(File.s3_filename == filename).first()
+def show(db: Session, filename: str):
+    file_obj = db.query(File).filter(File.s3_filename == filename).first()
 
     if not file_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -136,8 +134,8 @@ def show(filename: str):
     return file_obj
 
 
-def download(s3: BaseClient, filename: str):
-    file_obj = db.session.query(File).filter(File.s3_filename == filename).first()
+def download(db: Session, s3: BaseClient, filename: str):
+    file_obj = db.query(File).filter(File.s3_filename == filename).first()
 
     if not file_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -152,8 +150,8 @@ def download(s3: BaseClient, filename: str):
             file_obj.content_type]
 
 
-def show(filename: str):
-    file_obj = db.session.query(File).filter(File.s3_filename == filename).first()
+def show(db: Session, filename: str):
+    file_obj = db.query(File).filter(File.s3_filename == filename).first()
 
     if not file_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -162,8 +160,8 @@ def show(filename: str):
     return file_obj
 
 
-def show_changesets(filename: str):
-    file_obj = db.session.query(File).filter(File.s3_filename == filename).first()
+def show_changesets(db: Session, filename: str):
+    file_obj = db.query(File).filter(File.s3_filename == filename).first()
     if not file_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"File with the filename {filename} is not available")

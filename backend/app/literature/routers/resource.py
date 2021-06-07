@@ -1,5 +1,7 @@
 from typing import List
 
+from sqlalchemy.orm import Session
+
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import status
@@ -7,6 +9,8 @@ from fastapi import Response
 from fastapi import Security
 
 from fastapi_auth0 import Auth0User
+
+from literature import database
 
 from literature.user import set_global_user_id
 from literature.user import get_global_user_id
@@ -26,23 +30,28 @@ router = APIRouter(
 )
 
 
+get_db = database.get_db
+
+
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(auth.implicit_scheme)],
              response_model=str)
 def create(request: ResourceSchemaPost,
-           user: Auth0User = Security(auth.get_user)):
+           user: Auth0User = Security(auth.get_user),
+           db: Session = Depends(get_db)):
     set_global_user_id(user.id)
-    return resource_crud.create(request)
+    return resource_crud.create(db, request)
 
 
 @router.delete('/{curie}',
                dependencies=[Depends(auth.implicit_scheme)],
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(curie: str,
-            user: Auth0User = Security(auth.get_user)):
+            user: Auth0User = Security(auth.get_user),
+            db: Session = Depends(get_db)):
     set_global_user_id(user.id)
-    resource_crud.destroy(curie)
+    resource_crud.destroy(db, curie)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -52,25 +61,28 @@ def destroy(curie: str,
             response_model=str)
 def update(curie: str,
            request: ResourceSchemaUpdate,
-           user: Auth0User = Security(auth.get_user)):
+           user: Auth0User = Security(auth.get_user),
+           db: Session = Depends(get_db)):
     set_global_user_id(user.id)
-    return resource_crud.update(curie, request)
+    return resource_crud.update(db, curie, request)
 
 
 @router.get('/',
             response_model=List[str])
-def all():
-    return resource_crud.get_all()
+def all(db: Session = Depends(get_db)):
+    return resource_crud.get_all(db)
 
 
 @router.get('/{curie}',
             status_code=200,
             response_model=ResourceSchemaShow)
-def show(curie: str):
-    return resource_crud.show(curie)
+def show(curie: str,
+         db: Session = Depends(get_db)):
+    return resource_crud.show(db, curie)
 
 
 @router.get('/{curie}/versions',
             status_code=200)
-def show(curie: str):
-    return resource_crud.show_changesets(curie)
+def show(curie: str,
+         db: Session = Depends(get_db)):
+    return resource_crud.show_changesets(db, curie)

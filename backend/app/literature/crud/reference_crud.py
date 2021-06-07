@@ -5,7 +5,6 @@ from datetime import datetime
 from fastapi import HTTPException
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
-from fastapi_sqlalchemy import db
 
 from literature.schemas import ReferenceSchemaPost
 from literature.schemas import ReferenceSchemaUpdate
@@ -30,8 +29,8 @@ def create_next_curie(curie):
     return "-".join([curie_parts[0], str(number).rjust(10, '0')])
 
 
-def get_all():
-    references = db.session.query(Reference.curie).all()
+def get_all(db: Session):
+    references = db.query(Reference.curie).all()
 
     reference_data = []
     for reference in references:
@@ -40,16 +39,16 @@ def get_all():
     return reference_data
 
 
-def create(reference: ReferenceSchemaPost):
+def create(db: Session, reference: ReferenceSchemaPost):
     reference_data = {}
 
     if reference.cross_references:
         for cross_reference in reference.cross_references:
-            if db.session.query(CrossReference).filter(CrossReference.curie == cross_reference.curie).first():
+            if db.query(CrossReference).filter(CrossReference.curie == cross_reference.curie).first():
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"CrossReference with id {cross_reference.curie} already exists")
 
-    last_curie = db.session.query(Reference.curie).order_by(sqlalchemy.desc(Reference.curie)).first()
+    last_curie = db.query(Reference.curie).order_by(sqlalchemy.desc(Reference.curie)).first()
 
     if last_curie == None:
         last_curie = 'AGR:AGR-Reference-0000000000'
@@ -69,10 +68,10 @@ def create(reference: ReferenceSchemaPost):
                 db_obj = None
                 if field in ['authors', 'editors']:
                     if obj_data['orcid']:
-                         cross_reference_obj = db.session.query(CrossReference).filter(CrossReference.curie == obj_data['orcid']).first()
+                         cross_reference_obj = db.query(CrossReference).filter(CrossReference.curie == obj_data['orcid']).first()
                          if not cross_reference_obj:
                              cross_reference_obj = CrossReference(curie=obj_data['orcid'])
-                             db.session.add(cross_reference_obj)
+                             db.add(cross_reference_obj)
 
                          obj_data['orcid_cross_reference'] = cross_reference_obj
                     del obj_data['orcid']
@@ -89,11 +88,11 @@ def create(reference: ReferenceSchemaPost):
                 elif field == 'cross_references':
                     db_obj =  CrossReference(**obj_data)
 
-                db.session.add(db_obj)
+                db.add(db_obj)
                 db_objs.append(db_obj)
             reference_data[field] = db_objs
         elif field == 'resource':
-            resource = db.session.query(Resource).filter(Resource.curie == value).first()
+            resource = db.query(Resource).filter(Resource.curie == value).first()
             if not resource:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Resource with curie {value} does not exist")
@@ -102,26 +101,25 @@ def create(reference: ReferenceSchemaPost):
             reference_data[field] = value
 
     reference_db_obj = Reference(**reference_data)
-    db.session.add(reference_db_obj)
-    db.session.commit()
+    db.add(reference_db_obj)
+    db.commit()
 
     return curie
 
 
-def destroy(curie: str):
-    reference = db.session.query(Reference).filter(Reference.curie == curie).first()
+def destroy(db: Session, curie: str):
+    reference = db.query(Reference).filter(Reference.curie == curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie {curie} not found")
-    db.session.delete(reference)
-    db.session.commit()
+    db.delete(reference)
+    db.commit()
 
     return None
 
 
-def update(curie: str, reference_update: ReferenceSchemaUpdate):
-
-    reference_db_obj = db.session.query(Reference).filter(Reference.curie == curie).first()
+def update(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
+    reference_db_obj = db.query(Reference).filter(Reference.curie == curie).first()
     if not reference_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie {curie} not found")
@@ -132,7 +130,7 @@ def update(curie: str, reference_update: ReferenceSchemaUpdate):
 
         if field == "resource":
           resource_curie = value
-          resource = db.session.query(Resource).filter(Resource.curie == resource_curie).first()
+          resource = db.query(Resource).filter(Resource.curie == resource_curie).first()
           if not resource:
               raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                   detail=f"Resource with curie {resource_curie} does not exist")
@@ -143,13 +141,13 @@ def update(curie: str, reference_update: ReferenceSchemaUpdate):
             setattr(reference_db_obj, field, value)
 
     reference_db_obj.dateUpdated = datetime.utcnow()
-    db.session.commit()
+    db.commit()
 
     return "updated"
 
 
-def show_files(curie:str):
-    reference = db.session.query(Reference).filter(Reference.curie == curie).first()
+def show_files(db: Session, curie:str):
+    reference = db.query(Reference).filter(Reference.curie == curie).first()
     files_data = []
     for reference_file in reference.files:
         file_data = jsonable_encoder(reference_file)
@@ -159,8 +157,8 @@ def show_files(curie:str):
     return files_data
 
 
-def show(curie: str):
-    reference = db.session.query(Reference).filter(Reference.curie == curie).first()
+def show(db: Session, curie: str):
+    reference = db.query(Reference).filter(Reference.curie == curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the id {curie} is not available")
@@ -168,14 +166,14 @@ def show(curie: str):
     reference_data = jsonable_encoder(reference)
 
     if reference.resource_id:
-        reference_data['resource_curie'] = db.session.query(Resource.curie).filter(Resource.resource_id == reference.resource_id).first()[0]
-        reference_data['resource_title'] = db.session.query(Resource.title).filter(Resource.resource_id == reference.resource_id).first()[0]
+        reference_data['resource_curie'] = db.query(Resource.curie).filter(Resource.resource_id == reference.resource_id).first()[0]
+        reference_data['resource_title'] = db.query(Resource.title).filter(Resource.resource_id == reference.resource_id).first()[0]
         del reference_data['reference_id']
 
     if reference.cross_references:
         cross_references = []
         for cross_reference in reference_data['cross_references']:
-            cross_reference_show = jsonable_encoder(cross_reference_crud.show(cross_reference['curie']))
+            cross_reference_show = jsonable_encoder(cross_reference_crud.show(db, cross_reference['curie']))
             del cross_reference_show['reference_curie']
             cross_references.append(cross_reference_show)
         reference_data['cross_references'] = cross_references
@@ -195,7 +193,7 @@ def show(curie: str):
     if reference.authors:
         for author in reference_data['authors']:
             if author['orcid_id']:
-                author['orcid'] = jsonable_encoder(cross_reference_crud.show(author['orcid_id']))
+                author['orcid'] = jsonable_encoder(cross_reference_crud.show(db, author['orcid_id']))
             del author['orcid_id']
             del author['orcid_cross_reference']
             del author['resource_id']
@@ -204,7 +202,7 @@ def show(curie: str):
     if reference.editors:
         for editor in reference_data['editors']:
             if editor['orcid_id']:
-                editor['orcid'] = jsonable_encoder(cross_reference_crud.show(editor['orcid_id']))
+                editor['orcid'] = jsonable_encoder(cross_reference_crud.show(db, editor['orcid_id']))
             del editor['orcid_id']
             del editor['orcid_cross_reference']
             del editor['resource_id']
@@ -216,8 +214,8 @@ def show(curie: str):
     return reference_data
 
 
-def show_changesets(curie: str):
-    reference = db.session.query(Reference).filter(Reference.curie == curie).first()
+def show_changesets(db: Session, curie: str):
+    reference = db.query(Reference).filter(Reference.curie == curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the id {curie} is not available")
