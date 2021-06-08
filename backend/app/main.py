@@ -26,6 +26,7 @@ from literature.routers import resource_descriptor
 from literature.routers import mesh_detail
 from literature.routers import mod_reference_type
 from literature.routers import person
+from literature.routers import db_schema
 
 from literature.config import config
 from literature.database.config import SQLALCHEMY_DATABASE_URL
@@ -86,6 +87,7 @@ app.include_router(s3file.router)
 app.include_router(mesh_detail.router)
 app.include_router(mod_reference_type.router)
 app.include_router(person.router)
+app.include_router(db_schema.router)
 
 app.openapi = custom_openapi
 

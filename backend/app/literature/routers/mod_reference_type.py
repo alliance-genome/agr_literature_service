@@ -39,7 +39,7 @@ get_db = database.get_db
 def create(request: ModReferenceTypeSchemaPost,
            user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     return mod_reference_type_crud.create(db, request)
 
 
@@ -49,7 +49,7 @@ def create(request: ModReferenceTypeSchemaPost,
 def destroy(mod_reference_type_id: int,
             user: Auth0User = Security(auth.get_user),
             db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     mod_reference_type_crud.destroy(db, mod_reference_type_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -62,7 +62,7 @@ def update(mod_reference_type_id: int,
            request: ModReferenceTypeSchemaUpdate,
            user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     return mod_reference_type_crud.update(db, mod_reference_type_id, request)
 
 

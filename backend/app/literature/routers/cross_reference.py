@@ -36,7 +36,7 @@ get_db = database.get_db
 def create(request: CrossReferenceSchema,
            user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     return cross_reference_crud.create(db, request)
 
 
@@ -46,7 +46,7 @@ def create(request: CrossReferenceSchema,
 def destroy(curie: str,
             user: Auth0User = Security(auth.get_user),
             db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     cross_reference_crud.destroy(db, curie)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -59,7 +59,7 @@ def update(curie: str,
            request: CrossReferenceSchemaUpdate,
            user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     return cross_reference_crud.update(db, curie, request)
 
 

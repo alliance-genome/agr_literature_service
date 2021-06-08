@@ -40,7 +40,7 @@ get_db = database.get_db
 def create(request: ResourceSchemaPost,
            user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     return resource_crud.create(db, request)
 
 
@@ -50,7 +50,7 @@ def create(request: ResourceSchemaPost,
 def destroy(curie: str,
             user: Auth0User = Security(auth.get_user),
             db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     resource_crud.destroy(db, curie)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -63,7 +63,7 @@ def update(curie: str,
            request: ResourceSchemaUpdate,
            user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     return resource_crud.update(db, curie, request)
 
 

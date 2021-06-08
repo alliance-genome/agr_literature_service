@@ -37,7 +37,7 @@ get_db = database.get_db
 def create(request: PersonSchemaCreate,
            user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     return person_crud.create(db, request)
 
 
@@ -47,7 +47,7 @@ def create(request: PersonSchemaCreate,
 def destroy(person_id: int,
             user: Auth0User = Security(auth.get_user),
             db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     person_crud.destroy(db, person_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -60,7 +60,7 @@ def update(person_id: int,
            request: PersonSchemaCreate,
            user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     return person_crud.update(db, person_id, request)
 
 

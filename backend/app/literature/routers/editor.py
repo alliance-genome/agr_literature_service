@@ -34,7 +34,7 @@ get_db = database.get_db
 def create(request: EditorSchemaPost,
            user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     return editor_crud.create(db, request)
 
 
@@ -44,7 +44,7 @@ def create(request: EditorSchemaPost,
 def destroy(editor_id: int,
             user: Auth0User = Security(auth.get_user),
             db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     editor_crud.destroy(db, editor_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -57,7 +57,7 @@ def update(editor_id: int,
            request: EditorSchemaPost,
            user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     return editor_crud.update(db, editor_id, request)
 
 

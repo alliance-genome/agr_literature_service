@@ -32,7 +32,7 @@ get_db = database.get_db
 @router.get('/',
             status_code=200)
 def show(db: Session = Depends(get_db)):
-    return resource_descriptor.show(db)
+    return resource_descriptor_crud.show(db)
 
 
 @router.put('/',
@@ -40,5 +40,5 @@ def show(db: Session = Depends(get_db)):
             dependencies=[Depends(auth.implicit_scheme)])
 def update(user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     return resource_descriptor_crud.update(db)

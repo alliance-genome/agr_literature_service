@@ -44,7 +44,7 @@ def destroy(filename: str,
             s3: BaseClient = Depends(s3_auth),
             user: Auth0User = Security(auth.get_user),
             db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     s3file_crud.destroy(db, s3, filename)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -57,7 +57,7 @@ def update(filename: str,
            request: FileSchemaUpdate,
            user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     return s3file_crud.update(db, filename, request)
 
 

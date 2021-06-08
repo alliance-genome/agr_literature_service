@@ -46,7 +46,7 @@ get_db = database.get_db
 def create(request: ReferenceSchemaPost,
            user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     return reference_crud.create(db, request)
 
 
@@ -56,7 +56,7 @@ def create(request: ReferenceSchemaPost,
 def destroy(curie: str,
             user: Auth0User = Security(auth.get_user),
             db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     reference_crud.destroy(db, curie)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -69,7 +69,7 @@ def update(curie: str,
            request: ReferenceSchemaUpdate,
            user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     return reference_crud.update(db, curie, request)
 
 
@@ -103,7 +103,7 @@ async def create_upload_file(curie: str,
                              s3: BaseClient = Depends(s3_auth),
                              user: Auth0User = Security(auth.get_user),
                              db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     file_contents = await file_obj.read()
     filename = file_obj.filename
     content_type = file_obj.content_type

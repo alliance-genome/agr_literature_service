@@ -39,7 +39,7 @@ get_db = database.get_db
 def create(request: MeshDetailSchemaPost,
            user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     return mesh_detail_crud.create(db, request)
 
 
@@ -49,7 +49,7 @@ def create(request: MeshDetailSchemaPost,
 def destroy(mesh_detail_id: int,
             user: Auth0User = Security(auth.get_user),
             db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     mesh_detail_crud.destroy(db, mesh_detail_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -62,7 +62,7 @@ def update(mesh_detail_id: int,
            request: MeshDetailSchemaUpdate,
            user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
-    set_global_user_id(user.id)
+    set_global_user_id(db, user.id)
     return mesh_detail_crud.update(db, mesh_detail_id, request)
 
 
