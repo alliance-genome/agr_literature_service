@@ -26,7 +26,8 @@ class CrossReference(Base):
     reference_id = Column(
         Integer,
         ForeignKey('references.reference_id',
-                   ondelete='CASCADE')
+                   ondelete='CASCADE'),
+        index=True
     )
 
     reference = relationship(
@@ -37,7 +38,8 @@ class CrossReference(Base):
     resource_id = Column(
         Integer,
         ForeignKey('resources.resource_id',
-                   ondelete='CASCADE')
+                   ondelete='CASCADE'),
+        index=True
     )
 
     resource = relationship(

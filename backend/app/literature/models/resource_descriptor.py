@@ -36,7 +36,8 @@ class ResourceDescriptorPage(Base):
     resource_descriptor_id = Column(
          Integer,
          ForeignKey('resource_descriptors.resource_descriptor_id',
-                    ondelete='CASCADE')
+                    ondelete='CASCADE'),
+         index=True
     )
 
     resource_descriptor = relationship(

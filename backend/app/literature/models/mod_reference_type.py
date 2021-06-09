@@ -21,7 +21,8 @@ class ModReferenceType(Base):
     reference_id = Column(
         Integer,
         ForeignKey('references.reference_id',
-                   ondelete='CASCADE')
+                   ondelete='CASCADE'),
+        index=True
     )
 
     reference = relationship(

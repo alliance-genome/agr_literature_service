@@ -49,6 +49,7 @@ class Reference(Base):
     resource_id = Column(
         Integer,
         ForeignKey('resources.resource_id'),
+        index=True,
         nullable=True
     )
 

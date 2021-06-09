@@ -27,7 +27,8 @@ class Author(Base):
     reference_id = Column(
         Integer,
         ForeignKey('references.reference_id',
-                   ondelete='CASCADE')
+                   ondelete='CASCADE'),
+        index=True
     )
 
     reference = relationship(
@@ -38,7 +39,8 @@ class Author(Base):
     resource_id = Column(
         Integer,
         ForeignKey('resources.resource_id',
-                   ondelete='CASCADE')
+                   ondelete='CASCADE'),
+        index=True,
     )
 
     resource = relationship(
@@ -48,7 +50,8 @@ class Author(Base):
 
     orcid_id = Column(
          String,
-         ForeignKey('cross_references.curie')
+         ForeignKey('cross_references.curie'),
+         index=True
     )
 
     orcid_cross_reference = relationship(
@@ -60,7 +63,8 @@ class Author(Base):
     person_id = Column(
         Integer,
         ForeignKey('people.person_id'),
-        nullable=True
+        nullable=True,
+        index=True
     )
 
     person = relationship(

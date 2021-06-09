@@ -40,7 +40,7 @@ def create(request: CrossReferenceSchema,
     return cross_reference_crud.create(db, request)
 
 
-@router.delete('/{curie}',
+@router.delete('/{curie:path}',
                status_code=status.HTTP_204_NO_CONTENT,
                dependencies=[Depends(auth.implicit_scheme)])
 def destroy(curie: str,
@@ -51,7 +51,7 @@ def destroy(curie: str,
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.put('/{curie}',
+@router.put('/{curie:path}',
             status_code=status.HTTP_202_ACCEPTED,
             response_model=str,
             dependencies=[Depends(auth.implicit_scheme)])
@@ -63,7 +63,7 @@ def update(curie: str,
     return cross_reference_crud.update(db, curie, request)
 
 
-@router.get('/{curie}',
+@router.get('/{curie:path}',
             response_model=CrossReferenceSchema,
             status_code=200)
 def show(curie: str,
@@ -71,7 +71,7 @@ def show(curie: str,
     return cross_reference_crud.show(db, curie)
 
 
-@router.get('/{curie}/versions',
+@router.get('/{curie:path}/versions',
             status_code=200)
 def show(curie: str,
          db: Session = Depends(get_db)):

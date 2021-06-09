@@ -18,7 +18,7 @@ from literature.schemas import TagName
 from literature.schemas import TagSource
 
 class MeshDetail(Base):
-    __tablename__ = 'Mesh_details'
+    __tablename__ = 'mesh_details'
     __versioned__ = {}
 
     mesh_detail_id = Column(
@@ -30,7 +30,8 @@ class MeshDetail(Base):
     reference_id = Column(
          Integer,
          ForeignKey('references.reference_id',
-                    ondelete='CASCADE')
+                    ondelete='CASCADE'),
+         index=True
     )
 
     reference = relationship(
