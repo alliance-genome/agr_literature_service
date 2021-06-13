@@ -5,7 +5,10 @@ from os import environ, path
 import logging
 import logging.config
 
-from datetime import datetime
+# from datetime import datetime
+
+from post_reference_to_api import generate_headers, update_token
+
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
@@ -15,6 +18,8 @@ logger = logging.getLogger('literature logger')
 
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
+
+auth0_file = base_path + 'auth0_token'
 
 # resource_fields = ['primaryId', 'nlm', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
 # resource_fields_from_pubmed = ['title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
@@ -57,11 +62,20 @@ def post_resources():
     keys_found = set()
 
     url = 'http://localhost:49161/resource/'
-    headers = {
-        'Authorization': 'Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IllYOGpVX2NObGgzRFBUT2NPNTVKeSJ9.eyJpc3MiOiJodHRwczovL2FsbGlhbmNlZ2Vub21lLnVzLmF1dGgwLmNvbS8iLCJzdWIiOiJWVGhRVENKSzkwSjBjS0s5bG9CbTlZQmRSaDB6YWl1bkBjbGllbnRzIiwiYXVkIjoiYWxsaWFuY2UiLCJpYXQiOjE2MjE4OTg4MTYsImV4cCI6MTYyMTk4NTIxNiwiYXpwIjoiVlRoUVRDSks5MEowY0tLOWxvQm05WUJkUmgwemFpdW4iLCJzY29wZSI6InJlYWQ6bWV0YWRhdGEiLCJndHkiOiJjbGllbnQtY3JlZGVudGlhbHMifQ.OArJLkYDc06XQFfKTgtzRsDBHdJ0-WOT7rlKfcTV7CC6lzJZUEv8QqOQFzxDgjJuF9tE2LudD7FgdQhS6ooddnVRDVe-f0BtoYPXbqurrKxgOgYSwCBnWEX6Ze-hXID0QTmqhz65GKAKnB3_52NWOaioZWpjnomw8KlSo6Hi3p15ypaf4SnXsFc8owGMphEzejyGx6LNpktFIg15TDvDmq8ZVt20H7c8F69gpjTZFmlzzsNOTeSDNRGCC7M72LHAe8gTDXBguHegdyEvsq4NKB47kdHGIesccjJqstFPLcVGGnZI0Q6PlJSpHqXDbx_T-2tPEfdbOhjdUH8mQydySw',
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
+#     headers = {
+#         'Authorization': 'Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IllYOGpVX2NObGgzRFBUT2NPNTVKeSJ9.eyJpc3MiOiJodHRwczovL2FsbGlhbmNlZ2Vub21lLnVzLmF1dGgwLmNvbS8iLCJzdWIiOiJWVGhRVENKSzkwSjBjS0s5bG9CbTlZQmRSaDB6YWl1bkBjbGllbnRzIiwiYXVkIjoiYWxsaWFuY2UiLCJpYXQiOjE2MjIyMjQxMzEsImV4cCI6MTYyMjMxMDUzMSwiYXpwIjoiVlRoUVRDSks5MEowY0tLOWxvQm05WUJkUmgwemFpdW4iLCJzY29wZSI6InJlYWQ6bWV0YWRhdGEiLCJndHkiOiJjbGllbnQtY3JlZGVudGlhbHMifQ.Go4IWYfn5FJt30G9XIzWmYEqsi3HGCzPs4Is0q9Xy8GRzw-au1J1DzFmYVpPxhB5W_-Zuw9SdLxm5GlDAlT3dle53RRN3HaeZEzGIjsdcgpiBVV_vcH_zE6C7dCD-rSXg7Grdk9ALEbcaCn3D7t3d71pNP-VUV0ihwPEelk215jtfRkvL4_k5mhI56E9IpqX8QgNOtRZ10SvljjAwEw9dM16g4GWP5btv75cD_Vd_twhMVBhVZ_B0WV9Ud0GXpG0ihcxWyMgWGEKh4sDGvKjN9jAkMHEW3swTT-qMRTmzadtMMrt4CFNZN4eQNAxnJrMTsIJZDDzQkMTSwl7OyE6AA',
+#         'Content-Type': 'application/json',
+#         'Accept': 'application/json'
+#     }
+
+    token = ''
+    if path.isfile(auth0_file):
+        with open(auth0_file, 'r') as auth0_fh:
+            token = auth0_fh.read().replace("\n", "")
+            auth0_fh.close
+    else:
+        token = update_token()
+    headers = generate_headers(token)
 
     resource_primary_id_to_curie_file = base_path + 'resource_primary_id_to_curie'
     errors_in_posting_resource_file = base_path + 'errors_in_posting_resource'
@@ -96,6 +110,7 @@ def post_resources():
 #                 if counter > 2:
 #                     break
 
+# TODO: check FB cross_references going in
                 for key in keys_to_remove:
                     if key in entry:
                         del entry[key]
