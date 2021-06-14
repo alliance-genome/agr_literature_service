@@ -94,7 +94,7 @@ def create(db: Session, resource: ResourceSchemaPost):
     return curie
 
 
-def destroy(curie: str):
+def destroy(db: Session, curie: str):
     resource = db.query(Resource).filter(Resource.curie == curie).first()
 
     if not resource:
@@ -106,8 +106,7 @@ def destroy(curie: str):
     return None
 
 
-def update(curie: str, resource_update: ResourceSchemaUpdate):
-
+def update(db: Session, curie: str, resource_update: ResourceSchemaUpdate):
     resource_db_obj = db.query(Resource).filter(Resource.curie == curie).first()
     if not resource_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
