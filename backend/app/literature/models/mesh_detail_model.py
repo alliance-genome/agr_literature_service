@@ -17,11 +17,11 @@ from literature.database.base import Base
 from literature.schemas import TagName
 from literature.schemas import TagSource
 
-class ReferenceTag(Base):
-    __tablename__ = 'reference_tags'
+class MeshDetailModel(Base):
+    __tablename__ = 'mesh_details'
     __versioned__ = {}
 
-    reference_tag_id = Column(
+    mesh_detail_id = Column(
         Integer,
         primary_key=True,
         autoincrement=True
@@ -35,19 +35,19 @@ class ReferenceTag(Base):
     )
 
     reference = relationship(
-        'Reference',
-        back_populates="tags"
+        'ReferenceModel',
+        back_populates="mesh_terms"
     )
 
 
-    tag_name = Column(
-        Enum(TagName),
+    heading_term = Column(
+        String,
         unique=False,
         nullable=False
     )
 
-    tag_source = Column(
-        Enum(TagSource),
+    qualifier_term = Column(
+        String,
         unique=False,
-        nullable=False
+        nullable=True
     )

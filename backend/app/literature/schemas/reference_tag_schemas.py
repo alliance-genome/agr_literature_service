@@ -2,8 +2,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
-from literature.schemas.tag_name import TagName
-from literature.schemas.tag_source import TagSource
+from literature.schemas import TagName
+from literature.schemas import TagSource
 
 class ReferenceTag(BaseModel):
     tag_name: TagName = None

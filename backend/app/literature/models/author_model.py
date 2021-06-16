@@ -14,7 +14,7 @@ from sqlalchemy.orm import relationship
 from literature.database.base import Base
 
 
-class Author(Base):
+class AuthorModel(Base):
     __tablename__ = 'authors'
     __versioned__ = {}
 
@@ -32,7 +32,7 @@ class Author(Base):
     )
 
     reference = relationship(
-        'Reference',
+        'ReferenceModel',
         back_populates="authors"
     )
 
@@ -44,7 +44,7 @@ class Author(Base):
     )
 
     resource = relationship(
-        'Resource',
+        'ResourceModel',
         back_populates="authors"
     )
 
@@ -55,7 +55,7 @@ class Author(Base):
     )
 
     orcid_cross_reference = relationship(
-        'CrossReference',
+        'CrossReferenceModel',
          lazy="joined",
         back_populates="authors"
     )
@@ -68,7 +68,7 @@ class Author(Base):
     )
 
     person = relationship(
-        'Person',
+        'PersonModel',
         back_populates="authors",
         single_parent=True,
     )

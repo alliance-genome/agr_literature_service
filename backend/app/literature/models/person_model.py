@@ -14,60 +14,35 @@ from sqlalchemy.orm import relationship
 from literature.database.base import Base
 
 
-class Editor(Base):
-    __tablename__ = 'editors'
+class PersonModel(Base):
+    __tablename__ = 'people'
     __versioned__ = {}
 
-    editor_id = Column(
+    person_id = Column(
         Integer,
         primary_key=True,
         autoincrement=True
     )
 
-    reference_id = Column(
-         Integer,
-         ForeignKey('references.reference_id',
-                    ondelete='CASCADE'),
-         index=True
+    references = relationship(
+        'ReferenceModel',
+        secondary = 'person_reference_link'
     )
 
-    reference = relationship(
-        'Reference',
-        back_populates="editors"
+    editors = relationship(
+        "EditorModel",
+        back_populates="person"
     )
 
-    resource_id = Column(
-        Integer,
-        ForeignKey('resources.resource_id',
-                   ondelete='CASCADE')
+    authors = relationship(
+        "AuthorModel",
+        back_populates="person"
     )
 
-    resource = relationship(
-        'Resource',
-        back_populates="editors"
-    )
-
-    orcid_id = Column(
-        String,
-        ForeignKey('cross_references.curie')
-    )
-
-    orcid_cross_reference = relationship(
-        'CrossReference',
-        lazy="joined",
-        back_populates="editors"
-    )
-
-    person_id = Column(
-        Integer,
-        ForeignKey('people.person_id'),
-        nullable=True
-    )
-
-    person = relationship(
-        'Person',
-        back_populates="editors",
-        single_parent=True,
+    orcids = relationship(
+        'CrossReferenceModel',
+        lazy='joined',
+        secondary = 'person_orcid_cross_reference_link'
     )
 
     order = Column(
@@ -81,6 +56,12 @@ class Editor(Base):
         nullable=True
     )
 
+    affiliation = Column(
+        ARRAY(String),
+        unique=False,
+        nullable=True
+    )
+
     first_name = Column(
         String(),
         unique=False,
@@ -88,8 +69,8 @@ class Editor(Base):
     )
 
     middle_names = Column(
-        ARRAY(String()),
-        nullable=True
+       ARRAY(String()),
+       nullable=True
     )
 
     last_name = Column(

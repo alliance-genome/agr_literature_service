@@ -8,7 +8,7 @@ from sqlalchemy.orm import relationship
 from literature.database.base import Base
 
 
-class ModReferenceType(Base):
+class ModReferenceTypeModel(Base):
     __tablename__ = 'mod_reference_types'
     __versioned__ = {}
 
@@ -26,7 +26,7 @@ class ModReferenceType(Base):
     )
 
     reference = relationship(
-        'Reference',
+        'ReferenceModel',
         back_populates="mod_reference_types"
     )
 

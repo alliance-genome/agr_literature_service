@@ -3,7 +3,7 @@ from sqlalchemy import String
 
 from literature.database.base import Base
 
-class User(Base):
+class UserModel(Base):
     __tablename__ = 'users'
     __versioned__ = {}
 

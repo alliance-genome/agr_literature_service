@@ -9,8 +9,8 @@ from fastapi.encoders import jsonable_encoder
 from literature.schemas import MeshDetailSchemaPost
 from literature.schemas import MeshDetailSchemaUpdate
 
-from literature.models import Reference
-from literature.models import MeshDetail
+from literature.models import ReferenceModel
+from literature.models import MeshDetailModel
 
 
 def create(db: Session, mesh_detail: MeshDetailSchemaPost):
@@ -20,12 +20,12 @@ def create(db: Session, mesh_detail: MeshDetailSchemaPost):
         reference_curie = mesh_detail_data['reference_curie']
         del mesh_detail_data['reference_curie']
 
-    reference = db.query(Reference).filter(Reference.curie == reference_curie).first()
+    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                detail=f"Reference with curie {reference_curie} does not exist")
 
-    db_obj = MeshDetail(**mesh_detail_data)
+    db_obj = MeshDetailModel(**mesh_detail_data)
     db_obj.reference = reference
     db.add(db_obj)
     db.commit()
@@ -34,7 +34,7 @@ def create(db: Session, mesh_detail: MeshDetailSchemaPost):
 
 
 def destroy(db: Session, mesh_detail_id: int):
-    mesh_detail = db.query(MeshDetail).filter(MeshDetail.mesh_detail_id == mesh_detail_id).first()
+    mesh_detail = db.query(MeshDetailModel).filter(MeshDetailModel.mesh_detail_id == mesh_detail_id).first()
     if not mesh_detail:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"MeshDetail with mesh_detail_id {mesh_detail_id} not found")
@@ -46,7 +46,7 @@ def destroy(db: Session, mesh_detail_id: int):
 
 def update(db: Session, mesh_detail_id: int, mesh_detail_update: MeshDetailSchemaUpdate):
 
-    mesh_detail_db_obj = db.query(MeshDetail).filter(MeshDetail.mesh_detail_id == mesh_detail_id).first()
+    mesh_detail_db_obj = db.query(MeshDetailModel).filter(MeshDetailModel.mesh_detail_id == mesh_detail_id).first()
     if not mesh_detail_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"MeshDetail with mesh_detail_id {mesh_detail_id} not found")
@@ -59,7 +59,7 @@ def update(db: Session, mesh_detail_id: int, mesh_detail_update: MeshDetailSchem
     for field, value in vars(mesh_detail_update).items():
         if field == 'reference_curie' and value:
             reference_curie = value
-            reference = db.query(Reference).filter(Reference.curie == reference_curie).first()
+            reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                   detail=f"Reference with curie {reference_curie} does not exist")
@@ -71,11 +71,11 @@ def update(db: Session, mesh_detail_id: int, mesh_detail_update: MeshDetailSchem
     mesh_detail_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
 
-    return db.query(MeshDetail).filter(MeshDetail.mesh_detail_id == mesh_detail_id).first()
+    return db.query(MeshDetailModel).filter(MeshDetailModel.mesh_detail_id == mesh_detail_id).first()
 
 
 def show(db: Session, mesh_detail_id: int):
-    mesh_detail = db.query(MeshDetail).filter(MeshDetail.mesh_detail_id == mesh_detail_id).first()
+    mesh_detail = db.query(MeshDetailModel).filter(MeshDetailModel.mesh_detail_id == mesh_detail_id).first()
     mesh_detail_data = jsonable_encoder(mesh_detail)
 
     if not mesh_detail:
@@ -83,14 +83,14 @@ def show(db: Session, mesh_detail_id: int):
                             detail=f"MeshDetail with the mesh_detail_id {mesh_detail_id} is not available")
 
     if mesh_detail_data['reference_id']:
-        mesh_detail_data['reference_curie'] = db.query(Reference.curie).filter(Reference.reference_id == mesh_detail_data['reference_id']).first()[0]
+        mesh_detail_data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == mesh_detail_data['reference_id']).first()[0]
     del mesh_detail_data['reference_id']
 
     return mesh_detail_data
 
 
 def show_changesets(db: Session, mesh_detail_id: int):
-    mesh_detail = db.query(MeshDetail).filter(MeshDetail.mesh_detail_id == mesh_detail_id).first()
+    mesh_detail = db.query(MeshDetailModel).filter(MeshDetailModel.mesh_detail_id == mesh_detail_id).first()
     if not mesh_detail:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"MeshDetail with the mesh_detail_id {mesh_detail_id} is not available")

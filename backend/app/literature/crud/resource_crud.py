@@ -12,12 +12,12 @@ from literature.schemas import ResourceSchemaUpdate
 
 from literature.crud import cross_reference_crud
 
-from literature.models import Reference
-from literature.models import Resource
-from literature.models import Author
-from literature.models import Editor
-from literature.models import CrossReference
-from literature.models import MeshDetail
+from literature.models import ReferenceModel
+from literature.models import ResourceModel
+from literature.models import AuthorModel
+from literature.models import EditorModel
+from literature.models import CrossReferenceModel
+from literature.models import MeshDetailModel
 
 
 def create_next_curie(curie):
@@ -27,26 +27,16 @@ def create_next_curie(curie):
     return "-".join([curie_parts[0], str(number).rjust(10, '0')])
 
 
-def get_all(db: Session):
-    resources = db.query(Resource.curie).all()
-
-    resources_data = []
-    for resource in resources:
-         resources_data.append(resource[0])
-
-    return resources_data
-
-
 def create(db: Session, resource: ResourceSchemaPost):
     resource_data = {}
 
     if resource.cross_references is not None:
         for cross_reference in resource.cross_references:
-            if db.query(CrossReference).filter(CrossReference.curie == cross_reference.curie).first():
+            if db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == cross_reference.curie).first():
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"CrossReference with curie {cross_reference.curie} already exists")
 
-    last_curie = db.query(Resource.curie).order_by(sqlalchemy.desc(Resource.curie)).first()
+    last_curie = db.query(ResourceModel.curie).order_by(sqlalchemy.desc(ResourceModel.curie)).first()
 
     if last_curie == None:
         last_curie = 'AGR:AGR-Resource-0000000000'
@@ -66,28 +56,28 @@ def create(db: Session, resource: ResourceSchemaPost):
                 db_obj = None
                 if field in ['authors', 'editors']:
                     if obj_data['orcid']:
-                        cross_reference_obj = db.query(CrossReference).filter(CrossReference.curie == obj_data['orcid']).first()
+                        cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == obj_data['orcid']).first()
                         if not cross_reference_obj:
-                            cross_reference_obj = CrossReference(curie=obj_data['orcid'])
+                            cross_reference_obj = CrossReferenceModel(curie=obj_data['orcid'])
                             db.add(cross_reference_obj)
 
                         obj_data['orcid_cross_reference'] = cross_reference_obj
                     del obj_data['orcid']
                     if field == 'authors':
-                        db_obj = Author(**obj_data)
+                        db_obj = AuthorModel(**obj_data)
                     else:
-                        db_obj = Editor(**obj_data)
+                        db_obj = EditorModel(**obj_data)
                 elif field == 'cross_references':
-                    db_obj = CrossReference(**obj_data)
+                    db_obj = CrossReferenceModel(**obj_data)
                 elif field == 'mesh_terms':
-                    db_obj = MeshDetail(**obj_data)
+                    db_obj = MeshDetailModel(**obj_data)
                 db.add(db_obj)
                 db_objs.append(db_obj)
             resource_data[field] = db_objs
         else:
             resource_data[field] = value
 
-    resource_db_obj = Resource(**resource_data)
+    resource_db_obj = ResourceModel(**resource_data)
     db.add(resource_db_obj)
     db.commit()
 
@@ -95,7 +85,7 @@ def create(db: Session, resource: ResourceSchemaPost):
 
 
 def destroy(db: Session, curie: str):
-    resource = db.query(Resource).filter(Resource.curie == curie).first()
+    resource = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
 
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -107,13 +97,13 @@ def destroy(db: Session, curie: str):
 
 
 def update(db: Session, curie: str, resource_update: ResourceSchemaUpdate):
-    resource_db_obj = db.query(Resource).filter(Resource.curie == curie).first()
+    resource_db_obj = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
     if not resource_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Resource with curie {curie} not found")
 
     if resource_update.iso_abbreviation not in [None, ""]:
-        iso_abbreviation_resource = db.query(Resource).filter(Resource.iso_abbreviation == resource_update.iso_abbreviation).first()
+        iso_abbreviation_resource = db.query(ResourceModel).filter(ResourceModel.iso_abbreviation == resource_update.iso_abbreviation).first()
 
         if iso_abbreviation_resource and iso_abbreviation_resource.curie != curie:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
@@ -131,7 +121,7 @@ def update(db: Session, curie: str, resource_update: ResourceSchemaUpdate):
 
 
 def show(db: Session, curie: str):
-    resource = db.query(Resource).filter(Resource.curie == curie).first()
+    resource = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Resource with the id {curie} is not available")
@@ -172,7 +162,7 @@ def show(db: Session, curie: str):
 
 
 def show_changesets(db: Session, curie: str):
-    resource = db.query(Resource).filter(Resource.curie == curie).first()
+    resource = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Resource with the id {curie} is not available")

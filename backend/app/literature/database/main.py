@@ -22,7 +22,8 @@ SessionLocal = sessionmaker(bind=engine, autoflush=True)
 
 user_plugin = UserPlugin()
 
-make_versioned(plugins=[user_plugin, PropertyModTrackerPlugin()])
+make_versioned(user_cls='UserModel',
+               plugins=[user_plugin, PropertyModTrackerPlugin()])
 
 
 def get_db():

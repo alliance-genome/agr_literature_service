@@ -6,8 +6,8 @@ from sqlalchemy import String
 from literature.database.base import Base
 
 
-class PersonOrcidCrossReferenceLink(Base):
-    __tablename__ = 'person_orcid_cross_reference_link'
+class PersonReferenceLinkModel(Base):
+    __tablename__ = 'person_reference_link'
 
     person_id = Column(
         Integer,
@@ -15,8 +15,8 @@ class PersonOrcidCrossReferenceLink(Base):
         primary_key = True
     )
 
-    cross_reference_curie = Column(
+    reference_curie = Column(
         String,
-        ForeignKey('cross_references.curie'),
+        ForeignKey('references.curie'),
         primary_key = True
     )

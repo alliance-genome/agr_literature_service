@@ -13,10 +13,10 @@ from sqlalchemy.orm import relationship
 
 from literature.database.base import Base
 
-from literature.schemas.reference_category import ReferenceCategory
+from literature.schemas import ReferenceCategory
 
 
-class Reference(Base):
+class ReferenceModel(Base):
     __tablename__ = 'references'
     __versioned__ = {}
 
@@ -34,14 +34,14 @@ class Reference(Base):
     )
 
     cross_references = relationship(
-        'CrossReference',
+        'CrossReferenceModel',
         lazy='joined',
         back_populates='reference',
         cascade="all, delete, delete-orphan"
     )
 
     files = relationship(
-        'File',
+        'FileModel',
         lazy='joined',
         back_populates='reference',
     )
@@ -54,13 +54,13 @@ class Reference(Base):
     )
 
     resource = relationship(
-        'Resource',
+        'ResourceModel',
         back_populates="references",
         single_parent=True,
     )
 
     verified_people = relationship(
-        'Person',
+        'PersonModel',
         lazy='joined',
         secondary = 'person_reference_link'
     )
@@ -78,21 +78,21 @@ class Reference(Base):
     )
 
     mod_reference_types = relationship(
-        'ModReferenceType',
+        'ModReferenceTypeModel',
         lazy='joined',
         back_populates='reference',
         cascade="all, delete, delete-orphan"
     )
 
     authors = relationship(
-        'Author',
+        'AuthorModel',
         lazy='joined',
         back_populates='reference',
         cascade="all, delete, delete-orphan"
     )
 
     editors = relationship(
-        'Editor',
+        'EditorModel',
         lazy='joined',
         back_populates='reference',
         cascade="all, delete, delete-orphan"
@@ -177,14 +177,14 @@ class Reference(Base):
     )
 
     tags = relationship(
-        'ReferenceTag',
+        'ReferenceTagModel',
         lazy='joined',
         back_populates='reference',
         cascade="all, delete, delete-orphan"
     )
 
     mesh_terms = relationship(
-        'MeshDetail',
+        'MeshDetailModel',
         lazy='joined',
         back_populates='reference',
         cascade="all, delete, delete-orphan"

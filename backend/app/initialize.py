@@ -6,15 +6,15 @@ from sqlalchemy.orm import Session
 from literature.config import config
 from literature import database
 
-from literature.models.resource_descriptor import ResourceDescriptor
-from literature.models.resource_descriptor import ResourceDescriptorPage
+from literature.models.resource_descriptor_models import ResourceDescriptorModel
+from literature.models.resource_descriptor_models import ResourceDescriptorPageModel
 
 
 def update_resource_descriptor(db: Session):
     with urllib.request.urlopen(config.RESOURCE_DESCRIPTOR_URL) as response:
         resource_descriptors = yaml.full_load(response)
 
-        db.query(ResourceDescriptor).delete()
+        db.query(ResourceDescriptorModel).delete()
 
         for resource_descriptor in resource_descriptors:
             resource_descriptor_data = dict()
@@ -22,8 +22,8 @@ def update_resource_descriptor(db: Session):
                if field == 'pages':
                    page_objs = []
                    for page in value:
-                       page_obj = ResourceDescriptorPage(name=page['name'],
-                                                         url=page['url'])
+                       page_obj = ResourceDescriptorPageModel(name=page['name'],
+                                                              url=page['url'])
                        db.add(page_obj)
                        page_objs.append(page_obj)
                    resource_descriptor_data['pages'] = page_objs
@@ -32,7 +32,7 @@ def update_resource_descriptor(db: Session):
                else:
                    resource_descriptor_data[field] = value
 
-            resource_descriptor_obj = ResourceDescriptor(**resource_descriptor_data)
+            resource_descriptor_obj = ResourceDescriptorModel(**resource_descriptor_data)
             db.add(resource_descriptor_obj)
         db.commit()
 

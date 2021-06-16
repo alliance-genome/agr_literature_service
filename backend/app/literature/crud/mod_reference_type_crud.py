@@ -9,8 +9,8 @@ from fastapi.encoders import jsonable_encoder
 from literature.schemas import ModReferenceTypeSchemaPost
 from literature.schemas import ModReferenceTypeSchemaUpdate
 
-from literature.models import Reference
-from literature.models import ModReferenceType
+from literature.models import ReferenceModel
+from literature.models import ModReferenceTypeModel
 
 
 def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost):
@@ -20,12 +20,12 @@ def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost):
         reference_curie = mod_reference_type_data['reference_curie']
         del mod_reference_type_data['reference_curie']
 
-    reference = db.query(Reference).filter(Reference.curie == reference_curie).first()
+    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                detail=f"Reference with curie {reference_curie} does not exist")
 
-    db_obj = ModReferenceType(**mod_reference_type_data)
+    db_obj = ModReferenceTypeModel(**mod_reference_type_data)
     db_obj.reference = reference
     db.add(db_obj)
     db.commit()
@@ -34,7 +34,7 @@ def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost):
 
 
 def destroy(db: Session, mod_reference_type_id: int):
-    mod_reference_type = db.query(ModReferenceType).filter(ModReferenceType.mod_reference_type_id == mod_reference_type_id).first()
+    mod_reference_type = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
     if not mod_reference_type:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with mod_reference_type_id {mod_reference_type_id} not found")
@@ -46,7 +46,7 @@ def destroy(db: Session, mod_reference_type_id: int):
 
 def update(db: Session, mod_reference_type_id: int, mod_reference_type_update: ModReferenceTypeSchemaUpdate):
 
-    mod_reference_type_db_obj = db.query(ModReferenceType).filter(ModReferenceType.mod_reference_type_id == mod_reference_type_id).first()
+    mod_reference_type_db_obj = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
     if not mod_reference_type_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with mod_reference_type_id {mod_reference_type_id} not found")
@@ -59,7 +59,7 @@ def update(db: Session, mod_reference_type_id: int, mod_reference_type_update: M
     for field, value in vars(mod_reference_type_update).items():
         if field == 'reference_curie' and value:
             reference_curie = value
-            reference = db.query(Reference).filter(Reference.curie == reference_curie).first()
+            reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                   detail=f"Reference with curie {reference_curie} does not exist")
@@ -71,11 +71,11 @@ def update(db: Session, mod_reference_type_id: int, mod_reference_type_update: M
     mod_reference_type_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
 
-    return db.query(ModReferenceType).filter(ModReferenceType.mod_reference_type_id == mod_reference_type_id).first()
+    return db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
 
 
 def show(db: Session, mod_reference_type_id: int):
-    mod_reference_type = db.query(ModReferenceType).filter(ModReferenceType.mod_reference_type_id == mod_reference_type_id).first()
+    mod_reference_type = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
     mod_reference_type_data = jsonable_encoder(mod_reference_type)
 
     if not mod_reference_type:
@@ -83,14 +83,14 @@ def show(db: Session, mod_reference_type_id: int):
                             detail=f"ModReferenceType with the mod_reference_type_id {mod_reference_type_id} is not available")
 
     if mod_reference_type_data['reference_id']:
-        mod_reference_type_data['reference_curie'] = db.query(Reference.curie).filter(Reference.reference_id == mod_reference_type_data['reference_id']).first()[0]
+        mod_reference_type_data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == mod_reference_type_data['reference_id']).first()[0]
     del mod_reference_type_data['reference_id']
 
     return mod_reference_type_data
 
 
 def show_changesets(db: Session, mod_reference_type_id: int):
-    mod_reference_type = db.query(ModReferenceType).filter(ModReferenceType.mod_reference_type_id == mod_reference_type_id).first()
+    mod_reference_type = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
     if not mod_reference_type:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with the mod_reference_type_id {mod_reference_type_id} is not available")

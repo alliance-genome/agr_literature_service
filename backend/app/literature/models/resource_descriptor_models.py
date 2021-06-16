@@ -12,7 +12,7 @@ from sqlalchemy.orm import relationship
 from literature.database.base import Base
 
 
-class ResourceDescriptorPage(Base):
+class ResourceDescriptorPageModel(Base):
     __tablename__ = 'resource_descriptor_pages'
 
     resource_descriptor_pages_id = Column(
@@ -41,14 +41,14 @@ class ResourceDescriptorPage(Base):
     )
 
     resource_descriptor = relationship(
-        'ResourceDescriptor',
+        'ResourceDescriptorModel',
         back_populates="pages"
     )
 
 
 
 
-class ResourceDescriptor(Base):
+class ResourceDescriptorModel(Base):
     __tablename__ = 'resource_descriptors'
 
     resource_descriptor_id = Column(
@@ -58,7 +58,7 @@ class ResourceDescriptor(Base):
     )
 
     pages = relationship(
-        'ResourceDescriptorPage',
+        'ResourceDescriptorPageModel',
         lazy='joined',
         back_populates='resource_descriptor',
         cascade="all, delete, delete-orphan"

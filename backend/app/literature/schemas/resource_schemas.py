@@ -5,13 +5,13 @@ from pydantic import BaseModel
 from pydantic import ValidationError
 from pydantic import validator
 
-from literature.schemas.base import BaseModelShow
-from literature.schemas.author import AuthorSchemaPost
-from literature.schemas.author import AuthorSchemaShow
-from literature.schemas.editor import EditorSchemaPost
-from literature.schemas.editor import EditorSchemaShow
-from literature.schemas.cross_reference import CrossReferenceSchemaRelated
-from literature.schemas.cross_reference import CrossReferenceSchema
+from literature.schemas import BaseModelShow
+from literature.schemas import AuthorSchemaPost
+from literature.schemas import AuthorSchemaShow
+from literature.schemas import EditorSchemaPost
+from literature.schemas import EditorSchemaShow
+from literature.schemas import CrossReferenceSchemaRelated
+from literature.schemas import CrossReferenceSchema
 
 
 class ResourceSchemaPost(BaseModel):

@@ -2,7 +2,7 @@ from typing import Optional
 
 from pydantic import BaseSettings, Field
 
-from literature.schemas import EnvState
+from literature.schemas import EnvStateSchema
 
 
 
@@ -13,7 +13,7 @@ class GlobalConfig(BaseSettings):
     # shell environment variable having the same name, that will take precedence.
 
     # the class Field is necessary while defining the global variables
-    ENV_STATE: Optional[EnvState] = Field(..., env="ENV_STATE")
+    ENV_STATE: Optional[EnvStateSchema] = Field(..., env="ENV_STATE")
     HOST: Optional[str] = Field(..., env="HOST")
 
     #AWS Creds

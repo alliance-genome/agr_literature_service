@@ -1,26 +1,20 @@
-from typing import List
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel
 from pydantic import ValidationError
 from pydantic import validator
 
-from literature.schemas.base import BaseModelShow
-from literature.schemas.cross_reference import CrossReferenceSchemaShow
+from literature.schemas import BaseModelShow
+from literature.schemas import CrossReferenceSchemaShow
 
 
-class AuthorSchemaPost(BaseModel):
+class EditorSchemaPost(BaseModel):
     order: Optional[int] = None
 
     name: Optional[str]  = None
     first_name: Optional[str] = None
     middle_names: Optional[List[str]] = None
     last_name: Optional[str] = None
-
-    first_author: Optional[bool] = False
-    affiliation: Optional[List[str]] = None
-    corresponding_author: Optional[bool] = None
-
     orcid: Optional[str] = None
 
     @validator('orcid')
@@ -34,31 +28,25 @@ class AuthorSchemaPost(BaseModel):
         extra = "forbid"
 
 
-class AuthorSchemaShow(BaseModelShow):
-    author_id: int
-
+class EditorSchemaShow(BaseModelShow):
+    editor_id: int
     order: Optional[int] = None
 
     name: Optional[str]  = None
     first_name: Optional[str] = None
     middle_names: Optional[List[str]] = None
     last_name: Optional[str] = None
-
-    first_author: Optional[bool]
     orcid: Optional[CrossReferenceSchemaShow] = None
-    affiliation: Optional[List[str]] = None
-
-    corresponding_author: Optional[bool] = None
 
     class Config():
         orm_mode = True
         extra = "forbid"
 
-class AuthorSchemaCreate(AuthorSchemaPost):
+
+class EditorSchemaCreate(EditorSchemaPost):
     reference_curie: Optional[str] = None
     resource_curie: Optional[str] = None
 
     class Config():
         orm_mode = True
         extra = "forbid"
-

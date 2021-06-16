@@ -23,7 +23,7 @@ from literature.schemas import FileSchemaUpdate
 
 from literature.deps import s3_auth
 
-from literature.crud import s3file_crud
+from literature.crud import file_crud
 
 from literature.routers.authentication import auth
 

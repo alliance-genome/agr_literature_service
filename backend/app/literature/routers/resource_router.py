@@ -67,12 +67,6 @@ def update(curie: str,
     return resource_crud.update(db, curie, request)
 
 
-@router.get('/',
-            response_model=List[str])
-def all(db: Session = Depends(get_db)):
-    return resource_crud.get_all(db)
-
-
 @router.get('/{curie}',
             status_code=200,
             response_model=ResourceSchemaShow)

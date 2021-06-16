@@ -1,5 +1,5 @@
 from enum import Enum
 
-class EnvState(str, Enum):
+class EnvStateSchema(str, Enum):
     prod = "prod"
     develop = "build"

@@ -8,9 +8,9 @@ from fastapi.encoders import jsonable_encoder
 
 from literature.schemas import PersonSchemaPost
 
-from literature.models import Reference
-from literature.models import Resource
-from literature.models import Person
+from literature.models import ReferenceModel
+from literature.models import ResourceModel
+from literature.models import PersonModel
 
 
 def create(db: Session, person: PersonSchemaPost):
@@ -24,18 +24,18 @@ def create(db: Session, person: PersonSchemaPost):
         reference_curie = person_data['reference_curie']
         del person_data['reference_curie']
 
-    db_obj = Person(**person_data)
+    db_obj = PersonModel(**person_data)
     if resource_curie and reference_curie:
        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                            detail=f"Only supply either resource_curie or reference_curie")
     elif resource_curie:
-       resource = db.query(Resource).filter(Resource.curie == resource_curie).first()
+       resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
        if not resource:
            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                detail=f"Resource with curie {resource_curie} does not exist")
        db_obj.resource = resource
     elif reference_curie:
-       reference = db.query(Reference).filter(Reference.curie == reference_curie).first()
+       reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
        if not reference:
            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                detail=f"Reference with curie {reference_curie} does not exist")
@@ -51,7 +51,7 @@ def create(db: Session, person: PersonSchemaPost):
 
 
 def destroy(db: Session, person_id: int):
-    person = db.query(Person).filter(Person.person_id == person_id).first()
+    person = db.query(PersonModel).filter(PersonModel.person_id == person_id).first()
     if not person:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Person with person_id {person_id} not found")
@@ -63,7 +63,7 @@ def destroy(db: Session, person_id: int):
 
 def update(db: Session, person_id: int, person_update: PersonSchemaPost):
 
-    person_db_obj = db.query(Person).filter(Person.person_id == person_id).first()
+    person_db_obj = db.query(PersonModel).filter(PersonModel.person_id == person_id).first()
     if not person_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Person with person_id {person_id} not found")
@@ -76,7 +76,7 @@ def update(db: Session, person_id: int, person_update: PersonSchemaPost):
     for field, value in vars(person_update).items():
         if field == "resource_curie" and value:
             resource_curie = value
-            resource = db.query(Resource).filter(Resource.curie == resource_curie).first()
+            resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
             if not resource:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                   detail=f"Resource with curie {resource_curie} does not exist")
@@ -84,7 +84,7 @@ def update(db: Session, person_id: int, person_update: PersonSchemaPost):
             person_db_obj.reference = None
         elif field == 'reference_curie' and value:
             reference_curie = value
-            reference = db.query(Reference).filter(Reference.curie == reference_curie).first()
+            reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                   detail=f"Reference with curie {reference_curie} does not exist")
@@ -96,11 +96,11 @@ def update(db: Session, person_id: int, person_update: PersonSchemaPost):
     person_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
 
-    return db.query(Person).filter(Person.person_id == person_id).first()
+    return db.query(PersonModel).filter(PersonModel.person_id == person_id).first()
 
 
-def showa(db: Session, person_id: int):
-    person = db.query(Person).filter(Person.person_id == person_id).first()
+def show(db: Session, person_id: int):
+    person = db.query(PersonModel).filter(PersonModel.person_id == person_id).first()
     person_data = jsonable_encoder(person)
 
     if not person:
@@ -108,14 +108,14 @@ def showa(db: Session, person_id: int):
                             detail=f"Person with the person_id {person_id} is not available")
 
     if person_data['reference_id']:
-        person_data['reference_curie'] = db.query(Reference.curie).filter(Reference.reference_id == person_data['reference_id']).first()[0]
+        person_data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == person_data['reference_id']).first()[0]
     del person_data['reference_id']
 
     return person_data
 
 
 def show_changesets(db: Session, person_id: int):
-    person = db.query(Person).filter(Person.person_id == person_id).first()
+    person = db.query(PersonModel).filter(PersonModel.person_id == person_id).first()
     if not person:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Person with the person_id {person_id} is not available")

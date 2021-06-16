@@ -13,7 +13,7 @@ from sqlalchemy.orm import relationship
 from literature.database.base import Base
 
 
-class Resource(Base):
+class ResourceModel(Base):
     __versioned__ = {}
     __tablename__ = 'resources'
 
@@ -31,14 +31,14 @@ class Resource(Base):
     )
 
     cross_references = relationship(
-        'CrossReference',
+        'CrossReferenceModel',
         lazy='joined',
         back_populates='resource',
         cascade="all, delete, delete-orphan"
     )
 
     references = relationship(
-        "Reference",
+        "ReferenceModel",
         back_populates="resource"
     )
 
@@ -88,14 +88,14 @@ class Resource(Base):
     )
 
     authors = relationship(
-        'Author',
+        'AuthorModel',
         lazy='joined',
         back_populates='resource',
         cascade="all, delete, delete-orphan"
     )
 
     editors = relationship(
-        'Editor',
+        'EditorModel',
         lazy='joined',
         back_populates='resource',
         cascade="all, delete, delete-orphan"

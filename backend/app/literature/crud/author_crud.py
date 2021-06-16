@@ -8,9 +8,9 @@ from fastapi.encoders import jsonable_encoder
 
 from literature.schemas import AuthorSchemaPost
 
-from literature.models import Reference
-from literature.models import Resource
-from literature.models import Author
+from literature.models import ReferenceModel
+from literature.models import ResourceModel
+from literature.models import AuthorModel
 
 
 def create(db: Session, author: AuthorSchemaPost):
@@ -29,18 +29,18 @@ def create(db: Session, author: AuthorSchemaPost):
         del author_data['orcid']
 
 
-    db_obj = Author(**author_data)
+    db_obj = AuthorModel(**author_data)
     if resource_curie and reference_curie:
        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                            detail=f"Only supply either resource_curie or reference_curie")
     elif resource_curie:
-       resource = db.query(Resource).filter(Resource.curie == resource_curie).first()
+       resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
        if not resource:
            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                detail=f"Resource with curie {resource_curie} does not exist")
        db_obj.resource = resource
     elif reference_curie:
-       reference = db.query(Reference).filter(Reference.curie == reference_curie).first()
+       reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
        if not reference:
            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                detail=f"Reference with curie {reference_curie} does not exist")
@@ -57,7 +57,7 @@ def create(db: Session, author: AuthorSchemaPost):
 
 
 def destroy(db: Session, author_id: int):
-    author = db.query(Author).filter(Author.author_id == author_id).first()
+    author = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
     if not author:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Author with author_id {author_id} not found")
@@ -69,7 +69,7 @@ def destroy(db: Session, author_id: int):
 
 def update(db: Session, author_id: int, author_update: AuthorSchemaPost):
 
-    author_db_obj = db.query(Author).filter(Author.author_id == author_id).first()
+    author_db_obj = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
     if not author_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Author with author_id {author_id} not found")
@@ -82,7 +82,7 @@ def update(db: Session, author_id: int, author_update: AuthorSchemaPost):
     for field, value in vars(author_update).items():
         if field == "resource_curie" and value:
             resource_curie = value
-            resource = db.query(Resource).filter(Resource.curie == resource_curie).first()
+            resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
             if not resource:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                   detail=f"Resource with curie {resource_curie} does not exist")
@@ -90,7 +90,7 @@ def update(db: Session, author_id: int, author_update: AuthorSchemaPost):
             author_db_obj.reference = None
         elif field == 'reference_curie' and value:
             reference_curie = value
-            reference = db.query(Reference).filter(Reference.curie == reference_curie).first()
+            reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                   detail=f"Reference with curie {reference_curie} does not exist")
@@ -102,11 +102,11 @@ def update(db: Session, author_id: int, author_update: AuthorSchemaPost):
     author_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
 
-    return db.query(Author).filter(Author.author_id == author_id).first()
+    return db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
 
 
 def show(db: Session, author_id: int):
-    author = db.query(Author).filter(Author.author_id == author_id).first()
+    author = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
     author_data = jsonable_encoder(author)
 
     if not author:
@@ -118,14 +118,14 @@ def show(db: Session, author_id: int):
     del author_data['resource_id']
 
     if author_data['reference_id']:
-        author_data['reference_curie'] = db.query(Reference.curie).filter(Reference.reference_id == author_data['reference_id']).first()[0]
+        author_data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == author_data['reference_id']).first()[0]
     del author_data['reference_id']
 
     return author_data
 
 
 def show_changesets(db: Session, author_id: int):
-    author = db.query(Author).filter(Author.author_id == author_id).first()
+    author = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
     if not author:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Author with the author_id {author_id} is not available")

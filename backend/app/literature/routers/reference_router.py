@@ -24,7 +24,7 @@ from literature.schemas import ReferenceSchemaUpdate
 from literature.schemas import FileSchemaShow
 
 from literature.crud import reference_crud
-from literature.crud import s3file_crud
+from literature.crud import file_crud
 
 from literature.routers.authentication import auth
 from literature.deps import s3_auth
@@ -73,12 +73,6 @@ def update(curie: str,
     return reference_crud.update(db, curie, request)
 
 
-@router.get('/',
-            response_model=List[str])
-def all(db: Session = Depends(get_db)):
-    return reference_crud.get_all(db)
-
-
 @router.get('/{curie}',
             status_code=200,
             )#response_model=ReferenceSchemaShow)
@@ -108,7 +102,7 @@ async def create_upload_file(curie: str,
     filename = file_obj.filename
     content_type = file_obj.content_type
 
-    return s3file_crud.create(db, s3, 'reference', curie, file_contents, filename, content_type)
+    return file_crud.create(db, s3, 'reference', curie, file_contents, filename, content_type)
 
 
 @router.get('/{curie}/versions',

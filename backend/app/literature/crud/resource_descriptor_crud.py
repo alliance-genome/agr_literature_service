@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
-from literature.models import ResourceDescriptor
+from literature.models import ResourceDescriptorModel
 
 from initialize import update_resource_descriptor
 
@@ -15,4 +15,4 @@ def update(db: Session):
 
 
 def show(db: Session):
-    return db.query(ResourceDescriptor).all()
+    return db.query(ResourceDescriptorModel).all()

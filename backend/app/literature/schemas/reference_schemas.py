@@ -2,20 +2,20 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
-from literature.schemas.base import BaseModelShow
-from literature.schemas.author import AuthorSchemaPost
-from literature.schemas.author import AuthorSchemaShow
-from literature.schemas.editor import EditorSchemaPost
-from literature.schemas.editor import EditorSchemaShow
-from literature.schemas.reference_category import ReferenceCategory
-from literature.schemas.mod_reference_type import ModReferenceTypeSchemaCreate
-from literature.schemas.mod_reference_type import ModReferenceTypeSchemaShow
-from literature.schemas.reference_tag import ReferenceTag
-from literature.schemas.reference_tag import ReferenceTagShow
-from literature.schemas.mesh_detail import MeshDetailSchemaCreate
-from literature.schemas.mesh_detail import MeshDetailSchemaShow
-from literature.schemas.cross_reference import CrossReferenceSchemaRelated
-from literature.schemas.cross_reference import CrossReferenceSchema
+from literature.schemas import BaseModelShow
+from literature.schemas import AuthorSchemaPost
+from literature.schemas import AuthorSchemaShow
+from literature.schemas import EditorSchemaPost
+from literature.schemas import EditorSchemaShow
+from literature.schemas import ReferenceCategory
+from literature.schemas import ModReferenceTypeSchemaCreate
+from literature.schemas import ModReferenceTypeSchemaShow
+from literature.schemas import ReferenceTag
+from literature.schemas import ReferenceTagShow
+from literature.schemas import MeshDetailSchemaCreate
+from literature.schemas import MeshDetailSchemaShow
+from literature.schemas import CrossReferenceSchemaRelated
+from literature.schemas import CrossReferenceSchema
 
 
 class ReferenceSchemaPost(BaseModel):

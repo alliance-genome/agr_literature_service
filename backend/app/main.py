@@ -3,6 +3,7 @@ import uvicorn
 import argparse
 
 from uvicorn.config import LOGGING_CONFIG
+from starlette.graphql import GraphQLApp
 
 from sqlalchemy.orm import Session
 
@@ -16,23 +17,23 @@ from literature import models
 from literature import database
 from literature.database.main import engine
 
-from literature.routers import resource
-from literature.routers import reference
-from literature.routers import author
-from literature.routers import editor
-from literature.routers import s3file
-from literature.routers import cross_reference
-from literature.routers import resource_descriptor
-from literature.routers import mesh_detail
-from literature.routers import mod_reference_type
-from literature.routers import person
-from literature.routers import db_schema
+
+from literature.routers import resource_router
+from literature.routers import reference_router
+from literature.routers import author_router
+from literature.routers import editor_router
+from literature.routers import file_router
+from literature.routers import cross_reference_router
+from literature.routers import resource_descriptor_router
+from literature.routers import mesh_detail_router
+from literature.routers import mod_reference_type_router
+from literature.routers import person_router
+from literature.routers import db_schema_router
 
 from literature.config import config
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 
 from initialize import setup_resource_descriptor
-
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-p', '--port', type=int, help='Port to run the server on', default=8080, nargs='?')
@@ -76,18 +77,17 @@ def setup_database():
     db = database.get_db
     setup_resource_descriptor(db)
 
-
-app.include_router(resource.router)
-app.include_router(reference.router)
-app.include_router(author.router)
-app.include_router(editor.router)
-app.include_router(cross_reference.router)
-app.include_router(resource_descriptor.router)
-app.include_router(s3file.router)
-app.include_router(mesh_detail.router)
-app.include_router(mod_reference_type.router)
-app.include_router(person.router)
-app.include_router(db_schema.router)
+app.include_router(resource_router.router)
+app.include_router(reference_router.router)
+app.include_router(author_router.router)
+app.include_router(editor_router.router)
+app.include_router(cross_reference_router.router)
+app.include_router(resource_descriptor_router.router)
+app.include_router(file_router.router)
+app.include_router(mesh_detail_router.router)
+app.include_router(mod_reference_type_router.router)
+app.include_router(person_router.router)
+app.include_router(db_schema_router.router)
 
 app.openapi = custom_openapi
 

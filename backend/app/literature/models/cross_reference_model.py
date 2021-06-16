@@ -14,7 +14,7 @@ from sqlalchemy.orm import relationship
 from literature.database.base import Base
 
 
-class CrossReference(Base):
+class CrossReferenceModel(Base):
     __tablename__ = 'cross_references'
     __versioned__ = {}
 
@@ -31,7 +31,7 @@ class CrossReference(Base):
     )
 
     reference = relationship(
-        'Reference',
+        'ReferenceModel',
         back_populates="cross_references"
     )
 
@@ -43,22 +43,22 @@ class CrossReference(Base):
     )
 
     resource = relationship(
-        'Resource',
+        'ResourceModel',
         back_populates='cross_references'
     )
 
     authors = relationship(
-        'Author',
+        'AuthorModel',
         back_populates='orcid_cross_reference'
     )
 
     editors = relationship(
-        'Editor',
+        'EditorModel',
         back_populates='orcid_cross_reference'
     )
 
     people = relationship(
-        'Person',
+        'PersonModel',
         secondary = 'person_orcid_cross_reference_link'
     )
 

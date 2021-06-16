@@ -8,9 +8,9 @@ from fastapi.encoders import jsonable_encoder
 
 from literature.schemas import EditorSchemaPost
 
-from literature.models import Reference
-from literature.models import Resource
-from literature.models import Editor
+from literature.models import ReferenceModel
+from literature.models import ResourceModel
+from literature.models import EditorModel
 
 
 def create(db: Session, editor: EditorSchemaPost):
@@ -24,18 +24,18 @@ def create(db: Session, editor: EditorSchemaPost):
         reference_curie = editor_data['reference_curie']
         del editor_data['reference_curie']
 
-    db_obj = Editor(**editor_data)
+    db_obj = EditorModel(**editor_data)
     if resource_curie and reference_curie:
        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                            detail=f"Only supply either resource_curie or reference_curie")
     elif resource_curie:
-       resource = db.query(Resource).filter(Resource.curie == resource_curie).first()
+       resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
        if not resource:
            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                detail=f"Resource with curie {resource_curie} does not exist")
        db_obj.resource = resource
     elif reference_curie:
-       reference = db.query(Reference).filter(Reference.curie == reference_curie).first()
+       Modelreference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
        if not reference:
            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                detail=f"Reference with curie {reference_curie} does not exist")
@@ -51,7 +51,7 @@ def create(db: Session, editor: EditorSchemaPost):
 
 
 def destroy(db: Session, editor_id: int):
-    editor = db.query(Editor).filter(Editor.editor_id == editor_id).first()
+    editor = db.query(EditorModel).filter(EditorModel.editor_id == editor_id).first()
     if not editor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Editor with editor_id {editor_id} not found")
@@ -63,7 +63,7 @@ def destroy(db: Session, editor_id: int):
 
 def update(db: Session, editor_id: int, editor_update: EditorSchemaPost):
 
-    editor_db_obj = db.query(Editor).filter(Editor.editor_id == editor_id).first()
+    editor_db_obj = db.query(EditorModel).filter(EditorModel.editor_id == editor_id).first()
     if not editor_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Editor with editor_id {editor_id} not found")
@@ -76,7 +76,7 @@ def update(db: Session, editor_id: int, editor_update: EditorSchemaPost):
     for field, value in vars(editor_update).items():
         if field == "resource_curie" and value:
             resource_curie = value
-            resource = db.query(Resource).filter(Resource.curie == resource_curie).first()
+            resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
             if not resource:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                   detail=f"Resource with curie {resource_curie} does not exist")
@@ -84,7 +84,7 @@ def update(db: Session, editor_id: int, editor_update: EditorSchemaPost):
             editor_db_obj.reference = None
         elif field == 'reference_curie' and value:
             reference_curie = value
-            reference = db.query(Reference).filter(Reference.curie == reference_curie).first()
+            reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                   detail=f"Reference with curie {reference_curie} does not exist")
@@ -96,11 +96,11 @@ def update(db: Session, editor_id: int, editor_update: EditorSchemaPost):
     editor_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
 
-    return db.query(Editor).filter(Editor.editor_id == editor_id).first()
+    return db.query(EditorModel).filter(EditorModel.editor_id == editor_id).first()
 
 
 def show(db: Session, editor_id: int):
-    editor = db.query(Editor).filter(Editor.editor_id == editor_id).first()
+    editor = db.query(EditorModel).filter(EditorModel.editor_id == editor_id).first()
     editor_data = jsonable_encoder(editor)
 
     if not editor:
@@ -108,11 +108,11 @@ def show(db: Session, editor_id: int):
                             detail=f"Editor with the editor_id {editor_id} is not available")
 
     if editor_data['resource_id']:
-        editor_data['resource_curie'] = db.query(Resource.curie).filter(Resource.resource_id == editor_data['resource_id']).first()[0]
+        editor_data['resource_curie'] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == editor_data['resource_id']).first()[0]
     del editor_data['resource_id']
 
     if editor_data['reference_id']:
-        editor_data['reference_curie'] = db.query(Reference.curie).filter(Reference.reference_id == editor_data['reference_id']).first()[0]
+        editor_data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == editor_data['reference_id']).first()[0]
     del editor_data['reference_id']
 
     if editor_data['orcid']:
@@ -122,7 +122,7 @@ def show(db: Session, editor_id: int):
 
 
 def show_changesets(db: Session, editor_id: int):
-    editor = db.query(Editor).filter(Editor.editor_id == editor_id).first()
+    editor = db.query(EditorModel).filter(EditorModel.editor_id == editor_id).first()
     if not editor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Editor with the editor_id {editor_id} is not available")

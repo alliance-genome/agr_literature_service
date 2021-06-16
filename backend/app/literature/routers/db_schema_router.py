@@ -16,8 +16,6 @@ from literature import database
 
 from literature.user import set_global_user_id
 
-#from literature.schemas import ResourceDesciptorSchema
-
 from literature.crud import db_schema_crud
 from literature.routers.authentication import auth
 

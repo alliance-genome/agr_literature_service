@@ -5,11 +5,11 @@ from pydantic import BaseModel
 from pydantic import ValidationError
 from pydantic import validator
 
-from literature.schemas.base import BaseModelShow
-from literature.schemas.cross_reference import CrossReferenceSchemaShow
+from literature.schemas import BaseModelShow
+from literature.schemas import CrossReferenceSchemaShow
 
 
-class PersonSchemaPost(BaseModel):
+class AuthorSchemaPost(BaseModel):
     order: Optional[int] = None
 
     name: Optional[str]  = None
@@ -17,13 +17,13 @@ class PersonSchemaPost(BaseModel):
     middle_names: Optional[List[str]] = None
     last_name: Optional[str] = None
 
-    first_person: Optional[bool] = False
+    first_author: Optional[bool] = False
     affiliation: Optional[List[str]] = None
-    corresponding_person: Optional[bool] = None
+    corresponding_author: Optional[bool] = None
 
-    orcids: Optional[List[str]] = None
+    orcid: Optional[str] = None
 
-    @validator('orcids', each_item=True)
+    @validator('orcid')
     def check_orchids(cls, v):
         if not v.startswith('ORCID:'):
             raise ValueError('Orcid ID must start with "ORCID: {v}')
@@ -34,8 +34,8 @@ class PersonSchemaPost(BaseModel):
         extra = "forbid"
 
 
-class PersonSchemaShow(BaseModelShow):
-    person_id: int
+class AuthorSchemaShow(BaseModelShow):
+    author_id: int
 
     order: Optional[int] = None
 
@@ -44,15 +44,17 @@ class PersonSchemaShow(BaseModelShow):
     middle_names: Optional[List[str]] = None
     last_name: Optional[str] = None
 
-    first_person: Optional[bool]
-    orcids: Optional[List[CrossReferenceSchemaShow]] = None
+    first_author: Optional[bool]
+    orcid: Optional[CrossReferenceSchemaShow] = None
     affiliation: Optional[List[str]] = None
+
+    corresponding_author: Optional[bool] = None
 
     class Config():
         orm_mode = True
         extra = "forbid"
 
-class PersonSchemaCreate(PersonSchemaPost):
+class AuthorSchemaCreate(AuthorSchemaPost):
     reference_curie: Optional[str] = None
     resource_curie: Optional[str] = None
 

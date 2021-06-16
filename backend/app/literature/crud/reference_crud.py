@@ -11,14 +11,14 @@ from literature.schemas import ReferenceSchemaUpdate
 
 from literature.crud import cross_reference_crud
 
-from literature.models import Reference
-from literature.models import Resource
-from literature.models import Author
-from literature.models import Editor
-from literature.models import CrossReference
-from literature.models import ModReferenceType
-from literature.models import ReferenceTag
-from literature.models import MeshDetail
+from literature.models import ReferenceModel
+from literature.models import ResourceModel
+from literature.models import AuthorModel
+from literature.models import EditorModel
+from literature.models import CrossReferenceModel
+from literature.models import ModReferenceTypeModel
+from literature.models import ReferenceTagModel
+from literature.models import MeshDetailModel
 
 
 def create_next_curie(curie):
@@ -29,26 +29,16 @@ def create_next_curie(curie):
     return "-".join([curie_parts[0], str(number).rjust(10, '0')])
 
 
-def get_all(db: Session):
-    references = db.query(Reference.curie).all()
-
-    reference_data = []
-    for reference in references:
-        reference_data.append(reference[0])
-
-    return reference_data
-
-
 def create(db: Session, reference: ReferenceSchemaPost):
     reference_data = {}
 
     if reference.cross_references:
         for cross_reference in reference.cross_references:
-            if db.query(CrossReference).filter(CrossReference.curie == cross_reference.curie).first():
+            if db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == cross_reference.curie).first():
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"CrossReference with id {cross_reference.curie} already exists")
 
-    last_curie = db.query(Reference.curie).order_by(sqlalchemy.desc(Reference.curie)).first()
+    last_curie = db.query(ReferenceModel.curie).order_by(sqlalchemy.desc(ReferenceModel.curie)).first()
 
     if last_curie == None:
         last_curie = 'AGR:AGR-Reference-0000000000'
@@ -68,31 +58,31 @@ def create(db: Session, reference: ReferenceSchemaPost):
                 db_obj = None
                 if field in ['authors', 'editors']:
                     if obj_data['orcid']:
-                         cross_reference_obj = db.query(CrossReference).filter(CrossReference.curie == obj_data['orcid']).first()
+                         cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == obj_data['orcid']).first()
                          if not cross_reference_obj:
-                             cross_reference_obj = CrossReference(curie=obj_data['orcid'])
+                             cross_reference_obj = CrossReferenceModel(curie=obj_data['orcid'])
                              db.add(cross_reference_obj)
 
                          obj_data['orcid_cross_reference'] = cross_reference_obj
                     del obj_data['orcid']
                     if field == 'authors':
-                        db_obj = Author(**obj_data)
+                        db_obj = AuthorModel(**obj_data)
                     else:
-                        db_obj = Editor(**obj_data)
+                        db_obj = EditorModel(**obj_data)
                 elif field == 'mod_reference_types':
-                    db_obj = ModReferenceType(**obj_data)
+                    db_obj = ModReferenceTypeModel(**obj_data)
                 elif field == 'tags':
-                    db_obj =  ReferenceTag(**obj_data)
+                    db_obj =  ReferenceTagModel(**obj_data)
                 elif field == 'mesh_terms':
-                    db_obj =  MeshDetail(**obj_data)
+                    db_obj =  MeshDetailModel(**obj_data)
                 elif field == 'cross_references':
-                    db_obj =  CrossReference(**obj_data)
+                    db_obj =  CrossReferenceModel(**obj_data)
 
                 db.add(db_obj)
                 db_objs.append(db_obj)
             reference_data[field] = db_objs
         elif field == 'resource':
-            resource = db.query(Resource).filter(Resource.curie == value).first()
+            resource = db.query(ResourceModel).filter(ResourceModel.curie == value).first()
             if not resource:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Resource with curie {value} does not exist")
@@ -100,7 +90,7 @@ def create(db: Session, reference: ReferenceSchemaPost):
         else:
             reference_data[field] = value
 
-    reference_db_obj = Reference(**reference_data)
+    reference_db_obj = ReferenceModel(**reference_data)
     db.add(reference_db_obj)
     db.commit()
 
@@ -108,7 +98,7 @@ def create(db: Session, reference: ReferenceSchemaPost):
 
 
 def destroy(db: Session, curie: str):
-    reference = db.query(Reference).filter(Reference.curie == curie).first()
+    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie {curie} not found")
@@ -119,7 +109,7 @@ def destroy(db: Session, curie: str):
 
 
 def update(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
-    reference_db_obj = db.query(Reference).filter(Reference.curie == curie).first()
+    reference_db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
     if not reference_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie {curie} not found")
@@ -130,7 +120,7 @@ def update(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
 
         if field == "resource":
           resource_curie = value
-          resource = db.query(Resource).filter(Resource.curie == resource_curie).first()
+          resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
           if not resource:
               raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                   detail=f"Resource with curie {resource_curie} does not exist")
@@ -166,8 +156,8 @@ def show(db: Session, curie: str):
     reference_data = jsonable_encoder(reference)
 
     if reference.resource_id:
-        reference_data['resource_curie'] = db.query(Resource.curie).filter(Resource.resource_id == reference.resource_id).first()[0]
-        reference_data['resource_title'] = db.query(Resource.title).filter(Resource.resource_id == reference.resource_id).first()[0]
+        reference_data['resource_curie'] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == reference.resource_id).first()[0]
+        reference_data['resource_title'] = db.query(ResourceModel.title).filter(ResourceModel.resource_id == reference.resource_id).first()[0]
         del reference_data['reference_id']
 
     if reference.cross_references:

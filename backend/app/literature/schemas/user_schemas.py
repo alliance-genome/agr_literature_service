@@ -6,13 +6,13 @@ from pydantic import ValidationError
 from pydantic import validator
 
 
-class User(BaseModel):
+class UserSchema(BaseModel):
     name:str
     email:str
     password:str
 
 
-class ShowUser(BaseModel):
+class ShowUserSchema(BaseModel):
     name:str
     email:str
     resources : List[ResourceSchemaShow] =[]

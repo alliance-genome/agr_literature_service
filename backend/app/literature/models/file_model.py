@@ -16,7 +16,7 @@ from literature.database.base import Base
 
 from literature.schemas import FileCategories
 
-class File(Base):
+class FileModel(Base):
     __tablename__ = 'files'
     __versioned__ = {}
 
@@ -40,7 +40,7 @@ class File(Base):
     )
 
     reference = relationship(
-        'Reference',
+        'ReferenceModel',
         back_populates="files"
     )
 
