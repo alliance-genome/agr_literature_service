@@ -148,7 +148,7 @@ def show_files(db: Session, curie:str):
 
 
 def show(db: Session, curie: str):
-    reference = db.query(Reference).filter(Reference.curie == curie).one_or_none()
+    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one_or_none()
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the id {curie} is not available")
