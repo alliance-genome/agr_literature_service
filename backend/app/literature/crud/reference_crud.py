@@ -108,16 +108,14 @@ def destroy(db: Session, curie: str):
     return None
 
 
-def update(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
+def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
     reference_db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
+
     if not reference_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie {curie} not found")
 
-    for field, value in vars(reference_update).items():
-        if value is None:
-            continue
-
+    for field, value in reference_update.items():
         if field == "resource":
           resource_curie = value
           resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
@@ -125,8 +123,6 @@ def update(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
               raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                   detail=f"Resource with curie {resource_curie} does not exist")
           reference_db_obj.resource = resource
-        if field == "modReferenceType":
-            mod_reference
         else:
             setattr(reference_db_obj, field, value)
 

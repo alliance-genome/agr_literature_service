@@ -55,16 +55,18 @@ def destroy(curie: str,
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.put('/{curie}',
+@router.patch('/{curie}',
             status_code=status.HTTP_202_ACCEPTED,
             dependencies=[Depends(auth.implicit_scheme)],
             response_model=str)
-def update(curie: str,
-           request: ResourceSchemaUpdate,
-           user: Auth0User = Security(auth.get_user),
-           db: Session = Depends(get_db)):
+def patch(curie: str,
+          request: ResourceSchemaUpdate,
+          user: Auth0User = Security(auth.get_user),
+          db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
-    return resource_crud.update(db, curie, request)
+    patch = request.dict(exclude_unset=True)
+
+    return resource_crud.patch(db, curie, patch)
 
 
 @router.get('/{curie}',
@@ -72,6 +74,7 @@ def update(curie: str,
             response_model=ResourceSchemaShow)
 def show(curie: str,
          db: Session = Depends(get_db)):
+    print(curie)
     return resource_crud.show(db, curie)
 
 

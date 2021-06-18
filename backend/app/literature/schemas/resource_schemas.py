@@ -40,7 +40,7 @@ class ResourceSchemaPost(BaseModel):
 
 
 class ResourceSchemaUpdate(BaseModel):
-    title: str
+    title: Optional[str] = None
 
     title_synonyms: Optional[List[str]] = None
     abbreviation_synonyms: Optional[List[str]] = None
@@ -56,13 +56,9 @@ class ResourceSchemaUpdate(BaseModel):
     abstract: Optional[str] = None
     summary: Optional[str] = None
 
-    class Config():
-        orm_mode = True
-        extra = "forbid"
-
 
 class ResourceSchemaShow(BaseModelShow):
-    curie: str
+    curie: Optional[str] = None
     title: str
 
     title_synonyms: Optional[List[str]] = None
@@ -80,7 +76,3 @@ class ResourceSchemaShow(BaseModelShow):
     cross_references: Optional[List[CrossReferenceSchema]] = None
     authors: Optional[List[AuthorSchemaShow]] = None
     editors: Optional[List[EditorSchemaShow]] = None
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"

@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from pydantic import BaseModel
 
@@ -15,7 +15,7 @@ from literature.schemas import ReferenceTagShow
 from literature.schemas import MeshDetailSchemaCreate
 from literature.schemas import MeshDetailSchemaShow
 from literature.schemas import CrossReferenceSchemaRelated
-from literature.schemas import CrossReferenceSchema
+from literature.schemas import CrossReferenceSchemaShow
 
 
 class ReferenceSchemaPost(BaseModel):
@@ -49,8 +49,8 @@ class ReferenceSchemaPost(BaseModel):
 
 
 class ReferenceSchemaUpdate(BaseModel):
-    title: str
-    category: ReferenceCategory
+    title: Optional[str] = None
+    category: Optional[ReferenceCategory] = None
 
     citation: Optional[str] = None
     date_published: Optional[str] = None
@@ -74,7 +74,7 @@ class ReferenceSchemaUpdate(BaseModel):
 
 
 class ReferenceSchemaShow(BaseModelShow):
-    curie: str = None
+    curie: str
     title: str
     category: ReferenceCategory
 
@@ -94,12 +94,8 @@ class ReferenceSchemaShow(BaseModelShow):
     issue_date: Optional[str] = None
     tags: Optional[List[ReferenceTagShow]] = None
     mesh_terms: Optional[List[MeshDetailSchemaShow]] = None
-    cross_references: Optional[List[CrossReferenceSchema]] = None
+    cross_references: Optional[List[CrossReferenceSchemaShow]] = None
     resource_curie: Optional[str] = None
     resource_title: Optional[str] = None
     authors: Optional[List[AuthorSchemaShow]] = None
     editors: Optional[List[EditorSchemaShow]] = None
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"

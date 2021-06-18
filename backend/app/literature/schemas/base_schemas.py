@@ -4,5 +4,5 @@ from datetime import datetime
 from pydantic import BaseModel
 
 class BaseModelShow(BaseModel):
-    date_created: Optional[datetime] = None
-    date_updated: Optional[datetime] = None
+    date_created: str
+    date_updated: Optional[str] = None

@@ -104,7 +104,6 @@ def update(db: Session, curie: str, cross_reference_update: CrossReferenceSchema
 
 def show(db: Session, curie: str):
     cross_reference = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == curie).first()
-
     if not cross_reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"CrossReference with the curie {curie} is not available")
@@ -117,7 +116,6 @@ def show(db: Session, curie: str):
     if cross_reference_data['reference_id']:
         cross_reference_data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == cross_reference_data['reference_id']).first().curie
     del cross_reference_data['reference_id']
-
 
     [db_prefix, local_id] = curie.split(":", 1)
     resource_descriptor = db.query(ResourceDescriptorModel).filter(ResourceDescriptorModel.db_prefix == db_prefix).first()
@@ -136,7 +134,7 @@ def show(db: Session, curie: str):
                 pages_data.append({"name": cr_page,
                                    "url": page_url.replace("[%s]", local_id)})
             cross_reference_data['pages'] = pages_data
-    else:
+    elif cross_reference_data['pages']:
        pages_data = []
        for cr_page in cross_reference_data['pages']:
            pages_data.append({"name": cr_page})

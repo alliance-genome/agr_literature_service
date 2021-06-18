@@ -38,10 +38,6 @@ class EditorSchemaShow(BaseModelShow):
     last_name: Optional[str] = None
     orcid: Optional[CrossReferenceSchemaShow] = None
 
-    class Config():
-        orm_mode = True
-        extra = "forbid"
-
 
 class EditorSchemaCreate(EditorSchemaPost):
     reference_curie: Optional[str] = None

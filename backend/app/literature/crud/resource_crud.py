@@ -96,23 +96,21 @@ def destroy(db: Session, curie: str):
     return None
 
 
-def update(db: Session, curie: str, resource_update: ResourceSchemaUpdate):
+def patch(db: Session, curie: str, resource_update: ResourceSchemaUpdate):
     resource_db_obj = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
     if not resource_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Resource with curie {curie} not found")
 
-    if resource_update.iso_abbreviation not in [None, ""]:
-        iso_abbreviation_resource = db.query(ResourceModel).filter(ResourceModel.iso_abbreviation == resource_update.iso_abbreviation).first()
+    if 'iso_abbreviation' in resource_update and resource_update['iso_abbreviation']:
+        iso_abbreviation_resource = db.query(ResourceModel).filter(ResourceModel.iso_abbreviation == resource_update['iso_abbreviation']).first()
 
         if iso_abbreviation_resource and iso_abbreviation_resource.curie != curie:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                 detail=f"Resource with iso_abbreviation {resource_update.iso_abbreviation} already exists")
 
-
-    for field, value in vars(resource_update).items():
-        if value is not None:
-            setattr(resource_db_obj, field, value)
+    for field, value in resource_update.items():
+        setattr(resource_db_obj, field, value)
 
     resource_db_obj.date_updated = datetime.utcnow()
     db.commit()
@@ -127,7 +125,6 @@ def show(db: Session, curie: str):
                             detail=f"Resource with the id {curie} is not available")
 
     resource_data = jsonable_encoder(resource)
-
     if resource.cross_references:
         cross_references = []
         for cross_reference in resource_data['cross_references']:

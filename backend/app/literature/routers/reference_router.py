@@ -61,21 +61,22 @@ def destroy(curie: str,
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.put('/{curie}',
+@router.patch('/{curie}',
             status_code=status.HTTP_202_ACCEPTED,
             response_model=str,
             dependencies=[Depends(auth.implicit_scheme)])
-def update(curie: str,
-           request: ReferenceSchemaUpdate,
-           user: Auth0User = Security(auth.get_user),
-           db: Session = Depends(get_db)):
+async def patch(curie: str,
+                request: ReferenceSchemaUpdate,
+                user: Auth0User = Security(auth.get_user),
+                db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
-    return reference_crud.update(db, curie, request)
+    patch = request.dict(exclude_unset=True)
+    return reference_crud.patch(db, curie, patch)
 
 
 @router.get('/{curie}',
             status_code=200,
-            )#response_model=ReferenceSchemaShow)
+            response_model=ReferenceSchemaShow)
 def show(curie: str,
          db: Session = Depends(get_db)):
     return reference_crud.show(db, curie)

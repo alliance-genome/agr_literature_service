@@ -50,9 +50,6 @@ class AuthorSchemaShow(BaseModelShow):
 
     corresponding_author: Optional[bool] = None
 
-    class Config():
-        orm_mode = True
-        extra = "forbid"
 
 class AuthorSchemaCreate(AuthorSchemaPost):
     reference_curie: Optional[str] = None

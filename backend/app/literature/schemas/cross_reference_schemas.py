@@ -20,21 +20,19 @@ class CrossReferenceSchemaRelated(BaseModel):
         extra = "forbid"
 
 
-class CrossReferenceSchemaShow(CrossReferenceSchemaRelated):
-    url: Optional[str] = None
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
-
-
 class CrossReferencePageSchemaShow(BaseModel):
-    name: str
+    name: Optional[str] = None
     url: Optional[str] = None
 
     class Config():
         orm_mode = True
         extra = "forbid"
+
+
+class CrossReferenceSchemaShow(BaseModel):
+    curie: str
+    url: Optional[str] = None
+    pages: Optional[List[CrossReferencePageSchemaShow]] = None
 
 
 class CrossReferenceSchema(BaseModel):
