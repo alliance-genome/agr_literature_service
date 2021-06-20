@@ -39,7 +39,8 @@ class EditorModel(Base):
     resource_id = Column(
         Integer,
         ForeignKey('resources.resource_id',
-                   ondelete='CASCADE')
+                   ondelete='CASCADE'),
+        index=True
     )
 
     resource = relationship(

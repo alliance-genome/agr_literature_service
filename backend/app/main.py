@@ -74,8 +74,7 @@ models.Base.metadata.create_all(engine)
 
 @app.on_event('startup')
 def setup_database():
-    db = database.get_db
-    setup_resource_descriptor(db)
+    setup_resource_descriptor()
 
 app.include_router(resource_router.router)
 app.include_router(reference_router.router)

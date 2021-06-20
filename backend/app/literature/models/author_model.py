@@ -49,14 +49,14 @@ class AuthorModel(Base):
     )
 
     orcid_id = Column(
-         String,
-         ForeignKey('cross_references.curie'),
-         index=True
+        String,
+        ForeignKey('cross_references.curie'),
+        index=True
     )
 
     orcid_cross_reference = relationship(
         'CrossReferenceModel',
-         lazy="joined",
+        lazy="joined",
         back_populates="authors"
     )
 

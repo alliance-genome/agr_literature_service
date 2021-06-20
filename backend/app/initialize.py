@@ -10,7 +10,10 @@ from literature.models.resource_descriptor_models import ResourceDescriptorModel
 from literature.models.resource_descriptor_models import ResourceDescriptorPageModel
 
 
-def update_resource_descriptor(db: Session):
+get_db = database.get_db
+
+
+def update_resource_descriptor(db: Session = next(get_db(), None)):
     with urllib.request.urlopen(config.RESOURCE_DESCRIPTOR_URL) as response:
         resource_descriptors = yaml.full_load(response)
 
@@ -39,5 +42,5 @@ def update_resource_descriptor(db: Session):
     return resource_descriptors
 
 
-async def setup_resource_descriptor(db: Session):
-    resource_descriptor_yaml = update_resource_descriptor(db)
+def setup_resource_descriptor():
+    resource_descriptor_yaml = update_resource_descriptor()
