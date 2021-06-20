@@ -44,7 +44,7 @@ def destroy(db: Session, mod_reference_type_id: int):
     return None
 
 
-def update(db: Session, mod_reference_type_id: int, mod_reference_type_update: ModReferenceTypeSchemaUpdate):
+def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update: ModReferenceTypeSchemaUpdate):
 
     mod_reference_type_db_obj = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
     if not mod_reference_type_db_obj:
@@ -56,7 +56,7 @@ def update(db: Session, mod_reference_type_id: int, mod_reference_type_update: M
        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                            detail=f"Only supply either resource_curie or reference_curie")
 
-    for field, value in vars(mod_reference_type_update).items():
+    for field, value in mod_reference_type_update.items():
         if field == 'reference_curie' and value:
             reference_curie = value
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()

@@ -56,9 +56,9 @@ def destroy(curie: str,
 
 
 @router.patch('/{curie}',
-            status_code=status.HTTP_202_ACCEPTED,
-            dependencies=[Depends(auth.implicit_scheme)],
-            response_model=str)
+              status_code=status.HTTP_202_ACCEPTED,
+              dependencies=[Depends(auth.implicit_scheme)],
+              response_model=str)
 def patch(curie: str,
           request: ResourceSchemaUpdate,
           user: Auth0User = Security(auth.get_user),

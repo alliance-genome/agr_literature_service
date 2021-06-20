@@ -54,16 +54,18 @@ def destroy(mesh_detail_id: int,
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.put('/{mesh_detail_id}',
-            status_code=status.HTTP_202_ACCEPTED,
-            response_model=MeshDetailSchemaUpdate,
-            dependencies=[Depends(auth.implicit_scheme)])
-def update(mesh_detail_id: int,
-           request: MeshDetailSchemaUpdate,
-           user: Auth0User = Security(auth.get_user),
-           db: Session = Depends(get_db)):
+@router.patch('/{mesh_detail_id}',
+              status_code=status.HTTP_202_ACCEPTED,
+              response_model=MeshDetailSchemaUpdate,
+              dependencies=[Depends(auth.implicit_scheme)])
+async def patch(mesh_detail_id: int,
+                request: MeshDetailSchemaUpdate,
+                user: Auth0User = Security(auth.get_user),
+                db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
-    return mesh_detail_crud.update(db, mesh_detail_id, request)
+    patch = request.dict(exclude_unset=True)
+
+    return mesh_detail_crud.patch(db, mesh_detail_id, patch)
 
 
 @router.get('/{mesh_detail_id}',
