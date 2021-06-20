@@ -44,7 +44,7 @@ def destroy(db: Session, mesh_detail_id: int):
     return None
 
 
-def update(db: Session, mesh_detail_id: int, mesh_detail_update: MeshDetailSchemaUpdate):
+def patch(db: Session, mesh_detail_id: int, mesh_detail_update: MeshDetailSchemaUpdate):
 
     mesh_detail_db_obj = db.query(MeshDetailModel).filter(MeshDetailModel.mesh_detail_id == mesh_detail_id).first()
     if not mesh_detail_db_obj:
@@ -56,7 +56,7 @@ def update(db: Session, mesh_detail_id: int, mesh_detail_update: MeshDetailSchem
        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                            detail=f"Only supply either resource_curie or reference_curie")
 
-    for field, value in vars(mesh_detail_update).items():
+    for field, value in mesh_detail_update.items():
         if field == 'reference_curie' and value:
             reference_curie = value
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()

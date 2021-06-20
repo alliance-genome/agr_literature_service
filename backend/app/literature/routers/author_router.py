@@ -51,16 +51,18 @@ def destroy(author_id: int,
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.put('/{author_id}',
-            status_code=status.HTTP_202_ACCEPTED,
-            response_model=AuthorSchemaShow,
-            dependencies=[Depends(auth.implicit_scheme)])
-def update(author_id: int,
-           request: AuthorSchemaCreate,
-           user: Auth0User = Security(auth.get_user),
-           db: Session = Depends(get_db)):
+@router.patch('/{author_id}',
+              status_code=status.HTTP_202_ACCEPTED,
+              response_model=AuthorSchemaShow,
+              dependencies=[Depends(auth.implicit_scheme)])
+async def patch(author_id: int,
+                request: AuthorSchemaCreate,
+                user: Auth0User = Security(auth.get_user),
+                db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
-    return author_crud.update(db, author_id, request)
+    patch = request.dict(exclude_unset=True)
+
+    return author_crud.patch(db, author_id, patch)
 
 
 @router.get('/{author_id}',

@@ -49,15 +49,17 @@ def destroy(filename: str,
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.put('/{filename}',
-            status_code=status.HTTP_202_ACCEPTED,
-            response_model=FileSchemaShow,
-            dependencies=[Depends(auth.implicit_scheme)])
-def update(filename: str,
-           request: FileSchemaUpdate,
-           user: Auth0User = Security(auth.get_user),
-           db: Session = Depends(get_db)):
+@router.patch('/{filename}',
+              status_code=status.HTTP_202_ACCEPTED,
+              response_model=FileSchemaShow,
+              dependencies=[Depends(auth.implicit_scheme)])
+async def patch(filename: str,
+                request: FileSchemaUpdate,
+                user: Auth0User = Security(auth.get_user),
+                db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
+    patch = request.dict(exclude_unset=True)
+
     return s3file_crud.update(db, filename, request)
 
 

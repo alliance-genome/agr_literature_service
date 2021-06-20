@@ -62,15 +62,16 @@ def destroy(curie: str,
 
 
 @router.patch('/{curie}',
-            status_code=status.HTTP_202_ACCEPTED,
-            response_model=str,
-            dependencies=[Depends(auth.implicit_scheme)])
+              status_code=status.HTTP_202_ACCEPTED,
+              response_model=str,
+              dependencies=[Depends(auth.implicit_scheme)])
 async def patch(curie: str,
                 request: ReferenceSchemaUpdate,
                 user: Auth0User = Security(auth.get_user),
                 db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)
+
     return reference_crud.patch(db, curie, patch)
 
 

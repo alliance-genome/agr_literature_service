@@ -64,7 +64,7 @@ def destroy(db: Session, curie: str):
     return None
 
 
-def update(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaUpdate):
+def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaUpdate):
 
     cross_reference_db_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == curie).first()
     if not cross_reference_db_obj:
@@ -76,7 +76,7 @@ def update(db: Session, curie: str, cross_reference_update: CrossReferenceSchema
        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                            detail=f"Only supply either resource_curie or reference_curie")
 
-    for field, value in vars(cross_reference_update).items():
+    for field, value in cross_reference_update.items():
         if field == "resource_curie" and value:
             resource_curie = value
             resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()

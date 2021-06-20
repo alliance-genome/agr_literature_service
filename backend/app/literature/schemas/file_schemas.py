@@ -24,6 +24,25 @@ class FileSchemaUpdate(BaseModel):
     institutes_permitted: Optional[List[str]] = None
     synonyms: Optional[List[str]] = None
 
+
+    @validator('public')
+    def public_is_some(cls, v):
+        if v is None:
+            raise ValueError('Cannot set public to None')
+        return v
+
+    @validator('extension')
+    def extension_is_some(cls, v):
+        if v is None:
+            raise ValueError('Cannot set extension to None')
+        return v
+
+    @validator('content_type')
+    def content_type_is_some(cls, v):
+        if v is None:
+            raise ValueError('Cannot set content_type to None')
+        return v
+
     class Config():
          orm_mode = True
          extra = "forbid"

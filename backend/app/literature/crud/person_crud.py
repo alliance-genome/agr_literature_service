@@ -61,7 +61,7 @@ def destroy(db: Session, person_id: int):
     return None
 
 
-def update(db: Session, person_id: int, person_update: PersonSchemaPost):
+def patch(db: Session, person_id: int, person_update: PersonSchemaPost):
 
     person_db_obj = db.query(PersonModel).filter(PersonModel.person_id == person_id).first()
     if not person_db_obj:
@@ -73,7 +73,7 @@ def update(db: Session, person_id: int, person_update: PersonSchemaPost):
        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                            detail=f"Only supply either resource_curie or reference_curie")
 
-    for field, value in vars(person_update).items():
+    for field, value in person_update.items():
         if field == "resource_curie" and value:
             resource_curie = value
             resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()

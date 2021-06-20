@@ -61,19 +61,18 @@ def destroy(db: Session, editor_id: int):
     return None
 
 
-def update(db: Session, editor_id: int, editor_update: EditorSchemaPost):
+def patch(db: Session, editor_id: int, editor_update: EditorSchemaPost):
 
     editor_db_obj = db.query(EditorModel).filter(EditorModel.editor_id == editor_id).first()
     if not editor_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Editor with editor_id {editor_id} not found")
 
-
     if editor_update.resource_curie and editor_update.reference_curie:
        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                            detail=f"Only supply either resource_curie or reference_curie")
 
-    for field, value in vars(editor_update).items():
+    for field, value in editor_update.items():
         if field == "resource_curie" and value:
             resource_curie = value
             resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()

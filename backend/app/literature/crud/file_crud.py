@@ -98,16 +98,14 @@ def destroy(db: Session, s3: BaseClient, filename: str):
     return None
 
 
-def update(db: Session, filename: str, file_update: FileSchemaUpdate):
+def patch(db: Session, filename: str, file_update: FileSchemaUpdate):
     file_db_obj = db.query(FileModel).filter(FileModel.s3_filename == filename).first()
     if not file_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"File with filename {filename} not found")
 
-    for field, value in vars(file_update).items():
-        if value is None:
-            continue
-        if field == "reference_curie":
+    for field, value in file_update.items():
+        if field == "reference_curie" and value:
             reference_curie = value
             reference = db.query(Reference).filter(Reference.curie == reference_curie).first()
             if not reference:

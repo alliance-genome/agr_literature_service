@@ -51,16 +51,18 @@ def destroy(curie: str,
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.put('/{curie:path}',
-            status_code=status.HTTP_202_ACCEPTED,
-            response_model=str,
-            dependencies=[Depends(auth.implicit_scheme)])
-def update(curie: str,
+@router.patch('/{curie:path}',
+              status_code=status.HTTP_202_ACCEPTED,
+              response_model=str,
+              dependencies=[Depends(auth.implicit_scheme)])
+async def patch(curie: str,
            request: CrossReferenceSchemaUpdate,
            user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
-    return cross_reference_crud.update(db, curie, request)
+    patch = request.dict(exclude_unset=True)
+
+    return cross_reference_crud.patch(db, curie, patch)
 
 
 @router.get('/{curie:path}',
