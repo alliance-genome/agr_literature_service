@@ -15,7 +15,7 @@ import json
 import re
 import urllib
 
-from os import environ, path
+from os import environ, path, makedirs
 import logging
 import logging.config
 
@@ -125,6 +125,9 @@ def upload_file_to_s3(file_name, bucket, object_name=None):
 def generate_json(nlm_info, upload_to_s3):
     logger.info("Generating JSON from NLM data and saving to outfile")
     json_data = json.dumps(nlm_info, indent=4, sort_keys=True)
+
+    if not path.exists(storage_path):
+        makedirs(storage_path)
 
 # Write the json data to output json file
 # UNCOMMENT TO write to json directory

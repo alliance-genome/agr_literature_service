@@ -22,9 +22,12 @@ logger = logging.getLogger('literature logger')
 
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
+sample_path = base_path + 'dqm_sample/'
 
 
 def generate_dqm_json_test_set():
+    if not path.exists(sample_path):
+        makedirs(sample_path)
     sample_amount = 10
     mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
 #     mods = ['MGI']
@@ -47,7 +50,7 @@ def generate_dqm_json_test_set():
             sample2 = dqm_data['data'][start:start + sample_amount]
             sample3 = dqm_data['data'][-sample_amount:]
             dqm_data['data'] = list(itertools.chain(sample1, sample2, sample3))
-        output_json_file = base_path + 'dqm_sample/REFERENCE_' + mod + '.json'
+        output_json_file = sample_path + 'REFERENCE_' + mod + '.json'
         with open(output_json_file, "w") as json_file:
             json_data = json.dumps(dqm_data, indent=4, sort_keys=True)
             json_file.write(json_data)

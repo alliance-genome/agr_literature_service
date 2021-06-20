@@ -102,7 +102,6 @@ use --prod argument to use the WSGI server in production when running the applic
 ### get dqm data from fms
 
 - Get dqm data
-  - mkdir src/xml_processing/dqm_data/
   - python3 src/xml_processing/get_dqm_data.py
 - input
   - mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
@@ -114,7 +113,6 @@ use --prod argument to use the WSGI server in production when running the applic
 ### OPTIONAL generate smaller sample set from dqm data
  
 - optionally generate sample sets, then  parse_dqm_json_reference.py -f can use dqm_sample/ to test changes on smaller set
-  - mkdir src/xml_processing/dqm_sample/
 - 2 minutes, 13 seconds
   - python3 generate_dqm_json_test_set.py
 - input
@@ -125,10 +123,6 @@ use --prod argument to use the WSGI server in production when running the applic
 ### Extract pmid data from dqm data
 
 - create directories for sanitize reference json output, report_files, pubmed_json files converted from xml, resource_xml files, input files
-  - mkdir src/xml_processing/sanitized_reference_json/
-  - mkdir src/xml_processing/report_files/
-  - mkdir src/xml_processing/pubmed_json/
-  - mkdir src/xml_processing/resource_xml/
   - NOT mkdir src/xml_processing/inputs/ it is part of repo
 - get pmid data from dqm data, create inputs/alliance_pmids listing all pmids among all MODs, and pmids_by_mods sorting PMIDs into which mods have them
 - 41 seconds
@@ -142,7 +136,6 @@ use --prod argument to use the WSGI server in production when running the applic
 ### Download pubmed xml
 
 - get pubmed xml and store into pubmed_xml/ with list of files not found at pmids_not_found.  skips files already existing in output directory.  downloads in batches of 5000 pmids
-  - mkdir src/xml_processing/pubmed_xml/
 - 2 hours
   - python3 get_pubmed_xml.py -f inputs/alliance_pmids
 - output
@@ -163,7 +156,6 @@ use --prod argument to use the WSGI server in production when running the applic
 ### Download pubmed resources
 
 - take input medline resources and create .json (optionally upload to s3)
-  - mkdir src/xml_processing/pubmed_resource_json/
 - 1 second
   - python3 generate_pubmed_nlm_resource.py -u
 - input
@@ -196,7 +188,6 @@ use --prod argument to use the WSGI server in production when running the applic
 ### Process mod+pubmed resources to generate sanitized resource json files
 
 - take input from pubmed resource, mod resource, fb to nlm mappings ;  produce sanitized files for ingest
-  - mkdir src/xml_processing/sanitized_resource_json/
 - 2 seconds
   - python3 parse_dqm_json_resource.py
 - input
