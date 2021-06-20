@@ -56,6 +56,16 @@ class ResourceSchemaUpdate(BaseModel):
     abstract: Optional[str] = None
     summary: Optional[str] = None
 
+    @validator('title')
+    def title_is_some(cls, v):
+        if v is None:
+            raise ValueError('Cannot set title to None')
+        return v
+
+    class Config():
+        orm_mode = True
+        extra = "forbid"
+
 
 class ResourceSchemaShow(BaseModelShow):
     curie: Optional[str] = None

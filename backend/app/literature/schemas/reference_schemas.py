@@ -1,6 +1,7 @@
 from typing import List, Optional, Any
 
 from pydantic import BaseModel
+from pydantic import validator
 
 from literature.schemas import BaseModelShow
 from literature.schemas import AuthorSchemaPost
@@ -65,8 +66,19 @@ class ReferenceSchemaUpdate(BaseModel):
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     issue_date: Optional[str] = None
-    cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
     resource: Optional[str] = None
+
+    @validator('title')
+    def title_is_some(cls, v):
+        if v is None:
+            raise ValueError('Cannot set title to None')
+        return v
+
+    @validator('category')
+    def category_is_some(cls, v):
+        if v is None:
+            raise ValueError('Cannot set catagory to None')
+        return v
 
     class Config():
         orm_mode = True
