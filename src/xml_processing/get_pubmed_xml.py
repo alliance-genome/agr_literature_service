@@ -6,7 +6,7 @@ import re
 import requests
 
 import os
-from os import environ, path
+from os import environ, path, makedirs
 import logging
 import logging.config
 import glob
@@ -69,6 +69,9 @@ def download_pubmed_xml(pmids_wanted):
     # 61 minutes to download 429899 alliance records in 10000 chunks
     # 127 minutes to download 646714 alliance records in 5000 chunks, failed on 280
     pmids_slice_size = 5000
+
+    if not path.exists(storage_path):
+        makedirs(storage_path)
 
     # comparing through a set instead of a list takes 2.6 seconds instead of 4256
     pmids_found = set()

@@ -5,13 +5,13 @@ import urllib.request
 import argparse
 import re
 
-from os import environ, path
+from os import environ, path, makedirs
 import logging
 import logging.config
 import hashlib
 
 # from dotenv import load_dotenv
-# 
+#
 # load_dotenv()
 
 
@@ -151,6 +151,10 @@ def generate_json():
     # json_storage_path = base_path + 'pubmed_json_20210322/'
     storage_path = base_path + 'pubmed_xml/'
     json_storage_path = base_path + 'pubmed_json/'
+    if not path.exists(storage_path):
+        makedirs(storage_path)
+    if not path.exists(json_storage_path):
+        makedirs(json_storage_path)
     for pmid in pmids:
         filename = storage_path + pmid + '.xml'
         # if getting pmids from directories split into multiple sub-subdirectories

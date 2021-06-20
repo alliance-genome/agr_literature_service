@@ -1,6 +1,6 @@
 
 import json
-from os import environ, path
+from os import environ, path, makedirs
 import logging
 import logging.config
 
@@ -16,10 +16,16 @@ logger = logging.getLogger('literature logger')
 
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
+json_storage_path = base_path + 'sanitized_resource_json/'
 
 # resource_fields = ['primaryId', 'nlm', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
 # resource_fields_from_pubmed = ['title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
 resource_fields_not_in_pubmed = ['titleSynonyms', 'abbreviationSynonyms', 'isoAbbreviation', 'copyrightDate', 'publisher', 'editorsOrAuthors', 'volumes', 'pages', 'abstractOrSummary']
+
+
+def create_storage_path():
+    if not path.exists(json_storage_path):
+        makedirs(json_storage_path)
 
 
 def split_identifier(identifier, ignore_error=False):
@@ -92,9 +98,15 @@ def load_fb_resource(pubmed_by_nlm):
                             if field in entry:
                                 pubmed_by_nlm[nlm][field] = entry[field]
                 else:
+                    if 'primaryId' in entry:
+                        cross_ref = dict()
+                        cross_ref['id'] = entry['primaryId']
+                        if 'crossReferences' in entry:
+                            entry['crossReferences'].append(cross_ref)
+                        else:
+                            entry['crossReferences'] = [cross_ref]
                     sanitized_data.append(entry)
             dqm_data['data'] = sanitized_data
-            json_storage_path = base_path + 'sanitized_resource_json/'
             json_filename = json_storage_path + 'RESOURCE_FB.json'
             write_json(json_filename, dqm_data)
     except IOError:
@@ -121,7 +133,6 @@ def load_zfin_resource(pubmed_by_nlm):
                     else:
                         logger.info("unexpected DQM ZFIN resource %s : %s", prefix, primary_id)
             dqm_data['data'] = sanitized_data
-            json_storage_path = base_path + 'sanitized_resource_json/'
             json_filename = json_storage_path + 'RESOURCE_ZFIN.json'
             write_json(json_filename, dqm_data)
     except IOError:
@@ -134,7 +145,6 @@ def save_pubmed_resource(pubmed_by_nlm):
     pubmed_data['data'] = []
     for nlm in pubmed_by_nlm:
         pubmed_data['data'].append(pubmed_by_nlm[nlm])
-    json_storage_path = base_path + 'sanitized_resource_json/'
     json_filename = json_storage_path + 'RESOURCE_NLM.json'
     write_json(json_filename, pubmed_data)
 
@@ -155,6 +165,7 @@ if __name__ == "__main__":
     """ call main start function """
     logger.info("starting parse_dqm_json_resource.py")
 
+    create_storage_path()
     pubmed_by_nlm = load_pubmed_resource()
     pubmed_by_nlm = load_zfin_resource(pubmed_by_nlm)
     pubmed_by_nlm = load_fb_resource(pubmed_by_nlm)

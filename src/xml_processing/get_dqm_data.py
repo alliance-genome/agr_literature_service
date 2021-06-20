@@ -7,7 +7,7 @@ import gzip
 import hashlib
 
 import os
-from os import environ, path
+from os import environ, path, makedirs
 import logging
 import logging.config
 
@@ -48,13 +48,16 @@ def md5_update_from_file(filename, hash):
 
 
 def download_dqm_json():
+    if not path.exists(storage_path):
+        makedirs(storage_path)
+
     mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
     datatypes = ['REFERENCE', 'REF-EXCHANGE', 'RESOURCE']
 #     mods = ['WB']
 #     datatypes = ['RESOURCE']
 #     mods = ['WB', 'FB']
 #     datatypes = ['REFERENCE']
-    release = '4.0.0'
+    release = '4.1.0'
     for datatype in datatypes:
         for mod in mods:
             url = 'https://fms.alliancegenome.org/api/datafile/by/' + release + '/' + datatype + '/' + mod + '?latest=true'

@@ -884,7 +884,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 
     # output resourceAbbreviations not matched to NLMs or resource MOD IDs to a file for attempt to download from other source
     # with get_pubmed_nlm_resource_unmatched.py
-    resource_abbreviation_not_found_filename = base_path + 'resource_xml/resource_abbreviation_not_matched'
+    resource_xml_path = base_path + 'resource_xml/'
+    if not path.exists(resource_xml_path):
+        makedirs(resource_xml_path)
+    resource_abbreviation_not_found_filename = resource_xml_path + 'resource_abbreviation_not_matched'
     with open(resource_abbreviation_not_found_filename, "w") as resource_abbreviation_not_found_fh:
         for resource_abbrev in resource_abbreviations_not_found:
             resource_abbreviation_not_found_fh.write(resource_abbrev + "\n")
