@@ -2,7 +2,7 @@
 import json
 import itertools
 
-from os import environ, path
+from os import environ, path, makedirs
 import logging
 import logging.config
 
