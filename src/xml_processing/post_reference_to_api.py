@@ -7,9 +7,7 @@ from os import environ, path, listdir
 import logging
 import logging.config
 
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+from helper_post_to_api import generate_headers, update_token
 
 # post to api data from sanitized_reference_json/
 # python post_reference_to_api.py
@@ -17,6 +15,10 @@ logger = logging.getLogger('literature logger')
 # update auth0_token only
 # python post_reference_to_api.py -a
 
+
+log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
+logging.config.fileConfig(log_file_path)
+logger = logging.getLogger('literature logger')
 
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
@@ -126,9 +128,10 @@ def post_references():
         token = update_token()
     headers = generate_headers(token)
 
-    url = 'http://localhost:49161/reference/'
+#     url = 'http://localhost:49161/reference/'
+    url = 'http://localhost:11223/reference/'
 #     headers = {
-#         'Authorization': 'Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IllYOGpVX2NObGgzRFBUT2NPNTVKeSJ9.eyJpc3MiOiJodHRwczovL2FsbGlhbmNlZ2Vub21lLnVzLmF1dGgwLmNvbS8iLCJzdWIiOiJWVGhRVENKSzkwSjBjS0s5bG9CbTlZQmRSaDB6YWl1bkBjbGllbnRzIiwiYXVkIjoiYWxsaWFuY2UiLCJpYXQiOjE2MjI0MjM5ODMsImV4cCI6MTYyMjUxMDM4MywiYXpwIjoiVlRoUVRDSks5MEowY0tLOWxvQm05WUJkUmgwemFpdW4iLCJzY29wZSI6InJlYWQ6bWV0YWRhdGEiLCJndHkiOiJjbGllbnQtY3JlZGVudGlhbHMifQ.jYnsk973f6GhBgM2lFwVHbWA1ZDB1oG9Xn2SAQORj0mYTHCattPH1pEWdFojfSo8ipUBh77CBg5H-44VQhQYZk8Rg1ZaapCT_vQat3lmWr214n7ZOAAx16mdW-eXO44QSiLHTq0xqKGimgsijC5rIKNWgGhpUSCOGTsalEYZHwKBuqdCmWIfE8M_tV1LQq6AX6MYhacXcSubTklI3VrhBKumXHP6ZEkM8JR37pY6FQ3Pn34CtIYC7M52nRImxbsPNVOM_b1rDuK-jmCuBp-hXP0zbju_H2_E4bLoWICp0pLApKtabvhaq3ATen3SwpBTo2tUdEWSmjPAxPSKNq5srg',
+#         'Authorization': 'Bearer <token_goes_here>',
 #         'Content-Type': 'application/json',
 #         'Accept': 'application/json'
 #     }
@@ -276,40 +279,40 @@ def process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh):
     return headers
 
 
-def generate_headers(token):
-    authorization = 'Bearer ' + token
-    headers = {
-        'Authorization': authorization,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
-    return headers
-
-
-def update_token():
-    url = 'https://alliancegenome.us.auth0.com/oauth/token'
-    headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
-    header_dict = dict()
-    header_dict['audience'] = 'alliance'
-    header_dict['grant_type'] = 'client_credentials'
-    header_dict['client_id'] = environ.get('AUTH0_CLIENT_ID')
-    header_dict['client_secret'] = environ.get('AUTH0_CLIENT_SECRET')
-    # data for this api must be a string instead of a dict
-    header_entry = json.dumps(header_dict)
-    # logger.info("data %s data end", header_entry)
-    post_return = requests.post(url, headers=headers, data=header_entry)
-    # logger.info("post return %s status end", post_return.status_code)
-    # logger.info("post return %s text end", post_return.text)
-    response_dict = json.loads(post_return.text)
-    token = response_dict['access_token']
-    logger.info("token %s", token)
-    with open(auth0_file, 'w') as auth0_fh:
-        auth0_fh.write("%s" % (token))
-        auth0_fh.close
-    return token
+# def generate_headers(token):
+#     authorization = 'Bearer ' + token
+#     headers = {
+#         'Authorization': authorization,
+#         'Content-Type': 'application/json',
+#         'Accept': 'application/json'
+#     }
+#     return headers
+#
+#
+# def update_token():
+#     url = 'https://alliancegenome.us.auth0.com/oauth/token'
+#     headers = {
+#         'Content-Type': 'application/json',
+#         'Accept': 'application/json'
+#     }
+#     header_dict = dict()
+#     header_dict['audience'] = 'alliance'
+#     header_dict['grant_type'] = 'client_credentials'
+#     header_dict['client_id'] = environ.get('AUTH0_CLIENT_ID')
+#     header_dict['client_secret'] = environ.get('AUTH0_CLIENT_SECRET')
+#     # data for this api must be a string instead of a dict
+#     header_entry = json.dumps(header_dict)
+#     # logger.info("data %s data end", header_entry)
+#     post_return = requests.post(url, headers=headers, data=header_entry)
+#     # logger.info("post return %s status end", post_return.status_code)
+#     # logger.info("post return %s text end", post_return.text)
+#     response_dict = json.loads(post_return.text)
+#     token = response_dict['access_token']
+#     logger.info("token %s", token)
+#     with open(auth0_file, 'w') as auth0_fh:
+#         auth0_fh.write("%s" % (token))
+#         auth0_fh.close
+#     return token
 
 
 if __name__ == "__main__":
