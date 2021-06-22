@@ -165,13 +165,13 @@ def post_references():
             # logger.info("opening file\t%s", filepath)
             f = open(filepath)
             reference_data = json.load(f)
-            # counter = 0
+            counter = 0
             for entry in reference_data:
 
                 # only take a couple of sample from each file for testing
-                # counter += 1
-                # if counter > 2:
-                #     break
+                counter += 1
+                if counter > 2:
+                    break
 
                 # output what we get from the file before converting for the API
                 # json_object = json.dumps(entry, indent=4)
@@ -180,7 +180,7 @@ def post_references():
                 primary_id = entry['primaryId']
                 if primary_id in already_processed_primary_id:
                     continue
-                # if primary_id != 'NLM:8404639':
+                # if primary_id != 'PMID:11542924':
                 #     continue
 
                 new_entry = dict()
@@ -211,9 +211,12 @@ def post_references():
                             new_list.append(new_sub_element)
                         new_entry[key] = new_list
 
+                # can only enter agr resource curie, if resource does not map to one, enter nothing
                 if 'resource' in new_entry:
                     if new_entry['resource'] in resource_to_curie:
                         new_entry['resource'] = resource_to_curie[new_entry['resource']]
+                    else:
+                        del new_entry['resource']
                 if 'category' in new_entry:
                     new_entry['category'] = new_entry['category'].lower().replace(" ", "_")
                 if 'tags' in new_entry:
@@ -228,6 +231,10 @@ def post_references():
                                 author['orcid'] = 'ORCID:' + author['orcid']
                 if 'cross_references' in new_entry:
                     new_entry['cross_references'] = list(filter(lambda x: 'curie' in x and 'NLM:' not in x['curie'] and 'ISSN:' not in x['curie'], new_entry['cross_references']))
+
+                # output what is sent to API after converting file data
+                # json_object = json.dumps(new_entry, indent=4)
+                # print(json_object)
 
                 headers = process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh)
 
