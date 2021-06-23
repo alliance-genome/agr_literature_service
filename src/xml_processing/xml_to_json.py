@@ -499,7 +499,7 @@ def generate_json():
                 plain_abstract = re.sub(r'\s+', ' ', plain_abstract)
             if plain_abstract != '':
                 data_dict['plain_language_abstract'] = plain_abstract
-            if len(lang_abstract_list) > 0:
+            if len(lang_abstract_list) > 0:    # e.g. 30160698 has fre and spa
                 data_dict['pubmed_abstract_languages'] = lang_abstract_list
             if main_abstract != '':
                 data_dict['abstract'] = main_abstract
