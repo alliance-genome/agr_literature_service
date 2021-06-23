@@ -18,6 +18,7 @@ class FileSchemaUpdate(BaseModel):
     reference_id: Optional[str] = None
     category: Optional[FileCategories] = None
     display_name: Optional[str] = None
+    language: Optional[str] = 'english'
     reference_curie: Optional[str] = None
     mod_submitted: Optional[str] = None
     mods_permitted: Optional[List[str]] = None
@@ -43,6 +44,12 @@ class FileSchemaUpdate(BaseModel):
             raise ValueError('Cannot set content_type to None')
         return v
 
+    @validator('language')
+    def language_is_some(cls, v):
+        if v is None:
+            raise ValueError('Cannot set language to None')
+        return v
+
     class Config():
          orm_mode = True
          extra = "forbid"
@@ -58,7 +65,8 @@ class FileSchemaShow(BaseModel):
     upload_date: datetime
     public: bool
     extension: str
-    content_type: str = None
+    content_type: str
+    language: str = 'english'
 
     reference_id: Optional[str] = None
     category: Optional[FileCategories] = None
