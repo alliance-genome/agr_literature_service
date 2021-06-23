@@ -495,15 +495,13 @@ def generate_json():
             if pip_abstract != '':
                 pip_abstract = re.sub(r'\s+', ' ', pip_abstract)
             plain_abstract = " ".join(plain_abstract_list)
-            if plain_abstract != '':
-                plain_abstract = re.sub(r'\s+', ' ', plain_abstract)
-            if plain_abstract != '':
-                data_dict['plain_language_abstract'] = plain_abstract
+            if plain_abstract != '':           # e.g. 32338603 has plain abstract
+                data_dict['plainLanguageAbstract'] = re.sub(r'\s+', ' ', plain_abstract)
             if len(lang_abstract_list) > 0:    # e.g. 30160698 has fre and spa
-                data_dict['pubmed_abstract_languages'] = lang_abstract_list
+                data_dict['pubmedAbstractLanguages'] = lang_abstract_list
             if main_abstract != '':
                 data_dict['abstract'] = main_abstract
-            elif pip_abstract != '':
+            elif pip_abstract != '':           # e.g. 9643811 has pip but not main abstract
                 data_dict['abstract'] = pip_abstract
 
             # some xml has keywords spanning multiple lines e.g. 30110134 ; others get captured inside other keywords e.g. 31188077

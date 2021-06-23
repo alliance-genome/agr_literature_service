@@ -85,6 +85,8 @@ def post_references():
     remap_keys['allianceCategory'] = 'category'
     remap_keys['MODReferenceType'] = 'mod_reference_types'
     remap_keys['MODReferenceTypes'] = 'mod_reference_types'
+    remap_keys['plainLanguageAbstract'] = 'plain_language_abstract'
+    remap_keys['pubmedAbstractLanguages'] = 'pubmed_abstract_languages'
 
     subkeys_to_remove = dict()
     remap_subkeys = dict()
@@ -160,18 +162,18 @@ def post_references():
     with open(reference_primary_id_to_curie_file, 'a') as mapping_fh, open(errors_in_posting_reference_file, 'a') as error_fh:
         for filepath in files_to_process:
             # only test one file for run
-            # if filepath != json_storage_path + 'REFERENCE_PUBMED_RGD_3.json':
+            # if filepath != json_storage_path + 'REFERENCE_PUBMED_WB_1.json':
             #     continue
             # logger.info("opening file\t%s", filepath)
             f = open(filepath)
             reference_data = json.load(f)
-            counter = 0
+            # counter = 0
             for entry in reference_data:
 
                 # only take a couple of sample from each file for testing
-                counter += 1
-                if counter > 2:
-                    break
+                # counter += 1
+                # if counter > 2:
+                #     break
 
                 # output what we get from the file before converting for the API
                 # json_object = json.dumps(entry, indent=4)
@@ -180,8 +182,8 @@ def post_references():
                 primary_id = entry['primaryId']
                 if primary_id in already_processed_primary_id:
                     continue
-                # if primary_id != 'PMID:11542924':
-                #     continue
+                if primary_id != 'PMID:9643811':
+                    continue
 
                 new_entry = dict()
 
