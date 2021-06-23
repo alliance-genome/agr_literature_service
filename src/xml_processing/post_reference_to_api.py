@@ -182,8 +182,8 @@ def post_references():
                 primary_id = entry['primaryId']
                 if primary_id in already_processed_primary_id:
                     continue
-                if primary_id != 'PMID:9643811':
-                    continue
+                # if primary_id != 'PMID:9643811':
+                #     continue
 
                 new_entry = dict()
 
