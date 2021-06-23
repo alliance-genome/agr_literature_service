@@ -1,20 +1,23 @@
-
 import json
 import requests
 from os import environ, path
 import logging
 import logging.config
 
+
 # from datetime import datetime
 
-from post_reference_to_api import generate_headers, update_token
+from helper_post_to_api import generate_headers, update_token
 
+from dotenv import load_dotenv
+
+load_dotenv()
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-# pipenv run python post_resource_to_api.py
+# pipenv run python3 post_resource_to_api.py
 
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
@@ -61,9 +64,10 @@ def post_resources():
     remap_editor_keys['middleNames'] = 'middle_names'
     keys_found = set()
 
-    url = 'http://localhost:49161/resource/'
+#     url = 'http://localhost:49161/resource/'
+    url = 'http://localhost:11223/resource/'
 #     headers = {
-#         'Authorization': 'Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IllYOGpVX2NObGgzRFBUT2NPNTVKeSJ9.eyJpc3MiOiJodHRwczovL2FsbGlhbmNlZ2Vub21lLnVzLmF1dGgwLmNvbS8iLCJzdWIiOiJWVGhRVENKSzkwSjBjS0s5bG9CbTlZQmRSaDB6YWl1bkBjbGllbnRzIiwiYXVkIjoiYWxsaWFuY2UiLCJpYXQiOjE2MjIyMjQxMzEsImV4cCI6MTYyMjMxMDUzMSwiYXpwIjoiVlRoUVRDSks5MEowY0tLOWxvQm05WUJkUmgwemFpdW4iLCJzY29wZSI6InJlYWQ6bWV0YWRhdGEiLCJndHkiOiJjbGllbnQtY3JlZGVudGlhbHMifQ.Go4IWYfn5FJt30G9XIzWmYEqsi3HGCzPs4Is0q9Xy8GRzw-au1J1DzFmYVpPxhB5W_-Zuw9SdLxm5GlDAlT3dle53RRN3HaeZEzGIjsdcgpiBVV_vcH_zE6C7dCD-rSXg7Grdk9ALEbcaCn3D7t3d71pNP-VUV0ihwPEelk215jtfRkvL4_k5mhI56E9IpqX8QgNOtRZ10SvljjAwEw9dM16g4GWP5btv75cD_Vd_twhMVBhVZ_B0WV9Ud0GXpG0ihcxWyMgWGEKh4sDGvKjN9jAkMHEW3swTT-qMRTmzadtMMrt4CFNZN4eQNAxnJrMTsIJZDDzQkMTSwl7OyE6AA',
+#         'Authorization': 'Bearer <token_goes_here>',
 #         'Content-Type': 'application/json',
 #         'Accept': 'application/json'
 #     }
@@ -89,28 +93,34 @@ def post_resources():
 
     with open(resource_primary_id_to_curie_file, 'a') as mapping_fh, open(errors_in_posting_resource_file, 'a') as error_fh:
         for fileset in filesets:
+            logger.info("processing %s", fileset)
             # if fileset != 'NLM':
             #     continue
 
             filename = json_storage_path + 'RESOURCE_' + fileset + '.json'
             f = open(filename)
             resource_data = json.load(f)
-#             counter = 0
+            # counter = 0
             for entry in resource_data['data']:
+                # to debub json from data file before changes
                 # json_object = json.dumps(entry, indent=4)
                 # print(json_object)
 
                 primary_id = entry['primaryId']
                 if primary_id in already_processed_primary_id:
+                    # logger.info("%s\talready in", primary_id)
+                    # print("already in " + primary_id)
                     continue
-#                 if primary_id != 'NLM:8404639':
-#                     continue
+                # if primary_id != 'NLM:8404639':
+                #     continue
 
-#                 counter += 1
-#                 if counter > 2:
-#                     break
+                # counter += 1
+                # if counter > 2:
+                #     break
 
-# TODO: check FB cross_references going in
+                identifiers = set()
+                identifiers.add(primary_id)
+
                 for key in keys_to_remove:
                     if key in entry:
                         del entry[key]
@@ -121,6 +131,7 @@ def post_resources():
                 if 'cross_references' in entry:
                     for xref in entry['cross_references']:
                         if 'id' in xref:
+                            identifiers.add(xref['id'])
                             xref['curie'] = xref.pop('id')
                 if 'editors' in entry:
                     for editor in entry['editors']:
@@ -131,32 +142,35 @@ def post_resources():
                             if key in remap_editor_keys:
                                 editor[remap_editor_keys[key]] = editor.pop(key)
 
-# UNCOMMENT to test data by replacing unique data with a timestamp
-#                             xref['curie'] = str(datetime.now())
-#                 entry['iso_abbreviation'] = str(datetime.now())
+                # UNCOMMENT to test data by replacing unique data with a timestamp
+                #             xref['curie'] = str(datetime.now())
+                # entry['iso_abbreviation'] = str(datetime.now())
 
                 post_return = requests.post(url, headers=headers, json=entry)
                 response_dict = json.loads(post_return.text)
 
-#                 print(primary_id + 'text ' + str(post_return.text))
-#                 print(primary_id + 'status_code ' + str(post_return.status_code))
+                print(primary_id + "\ttext " + str(post_return.text))
+                print(primary_id + "\tstatus_code " + str(post_return.status_code))
 
                 if (post_return.status_code == 201):
                     response_dict = response_dict.replace('"', '')
-                    logger.info("%s\t%s", primary_id, response_dict)
-                    mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
-#                 elif (post_return.status_code == 409):
-#                     continue
+                    for identifier in identifiers:
+                        logger.info("I %s\t%s", identifier, response_dict)
+                        mapping_fh.write("%s\t%s\n" % (identifier, response_dict))
+                # if making multiple runs on data that has already gone into api
+                # elif (post_return.status_code == 409):
+                #     continue
                 else:
                     logger.info("ERROR %s primaryId %s message %s", post_return.status_code, primary_id, response_dict['detail'])
                     error_fh.write("ERROR %s primaryId %s message %s\n" % (post_return.status_code, primary_id, response_dict['detail']))
 
-#                 json_object = json.dumps(entry, indent = 4)
-#                 print(json_object)
+                # to debug json after changes that was sent to api
+                # json_object = json.dumps(entry, indent = 4)
+                # print(json_object)
 
-#    if wanting to output keys in data for figuring out mapping
-#        for key in keys_found:
-#            logger.info("key %s", key)
+        # if wanting to output keys in data for figuring out mapping
+        # for key in keys_found:
+        #     logger.info("key %s", key)
 
         mapping_fh.close
         error_fh.close
@@ -168,11 +182,6 @@ if __name__ == "__main__":
 
     post_resources()
 
-#     pubmed_by_nlm = load_pubmed_resource()
-#     pubmed_by_nlm = load_zfin_resource(pubmed_by_nlm)
-#     pubmed_by_nlm = load_fb_resource(pubmed_by_nlm)
-#     save_pubmed_resource(pubmed_by_nlm)
-
     logger.info("ending post_resource_to_api.py")
 
-# pipenv run python post_resource_to_api.py
+# pipenv run python3 post_resource_to_api.py
