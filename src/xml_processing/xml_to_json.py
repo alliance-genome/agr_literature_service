@@ -449,10 +449,62 @@ def generate_json():
                 # print publisher
                 data_dict['publisher'] = publisher
 
-            regex_abstract_output = re.findall("<AbstractText.*?>(.+?)</AbstractText>", xml, re.DOTALL)
+# previously was only getting all abstract text together, but this was causing different types of abstracts to be concatenated
+#             regex_abstract_output = re.findall("<AbstractText.*?>(.+?)</AbstractText>", xml, re.DOTALL)
+#             if len(regex_abstract_output) > 0:
+#                 abstract = " ".join(regex_abstract_output)
+#                 data_dict['abstract'] = re.sub(r'\s+', ' ', abstract)
+
+            main_abstract_list = []
+            regex_abstract_output = re.findall("<Abstract>(.+?)</Abstract>", xml, re.DOTALL)
             if len(regex_abstract_output) > 0:
-                abstract = " ".join(regex_abstract_output)
-                data_dict['abstract'] = re.sub(r'\s+', ' ', abstract)
+                for abs in regex_abstract_output:
+                    regex_abstract_text_output = re.findall("<AbstractText.*?>(.+?)</AbstractText>", abs, re.DOTALL)
+                    if len(regex_abstract_text_output) > 0:
+                        for abstext in regex_abstract_text_output:
+                            main_abstract_list.append(abstext)
+            main_abstract = " ".join(main_abstract_list)
+            if main_abstract != '':
+                main_abstract = re.sub(r'\s+', ' ', main_abstract)
+
+            pip_abstract_list = []
+            plain_abstract_list = []
+            lang_abstract_list = []
+            regex_other_abstract_output = re.findall("<OtherAbstract (.+?)</OtherAbstract>", xml, re.DOTALL)
+            if len(regex_other_abstract_output) > 0:
+                for other_abstract in regex_other_abstract_output:
+                    abs_type = ''
+                    abs_lang = ''
+                    abs_type_re_output = re.search("Type=\"(.*?)\"", other_abstract)
+                    if abs_type_re_output is not None:
+                        abs_type = abs_type_re_output.group(1)
+                    abs_lang_re_output = re.search("Language=\"(.*?)\"", other_abstract)
+                    if abs_lang_re_output is not None:
+                        abs_lang = abs_lang_re_output.group(1)
+                    if abs_type == 'Publisher':
+                        lang_abstract_list.append(abs_lang)
+                    else:
+                        regex_abstract_text_output = re.findall("<AbstractText.*?>(.+?)</AbstractText>", other_abstract, re.DOTALL)
+                        if len(regex_abstract_text_output) > 0:
+                            for abstext in regex_abstract_text_output:
+                                if abs_type == 'plain-language-summary':
+                                    plain_abstract_list.append(abstext)
+                                elif abs_type == 'PIP':
+                                    pip_abstract_list.append(abstext)
+            pip_abstract = " ".join(pip_abstract_list)    # e.g. 9643811 has pip but not main
+            if pip_abstract != '':
+                pip_abstract = re.sub(r'\s+', ' ', pip_abstract)
+            plain_abstract = " ".join(plain_abstract_list)
+            if plain_abstract != '':
+                plain_abstract = re.sub(r'\s+', ' ', plain_abstract)
+            if plain_abstract != '':
+                data_dict['plain_language_abstract'] = plain_abstract
+            if len(lang_abstract_list) > 0:
+                data_dict['pubmed_abstract_languages'] = lang_abstract_list
+            if main_abstract != '':
+                data_dict['abstract'] = main_abstract
+            elif pip_abstract != '':
+                data_dict['abstract'] = pip_abstract
 
             # some xml has keywords spanning multiple lines e.g. 30110134 ; others get captured inside other keywords e.g. 31188077
             regex_keyword_output = re.findall("<Keyword .*?>(.+?)</Keyword>", xml, re.DOTALL)
