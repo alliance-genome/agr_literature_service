@@ -28,6 +28,8 @@ class ReferenceSchemaPost(BaseModel):
     date_arrived_in_pubmed: Optional[str] = None
     date_last_modified: Optional[str] = None
     volume: Optional[str] = None
+    plain_language_abstract: Optional[str] = None
+    pubmed_abstract_languages: Optional[List[str]] = None
     language: Optional[str] = None
     pages: Optional[str] = None
     abstract: Optional[str] = None
@@ -58,6 +60,7 @@ class ReferenceSchemaUpdate(BaseModel):
     date_arrived_in_pubmed: Optional[str] = None
     date_last_modified: Optional[str] = None
     volume: Optional[str] = None
+    plain_language_abstract: Optional[str] = None
     language: Optional[str] = None
     pages: Optional[str] = None
     abstract: Optional[str] = None
@@ -95,6 +98,8 @@ class ReferenceSchemaShow(BaseModelShow):
     date_arrived_in_pubmed: Optional[str] = None
     date_last_modified: Optional[str] = None
     volume: Optional[str] = None
+    plain_language_abstract: Optional[str] = None
+    pubmed_abstract_languages: Optional[List[str]] = None
     language: Optional[str] = None
     pages: Optional[str] = None
     abstract: Optional[str] = None

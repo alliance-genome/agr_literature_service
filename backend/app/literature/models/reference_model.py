@@ -122,6 +122,18 @@ class ReferenceModel(Base):
         nullable=True
     )
 
+    plain_language_abstract = Column(
+        String(),
+        unique=False,
+        nullable=True
+    )
+
+    pubmed_abstract_languages = Column(
+        ARRAY(String()),
+        unique=False,
+        nullable=True
+    )
+
     pages = Column(
         String(),
         unique=False,

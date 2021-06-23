@@ -49,6 +49,10 @@ class FileModel(Base):
         nullable=True
     )
 
+    language = Column(
+        String
+    )
+
     content_type = Column(
         String,
         nullable=True
