@@ -17,7 +17,7 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-# pipenv run python3 post_resource_to_api.py
+# pipenv run python3 post_resource_to_api.py > log_post_resource_to_api
 
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
@@ -85,11 +85,12 @@ def post_resources():
     errors_in_posting_resource_file = base_path + 'errors_in_posting_resource'
 
     already_processed_primary_id = set()
-    with open(resource_primary_id_to_curie_file, 'r') as read_fh:
-        for line in read_fh:
-            line_data = line.split("\t")
-            if line_data[0]:
-                already_processed_primary_id.add(line_data[0].rstrip())
+    if path.isfile(resource_primary_id_to_curie_file):
+        with open(resource_primary_id_to_curie_file, 'r') as read_fh:
+            for line in read_fh:
+                line_data = line.split("\t")
+                if line_data[0]:
+                    already_processed_primary_id.add(line_data[0].rstrip())
 
     with open(resource_primary_id_to_curie_file, 'a') as mapping_fh, open(errors_in_posting_resource_file, 'a') as error_fh:
         for fileset in filesets:
