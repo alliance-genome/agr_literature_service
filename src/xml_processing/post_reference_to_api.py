@@ -255,8 +255,8 @@ def process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh):
     # print(json_object)
 
     post_return = requests.post(url, headers=headers, json=new_entry)
-    print(primary_id + 'text ' + str(post_return.text))
-    print(primary_id + 'status_code ' + str(post_return.status_code))
+    print(primary_id + ' text ' + str(post_return.text))
+    print(primary_id + ' status_code ' + str(post_return.status_code))
 
     response_dict = dict()
     try:
