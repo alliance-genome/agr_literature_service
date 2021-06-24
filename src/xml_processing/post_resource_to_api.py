@@ -111,7 +111,7 @@ def post_resources():
                     # logger.info("%s\talready in", primary_id)
                     # print("already in " + primary_id)
                     continue
-                # if primary_id != 'NLM:0431420':
+                # if primary_id != 'NLM:8404639':
                 #     continue
 
                 # counter += 1
@@ -149,13 +149,13 @@ def post_resources():
                                 new_xref[subkey] = xref[subkey]
                         new_list.append(new_xref)
                     new_entry['cross_references'] = new_list
-                if 'editors' in entry:
+                if 'editors' in new_entry:
                     new_list = []
-                    for editor in entry['editors']:
+                    for editor in new_entry['editors']:
                         new_editor = dict()
                         for subkey in editor:
-                            if subkey in remap_cross_references_keys:
-                                new_editor[remap_cross_references_keys[subkey]] = editor[subkey]
+                            if subkey in remap_editor_keys:
+                                new_editor[remap_editor_keys[subkey]] = editor[subkey]
                             elif subkey not in editor_keys_to_remove:
                                 new_editor[subkey] = editor[subkey]
                         new_list.append(new_editor)
