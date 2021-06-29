@@ -94,6 +94,7 @@ class ReferenceSchemaShow(BaseModelShow):
     title: str
     category: ReferenceCategory
 
+    resource_id: Optional[int] = None
     citation: Optional[str] = None
     date_published: Optional[str] = None
     date_arrived_in_pubmed: Optional[str] = None
