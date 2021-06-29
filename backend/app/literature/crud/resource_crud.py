@@ -153,8 +153,6 @@ def show(db: Session, curie: str):
             del editor['resource_id']
             del editor['reference_id']
 
-    del resource_data['resource_id']
-
     return resource_data
 
 

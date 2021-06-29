@@ -68,6 +68,7 @@ class ResourceSchemaUpdate(BaseModel):
 
 
 class ResourceSchemaShow(BaseModelShow):
+    resource_id: int
     curie: Optional[str] = None
     title: str
 

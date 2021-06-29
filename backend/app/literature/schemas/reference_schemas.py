@@ -89,6 +89,7 @@ class ReferenceSchemaUpdate(BaseModel):
 
 
 class ReferenceSchemaShow(BaseModelShow):
+    reference_id: int
     curie: str
     title: str
     category: ReferenceCategory

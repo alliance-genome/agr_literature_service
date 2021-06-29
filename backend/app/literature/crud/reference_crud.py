@@ -154,7 +154,7 @@ def show(db: Session, curie: str):
     if reference.resource_id:
         reference_data['resource_curie'] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == reference.resource_id).first()[0]
         reference_data['resource_title'] = db.query(ResourceModel.title).filter(ResourceModel.resource_id == reference.resource_id).first()[0]
-        del reference_data['reference_id']
+        del reference_data['resource_id']
 
     if reference.cross_references:
         cross_references = []
@@ -195,7 +195,6 @@ def show(db: Session, curie: str):
             del editor['reference_id']
 
     del reference_data['files']
-    del reference_data['resource_id']
 
     return reference_data
 
