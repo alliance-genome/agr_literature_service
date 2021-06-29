@@ -17,7 +17,7 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-# pipenv run python3 post_resource_to_api.py
+# pipenv run python3 post_resource_to_api.py > log_post_resource_to_api
 
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
@@ -62,6 +62,9 @@ def post_resources():
     remap_editor_keys['firstName'] = 'first_name'
     remap_editor_keys['lastName'] = 'last_name'
     remap_editor_keys['middleNames'] = 'middle_names'
+    cross_references_keys_to_remove = dict()
+    remap_cross_references_keys = dict()
+    remap_cross_references_keys['id'] = 'curie'
     keys_found = set()
 
 #     url = 'http://localhost:49161/resource/'
@@ -85,11 +88,12 @@ def post_resources():
     errors_in_posting_resource_file = base_path + 'errors_in_posting_resource'
 
     already_processed_primary_id = set()
-    with open(resource_primary_id_to_curie_file, 'r') as read_fh:
-        for line in read_fh:
-            line_data = line.split("\t")
-            if line_data[0]:
-                already_processed_primary_id.add(line_data[0].rstrip())
+    if path.isfile(resource_primary_id_to_curie_file):
+        with open(resource_primary_id_to_curie_file, 'r') as read_fh:
+            for line in read_fh:
+                line_data = line.split("\t")
+                if line_data[0]:
+                    already_processed_primary_id.add(line_data[0].rstrip())
 
     with open(resource_primary_id_to_curie_file, 'a') as mapping_fh, open(errors_in_posting_resource_file, 'a') as error_fh:
         for fileset in filesets:
@@ -102,10 +106,6 @@ def post_resources():
             resource_data = json.load(f)
             # counter = 0
             for entry in resource_data['data']:
-                # to debub json from data file before changes
-                # json_object = json.dumps(entry, indent=4)
-                # print(json_object)
-
                 primary_id = entry['primaryId']
                 if primary_id in already_processed_primary_id:
                     # logger.info("%s\talready in", primary_id)
@@ -115,38 +115,57 @@ def post_resources():
                 #     continue
 
                 # counter += 1
-                # if counter > 2:
+                # if counter > 3:
                 #     break
+
+                # to debug json from data file before changes
+                # json_object = json.dumps(entry, indent=4)
+                # print("before " + json_object)
+
+                new_entry = dict()
 
                 identifiers = set()
                 identifiers.add(primary_id)
 
-                for key in keys_to_remove:
-                    if key in entry:
-                        del entry[key]
                 for key in entry:
                     keys_found.add(key)
+                    # logger.info("key found\t%s\t%s", key, entry[key])
                     if key in remap_keys:
-                        entry[remap_keys[key]] = entry.pop(key)
-                if 'cross_references' in entry:
-                    for xref in entry['cross_references']:
-                        if 'id' in xref:
-                            identifiers.add(xref['id'])
-                            xref['curie'] = xref.pop('id')
-                if 'editors' in entry:
-                    for editor in entry['editors']:
-                        for key in editor_keys_to_remove:
-                            if key in editor:
-                                del editor[key]
-                        for key in editor:
-                            if key in remap_editor_keys:
-                                editor[remap_editor_keys[key]] = editor.pop(key)
+                        # logger.info("remap\t%s\t%s", key, remap_keys[key])
+                        # this renames a key, but it can be accessed again in the for key loop, so sometimes a key is visited twice while another is skipped, so have to create a new dict to populate instead
+                        # entry[remap_keys[key]] = entry.pop(key)
+                        new_entry[remap_keys[key]] = entry[key]
+                    elif key not in keys_to_remove:
+                        new_entry[key] = entry[key]
+
+                if 'cross_references' in new_entry:
+                    new_list = []
+                    for xref in new_entry['cross_references']:
+                        new_xref = dict()
+                        for subkey in xref:
+                            if subkey in remap_cross_references_keys:
+                                new_xref[remap_cross_references_keys[subkey]] = xref[subkey]
+                            elif subkey not in cross_references_keys_to_remove:
+                                new_xref[subkey] = xref[subkey]
+                        new_list.append(new_xref)
+                    new_entry['cross_references'] = new_list
+                if 'editors' in new_entry:
+                    new_list = []
+                    for editor in new_entry['editors']:
+                        new_editor = dict()
+                        for subkey in editor:
+                            if subkey in remap_editor_keys:
+                                new_editor[remap_editor_keys[subkey]] = editor[subkey]
+                            elif subkey not in editor_keys_to_remove:
+                                new_editor[subkey] = editor[subkey]
+                        new_list.append(new_editor)
+                    new_entry['editors'] = new_list
 
                 # UNCOMMENT to test data by replacing unique data with a timestamp
                 #             xref['curie'] = str(datetime.now())
-                # entry['iso_abbreviation'] = str(datetime.now())
+                # new_entry['iso_abbreviation'] = str(datetime.now())
 
-                post_return = requests.post(url, headers=headers, json=entry)
+                post_return = requests.post(url, headers=headers, json=new_entry)
                 response_dict = json.loads(post_return.text)
 
                 print(primary_id + "\ttext " + str(post_return.text))
@@ -165,7 +184,7 @@ def post_resources():
                     error_fh.write("ERROR %s primaryId %s message %s\n" % (post_return.status_code, primary_id, response_dict['detail']))
 
                 # to debug json after changes that was sent to api
-                # json_object = json.dumps(entry, indent = 4)
+                # json_object = json.dumps(new_entry, indent = 4)
                 # print(json_object)
 
         # if wanting to output keys in data for figuring out mapping
