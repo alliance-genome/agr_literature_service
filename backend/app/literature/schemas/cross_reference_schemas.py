@@ -18,7 +18,14 @@ class CrossReferenceSchemaRelated(BaseModel):
     class Config():
         orm_mode = True
         extra = "forbid"
-
+        schema_extra = {
+            "example": {
+                "curie": "MOD:curie",
+               "pages": [
+                   "reference"
+                ]
+            }
+        }
 
 class CrossReferencePageSchemaShow(BaseModel):
     name: Optional[str] = None
