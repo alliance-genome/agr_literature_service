@@ -23,6 +23,12 @@ class CrossReferenceModel(Base):
         primary_key=True
     )
 
+    is_obsolete = Column(
+       Boolean,
+       unique=False,
+       default=False
+    )
+
     reference_id = Column(
         Integer,
         ForeignKey('references.reference_id',
