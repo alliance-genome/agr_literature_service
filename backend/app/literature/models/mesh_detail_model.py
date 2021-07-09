@@ -16,6 +16,7 @@ from literature.database.base import Base
 from literature.schemas import TagName
 from literature.schemas import TagSource
 
+
 class MeshDetailModel(Base):
     __tablename__ = 'mesh_details'
     __versioned__ = {}

@@ -38,11 +38,13 @@ from literature.schemas.mesh_detail_schemas import MeshDetailSchemaShow
 from literature.schemas.mesh_detail_schemas import MeshDetailSchemaUpdate
 from literature.schemas.mesh_detail_schemas import MeshDetailSchemaCreate
 from literature.schemas.mesh_detail_schemas import MeshDetailSchemaPost
+from literature.schemas.mesh_detail_schemas import MeshDetailSchemaRelated
 
 from literature.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaShow
 from literature.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaUpdate
 from literature.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaCreate
 from literature.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaPost
+from literature.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaRelated
 
 from literature.schemas.reference_schemas import ReferenceSchemaPost
 from literature.schemas.reference_schemas import ReferenceSchemaUpdate

@@ -34,7 +34,7 @@ get_db = database.get_db
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=MeshDetailSchemaUpdate,
+             response_model=int,
              dependencies=[Depends(auth.implicit_scheme)])
 def create(request: MeshDetailSchemaPost,
            user: Auth0User = Security(auth.get_user),
@@ -56,7 +56,7 @@ def destroy(mesh_detail_id: int,
 
 @router.patch('/{mesh_detail_id}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=MeshDetailSchemaUpdate,
+              response_model=str,
               dependencies=[Depends(auth.implicit_scheme)])
 async def patch(mesh_detail_id: int,
                 request: MeshDetailSchemaUpdate,
@@ -69,7 +69,7 @@ async def patch(mesh_detail_id: int,
 
 
 @router.get('/{mesh_detail_id}',
-            response_model=MeshDetailSchemaUpdate,
+            response_model=MeshDetailSchemaShow,
             status_code=200)
 def show(mesh_detail_id: int,
          db: Session = Depends(get_db)):

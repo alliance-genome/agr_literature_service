@@ -21,7 +21,7 @@ class ModReferenceTypeSchemaPost(ModReferenceTypeSchemaCreate):
         extra = "forbid"
 
 
-class ModReferenceTypeSchemaShow(ModReferenceTypeSchemaCreate):
+class ModReferenceTypeSchemaShow(ModReferenceTypeSchemaPost):
     mod_reference_type_id: int
 
     class Config():
@@ -29,8 +29,18 @@ class ModReferenceTypeSchemaShow(ModReferenceTypeSchemaCreate):
         extra = "forbid"
 
 
-class ModReferenceTypeSchemaUpdate(ModReferenceTypeSchemaShow):
-    reference_curie: str
+class ModReferenceTypeSchemaRelated(ModReferenceTypeSchemaCreate):
+    mod_reference_type_id: int
+
+    class Config():
+        orm_mode = True
+        extra = "forbid"
+
+
+class ModReferenceTypeSchemaUpdate(BaseModel):
+    reference_curie: Optional[str]
+    reference_type: Optional[str]
+    source: Optional[str]
 
     class Config():
         orm_mode = True

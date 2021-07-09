@@ -34,7 +34,7 @@ get_db = database.get_db
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=ModReferenceTypeSchemaUpdate,
+             response_model=int,
              dependencies=[Depends(auth.implicit_scheme)])
 def create(request: ModReferenceTypeSchemaPost,
            user: Auth0User = Security(auth.get_user),
@@ -56,7 +56,7 @@ def destroy(mod_reference_type_id: int,
 
 @router.patch('/{mod_reference_type_id}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=ModReferenceTypeSchemaUpdate,
+              response_model=str,
               dependencies=[Depends(auth.implicit_scheme)])
 async def patch(mod_reference_type_id: int,
                 request: ModReferenceTypeSchemaUpdate,
@@ -69,7 +69,7 @@ async def patch(mod_reference_type_id: int,
 
 
 @router.get('/{mod_reference_type_id}',
-            response_model=ModReferenceTypeSchemaUpdate,
+            response_model=ModReferenceTypeSchemaShow,
             status_code=200)
 def show(mod_reference_type_id: int,
          db: Session = Depends(get_db)):
