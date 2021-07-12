@@ -37,7 +37,8 @@ class ReferenceModel(Base):
         'CrossReferenceModel',
         lazy='joined',
         back_populates='reference',
-        cascade="all, delete, delete-orphan"
+        cascade="all, delete, delete-orphan",
+        passive_deletes=True
     )
 
     files = relationship(

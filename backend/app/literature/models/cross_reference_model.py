@@ -31,8 +31,7 @@ class CrossReferenceModel(Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey('references.reference_id',
-                   ondelete='CASCADE'),
+        ForeignKey('references.reference_id'),
         index=True
     )
 
@@ -43,8 +42,7 @@ class CrossReferenceModel(Base):
 
     resource_id = Column(
         Integer,
-        ForeignKey('resources.resource_id',
-                   ondelete='CASCADE'),
+        ForeignKey('resources.resource_id'),
         index=True
     )
 
