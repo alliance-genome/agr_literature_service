@@ -34,7 +34,8 @@ class ResourceModel(Base):
         'CrossReferenceModel',
         lazy='joined',
         back_populates='resource',
-        cascade="all, delete, delete-orphan"
+        cascade="all, delete, delete-orphan",
+        passive_deletes=True
     )
 
     references = relationship(
