@@ -133,7 +133,7 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
 
 
 def show_files(db: Session, curie:str):
-    reference = db.query(Reference).filter(Reference.curie == curie).first()
+    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
     files_data = []
     for reference_file in reference.files:
         file_data = jsonable_encoder(reference_file)
@@ -199,7 +199,7 @@ def show(db: Session, curie: str):
 
 
 def show_changesets(db: Session, curie: str):
-    reference = db.query(Reference).filter(Reference.curie == curie).first()
+    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the id {curie} is not available")
