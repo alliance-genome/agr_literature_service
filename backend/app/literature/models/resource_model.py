@@ -48,6 +48,12 @@ class ResourceModel(Base):
         nullable=True
     )
 
+    notes = relationship(
+        'NoteModel',
+        lazy='joined',
+        back_populates='resource',
+    )
+
     title_synonyms = Column(
         ARRAY(String()),
         unique=False,

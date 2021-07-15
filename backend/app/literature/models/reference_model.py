@@ -47,6 +47,12 @@ class ReferenceModel(Base):
         back_populates='reference',
     )
 
+    notes = relationship(
+        'NoteModel',
+        lazy='joined',
+        back_populates='reference',
+    )
+
     resource_id = Column(
         Integer,
         ForeignKey('resources.resource_id'),

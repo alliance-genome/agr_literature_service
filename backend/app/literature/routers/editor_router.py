@@ -29,7 +29,7 @@ get_db = database.get_db
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=EditorSchemaShow,
+             response_model=str,
              dependencies=[Depends(auth.implicit_scheme)])
 def create(request: EditorSchemaPost,
            user: Auth0User = Security(auth.get_user),
@@ -51,7 +51,7 @@ def destroy(editor_id: int,
 
 @router.patch('/{editor_id}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=EditorSchemaShow,
+              response_model=str,
               dependencies=[Depends(auth.implicit_scheme)])
 async def patch(editor_id: int,
                 request: EditorSchemaPost,
@@ -74,4 +74,4 @@ def show(editor_id: int,
             status_code=200)
 def show(editor_id: int,
          db: Session = Depends(get_db)):
-    return editor.show_changesets(db, editor_id)
+    return editor_crud.show_changesets(db, editor_id)

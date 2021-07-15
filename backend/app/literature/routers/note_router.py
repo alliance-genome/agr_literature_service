@@ -14,16 +14,16 @@ from literature import database
 
 from literature.user import set_global_user_id
 
-from literature.schemas import AuthorSchemaShow
-from literature.schemas import AuthorSchemaCreate
+from literature.schemas import NoteSchemaShow
+from literature.schemas import NoteSchemaPost
 
-from literature.crud import author_crud
+from literature.crud import note_crud
 from literature.routers.authentication import auth
 
 
 router = APIRouter(
-    prefix="/author",
-    tags=['Author']
+    prefix="/note",
+    tags=['Note']
 )
 
 get_db = database.get_db
@@ -31,49 +31,49 @@ get_db = database.get_db
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=str,
+             response_model=NoteSchemaShow,
              dependencies=[Depends(auth.implicit_scheme)])
-def create(request: AuthorSchemaCreate,
+def create(request: NoteSchemaPost,
            user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
-    return author_crud.create(db, request)
+    return note_crud.create(db, request)
 
 
-@router.delete('/{author_id}',
+@router.delete('/{note_id}',
                status_code=status.HTTP_204_NO_CONTENT,
                dependencies=[Depends(auth.implicit_scheme)])
-def destroy(author_id: int,
+def destroy(note_id: int,
             user: Auth0User = Security(auth.get_user),
             db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
-    author_crud.destroy(db, author_id)
+    note_crud.destroy(db, note_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.patch('/{author_id}',
+@router.patch('/{note_id}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=int,
+              response_model=NoteSchemaShow,
               dependencies=[Depends(auth.implicit_scheme)])
-async def patch(author_id: int,
-                request: AuthorSchemaCreate,
+async def patch(note_id: int,
+                request: NoteSchemaPost,
                 user: Auth0User = Security(auth.get_user),
                 db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)
 
-    return author_crud.patch(db, author_id, patch)
+    return note_crud.patch(db, note_id, patch)
 
 
-@router.get('/{author_id}',
+@router.get('/{note_id}',
             status_code=200)
-def show(author_id: int,
+def show(note_id: int,
          db: Session = Depends(get_db)):
-    return author_crud.show(db, author_id)
+    return note_crud.show(db, note_id)
 
 
-@router.get('/{author_id}/versions',
+@router.get('/{note_id}/versions',
             status_code=200)
-def show(author_id: int,
+def show(note_id: int,
          db: Session = Depends(get_db)):
-    return author_crud.show_changesets(db, author_id)
+    return note_crud.show_changesets(db, note_id)
