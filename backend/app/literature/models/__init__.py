@@ -6,7 +6,6 @@ from sqlalchemy.ext.declarative import declarative_base
 from literature.database.main import Base
 
 from literature.models.reference_model import ReferenceModel
-from literature.models.note_model import NoteModel
 from literature.models.reference_tag_model import ReferenceTagModel
 from literature.models.mesh_detail_model import MeshDetailModel
 from literature.models.resource_model import ResourceModel
@@ -23,5 +22,7 @@ from literature.models.resource_descriptor_models import ResourceDescriptorPageM
 
 from literature.models.person_reference_link_model import PersonReferenceLinkModel
 from literature.models.person_orcid_cross_reference_link_model import PersonOrcidCrossReferenceLinkModel
+
+from literature.models.note_model import NoteModel
 
 configure_mappers()

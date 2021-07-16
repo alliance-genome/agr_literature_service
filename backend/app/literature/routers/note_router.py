@@ -16,6 +16,7 @@ from literature.user import set_global_user_id
 
 from literature.schemas import NoteSchemaShow
 from literature.schemas import NoteSchemaPost
+from literature.schemas import NoteSchemaUpdate
 
 from literature.crud import note_crud
 from literature.routers.authentication import auth
@@ -31,7 +32,7 @@ get_db = database.get_db
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=NoteSchemaShow,
+             response_model=int,
              dependencies=[Depends(auth.implicit_scheme)])
 def create(request: NoteSchemaPost,
            user: Auth0User = Security(auth.get_user),
@@ -53,10 +54,10 @@ def destroy(note_id: int,
 
 @router.patch('/{note_id}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=NoteSchemaShow,
+              response_model=str,
               dependencies=[Depends(auth.implicit_scheme)])
 async def patch(note_id: int,
-                request: NoteSchemaPost,
+                request: NoteSchemaUpdate,
                 user: Auth0User = Security(auth.get_user),
                 db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
