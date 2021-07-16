@@ -22,7 +22,7 @@ from literature.routers.authentication import auth
 
 router = APIRouter(
     prefix="/resource-descriptor",
-    tags=['ResourceDescriptor']
+    tags=['Resource Descriptor']
 )
 
 

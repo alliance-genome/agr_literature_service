@@ -17,6 +17,7 @@ from literature.user import set_global_user_id
 from literature.schemas import CrossReferenceSchema
 from literature.schemas import CrossReferenceSchemaUpdate
 from literature.schemas import CrossReferenceSchemaRelated
+from literature.schemas import CrossReferenceSchemaPost
 
 from literature.crud import cross_reference_crud
 from literature.routers.authentication import auth
@@ -33,7 +34,7 @@ get_db = database.get_db
              status_code=status.HTTP_201_CREATED,
              response_model=str,
              dependencies=[Depends(auth.implicit_scheme)])
-def create(request: CrossReferenceSchema,
+def create(request: CrossReferenceSchemaPost,
            user: Auth0User = Security(auth.get_user),
            db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)

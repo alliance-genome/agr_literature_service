@@ -1,5 +1,6 @@
 import re
 
+import json
 import sqlalchemy
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -18,15 +19,21 @@ from literature.models import ResourceDescriptorModel
 
 
 def create(db: Session, cross_reference: CrossReferenceSchema):
-    cross_reference_data = jsonable_encoder(cross_reference_data)
+    cross_reference_data = jsonable_encoder(cross_reference)
 
-    if 'resource_curie' in cross_reference_data:
+    if db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == cross_reference_data['curie']).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail=f"CrossReference with curie {cross_reference_data['curie']} already exists")
+
+    resource_curie = None
+    if cross_reference_data['resource_curie']:
         resource_curie = cross_reference_data['resource_curie']
-        del cross_reference_data['ressource_curie']
+    del cross_reference_data['resource_curie']
 
-    if 'reference_curie' in author_data:
-        reference_curie = author_data['reference_curie']
-        del corss_reference_data['reference_curie']
+    reference_curie = None
+    if cross_reference_data['reference_curie']:
+        reference_curie = cross_reference_data['reference_curie']
+    del cross_reference_data['reference_curie']
 
     db_obj = CrossReferenceModel(**cross_reference_data)
     if resource_curie and reference_curie:
@@ -47,6 +54,7 @@ def create(db: Session, cross_reference: CrossReferenceSchema):
     else:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Supply one of resource_curie or reference_curie")
+
     db.add(db_obj)
     db.commit()
 

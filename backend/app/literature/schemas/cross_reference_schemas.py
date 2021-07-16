@@ -28,6 +28,25 @@ class CrossReferenceSchemaRelated(BaseModel):
             }
         }
 
+
+class CrossReferenceSchemaPost(CrossReferenceSchemaRelated):
+    resource_curie: Optional[str] = None
+    reference_curie: Optional[str] = None
+
+    class Config():
+        orm_mod = True
+        extra = "forbid"
+        schema_extra = {
+            "example": {
+                "curie": "MOD:curie",
+                "pages": [
+                    "reference"
+                ],
+                "reference_curie": "AGR:AGRReference<number>"
+            }
+        }
+
+
 class CrossReferencePageSchemaShow(BaseModel):
     name: Optional[str] = None
     url: Optional[str] = None
@@ -42,6 +61,7 @@ class CrossReferenceSchemaShow(BaseModel):
     url: Optional[str] = None
     pages: Optional[List[CrossReferencePageSchemaShow]] = None
     is_obsolete: bool
+
 
 class CrossReferenceSchema(BaseModel):
     curie: str

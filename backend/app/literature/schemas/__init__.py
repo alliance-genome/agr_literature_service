@@ -6,6 +6,7 @@ from literature.schemas.cross_reference_schemas import CrossReferenceSchemaRelat
 from literature.schemas.cross_reference_schemas import CrossReferenceSchemaUpdate
 from literature.schemas.cross_reference_schemas import CrossReferenceSchemaShow
 from literature.schemas.cross_reference_schemas import CrossReferenceSchema
+from literature.schemas.cross_reference_schemas import CrossReferenceSchemaPost
 
 from literature.schemas.author_schemas import AuthorSchemaPost
 from literature.schemas.author_schemas import AuthorSchemaShow
