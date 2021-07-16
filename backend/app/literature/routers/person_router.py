@@ -9,6 +9,8 @@ from fastapi import Response
 from fastapi import Security
 
 from fastapi_auth0 import Auth0User
+#from literature.okta_auth0 import OktaUser
+from fastapi_okta import OktaUser
 
 from literature import database
 
@@ -32,20 +34,18 @@ get_db = database.get_db
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=PersonSchemaShow,
-             dependencies=[Depends(auth.implicit_scheme)])
+             response_model=PersonSchemaShow)
 def create(request: PersonSchemaCreate,
-           user: Auth0User = Security(auth.get_user),
+           user: OktaUser = Security(auth.get_user),
            db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     return person_crud.create(db, request)
 
 
 @router.delete('/{person_id}',
-               status_code=status.HTTP_204_NO_CONTENT,
-               dependencies=[Depends(auth.implicit_scheme)])
+               status_code=status.HTTP_204_NO_CONTENT)
 def destroy(person_id: int,
-            user: Auth0User = Security(auth.get_user),
+            user: OktaUser = Security(auth.get_user),
             db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     person_crud.destroy(db, person_id)
@@ -55,10 +55,10 @@ def destroy(person_id: int,
 @router.patch('/{person_id}',
               status_code=status.HTTP_202_ACCEPTED,
               response_model=PersonSchemaShow,
-              dependencies=[Depends(auth.implicit_scheme)],)
+              )
 async def patch(person_id: int,
                 request: PersonSchemaCreate,
-                user: Auth0User = Security(auth.get_user),
+                user: OktaUser = Security(auth.get_user),
                 db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)

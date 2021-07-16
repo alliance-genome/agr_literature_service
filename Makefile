@@ -17,7 +17,7 @@ run-flake8:
 	docker run --rm -v ${PWD}:/workdir -i ${REG}/agr_literature_dev:${TAG} /bin/bash -c "python3 -m flake8 ."
 
 run-dev-bash:
-	docker run --network=agr_literature_service_demo_agr-literature -p ${API_PORT}:8080 -v ${PWD}:/workdir -t -i ${REG}/agr_literature_dev:${TAG} /bin/bash
+	docker run --network=agr_literature_service_demo_agr-literature -p 49151:8080 -v ${PWD}:/workdir -t -i ${REG}/agr_literature_dev:${TAG} /bin/bash
 
 run-dev-zsh:
 	docker run --rm -v "${HOME}/.vimrc:/root/.vimrc:rw" -v "${HOME}/.zshrc:/root/.zshrc:rw" -v ${PWD}:/workdir -t -i ${REG}/agr_literature_dev:${TAG} /bin/zsh

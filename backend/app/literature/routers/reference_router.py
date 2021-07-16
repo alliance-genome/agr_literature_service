@@ -13,6 +13,8 @@ from fastapi import File
 from fastapi import UploadFile
 
 from fastapi_auth0 import Auth0User
+#from literature.okta_auth0 import OktaUser
+from fastapi_okta import OktaUser
 
 from literature import database
 
@@ -41,20 +43,18 @@ get_db = database.get_db
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=str,
-             dependencies=[Depends(auth.implicit_scheme)])
+             response_model=str)
 def create(request: ReferenceSchemaPost,
-           user: Auth0User = Security(auth.get_user),
+           user: OktaUser = Security(auth.get_user),
            db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     return reference_crud.create(db, request)
 
 
 @router.delete('/{curie}',
-               status_code=status.HTTP_204_NO_CONTENT,
-               dependencies=[Depends(auth.implicit_scheme)])
+               status_code=status.HTTP_204_NO_CONTENT)
 def destroy(curie: str,
-            user: Auth0User = Security(auth.get_user),
+            user: OktaUser = Security(auth.get_user),
             db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     reference_crud.destroy(db, curie)
@@ -63,11 +63,10 @@ def destroy(curie: str,
 
 @router.patch('/{curie}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=str,
-              dependencies=[Depends(auth.implicit_scheme)])
+              response_model=str)
 async def patch(curie: str,
                 request: ReferenceSchemaUpdate,
-                user: Auth0User = Security(auth.get_user),
+                user: OktaUser = Security(auth.get_user),
                 db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)
@@ -92,12 +91,11 @@ def show(curie: str,
 
 @router.post('/{curie}/upload_file',
              status_code=status.HTTP_201_CREATED,
-             response_model=FileSchemaShow,
-             dependencies=[Depends(auth.implicit_scheme)])
+             response_model=FileSchemaShow)
 async def create_upload_file(curie: str,
                              file_obj: UploadFile = File(...),
                              s3: BaseClient = Depends(s3_auth),
-                             user: Auth0User = Security(auth.get_user),
+                             user: OktaUser = Security(auth.get_user),
                              db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     file_contents = await file_obj.read()
