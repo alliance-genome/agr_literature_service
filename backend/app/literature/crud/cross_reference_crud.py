@@ -79,8 +79,7 @@ def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaU
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Cross Reference with curie {curie} not found")
 
-
-    if cross_reference_update.resource_curie and cross_reference_update.reference_curie:
+    if 'resource_curie' in cross_reference_update and cross_reference_update.resource_curie and 'reference_curie' in cross_reference_update and cross_reference_update.reference_curie:
        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                            detail=f"Only supply either resource_curie or reference_curie")
 

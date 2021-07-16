@@ -66,9 +66,7 @@ def destroy(db: Session, note_id: int):
 
 
 def patch(db: Session, note_id: int, note_update: NoteSchemaUpdate):
-    print(note_id)
     note_db_obj = db.query(NoteModel).filter(NoteModel.note_id == note_id).first()
-    print(note_db_obj)
     if not note_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Note with note_id {note_id} not found")
@@ -76,6 +74,7 @@ def patch(db: Session, note_id: int, note_update: NoteSchemaUpdate):
     if 'resource_curie' in note_update and note_update.resource_curie and 'reference_curie' in note_update and note_update.reference_curie:
        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                            detail=f"Only supply either resource_curie or reference_curie")
+
     for field, value in note_update.items():
         if field == "resource_curie" and value:
             resource_curie = value
