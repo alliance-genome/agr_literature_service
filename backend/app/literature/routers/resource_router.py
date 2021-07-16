@@ -19,6 +19,8 @@ from literature.schemas import ResourceSchemaShow
 from literature.schemas import ResourceSchemaPost
 from literature.schemas import ResourceSchemaUpdate
 
+from literature.schemas import NoteSchemaShow
+
 from literature.crud import resource_crud
 
 from literature.routers.authentication import auth
@@ -67,6 +69,14 @@ def patch(curie: str,
     patch = request.dict(exclude_unset=True)
 
     return resource_crud.patch(db, curie, patch)
+
+
+@router.get('/{curie}/notes',
+            status_code=200,
+            response_model=List[NoteSchemaShow])
+def show(curie: str,
+         db: Session = Depends(get_db)):
+     return resource_crud.show_notes(db, curie)
 
 
 @router.get('/{curie}',
