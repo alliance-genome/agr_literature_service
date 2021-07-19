@@ -24,6 +24,7 @@ from literature.schemas import ReferenceSchemaShow
 from literature.schemas import ReferenceSchemaPost
 from literature.schemas import ReferenceSchemaUpdate
 from literature.schemas import FileSchemaShow
+from literature.schemas import NoteSchemaShow
 
 from literature.crud import reference_crud
 from literature.crud import file_crud
@@ -87,6 +88,14 @@ def show(curie: str,
 def show(curie: str,
          db: Session = Depends(get_db)):
     return reference_crud.show_files(db, curie)
+
+
+@router.get('/{curie}/notes',
+            status_code=200,
+            response_model=List[NoteSchemaShow])
+def show(curie: str,
+         db: Session = Depends(get_db)):
+    return reference_crud.show_notes(db, curie)
 
 
 @router.post('/{curie}/upload_file',

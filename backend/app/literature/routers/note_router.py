@@ -18,6 +18,7 @@ from literature.user import set_global_user_id
 
 from literature.schemas import NoteSchemaShow
 from literature.schemas import NoteSchemaPost
+from literature.schemas import NoteSchemaUpdate
 
 from literature.crud import note_crud
 from literature.routers.authentication import auth
@@ -33,7 +34,9 @@ get_db = database.get_db
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=NoteSchemaShow)
+             response_model=int
+             )
+
 def create(request: NoteSchemaPost,
            user: OktaUser = Security(auth.get_user),
            db: Session = Depends(get_db)):
@@ -53,9 +56,9 @@ def destroy(note_id: int,
 
 @router.patch('/{note_id}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=NoteSchemaShow)
+              response_model=str)
 async def patch(note_id: int,
-                request: NoteSchemaPost,
+                request: NoteSchemaUpdate,
                 user: OktaUser = Security(auth.get_user),
                 db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)

@@ -56,3 +56,4 @@ from literature.schemas.file_schemas import FileSchemaShow
 
 from literature.schemas.note_schemas import NoteSchemaPost
 from literature.schemas.note_schemas import NoteSchemaShow
+from literature.schemas.note_schemas import NoteSchemaUpdate

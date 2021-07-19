@@ -156,6 +156,20 @@ def show(db: Session, curie: str):
     return resource_data
 
 
+def show_notes(db: Session, curie:str):
+    resource = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
+
+    notes_data = []
+    for resource_note in resource.notes:
+        note_data = jsonable_encoder(resource_note)
+        del note_data['reference_id']
+        del note_data['resource_id']
+        note_data['resource_curie'] = curie
+        notes_data.append(note_data)
+
+    return notes_data
+
+
 def show_changesets(db: Session, curie: str):
     resource = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
     if not resource:

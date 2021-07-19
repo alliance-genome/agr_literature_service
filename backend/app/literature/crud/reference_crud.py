@@ -143,6 +143,20 @@ def show_files(db: Session, curie:str):
     return files_data
 
 
+def show_notes(db: Session, curie:str):
+    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
+
+    notes_data = []
+    for reference_note in reference.notes:
+        note_data = jsonable_encoder(reference_note)
+        del note_data['reference_id']
+        del note_data['resource_id']
+        note_data['reference_curie'] = curie
+        notes_data.append(note_data)
+
+    return notes_data
+
+
 def show(db: Session, curie: str):
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one_or_none()
     if not reference:
