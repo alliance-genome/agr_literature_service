@@ -8,7 +8,6 @@ from fastapi import status
 from fastapi import Response
 from fastapi import Security
 
-from fastapi_auth0 import Auth0User
 from fastapi_okta import OktaUser
 
 from literature import database
