@@ -12,8 +12,6 @@ from fastapi.responses import StreamingResponse
 
 from botocore.client import BaseClient
 
-from fastapi_auth0 import Auth0User
-#from literature.okta_auth0 import OktaUser
 from fastapi_okta import OktaUser
 
 from literature import database
