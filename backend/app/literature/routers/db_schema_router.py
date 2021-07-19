@@ -30,8 +30,7 @@ get_db = database.get_db
 
 @router.get('/download',
             status_code=200,
-            response_class=StreamingResponse,
-            dependencies=[Depends(auth.implicit_scheme)])
+            response_class=StreamingResponse)
 async def show():
     return StreamingResponse(db_schema_crud.download_image(),
                              media_type="image/png")

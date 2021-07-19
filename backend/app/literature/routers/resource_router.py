@@ -8,7 +8,7 @@ from fastapi import status
 from fastapi import Response
 from fastapi import Security
 
-from fastapi_auth0 import Auth0User
+from fastapi_okta import OktaUser
 
 from literature import database
 
@@ -37,20 +37,20 @@ get_db = database.get_db
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             dependencies=[Depends(auth.implicit_scheme)],
+
              response_model=str)
 def create(request: ResourceSchemaPost,
-           user: Auth0User = Security(auth.get_user),
+           user: OktaUser = Security(auth.get_user),
            db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     return resource_crud.create(db, request)
 
 
 @router.delete('/{curie}',
-               dependencies=[Depends(auth.implicit_scheme)],
+
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(curie: str,
-            user: Auth0User = Security(auth.get_user),
+            user: OktaUser = Security(auth.get_user),
             db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     resource_crud.destroy(db, curie)
@@ -59,11 +59,11 @@ def destroy(curie: str,
 
 @router.patch('/{curie}',
               status_code=status.HTTP_202_ACCEPTED,
-              dependencies=[Depends(auth.implicit_scheme)],
+
               response_model=str)
 def patch(curie: str,
           request: ResourceSchemaUpdate,
-          user: Auth0User = Security(auth.get_user),
+          user: OktaUser = Security(auth.get_user),
           db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)

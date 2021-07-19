@@ -8,7 +8,7 @@ from fastapi import status
 from fastapi import Response
 from fastapi import Security
 
-from fastapi_auth0 import Auth0User
+from fastapi_okta import OktaUser
 
 from literature import database
 
@@ -34,20 +34,18 @@ get_db = database.get_db
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=int,
-             dependencies=[Depends(auth.implicit_scheme)])
+             response_model=int)
 def create(request: ModReferenceTypeSchemaPost,
-           user: Auth0User = Security(auth.get_user),
+           user: OktaUser = Security(auth.get_user),
            db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     return mod_reference_type_crud.create(db, request)
 
 
 @router.delete('/{mod_reference_type_id}',
-               status_code=status.HTTP_204_NO_CONTENT,
-               dependencies=[Depends(auth.implicit_scheme)])
+               status_code=status.HTTP_204_NO_CONTENT)
 def destroy(mod_reference_type_id: int,
-            user: Auth0User = Security(auth.get_user),
+            user: OktaUser = Security(auth.get_user),
             db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     mod_reference_type_crud.destroy(db, mod_reference_type_id)
@@ -56,11 +54,10 @@ def destroy(mod_reference_type_id: int,
 
 @router.patch('/{mod_reference_type_id}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=str,
-              dependencies=[Depends(auth.implicit_scheme)])
+              response_model=str)
 async def patch(mod_reference_type_id: int,
                 request: ModReferenceTypeSchemaUpdate,
-                user: Auth0User = Security(auth.get_user),
+                user: OktaUser = Security(auth.get_user),
                 db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)

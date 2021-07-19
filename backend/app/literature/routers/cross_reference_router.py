@@ -8,7 +8,7 @@ from fastapi import status
 from fastapi import Response
 from fastapi import Security
 
-from fastapi_auth0 import Auth0User
+from fastapi_okta import OktaUser
 
 from literature import database
 
@@ -32,20 +32,18 @@ get_db = database.get_db
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=str,
-             dependencies=[Depends(auth.implicit_scheme)])
+             response_model=str)
 def create(request: CrossReferenceSchemaPost,
-           user: Auth0User = Security(auth.get_user),
+           user: OktaUser = Security(auth.get_user),
            db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     return cross_reference_crud.create(db, request)
 
 
 @router.delete('/{curie:path}',
-               status_code=status.HTTP_204_NO_CONTENT,
-               dependencies=[Depends(auth.implicit_scheme)])
+               status_code=status.HTTP_204_NO_CONTENT)
 def destroy(curie: str,
-            user: Auth0User = Security(auth.get_user),
+            user: OktaUser = Security(auth.get_user),
             db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     cross_reference_crud.destroy(db, curie)
@@ -54,11 +52,10 @@ def destroy(curie: str,
 
 @router.patch('/{curie:path}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=str,
-              dependencies=[Depends(auth.implicit_scheme)])
+              response_model=str)
 async def patch(curie: str,
            request: CrossReferenceSchemaUpdate,
-           user: Auth0User = Security(auth.get_user),
+           user: OktaUser = Security(auth.get_user),
            db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)

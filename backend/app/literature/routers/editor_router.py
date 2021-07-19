@@ -8,7 +8,7 @@ from fastapi import status
 from fastapi import Response
 from fastapi import Security
 
-from fastapi_auth0 import Auth0User
+from fastapi_okta import OktaUser
 
 from literature import database
 
@@ -29,20 +29,18 @@ get_db = database.get_db
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=str,
-             dependencies=[Depends(auth.implicit_scheme)])
+             response_model=str)
 def create(request: EditorSchemaPost,
-           user: Auth0User = Security(auth.get_user),
+           user: OktaUser = Security(auth.get_user),
            db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     return editor_crud.create(db, request)
 
 
 @router.delete('/{editor_id}',
-               status_code=status.HTTP_204_NO_CONTENT,
-               dependencies=[Depends(auth.implicit_scheme)])
+               status_code=status.HTTP_204_NO_CONTENT)
 def destroy(editor_id: int,
-            user: Auth0User = Security(auth.get_user),
+            user: OktaUser= Security(auth.get_user),
             db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     editor_crud.destroy(db, editor_id)
@@ -51,11 +49,10 @@ def destroy(editor_id: int,
 
 @router.patch('/{editor_id}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=str,
-              dependencies=[Depends(auth.implicit_scheme)])
+              response_model=str)
 async def patch(editor_id: int,
                 request: EditorSchemaPost,
-                user: Auth0User = Security(auth.get_user),
+                user: OktaUser = Security(auth.get_user),
                 db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)
