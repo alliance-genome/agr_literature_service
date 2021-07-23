@@ -34,7 +34,8 @@ class ResourceModel(Base):
         'CrossReferenceModel',
         lazy='joined',
         back_populates='resource',
-        cascade="all, delete, delete-orphan"
+        cascade="all, delete, delete-orphan",
+        passive_deletes=True
     )
 
     references = relationship(
@@ -45,6 +46,12 @@ class ResourceModel(Base):
     title = Column(
         String(),
         nullable=True
+    )
+
+    notes = relationship(
+        'NoteModel',
+        lazy='joined',
+        back_populates='resource',
     )
 
     title_synonyms = Column(

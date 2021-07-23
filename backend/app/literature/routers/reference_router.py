@@ -12,7 +12,7 @@ from fastapi import Security
 from fastapi import File
 from fastapi import UploadFile
 
-from fastapi_auth0 import Auth0User
+from fastapi_okta import OktaUser
 
 from literature import database
 
@@ -22,6 +22,7 @@ from literature.schemas import ReferenceSchemaShow
 from literature.schemas import ReferenceSchemaPost
 from literature.schemas import ReferenceSchemaUpdate
 from literature.schemas import FileSchemaShow
+from literature.schemas import NoteSchemaShow
 
 from literature.crud import reference_crud
 from literature.crud import file_crud
@@ -41,20 +42,18 @@ get_db = database.get_db
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=str,
-             dependencies=[Depends(auth.implicit_scheme)])
+             response_model=str)
 def create(request: ReferenceSchemaPost,
-           user: Auth0User = Security(auth.get_user),
+           user: OktaUser = Security(auth.get_user),
            db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     return reference_crud.create(db, request)
 
 
 @router.delete('/{curie}',
-               status_code=status.HTTP_204_NO_CONTENT,
-               dependencies=[Depends(auth.implicit_scheme)])
+               status_code=status.HTTP_204_NO_CONTENT)
 def destroy(curie: str,
-            user: Auth0User = Security(auth.get_user),
+            user: OktaUser = Security(auth.get_user),
             db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     reference_crud.destroy(db, curie)
@@ -63,11 +62,10 @@ def destroy(curie: str,
 
 @router.patch('/{curie}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=str,
-              dependencies=[Depends(auth.implicit_scheme)])
+              response_model=str)
 async def patch(curie: str,
                 request: ReferenceSchemaUpdate,
-                user: Auth0User = Security(auth.get_user),
+                user: OktaUser = Security(auth.get_user),
                 db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)
@@ -90,14 +88,21 @@ def show(curie: str,
     return reference_crud.show_files(db, curie)
 
 
+@router.get('/{curie}/notes',
+            status_code=200,
+            response_model=List[NoteSchemaShow])
+def show(curie: str,
+         db: Session = Depends(get_db)):
+    return reference_crud.show_notes(db, curie)
+
+
 @router.post('/{curie}/upload_file',
              status_code=status.HTTP_201_CREATED,
-             response_model=FileSchemaShow,
-             dependencies=[Depends(auth.implicit_scheme)])
+             response_model=FileSchemaShow)
 async def create_upload_file(curie: str,
                              file_obj: UploadFile = File(...),
                              s3: BaseClient = Depends(s3_auth),
-                             user: Auth0User = Security(auth.get_user),
+                             user: OktaUser = Security(auth.get_user),
                              db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     file_contents = await file_obj.read()

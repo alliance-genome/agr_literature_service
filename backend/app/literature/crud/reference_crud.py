@@ -133,7 +133,7 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
 
 
 def show_files(db: Session, curie:str):
-    reference = db.query(Reference).filter(Reference.curie == curie).first()
+    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
     files_data = []
     for reference_file in reference.files:
         file_data = jsonable_encoder(reference_file)
@@ -141,6 +141,20 @@ def show_files(db: Session, curie:str):
         files_data.append(file_data)
 
     return files_data
+
+
+def show_notes(db: Session, curie:str):
+    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
+
+    notes_data = []
+    for reference_note in reference.notes:
+        note_data = jsonable_encoder(reference_note)
+        del note_data['reference_id']
+        del note_data['resource_id']
+        note_data['reference_curie'] = curie
+        notes_data.append(note_data)
+
+    return notes_data
 
 
 def show(db: Session, curie: str):
@@ -154,7 +168,6 @@ def show(db: Session, curie: str):
     if reference.resource_id:
         reference_data['resource_curie'] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == reference.resource_id).first()[0]
         reference_data['resource_title'] = db.query(ResourceModel.title).filter(ResourceModel.resource_id == reference.resource_id).first()[0]
-        del reference_data['reference_id']
 
     if reference.cross_references:
         cross_references = []
@@ -195,13 +208,12 @@ def show(db: Session, curie: str):
             del editor['reference_id']
 
     del reference_data['files']
-    del reference_data['resource_id']
 
     return reference_data
 
 
 def show_changesets(db: Session, curie: str):
-    reference = db.query(Reference).filter(Reference.curie == curie).first()
+    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the id {curie} is not available")

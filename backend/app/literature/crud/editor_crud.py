@@ -47,7 +47,7 @@ def create(db: Session, editor: EditorSchemaPost):
     db.commit()
     db.refresh(db_obj)
 
-    return db_obj
+    return db_obj.editor_id
 
 
 def destroy(db: Session, editor_id: int):
@@ -95,7 +95,7 @@ def patch(db: Session, editor_id: int, editor_update: EditorSchemaPost):
     editor_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
 
-    return db.query(EditorModel).filter(EditorModel.editor_id == editor_id).first()
+    return "Updated"
 
 
 def show(db: Session, editor_id: int):

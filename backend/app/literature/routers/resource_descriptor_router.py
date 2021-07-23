@@ -8,7 +8,7 @@ from fastapi import status
 from fastapi import Response
 from fastapi import Security
 
-from fastapi_auth0 import Auth0User
+from fastapi_okta import OktaUser
 
 from literature import database
 
@@ -22,7 +22,7 @@ from literature.routers.authentication import auth
 
 router = APIRouter(
     prefix="/resource-descriptor",
-    tags=['ResourceDescriptor']
+    tags=['Resource Descriptor']
 )
 
 
@@ -36,9 +36,8 @@ def show(db: Session = Depends(get_db)):
 
 
 @router.put('/',
-            status_code=status.HTTP_202_ACCEPTED,
-            dependencies=[Depends(auth.implicit_scheme)])
-def update(user: Auth0User = Security(auth.get_user),
+            status_code=status.HTTP_202_ACCEPTED)
+def update(user: OktaUser = Security(auth.get_user),
            db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     return resource_descriptor_crud.update(db)

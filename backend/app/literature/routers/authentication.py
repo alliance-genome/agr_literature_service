@@ -1,10 +1,11 @@
 from fastapi import APIRouter
-from fastapi_auth0 import Auth0
-
+#from fastapi_okta import Okta
+#from literature.okta_auth0 import Okta
+from fastapi_okta import Okta
 from literature.config import config
 
 router = APIRouter(tags=['Authentication'])
 
-auth = Auth0(domain=config.AUTH0_DOMAIN,
-             api_audience=config.AUTH0_API_AUDIENCE,
-             scopes={'read:metadata': ''})
+auth = Okta(domain=config.OKTA_DOMAIN,
+            api_audience=config.OKTA_API_AUDIENCE
+            )

@@ -26,7 +26,18 @@ class EditorSchemaPost(BaseModel):
     class Config():
         orm_mode = True
         extra = "forbid"
-
+        schema_extra = {
+              "example": {
+                 "order": 1,
+                 "name": "string",
+                 "first_name": "string",
+                 "middle_names": [
+                      "string"
+                 ],
+                 "last_name": "string",
+                 "orcid": "ORCID:string"
+              }
+        }
 
 class EditorSchemaShow(BaseModelShow):
     editor_id: int

@@ -24,8 +24,8 @@ class GlobalConfig(BaseSettings):
     API_USERNAME: Optional[str] = None
     API_PASSWORD: Optional[str] = None
 
-    AUTH0_DOMAIN: Optional[str] = None
-    AUTH0_API_AUDIENCE: Optional[str] = None
+    OKTA_DOMAIN: Optional[str] = None
+    OKTA_API_AUDIENCE: Optional[str] = None
 
     PSQL_USERNAME: Optional[str] = None
     PSQL_PASSWORD: Optional[str] = None

@@ -6,6 +6,7 @@ from literature.schemas.cross_reference_schemas import CrossReferenceSchemaRelat
 from literature.schemas.cross_reference_schemas import CrossReferenceSchemaUpdate
 from literature.schemas.cross_reference_schemas import CrossReferenceSchemaShow
 from literature.schemas.cross_reference_schemas import CrossReferenceSchema
+from literature.schemas.cross_reference_schemas import CrossReferenceSchemaPost
 
 from literature.schemas.author_schemas import AuthorSchemaPost
 from literature.schemas.author_schemas import AuthorSchemaShow
@@ -38,11 +39,13 @@ from literature.schemas.mesh_detail_schemas import MeshDetailSchemaShow
 from literature.schemas.mesh_detail_schemas import MeshDetailSchemaUpdate
 from literature.schemas.mesh_detail_schemas import MeshDetailSchemaCreate
 from literature.schemas.mesh_detail_schemas import MeshDetailSchemaPost
+from literature.schemas.mesh_detail_schemas import MeshDetailSchemaRelated
 
 from literature.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaShow
 from literature.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaUpdate
 from literature.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaCreate
 from literature.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaPost
+from literature.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaRelated
 
 from literature.schemas.reference_schemas import ReferenceSchemaPost
 from literature.schemas.reference_schemas import ReferenceSchemaUpdate
@@ -51,4 +54,6 @@ from literature.schemas.reference_schemas import ReferenceSchemaShow
 from literature.schemas.file_schemas import FileSchemaUpdate
 from literature.schemas.file_schemas import FileSchemaShow
 
-
+from literature.schemas.note_schemas import NoteSchemaPost
+from literature.schemas.note_schemas import NoteSchemaShow
+from literature.schemas.note_schemas import NoteSchemaUpdate

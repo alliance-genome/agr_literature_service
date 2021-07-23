@@ -16,9 +16,8 @@ from literature.models import ModReferenceTypeModel
 def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost):
     mod_reference_type_data = jsonable_encoder(mod_reference_type)
 
-    if 'reference_curie' in mod_reference_type_data:
-        reference_curie = mod_reference_type_data['reference_curie']
-        del mod_reference_type_data['reference_curie']
+    reference_curie = mod_reference_type_data['reference_curie']
+    del mod_reference_type_data['reference_curie']
 
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
     if not reference:
@@ -30,7 +29,7 @@ def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost):
     db.add(db_obj)
     db.commit()
 
-    return db_obj
+    return db_obj.mod_reference_type_id
 
 
 def destroy(db: Session, mod_reference_type_id: int):
@@ -51,11 +50,6 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update: Mo
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with mod_reference_type_id {mod_reference_type_id} not found")
 
-
-    if not mod_reference_type_update.reference_curie:
-       raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                           detail=f"Only supply either resource_curie or reference_curie")
-
     for field, value in mod_reference_type_update.items():
         if field == 'reference_curie' and value:
             reference_curie = value
@@ -71,7 +65,7 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update: Mo
     mod_reference_type_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
 
-    return db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
+    return "Updated"
 
 
 def show(db: Session, mod_reference_type_id: int):
@@ -84,7 +78,7 @@ def show(db: Session, mod_reference_type_id: int):
 
     if mod_reference_type_data['reference_id']:
         mod_reference_type_data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == mod_reference_type_data['reference_id']).first()[0]
-    del mod_reference_type_data['reference_id']
+        del mod_reference_type_data['reference_id']
 
     return mod_reference_type_data
 

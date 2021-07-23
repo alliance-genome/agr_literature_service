@@ -16,9 +16,8 @@ from literature.models import MeshDetailModel
 def create(db: Session, mesh_detail: MeshDetailSchemaPost):
     mesh_detail_data = jsonable_encoder(mesh_detail)
 
-    if 'reference_curie' in mesh_detail_data:
-        reference_curie = mesh_detail_data['reference_curie']
-        del mesh_detail_data['reference_curie']
+    reference_curie = mesh_detail_data['reference_curie']
+    del mesh_detail_data['reference_curie']
 
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
     if not reference:
@@ -30,7 +29,7 @@ def create(db: Session, mesh_detail: MeshDetailSchemaPost):
     db.add(db_obj)
     db.commit()
 
-    return db_obj
+    return db_obj.mesh_detail_id
 
 
 def destroy(db: Session, mesh_detail_id: int):
@@ -45,16 +44,10 @@ def destroy(db: Session, mesh_detail_id: int):
 
 
 def patch(db: Session, mesh_detail_id: int, mesh_detail_update: MeshDetailSchemaUpdate):
-
     mesh_detail_db_obj = db.query(MeshDetailModel).filter(MeshDetailModel.mesh_detail_id == mesh_detail_id).first()
     if not mesh_detail_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"MeshDetail with mesh_detail_id {mesh_detail_id} not found")
-
-
-    if not mesh_detail_update.reference_curie:
-       raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                           detail=f"Only supply either resource_curie or reference_curie")
 
     for field, value in mesh_detail_update.items():
         if field == 'reference_curie' and value:
@@ -64,14 +57,13 @@ def patch(db: Session, mesh_detail_id: int, mesh_detail_update: MeshDetailSchema
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                   detail=f"Reference with curie {reference_curie} does not exist")
             mesh_detail_db_obj.reference = reference
-            mesh_detail_db_obj.resource = None
         else:
             setattr(mesh_detail_db_obj, field, value)
 
     mesh_detail_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
 
-    return db.query(MeshDetailModel).filter(MeshDetailModel.mesh_detail_id == mesh_detail_id).first()
+    return "Updated"
 
 
 def show(db: Session, mesh_detail_id: int):
@@ -84,7 +76,7 @@ def show(db: Session, mesh_detail_id: int):
 
     if mesh_detail_data['reference_id']:
         mesh_detail_data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == mesh_detail_data['reference_id']).first()[0]
-    del mesh_detail_data['reference_id']
+        del mesh_detail_data['reference_id']
 
     return mesh_detail_data
 

@@ -21,6 +21,7 @@ from literature.database.main import engine
 from literature.routers import resource_router
 from literature.routers import reference_router
 from literature.routers import author_router
+from literature.routers import note_router
 from literature.routers import editor_router
 from literature.routers import file_router
 from literature.routers import cross_reference_router
@@ -86,6 +87,7 @@ app.include_router(file_router.router)
 app.include_router(mesh_detail_router.router)
 app.include_router(mod_reference_type_router.router)
 app.include_router(person_router.router)
+app.include_router(note_router.router)
 app.include_router(db_schema_router.router)
 
 app.openapi = custom_openapi

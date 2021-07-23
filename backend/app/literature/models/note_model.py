@@ -14,19 +14,14 @@ from sqlalchemy.orm import relationship
 from literature.database.base import Base
 
 
-class CrossReferenceModel(Base):
-    __tablename__ = 'cross_references'
+class NoteModel(Base):
+    __tablename__ = 'notes'
     __versioned__ = {}
 
-    curie = Column(
-        String,
-        primary_key=True
-    )
-
-    is_obsolete = Column(
-       Boolean,
-       unique=False,
-       default=False
+    note_id = Column(
+        Integer,
+        primary_key=True,
+        autoincrement=True
     )
 
     reference_id = Column(
@@ -37,36 +32,34 @@ class CrossReferenceModel(Base):
 
     reference = relationship(
         'ReferenceModel',
-        back_populates="cross_references"
+        back_populates="notes"
     )
 
     resource_id = Column(
         Integer,
         ForeignKey('resources.resource_id'),
-        index=True
+        index=True,
     )
 
     resource = relationship(
         'ResourceModel',
-        back_populates='cross_references'
+        back_populates="notes"
     )
 
-    authors = relationship(
-        'AuthorModel',
-        back_populates='orcid_cross_reference'
+    note = Column(
+        String(),
+        unique=False,
+        nullable=False
     )
 
-    editors = relationship(
-        'EditorModel',
-        back_populates='orcid_cross_reference'
+    name = Column(
+        String(),
+        unique=False,
+        nullable=True
     )
 
-    people = relationship(
-        'PersonModel',
-        secondary = 'person_orcid_cross_reference_link'
-    )
-
-    pages = Column(
-       ARRAY(String()),
-       nullable=True
+    date_created = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.now(tz=pytz.timezone('UTC'))
     )

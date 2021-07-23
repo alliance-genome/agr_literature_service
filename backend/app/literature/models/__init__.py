@@ -23,4 +23,6 @@ from literature.models.resource_descriptor_models import ResourceDescriptorPageM
 from literature.models.person_reference_link_model import PersonReferenceLinkModel
 from literature.models.person_orcid_cross_reference_link_model import PersonOrcidCrossReferenceLinkModel
 
+from literature.models.note_model import NoteModel
+
 configure_mappers()

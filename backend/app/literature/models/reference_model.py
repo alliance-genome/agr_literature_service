@@ -37,13 +37,20 @@ class ReferenceModel(Base):
         'CrossReferenceModel',
         lazy='joined',
         back_populates='reference',
-        cascade="all, delete, delete-orphan"
+        cascade="all, delete, delete-orphan",
+        passive_deletes=True
     )
 
     files = relationship(
         'FileModel',
         lazy='joined',
-        back_populates='reference',
+        back_populates='reference'
+    )
+
+    notes = relationship(
+        'NoteModel',
+        lazy='joined',
+        back_populates='reference'
     )
 
     resource_id = Column(

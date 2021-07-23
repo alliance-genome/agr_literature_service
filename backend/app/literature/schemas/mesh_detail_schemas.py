@@ -11,6 +11,7 @@ class MeshDetailSchemaCreate(BaseModel):
         orm_mode = True
         extra = "forbid"
 
+
 class MeshDetailSchemaPost(MeshDetailSchemaCreate):
    reference_curie: str
 
@@ -19,8 +20,7 @@ class MeshDetailSchemaPost(MeshDetailSchemaCreate):
         extra = "forbid"
 
 
-
-class MeshDetailSchemaShow(MeshDetailSchemaCreate):
+class MeshDetailSchemaShow(MeshDetailSchemaPost):
    mesh_detail_id: int
 
    class Config():
@@ -28,8 +28,18 @@ class MeshDetailSchemaShow(MeshDetailSchemaCreate):
         extra = "forbid"
 
 
-class MeshDetailSchemaUpdate(MeshDetailSchemaShow):
-   reference_curie: str
+class MeshDetailSchemaRelated(MeshDetailSchemaCreate):
+    mesh_detail_id: int
+
+    class Config():
+        orm_mode = True
+        exptra = "forbid"
+
+
+class MeshDetailSchemaUpdate(BaseModel):
+   reference_curie: Optional[str]
+   heading_term: Optional[str]
+   qualifier_term: Optional[str]
 
    class Config():
         orm_mode = True

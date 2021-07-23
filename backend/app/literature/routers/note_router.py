@@ -14,67 +14,66 @@ from literature import database
 
 from literature.user import set_global_user_id
 
-from literature.schemas import ModReferenceTypeSchemaShow
-from literature.schemas import ModReferenceTypeSchemaPost
-from literature.schemas import ModReferenceTypeSchemaCreate
-from literature.schemas import ModReferenceTypeSchemaUpdate
+from literature.schemas import NoteSchemaShow
+from literature.schemas import NoteSchemaPost
+from literature.schemas import NoteSchemaUpdate
 
-from literature.crud import mod_reference_type_crud
+from literature.crud import note_crud
 from literature.routers.authentication import auth
 
 
 router = APIRouter(
-    prefix="/reference/mod_reference_type",
-    tags=['Reference']
+    prefix="/note",
+    tags=['Note']
 )
-
 
 get_db = database.get_db
 
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=int)
-def create(request: ModReferenceTypeSchemaPost,
+             response_model=int
+             )
+
+def create(request: NoteSchemaPost,
            user: OktaUser = Security(auth.get_user),
            db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
-    return mod_reference_type_crud.create(db, request)
+    return note_crud.create(db, request)
 
 
-@router.delete('/{mod_reference_type_id}',
+@router.delete('/{note_id}',
                status_code=status.HTTP_204_NO_CONTENT)
-def destroy(mod_reference_type_id: int,
+def destroy(note_id: int,
             user: OktaUser = Security(auth.get_user),
             db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
-    mod_reference_type_crud.destroy(db, mod_reference_type_id)
+    note_crud.destroy(db, note_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.patch('/{mod_reference_type_id}',
+@router.patch('/{note_id}',
               status_code=status.HTTP_202_ACCEPTED,
               response_model=str)
-async def patch(mod_reference_type_id: int,
-                request: ModReferenceTypeSchemaUpdate,
+async def patch(note_id: int,
+                request: NoteSchemaUpdate,
                 user: OktaUser = Security(auth.get_user),
                 db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)
 
-    return mod_reference_type_crud.patch(db, mod_reference_type_id, patch)
+    return note_crud.patch(db, note_id, patch)
 
 
-@router.get('/{mod_reference_type_id}',
-            response_model=ModReferenceTypeSchemaShow,
+@router.get('/{note_id}',
             status_code=200)
-def show(mod_reference_type_id: int,
+def show(note_id: int,
          db: Session = Depends(get_db)):
-    return mod_reference_type_crud.show(db, mod_reference_type_id)
+    return note_crud.show(db, note_id)
 
 
-@router.get('/{mod_reference_type_id}/versions',
+@router.get('/{note_id}/versions',
             status_code=200)
-def show(mod_reference_type_id: int,
+def show(note_id: int,
          db: Session = Depends(get_db)):
-    return mod_reference_type_crud.show_changesets(db, mod_reference_type_id)
+    return note_crud.show_changesets(db, note_id)
