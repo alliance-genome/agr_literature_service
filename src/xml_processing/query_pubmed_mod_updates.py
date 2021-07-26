@@ -124,18 +124,65 @@ parser.add_argument('-u', '--url', action='store', help='take input from entries
 args = vars(parser.parse_args())
 
 base_path = environ.get('XML_PATH')
-storage_path = base_path + 'pmc_processing/'
-pmc_storage_path = base_path + 'pmc_processing/pmc_xml/'
+search_path = base_path + 'pubmed_searches/'
+pmc_process_path = base_path + 'pubmed_searches/pmc_processing/'
+pmc_storage_path = base_path + 'pubmed_searches/pmc_processing/pmc_xml/'
 
-if not path.exists(storage_path):
-    makedirs(storage_path)
+if not path.exists(search_path):
+    makedirs(search_path)
+if not path.exists(pmc_process_path):
+    makedirs(pmc_process_path)
 if not path.exists(pmc_storage_path):
     makedirs(pmc_storage_path)
 
 
+alliance_pmids = set()
+mod_esearch_url = {
+    'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=%27drosophil*[ALL]%20OR%20melanogaster[ALL]%20AND%202020/07/21:2021/07/21[EDAT]%20NOT%20pubstatusaheadofprint%27&retmax=100000000',
+    'ZFIN': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=zebrafish[Title/Abstract]+OR+zebra+fish[Title/Abstract]+OR+danio[Title/Abstract]+OR+zebrafish[keyword]+OR+zebra+fish[keyword]+OR+danio[keyword]+OR+zebrafish[Mesh+Terms]+OR+zebra+fish[Mesh+Terms]+OR+danio[Mesh+Terms]&retmax=100000000',
+    'SGD': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=yeast+OR+cerevisiae&retmax=100000000',
+    'WB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000'
+}
+mods_to_query = ['FB', 'SGD', 'WB', 'ZFIN']
+
+
 def query_pubmed_mod_updates():
+    populate_alliance_pmids()
     # query_pmc_mgi()			# find pmc articles for mice and 9 journals, get pmid mappings and list of pmc without pmid
-    download_pmc_without_pmid_mgi()     # download pmc xml for pmc without pmid and find their article type
+    # download_pmc_without_pmid_mgi()     # download pmc xml for pmc without pmid and find their article type
+    query_mods()			# query pubmed for mod references
+
+
+def query_mods():
+    logger.info("Starting query mods")
+    search_output = ''
+    for mod in mods_to_query:
+        url = mod_esearch_url[mod]
+        f = urllib.request.urlopen(url)
+        xml_all = f.read().decode('utf-8')
+        if re.findall(r"<Id>(\d+)</Id>", xml_all):
+            pmid_group = re.findall(r"<Id>(\d+)</Id>", xml_all)
+            new_pmids = []
+            for pmid in pmid_group:
+                if pmid not in alliance_pmids:
+                    new_pmids.append(pmid)
+                # new_pmids.append(pmid)
+            logger.info("%s search pmids not in alliance count : %s", mod, len(new_pmids))
+            search_output += mod + " search pmids not in alliance count : " + str(len(new_pmids)) + "\n"
+            pmids_joined = (',').join(sorted(new_pmids))
+            # logger.info(pmids_joined)
+            search_output += pmids_joined + "\n"
+    search_output_file = search_path + 'search_new_mods'
+    with open(search_output_file, "w") as search_output_file_fh:
+        search_output_file_fh.write(search_output)
+
+
+def populate_alliance_pmids():
+    infile = base_path + 'inputs/alliance_pmids'
+    with open(infile, "r") as infile_fh:
+        for line in infile_fh:
+            pmid = line.rstrip()
+            alliance_pmids.add(pmid)
 
 
 # find pmc articles for mice and 9 journals, get pmid mappings and list of pmc without pmid
@@ -191,12 +238,12 @@ def query_pmc_mgi():
                             pmcid_to_pmid += pmcid + "\t" + pmid + "\n"
 
     # print(pmcid_to_pmid)
-    pmcid_to_pmid_file = storage_path + 'pmcid_to_pmid'
+    pmcid_to_pmid_file = pmc_process_path + 'pmcid_to_pmid'
     logger.info("Writing pmcid to pmid mappings to %s", pmcid_to_pmid_file)
     with open(pmcid_to_pmid_file, "w") as pmcid_to_pmid_file_fh:
         pmcid_to_pmid_file_fh.write(pmcid_to_pmid)
 
-    pmcid_without_pmid_file = storage_path + 'pmcid_without_pmid'
+    pmcid_without_pmid_file = pmc_process_path + 'pmcid_without_pmid'
     logger.info("Writing pmc without pmid mappings to %s", pmcid_without_pmid_file)
     with open(pmcid_without_pmid_file, "w") as pmcid_without_pmid_file_fh:
         for pmc in sorted(pmc_without_pmid):
@@ -209,7 +256,7 @@ def download_pmc_without_pmid_mgi():
     sleep_delay = 1
     articleTypes = {"research-article", "review-article", "other", "correction", "editorial", "article-commentary", "brief-report", "case-report", "letter", "discussion", "retraction", "oration", "reply", "news", "expression-of-concern"}
 
-    pmcid_without_pmid_file = storage_path + 'pmcid_without_pmid'
+    pmcid_without_pmid_file = pmc_process_path + 'pmcid_without_pmid'
     with open(pmcid_without_pmid_file, "r") as pmcid_without_pmid_file_fh:
         for line in pmcid_without_pmid_file_fh:
             pmcid = line.rstrip()
