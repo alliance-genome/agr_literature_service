@@ -136,12 +136,18 @@ if not path.exists(pmc_storage_path):
     makedirs(pmc_storage_path)
 
 
+#     'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=%27drosophil*[ALL]%20OR%20melanogaster[ALL]%20AND%202020/07/21:2021/07/21[EDAT]%20NOT%20pubstatusaheadofprint%27&retmax=100000000',
+
 alliance_pmids = set()
 mod_esearch_url = {
-    'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=%27drosophil*[ALL]%20OR%20melanogaster[ALL]%20AND%202020/07/21:2021/07/21[EDAT]%20NOT%20pubstatusaheadofprint%27&retmax=100000000',
+    'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=%27drosophil*[ALL]%20OR%20melanogaster[ALL]%20NOT%20pubstatusaheadofprint%27&retmax=100000000',
     'ZFIN': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=zebrafish[Title/Abstract]+OR+zebra+fish[Title/Abstract]+OR+danio[Title/Abstract]+OR+zebrafish[keyword]+OR+zebra+fish[keyword]+OR+danio[keyword]+OR+zebrafish[Mesh+Terms]+OR+zebra+fish[Mesh+Terms]+OR+danio[Mesh+Terms]&retmax=100000000',
     'SGD': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=yeast+OR+cerevisiae&retmax=100000000',
     'WB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000'
+}
+mod_false_positive_file = {
+    'FB': 'FB_fp_PMIDs_20210728.txt',
+    'WB': 'WB_false_positive_pmids'
 }
 mods_to_query = ['FB', 'SGD', 'WB', 'ZFIN']
 
@@ -157,6 +163,14 @@ def query_mods():
     logger.info("Starting query mods")
     search_output = ''
     for mod in mods_to_query:
+        fp_pmids = set()
+        if mod in mod_false_positive_file:
+            infile = search_path + mod_false_positive_file[mod]
+            with open(infile, "r") as infile_fh:
+                for line in infile_fh:
+                    pmid = line.rstrip()
+                    pmid = pmid.replace('PMID:', '')
+                    fp_pmids.add(pmid)
         url = mod_esearch_url[mod]
         f = urllib.request.urlopen(url)
         xml_all = f.read().decode('utf-8')
@@ -164,7 +178,7 @@ def query_mods():
             pmid_group = re.findall(r"<Id>(\d+)</Id>", xml_all)
             new_pmids = []
             for pmid in pmid_group:
-                if pmid not in alliance_pmids:
+                if pmid not in alliance_pmids and pmid not in fp_pmids:
                     new_pmids.append(pmid)
                 # new_pmids.append(pmid)
             logger.info("%s search pmids not in alliance count : %s", mod, len(new_pmids))
