@@ -36,10 +36,13 @@ load_dotenv()
 # 37618
 
 # FB
+# https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*[ALL]+OR+melanogaster[ALL]+NOT+pubstatusaheadofprint&retmax=100000000
+# 113497
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*+OR+melanogaster&retmax=100000000
 # 113755
 # drosophil*	113347	melanogaster	58772
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=%27drosophil*[ALL]%20OR%20melanogaster[ALL]%20AND%202020/07/21:2021/07/21[EDAT]%20NOT%20pubstatusaheadofprint%27&retmax=100000000
+
 
 # ZFIN
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=zebrafish[Title/Abstract]&retmax=100000000
@@ -98,8 +101,8 @@ load_dotenv()
 # WB 37618
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000
 
-# FB 113755
-# https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*+OR+melanogaster&retmax=100000000
+# FB 113497
+# https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*[ALL]+OR+melanogaster[ALL]+NOT+pubstatusaheadofprint&retmax=100000000
 
 # MGI 47576 - No clarify PMC thing
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=(("Aging+cell"[Journal])+OR+("Cell+death+and+differentiation"[Journal])+OR+("Cilia"[Journal])+OR+("Disease+models+mechanisms"[Journal])+OR+("Journal+of+lipid+research"[Journal])+OR+("Nucleic+acids+research"[Journal])+OR+("PLoS+computational+biology"[Journal])+OR+("PLoS+genetics"[Journal])+OR+("PloS+one"[Journal]))+AND+(mice)&retmax=100000000
@@ -137,10 +140,11 @@ if not path.exists(pmc_storage_path):
 
 
 #     'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=%27drosophil*[ALL]%20OR%20melanogaster[ALL]%20AND%202020/07/21:2021/07/21[EDAT]%20NOT%20pubstatusaheadofprint%27&retmax=100000000',
+#     'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*[ALL]+OR+melanogaster[ALL]+NOT+pubstatusaheadofprint&retmax=100000000',
 
 alliance_pmids = set()
 mod_esearch_url = {
-    'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=%27drosophil*[ALL]%20OR%20melanogaster[ALL]%20NOT%20pubstatusaheadofprint%27&retmax=100000000',
+    'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*[ALL]+OR+melanogaster[ALL]+NOT+pubstatusaheadofprint&retmax=100000000',
     'ZFIN': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=zebrafish[Title/Abstract]+OR+zebra+fish[Title/Abstract]+OR+danio[Title/Abstract]+OR+zebrafish[keyword]+OR+zebra+fish[keyword]+OR+danio[keyword]+OR+zebrafish[Mesh+Terms]+OR+zebra+fish[Mesh+Terms]+OR+danio[Mesh+Terms]&retmax=100000000',
     'SGD': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=yeast+OR+cerevisiae&retmax=100000000',
     'WB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000'
