@@ -11,6 +11,7 @@ import logging
 import logging.config
 # import glob
 # import hashlib
+from datetime import datetime
 
 from dotenv import load_dotenv
 
@@ -19,7 +20,7 @@ load_dotenv()
 
 # pipenv run python query_pubmed_mod_updates.py
 
-# query pubmed for each MOD's search preferences, add PMID results into queue to download from pubmed if they've not already been processed by Alliance.  output to inputs/new_results_<date>
+# query pubmed for each MOD's search preferences, add PMID results into queue to download from pubmed if they've not already been processed by Alliance.  when ready, should output to inputs/new_results_<date>
 
 # eutils instructions
 # https://www.ncbi.nlm.nih.gov/books/NBK25499/
@@ -128,11 +129,14 @@ args = vars(parser.parse_args())
 
 base_path = environ.get('XML_PATH')
 search_path = base_path + 'pubmed_searches/'
+search_outfile_path = base_path + 'pubmed_searches/search_new_mods/'
 pmc_process_path = base_path + 'pubmed_searches/pmc_processing/'
 pmc_storage_path = base_path + 'pubmed_searches/pmc_processing/pmc_xml/'
 
 if not path.exists(search_path):
     makedirs(search_path)
+if not path.exists(search_outfile_path):
+    makedirs(search_outfile_path)
 if not path.exists(pmc_process_path):
     makedirs(pmc_process_path)
 if not path.exists(pmc_storage_path):
@@ -144,14 +148,22 @@ if not path.exists(pmc_storage_path):
 
 alliance_pmids = set()
 mod_esearch_url = {
-    'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*[ALL]+OR+melanogaster[ALL]+NOT+pubstatusaheadofprint&retmax=100000000',
-    'ZFIN': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=zebrafish[Title/Abstract]+OR+zebra+fish[Title/Abstract]+OR+danio[Title/Abstract]+OR+zebrafish[keyword]+OR+zebra+fish[keyword]+OR+danio[keyword]+OR+zebrafish[Mesh+Terms]+OR+zebra+fish[Mesh+Terms]+OR+danio[Mesh+Terms]&retmax=100000000',
-    'SGD': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=yeast+OR+cerevisiae&retmax=100000000',
-    'WB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000'
+    'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=drosophil*[ALL]+OR+melanogaster[ALL]+NOT+pubstatusaheadofprint',
+    'ZFIN': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=zebrafish[Title/Abstract]+OR+zebra+fish[Title/Abstract]+OR+danio[Title/Abstract]+OR+zebrafish[keyword]+OR+zebra+fish[keyword]+OR+danio[keyword]+OR+zebrafish[Mesh+Terms]+OR+zebra+fish[Mesh+Terms]+OR+danio[Mesh+Terms]',
+    'SGD': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=yeast+OR+cerevisiae',
+    'WB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=elegans'
+}
+# how far back to search pubmed in days for each MOD
+mod_daterange = {
+    'FB': '&reldate=365',
+    'ZFIN': '&reldate=730',
+    'SGD': '&reldate=14',
+    'WB': ''
 }
 mod_false_positive_file = {
     'FB': 'FB_fp_PMIDs_20210728.txt',
-    'WB': 'WB_false_positive_pmids'
+    'WB': 'WB_false_positive_pmids',
+    'SGD': 'SGD_referencedeletedpmids_20210803.csv'
 }
 mods_to_query = ['FB', 'SGD', 'WB', 'ZFIN']
 
@@ -166,6 +178,7 @@ def query_pubmed_mod_updates():
 def query_mods():
     logger.info("Starting query mods")
     search_output = ''
+    sleep_delay = 1
     for mod in mods_to_query:
         fp_pmids = set()
         if mod in mod_false_positive_file:
@@ -175,7 +188,10 @@ def query_mods():
                     pmid = line.rstrip()
                     pmid = pmid.replace('PMID:', '')
                     fp_pmids.add(pmid)
+        time.sleep(sleep_delay)
         url = mod_esearch_url[mod]
+        if mod in mod_daterange:
+            url = url + mod_daterange[mod]
         f = urllib.request.urlopen(url)
         xml_all = f.read().decode('utf-8')
         if re.findall(r"<Id>(\d+)</Id>", xml_all):
@@ -190,7 +206,9 @@ def query_mods():
             pmids_joined = (',').join(sorted(new_pmids))
             # logger.info(pmids_joined)
             search_output += pmids_joined + "\n"
-    search_output_file = search_path + 'search_new_mods'
+    now = datetime.now()
+    date = now.strftime("%Y%m%d")
+    search_output_file = search_outfile_path + 'search_new_mods_' + date
     with open(search_output_file, "w") as search_output_file_fh:
         search_output_file_fh.write(search_output)
 
