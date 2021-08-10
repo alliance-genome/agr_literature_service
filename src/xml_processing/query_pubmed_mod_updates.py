@@ -158,7 +158,7 @@ mod_daterange = {
     'FB': '&reldate=365',
     'ZFIN': '&reldate=730',
     'SGD': '&reldate=14',
-    'WB': ''
+    'WB': '&reldate=1825'
 }
 mod_false_positive_file = {
     'FB': 'FB_fp_PMIDs_20210728.txt',
