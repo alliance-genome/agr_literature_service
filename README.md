@@ -211,6 +211,16 @@ use --prod argument to use the WSGI server in production when running the applic
 - output
   - pmids_not_found_by_mod
 
+### OPTIONAL find DOIs in multiple reference curies
+
+- optionally  find_duplicate_doi.py takes sanitized reference .json files, and generates DOIs that have multiple separate curies for curators to clean up.
+- 1 second
+  - python3 find_duplicate_doi.py
+- input
+  - sanitized_reference_json/REFERENCE_*.json
+- output
+  - duplicate_dois
+
 ### OPTIONAL try to find out nlms of resourceAbbreviations that do not match, will need analysis
 
 - optionally  try to find nlm of resource_abbreviation_not_matched, by querying ncbi with 5 second delay, output xml to resource_xml/ for future analysis (some do not match, others give multiple nlms)
