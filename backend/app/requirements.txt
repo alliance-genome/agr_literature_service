@@ -1,6 +1,6 @@
 sqlalchemy==1.2.17
 fastapi==0.63.0
-uvicorn==0.13.4
+uvicorn[standard]==0.13.4
 alembic==1.5.8
 async-exit-stack==1.0.1
 async-generator==1.10

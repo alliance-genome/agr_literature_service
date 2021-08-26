@@ -95,7 +95,7 @@ def patch(db: Session, editor_id: int, editor_update: EditorSchemaPost):
     editor_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
 
-    return "Updated"
+    return {"message": "updated"}
 
 
 def show(db: Session, editor_id: int):

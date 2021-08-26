@@ -96,7 +96,7 @@ def patch(db: Session, person_id: int, person_update: PersonSchemaPost):
     person_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
 
-    return db.query(PersonModel).filter(PersonModel.person_id == person_id).first()
+    return {"message": "updated"}
 
 
 def show(db: Session, person_id: int):

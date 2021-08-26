@@ -129,7 +129,7 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
     reference_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
 
-    return "updated"
+    return {"message": "updated"}
 
 
 def show_files(db: Session, curie:str):

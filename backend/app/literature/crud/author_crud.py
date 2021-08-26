@@ -102,7 +102,7 @@ def patch(db: Session, author_id: int, author_update: AuthorSchemaPost):
     author_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
 
-    return "Updated"
+    return {"message": "updated"}
 
 
 def show(db: Session, author_id: int):

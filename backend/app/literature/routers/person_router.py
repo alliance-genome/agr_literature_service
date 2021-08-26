@@ -16,6 +16,7 @@ from literature.user import set_global_user_id
 
 from literature.schemas import PersonSchemaShow
 from literature.schemas import PersonSchemaCreate
+from literature.schemas import ResponseMessageSchema
 
 from literature.crud import person_crud
 from literature.routers.authentication import auth
@@ -52,7 +53,7 @@ def destroy(person_id: int,
 
 @router.patch('/{person_id}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=PersonSchemaShow,
+              response_model=ResponseMessageSchema,
               )
 async def patch(person_id: int,
                 request: PersonSchemaCreate,

@@ -20,6 +20,7 @@ from literature.user import set_global_user_id
 
 from literature.schemas import FileSchemaShow
 from literature.schemas import FileSchemaUpdate
+from literature.schemas import ResponseMessageSchema
 
 from literature.deps import s3_auth
 
@@ -50,7 +51,7 @@ def destroy(filename: str,
 
 @router.patch('/{filename}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=FileSchemaShow)
+              response_model=ResponseMessageSchema)
 async def patch(filename: str,
                 request: FileSchemaUpdate,
                 user: OktaUser = Security(auth.get_user),

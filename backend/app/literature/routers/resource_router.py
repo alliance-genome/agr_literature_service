@@ -18,7 +18,7 @@ from literature.user import get_global_user_id
 from literature.schemas import ResourceSchemaShow
 from literature.schemas import ResourceSchemaPost
 from literature.schemas import ResourceSchemaUpdate
-
+from literature.schemas import ResponseMessageSchema
 from literature.schemas import NoteSchemaShow
 
 from literature.crud import resource_crud
@@ -59,8 +59,7 @@ def destroy(curie: str,
 
 @router.patch('/{curie}',
               status_code=status.HTTP_202_ACCEPTED,
-
-              response_model=str)
+              response_model=ResponseMessageSchema)
 def patch(curie: str,
           request: ResourceSchemaUpdate,
           user: OktaUser = Security(auth.get_user),

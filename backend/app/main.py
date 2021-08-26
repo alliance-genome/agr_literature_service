@@ -53,7 +53,7 @@ app = FastAPI(title=title,
 
 app.add_middleware(CORSMiddleware,
                    allow_credentials=True,
-                   allow_origins=["*", "http://dev.alliancegenome.org:3001"],
+                   allow_origins=["*"],
                    allow_methods=["*"],
                    allow_headers=["*"])
 

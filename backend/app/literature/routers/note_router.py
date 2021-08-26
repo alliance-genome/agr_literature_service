@@ -17,6 +17,7 @@ from literature.user import set_global_user_id
 from literature.schemas import NoteSchemaShow
 from literature.schemas import NoteSchemaPost
 from literature.schemas import NoteSchemaUpdate
+from literature.schemas import ResponseMessageSchema
 
 from literature.crud import note_crud
 from literature.routers.authentication import auth
@@ -54,7 +55,7 @@ def destroy(note_id: int,
 
 @router.patch('/{note_id}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=str)
+              response_model=ResponseMessageSchema)
 async def patch(note_id: int,
                 request: NoteSchemaUpdate,
                 user: OktaUser = Security(auth.get_user),

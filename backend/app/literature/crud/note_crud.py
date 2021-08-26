@@ -97,7 +97,7 @@ def patch(db: Session, note_id: int, note_update: NoteSchemaUpdate):
 
     db.commit()
 
-    return "Updated"
+    return {"message": "updated"}
 
 
 def show(db: Session, note_id: int):

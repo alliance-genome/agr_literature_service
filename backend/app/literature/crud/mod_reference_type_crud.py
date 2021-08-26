@@ -65,7 +65,7 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update: Mo
     mod_reference_type_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
 
-    return "Updated"
+    return {"message": "updated"}
 
 
 def show(db: Session, mod_reference_type_id: int):

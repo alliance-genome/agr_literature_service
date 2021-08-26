@@ -63,7 +63,7 @@ def patch(db: Session, mesh_detail_id: int, mesh_detail_update: MeshDetailSchema
     mesh_detail_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
 
-    return "Updated"
+    return {"message": "updated"}
 
 
 def show(db: Session, mesh_detail_id: int):

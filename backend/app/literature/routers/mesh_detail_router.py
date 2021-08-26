@@ -18,6 +18,7 @@ from literature.schemas import MeshDetailSchemaShow
 from literature.schemas import MeshDetailSchemaPost
 from literature.schemas import MeshDetailSchemaCreate
 from literature.schemas import MeshDetailSchemaUpdate
+from literature.schemas import ResponseMessageSchema
 
 from literature.crud import mesh_detail_crud
 from literature.routers.authentication import auth
@@ -54,7 +55,7 @@ def destroy(mesh_detail_id: int,
 
 @router.patch('/{mesh_detail_id}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=str)
+              response_model=ResponseMessageSchema)
 async def patch(mesh_detail_id: int,
                 request: MeshDetailSchemaUpdate,
                 user: OktaUser = Security(auth.get_user),

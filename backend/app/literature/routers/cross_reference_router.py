@@ -18,6 +18,7 @@ from literature.schemas import CrossReferenceSchema
 from literature.schemas import CrossReferenceSchemaUpdate
 from literature.schemas import CrossReferenceSchemaRelated
 from literature.schemas import CrossReferenceSchemaPost
+from literature.schemas import ResponseMessageSchema
 
 from literature.crud import cross_reference_crud
 from literature.routers.authentication import auth
@@ -52,7 +53,7 @@ def destroy(curie: str,
 
 @router.patch('/{curie:path}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=str)
+              response_model=ResponseMessageSchema)
 async def patch(curie: str,
            request: CrossReferenceSchemaUpdate,
            user: OktaUser = Security(auth.get_user),

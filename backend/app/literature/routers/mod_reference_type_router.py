@@ -18,6 +18,7 @@ from literature.schemas import ModReferenceTypeSchemaShow
 from literature.schemas import ModReferenceTypeSchemaPost
 from literature.schemas import ModReferenceTypeSchemaCreate
 from literature.schemas import ModReferenceTypeSchemaUpdate
+from literature.schemas import ResponseMessageSchema
 
 from literature.crud import mod_reference_type_crud
 from literature.routers.authentication import auth
@@ -54,7 +55,7 @@ def destroy(mod_reference_type_id: int,
 
 @router.patch('/{mod_reference_type_id}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=str)
+              response_model=ResponseMessageSchema)
 async def patch(mod_reference_type_id: int,
                 request: ModReferenceTypeSchemaUpdate,
                 user: OktaUser = Security(auth.get_user),

@@ -115,7 +115,7 @@ def patch(db: Session, curie: str, resource_update: ResourceSchemaUpdate):
     resource_db_obj.date_updated = datetime.utcnow()
     db.commit()
 
-    return "updated"
+    return {"message": "updated"}
 
 
 def show(db: Session, curie: str):

@@ -16,6 +16,7 @@ from literature.user import set_global_user_id
 
 from literature.schemas import EditorSchemaShow
 from literature.schemas import EditorSchemaPost
+from literature.schemas import ResponseMessageSchema
 
 from literature.crud import editor_crud
 from literature.routers.authentication import auth
@@ -49,7 +50,7 @@ def destroy(editor_id: int,
 
 @router.patch('/{editor_id}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=str)
+              response_model=ResponseMessageSchema)
 async def patch(editor_id: int,
                 request: EditorSchemaPost,
                 user: OktaUser = Security(auth.get_user),

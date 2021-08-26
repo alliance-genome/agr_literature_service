@@ -116,9 +116,8 @@ def patch(db: Session, filename: str, file_update: FileSchemaUpdate):
             setattr(file_db_obj, field, value)
 
     db.commit()
-    db.refresh()
 
-    return file_db_obj
+    return {"message": "updated"}
 
 
 def show(db: Session, filename: str):

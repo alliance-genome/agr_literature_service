@@ -25,6 +25,7 @@ from literature.schemas.resource_schemas import ResourceSchemaPost
 from literature.schemas.resource_schemas import ResourceSchemaShow
 from literature.schemas.resource_schemas import ResourceSchemaUpdate
 
+from literature.schemas.response_message_schemas import ResponseMessageSchema
 
 from literature.schemas.tag_name_schemas import TagName
 from literature.schemas.tag_source_schemas import TagSource

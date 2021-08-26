@@ -23,13 +23,17 @@ from literature.schemas import ReferenceSchemaPost
 from literature.schemas import ReferenceSchemaUpdate
 from literature.schemas import FileSchemaShow
 from literature.schemas import NoteSchemaShow
+from literature.schemas import ResponseMessageSchema
 
 from literature.crud import reference_crud
 from literature.crud import file_crud
+from literature.crud import cross_reference_crud
 
 from literature.routers.authentication import auth
 from literature.deps import s3_auth
 from literature.s3.upload import upload_file_to_bucket
+
+from literature.models import CrossReferenceModel
 
 
 router = APIRouter(
@@ -62,7 +66,7 @@ def destroy(curie: str,
 
 @router.patch('/{curie}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=str)
+              response_model=ResponseMessageSchema)
 async def patch(curie: str,
                 request: ReferenceSchemaUpdate,
                 user: OktaUser = Security(auth.get_user),
@@ -71,6 +75,14 @@ async def patch(curie: str,
     patch = request.dict(exclude_unset=True)
 
     return reference_crud.patch(db, curie, patch)
+
+@router.get('/by-cross-reference/{curie:path}',
+            status_code=200,
+            response_model=ReferenceSchemaShow)
+def show(curie: str,
+         db: Session = Depends(get_db)):
+    cross_reference = cross_reference_crud.show(db, curie)
+    return reference_crud.show(db, cross_reference['reference_curie'])
 
 
 @router.get('/{curie}',
