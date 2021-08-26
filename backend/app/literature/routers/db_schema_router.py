@@ -21,7 +21,7 @@ from literature.routers.authentication import auth
 
 
 router = APIRouter(
-    prefix="/db-schema",
+    prefix="/db_schema",
     tags=['DB Schema']
 )
 

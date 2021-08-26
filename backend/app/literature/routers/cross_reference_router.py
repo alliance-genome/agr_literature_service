@@ -24,7 +24,7 @@ from literature.crud import cross_reference_crud
 from literature.routers.authentication import auth
 
 router = APIRouter(
-    prefix="/cross-reference",
+    prefix="/cross_reference",
     tags=['Cross Reference']
 )
 
