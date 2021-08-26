@@ -22,7 +22,7 @@ logger = logging.getLogger('literature logger')
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
 
-auth0_file = base_path + 'auth0_token'
+okta_file = base_path + 'okta_token'
 
 # resource_fields = ['primaryId', 'nlm', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
 # resource_fields_from_pubmed = ['title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
@@ -76,10 +76,10 @@ def post_resources():
 #     }
 
     token = ''
-    if path.isfile(auth0_file):
-        with open(auth0_file, 'r') as auth0_fh:
-            token = auth0_fh.read().replace("\n", "")
-            auth0_fh.close
+    if path.isfile(okta_file):
+        with open(okta_file, 'r') as okta_fh:
+            token = okta_fh.read().replace("\n", "")
+            okta_fh.close
     else:
         token = update_token()
     headers = generate_headers(token)

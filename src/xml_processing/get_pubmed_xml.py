@@ -42,6 +42,9 @@ load_dotenv()
 # to get set of pmids with search term 'elegans'
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000
 
+# to get a batch of pmids by pmids
+# https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=1,10,100,1000487,1000584&retmode=xml
+
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
@@ -108,7 +111,7 @@ def download_pubmed_xml(pmids_wanted):
         pmids_joined = (',').join(pmids_slice)
         logger.debug("processing PMIDs %s", pmids_joined)
 
-#         https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=10074449&retmode=xml
+#         https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=1,10,100,1000487,1000584&retmode=xml
 
 #         default way without a library, using get
 #         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" + pmids_joined + "&retmode=xml"
@@ -121,32 +124,32 @@ def download_pubmed_xml(pmids_wanted):
         parameters = {'db': 'pubmed', 'retmode': 'xml', 'id': pmids_joined}
         r = requests.post(url, data=parameters)
         xml_all = r.text
-#         xml_all = r.text.encode('utf-8').strip()		# python2
-        xml_split = xml_all.split("\n<Pubmed")		# some types are not PubmedArticle, like PubmedBookArticle, e.g. 32644453
+        # xml_all = r.text.encode('utf-8').strip()		  # python2
+        # xml_split = xml_all.split("\n<Pubmed")		  # before 2021 08 11  xml output had linebreaks between pmids, making that easier
+        xml_split = re.split('(<Pubmed[^>]*Article>)', xml_all)	  # some types are not PubmedArticle, like PubmedBookArticle, e.g. 32644453
 
         header = xml_split.pop(0)
-        header = header + "\n<Pubmed" + xml_split.pop(0)
-        footer = "\n\n</PubmedArticleSet>"
+        # header = header + "\n<Pubmed" + xml_split.pop(0)	  # before when splitting on linebreak without capturing was manually adding the split
+        # footer = "\n\n</PubmedArticleSet>"
+        footer = "</PubmedArticleSet>"
 
-        for n in range(len(xml_split)):
-            xml_split[n] = header + "\n<Pubmed" + xml_split[n]
-            xml_split[n] = os.linesep.join([s for s in xml_split[n].splitlines() if s])
-
-        for n in range(len(xml_split) - 1):
-            xml_split[n] += footer
-
-        for xml in xml_split:
-            if re.search(r"<PMID[^>]*?>(\d+)</PMID>", xml):
-                pmid_group = re.search(r"<PMID[^>]*?>(\d+)</PMID>", xml)
+        while xml_split:
+            this_xml = header + xml_split.pop(0) + xml_split.pop(0)
+            if len(xml_split) > 0:
+                this_xml = this_xml + footer
+            clean_xml = os.linesep.join([s for s in this_xml.splitlines() if s])
+            clean_xml = clean_xml.replace('\n', ' ')
+            # logger.info(clean_xml)
+            if re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml):
+                pmid_group = re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml)
                 pmid = pmid_group.group(1)
                 pmids_found.add(pmid)
                 filename = storage_path + pmid + '.xml'
                 f = open(filename, "w")
-                f.write(xml)
+                f.write(clean_xml)
                 f.close()
-                md5sum = hashlib.md5(xml.encode('utf-8')).hexdigest()
+                md5sum = hashlib.md5(clean_xml.encode('utf-8')).hexdigest()
                 md5dict[pmid] = md5sum
-                # md5data += pmid + "\t" + md5sum + "\n"
 
         if len(pmids_slice) == pmids_slice_size:
             logger.info("waiting to process more pmids")

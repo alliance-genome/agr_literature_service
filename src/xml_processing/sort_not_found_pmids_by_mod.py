@@ -2,7 +2,7 @@
 # takes pmids_not_found from get_pubmed_xml.py, and pmids_by_mods from parse_dqm_json.py, and
 # generates a set sorted by MODs of pmids that were not found in pubmed.
 #
-# python sort_mod_pmids_not_found.py
+# pipenv run python sort_not_found_pmids_by_mod.py
 
 
 from os import environ, path
