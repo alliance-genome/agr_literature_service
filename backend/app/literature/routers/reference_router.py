@@ -11,6 +11,7 @@ from fastapi import Response
 from fastapi import Security
 from fastapi import File
 from fastapi import UploadFile
+from fastapi import HTTPException
 
 from fastapi_okta import OktaUser
 
@@ -82,6 +83,12 @@ async def patch(curie: str,
 def show(curie: str,
          db: Session = Depends(get_db)):
     cross_reference = cross_reference_crud.show(db, curie)
+
+
+    if 'reference_curie' not in cross_reference:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Cross Reference {curie} is not associated to a reference entity")
+
     return reference_crud.show(db, cross_reference['reference_curie'])
 
 
