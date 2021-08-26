@@ -77,7 +77,7 @@ async def patch(curie: str,
 
     return reference_crud.patch(db, curie, patch)
 
-@router.get('/by-cross-reference/{curie:path}',
+@router.get('/by_cross_reference/{curie:path}',
             status_code=200,
             response_model=ReferenceSchemaShow)
 def show(curie: str,
