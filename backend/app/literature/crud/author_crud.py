@@ -6,14 +6,15 @@ from fastapi import HTTPException
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
-from literature.schemas import AuthorSchemaPost
+from literature.schemas import AuthorSchemaCreate
 
 from literature.models import ReferenceModel
+from literature.models import CrossReferenceModel
 from literature.models import ResourceModel
 from literature.models import AuthorModel
 
 
-def create(db: Session, author: AuthorSchemaPost):
+def create(db: Session, author: AuthorSchemaCreate):
     author_data = jsonable_encoder(author)
 
     if 'resource_curie' in author_data:
@@ -24,10 +25,9 @@ def create(db: Session, author: AuthorSchemaPost):
         reference_curie = author_data['reference_curie']
         del author_data['reference_curie']
 
-    if 'orchid' in author_data:
+    if 'orcid' in author_data:
         orcid = author_data['orcid']
         del author_data['orcid']
-
 
     db_obj = AuthorModel(**author_data)
     if resource_curie and reference_curie:
@@ -67,19 +67,27 @@ def destroy(db: Session, author_id: int):
     return None
 
 
-def patch(db: Session, author_id: int, author_update: AuthorSchemaPost):
+def patch(db: Session, author_id: int, author_patch: AuthorSchemaCreate):
+    author_data = jsonable_encoder(author_patch)
+
+    if 'resource_curie' in author_data and author_data['resource_curie'] and 'reference_curie' in author_data and author_data['reference_curie']:
+       raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                           detail=f"Only supply either resource_curie or reference_curie")
 
     author_db_obj = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
     if not author_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Author with author_id {author_id} not found")
 
+    if 'resource_curie' in author_data and author_data['resource_curie'] and not (('reference_curie' in author_data and author_data['reference_curie'] == None) or author_db_obj.reference == None):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                           detail=f"Trying to associate Resource when Reference already associated to Author. Only allowed to assign author to either reference or resource")
 
-    if author_update.resource_curie and author_update.reference_curie:
-       raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                           detail=f"Only supply either resource_curie or reference_curie")
+    if 'reference_curie' in author_data and author_data['reference_curie'] and not (('resource_curie' in author_data and author_data['resource_curie'] == None) or author_db_obj.resource == None):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                           detail=f"Trying to associate Refrence when Resource already associated to Author. Only allowed to assign author to either reference or resource")
 
-    for field, value in author_update.items():
+    for field, value in author_data.items():
         if field == "resource_curie" and value:
             resource_curie = value
             resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
@@ -96,6 +104,13 @@ def patch(db: Session, author_id: int, author_update: AuthorSchemaPost):
                                   detail=f"Reference with curie {reference_curie} does not exist")
             author_db_obj.reference = reference
             author_db_obj.resource = None
+        elif field == 'orcid' and value:
+             orcid = value
+             cross_reference = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
+             if not cross_reference:
+                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                     detail=f"Cross Reference with curie {orcid} does not exist")
+             author_db_obj.orcid_cross_reference = cross_reference
         else:
             setattr(author_db_obj, field, value)
 

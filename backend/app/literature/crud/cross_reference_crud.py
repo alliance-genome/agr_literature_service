@@ -51,9 +51,6 @@ def create(db: Session, cross_reference: CrossReferenceSchema):
            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                detail=f"Reference with curie {reference_curie} does not exist")
        db_obj.reference = reference
-    else:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"Supply one of resource_curie or reference_curie")
 
     db.add(db_obj)
     db.commit()
@@ -123,6 +120,9 @@ def show(db: Session, curie: str):
     if cross_reference_data['reference_id']:
         cross_reference_data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == cross_reference_data['reference_id']).first().curie
     del cross_reference_data['reference_id']
+
+
+    #cross_reference_data['author_ids'] = 
 
     [db_prefix, local_id] = curie.split(":", 1)
     resource_descriptor = db.query(ResourceDescriptorModel).filter(ResourceDescriptorModel.db_prefix == db_prefix).first()

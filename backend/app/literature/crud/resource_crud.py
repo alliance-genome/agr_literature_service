@@ -135,9 +135,8 @@ def show(db: Session, curie: str):
 
     if resource.authors:
         for author in resource_data['authors']:
-            if author['orcid_id']:
-                author['orcid'] = jsonable_encoder(cross_reference_crud.show(db, author['orcid_id']))
-            del author['orcid_id']
+            if author['orcid']:
+                author['orcid'] = jsonable_encoder(cross_reference_crud.show(db, author['orcid']))
             del author['person_id']
             del author['orcid_cross_reference']
             del author['resource_id']
@@ -145,9 +144,8 @@ def show(db: Session, curie: str):
 
     if resource.editors:
         for editor in resource_data['editors']:
-            if editor['orcid_id']:
-                editor['orcid'] = jsonable_encoder(cross_reference_crud.show(db, editor['orcid_id']))
-            del editor['orcid_id']
+            if editor['orcid']:
+                editor['orcid'] = jsonable_encoder(cross_reference_crud.show(db, editor['orcid']))
             del editor['person_id']
             del editor['orcid_cross_reference']
             del editor['resource_id']

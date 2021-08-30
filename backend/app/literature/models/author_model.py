@@ -46,7 +46,7 @@ class AuthorModel(Base):
         back_populates="authors"
     )
 
-    orcid_id = Column(
+    orcid = Column(
         String,
         ForeignKey('cross_references.curie'),
         index=True

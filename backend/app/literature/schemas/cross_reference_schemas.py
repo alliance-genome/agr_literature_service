@@ -72,6 +72,9 @@ class CrossReferenceSchema(BaseModel):
     resource_curie:  Optional[str] = None
     reference_curie: Optional[str] = None
 
+    author_ids = Optional[List[int]]= None
+    editor_ids = Optional[List[int]]= None
+
     class Config():
         orm_mode = True
         extra = "forbid"

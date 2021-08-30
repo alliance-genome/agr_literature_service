@@ -47,7 +47,7 @@ class EditorModel(Base):
         back_populates="editors"
     )
 
-    orcid_id = Column(
+    orcid = Column(
         String,
         ForeignKey('cross_references.curie')
     )
