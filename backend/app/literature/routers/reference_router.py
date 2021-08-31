@@ -1,3 +1,5 @@
+import subprocess
+
 from typing import List
 
 from sqlalchemy.orm import Session
@@ -53,6 +55,19 @@ def create(request: ReferenceSchemaPost,
            db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     return reference_crud.create(db, request)
+
+
+@router.post('/add/{pubmed_id}/',
+             status_code=status.HTTP_201_CREATED,
+             response_model=str)
+def create(pubmed_id: str,
+           user: OktaUser = Security(auth.get_user),
+           db: Session = Depends(get_db)):
+    set_global_user_id(db, user.id)
+
+    process = subprocess.run('python3 src/helloworld.py ' + pubmed_id, shell=True, stdout=subprocess.PIPE)
+
+    return process.stdout.decode('utf-8')
 
 
 @router.delete('/{curie}',

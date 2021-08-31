@@ -30,7 +30,7 @@ get_db = database.get_db
 
 
 @router.post('/',
-             status_code=status.HTTP_201_CREATED)#,
+             status_code=status.HTTP_201_CREATED,
              response_model=str)
 def create(request: AuthorSchemaCreate,
            user: OktaUser = Security(auth.get_user),
