@@ -66,7 +66,7 @@ class FileSchemaShow(BaseModel):
     public: bool
     extension: str
     content_type: str
-    language: str = 'english'
+    language: Optional[str] = 'english'
 
     reference_id: Optional[str] = None
     category: Optional[FileCategories] = None

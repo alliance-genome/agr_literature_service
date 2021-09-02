@@ -77,7 +77,7 @@ def create(db: Session, s3: BaseClient, parent_entity_type : str, curie: str, fi
     db.commit()
     db.refresh(file_db_obj)
 
-    return file_db_obj
+    return file_db_obj.s3_filename
 
 
 def destroy(db: Session, s3: BaseClient, filename: str):
@@ -98,7 +98,7 @@ def destroy(db: Session, s3: BaseClient, filename: str):
     return None
 
 
-def patch(db: Session, filename: str, file_update: FileSchemaUpdate):
+def patch(db: Session, filename: str, file_update):#: FileSchemaUpdate):
     file_db_obj = db.query(FileModel).filter(FileModel.s3_filename == filename).first()
     if not file_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -127,7 +127,10 @@ def show(db: Session, filename: str):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"File with the filename {filename} is not available")
 
-    return file_obj
+    file_data = jsonable_encoder(file_obj)
+    del file_data['reference_id']
+
+    return file_data
 
 
 def download(db: Session, s3: BaseClient, filename: str):
@@ -145,15 +148,6 @@ def download(db: Session, s3: BaseClient, filename: str):
                                       file_obj.s3_filename),
             file_obj.content_type]
 
-
-def show(db: Session, filename: str):
-    file_obj = db.query(FileModel).filter(FileModel.s3_filename == filename).first()
-
-    if not file_obj:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"File with the filename {filename} is not available")
-
-    return file_obj
 
 
 def show_changesets(db: Session, filename: str):

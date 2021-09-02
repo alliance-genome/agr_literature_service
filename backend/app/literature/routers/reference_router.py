@@ -132,7 +132,7 @@ def show(curie: str,
 
 @router.post('/{curie}/upload_file',
              status_code=status.HTTP_201_CREATED,
-             response_model=FileSchemaShow)
+             response_model=str)
 async def create_upload_file(curie: str,
                              file_obj: UploadFile = File(...),
                              s3: BaseClient = Depends(s3_auth),
