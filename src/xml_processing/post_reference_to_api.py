@@ -20,13 +20,9 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
-base_path = environ.get('XML_PATH')
-
-okta_file = base_path + 'okta_token'
-
 parser = argparse.ArgumentParser()
 parser.add_argument('-a', '--authorization', action='store_true', help='update authorization token')
+parser.add_argument('-c', '--commandline', nargs='*', action='store', help='placeholder for process_single_pmid.py')
 args = vars(parser.parse_args())
 
 # keys that exist in data
@@ -61,16 +57,24 @@ def camel_to_snake(name):
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
 
 
-def post_references():
-    json_storage_path = base_path + 'sanitized_reference_json/'
+def post_references(input_file):
+    api_port = environ.get('API_PORT')
+    # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+    base_path = environ.get('XML_PATH')
+
+    okta_file = base_path + 'okta_token'
 
     files_to_process = []
-    dir_list = listdir(json_storage_path)
-    for filename in dir_list:
-        # logger.info("%s", filename)
-        if 'REFERENCE_' in filename and '.REFERENCE_' not in filename:
+    if input_file == 'sanitized':
+        json_storage_path = base_path + 'sanitized_reference_json/'
+        dir_list = listdir(json_storage_path)
+        for filename in dir_list:
             # logger.info("%s", filename)
-            files_to_process.append(json_storage_path + filename)
+            if 'REFERENCE_' in filename and '.REFERENCE_' not in filename:
+                # logger.info("%s", filename)
+                files_to_process.append(json_storage_path + filename)
+    else:
+        files_to_process.append(input_file)
 
     keys_to_remove = {'nlm', 'primaryId', 'modResources', 'resourceAbbreviation'}
     remap_keys = dict()
@@ -131,7 +135,7 @@ def post_references():
     headers = generate_headers(token)
 
 #     url = 'http://localhost:49161/reference/'
-    url = 'http://localhost:11223/reference/'
+    url = 'http://localhost:' + api_port + '/reference/'
 #     headers = {
 #         'Authorization': 'Bearer <token_goes_here>',
 #         'Content-Type': 'application/json',
@@ -152,12 +156,13 @@ def post_references():
             read_fh.close
 
     resource_to_curie = dict()
-    with open(resource_primary_id_to_curie_file, 'r') as read_fh:
-        for line in read_fh:
-            line_data = line.rstrip().split("\t")
-            if line_data[0]:
-                resource_to_curie[line_data[0]] = line_data[1]
-        read_fh.close
+    if path.isfile(resource_primary_id_to_curie_file):
+        with open(resource_primary_id_to_curie_file, 'r') as read_fh:
+            for line in read_fh:
+                line_data = line.rstrip().split("\t")
+                if line_data[0]:
+                    resource_to_curie[line_data[0]] = line_data[1]
+            read_fh.close
 
     with open(reference_primary_id_to_curie_file, 'a') as mapping_fh, open(errors_in_posting_reference_file, 'a') as error_fh:
         for filepath in files_to_process:
@@ -295,8 +300,11 @@ if __name__ == "__main__":
     if args['authorization']:
         update_token()
 
+    elif args['commandline']:
+        logger.info("placeholder for process_single_pmid.py")
+
     else:
-        post_references()
+        post_references('sanitized')
 
     logger.info("ending post_reference_to_api.py")
 

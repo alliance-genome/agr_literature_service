@@ -43,6 +43,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-p', '--generate-pmid-data', action='store_true', help='generate pmid outputs')
 parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
 parser.add_argument('-m', '--mod', action='store', help='which mod, use all or leave blank for all')
+parser.add_argument('-c', '--commandline', nargs='*', action='store', help='placeholder for process_single_pmid.py')
 # parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
 # parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
 # parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
@@ -932,6 +933,9 @@ if __name__ == "__main__":
             aggregate_dqm_with_pubmed(args['file'], args['mod'])
         else:
             aggregate_dqm_with_pubmed(args['file'], 'all')
+
+    elif args['commandline']:
+        logger.info("placeholder for process_single_pmid.py")
 
     else:
         logger.info("No flag passed in.  Use -h for help.")

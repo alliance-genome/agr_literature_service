@@ -426,7 +426,7 @@ def generate_json(pmids):
                 if journal_abbrev_re_output is not None:
                     journal_abbrev = journal_abbrev_re_output.group(1)
                 data_dict['nlm'] = nlm			# for mapping to resource
-                data_dict['issn'] = issn		# for mapping to resource
+                data_dict['issn'] = issn		# for mapping to MOD data to resource
                 data_dict['resourceAbbreviation'] = journal_abbrev
                 # check whether all xml has an nlm or issn, for WB set, they all do
                 # if (nlm and issn):
