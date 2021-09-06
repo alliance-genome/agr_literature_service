@@ -17,14 +17,17 @@ from literature.models import AuthorModel
 def create(db: Session, author: AuthorSchemaCreate):
     author_data = jsonable_encoder(author)
 
+    resource_curie = None
     if 'resource_curie' in author_data:
         resource_curie = author_data['resource_curie']
         del author_data['resource_curie']
 
+    reference_curie = None
     if 'reference_curie' in author_data:
         reference_curie = author_data['reference_curie']
         del author_data['reference_curie']
 
+    orcid = None
     if 'orcid' in author_data:
         orcid = author_data['orcid']
         del author_data['orcid']
@@ -48,6 +51,13 @@ def create(db: Session, author: AuthorSchemaCreate):
     else:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Supply one of resource_curie or reference_curie")
+
+    if orcid:
+        cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
+        if not cross_reference_obj:
+            cross_reference_obj = CrossReferenceModel(curie=orcid)
+            db.add(cross_reference_obj)
+        db_obj.orcid_cross_reference = cross_reference_obj
 
     db.add(db_obj)
     db.commit()
@@ -106,11 +116,11 @@ def patch(db: Session, author_id: int, author_patch: AuthorSchemaCreate):
             author_db_obj.resource = None
         elif field == 'orcid' and value:
              orcid = value
-             cross_reference = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
-             if not cross_reference:
-                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                     detail=f"Cross Reference with curie {orcid} does not exist")
-             author_db_obj.orcid_cross_reference = cross_reference
+             cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
+             if not cross_reference_obj:
+                 cross_reference_obj = CrossReferenceModel(curie=orcid)
+                 db.add(cross_reference_obj)
+             author_db_obj.orcid_cross_reference = cross_reference_obj
         else:
             setattr(author_db_obj, field, value)
 

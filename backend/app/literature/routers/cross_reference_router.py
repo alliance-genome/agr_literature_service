@@ -76,4 +76,4 @@ def show(curie: str,
             status_code=200)
 def show(curie: str,
          db: Session = Depends(get_db)):
-    return cross_reference_crud.show(db, curie)
+    return cross_reference_crud.show(db, curie, False)

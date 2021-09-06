@@ -24,8 +24,8 @@ class PersonSchemaPost(BaseModel):
     orcids: Optional[List[str]] = None
 
     @validator('orcids', each_item=True)
-    def check_orchids(cls, v):
-        if not v.startswith('ORCID:'):
+    def check_orcids(cls, v):
+        if v and not v.startswith('ORCID:'):
             raise ValueError('Orcid ID must start with "ORCID: {v}')
         return v
 

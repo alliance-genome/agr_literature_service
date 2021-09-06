@@ -45,21 +45,21 @@ def destroy(filename: str,
             user: OktaUser = Security(auth.get_user),
             db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
-    s3file_crud.destroy(db, s3, filename)
+    file_crud.destroy(db, s3, filename)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.patch('/{filename}',
               status_code=status.HTTP_202_ACCEPTED,
               response_model=ResponseMessageSchema)
-async def patch(filename: str,
+async def update(filename: str,
                 request: FileSchemaUpdate,
                 user: OktaUser = Security(auth.get_user),
                 db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)
 
-    return s3file_crud.update(db, filename, request)
+    return file_crud.patch(db, filename, patch)
 
 
 @router.get('/{filename}',
@@ -67,21 +67,22 @@ async def patch(filename: str,
             status_code=200)
 def show(filename: str,
          db: Session = Depends(get_db)):
-    return s3file_crud.show(db, filename)
+    return file_crud.show(db, filename)
 
 
-@router.get('/{filename}/download',
+@router.get('/download/{filename}',
             status_code=200)
 async def show(filename: str,
          s3: BaseClient = Depends(s3_auth),
          user: OktaUser = Security(auth.get_user),
          db: Session = Depends(get_db)):
-   [file_stream, media_type] = s3file_crud.download(db, s3, filename)
-   return StreamingResponse(file_stream, media_type=media_type)
+    [file_stream, media_type] = file_crud.download(db, s3, filename)
+
+    return StreamingResponse(file_stream, media_type=media_type)
 
 
 @router.get('/{filename}/versions',
             status_code=200)
 def show(filename: str,
          db: Session = Depends(get_db)):
-    return s3file_crud.show_changesets(db, filename)
+    return file_crud.show_changesets(db, filename)

@@ -18,8 +18,8 @@ class EditorSchemaPost(BaseModel):
     orcid: Optional[str] = None
 
     @validator('orcid')
-    def check_orchids(cls, v):
-        if not v.startswith('ORCID:'):
+    def check_orcids(cls, v):
+        if v and not v.startswith('ORCID:'):
             raise ValueError('Orcid ID must start with "ORCID: {v}')
         return v
 
