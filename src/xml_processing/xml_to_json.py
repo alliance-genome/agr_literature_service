@@ -49,8 +49,6 @@ import hashlib
 # to get set of pmids with search term 'elegans'
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000
 
-pmids = []
-
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
@@ -144,7 +142,7 @@ def get_medline_date_from_xml_date(pub_date):
         return medline_re_output.group(1)
 
 
-def generate_json():
+def generate_json(pmids):
     # open input xml file and read data in form of python dictionary using xmltodict module
     md5data = ''
     # storage_path = base_path + 'pubmed_xml_20210322/'
@@ -585,6 +583,8 @@ def generate_json():
 if __name__ == "__main__":
     """ call main start function """
 
+    pmids = []
+
 #    python xml_to_json.py -d
     if args['database']:
         logger.info("Processing database entries")
@@ -629,7 +629,7 @@ if __name__ == "__main__":
     else:
         logger.info("Processing database entries")
 
-    generate_json()
+    generate_json(pmids)
     logger.info("Done converting XML to JSON")
 
 # capture ISSN / NLM
