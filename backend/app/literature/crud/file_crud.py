@@ -133,6 +133,22 @@ def show(db: Session, filename: str):
     return file_data
 
 
+def show_by_md5sum(db: Session, md5sum: str):
+    files_obj = db.query(FileModel).filter(FileModel.md5sum == md5sum).all()
+
+    if not files_obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"File with the md5sum {md5sum} is not available")
+
+    files_data = []
+    for file_obj in files_obj:
+       file_data = jsonable_encoder(file_obj)
+       del file_data['reference_id']
+       files_data.append(file_data)
+
+    return files_data
+
+
 def download(db: Session, s3: BaseClient, filename: str):
     file_obj = db.query(FileModel).filter(FileModel.s3_filename == filename).first()
 

@@ -16,6 +16,7 @@ from literature.models.user_model import UserModel
 from literature.models.cross_reference_model import CrossReferenceModel
 from literature.models.mod_reference_type_model import ModReferenceTypeModel
 from literature.models.file_model import FileModel
+from literature.models.comment_reference_model import CommentReferenceModel
 
 from literature.models.resource_descriptor_models import ResourceDescriptorModel
 from literature.models.resource_descriptor_models import ResourceDescriptorPageModel
