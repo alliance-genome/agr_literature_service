@@ -10,6 +10,7 @@ from literature.schemas import ReferenceSchemaPost
 from literature.schemas import ReferenceSchemaUpdate
 
 from literature.crud import cross_reference_crud
+from literature.crud import reference_comment_and_correction_crud
 
 from literature.models import ReferenceModel
 from literature.models import ResourceModel
@@ -130,6 +131,23 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
     db.commit()
 
     return {"message": "updated"}
+
+
+def show_comment_and_corrections(db: Session, curie:str):
+    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
+
+    comment_and_corrections_data = {'out': [], 'in': []}
+    for comment_and_correction in reference.comment_and_corrections_out:
+        comment_and_correction_data = reference_comment_and_correction_crud.show(db, comment_and_correction.reference_comment_and_correction_id)
+        del comment_and_correction_data['reference_from_curie']
+        comment_and_corrections_data['out'].append(comment_and_correction_data)
+
+    for comment_and_correction in reference.comment_and_corrections_in:
+        comment_and_correction_data = reference_comment_and_correction_crud.show(db, comment_and_correction.reference_comment_and_correction_id)
+        del comment_and_correction_data['reference_to_curie']
+        comment_and_corrections_data['in'].append(comment_and_correction_data)
+
+    return comment_and_corrections_data
 
 
 def show_files(db: Session, curie:str):

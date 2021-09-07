@@ -114,6 +114,16 @@ def show(curie: str,
          db: Session = Depends(get_db)):
     return reference_crud.show(db, curie)
 
+
+@router.get('/{curie}/related-comments-and-corrections',
+            status_code=200)#),
+           # response_model=ReferenceSchemaShow)
+def show(curie: str,
+         db: Session = Depends(get_db)):
+    return reference_crud.show_comment_and_corrections(db, curie)
+
+
+
 @router.get('/{curie}/files',
             status_code=200,
             response_model=List[FileSchemaShow])

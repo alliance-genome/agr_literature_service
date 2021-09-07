@@ -16,13 +16,14 @@ from literature.models.user_model import UserModel
 from literature.models.cross_reference_model import CrossReferenceModel
 from literature.models.mod_reference_type_model import ModReferenceTypeModel
 from literature.models.file_model import FileModel
-from literature.models.comment_reference_model import CommentReferenceModel
 
 from literature.models.resource_descriptor_models import ResourceDescriptorModel
 from literature.models.resource_descriptor_models import ResourceDescriptorPageModel
 
 from literature.models.person_reference_link_model import PersonReferenceLinkModel
 from literature.models.person_orcid_cross_reference_link_model import PersonOrcidCrossReferenceLinkModel
+
+from literature.models.reference_comment_and_correction_model import ReferenceCommentAndCorrectionModel
 
 from literature.models.note_model import NoteModel
 

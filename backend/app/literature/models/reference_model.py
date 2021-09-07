@@ -47,15 +47,15 @@ class ReferenceModel(Base):
         back_populates='reference'
     )
 
-    comment_references_out = relationship(
-        'CommentReferenceModel',
-        foreign_keys="CommentReferenceModel.reference_from_id",
+    comment_and_corrections_out = relationship(
+        'ReferenceCommentAndCorrectionModel',
+        foreign_keys="ReferenceCommentAndCorrectionModel.reference_from_id",
         back_populates='reference_from'
     )
 
-    comment_references_in = relationship(
-        'CommentReferenceModel',
-        foreign_keys="CommentReferenceModel.reference_to_id",
+    comment_and_corrections_in = relationship(
+        'ReferenceCommentAndCorrectionModel',
+        foreign_keys="ReferenceCommentAndCorrectionModel.reference_to_id",
 
         back_populates='reference_to'
     )

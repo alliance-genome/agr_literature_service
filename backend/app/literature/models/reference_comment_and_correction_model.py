@@ -14,14 +14,14 @@ from sqlalchemy.orm import relationship
 
 from literature.database.base import Base
 
-from literature.schemas import CommentReferenceType
+from literature.schemas import ReferenceCommentAndCorrectionType
 
 
-class CommentReferenceModel(Base):
-    __tablename__ = 'comment_references'
+class ReferenceCommentAndCorrectionModel(Base):
+    __tablename__ = 'reference_comments_and_corrections'
     __versioned__ = {}
 
-    comment_reference_id = Column(
+    reference_comment_and_correction_id = Column(
         Integer,
         primary_key=True,
         autoincrement=True
@@ -36,8 +36,8 @@ class CommentReferenceModel(Base):
 
     reference_from = relationship(
         'ReferenceModel',
-        foreign_keys='CommentReferenceModel.reference_from_id',
-        back_populates="comment_references_out"
+        foreign_keys='ReferenceCommentAndCorrectionModel.reference_from_id',
+        back_populates="comment_and_corrections_out"
     )
 
     reference_to_id = Column(
@@ -49,12 +49,12 @@ class CommentReferenceModel(Base):
 
     reference_to = relationship(
         'ReferenceModel',
-        foreign_keys='CommentReferenceModel.reference_to_id',
-        back_populates="comment_references_in"
+        foreign_keys='ReferenceCommentAndCorrectionModel.reference_to_id',
+        back_populates="comment_and_corrections_in"
     )
 
-    comment_type = Column(
-         Enum(CommentReferenceType),
+    reference_comment_and_correction_type = Column(
+         Enum(ReferenceCommentAndCorrectionType),
          unique=False,
          nullable=False
     )

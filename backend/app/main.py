@@ -30,6 +30,7 @@ from literature.routers import mesh_detail_router
 from literature.routers import mod_reference_type_router
 from literature.routers import person_router
 from literature.routers import db_schema_router
+from literature.routers import reference_comment_and_correction_router
 
 from literature.config import config
 from literature.database.config import SQLALCHEMY_DATABASE_URL
@@ -89,6 +90,7 @@ app.include_router(mod_reference_type_router.router)
 app.include_router(person_router.router)
 app.include_router(note_router.router)
 app.include_router(db_schema_router.router)
+app.include_router(reference_comment_and_correction_router.router)
 
 app.openapi = custom_openapi
 

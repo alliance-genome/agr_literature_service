@@ -53,8 +53,7 @@ def destroy(person_id: int,
 
 @router.patch('/{person_id}',
               status_code=status.HTTP_202_ACCEPTED,
-              response_model=ResponseMessageSchema,
-              )
+              response_model=ResponseMessageSchema)
 async def patch(person_id: int,
                 request: PersonSchemaCreate,
                 user: OktaUser = Security(auth.get_user),
@@ -69,7 +68,7 @@ async def patch(person_id: int,
             status_code=200)
 def show(person_id: int,
          db: Session = Depends(get_db)):
-    return person.show(db, person_id)
+    return person_crud.show(db, person_id)
 
 
 @router.get('/{person_id}/versions',

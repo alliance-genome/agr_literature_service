@@ -73,7 +73,8 @@ class FileModel(Base):
     md5sum = Column(
         String(),
         unique=False,
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     size = Column(
