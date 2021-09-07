@@ -67,6 +67,17 @@ def sanitize_pubmed_json(pmid):
         print(pubmed_json_filepath + ' not found in filesystem')
 
 
+def output_message_json(process_results):
+    process_result = dict()
+    if process_results:
+        process_result = process_results.pop()
+    else:
+        process_result['text'] = 'Failure processing POST to API'
+        process_result['status_code'] = '999'
+    process_message_json = json.dumps(process_result)
+    print(process_message_json)
+
+
 def process_pmid(pmid):
     base_path = environ.get('XML_PATH')
     pmids_wanted = [pmid]
@@ -74,7 +85,8 @@ def process_pmid(pmid):
     generate_json(pmids_wanted)
     sanitize_pubmed_json(pmid)
     json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_' + pmid + '.json'
-    post_references(json_filepath)
+    process_results = post_references(json_filepath)
+    output_message_json(process_results)
     # print('finished')
 
 
