@@ -164,6 +164,7 @@ def post_references(input_file):
                     resource_to_curie[line_data[0]] = line_data[1]
             read_fh.close
 
+    process_results = []
     with open(reference_primary_id_to_curie_file, 'a') as mapping_fh, open(errors_in_posting_reference_file, 'a') as error_fh:
         for filepath in files_to_process:
             # only test one file for run
@@ -243,8 +244,14 @@ def post_references(input_file):
                 # json_object = json.dumps(new_entry, indent=4)
                 # print(json_object)
 
-                headers = process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh)
-
+                process_post_tuple = process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh)
+                headers = process_post_tuple[0]
+                process_text = process_post_tuple[1]
+                process_status_code = process_post_tuple[2]
+                process_result = dict()
+                process_result['text'] = process_text
+                process_result['status_code'] = process_status_code
+                process_results.append(process_result) 
 
 #    if wanting to output keys in data for figuring out mapping
 #         for key in keys_found:
@@ -252,6 +259,7 @@ def post_references(input_file):
 
         mapping_fh.close
         error_fh.close
+    return process_results
 
 
 def process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh):
@@ -260,8 +268,10 @@ def process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh):
     # print(json_object)
 
     post_return = requests.post(url, headers=headers, json=new_entry)
-    print(primary_id + ' text ' + str(post_return.text))
-    print(primary_id + ' status_code ' + str(post_return.status_code))
+    process_text = str(post_return.text)
+    process_status_code = str(post_return.status_code)
+    logger.info(primary_id + ' text ' + process_text)
+    logger.info(primary_id + ' status_code ' + process_status_code)
 
     response_dict = dict()
     try:
@@ -269,7 +279,7 @@ def process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh):
     except ValueError:
         logger.info("%s\tValueError", primary_id)
         error_fh.write("ERROR %s primaryId did not convert to json\n" % (primary_id))
-        return headers
+        return headers, process_text, process_status_code
 
     if (post_return.status_code == 201):
         response_dict = response_dict.replace('"', '')
@@ -280,7 +290,8 @@ def process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh):
         mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
         token = update_token()
         headers = generate_headers(token)
-        headers = process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh)
+        process_post_tuple = process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh)
+        headers = process_post_tuple[0]
     elif (post_return.status_code == 500):
         logger.info("%s\tFAILURE", primary_id)
         mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
@@ -290,7 +301,7 @@ def process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh):
     else:
         logger.info("ERROR %s primaryId %s message %s", post_return.status_code, primary_id, response_dict['detail'])
         error_fh.write("ERROR %s primaryId %s message %s\n" % (post_return.status_code, primary_id, response_dict['detail']))
-    return headers
+    return headers, process_text, process_status_code
 
 
 if __name__ == "__main__":

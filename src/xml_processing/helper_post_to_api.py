@@ -69,4 +69,5 @@ def update_okta_token():
 
 
 def update_token():
-    update_okta_token()
+    token = update_okta_token()
+    return token
