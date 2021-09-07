@@ -70,6 +70,15 @@ def show(filename: str,
     return file_crud.show(db, filename)
 
 
+@router.get('/by_md5sum/{md5sum}',
+            response_model=List[FileSchemaShow],
+            status_code=200)
+def show(md5sum: str,
+         db: Session = Depends(get_db)):
+    return file_crud.show_by_md5sum(db, md5sum)
+
+
+
 @router.get('/download/{filename}',
             status_code=200)
 async def show(filename: str,

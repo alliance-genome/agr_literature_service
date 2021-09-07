@@ -47,6 +47,19 @@ class ReferenceModel(Base):
         back_populates='reference'
     )
 
+    comment_references_out = relationship(
+        'CommentReferenceModel',
+        foreign_keys="CommentReferenceModel.reference_from_id",
+        back_populates='reference_from'
+    )
+
+    comment_references_in = relationship(
+        'CommentReferenceModel',
+        foreign_keys="CommentReferenceModel.reference_to_id",
+
+        back_populates='reference_to'
+    )
+
     notes = relationship(
         'NoteModel',
         lazy='joined',
