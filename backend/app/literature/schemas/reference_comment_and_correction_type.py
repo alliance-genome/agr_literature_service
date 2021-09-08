@@ -6,6 +6,5 @@ class ReferenceCommentAndCorrectionType(str, Enum):
     ErratumFor = "ErratumFor"
     ReprintOf = "ReprintOf"
     UpdateOf = "UpdateOf"
-    AssociatedDataset = "AssociatedDataset"
     ExpressionOfConcernFor = "ExpressionOfConcernFor"
     RepublishedFrom = "RepublishedFrom"
