@@ -24,6 +24,8 @@ from literature.models.person_reference_link_model import PersonReferenceLinkMod
 from literature.models.person_orcid_cross_reference_link_model import PersonOrcidCrossReferenceLinkModel
 
 from literature.models.reference_comment_and_correction_model import ReferenceCommentAndCorrectionModel
+from literature.models.reference_automated_term_tag_model import ReferenceAutomatedTermTagModel
+from literature.models.reference_manual_term_tag_model import ReferenceManualTermTagModel
 
 from literature.models.note_model import NoteModel
 

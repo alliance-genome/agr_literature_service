@@ -15,27 +15,27 @@ from literature.models import ReferenceModel
 
 def create(db: Session, reference_comment_and_correction: ReferenceCommentAndCorrectionSchemaPost):
     reference_comment_and_correction_data = jsonable_encoder(reference_comment_and_correction)
-    reference_from_curie = reference_comment_and_correction_data['reference_from_curie']
-    reference_to_curie = reference_comment_and_correction_data['reference_to_curie']
+    reference_curie_from = reference_comment_and_correction_data['reference_curie_from']
+    reference_curie_to = reference_comment_and_correction_data['reference_curie_to']
     reference_comment_and_correction_type = reference_comment_and_correction_data['reference_comment_and_correction_type']
 
-    reference_from = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_from_curie).first()
+    reference_from = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_from).first()
     if not reference_from:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"Reference_from_curie {reference_from_curie} does not exist")
+                            detail=f"Reference_curie_from {reference_curie_from} does not exist")
 
-    reference_to = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_to_curie).first()
+    reference_to = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_to).first()
     if not reference_to:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"Reference_to_curie {reference_to_curie} does not exist")
+                            detail=f"Reference_curie_to {reference_curie_to} does not exist")
 
-    reference_from_id = reference_from.reference_id
-    reference_to_id = reference_to.reference_id
+    reference_id_from = reference_from.reference_id
+    reference_id_to = reference_to.reference_id
 
-    db_obj = db.query(ReferenceCommentAndCorrectionModel).filter(ReferenceCommentAndCorrectionModel.reference_from_id == reference_from_id, ReferenceCommentAndCorrectionModel.reference_to_id == reference_to_id).first()
+    db_obj = db.query(ReferenceCommentAndCorrectionModel).filter(ReferenceCommentAndCorrectionModel.reference_id_from == reference_id_from, ReferenceCommentAndCorrectionModel.reference_id_to == reference_id_to).first()
     if db_obj:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail=f"Reference Comment and Correction with reference_from_curie  {reference_from_curie}  and reference_to curie {reference_to_curie} already exists with id {db_obj.reference_comment_and_correction_id}")
+                            detail=f"Reference Comment and Correction with reference_curie_from  {reference_curie_from} and reference curie_to {reference_curie_to} already exists with id {db_obj.reference_comment_and_correction_id}")
 
 
     db_obj = ReferenceCommentAndCorrectionModel(reference_comment_and_correction_type=reference_comment_and_correction_type,
@@ -49,7 +49,6 @@ def create(db: Session, reference_comment_and_correction: ReferenceCommentAndCor
 
 
 def destroy(db: Session, reference_comment_and_correction_id: int):
-    print("inside the matrix")
     db_obj = db.query(ReferenceCommentAndCorrectionModel).filter(ReferenceCommentAndCorrectionModel.reference_comment_and_correction_id == reference_comment_and_correction_id).first()
     if not db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -62,7 +61,6 @@ def destroy(db: Session, reference_comment_and_correction_id: int):
 
 
 def patch(db: Session, reference_comment_and_correction_id: int, reference_comment_and_correction_update: ReferenceCommentAndCorrectionSchemaPatch):
-    print(reference_comment_and_correction_id)
     db_obj = db.query(ReferenceCommentAndCorrectionModel).filter(ReferenceCommentAndCorrectionModel.reference_comment_and_correction_id == reference_comment_and_correction_id).first()
     if not db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -70,21 +68,19 @@ def patch(db: Session, reference_comment_and_correction_id: int, reference_comme
 
 
     for field, value in reference_comment_and_correction_update.items():
-        print(field)
-        print(value)
-        if field == "reference_to_curie" and value:
-            reference_to_curie = value
-            reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_to_curie).first()
+        if field == "reference_curie_to" and value:
+            reference_curie_to = value
+            reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_to).first()
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                  detail=f"Reference with curie {reference_to_curie} does not exist")
+                                  detail=f"Reference with curie {reference_curie_to} does not exist")
             db_obj.reference_to = reference
-        elif field == 'reference_from_curie' and value:
+        elif field == 'reference_curie_from' and value:
             reference_from_curie = value
-            reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_from_curie).first()
+            reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_from).first()
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                  detail=f"Reference with curie {reference_from_curie} does not exist")
+                                  detail=f"Reference with curie {reference_curie_from} does not exist")
             db_obj.reference_from = reference
         else:
             setattr(db_obj, field, value)
@@ -102,11 +98,11 @@ def show(db: Session, reference_comment_and_correction_id: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference Comment and Correction with the reference_comment_and_correction_id {reference_comment_and_correction_id} is not available")
 
-    data['reference_from_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == data['reference_from_id']).first()[0]
-    data['reference_to_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == data['reference_to_id']).first()[0]
+    data['reference_curie_from'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == data['reference_id_from']).first()[0]
+    data['reference_curie_to'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == data['reference_id_to']).first()[0]
 
-    del data['reference_from_id']
-    del data['reference_to_id']
+    del data['reference_id_from']
+    del data['reference_id_to']
 
     return data
 

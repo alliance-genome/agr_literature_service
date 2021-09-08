@@ -49,15 +49,25 @@ class ReferenceModel(Base):
 
     comment_and_corrections_out = relationship(
         'ReferenceCommentAndCorrectionModel',
-        foreign_keys="ReferenceCommentAndCorrectionModel.reference_from_id",
+        foreign_keys="ReferenceCommentAndCorrectionModel.reference_id_from",
         back_populates='reference_from'
     )
 
     comment_and_corrections_in = relationship(
         'ReferenceCommentAndCorrectionModel',
-        foreign_keys="ReferenceCommentAndCorrectionModel.reference_to_id",
+        foreign_keys="ReferenceCommentAndCorrectionModel.reference_id_to",
 
         back_populates='reference_to'
+    )
+
+    automated_term_tags = relationship(
+        'ReferenceAutomatedTermTagModel',
+        back_populates='reference'
+    )
+
+    manual_term_tags = relationship(
+        'ReferenceManualTermTagModel',
+        back_populates='reference'
     )
 
     notes = relationship(

@@ -27,7 +27,7 @@ class ReferenceCommentAndCorrectionModel(Base):
         autoincrement=True
     )
 
-    reference_from_id = Column(
+    reference_id_from = Column(
         Integer,
         ForeignKey('references.reference_id'),
         index=True,
@@ -36,11 +36,11 @@ class ReferenceCommentAndCorrectionModel(Base):
 
     reference_from = relationship(
         'ReferenceModel',
-        foreign_keys='ReferenceCommentAndCorrectionModel.reference_from_id',
+        foreign_keys='ReferenceCommentAndCorrectionModel.reference_id_from',
         back_populates="comment_and_corrections_out"
     )
 
-    reference_to_id = Column(
+    reference_id_to = Column(
         Integer,
         ForeignKey('references.reference_id'),
         index=True,
@@ -49,7 +49,7 @@ class ReferenceCommentAndCorrectionModel(Base):
 
     reference_to = relationship(
         'ReferenceModel',
-        foreign_keys='ReferenceCommentAndCorrectionModel.reference_to_id',
+        foreign_keys='ReferenceCommentAndCorrectionModel.reference_id_to',
         back_populates="comment_and_corrections_in"
     )
 
