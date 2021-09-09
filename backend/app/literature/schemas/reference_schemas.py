@@ -17,6 +17,7 @@ from literature.schemas import MeshDetailSchemaCreate
 from literature.schemas import MeshDetailSchemaRelated
 from literature.schemas import CrossReferenceSchemaRelated
 from literature.schemas import CrossReferenceSchemaShow
+from literature.schemas import ReferenceCommentAndCorrectionSchemaRelated
 
 
 class ReferenceSchemaPost(BaseModel):
@@ -88,6 +89,10 @@ class ReferenceSchemaUpdate(BaseModel):
         extra = "forbid"
 
 
+class CommentAndCorrectionSchemaRelations(BaseModel):
+    to_references: Optional[List[ReferenceCommentAndCorrectionSchemaRelated]] = None
+    from_references: Optional[List[ReferenceCommentAndCorrectionSchemaRelated]] = None
+
 class ReferenceSchemaShow(BaseModelShow):
     reference_id: int
     curie: str
@@ -118,3 +123,4 @@ class ReferenceSchemaShow(BaseModelShow):
     resource_title: Optional[str] = None
     authors: Optional[List[AuthorSchemaShow]] = None
     editors: Optional[List[EditorSchemaShow]] = None
+    comment_and_corrections: CommentAndCorrectionSchemaRelations = None

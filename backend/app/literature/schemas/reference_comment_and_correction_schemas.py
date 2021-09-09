@@ -47,3 +47,13 @@ class ReferenceCommentAndCorrectionSchemaPatch(BaseModel):
     class Config():
         orm_mode = True
         extra = "forbid"
+
+class ReferenceCommentAndCorrectionSchemaRelated(BaseModel):
+    reference_comment_and_correction_id: int = None
+    reference_curie_from: Optional[str] = None
+    reference_curie_to: Optional[str] = None
+    reference_comment_and_correction_type: ReferenceCommentAndCorrectionType = None
+
+    class Config():
+        orm_mode = True
+        extra = "forbid"

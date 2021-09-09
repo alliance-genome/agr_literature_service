@@ -133,23 +133,6 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
     return {"message": "updated"}
 
 
-def show_comment_and_corrections(db: Session, curie:str):
-    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
-
-    comment_and_corrections_data = {'out': [], 'in': []}
-    for comment_and_correction in reference.comment_and_corrections_out:
-        comment_and_correction_data = reference_comment_and_correction_crud.show(db, comment_and_correction.reference_comment_and_correction_id)
-        del comment_and_correction_data['reference_from_curie']
-        comment_and_corrections_data['out'].append(comment_and_correction_data)
-
-    for comment_and_correction in reference.comment_and_corrections_in:
-        comment_and_correction_data = reference_comment_and_correction_crud.show(db, comment_and_correction.reference_comment_and_correction_id)
-        del comment_and_correction_data['reference_to_curie']
-        comment_and_corrections_data['in'].append(comment_and_correction_data)
-
-    return comment_and_corrections_data
-
-
 def show_files(db: Session, curie:str):
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
     files_data = []
@@ -223,6 +206,18 @@ def show(db: Session, curie: str):
             del editor['reference_id']
 
     del reference_data['files']
+
+    comment_and_corrections_data = {'to_references': [], 'from_references': []}
+    for comment_and_correction in reference.comment_and_corrections_out:
+        comment_and_correction_data = reference_comment_and_correction_crud.show(db, comment_and_correction.reference_comment_and_correction_id)
+        del comment_and_correction_data['reference_curie_from']
+        comment_and_corrections_data['to_references'].append(comment_and_correction_data)
+    for comment_and_correction in reference.comment_and_corrections_in:
+        comment_and_correction_data = reference_comment_and_correction_crud.show(db, comment_and_correction.reference_comment_and_correction_id)
+        del comment_and_correction_data['reference_curie_to']
+        comment_and_corrections_data['from_references'].append(comment_and_correction_data)
+
+    reference_data['comment_and_corrections'] = comment_and_corrections_data
 
     return reference_data
 
