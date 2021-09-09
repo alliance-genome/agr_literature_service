@@ -66,7 +66,6 @@ def patch(db: Session, reference_comment_and_correction_id: int, reference_comme
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference Comment And Correction with reference_comment_and_correction_id {reference_comment_and_correction_id} not found")
 
-
     for field, value in reference_comment_and_correction_update.items():
         if field == "reference_curie_to" and value:
             reference_curie_to = value
@@ -76,7 +75,7 @@ def patch(db: Session, reference_comment_and_correction_id: int, reference_comme
                                   detail=f"Reference with curie {reference_curie_to} does not exist")
             db_obj.reference_to = reference
         elif field == 'reference_curie_from' and value:
-            reference_from_curie = value
+            reference_curie_from = value
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_from).first()
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
