@@ -142,7 +142,7 @@ def get_medline_date_from_xml_date(pub_date):
         return medline_re_output.group(1)
 
 
-def generate_json(pmids):
+def generate_json(pmids, previous_pmids):
     # open input xml file and read data in form of python dictionary using xmltodict module
     md5data = ''
     # storage_path = base_path + 'pubmed_xml_20210322/'
@@ -153,6 +153,10 @@ def generate_json(pmids):
         makedirs(storage_path)
     if not path.exists(json_storage_path):
         makedirs(json_storage_path)
+#     new_pmids = []
+#     ref_types = []
+    new_pmids_set = set()
+    ref_types_set = set()
     for pmid in pmids:
         filename = storage_path + pmid + '.xml'
         # if getting pmids from directories split into multiple sub-subdirectories
@@ -235,6 +239,32 @@ def generate_json(pmids):
                 types_group = re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml)
                 # print types_group
                 data_dict['pubMedType'] = types_group
+
+# <CommentsCorrectionsList><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler. 1999 Dec;5(6):378</RefSource><PMID Version="1">10644162</PMID></CommentsCorrections><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler. 2000 Aug;6(4):291-2</RefSource><PMID Version="1">10962551</PMID></CommentsCorrections></CommentsCorrectionsList>
+            comments_corrections_group = re.findall("<CommentsCorrections (.+?)</CommentsCorrections>", xml, re.DOTALL)
+            if len(comments_corrections_group) > 0:
+                data_dict['commentsCorrections'] = dict()
+                comcor_list = []
+                for comcor_xml in comments_corrections_group:
+                    ref_type = ''
+                    other_pmid = ''
+                    ref_type_re_output = re.search("RefType=\"(.*?)\"", comcor_xml)
+                    if ref_type_re_output is not None:
+                        ref_type = ref_type_re_output.group(1)
+                    other_pmid_re_output = re.search("<PMID[^>]*?>(.+?)</PMID>", comcor_xml)
+                    if other_pmid_re_output is not None:
+                        other_pmid = other_pmid_re_output.group(1)
+                    if (other_pmid != '') and (ref_type != ''):
+                        if ref_type in data_dict['commentsCorrections']:
+                            if other_pmid not in data_dict['commentsCorrections'][ref_type]:
+                                data_dict['commentsCorrections'][ref_type].append(other_pmid)
+                        else:
+                            data_dict['commentsCorrections'][ref_type] = []
+                            data_dict['commentsCorrections'][ref_type].append(other_pmid)
+                        print(pmid + " COMCOR " + ref_type + " " + other_pmid)
+                        ref_types_set.add(ref_type)
+                        if other_pmid not in pmids and other_pmid not in previous_pmids:
+                            new_pmids_set.add(other_pmid)
 
             # this will need to be restructured to match schema
             authors_group = re.findall("<Author.*?>(.+?)</Author>", xml, re.DOTALL)
@@ -579,6 +609,14 @@ def generate_json(pmids):
     for unknown_article_id_type in unknown_article_id_types:
         logger.info("unknown_article_id_type %s", unknown_article_id_type)
 
+    ref_types = sorted(ref_types_set)
+    for ref_type in ref_types_set:
+        logger.info("ref_type %s", ref_type)
+
+    new_pmids = sorted(new_pmids_set)
+    for pmid in new_pmids:
+        logger.info("new_pmid %s", pmid)
+
 
 if __name__ == "__main__":
     """ call main start function """
@@ -629,7 +667,17 @@ if __name__ == "__main__":
     else:
         logger.info("Processing database entries")
 
-    generate_json(pmids)
+    # when iterating manually through list of PMIDs from PubMed XML CommentsCorrections, and wanting to exclude PMIDs that have already been looked at from original alliance DQM input, or previous iterations.
+    previous_pmids = []
+    previous_pmids_files = ['inputs/alliance_pmids', 'inputs/comcor_add1', 'inputs/comcor_add2', 'inputs/comcor_add3', 'inputs/comcor_add4', 'inputs/comcor_add5', 'inputs/comcor_add6', 'inputs/comcor_add7', 'inputs/comcor_add8', 'inputs/comcor_add9', 'inputs/comcor_add10', 'inputs/comcor_add11']
+    for previous_pmids_file in previous_pmids_files:
+        with open(previous_pmids_file, 'r') as fp:
+            pmid = fp.readline()
+            while pmid:
+                previous_pmids.append(pmid.rstrip())
+                pmid = fp.readline()
+
+    generate_json(pmids, previous_pmids)
     logger.info("Done converting XML to JSON")
 
 # capture ISSN / NLM
