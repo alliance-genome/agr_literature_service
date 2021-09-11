@@ -8,6 +8,7 @@ import logging.config
 
 from get_pubmed_xml import download_pubmed_xml
 from xml_to_json import generate_json
+from sanitize_pubmed_json import sanitize_pubmed_json_list
 from parse_dqm_json_reference import write_json
 from post_reference_to_api import post_references
 
@@ -48,47 +49,47 @@ def check_pmid_cross_reference(pmid):
     return process_results
 
 
-def sanitize_pubmed_json(pmid):
-    base_path = environ.get('XML_PATH')
-    pubmed_json_filepath = base_path + 'pubmed_json/' + pmid + '.json'
-    sanitized_reference_json_path = base_path + 'sanitized_reference_json/'
-    if not path.exists(sanitized_reference_json_path):
-        makedirs(sanitized_reference_json_path)
-
-    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReferences']
-    single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher', 'plainLanguageAbstract', 'pubmedAbstractLanguages']
-    replace_value_fields = ['authors', 'pubMedType', 'meshTerms', 'crossReferences']
-    date_fields = ['issueDate', 'dateArrivedInPubmed', 'dateLastModified']
-
-    pubmed_data = dict()
-    try:
-        with open(pubmed_json_filepath, 'r') as f:
-            pubmed_data = json.load(f)
-            f.close()
-        entry = dict()
-        entry['primaryId'] = 'PMID:' + pmid
-        if 'nlm' in pubmed_data:
-            entry['resource'] = 'NLM:' + pubmed_data['nlm']
-        entry['category'] = 'unknown'
-        for pmid_field in pmid_fields:
-            if pmid_field in single_value_fields:
-                pmid_data = ''
-                if pmid_field in pubmed_data:
-                    if pmid_field in date_fields:
-                        pmid_data = pubmed_data[pmid_field]['date_string']
-                    else:
-                        pmid_data = pubmed_data[pmid_field]
-                if pmid_data != '':
-                    entry[pmid_field] = pmid_data
-            elif pmid_field in replace_value_fields:
-                if pmid_field in pubmed_data:
-                    entry[pmid_field] = pubmed_data[pmid_field]
-        sanitized_data = []
-        sanitized_data.append(entry)
-        json_filename = sanitized_reference_json_path + 'REFERENCE_PUBMED_' + pmid + '.json'
-        write_json(json_filename, sanitized_data)
-    except IOError:
-        print(pubmed_json_filepath + ' not found in filesystem')
+# def sanitize_pubmed_json(pmid):
+#     base_path = environ.get('XML_PATH')
+#     pubmed_json_filepath = base_path + 'pubmed_json/' + pmid + '.json'
+#     sanitized_reference_json_path = base_path + 'sanitized_reference_json/'
+#     if not path.exists(sanitized_reference_json_path):
+#         makedirs(sanitized_reference_json_path)
+# 
+#     pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReferences']
+#     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher', 'plainLanguageAbstract', 'pubmedAbstractLanguages']
+#     replace_value_fields = ['authors', 'pubMedType', 'meshTerms', 'crossReferences']
+#     date_fields = ['issueDate', 'dateArrivedInPubmed', 'dateLastModified']
+# 
+#     pubmed_data = dict()
+#     try:
+#         with open(pubmed_json_filepath, 'r') as f:
+#             pubmed_data = json.load(f)
+#             f.close()
+#         entry = dict()
+#         entry['primaryId'] = 'PMID:' + pmid
+#         if 'nlm' in pubmed_data:
+#             entry['resource'] = 'NLM:' + pubmed_data['nlm']
+#         entry['category'] = 'unknown'
+#         for pmid_field in pmid_fields:
+#             if pmid_field in single_value_fields:
+#                 pmid_data = ''
+#                 if pmid_field in pubmed_data:
+#                     if pmid_field in date_fields:
+#                         pmid_data = pubmed_data[pmid_field]['date_string']
+#                     else:
+#                         pmid_data = pubmed_data[pmid_field]
+#                 if pmid_data != '':
+#                     entry[pmid_field] = pmid_data
+#             elif pmid_field in replace_value_fields:
+#                 if pmid_field in pubmed_data:
+#                     entry[pmid_field] = pubmed_data[pmid_field]
+#         sanitized_data = []
+#         sanitized_data.append(entry)
+#         json_filename = sanitized_reference_json_path + 'REFERENCE_PUBMED_' + pmid + '.json'
+#         write_json(json_filename, sanitized_data)
+#     except IOError:
+#         print(pubmed_json_filepath + ' not found in filesystem')
 
 
 def output_message_json(process_results):
@@ -111,9 +112,10 @@ def process_pmid(pmid):
         base_path = environ.get('XML_PATH')
         pmids_wanted = [pmid]
         download_pubmed_xml(pmids_wanted)
-        generate_json(pmids_wanted)
-        sanitize_pubmed_json(pmid)
-        json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_' + pmid + '.json'
+        generate_json(pmids_wanted, [])
+        sanitize_pubmed_json_list(pmids_wanted)
+        # json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_' + pmid + '.json'
+        json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_ALL.json'
         process_results = post_references(json_filepath)
     output_message_json(process_results)
     # print('finished')
