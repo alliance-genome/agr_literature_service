@@ -22,6 +22,7 @@ logger = logging.getLogger('literature logger')
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-a', '--authorization', action='store_true', help='update authorization token')
+parser.add_argument('-f', '--file', action='store', help='take input from input file in full path')
 parser.add_argument('-c', '--commandline', nargs='*', action='store', help='placeholder for process_single_pmid.py')
 args = vars(parser.parse_args())
 
@@ -313,6 +314,9 @@ if __name__ == "__main__":
 
     elif args['commandline']:
         logger.info("placeholder for process_single_pmid.py")
+
+    elif args['file']:
+        logger.info("placeholder for parse_pubmed_json_reference.py")
 
     else:
         post_references('sanitized')
