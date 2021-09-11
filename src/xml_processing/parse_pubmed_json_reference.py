@@ -1,10 +1,11 @@
-from os import environ, path
+from os import path
+# from os import environ
 import argparse
 import logging
 import logging.config
 
 from sanitize_pubmed_json import sanitize_pubmed_json_list
-from post_reference_to_api import post_references
+# from post_reference_to_api import post_references
 
 # pipenv run python parse_pubmed_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/pubmed_only_pmids
 # enter a file of pmids as an argument, sanitize, post to api
@@ -43,10 +44,11 @@ if __name__ == "__main__":
     else:
         logger.info("Must enter a PMID through command line")
 
-    # do_something()
     sanitize_pubmed_json_list(pmids_wanted)
-    base_path = environ.get('XML_PATH')
-    json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_ALL.json'
-    process_results = post_references(json_filepath)
+
+    # do below if wanting to post from here, instead of from post_reference_to_api.py
+    # base_path = environ.get('XML_PATH')
+    # json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_ALL.json'
+    # process_results = post_references(json_filepath)
 
     logger.info("Done Processing")
