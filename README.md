@@ -133,16 +133,29 @@ use --prod argument to use the WSGI server in production when running the applic
   - inputs/alliance_pmids
   - pmids_by_mods
 
-### Download pubmed xml
+### Recursively download pubmed xml, convert to json, get CommentsCorrections with PMIDs, recurse
+- Does the job of the next two parts, and recurses to get all possible CommentsCorrections that have non-Comment PMIDs. Logging does not work though.
+- 3? hours
+  - python3 process_many_pmids_to_json.py -f inputs/alliance_pmids
+- output
+  - inputs/pubmed_only_pmids
+  - pubmed_xml/&lt;files&gt;.xml
+  - pubmed_xml/md5sum
+  - pmids_not_found
+  - pubmed_json/&lt;pmid&gt;.json
+  - pubmed_json/md5sum
+
+### Download pubmed xml (if manual instead of recursive above)
 
 - get pubmed xml and store into pubmed_xml/ with list of files not found at pmids_not_found.  skips files already existing in output directory.  downloads in batches of 5000 pmids
 - 2 hours
   - python3 get_pubmed_xml.py -f inputs/alliance_pmids
 - output
   - pubmed_xml/&lt;files&gt;.xml
+  - pubmed_xml/md5sum
   - pmids_not_found
 
-### Convert pubmed xml to json
+### Convert pubmed xml to json (if manual instead of recursive above)
 
 - take input list of pmids, read .xml and convert to .json
 - 2 hours on agr-lit-dev, but only 22 minutes on dev.wormbase
@@ -152,6 +165,7 @@ use --prod argument to use the WSGI server in production when running the applic
   - pubmed_xml/&lt;pmid&gt;.xml
 - output
   - pubmed_json/&lt;pmid&gt;.json
+  - pubmed_json/md5sum
 
 ### Download pubmed resources
 
