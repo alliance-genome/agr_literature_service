@@ -135,7 +135,7 @@ use --prod argument to use the WSGI server in production when running the applic
 
 ### Recursively download pubmed xml, convert to json, get CommentsCorrections with PMIDs, recurse
 - Does the job of the next two parts, and recurses to get all possible CommentsCorrections that have non-Comment PMIDs. Logging does not work though.
-- 3? hours
+- 2 hours
   - python3 process_many_pmids_to_json.py -f inputs/alliance_pmids
 - output
   - inputs/pubmed_only_pmids
