@@ -42,6 +42,8 @@ import hashlib
 
 # https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt
 
+# Processing CommentIn/CommentOn from commentsCorrections results in 12-deep recursive chain of PMID comments, e.g. 32919857, but also many others fairly deep.
+# Removing CommentIn/CommentOn from allowed RefType values the deepest set is 4 deep, Recursive example 26757732 -> 26868856 -> 26582243 -> 26865040 -> 27032729
 
 # Need to set up a queue that queries postgres to get a list of pubmed id that don't have a pubmed final flag
 # Need to set up flags to take in pmids from postgres queue, file in filesystem, file in URL, list from command line
@@ -254,14 +256,14 @@ def generate_json(pmids, previous_pmids):
                     other_pmid_re_output = re.search("<PMID[^>]*?>(.+?)</PMID>", comcor_xml)
                     if other_pmid_re_output is not None:
                         other_pmid = other_pmid_re_output.group(1)
-                    if (other_pmid != '') and (ref_type != ''):
+                    if (other_pmid != '') and (ref_type != '') and (ref_type != 'CommentIn') and (ref_type != 'CommentOn'):
                         if ref_type in data_dict['commentsCorrections']:
                             if other_pmid not in data_dict['commentsCorrections'][ref_type]:
                                 data_dict['commentsCorrections'][ref_type].append(other_pmid)
                         else:
                             data_dict['commentsCorrections'][ref_type] = []
                             data_dict['commentsCorrections'][ref_type].append(other_pmid)
-                        print(pmid + " COMCOR " + ref_type + " " + other_pmid)
+                        # print(pmid + " COMCOR " + ref_type + " " + other_pmid)
                         ref_types_set.add(ref_type)
                         if other_pmid not in pmids and other_pmid not in previous_pmids:
                             new_pmids_set.add(other_pmid)
@@ -617,6 +619,8 @@ def generate_json(pmids, previous_pmids):
     for pmid in new_pmids:
         logger.info("new_pmid %s", pmid)
 
+    return new_pmids
+
 
 if __name__ == "__main__":
     """ call main start function """
@@ -669,7 +673,8 @@ if __name__ == "__main__":
 
     # when iterating manually through list of PMIDs from PubMed XML CommentsCorrections, and wanting to exclude PMIDs that have already been looked at from original alliance DQM input, or previous iterations.
     previous_pmids = []
-    previous_pmids_files = ['inputs/alliance_pmids', 'inputs/comcor_add1', 'inputs/comcor_add2', 'inputs/comcor_add3', 'inputs/comcor_add4', 'inputs/comcor_add5', 'inputs/comcor_add6', 'inputs/comcor_add7', 'inputs/comcor_add8', 'inputs/comcor_add9', 'inputs/comcor_add10', 'inputs/comcor_add11']
+    # previous_pmids_files = ['inputs/alliance_pmids', 'inputs/comcor_add1', 'inputs/comcor_add2', 'inputs/comcor_add3']
+    # previous_pmids_files = ['inputs/alliance_pmids', 'inputs/comcor_add1', 'inputs/comcor_add2', 'inputs/comcor_add3', 'inputs/comcor_add4', 'inputs/comcor_add5', 'inputs/comcor_add6', 'inputs/comcor_add7', 'inputs/comcor_add8', 'inputs/comcor_add9', 'inputs/comcor_add10', 'inputs/comcor_add11']
     for previous_pmids_file in previous_pmids_files:
         with open(previous_pmids_file, 'r') as fp:
             pmid = fp.readline()
