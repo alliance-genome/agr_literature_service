@@ -164,7 +164,7 @@ def download_pubmed_xml(pmids_wanted):
 
     logger.info("Writing log of pmids_not_found")
     output_pmids_not_found_file = base_path + 'pmids_not_found'
-    with open(output_pmids_not_found_file, "w") as pmids_not_found_file:
+    with open(output_pmids_not_found_file, "a") as pmids_not_found_file:
         for pmid in pmids_wanted:
             if pmid not in pmids_found:
                 pmids_not_found_file.write("%s\n" % (pmid))

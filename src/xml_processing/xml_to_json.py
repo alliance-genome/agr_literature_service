@@ -605,7 +605,7 @@ def generate_json(pmids, previous_pmids):
 
     md5file = json_storage_path + 'md5sum'
     logger.info("Writing md5sum mappings to %s", md5file)
-    with open(md5file, "w") as md5file_fh:
+    with open(md5file, "a") as md5file_fh:
         md5file_fh.write(md5data)
 
     for unknown_article_id_type in unknown_article_id_types:

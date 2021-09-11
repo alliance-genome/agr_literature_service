@@ -1,4 +1,4 @@
-
+import time
 from os import environ, path, makedirs
 import argparse
 import logging
@@ -8,7 +8,7 @@ from get_pubmed_xml import download_pubmed_xml
 from xml_to_json import generate_json
 
 
-# pipenv run python process_many_pmids_to_json.py -f inputs/alliance_pmids > log_process_many_pmids_to_json
+# pipenv run python process_many_pmids_to_json.py -f inputs/alliance_pmids
 #
 # enter a file with a list of pmids as an argument, download xml, convert to json, find new pmids in commentsCorrections, recurse, output list of pubmed-based (as opposed to MOD-DQM-based) pmids to  inputs/pubmed_only_pmids
 
@@ -46,13 +46,15 @@ def download_and_convert_pmids(pmids_wanted):
 
 def recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list):
     download_pubmed_xml(pmids_new_list)
-    pmids_new_list = generate_json(pmids_new_list, pmids_additional)
+    pmids_already_processed = pmids_original + pmids_additional
+    pmids_new_list = generate_json(pmids_new_list, pmids_already_processed)
     # for pmid in pmids_new_list:
     #     logger.info("new_pmid %s", pmid)
     #     print("newly found %s" % (pmid))
     # print(pmids_new_list)
     # print(pmids_additional)
     if pmids_new_list:
+        time.sleep(1)
         pmids_additional.extend(pmids_new_list)
         recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list)
     return pmids_additional
