@@ -49,5 +49,5 @@ def sanitize_pubmed_json_list(pmids):
         except IOError:
             print(pubmed_json_filepath + ' not found in filesystem')
     # json_filename = sanitized_reference_json_path + 'REFERENCE_PUBMED_' + pmid + '.json'
-    json_filename = sanitized_reference_json_path + 'REFERENCE_PUBMED_ALL.json'
+    json_filename = sanitized_reference_json_path + 'REFERENCE_PUBMED_PMID.json'
     write_json(json_filename, sanitized_data)

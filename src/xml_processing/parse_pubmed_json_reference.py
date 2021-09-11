@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
     # do below if wanting to post from here, instead of from post_reference_to_api.py
     # base_path = environ.get('XML_PATH')
-    # json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_ALL.json'
+    # json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_PMID.json'
     # process_results = post_references(json_filepath)
 
     logger.info("Done Processing")

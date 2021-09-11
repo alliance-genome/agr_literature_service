@@ -115,7 +115,7 @@ def process_pmid(pmid):
         generate_json(pmids_wanted, [])
         sanitize_pubmed_json_list(pmids_wanted)
         # json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_' + pmid + '.json'
-        json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_ALL.json'
+        json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_PMID.json'
         process_results = post_references(json_filepath)
     output_message_json(process_results)
     # print('finished')
