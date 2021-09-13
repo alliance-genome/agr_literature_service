@@ -11,8 +11,10 @@ from helper_post_to_api import generate_headers, update_token
 # from sanitize_pubmed_json import sanitize_pubmed_json_list
 # from post_reference_to_api import post_references
 
-# pipenv run python post_comments_corrections_to_api.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/pubmed_only_pmids
+# pipenv run python post_comments_corrections_to_api.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/all_pmids > log_post_comments_corrections_to_api
 # enter a file of pmids as an argument, sanitize, post to api
+# 1 hour 19 minutes for 669998 pmids and 6268 rows created
+
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
@@ -28,7 +30,7 @@ args = vars(parser.parse_args())
 
 
 def post_comments_corrections(pmids_wanted):
-    print(pmids_wanted)
+    logger.info(pmids_wanted)
 
     api_port = environ.get('API_PORT')
     # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
@@ -89,9 +91,10 @@ def post_comments_corrections(pmids_wanted):
         except IOError:
             print(pubmed_json_filepath + ' not found in filesystem')
 
+    url = 'http://localhost:' + api_port + '/reference_comment_and_correction/'
     mappings = sorted(mappings_set)
     for mapping in mappings:
-        print(mapping)
+        # print(mapping)
         map_data = mapping.split("\t")
         primary_pmid = 'PMID:' + map_data[0]
         secondary_pmid = 'PMID:' + map_data[1]
@@ -102,20 +105,28 @@ def post_comments_corrections(pmids_wanted):
             primary_curie = reference_to_curie[primary_pmid]
         if secondary_pmid in reference_to_curie:
             secondary_curie = reference_to_curie[secondary_pmid]
+        if (primary_curie == ''):
+            # print('ERROR ' + primary_pmid + ' does not map to an AGR Reference curie')
+            logger.info("ERROR %s : %s does not map to an AGR Reference curie", mapping, primary_pmid)
+        if (secondary_curie == ''):
+            # print('ERROR ' + secondary_pmid + ' does not map to an AGR Reference curie')
+            logger.info("ERROR %s does not map to an AGR Reference curie", secondary_pmid)
         if (primary_curie != '') and (secondary_curie != ''):
-            print('primary ' + primary_pmid + ' maps to ' + primary_curie)
-            print('secondary ' + secondary_pmid + ' maps to ' + secondary_curie)
-            print('com_cor_type ' + com_cor_type)
+            # print(primary_curie + '\t' + secondary_curie + '\t' + com_cor_type)
+            # print('primary ' + primary_pmid + ' maps to ' + primary_curie)
+            # print('secondary ' + secondary_pmid + ' maps to ' + secondary_curie)
+            # print('com_cor_type ' + com_cor_type)
             new_entry = dict()
             new_entry['reference_curie_from'] = primary_curie
             new_entry['reference_curie_to'] = secondary_curie
             new_entry['reference_comment_and_correction_type'] = com_cor_type
 
 # uncomment to test
-#             post_return = requests.post(url, headers=headers, json=new_entry)
-#             response_dict = json.loads(post_return.text)
-#             print(primary_id + "\ttext " + str(post_return.text))
-#             print(primary_id + "\tstatus_code " + str(post_return.status_code))
+            post_return = requests.post(url, headers=headers, json=new_entry)
+            # response_dict = json.loads(post_return.text)
+            # print(primary_curie + "\t" + secondary_curie + "\ttext " + str(post_return.text))
+            # print(primary_curie + "\t" + secondary_curie + "\tstatus_code " + str(post_return.status_code))
+            logger.info("%s\t%s\t%s\t%s\t%s\ttext %s\tstatus_code %s", primary_pmid, primary_curie, secondary_pmid, secondary_curie, com_cor_type, str(post_return.text), str(post_return.status_code))
 
 # delete later
 #                 if (post_return.status_code == 201):
