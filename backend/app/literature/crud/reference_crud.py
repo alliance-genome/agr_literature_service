@@ -88,6 +88,12 @@ def create(db: Session, reference: ReferenceSchemaPost):
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Resource with curie {value} does not exist")
             reference_data['resource'] = resource
+        elif field == 'merged_into_reference_curie':
+            merged_into_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == value).first()
+            if not merged_into_obj:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    detail=f"Merged_into Reference with curie {value} does not exist")
+            reference_data['merged_into_reference'] = merged_into_obj
         else:
             reference_data[field] = value
 
@@ -118,12 +124,18 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
 
     for field, value in reference_update.items():
         if field == "resource":
-          resource_curie = value
-          resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
-          if not resource:
-              raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            resource_curie = value
+            resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
+            if not resource:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                   detail=f"Resource with curie {resource_curie} does not exist")
-          reference_db_obj.resource = resource
+            reference_db_obj.resource = resource
+        elif field == 'merged_into_reference_curie' and value:
+            merged_into_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == value).first()
+            if not merged_into_obj:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    detail=f"Merged_into Reference with curie {value} does not exist")
+            reference_db_obj.merged_into_reference = merged_into_obj
         else:
             setattr(reference_db_obj, field, value)
 
@@ -204,6 +216,12 @@ def show(db: Session, curie: str):
             del editor['orcid_cross_reference']
             del editor['resource_id']
             del editor['reference_id']
+
+    if reference.merged_into_id:
+       reference_data['merged_into_reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == reference_data['merged_into_id']).first()[0]
+
+    if reference.mergee_references:
+        reference_data['mergee_reference_curies'] = [mergee.curie for mergee in reference.mergee_references]
 
     del reference_data['files']
 

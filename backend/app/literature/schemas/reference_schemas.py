@@ -35,6 +35,7 @@ class ReferenceSchemaPost(BaseModel):
     pages: Optional[str] = None
     abstract: Optional[str] = None
     keywords: Optional[List[str]] = None
+    merged_into_reference_curie: Optional[str] = None
     pubmed_type: Optional[List[str]] = None
     mod_reference_types: Optional[List[ModReferenceTypeSchemaCreate]] = None
     publisher: Optional[str] = None
@@ -66,6 +67,7 @@ class ReferenceSchemaUpdate(BaseModel):
     pages: Optional[str] = None
     abstract: Optional[str] = None
     keywords: Optional[List[str]] = None
+    merged_into_reference_curie: Optional[str] = None
     pubmed_type: Optional[List[str]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
@@ -111,6 +113,8 @@ class ReferenceSchemaShow(BaseModelShow):
     pages: Optional[str] = None
     abstract: Optional[str] = None
     keywords: Optional[List[str]] = None
+    merged_into_reference_curie: Optional[str] = None
+    mergee_reference_curies: Optional[List[str]] = None
     pubmed_type: Optional[List[str]] = None
     mod_reference_types: Optional[List[ModReferenceTypeSchemaRelated]] = None
     publisher: Optional[str] = None
