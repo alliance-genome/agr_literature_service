@@ -33,6 +33,7 @@ from literature.routers import db_schema_router
 from literature.routers import reference_comment_and_correction_router
 from literature.routers import reference_automated_term_tag_router
 from literature.routers import reference_manual_term_tag_router
+from literature.routers import bulk_downloads_router
 
 from literature.config import config
 from literature.database.config import SQLALCHEMY_DATABASE_URL
@@ -95,6 +96,7 @@ app.include_router(db_schema_router.router)
 app.include_router(reference_comment_and_correction_router.router)
 app.include_router(reference_automated_term_tag_router.router)
 app.include_router(reference_manual_term_tag_router.router)
+app.include_router(bulk_downloads_router.router)
 
 app.openapi = custom_openapi
 

@@ -21,6 +21,9 @@ from literature.models import ModReferenceTypeModel
 from literature.models import ReferenceTagModel
 from literature.models import MeshDetailModel
 
+from sqlalchemy import ARRAY
+from sqlalchemy import func
+
 
 def create_next_curie(curie):
     curie_parts = curie.rsplit('-', 1)
@@ -145,6 +148,12 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
     db.commit()
 
     return {"message": "updated"}
+
+
+def show_all_references_external_ids(db: Session):
+    return db.query(ReferenceModel.curie, func.array_agg(CrossReferenceModel.curie)) \
+             .outerjoin(ReferenceModel.cross_references) \
+             .group_by(ReferenceModel.curie).all()
 
 
 def show_files(db: Session, curie:str):
