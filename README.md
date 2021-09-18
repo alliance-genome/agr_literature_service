@@ -62,7 +62,7 @@ pytest --cov --cov-fail-under=100
 
 ### Backup
 
-Run the following command to create a backup of the database inside the development container (by running "make run-deb-bash". The compressed file will show up in the root of the project.
+Run the following command to create a backup of the database inside the development container (by running "make run-dev-bash". The compressed file will show up in the root of the project.
 
 ```bash
 export PGPASSWORD=postgres
@@ -71,10 +71,10 @@ pg_dump -h postgres -U postgres -p 5432 -Fc <database-name> > <database-name>.du
 
 ### Restore
 
-Also inside the development container run the following command 
+Also inside the development container run the following command. After creating a blank database (through the pgadmin if you prefer)
 
 ```bash
-pg_restore -d newdb -h postgres -U postgres -p 5432 <database-name>.dump
+pg_restore -d <newdb> -h postgres -U postgres -p 5432 <database-name>.dump
 ```
 
 
