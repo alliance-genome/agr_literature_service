@@ -58,7 +58,7 @@ make run-dev-bash
 pytest --cov --cov-fail-under=100
 ```
 
-## Backup and Restorre
+## Backup and Restore
 
 ### Backup
 
