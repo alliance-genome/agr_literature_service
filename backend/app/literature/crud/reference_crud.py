@@ -136,6 +136,8 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Merged_into Reference with curie {value} does not exist")
             reference_db_obj.merged_into_reference = merged_into_obj
+        elif field == 'merged_into_reference_curie':
+            reference_db_obj.merged_into_reference = None
         else:
             setattr(reference_db_obj, field, value)
 
