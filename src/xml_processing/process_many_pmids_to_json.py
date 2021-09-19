@@ -43,6 +43,13 @@ def download_and_convert_pmids(pmids_wanted):
     with open(pubmed_only_filepath, "w") as pubmed_only_fh:
         pubmed_only_fh.write(pmids_additional_string)
 
+    pubmed_all_filepath = base_path + 'inputs/all_pmids'
+    pmids_all_list = pmids_wanted + pmids_additional
+    pmids_all_list.sort(key=int)
+    pmids_all_string = ("\n".join(pmids_all_list))
+    with open(pubmed_all_filepath, "w") as pubmed_all_fh:
+        pubmed_all_fh.write(pmids_all_string)
+
 
 def recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list):
     download_pubmed_xml(pmids_new_list)
