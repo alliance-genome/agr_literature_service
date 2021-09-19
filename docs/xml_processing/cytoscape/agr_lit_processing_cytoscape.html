@@ -1,0 +1,188 @@
+<!DOCTYPE>
+
+<html>
+
+  <head>
+    <title>cytoscape-dagre.js demo</title>
+
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1, maximum-scale=1">
+
+    <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+
+    <!-- for testing with local version of cytoscape.js -->
+    <!--<script src="../cytoscape.js/build/cytoscape.js"></script>-->
+
+    <script src="https://unpkg.com/dagre@0.7.4/dist/dagre.js"></script>
+    <script src="cytoscape-dagre.js"></script>
+
+    <style>
+      body {
+        font-family: helvetica;
+        font-size: 14px;
+      }
+
+      #cy {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        left: 0;
+        top: 0;
+        z-index: 999;
+      }
+
+      h1 {
+        opacity: 0.5;
+        font-size: 1em;
+      }
+    </style>
+
+    <script>
+      window.addEventListener('DOMContentLoaded', function(){
+
+        var cy = window.cy = cytoscape({
+          container: document.getElementById('cy'),
+
+          boxSelectionEnabled: false,
+          autounselectify: true,
+
+          layout: {
+            name: 'dagre',
+            spacingFactor: 1
+          },
+
+          style: [
+            {
+              selector: 'node',
+              style: {
+                'color': 'data(color)',
+                'background-color': 'white',
+                'border-color': 'data(color)',
+                'border-width': '4',
+                'border-opacity': 0.5,
+                'text-valign': 'center',
+                'text-wrap': 'wrap',
+                'width': 'data(width)',
+                'height': 'data(height)',
+                'label': 'data(label)',
+                'shape': 'data(shape)'
+              }
+            },
+
+            {
+              selector: 'edge',
+              style: {
+                'width': 4,
+                'target-arrow-shape': 'triangle',
+                'line-color': 'data(color)',
+                'target-arrow-color': 'data(color)',
+                'curve-style': 'bezier'
+              }
+            }
+          ],
+
+          elements: {
+            nodes: [
+  { "data": { "id": "n0", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "fms" } },
+  { "data": { "id": "n1", "width": 40, "height": 40, "shape": "circle", "color": "#11479e", "label": "get_dqm_data.py" } },
+  { "data": { "id": "n2", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "dqm_data/<datatype>_<mod>.json" } },
+
+  { "data": { "id": "n3", "width": 40, "height": 40, "shape": "circle", "color": "#11479e", "label": "parse_dqm_json_reference.py -p" } },
+  { "data": { "id": "n4", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "inputs/\nalliance_pmids" } },
+  { "data": { "id": "n5", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "pmids_by_mods" } },
+
+  { "data": { "id": "n21", "width": 40, "height": 40, "shape": "circle", "color": "#11479e", "label": "process_many_pmids_to_json.py -f inputs/alliance_pmids" } },
+  { "data": { "id": "n22", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "pubmed_\nonly_pmids" } },
+  { "data": { "id": "n23", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "all_pmids" } },
+  { "data": { "id": "n6", "width": 40, "height": 40, "shape": "circle", "color": "#888888", "label": "get_pubmed_xml.py -f inputs/alliance_pmids" } },
+  { "data": { "id": "n7", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "pubmed_xml/\n<pmid>.xml" } },
+  { "data": { "id": "n8", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "pmids_\nnot_found" } },
+
+  { "data": { "id": "n9", "width": 40, "height": 40, "shape": "circle", "color": "#888888", "label": "xml_to_json.py -f\ninputs/alliance_pmids" } },
+  { "data": { "id": "n10", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "pubmed_json/\n<pmid>.json" } },
+
+  { "data": { "id": "n11", "width": 40, "height": 40, "shape": "circle", "color": "#11479e", "label": "generate_pubmed_\nnlm_resource.py\n-u" } },
+  { "data": { "id": "n12", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "ftp.ncbi.nih.gov/\npubmed/\nJ_Medline.txt" } },
+  { "data": { "id": "n13", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "pubmed_resource_json/\nresource_pubmed_all.json" } },
+
+  { "data": { "id": "n14", "width": 40, "height": 40, "shape": "circle", "color": "#11479e", "label": "parse_dqm_json_reference.py\n-f dqm_data/ -m all" } },
+  { "data": { "id": "n15", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "report_files/" } },
+  { "data": { "id": "n16", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "resource_xml/\nresource_abbreviation\n_not_matched" } },
+  { "data": { "id": "n17", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "sanitized_\nreference_\njson/" } },
+  { "data": { "id": "n18", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "FB_\nresourceAbbreviation_\nto_NLM.json" } },
+
+  { "data": { "id": "n19", "width": 40, "height": 40, "shape": "circle", "color": "#11479e", "label": "parse_dqm_json_resource.py" } },
+  { "data": { "id": "n20", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "sanitized_resource_json/" } },
+
+  { "data": { "id": "n24", "width": 40, "height": 40, "shape": "circle", "color": "#11479e", "label": "parse_pubmed_json_reference.py\n-f inputs/pubmed_only_pmids" } },
+
+  { "data": { "id": "n25", "width": 40, "height": 40, "shape": "circle", "color": "#11479e", "label": "post_resource_to_api.py" } },
+  { "data": { "id": "n26", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "resource_primary_id_to_curie" } },
+
+  { "data": { "id": "n27", "width": 40, "height": 40, "shape": "circle", "color": "#11479e", "label": "post_reference_to_api.py" } },
+  { "data": { "id": "n28", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "reference_primary_id_to_curie" } },
+
+  { "data": { "id": "n29", "width": 40, "height": 40, "shape": "circle", "color": "#11479e", "label": "post_comments_corrections_to_api.py\n-f inputs/all_pmids" } },
+
+  { "data": { "id": "n30", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "api + database" } }
+
+            ],
+            edges: [
+  { "data": { "id": "e0", "source": "n0", "target": "n1", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e1", "source": "n1", "target": "n2", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e2", "source": "n2", "target": "n3", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e3", "source": "n3", "target": "n4", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e4", "source": "n3", "target": "n5", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e25", "source": "n4", "target": "n21", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e26", "source": "n21", "target": "n7", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e27", "source": "n21", "target": "n8", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e28", "source": "n21", "target": "n22", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e29", "source": "n21", "target": "n23", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e30", "source": "n21", "target": "n10", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e5", "source": "n4", "target": "n6", "arrow": "triangle", "color": "#cccccc" } },
+  { "data": { "id": "e6", "source": "n6", "target": "n7", "arrow": "triangle", "color": "#cccccc" } },
+  { "data": { "id": "e7", "source": "n6", "target": "n8", "arrow": "triangle", "color": "#cccccc" } },
+  { "data": { "id": "e8", "source": "n4", "target": "n9", "arrow": "triangle", "color": "#cccccc" } },
+  { "data": { "id": "e9", "source": "n7", "target": "n9", "arrow": "triangle", "color": "#cccccc" } },
+  { "data": { "id": "e10", "source": "n9", "target": "n10", "arrow": "triangle", "color": "#cccccc" } },
+  { "data": { "id": "e11", "source": "n12", "target": "n11", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e12", "source": "n11", "target": "n13", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e13", "source": "n2", "target": "n14", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e14", "source": "n13", "target": "n14", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e15", "source": "n5", "target": "n14", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e16", "source": "n10", "target": "n14", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e17", "source": "n14", "target": "n15", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e18", "source": "n14", "target": "n16", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e19", "source": "n14", "target": "n17", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e20", "source": "n14", "target": "n18", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e21", "source": "n2", "target": "n19", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e22", "source": "n18", "target": "n19", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e23", "source": "n13", "target": "n19", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e24", "source": "n19", "target": "n20", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e31", "source": "n22", "target": "n24", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e32", "source": "n24", "target": "n17", "arrow": "triangle", "color": "#9dbaea" } },
+
+  { "data": { "id": "e33", "source": "n20", "target": "n25", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e34", "source": "n25", "target": "n26", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e35", "source": "n17", "target": "n27", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e36", "source": "n26", "target": "n27", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e37", "source": "n27", "target": "n28", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e38", "source": "n28", "target": "n29", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e39", "source": "n25", "target": "n30", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e40", "source": "n27", "target": "n30", "arrow": "triangle", "color": "#9dbaea" } },
+  { "data": { "id": "e41", "source": "n29", "target": "n30", "arrow": "triangle", "color": "#9dbaea" } }
+            ]
+          }
+        });
+
+      });
+    </script>
+  </head>
+
+  <body>
+    <h1>simplified view of https://github.com/alliance-genome/agr_literature_service_demo/ reference and resource processing</h1>
+
+    <div id="cy"></div>
+
+  </body>
+
+</html>
