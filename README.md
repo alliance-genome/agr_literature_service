@@ -276,6 +276,49 @@ use --prod argument to use the WSGI server in production when running the applic
 - output
   - resource_xml/&lt;resourceAbbreviation&gt;.xml
 
+### Post resources to API / DB
+
+- take sanitized resource files, convert them to api format, and post to localhost api.  skip resources that have already been posted before.  if necessary generate an okta token or read from file.
+- 12 minutes
+  - python3 post_resource_to_api.py
+- input
+  - sanitized_resource_json/RESOURCE_FB.json
+  - sanitized_resource_json/RESOURCE_ZFIN.json
+  - sanitized_resource_json/RESOURCE_NLM.json
+  - resource_primary_id_to_curie
+  - okta_token
+- output
+  - resource_primary_id_to_curie
+  - errors_in_posting_resource
+  - okta_token
+
+### Post references to API / DB
+
+- take sanitized reference files, convert them to api format, and post to localhost api.  map resource names to resource curies.  skip references that have already been posted before.  if necessary generate an okta token or read from file.
+- 1 day 14 hours 12 minutes
+  - python3 post_reference_to_api.py
+- input
+  - sanitized_reference_json/REFERENCE_*.json
+  - resource_primary_id_to_curie
+  - reference_primary_id_to_curie
+  - okta_token
+- output
+  - reference_primary_id_to_curie
+  - errors_in_posting_reference
+  - okta_token
+
+### Post comments-corrections connections to API / DB
+
+- take list of all pmids, process to extract comments-corrections connections, convert to reference curies, and post to localhost api.  map pmids to reference curies.  if necessary generate an okta token or read from file.
+- 1 hour 19 minutes
+  - python3 post_comments_corrections_to_api.py -f inputs/all_pmids
+- input
+  - inputs/all_pmids
+  - reference_primary_id_to_curie
+  - pubmed_json/&lt;pmid&gt;.json
+- output
+  - okta_token
+
 ### Compress and upload to s3
 
 #### pubmed xml
