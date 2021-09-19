@@ -314,8 +314,9 @@ use --prod argument to use the WSGI server in production when running the applic
   - python3 post_comments_corrections_to_api.py -f inputs/all_pmids
 - input
   - inputs/all_pmids
-  - reference_primary_id_to_curie
   - pubmed_json/&lt;pmid&gt;.json
+  - reference_primary_id_to_curie
+  - okta_token
 - output
   - okta_token
 
