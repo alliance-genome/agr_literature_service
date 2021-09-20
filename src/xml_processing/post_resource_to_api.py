@@ -45,6 +45,7 @@ resource_fields_not_in_pubmed = ['titleSynonyms', 'abbreviationSynonyms', 'isoAb
 
 
 def post_resources():
+    api_port = environ.get('API_PORT')
     json_storage_path = base_path + 'sanitized_resource_json/'
     filesets = ['NLM', 'FB', 'ZFIN']
     keys_to_remove = {'nlm', 'primaryId'}
@@ -68,7 +69,8 @@ def post_resources():
     keys_found = set()
 
 #     url = 'http://localhost:49161/resource/'
-    url = 'http://localhost:11223/resource/'
+#     url = 'http://localhost:11223/resource/'
+    url = 'http://localhost:' + api_port + '/resource/'
 #     headers = {
 #         'Authorization': 'Bearer <token_goes_here>',
 #         'Content-Type': 'application/json',
