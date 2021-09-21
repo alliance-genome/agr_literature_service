@@ -22,3 +22,7 @@ boto3==1.17.73
 pydot==1.4.2
 sqlalchemy_schemadisplay==1.3
 git+https://github.com/alliance-genome/fastapi-okta#egg=fastapi_okta
+
+
+# xml_processing
+bs4==0.0.1

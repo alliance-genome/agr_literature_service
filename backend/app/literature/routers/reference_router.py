@@ -65,7 +65,12 @@ def create(pubmed_id: str,
            db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
 
-    process = subprocess.run('python3 src/helloworld.py ' + pubmed_id, shell=True, stdout=subprocess.PIPE)
+    try:
+        process = subprocess.run('cd src/xml_processing && python3 process_single_pmid.py -c ' + pubmed_id,
+                                 shell=True,
+                                 stdout=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        print(e.output)
 
     return process.stdout.decode('utf-8')
 

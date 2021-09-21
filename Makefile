@@ -5,7 +5,14 @@ login-ecr:
 	docker run -v ~/.aws/credentials:/root/.aws/credentials --rm -it amazon/aws-cli ecr get-login-password | docker login --username AWS --password-stdin ${REG}
 
 build-env:
-	docker build . --build-arg REG=${REG} -t ${REG}/agr_literature_env:${TAG} -f ./docker/Dockerfile.env
+	docker build . \
+		--build-arg REG=${REG} \
+		--build-arg aws_secret_access_key=${AWS_SECRET_ACCESS_KEY} \
+		--build-arg aws_access_key_id=${AWS_ACCESS_KEY_ID} \
+		--build-arg okta_client_id=${OKTA_CLIENT_ID} \
+		--build-arg okta_client_secret=${OKTA_CLIENT_SECRET} \
+		-t ${REG}/agr_literature_env:${TAG} \
+		-f ./docker/Dockerfile.env
 
 build-dev:
 	docker build . --build-arg REG=${REG} -t ${REG}/agr_literature_dev:${TAG} -f ./docker/Dockerfile.dev.env
@@ -17,7 +24,12 @@ run-flake8:
 	docker run --rm -v ${PWD}:/workdir -i ${REG}/agr_literature_dev:${TAG} /bin/bash -c "python3 -m flake8 ."
 
 run-dev-bash:
-	docker run --network=agr_literature_service_demo_agr-literature -p ${API_PORT}:8080 -v ${PWD}:/workdir -t -i ${REG}/agr_literature_dev:${TAG} /bin/bash
+	docker run \
+		--network=agr_literature_service_demo_agr-literature \
+	    -p ${API_PORT}:8080 \
+	    -v ${PWD}:/workdir \
+		-t -i ${REG}/agr_literature_dev:${TAG} \
+		/bin/bash
 
 run-dev-zsh:
 	docker run --rm -v "${HOME}/.vimrc:/root/.vimrc:rw" -v "${HOME}/.zshrc:/root/.zshrc:rw" -v ${PWD}:/workdir -t -i ${REG}/agr_literature_dev:${TAG} /bin/zsh

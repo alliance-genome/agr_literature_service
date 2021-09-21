@@ -29,7 +29,7 @@ from literature.routers import resource_descriptor_router
 from literature.routers import mesh_detail_router
 from literature.routers import mod_reference_type_router
 from literature.routers import person_router
-from literature.routers import db_schema_router
+from literature.routers import database_router
 from literature.routers import reference_comment_and_correction_router
 from literature.routers import reference_automated_term_tag_router
 from literature.routers import reference_manual_term_tag_router
@@ -92,7 +92,7 @@ app.include_router(mesh_detail_router.router)
 app.include_router(mod_reference_type_router.router)
 app.include_router(person_router.router)
 app.include_router(note_router.router)
-app.include_router(db_schema_router.router)
+app.include_router(database_router.router)
 app.include_router(reference_comment_and_correction_router.router)
 app.include_router(reference_automated_term_tag_router.router)
 app.include_router(reference_manual_term_tag_router.router)
