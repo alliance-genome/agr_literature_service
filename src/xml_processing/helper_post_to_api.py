@@ -36,7 +36,6 @@ def update_auth0_token():
     response_dict = json.loads(post_return.text)
     token = response_dict['access_token']
     # logger.info("token %s", token)
-    print("updated token %s" % (token))
     auth0_file = base_path + 'auth0_token'
     with open(auth0_file, 'w') as auth0_fh:
         auth0_fh.write("%s" % (token))
@@ -60,7 +59,6 @@ def update_okta_token():
     response_dict = json.loads(post_return.text)
     token = response_dict['access_token']
     # logger.info("token %s", token)
-    print("updated token %s" % (token))
     okta_file = base_path + 'okta_token'
     with open(okta_file, 'w') as okta_fh:
         okta_fh.write("%s" % (token))
