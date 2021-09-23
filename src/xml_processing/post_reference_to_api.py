@@ -293,6 +293,8 @@ def process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh):
         headers = generate_headers(token)
         process_post_tuple = process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh)
         headers = process_post_tuple[0]
+        process_text = process_post_tuple[1]
+        process_status_code = process_post_tuple[2]
     elif (post_return.status_code == 500):
         logger.info("%s\tFAILURE", primary_id)
         mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))

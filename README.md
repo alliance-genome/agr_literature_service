@@ -116,6 +116,10 @@ use --prod argument to use the WSGI server in production when running the applic
 
 # XML Processing
 
+## Configuration
+
+- If running manually replace .env XML_PATH with path to where processing will happen, leave API_PORT 8080 if running from within docker but change to API port if outside docker, set OKTA_CLIENT_ID and OKTA_CLIENT_SECRET.  If stored in .bashrc or .zshrc just remove those 4 variables from .env file and pipenv will get them from the shell rc.  
+
 ## Scripts and the order to run them in
 
 ### get dqm data from fms
