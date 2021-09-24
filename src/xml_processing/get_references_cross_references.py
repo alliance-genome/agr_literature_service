@@ -9,8 +9,9 @@ import logging.config
 from helper_post_to_api import generate_headers, update_token
 
 # pipenv run python get_references_cross_references.py
-# generate reference_primary_id_to_curie file mapping reference cross_references to alliance reference curies from database
-# API is not working, when it works, check how long it takes, probably >41 seconds, and update output filename
+
+# about 45 seconds to generate file
+# generate reference_curie_to_xref file mapping alliance reference curies to cross_references identifiers from database
 
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
@@ -45,9 +46,10 @@ def update_reference_cross_reference():
         curie = entry[0]
         xref_array = entry[1]
         for xref in xref_array:
-            mapping_output += curie + '\t' + xref + '\n'
+            if xref is not None:
+                mapping_output += curie + '\t' + xref + '\n'
 
-    ref_xref_file = 'generated_reference_primary_id_to_curie'
+    ref_xref_file = 'reference_curie_to_xref'
     with open(ref_xref_file, "w") as ref_xref_file_fh:
         ref_xref_file_fh.write(mapping_output)
 
