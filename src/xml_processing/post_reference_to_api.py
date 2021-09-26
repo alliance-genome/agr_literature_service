@@ -167,7 +167,7 @@ def post_references(input_file):
 
     process_results = []
     with open(reference_primary_id_to_curie_file, 'a') as mapping_fh, open(errors_in_posting_reference_file, 'a') as error_fh:
-        for filepath in files_to_process:
+        for filepath in sorted(files_to_process):
             # only test one file for run
             # if filepath != json_storage_path + 'REFERENCE_PUBMED_WB_1.json':
             #     continue
@@ -252,7 +252,7 @@ def post_references(input_file):
                 process_result = dict()
                 process_result['text'] = process_text
                 process_result['status_code'] = process_status_code
-                process_results.append(process_result) 
+                process_results.append(process_result)
 
 #    if wanting to output keys in data for figuring out mapping
 #         for key in keys_found:

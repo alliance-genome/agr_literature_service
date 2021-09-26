@@ -1,22 +1,25 @@
 import json
-import urllib.request
+# import urllib.request
 
 import argparse
-import re
+# import re
 
-from os import environ, path, makedirs
+from os import environ, path, makedirs, listdir
 import logging
 import logging.config
 
 from dotenv import load_dotenv
 
-import bs4
+# import bs4
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
 
 # pipenv run python sort_dqm_json_reference_updates.py -f dqm_data -m WB
+
+# pipenv run python sort_dqm_json_reference_updates.py -f dqm_data -m all > asdf_sanitized
+
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
@@ -61,8 +64,8 @@ def load_ref_xref():
     ref_xref = dict()
     xref_ref = dict()
     base_path = environ.get('XML_PATH')
-    reference_primary_id_to_curie_file = base_path + 'reference_curie_to_xref_sample'
-#     reference_primary_id_to_curie_file = base_path + 'reference_curie_to_xref'
+#     reference_primary_id_to_curie_file = base_path + 'reference_curie_to_xref_sample'
+    reference_primary_id_to_curie_file = base_path + 'reference_curie_to_xref'
     if path.isfile(reference_primary_id_to_curie_file):
         with open(reference_primary_id_to_curie_file, 'r') as read_fh:
             for line in read_fh:
@@ -100,45 +103,118 @@ def sort_dqm_references(input_path, input_mod):
 #         for identifier in xref_ref[prefix]:
 #             agr = xref_ref[prefix][identifier]
 #             logger.info("agr %s prefix %s ident %s", agr, prefix, identifier)
-# 
+#
 #     for agr in ref_xref:
 #         for prefix in ref_xref[agr]:
 #             for identifier in ref_xref[agr][prefix]:
 #                 logger.info("agr %s prefix %s ident %s", agr, prefix, identifier)
 
+    input_file = 'sanitized'
+#     input_file = 'dqm'
+    files_to_process = []
+    if input_file == 'sanitized':
+        json_storage_path = base_path + 'sanitized_reference_json/'
+        dir_list = listdir(json_storage_path)
+        for filename in dir_list:
+            # logger.info("%s", filename)
+            if 'REFERENCE_' in filename and '.REFERENCE_' not in filename:
+                # logger.info("%s", filename)
+                files_to_process.append(json_storage_path + filename)
+    else:
+        for mod in mods:
+            filename = input_path + '/REFERENCE_' + mod + '.json'
+            files_to_process.append(filename)
+
+    dqm = dict()
+    dqm['mod'] = dict()
+    dqm['pmid'] = dict()
+    dqm['pmid']['PMID'] = set()
     # 2 seconds to read full WB file
     for mod in mods:
-        filename = input_path + '/REFERENCE_' + mod + '.json'
+        dqm['mod'][mod] = set()
+        dqm['pmid'][mod] = set()
+
+#         filename = input_path + '/REFERENCE_' + mod + '.json'
+
+    for filename in sorted(files_to_process):
         logger.info(filename)
         dqm_data = dict()
         with open(filename, 'r') as f:
             dqm_data = json.load(f)
             f.close()
-        entries = dqm_data['data']
+        entries = dqm_data
+        if input_file == 'dqm':
+            entries = dqm_data['data']
         hash = []
         counter = 0
+#         max_counter = 100
+        max_counter = 100000000
         for entry in entries:
             counter = counter + 1
-            if counter > 100:
+            if counter > max_counter:
                 break
-            mod_xrefs = []
-            pmid_xrefs = []
+#             mod_xrefs = []
+#             pmid_xrefs = []
+            dqm_xrefs = dict()
             xrefs = []
             if 'crossReferences' in entry:
                 for cross_reference in entry['crossReferences']:
                     if "id" in cross_reference:
                         xrefs.append(cross_reference["id"])
             if entry['primaryId'] not in xrefs:
-                 xrefs.append(entry['primaryId'])
+                xrefs.append(entry['primaryId'])
             for cross_reference in xrefs:
                 prefix, identifier, separator = split_identifier(cross_reference)
-                if prefix == mod:
-                    mod_xrefs.append(identifier)
+                # when looping through specific mods
+                # if prefix == mod:
+                if prefix in mods:
+                    if prefix not in dqm_xrefs:
+                        dqm_xrefs[prefix] = []
+                    dqm['mod'][prefix].add(identifier)
+                    dqm_xrefs[prefix].append(identifier)
                 if prefix == 'PMID':
-                    pmid_xrefs.append(identifier)
-            print(xrefs)
-            print(mod_xrefs)
-            print(pmid_xrefs)
+                    if 'PMID' not in dqm_xrefs:
+                        dqm_xrefs['PMID'] = []
+                    dqm['pmid'][prefix].add(identifier)
+                    dqm_xrefs['PMID'].append(identifier)
+#             print(xrefs)
+#             print(mod_xrefs)
+#             print(pmid_xrefs)
+
+#             agr = xref_ref[prefix][identifier]
+#             for mod_xref in mod_xrefs:
+#                 for mod in mods:
+            for mod in dqm_xrefs:
+                for ident in dqm_xrefs[mod]:
+                    if mod in xref_ref:
+                        mod_xref_found = False
+                        if ident in xref_ref[mod]:
+#                             agr = xref_ref[mod][ident]
+#                             logger.info("Mod submitted Yes Found in DB : agr %s prefix %s ident %s", agr, mod, ident)
+                            mod_xref_found = True
+                        if not mod_xref_found:
+                            logger.info("Mod submitted Not Found in DB : prefix %s ident %s", mod, ident)
+
+#                 # when looping through specific mods
+#             for mod_xref in mod_xrefs:
+#                 mod_xref_found = False
+#                 if mod in xref_ref:
+#                     if mod_xref in xref_ref[mod]:
+#                         agr = xref_ref[mod][mod_xref]
+# #                         logger.info("Mod Id Yes Found : agr %s prefix %s ident %s", agr, mod, mod_xref)
+#                         mod_xref_found = True
+#                 if not mod_xref_found:
+#                     logger.info("Mod Id Submitted Not Found in DB : prefix %s ident %s", mod, mod_xref)
+
+#             for pmid_xref in pmid_xrefs:
+#                 pmid_xref_found = False
+#                 if 'PMID' in xref_ref:
+#                     if pmid_xref in xref_ref['PMID']:
+#                         agr = xref_ref['PMID'][pmid_xref]
+# #                         logger.info("Mod Id Yes Found : agr %s prefix %s ident %s", agr, mod, pmid_xref)
+#                         pmid_xref_found = True
+#                 if not pmid_xref_found:
+#                     logger.info("Mod PMID Submitted Not Found in DB : prefix %s ident %s", mod, pmid_xref)
 
 
 if __name__ == "__main__":
