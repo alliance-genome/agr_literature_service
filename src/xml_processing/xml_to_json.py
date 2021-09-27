@@ -413,7 +413,9 @@ def generate_json(pmids, previous_pmids):
                     date_dict['day'] = date_list[2]
                     data_dict['dateArrivedInPubmed'] = date_dict
 
+
             cross_references = []
+            has_self_pmid = False	# e.g. 20301347, 21413225 do not have the PMID itself in the ArticleIdList, so must be appended to the cross_references
             article_id_list_re_output = re.search("<ArticleIdList>(.*?)</ArticleIdList>", xml, re.DOTALL)
             if article_id_list_re_output is not None:
                 article_id_list = article_id_list_re_output.group(1)
@@ -426,6 +428,8 @@ def generate_json(pmids, previous_pmids):
                         value = type_value[1]
                         # print pmid + " type " + type + " value " + value
                         if type in known_article_id_types:
+                            if value == pmid:
+                                has_self_pmid = True
                             if type in type_has_value:
                                 logger.info("%s has multiple for type %s", pmid, type)
                             type_has_value.add(type)
@@ -436,6 +440,8 @@ def generate_json(pmids, previous_pmids):
                             if type not in ignore_article_id_types:
                                 logger.info("%s has unexpected type %s", pmid, type)
                                 unknown_article_id_types.add(type)
+            if not type_has_value:
+                cross_references.append({'id': 'PMID:' + pmid})
 
             medline_journal_info_re_output = re.search("<MedlineJournalInfo>(.*?)</MedlineJournalInfo>", xml, re.DOTALL)
             if medline_journal_info_re_output is not None:
@@ -673,6 +679,7 @@ if __name__ == "__main__":
 
     # when iterating manually through list of PMIDs from PubMed XML CommentsCorrections, and wanting to exclude PMIDs that have already been looked at from original alliance DQM input, or previous iterations.
     previous_pmids = []
+    previous_pmids_files = []
     # previous_pmids_files = ['inputs/alliance_pmids', 'inputs/comcor_add1', 'inputs/comcor_add2', 'inputs/comcor_add3']
     # previous_pmids_files = ['inputs/alliance_pmids', 'inputs/comcor_add1', 'inputs/comcor_add2', 'inputs/comcor_add3', 'inputs/comcor_add4', 'inputs/comcor_add5', 'inputs/comcor_add6', 'inputs/comcor_add7', 'inputs/comcor_add8', 'inputs/comcor_add9', 'inputs/comcor_add10', 'inputs/comcor_add11']
     for previous_pmids_file in previous_pmids_files:
