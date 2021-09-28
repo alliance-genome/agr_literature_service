@@ -278,6 +278,7 @@ def populate_expected_cross_reference_type():
     expected_cross_reference_type.add('FB:FBrf'.lower())
     expected_cross_reference_type.add('ZFIN:ZDB-PUB-'.lower())
 
+    # when getting pubmed data and merging mod cross references, exclude these types
     pubmed_not_dqm_cross_reference_type = set()
     pubmed_not_dqm_cross_reference_type.add('PMID:'.lower())
     pubmed_not_dqm_cross_reference_type.add('PMCID:PMC'.lower())
@@ -457,15 +458,26 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
         makedirs(report_file_path)
 
     fh_mod_report = dict()
+    fh_mod_report_title = dict()
+    fh_mod_report_differ = dict()
     for mod in mods:
         resource_not_found[mod] = dict()
         # cross_reference_types[mod] = set()
         cross_reference_types[mod] = dict()
         filename = report_file_path + mod
+        filename_title = report_file_path + mod + '_dqm_pubmed_title_differ'
+        filename_differ = report_file_path + mod + '_dqm_pubmed_differ'
         fh_mod_report.setdefault(mod, open(filename, 'w'))
+        fh_mod_report_title.setdefault(mod, open(filename_title, 'w'))
+        fh_mod_report_differ.setdefault(mod, open(filename_differ, 'w'))
 
     multi_report_filename = base_path + 'report_files/multi_mod'
     fh_mod_report.setdefault('multi', open(multi_report_filename, 'w'))
+    # these are not needed, there are no dqm vs pubmed comparisons for multiple mods
+    # multi_report_filename_title = base_path + 'report_files/multi_mod_dqm_pubmed_title_differ'
+    # multi_report_filename_differ = base_path + 'report_files/multi_mod_dqm_pubmed_differ'
+    # fh_mod_report_title.setdefault('multi', open(multi_report_filename_title, 'w'))
+    # fh_mod_report_differ.setdefault('multi', open(multi_report_filename_differ, 'w'))
 
     logger.info("Aggregating DQM and PubMed data from %s using mods %s", input_path, mods)
     agr_schemas_reference_json_url = 'https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/ingest/resourcesAndReferences/reference.json'
@@ -629,7 +641,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                                 dqm_data = bs4.BeautifulSoup(dqm_data, "html.parser")
 # UNCOMMENT to output log of data comparison between dqm and pubmed
                             if (dqm_data != '') or (compare_if_dqm_empty):
-                                compare_dqm_pubmed(fh_mod_report[mod], pmid, pmid_field, dqm_data, pmid_data)
+                                if (pmid_field == 'title'):
+                                    compare_dqm_pubmed(fh_mod_report_title[mod], pmid, pmid_field, dqm_data, pmid_data)
+                                else:
+                                    compare_dqm_pubmed(fh_mod_report_differ[mod], pmid, pmid_field, dqm_data, pmid_data)
                             if pmid_data != '':
                                 entry[pmid_field] = pmid_data
                             if pmid_field == 'datePublished':
@@ -895,8 +910,15 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
         resource_abbreviation_not_found_fh.close()
 
     fh_mod_report['multi'].close()
+    # these are not needed, there are no dqm vs pubmed comparisons for multiple mods
+    # fh_mod_report_title['multi'].close()
+    # fh_mod_report_differ['multi'].close()
     for mod in fh_mod_report:
         fh_mod_report[mod].close()
+    for mod in fh_mod_report_title:
+        fh_mod_report_title[mod].close()
+    for mod in fh_mod_report_differ:
+        fh_mod_report_differ[mod].close()
 
     # fb have fb ids for resources, but from the resourceAbbreviation and pubmed xml's nlm, we can update fb resource data to primary key off of nlm
     json_filename = base_path + 'FB_resourceAbbreviation_to_NLM.json'
