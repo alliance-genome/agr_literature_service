@@ -172,8 +172,9 @@ use --prod argument to use the WSGI server in production when running the applic
 ### Download pubmed xml (if manual instead of recursive above)
 
 - get pubmed xml and store into pubmed_xml/ with list of files not found at pmids_not_found.  skips files already existing in output directory.  downloads in batches of 5000 pmids
+- sometimes will crash with "Connection broken: InvalidChunkLength(got length b'', 0 bytes read)", keep running it again, it will skip xml already downloaded, but not add failed entries to md5sum file, so use get_md5sum.py to generate it
 - 2 hours
-  - python3 get_pubmed_xml.py -f inputs/alliance_pmids
+  - python3 get_pubmed_xml.py -f inputs/alliance_pmids >> log_get_pubmed_xml.&lt;date&gt;
 - output
   - pubmed_xml/&lt;files&gt;.xml
   - pubmed_xml/md5sum

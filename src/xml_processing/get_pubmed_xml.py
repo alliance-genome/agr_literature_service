@@ -21,6 +21,10 @@ load_dotenv()
 # pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 # pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/wormbase_pmids
 
+# PubMed randomly has ("Connection broken: InvalidChunkLength(got length b'', 0 bytes read)" that crashes this script.  Keep running it again until it gets all the entries, then generate the md5sum file by running
+# pipenv run python get_md5sum.py -x -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
+
+
 # pipenv run python get_pubmed_xml.py -u "http://tazendra.caltech.edu/~azurebrd/cgi-bin/forms/generic.cgi?action=ListPmids"
 
 # 1 hour 42 minutes to copy 646721 xml files / 12 G / 12466408 to s3 with
@@ -122,38 +126,44 @@ def download_pubmed_xml(pmids_wanted):
 #         using post with requests library, works well for 10000 pmids
         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
         parameters = {'db': 'pubmed', 'retmode': 'xml', 'id': pmids_joined}
-        r = requests.post(url, data=parameters)
-        xml_all = r.text
-        # xml_all = r.text.encode('utf-8').strip()		  # python2
-        # xml_split = xml_all.split("\n<Pubmed")		  # before 2021 08 11  xml output had linebreaks between pmids, making that easier
-        xml_split = re.split('(<Pubmed[^>]*Article>)', xml_all)	  # some types are not PubmedArticle, like PubmedBookArticle, e.g. 32644453
 
-        header = xml_split.pop(0)
-        # header = header + "\n<Pubmed" + xml_split.pop(0)	  # before when splitting on linebreak without capturing was manually adding the split
-        # footer = "\n\n</PubmedArticleSet>"
-        footer = "</PubmedArticleSet>"
+        try:
+            # PubMed randomly has ("Connection broken: InvalidChunkLength(got length b'', 0 bytes read)" that crashes this script.
+            with requests.post(url, data=parameters) as r:
+                xml_all = r.text
+                # xml_all = r.text.encode('utf-8').strip()		  # python2
+                # xml_split = xml_all.split("\n<Pubmed")		  # before 2021 08 11  xml output had linebreaks between pmids, making that easier
+                xml_split = re.split('(<Pubmed[^>]*Article>)', xml_all)	  # some types are not PubmedArticle, like PubmedBookArticle, e.g. 32644453
 
-        while xml_split:
-            this_xml = header + xml_split.pop(0) + xml_split.pop(0)
-            if len(xml_split) > 0:
-                this_xml = this_xml + footer
-            clean_xml = os.linesep.join([s for s in this_xml.splitlines() if s])
-            clean_xml = clean_xml.replace('\n', ' ')
-            # logger.info(clean_xml)
-            if re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml):
-                pmid_group = re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml)
-                pmid = pmid_group.group(1)
-                pmids_found.add(pmid)
-                filename = storage_path + pmid + '.xml'
-                f = open(filename, "w")
-                f.write(clean_xml)
-                f.close()
-                md5sum = hashlib.md5(clean_xml.encode('utf-8')).hexdigest()
-                md5dict[pmid] = md5sum
+                header = xml_split.pop(0)
+                # header = header + "\n<Pubmed" + xml_split.pop(0)	  # before when splitting on linebreak without capturing was manually adding the split
+                # footer = "\n\n</PubmedArticleSet>"
+                footer = "</PubmedArticleSet>"
 
-        if len(pmids_slice) == pmids_slice_size:
-            logger.info("waiting to process more pmids")
-            time.sleep(5)
+                while xml_split:
+                    this_xml = header + xml_split.pop(0) + xml_split.pop(0)
+                    if len(xml_split) > 0:
+                        this_xml = this_xml + footer
+                    clean_xml = os.linesep.join([s for s in this_xml.splitlines() if s])
+                    clean_xml = clean_xml.replace('\n', ' ')
+                    # logger.info(clean_xml)
+                    if re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml):
+                        pmid_group = re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml)
+                        pmid = pmid_group.group(1)
+                        pmids_found.add(pmid)
+                        filename = storage_path + pmid + '.xml'
+                        f = open(filename, "w")
+                        f.write(clean_xml)
+                        f.close()
+                        md5sum = hashlib.md5(clean_xml.encode('utf-8')).hexdigest()
+                        md5dict[pmid] = md5sum
+
+                if len(pmids_slice) == pmids_slice_size:
+                    logger.info("waiting to process more pmids")
+                    time.sleep(5)
+        except requests.exceptions.RequestException as e:
+            logger.info("requests failure with input %s %s", pmids_joined, e)
+            raise SystemExit(e)
 
     # md5file = storage_path + 'md5sum'
     logger.info("Writing md5sum mappings to %s", md5file)
