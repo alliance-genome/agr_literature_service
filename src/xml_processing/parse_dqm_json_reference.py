@@ -460,16 +460,22 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
     fh_mod_report = dict()
     fh_mod_report_title = dict()
     fh_mod_report_differ = dict()
+    fh_mod_report_resource_unmatched = dict()
+    fh_mod_report_reference_no_resource = dict()
     for mod in mods:
         resource_not_found[mod] = dict()
         # cross_reference_types[mod] = set()
         cross_reference_types[mod] = dict()
-        filename = report_file_path + mod
-        filename_title = report_file_path + mod + '_dqm_pubmed_title_differ'
-        filename_differ = report_file_path + mod + '_dqm_pubmed_differ'
+        filename = report_file_path + mod + '_main'
+        filename_title = report_file_path + mod + '_dqm_pubmed_differ_title'
+        filename_differ = report_file_path + mod + '_dqm_pubmed_differ_other'
+        filename_resource_unmatched = report_file_path + mod + '_resource_unmatched'
+        filename_reference_no_resource = report_file_path + mod + '_reference_no_resource'
         fh_mod_report.setdefault(mod, open(filename, 'w'))
         fh_mod_report_title.setdefault(mod, open(filename_title, 'w'))
         fh_mod_report_differ.setdefault(mod, open(filename_differ, 'w'))
+        fh_mod_report_resource_unmatched.setdefault(mod, open(filename_resource_unmatched, 'w'))
+        fh_mod_report_reference_no_resource.setdefault(mod, open(filename_reference_no_resource, 'w'))
 
     multi_report_filename = base_path + 'report_files/multi_mod'
     fh_mod_report.setdefault('multi', open(multi_report_filename, 'w'))
@@ -520,8 +526,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                 for cross_reference in entry['crossReferences']:
                     if 'pages' in cross_reference:
                         if len(cross_reference["pages"]) > 1:
-                            fh_mod_report[mod].write("mod %s primaryId %s has cross reference %s with pages %s\n" % (mod, primary_id, cross_reference["id"], cross_reference["pages"]))
-#                             logger.info("mod %s primaryId %s has cross reference %s with pages %s", mod, primary_id, cross_reference["id"], cross_reference["pages"])
+                            fh_mod_report[mod].write("mod %s primaryId %s has cross reference identifier %s with multiple web pages %s\n" % (mod, primary_id, cross_reference["id"], cross_reference["pages"]))
+#                             logger.info("mod %s primaryId %s has cross reference identifier %s with web pages %s", mod, primary_id, cross_reference["id"], cross_reference["pages"])
                         else:
                             if not re.match(r"^PMID:[0-9]+", orig_primary_id):
                                 if cross_reference["pages"][0] == 'PubMed':
@@ -533,7 +539,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                     else:
                         prefix, identifier, separator = split_identifier(cross_reference["id"])
                         if prefix not in cross_ref_no_pages_ok_fields:
-                            fh_mod_report[mod].write("mod %s primaryId %s has cross reference %s without pages\n" % (mod, primary_id, cross_reference["id"]))
+                            fh_mod_report[mod].write("mod %s primaryId %s has cross reference identifier %s without web pages\n" % (mod, primary_id, cross_reference["id"]))
                             # logger.debug("mod %s primaryId %s has cross reference %s without pages", mod, primary_id, cross_reference["id"])
 
                     id = cross_reference['id']
@@ -602,13 +608,13 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                             else:
                                 entry['resource'] = resource_to_mod[mod][journal_simplified][0]
                         else:
-                            fh_mod_report[mod].write("primaryId %s has resourceAbbreviation %s not in NLM nor DQM resource file.\n" % (primary_id, entry['resourceAbbreviation']))
+                            fh_mod_report_resource_unmatched[mod].write("primaryId %s has resourceAbbreviation %s not in NLM nor DQM resource file.\n" % (primary_id, entry['resourceAbbreviation']))
                             if entry['resourceAbbreviation'] in resource_not_found[mod]:
                                 resource_not_found[mod][entry['resourceAbbreviation']] += 1
                             else:
                                 resource_not_found[mod][entry['resourceAbbreviation']] = 1
                 else:
-                    fh_mod_report[mod].write("primaryId %s does not have a resourceAbbreviation.\n" % (primary_id))
+                    fh_mod_report_reference_no_resource[mod].write("primaryId %s does not have a resourceAbbreviation.\n" % (primary_id))
             else:
                 pmid = pmid_group[1]
                 # is_pubmed = True
@@ -806,7 +812,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
         #     sanitized_pubmod_data.append(entry)
 
         date_published_set = set()
-        alliance_category_set = set()
+        alliance_category_dict = dict()
         sanitized_entry = dict()
         cross_references_dict = dict()
         for mod in unmerged_pubmed_data[pmid]:
@@ -829,7 +835,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 
             if 'allianceCategory' in entry:
                 sanitized_entry['allianceCategory'] = entry['allianceCategory']
-                alliance_category_set.add(entry['allianceCategory'])
+                if not entry['allianceCategory'] in alliance_category_dict:
+                    alliance_category_dict[entry['allianceCategory']] = set()
+                alliance_category_dict[entry['allianceCategory']].add(mod)
 
             for aggregate_field in aggregate_fields:
                 if aggregate_field in entry:
@@ -859,8 +867,12 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                 sanitized_entry['crossReferences'] = [sanitized_cross_ref_dict]
 
         if 'allianceCategory' in sanitized_entry:
-            if len(alliance_category_set) > 1:
-                multiple_alliance_categories = "\t".join(alliance_category_set)
+            if len(alliance_category_dict) > 1:
+                multiple_list = []
+                for alliance_category in alliance_category_dict:
+                    mods = ", ".join(alliance_category_dict[alliance_category])
+                    multiple_list.append(alliance_category + ': ' + mods)
+                multiple_alliance_categories = "\t".join(multiple_list)
 #                 logger.info("MULTIPLE ALLIANCE CATEGORY pmid %s alliance categories %s", pmid, multiple_alliance_categories)
                 fh_mod_report['multi'].write("Multiple allianceCategory pmid %s alliance categories %s\n" % (pmid, multiple_alliance_categories))
         if len(date_published_set) > 1:
@@ -919,6 +931,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
         fh_mod_report_title[mod].close()
     for mod in fh_mod_report_differ:
         fh_mod_report_differ[mod].close()
+    for mod in fh_mod_report_resource_unmatched:
+        fh_mod_report_resource_unmatched[mod].close()
+    for mod in fh_mod_report_reference_no_resource:
+        fh_mod_report_reference_no_resource[mod].close()
 
     # fb have fb ids for resources, but from the resourceAbbreviation and pubmed xml's nlm, we can update fb resource data to primary key off of nlm
     json_filename = base_path + 'FB_resourceAbbreviation_to_NLM.json'
