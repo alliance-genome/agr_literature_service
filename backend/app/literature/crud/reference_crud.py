@@ -22,7 +22,10 @@ from literature.models import ReferenceTagModel
 from literature.models import MeshDetailModel
 
 from sqlalchemy import ARRAY
+from sqlalchemy import Boolean
+from sqlalchemy import String
 from sqlalchemy import func
+from sqlalchemy.sql.expression import cast
 
 
 def create_next_curie(curie):
@@ -151,9 +154,20 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
 
 
 def show_all_references_external_ids(db: Session):
-    return db.query(ReferenceModel.curie, func.array_agg(CrossReferenceModel.curie)) \
-             .outerjoin(ReferenceModel.cross_references) \
-             .group_by(ReferenceModel.curie).all()
+    references_query = db.query(ReferenceModel.curie,
+                                cast(func.array_agg(CrossReferenceModel.curie),
+                                     ARRAY(String)),
+                                cast(func.array_agg(CrossReferenceModel.is_obsolete),
+                                     ARRAY(Boolean))) \
+                          .outerjoin(ReferenceModel.cross_references) \
+                          .group_by(ReferenceModel.curie)
+
+    return [{'curie': reference[0],
+             'cross_references': [{'curie': reference[1][idx],
+                                   'is_obsolete': reference[2][idx] }
+                                  for idx in range(len(reference[1]))]}
+            for reference in references_query.all()]
+
 
 
 def show_files(db: Session, curie:str):
