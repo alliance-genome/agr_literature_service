@@ -58,7 +58,7 @@ def camel_to_snake(name):
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
 
 
-def post_references(input_file):
+def post_references(input_file, check_file_flag):
     api_port = environ.get('API_PORT')
     # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
     base_path = environ.get('XML_PATH')
@@ -147,14 +147,15 @@ def post_references(input_file):
     reference_primary_id_to_curie_file = base_path + 'reference_primary_id_to_curie'
     errors_in_posting_reference_file = base_path + 'errors_in_posting_reference'
 
-    already_processed_primary_id = set()
-    if path.isfile(reference_primary_id_to_curie_file):
-        with open(reference_primary_id_to_curie_file, 'r') as read_fh:
-            for line in read_fh:
-                line_data = line.split("\t")
-                if line_data[0]:
-                    already_processed_primary_id.add(line_data[0].rstrip())
-            read_fh.close
+    if check_file_flag == 'yes_file_check':
+        already_processed_primary_id = set()
+        if path.isfile(reference_primary_id_to_curie_file):
+            with open(reference_primary_id_to_curie_file, 'r') as read_fh:
+                for line in read_fh:
+                    line_data = line.split("\t")
+                    if line_data[0]:
+                        already_processed_primary_id.add(line_data[0].rstrip())
+                read_fh.close
 
     resource_to_curie = dict()
     if path.isfile(resource_primary_id_to_curie_file):
@@ -321,7 +322,7 @@ if __name__ == "__main__":
         logger.info("placeholder for parse_pubmed_json_reference.py")
 
     else:
-        post_references('sanitized')
+        post_references('sanitized', 'yes_file_check')
 
     logger.info("ending post_reference_to_api.py")
 
