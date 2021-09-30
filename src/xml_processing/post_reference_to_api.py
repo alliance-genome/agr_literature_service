@@ -147,8 +147,8 @@ def post_references(input_file, check_file_flag):
     reference_primary_id_to_curie_file = base_path + 'reference_primary_id_to_curie'
     errors_in_posting_reference_file = base_path + 'errors_in_posting_reference'
 
+    already_processed_primary_id = set()
     if check_file_flag == 'yes_file_check':
-        already_processed_primary_id = set()
         if path.isfile(reference_primary_id_to_curie_file):
             with open(reference_primary_id_to_curie_file, 'r') as read_fh:
                 for line in read_fh:
