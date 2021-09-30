@@ -107,7 +107,7 @@ def run():
 
     uvicorn.run("main:app",
                 port=args['port'],
-                host=args['ip_adress'],
+                host=args['ip_address'],
                 timeout_keep_alive=5001)
 
 
