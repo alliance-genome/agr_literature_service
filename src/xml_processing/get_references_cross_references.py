@@ -10,7 +10,8 @@ from helper_post_to_api import generate_headers, update_token
 
 # pipenv run python get_references_cross_references.py
 
-# about 45 seconds to generate file
+# about 1 minute 13 seconds to generate file with cross_references and is_obsolete
+# about 45 seconds to generate file when it only had cross_references without is_obsolete
 # generate reference_curie_to_xref file mapping alliance reference curies to cross_references identifiers from database
 
 
@@ -43,11 +44,19 @@ def update_reference_cross_reference():
     response_array = json.loads(post_return.text)
     mapping_output = ''
     for entry in response_array:
-        curie = entry[0]
-        xref_array = entry[1]
-        for xref in xref_array:
-            if xref is not None:
-                mapping_output += curie + '\t' + xref + '\n'
+        curie = entry['curie']
+        xref_array = entry['cross_references']
+        for xref_dict in xref_array:
+            if xref_dict is not None:
+                flag = 'valid'
+                xref_id = ''
+                if 'curie' in xref_dict:
+                    if xref_dict['curie']:
+                        xref_id = xref_dict['curie']
+                if 'is_obsolete' in xref_dict:
+                    if xref_dict['is_obsolete']:
+                        flag = 'obsolete'
+                mapping_output += curie + '\t' + xref_id + '\t' + flag + '\n'
 
     ref_xref_file = 'reference_curie_to_xref'
     with open(ref_xref_file, "w") as ref_xref_file_fh:
