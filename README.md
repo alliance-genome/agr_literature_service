@@ -74,7 +74,7 @@ pg_dump -h postgres -U postgres -p 5432 -Fc <database-name> > <database-name>.du
 Also inside the development container run the following command. After creating a blank database (through the pgadmin if you prefer)
 
 ```bash
-pg_restore -d <newdb> -h postgres -U postgres -p 5432 <database-name>.dump
+pg_restore --clean --if-exists -d <newdb> -h postgres -U postgres -p 5432 < <database-name>.dump
 ```
 
 
@@ -90,7 +90,7 @@ spin up development environment
 docker-compose up
 ```
 
-## Develop and run applicatoin server in Docker
+## Develop and run application server in Docker
 
 ```bash
 make run-dev-bash
