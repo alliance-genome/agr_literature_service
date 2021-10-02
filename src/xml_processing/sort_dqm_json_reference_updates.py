@@ -89,6 +89,17 @@ def load_ref_xref():
     return ref_xref, xref_ref
 
 
+def load_pmids_not_found():
+    pmids_not_found = set()
+    base_path = environ.get('XML_PATH')
+    pmids_not_found_file = base_path + 'pmids_not_found'
+    if path.isfile(pmids_not_found_file):
+        with open(pmids_not_found_file, 'r') as read_fh:
+            for line in read_fh:
+                pmids_not_found.add(line.rstrip())
+    return pmids_not_found
+
+
 def sort_dqm_references(input_path, input_mod):
     # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
     base_path = environ.get('XML_PATH')
@@ -98,6 +109,7 @@ def sort_dqm_references(input_path, input_mod):
         mods = [input_mod]
 
     ref_xref, xref_ref = load_ref_xref()
+    pmids_not_found = load_pmids_not_found()
 
 #     for prefix in xref_ref:
 #         for identifier in xref_ref[prefix]:
@@ -193,7 +205,13 @@ def sort_dqm_references(input_path, input_mod):
 #                             logger.info("Mod submitted Yes Found in DB : agr %s prefix %s ident %s", agr, mod, ident)
                             mod_xref_found = True
                         if not mod_xref_found:
-                            logger.info("Mod submitted Not Found in DB : prefix %s ident %s", mod, ident)
+                            accounted = False
+                            if prefix == 'PMID':
+                                if ident in pmids_not_found:
+                                    accounted = True
+                                    logger.info("Mod submitted PMID Not Found before at PubMed : prefix %s ident %s", mod, ident)
+                            if not accounted:
+                                logger.info("Mod submitted Not Found in DB : prefix %s ident %s", mod, ident)
 
 #                 # when looping through specific mods
 #             for mod_xref in mod_xrefs:

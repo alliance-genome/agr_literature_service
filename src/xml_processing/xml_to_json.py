@@ -440,7 +440,7 @@ def generate_json(pmids, previous_pmids):
                             if type not in ignore_article_id_types:
                                 logger.info("%s has unexpected type %s", pmid, type)
                                 unknown_article_id_types.add(type)
-            if not type_has_value:
+            if not has_self_pmid:
                 cross_references.append({'id': 'PMID:' + pmid})
 
             medline_journal_info_re_output = re.search("<MedlineJournalInfo>(.*?)</MedlineJournalInfo>", xml, re.DOTALL)
