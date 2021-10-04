@@ -21,6 +21,67 @@ load_dotenv()
 # pipenv run python sort_dqm_json_reference_updates.py -f dqm_data -m all > asdf_sanitized
 
 
+# When new data comes from DQMs, how do we update, possible cases
+# 1 - A MOD sends data with a PMID.  We created an AgrID.  Future submission has the same ModId to AgrId.  No change because we get stuff from PubMed, but possibly check the stuff that didn't come from PubMed to see if that changed, and update those fields. Good
+# 2 - Again MOD+PMID+AgrID, future submission doesn't have a PMID.  Do we remove the PMID from the AgrId ?  What if other MODs have also sent the PMID ?  Do we create a whole new AgrId to that ModID, but remove the ModId from the previous AgrId ? - Don't make changes, notify a curator
+# 3 - A MOD sends data without a PMID.  We created an AgrID.  Future submission is the same, update Biblio data. Good
+# 4 - Again MOD+NoPmid+AgrID, future submissions have a PMID.  If the PMID existed before for a different MOD, do we need to merge the references, and do they need to be done manually ? Don't make changes, notify a curator. If the PMID didn't exist for a different MOD, do we add the PMID but then remove all its data and replace it from the PubMed data ? Good
+# 
+# PubMed updates.  PMID existed, PMID removed: Notify curator, do not delete, do not flag PMID as obsolete.
+# PubMed updates, merge by DOI match for micropublications.  (check if DOI exists in agrDb, connect PMID to that agrId instead of creating new agrId, update that PMID's data normally)
+# 
+# What does obsolete crossreference PMID mean:
+# - not a valid connection, do not update from pubmed.
+# - If a DQM sends the same modId-PMID connection, treat is as if already connected, mention to curator in report file.
+# 
+# Script that updates from PubMed should output to curators a list of non-obsolete PMIDs that no longer exist at PubMed (Deletions of papers at PubMed need to become obsolete at Alliance)
+
+# dqms can send modId / PMID / other.  modId is required, trigger update.  PMID is optional, check if added/removed.  For all xref types, if matches valid do nothing or trigger update from modId/PMID, if matches obsolete notify curator, if no match add connection.
+
+# database 
+#  map agrId to xref
+#   valid / obsolete
+#  map xref to agrId
+#   valid only
+# dqm - each entry
+#   get all valid mappings of dqm xref->agrId + all valid dqm xrefs
+#     no agrId -> sort to create reference
+#     2+ agrId -> sort to notify curator
+#     1 agrId
+#       check modId matches DB->modId
+#         if modId matches valid DB->modId, flag ok to aggregate biblio data
+#         elsif modId matches obsolete DB->modId, notify curator or ignore ? (was removed from agr by mistake / needs update at mod to not send ?)
+#         else modId is new, attach modId to agrId
+#         modId cannot be attached to another agrId or would be in 2+ agrId before
+#       if PMID, check PMID matches DB->PMID
+#         if PMID matches valid DB->PMID, flag ok to aggregate mod-specific data
+#         elsif PMID matches obsolete DB->PMID, sort to notify curator (was removed from agr by mistake / needs update at mod)
+#         elsif PMID does not match any DB->PMID, attach PMID to agrId (previously came from modId or DOI)
+#       elsif no PMID, check DB->agrId does not have PMID
+#         if no valid agrId->PMID, do nothing
+#         if valid agrId->PMID, notify curator (needs connection at mod ?)
+#       if DOI, check DOI matches DB->DOI
+#         if DOI matches valid DB->DOI, do nothing
+#         elsif DOI matches obsolete DB->DOI, notify curator (was removed from agr by mistake / needs update at mod)
+#         else DOI does not match any DB->DOI, attach DOI to agrId
+#       check other xref types in database
+#         if xref matches valid DB->xref, do nothing
+#         elsif xref matches obsolete DB->xref, notify curator or ignore ?
+#         else xref does not match any DB->xref, attach xref to agrId
+#         xref cannot be attached to another agrId or would be in 2+ agrId before
+#       if has PMID and flagged ok to aggregate mod-specific data, do that
+#       elsif (has modId and) flagged ok to aggregate biblio data
+#         if multiple mods have data, notify curator
+#         elsif only one mods has data, aggregate biblio data
+# database - each entry
+#   get valid agrId->modId
+#     each mod
+#       modId not in dqm, notify curator or remove modId / mod_reference_types / tags ?
+#     if no mods have data, probably created at agr and does not need to be removed ?
+
+# when a pmid is new, check it's at pubmed before attaching ?  probably, asked Ceri.
+
+
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
@@ -121,8 +182,8 @@ def sort_dqm_references(input_path, input_mod):
 #             for identifier in ref_xref[agr][prefix]:
 #                 logger.info("agr %s prefix %s ident %s", agr, prefix, identifier)
 
-    input_file = 'sanitized'
-#     input_file = 'dqm'
+#     input_file = 'sanitized'	# set to sanitized to check after posting references to database, that all references are accounted for
+    input_file = 'dqm'
     files_to_process = []
     if input_file == 'sanitized':
         json_storage_path = base_path + 'sanitized_reference_json/'
@@ -165,6 +226,16 @@ def sort_dqm_references(input_path, input_mod):
             counter = counter + 1
             if counter > max_counter:
                 break
+
+            primary_id = entry['primaryId']
+            primary_prefix, primary_identifier, primary_separator = split_identifier(primary_id)
+            primary_found = False
+            primary_agr = ''
+            if primary_prefix in xref_ref:
+                if primary_identifier in xref_ref[primary_prefix]:
+                    primary_found = True
+                    primary_agr = xref_ref[primary_prefix][primary_identifier]
+
 #             mod_xrefs = []
 #             pmid_xrefs = []
             dqm_xrefs = dict()
@@ -196,12 +267,16 @@ def sort_dqm_references(input_path, input_mod):
 #             agr = xref_ref[prefix][identifier]
 #             for mod_xref in mod_xrefs:
 #                 for mod in mods:
+            agrs_found = set()
+            idents_not_found = dict()
             for mod in dqm_xrefs:
                 for ident in dqm_xrefs[mod]:
                     if mod in xref_ref:
                         mod_xref_found = False
                         if ident in xref_ref[mod]:
-#                             agr = xref_ref[mod][ident]
+                            agr = xref_ref[mod][ident]
+                            agrs_found.add(agr)
+                            # FIX track agrs found into a set
 #                             logger.info("Mod submitted Yes Found in DB : agr %s prefix %s ident %s", agr, mod, ident)
                             mod_xref_found = True
                         if not mod_xref_found:
@@ -211,7 +286,24 @@ def sort_dqm_references(input_path, input_mod):
                                     accounted = True
                                     logger.info("Mod submitted PMID Not Found before at PubMed : prefix %s ident %s", mod, ident)
                             if not accounted:
-                                logger.info("Mod submitted Not Found in DB : prefix %s ident %s", mod, ident)
+                                if prefix not in idents_not_found:
+                                    idents_not_found[prefix] = set()
+                                idents_not_found[prefix].add(ident)
+                                # FIX : add prefix/ident to list of things to connect / create
+#                                 if primary_found:
+#                                     # logger.info("Mod submitted primary_id %s with xref Not Found in DB : prefix %s ident %s : connect to %s", primary_id, mod, ident, primary_agr)
+#                                     logger.info("Connect %s primary_id %s to xref : prefix %s ident %s", primary_agr, primary_id, mod, ident)
+#                                 else:
+#                                     # logger.info("Mod submitted primary_id %s with xref Not Found in DB : prefix %s ident %s : create new", primary_id, mod, ident)
+#                                     logger.info("New primary_id %s with xref : prefix %s ident %s : create new", primary_id, mod, ident)
+
+            # FIX
+            # if agrs_found.length > 1  error
+            # if agrs_found.length == 0  create new
+            # if agrs_found.length == 1  add idents_not_found to agr_found
+            agrs_found = set()
+            idents_not_found = dict()
+
 
 #                 # when looping through specific mods
 #             for mod_xref in mod_xrefs:
