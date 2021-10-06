@@ -38,6 +38,9 @@ load_dotenv()
 
 # dqms can send modId / PMID / other.  modId is required, trigger update.  PMID is optional, check if added/removed.  For all xref types, if matches valid do nothing or trigger update from modId/PMID, if matches obsolete notify curator, if no match add connection.
 
+# all IDs should only have one type (PMID, DOI, ModId, PMC, PMCID, ISBN)
+
+
 # database 
 #  map agrId to xref
 #   valid / obsolete
@@ -280,7 +283,7 @@ def sort_dqm_references(input_path, input_mod):
                         agr = xref_ref[prefix][identifier]
                         agrs_found.add(agr)
                 if prefix in mods:
-                    dqm[prefix].append(identifier)
+                    dqm[prefix].add(identifier)
 
                 # when looping through specific mods
                 # if prefix == mod:
@@ -335,12 +338,6 @@ def sort_dqm_references(input_path, input_mod):
 # #                                     # logger.info("Mod submitted primary_id %s with xref Not Found in DB : prefix %s ident %s : create new", primary_id, mod, ident)
 # #                                     logger.info("New primary_id %s with xref : prefix %s ident %s : create new", primary_id, mod, ident)
 
-            # FIX
-            # if agrs_found.length > 1  error
-            # if agrs_found.length == 0  create new
-            # if agrs_found.length == 1  add idents_not_found to agr_found
-#             agrs_found = set()
-#             idents_not_found = dict()
             if len(agrs_found) == 0:
                 logger.info("Create New mod %s", entry['primaryId'])
             elif len(agrs_found) > 1:
@@ -380,8 +377,13 @@ def sort_dqm_references(input_path, input_mod):
                     logger.info("aggregate PMID mod data %s", agr)
                 elif flag_aggregate_biblio:
                     logger.info("aggregate MOD biblio data %s", agr)
-                # TODO  check if dqm no pmid/doi, but pmid/doi in DB
-
+                # check if dqm has no pmid/doi, but pmid/doi in DB
+                if not 'PMID' in dqm_xrefs:
+                    if 'PMID' in ref_xref_valid[agr]:
+                        logger.info("Notify curator %s has PMID %s, dqm %s does not", agr, ', '.join(sorted(ref_xref_valid[agr]['PMID'])), entry['primaryId'])
+                if not 'DOI' in dqm_xrefs:
+                    if 'DOI' in ref_xref_valid[agr]:
+                        logger.info("Notify curator %s has DOI %s, dqm %s does not", agr, ', '.join(sorted(ref_xref_valid[agr]['DOI'])), entry['primaryId'])
 
 #                 # when looping through specific mods
 #             for mod_xref in mod_xrefs:
@@ -404,8 +406,18 @@ def sort_dqm_references(input_path, input_mod):
 #                 if not pmid_xref_found:
 #                     logger.info("Mod PMID Submitted Not Found in DB : prefix %s ident %s", mod, pmid_xref)
 
-    # TODO - loop through all db agrId->modId, check each dqm mod still had modId
-#                    dqm[prefix].append(identifier)
+    # check all db agrId->modId, check each dqm mod still had modId
+    for agr in ref_xref_valid:
+        for prefix in ref_xref_valid[agr]:
+            if prefix in mods:
+                for identifier in ref_xref_valid[agr][prefix]:
+                    ident_found = False
+                    if prefix in dqm:
+                        if identifier in dqm[prefix]:
+                            ident_found = True
+                    if not ident_found:
+                       logger.info("agr %s %s %s not in dqm submission", agr, prefix, identifier)
+#   dqm[prefix].add(identifier)
 
 if __name__ == "__main__":
     """ call main start function """
