@@ -51,32 +51,39 @@ load_dotenv()
 #   valid only
 # dqm - each entry
 #   get all valid mappings of dqm xref->agrId + all valid dqm xrefs
+#     check each xref prefix only has one value per reference, if not notify curator and skip reference
 #     no agrId -> sort to create reference
 #     2+ agrId -> sort to notify curator
 #     1 agrId
 #       check modId matches DB->modId
 #         if modId matches valid DB->modId, flag ok to aggregate biblio data
 #         elsif modId matches obsolete DB->modId, notify curator or ignore ? (was removed from agr by mistake / needs update at mod to not send ?)
-#         else modId is new, attach modId to agrId
+#         else modId is new, add agrId->modId to list to attach
 #         modId cannot be attached to another agrId or would be in 2+ agrId before
 #       if PMID, check PMID matches DB->PMID
 #         if PMID matches valid DB->PMID, flag ok to aggregate mod-specific data
 #         elsif PMID matches obsolete DB->PMID, sort to notify curator (was removed from agr by mistake / needs update at mod)
-#         elsif PMID does not match any DB->PMID, attach PMID to agrId (previously came from modId or DOI)
+#         else PMID does not match any DB->PMID
+#           if PMID prefix already in DB, notify curator
+#           else add agrId->PMID to list to attach (previously came from modId or DOI)
 #       elsif no PMID, check DB->agrId does not have PMID
 #         if no valid agrId->PMID, do nothing
 #         if valid agrId->PMID, notify curator (needs connection at mod ?)
 #       if DOI, check DOI matches DB->DOI
 #         if DOI matches valid DB->DOI, do nothing
 #         elsif DOI matches obsolete DB->DOI, notify curator (was removed from agr by mistake / needs update at mod)
-#         else DOI does not match any DB->DOI, attach DOI to agrId
+#         else DOI does not match any DB->DOI
+#           if DOI prefix already in DB, notify curator
+#           else add agrId->DOI to list to attach
 #       elsif no DOI, check DB->agrId does not have DOI
 #         if no valid agrId->DOI, do nothing
 #         if valid agrId->DOI, notify curator (needs connection at mod ?)
 #       check other xref types in database
 #         if xref matches valid DB->xref, do nothing
 #         elsif xref matches obsolete DB->xref, notify curator or ignore ?
-#         else xref does not match any DB->xref, attach xref to agrId
+#         else xref does not match any DB->xref
+#           if xref prefix already in DB, notify curator
+#           else add agrId->xref to list to attach
 #         xref cannot be attached to another agrId or would be in 2+ agrId before
 #       if has PMID and flagged ok to aggregate mod-specific data, do that
 #       elsif (has modId and) flagged ok to aggregate biblio data
@@ -87,6 +94,9 @@ load_dotenv()
 #     each mod
 #       modId not in dqm, notify curator or remove modId / mod_reference_types / tags ?
 #     if no mods have data, do nothing (probably created at agr and does not need to be removed, or data timing issue)
+# list to attach - each agr and prefix
+#   if more than one identifier notify curators
+#   elsif exactly one identifier add agr->xref to DB
 
 # when adding PMIDs make sure that there isn't already another valid PMID
 
