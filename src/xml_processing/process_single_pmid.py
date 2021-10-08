@@ -1,5 +1,6 @@
 
-from os import environ, path, makedirs
+from os import environ, path
+# from os import makedirs
 import json
 import requests
 import argparse
@@ -9,7 +10,7 @@ import logging.config
 from get_pubmed_xml import download_pubmed_xml
 from xml_to_json import generate_json
 from sanitize_pubmed_json import sanitize_pubmed_json_list
-from parse_dqm_json_reference import write_json
+# from parse_dqm_json_reference import write_json
 from post_reference_to_api import post_references
 
 
@@ -55,12 +56,12 @@ def check_pmid_cross_reference(pmid):
 #     sanitized_reference_json_path = base_path + 'sanitized_reference_json/'
 #     if not path.exists(sanitized_reference_json_path):
 #         makedirs(sanitized_reference_json_path)
-# 
+#
 #     pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReferences']
 #     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher', 'plainLanguageAbstract', 'pubmedAbstractLanguages']
 #     replace_value_fields = ['authors', 'pubMedType', 'meshTerms', 'crossReferences']
 #     date_fields = ['issueDate', 'dateArrivedInPubmed', 'dateLastModified']
-# 
+#
 #     pubmed_data = dict()
 #     try:
 #         with open(pubmed_json_filepath, 'r') as f:

@@ -15,7 +15,7 @@ import logging.config
 # load_dotenv()
 
 
-# search all pubmed_xml/*.xml for types of 
+# search all pubmed_xml/*.xml for types of
 # <CommentsCorrections RefType="<TO_FIND>">
 # <PublicationType.*?><TO_FIND></PublicationType>
 # for curators to decide what we want to capture
