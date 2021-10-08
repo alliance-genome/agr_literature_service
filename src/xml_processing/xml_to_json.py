@@ -246,7 +246,6 @@ def generate_json(pmids, previous_pmids):
             comments_corrections_group = re.findall("<CommentsCorrections (.+?)</CommentsCorrections>", xml, re.DOTALL)
             if len(comments_corrections_group) > 0:
                 data_dict['commentsCorrections'] = dict()
-                comcor_list = []
                 for comcor_xml in comments_corrections_group:
                     ref_type = ''
                     other_pmid = ''
@@ -413,9 +412,8 @@ def generate_json(pmids, previous_pmids):
                     date_dict['day'] = date_list[2]
                     data_dict['dateArrivedInPubmed'] = date_dict
 
-
             cross_references = []
-            has_self_pmid = False	# e.g. 20301347, 21413225 do not have the PMID itself in the ArticleIdList, so must be appended to the cross_references
+            has_self_pmid = False       # e.g. 20301347, 21413225 do not have the PMID itself in the ArticleIdList, so must be appended to the cross_references
             article_id_list_re_output = re.search("<ArticleIdList>(.*?)</ArticleIdList>", xml, re.DOTALL)
             if article_id_list_re_output is not None:
                 article_id_list = article_id_list_re_output.group(1)
@@ -426,6 +424,8 @@ def generate_json(pmids, previous_pmids):
                     for type_value in article_id_group:
                         type = type_value[0]
                         value = type_value[1]
+                        # convert the only html entities found in DOIs  &lt; &gt; &amp;#60; &amp;#62;	e.g. PMID:8824556 PMID:10092111
+                        value = value.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;#60;', '<').replace('&amp;#62;', '>')
                         # print pmid + " type " + type + " value " + value
                         if type in known_article_id_types:
                             if value == pmid:
@@ -617,7 +617,6 @@ def generate_json(pmids, previous_pmids):
     for unknown_article_id_type in unknown_article_id_types:
         logger.info("unknown_article_id_type %s", unknown_article_id_type)
 
-    ref_types = sorted(ref_types_set)
     for ref_type in ref_types_set:
         logger.info("ref_type %s", ref_type)
 
