@@ -144,7 +144,7 @@ def get_medline_date_from_xml_date(pub_date):
         return medline_re_output.group(1)
 
 
-def generate_json(pmids, previous_pmids):
+def generate_json(pmids, previous_pmids):      # noqa: C901
     # open input xml file and read data in form of python dictionary using xmltodict module
     md5data = ''
     # storage_path = base_path + 'pubmed_xml_20210322/'

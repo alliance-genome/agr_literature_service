@@ -193,7 +193,7 @@ def load_pmids_not_found():
     return pmids_not_found
 
 
-def sort_dqm_references(input_path, input_mod):
+def sort_dqm_references(input_path, input_mod):      # noqa: C901
     # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
     base_path = environ.get('XML_PATH')
 

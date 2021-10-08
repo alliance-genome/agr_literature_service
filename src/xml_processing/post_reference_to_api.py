@@ -58,7 +58,7 @@ def camel_to_snake(name):
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
 
 
-def post_references(input_file, check_file_flag):
+def post_references(input_file, check_file_flag):      # noqa: C901
     api_port = environ.get('API_PORT')
     # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
     base_path = environ.get('XML_PATH')

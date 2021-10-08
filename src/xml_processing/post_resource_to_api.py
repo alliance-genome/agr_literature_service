@@ -44,7 +44,7 @@ resource_fields_not_in_pubmed = ['titleSynonyms', 'abbreviationSynonyms', 'isoAb
 # 2021-05-24 23:06:27,845 - literature logger - INFO - key printISSN
 
 
-def post_resources():
+def post_resources():      # noqa: C901
     api_port = environ.get('API_PORT')
     json_storage_path = base_path + 'sanitized_resource_json/'
     filesets = ['NLM', 'FB', 'ZFIN']

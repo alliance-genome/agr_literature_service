@@ -80,7 +80,7 @@ def split_identifier(identifier, ignore_error=False):
     return prefix, identifier_processed, separator
 
 
-def generate_pmid_data():
+def generate_pmid_data():      # noqa: C901
     # output set of PMID identifiers that will need XML downloaded
     # output pmids and the mods that have them
     logger.info("generating pmid sets from dqm data")
@@ -407,7 +407,7 @@ def load_pmid_multi_mods():
     return pmid_multi_mods
 
 
-def aggregate_dqm_with_pubmed(input_path, input_mod):
+def aggregate_dqm_with_pubmed(input_path, input_mod):      # noqa: C901
     # reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
     # outputs sanitized json to sanitized_reference_json/
     # does checks on dqm crossReferences.  if primaryId is not PMID, and a crossReference is PubMed, assigns PMID to primaryId and to authors's referenceId.
