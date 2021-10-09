@@ -63,7 +63,6 @@ def patch(db: Session, author_id: int, author_patch: AuthorSchemaCreate) -> dict
                             detail=f"Author with author_id {author_id} not found")
     add_reference_resource(db, author_data, author_db_obj)
 
-    
     for field, value in author_data.items():
         if field == 'orcid' and value:
             orcid = value

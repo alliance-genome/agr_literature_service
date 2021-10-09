@@ -12,6 +12,7 @@ from literature.models import CrossReferenceModel
 from literature.models import ReferenceModel
 from literature.models import ResourceModel
 from literature.models import ResourceDescriptorModel
+from lookup import add_reference_resource
 
 
 def create(db: Session, cross_reference: CrossReferenceSchema) -> str:
@@ -21,32 +22,8 @@ def create(db: Session, cross_reference: CrossReferenceSchema) -> str:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail=f"CrossReference with curie {cross_reference_data['curie']} already exists")
 
-    resource_curie = None
-    if cross_reference_data['resource_curie']:
-        resource_curie = cross_reference_data['resource_curie']
-    del cross_reference_data['resource_curie']
-
-    reference_curie = None
-    if cross_reference_data['reference_curie']:
-        reference_curie = cross_reference_data['reference_curie']
-    del cross_reference_data['reference_curie']
-
     db_obj = CrossReferenceModel(**cross_reference_data)
-    if resource_curie and reference_curie:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail="Only supply either resource_curie or reference_curie")
-    elif resource_curie:
-        resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
-        if not resource:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail=f"Resource with curie {resource_curie} does not exist")
-        db_obj.resource = resource
-    elif reference_curie:
-        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
-        if not reference:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail=f"Reference with curie {reference_curie} does not exist")
-        db_obj.reference = reference
+    add_reference_resource(db, cross_reference, db_obj)
 
     db.add(db_obj)
     db.commit()
@@ -71,30 +48,10 @@ def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaU
     if not cross_reference_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Cross Reference with curie {curie} not found")
-
-    if 'resource_curie' in cross_reference_update and cross_reference_update.resource_curie and 'reference_curie' in cross_reference_update and cross_reference_update.reference_curie:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail="Only supply either resource_curie or reference_curie")
+    add_reference_resource(db, cross_reference_update, cross_reference_db_obj)
 
     for field, value in cross_reference_update.items():
-        if field == "resource_curie" and value:
-            resource_curie = value
-            resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
-            if not resource:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                    detail=f"Resource with curie {resource_curie} does not exist")
-            cross_reference_db_obj.resource = resource
-            cross_reference_db_obj.reference = None
-        elif field == 'reference_curie' and value:
-            reference_curie = value
-            reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
-            if not reference:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                    detail=f"Reference with curie {reference_curie} does not exist")
-            cross_reference_db_obj.reference = reference
-            cross_reference_db_obj.resource = None
-        else:
-            setattr(cross_reference_db_obj, field, value)
+        setattr(cross_reference_db_obj, field, value)
 
     cross_reference_db_obj.date_updated = datetime.utcnow()
     db.commit()

@@ -12,7 +12,6 @@ from literature.schemas import ResourceSchemaUpdate
 
 from literature.crud import cross_reference_crud
 
-from literature.models import ReferenceModel
 from literature.models import ResourceModel
 from literature.models import AuthorModel
 from literature.models import EditorModel
@@ -38,7 +37,7 @@ def create(db: Session, resource: ResourceSchemaPost):
 
     last_curie = db.query(ResourceModel.curie).order_by(sqlalchemy.desc(ResourceModel.curie)).first()
 
-    if last_curie == None:
+    if not last_curie:
         last_curie = 'AGR:AGR-Resource-0000000000'
     else:
         last_curie = last_curie[0]
@@ -154,7 +153,7 @@ def show(db: Session, curie: str):
     return resource_data
 
 
-def show_notes(db: Session, curie:str):
+def show_notes(db: Session, curie: str):
     resource = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
 
     notes_data = []
