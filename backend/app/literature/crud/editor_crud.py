@@ -93,6 +93,7 @@ def show(db: Session, editor_id: int) -> dict:
     del editor_data['reference_id']
 
     if editor_data['orcid']:
+        orcid = editor_data['orcid']
         editor_data['orcid'] = jsonable_encoder(cross_reference_crud.show(db, orcid['curie']))
 
     return editor_data
