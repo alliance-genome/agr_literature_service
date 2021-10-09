@@ -1,7 +1,3 @@
-import re
-
-import json
-import sqlalchemy
 from sqlalchemy.orm import Session
 from datetime import datetime
 
@@ -18,7 +14,7 @@ from literature.models import ResourceModel
 from literature.models import ResourceDescriptorModel
 
 
-def create(db: Session, cross_reference: CrossReferenceSchema):
+def create(db: Session, cross_reference: CrossReferenceSchema) -> str:
     cross_reference_data = jsonable_encoder(cross_reference)
 
     if db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == cross_reference_data['curie']).first():
@@ -37,20 +33,20 @@ def create(db: Session, cross_reference: CrossReferenceSchema):
 
     db_obj = CrossReferenceModel(**cross_reference_data)
     if resource_curie and reference_curie:
-       raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                           detail=f"Only supply either resource_curie or reference_curie")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Only supply either resource_curie or reference_curie")
     elif resource_curie:
-       resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
-       if not resource:
-           raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                               detail=f"Resource with curie {resource_curie} does not exist")
-       db_obj.resource = resource
+        resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
+        if not resource:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"Resource with curie {resource_curie} does not exist")
+        db_obj.resource = resource
     elif reference_curie:
-       reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
-       if not reference:
-           raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                               detail=f"Reference with curie {reference_curie} does not exist")
-       db_obj.reference = reference
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
+        if not reference:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"Reference with curie {reference_curie} does not exist")
+        db_obj.reference = reference
 
     db.add(db_obj)
     db.commit()
@@ -58,7 +54,7 @@ def create(db: Session, cross_reference: CrossReferenceSchema):
     return "created"
 
 
-def destroy(db: Session, curie: str):
+def destroy(db: Session, curie: str) -> None:
     cross_reference = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == curie).first()
     if not cross_reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -69,7 +65,7 @@ def destroy(db: Session, curie: str):
     return None
 
 
-def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaUpdate):
+def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaUpdate) -> dict:
 
     cross_reference_db_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == curie).first()
     if not cross_reference_db_obj:
@@ -77,8 +73,8 @@ def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaU
                             detail=f"Cross Reference with curie {curie} not found")
 
     if 'resource_curie' in cross_reference_update and cross_reference_update.resource_curie and 'reference_curie' in cross_reference_update and cross_reference_update.reference_curie:
-       raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                           detail=f"Only supply either resource_curie or reference_curie")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Only supply either resource_curie or reference_curie")
 
     for field, value in cross_reference_update.items():
         if field == "resource_curie" and value:
@@ -86,7 +82,7 @@ def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaU
             resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
             if not resource:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                  detail=f"Resource with curie {resource_curie} does not exist")
+                                    detail=f"Resource with curie {resource_curie} does not exist")
             cross_reference_db_obj.resource = resource
             cross_reference_db_obj.reference = None
         elif field == 'reference_curie' and value:
@@ -94,7 +90,7 @@ def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaU
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                  detail=f"Reference with curie {reference_curie} does not exist")
+                                    detail=f"Reference with curie {reference_curie} does not exist")
             cross_reference_db_obj.reference = reference
             cross_reference_db_obj.resource = None
         else:
@@ -106,7 +102,7 @@ def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaU
     return {"message": "updated"}
 
 
-def show(db: Session, curie: str, indirect=True):
+def show(db: Session, curie: str, indirect=True) -> dict:
     cross_reference = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == curie).first()
     if not cross_reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -123,7 +119,7 @@ def show(db: Session, curie: str, indirect=True):
 
     author_ids = []
     editor_ids = []
-    if indirect == False:
+    if not indirect:
         for author in cross_reference.authors:
             author_ids.append(author.author_id)
 
@@ -150,10 +146,10 @@ def show(db: Session, curie: str, indirect=True):
                                    "url": page_url.replace("[%s]", local_id)})
             cross_reference_data['pages'] = pages_data
     elif cross_reference_data['pages']:
-       pages_data = []
-       for cr_page in cross_reference_data['pages']:
-           pages_data.append({"name": cr_page})
-       cross_reference_data['pages'] = pages_data
+        pages_data = []
+        for cr_page in cross_reference_data['pages']:
+            pages_data.append({"name": cr_page})
+        cross_reference_data['pages'] = pages_data
 
     return cross_reference_data
 

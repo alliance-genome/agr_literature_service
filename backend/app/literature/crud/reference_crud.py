@@ -28,7 +28,7 @@ from sqlalchemy import func
 from sqlalchemy.sql.expression import cast
 
 
-def create_next_curie(curie):
+def create_next_curie(curie) -> str:
     curie_parts = curie.rsplit('-', 1)
     number_part = curie_parts[1]
     number = int(number_part) + 1
@@ -47,7 +47,7 @@ def create(db: Session, reference: ReferenceSchemaPost):
 
     last_curie = db.query(ReferenceModel.curie).order_by(sqlalchemy.desc(ReferenceModel.curie)).first()
 
-    if last_curie == None:
+    if not last_curie:
         last_curie = 'AGR:AGR-Reference-0000000000'
     else:
         last_curie = last_curie[0]
@@ -65,12 +65,12 @@ def create(db: Session, reference: ReferenceSchemaPost):
                 db_obj = None
                 if field in ['authors', 'editors']:
                     if obj_data['orcid']:
-                         cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == obj_data['orcid']).first()
-                         if not cross_reference_obj:
-                             cross_reference_obj = CrossReferenceModel(curie=obj_data['orcid'])
-                             db.add(cross_reference_obj)
+                        cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == obj_data['orcid']).first()
+                        if not cross_reference_obj:
+                            cross_reference_obj = CrossReferenceModel(curie=obj_data['orcid'])
+                            db.add(cross_reference_obj)
 
-                         obj_data['orcid_cross_reference'] = cross_reference_obj
+                        obj_data['orcid_cross_reference'] = cross_reference_obj
                     del obj_data['orcid']
                     if field == 'authors':
                         db_obj = AuthorModel(**obj_data)
@@ -79,11 +79,11 @@ def create(db: Session, reference: ReferenceSchemaPost):
                 elif field == 'mod_reference_types':
                     db_obj = ModReferenceTypeModel(**obj_data)
                 elif field == 'tags':
-                    db_obj =  ReferenceTagModel(**obj_data)
+                    db_obj = ReferenceTagModel(**obj_data)
                 elif field == 'mesh_terms':
-                    db_obj =  MeshDetailModel(**obj_data)
+                    db_obj = MeshDetailModel(**obj_data)
                 elif field == 'cross_references':
-                    db_obj =  CrossReferenceModel(**obj_data)
+                    db_obj = CrossReferenceModel(**obj_data)
 
                 db.add(db_obj)
                 db_objs.append(db_obj)
@@ -134,7 +134,7 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
             resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
             if not resource:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                  detail=f"Resource with curie {resource_curie} does not exist")
+                                    detail=f"Resource with curie {resource_curie} does not exist")
             reference_db_obj.resource = resource
         elif field == 'merged_into_reference_curie' and value:
             merged_into_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == value).first()
@@ -159,18 +159,17 @@ def show_all_references_external_ids(db: Session):
                                      ARRAY(String)),
                                 cast(func.array_agg(CrossReferenceModel.is_obsolete),
                                      ARRAY(Boolean))) \
-                          .outerjoin(ReferenceModel.cross_references) \
-                          .group_by(ReferenceModel.curie)
+        .outerjoin(ReferenceModel.cross_references) \
+        .group_by(ReferenceModel.curie)
 
     return [{'curie': reference[0],
              'cross_references': [{'curie': reference[1][idx],
-                                   'is_obsolete': reference[2][idx] }
+                                   'is_obsolete': reference[2][idx]}
                                   for idx in range(len(reference[1]))]}
             for reference in references_query.all()]
 
 
-
-def show_files(db: Session, curie:str):
+def show_files(db: Session, curie: str):
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
     files_data = []
     for reference_file in reference.files:
@@ -181,7 +180,7 @@ def show_files(db: Session, curie:str):
     return files_data
 
 
-def show_notes(db: Session, curie:str):
+def show_notes(db: Session, curie: str):
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
 
     notes_data = []
@@ -243,7 +242,7 @@ def show(db: Session, curie: str):
             del editor['reference_id']
 
     if reference.merged_into_id:
-       reference_data['merged_into_reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == reference_data['merged_into_id']).first()[0]
+        reference_data['merged_into_reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == reference_data['merged_into_id']).first()[0]
 
     if reference.mergee_references:
         reference_data['mergee_reference_curies'] = [mergee.curie for mergee in reference.mergee_references]

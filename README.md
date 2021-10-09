@@ -78,6 +78,7 @@ pg_restore --clean --if-exists -d <newdb> -h postgres -U postgres -p 5432 < <dat
 ```
 
 
+
 # Development
 
 First creat application image
