@@ -491,8 +491,7 @@ pipenv run python generate_chunk_files.py
 region=us-east-1`
 - create a ~/.aws/credentials file with the following content (swap aws_access_key_id and aws_secret_access_key with your appropriate values.  You may need to regenerate your aws_secret_access_key to obtain these values).
 `[default]
-aws_access_key_id =
-
+aws_access_key_id =\
 aws_secret_access_key = `
 -  To test that your credentials are working correctly, run `aws ecr get-login-password should spit out a token` and verify a token is produced.
 - Touch .docker/config.json
