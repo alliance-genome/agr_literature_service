@@ -24,10 +24,17 @@ base_path = environ.get('XML_PATH')
 
 
 def split_identifier(identifier, ignore_error=False):
-    """Split Identifier.
+    """
+
+    Split Identifier.
 
     Does not throw exception anymore. Check return, if None returned, there was an error
+
+    :param identifier:
+    :param ignore_error:
+    :return:
     """
+
     prefix = None
     identifier_processed = None
     separator = None
@@ -49,6 +56,11 @@ def split_identifier(identifier, ignore_error=False):
 
 
 def find_doi_duplicates():
+    """
+
+    :return:
+    """
+
     json_storage_path = base_path + 'sanitized_reference_json/'
 
     files_to_process = []
@@ -121,7 +133,10 @@ def find_doi_duplicates():
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    call main start function 
+    """
+
     logger.info("starting find_duplicate_doi.py")
 
     find_doi_duplicates()

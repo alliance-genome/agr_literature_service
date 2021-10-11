@@ -18,7 +18,8 @@ load_dotenv()
 
 # pipenv run python get_pubmed_nlm_resource_unmatched.py
 
-# for cleanup, see which dqm resourceAbbreviations don't match NLM data from J_Medline.txt and query pubmed from Kimberly's query to try to find info.
+# for cleanup, see which dqm resourceAbbreviations don't match NLM data from J_Medline.txt
+# and query pubmed from Kimberly's query to try to find info.
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
@@ -35,6 +36,11 @@ pmids_found = set()
 
 
 def download_pubmed_unmatched_resource_xml():
+    """
+
+    :return:
+    """
+
     resource_abbreviation_not_found_filename = storage_path + 'resource_abbreviation_not_matched'
     resource_abbreviations = []
     logger.info("Processing file input from %s", resource_abbreviation_not_found_filename)
@@ -52,7 +58,8 @@ def download_pubmed_unmatched_resource_xml():
             break
         print(resource_abbreviation)
 #         url = https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=nlmcatalog&term=Revue%20de%20Nematologie%5BAll%20Fields%5D&cmd=DetailsSearch
-        url = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=nlmcatalog&term=' + resource_abbreviation + '%5BAll%20Fields%5D&cmd=DetailsSearch'
+        url = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=nlmcatalog&term=' \
+              + resource_abbreviation + '%5BAll%20Fields%5D&cmd=DetailsSearch'
         r = requests.post(url)
         xml_all = r.text
         print(xml_all)
@@ -64,13 +71,23 @@ def download_pubmed_unmatched_resource_xml():
 
 
 def simplify_text(text):
+    """
+
+    :param text:
+    :return:
+    """
+
     no_html = re.sub('<[^<]+?>', '', text)
     stripped = re.sub("[^a-zA-Z]+", "", no_html)
     clean = stripped.lower()
+
     return clean
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    
+    call main start function
+    """
 
     download_pubmed_unmatched_resource_xml()

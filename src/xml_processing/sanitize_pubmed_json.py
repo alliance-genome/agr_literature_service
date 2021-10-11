@@ -9,13 +9,23 @@ from parse_dqm_json_reference import write_json
 
 
 def sanitize_pubmed_json_list(pmids):
+    """
+
+    :param pmids:
+    :return:
+    """
+
     base_path = environ.get('XML_PATH')
     sanitized_reference_json_path = base_path + 'sanitized_reference_json/'
     if not path.exists(sanitized_reference_json_path):
         makedirs(sanitized_reference_json_path)
 
-    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReferences']
-    single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher', 'plainLanguageAbstract', 'pubmedAbstractLanguages']
+    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished',
+                   'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher',
+                   'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReferences']
+    single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished',
+                           'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher',
+                           'plainLanguageAbstract', 'pubmedAbstractLanguages']
     replace_value_fields = ['authors', 'pubMedType', 'meshTerms', 'crossReferences']
     date_fields = ['issueDate', 'dateArrivedInPubmed', 'dateLastModified']
 
@@ -50,4 +60,5 @@ def sanitize_pubmed_json_list(pmids):
             print(pubmed_json_filepath + ' not found in filesystem')
     # json_filename = sanitized_reference_json_path + 'REFERENCE_PUBMED_' + pmid + '.json'
     json_filename = sanitized_reference_json_path + 'REFERENCE_PUBMED_PMID.json'
+    
     write_json(json_filename, sanitized_data)

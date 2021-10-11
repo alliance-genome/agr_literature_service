@@ -47,6 +47,12 @@ storage_path = base_path + 'pubmed_resource_json/'
 
 
 def populate_nlm_info(file_data):
+    """
+
+    :param file_data:
+    :return:
+    """
+
     nlm_info = []
     logger.info("Generating NLM data from file")
     entries = file_data.split('\n--------------------------------------------------------\n')
@@ -96,7 +102,8 @@ def populate_nlm_info(file_data):
 
 
 def upload_file_to_s3(file_name, bucket, object_name=None):
-    """Upload a file to an S3 bucket
+    """
+    Upload a file to an S3 bucket
 
     :param file_name: File to upload
     :param bucket: Bucket to upload to
@@ -148,6 +155,11 @@ def generate_json(nlm_info, upload_to_s3):
 
 
 def populate_from_url():
+    """
+
+    :return:
+    """
+
     url_medline = "https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt"
     print(url_medline)
     with urllib.request.urlopen(url_medline) as url:
@@ -156,6 +168,11 @@ def populate_from_url():
 
 
 def populate_from_local_file():
+    """
+
+    :return:
+    """
+
     filename = base_path + 'J_Medline.txt'
     with open(filename) as txt_file:
         if not path.exists(filename):
@@ -166,7 +183,10 @@ def populate_from_local_file():
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """ 
+    
+    call main start function 
+    """
 
     file_data = ''
     upload_to_s3 = False

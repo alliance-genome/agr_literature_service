@@ -3,8 +3,6 @@ import requests
 from os import environ, path
 import logging
 import logging.config
-
-
 # from datetime import datetime
 
 from helper_post_to_api import generate_headers, update_token
@@ -45,6 +43,11 @@ resource_fields_not_in_pubmed = ['titleSynonyms', 'abbreviationSynonyms', 'isoAb
 
 
 def post_resources():
+    """
+
+    :return:
+    """
+
     api_port = environ.get('API_PORT')
     json_storage_path = base_path + 'sanitized_resource_json/'
     filesets = ['NLM', 'FB', 'ZFIN']
@@ -198,7 +201,12 @@ def post_resources():
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    
+    call main start function
+    
+    """
+
     logger.info("starting post_resource_to_api.py")
 
     post_resources()

@@ -20,19 +20,32 @@ json_storage_path = base_path + 'sanitized_resource_json/'
 
 # resource_fields = ['primaryId', 'nlm', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
 # resource_fields_from_pubmed = ['title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
-resource_fields_not_in_pubmed = ['titleSynonyms', 'abbreviationSynonyms', 'isoAbbreviation', 'copyrightDate', 'publisher', 'editorsOrAuthors', 'volumes', 'pages', 'abstractOrSummary']
+resource_fields_not_in_pubmed = ['titleSynonyms', 'abbreviationSynonyms', 'isoAbbreviation', 'copyrightDate',
+                                 'publisher', 'editorsOrAuthors', 'volumes', 'pages', 'abstractOrSummary']
 
 
 def create_storage_path():
+    """
+
+    :return:
+    """
+
     if not path.exists(json_storage_path):
         makedirs(json_storage_path)
 
 
 def split_identifier(identifier, ignore_error=False):
-    """Split Identifier.
+    """
+
+    Split Identifier.
 
     Does not throw exception anymore. Check return, if None returned, there was an error
+
+    :param identifier:
+    :param ignore_error:
+    :return:
     """
+
     prefix = None
     identifier_processed = None
     separator = None
@@ -54,6 +67,13 @@ def split_identifier(identifier, ignore_error=False):
 
 
 def write_json(json_filename, dict_to_output):
+    """
+
+    :param json_filename:
+    :param dict_to_output:
+    :return:
+    """
+
     with open(json_filename, "w") as json_file:
         logger.info("Generating JSON for %s", json_filename)
         json_data = json.dumps(dict_to_output, indent=4, sort_keys=True)
@@ -62,6 +82,11 @@ def write_json(json_filename, dict_to_output):
 
 
 def load_fb_resource_to_nlm():
+    """
+
+    :return:
+    """
+
     filename = base_path + 'FB_resourceAbbreviation_to_NLM.json'
     fb_to_nlm = dict()
     try:
@@ -73,6 +98,12 @@ def load_fb_resource_to_nlm():
 
 
 def load_fb_resource(pubmed_by_nlm):
+    """
+
+    :param pubmed_by_nlm:
+    :return:
+    """
+
     filename = base_path + 'dqm_data/RESOURCE_FB.json'
     fb_to_nlm = load_fb_resource_to_nlm()
     try:
@@ -115,6 +146,12 @@ def load_fb_resource(pubmed_by_nlm):
 
 
 def load_zfin_resource(pubmed_by_nlm):
+    """
+
+    :param pubmed_by_nlm:
+    :return:
+    """
+
     filename = base_path + 'dqm_data/RESOURCE_ZFIN.json'
     try:
         with open(filename, 'r') as f:
@@ -141,6 +178,12 @@ def load_zfin_resource(pubmed_by_nlm):
 
 
 def save_pubmed_resource(pubmed_by_nlm):
+    """
+
+    :param pubmed_by_nlm:
+    :return:
+    """
+
     pubmed_data = dict()
     pubmed_data['data'] = []
     for nlm in pubmed_by_nlm:
@@ -150,6 +193,11 @@ def save_pubmed_resource(pubmed_by_nlm):
 
 
 def load_pubmed_resource():
+    """
+
+    :return:
+    """
+
     filename = base_path + 'pubmed_resource_json/resource_pubmed_all.json'
     f = open(filename)
     resource_data = json.load(f)
@@ -162,8 +210,13 @@ def load_pubmed_resource():
 
 
 if __name__ == "__main__":
-    """ call main start function """
-    logger.info("starting parse_dqm_json_resource.py")
+    """
+    
+    call main start function
+    
+    """
+
+    logger.info("Starting parse_dqm_json_resource.py")
 
     create_storage_path()
     pubmed_by_nlm = load_pubmed_resource()

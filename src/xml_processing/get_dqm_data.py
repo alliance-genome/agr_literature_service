@@ -34,6 +34,12 @@ storage_path = base_path + 'dqm_data/'
 
 
 def get_md5_sum_from_path(filename):
+    """
+
+    :param filename:
+    :return:
+    """
+
     if os.path.exists(filename):
         return md5_update_from_file(filename, hashlib.md5()).hexdigest()
     else:
@@ -41,6 +47,13 @@ def get_md5_sum_from_path(filename):
 
 
 def md5_update_from_file(filename, hash):
+    """
+
+    :param filename:
+    :param hash:
+    :return:
+    """
+
     with open(str(filename), "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             hash.update(chunk)
@@ -48,6 +61,11 @@ def md5_update_from_file(filename, hash):
 
 
 def download_dqm_json():
+    """
+
+    :return:
+    """
+
     if not path.exists(storage_path):
         makedirs(storage_path)
 
@@ -95,5 +113,10 @@ def download_dqm_json():
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    
+    call main start function
+    
+    """
+
     download_dqm_json()

@@ -51,6 +51,12 @@ base_path = environ.get('XML_PATH')
 
 
 def generate_md5sums(file_type):
+    """
+
+    :param file_type:
+    :return:
+    """
+
     # storage_path = base_path + 'pubmed_' + file_type + '_20210322/'
     storage_path = base_path + 'pubmed_' + file_type + '/'
     md5data = ''
@@ -71,7 +77,11 @@ def generate_md5sums(file_type):
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    
+    call main start function
+    
+    """
 
     file_type = 'xml'
 

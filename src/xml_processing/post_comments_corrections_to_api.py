@@ -30,6 +30,12 @@ args = vars(parser.parse_args())
 
 
 def post_comments_corrections(pmids_wanted):
+    """
+
+    :param pmids_wanted:
+    :return:
+    """
+
     logger.info(pmids_wanted)
 
     api_port = environ.get('API_PORT')
@@ -46,7 +52,8 @@ def post_comments_corrections(pmids_wanted):
         token = update_token()
     headers = generate_headers(token)
 
-    allowed_com_cor_types = ['CommentOn', 'ErratumFor', 'ExpressionOfConcernFor', 'ReprintOf', 'RepublishedFrom', 'RetractionOf', 'UpdateOf']
+    allowed_com_cor_types = ['CommentOn', 'ErratumFor', 'ExpressionOfConcernFor', 'ReprintOf',
+                             'RepublishedFrom', 'RetractionOf', 'UpdateOf']
     remap_com_cor_types = dict()
     remap_com_cor_types['CommentIn'] = 'CommentOn'
     remap_com_cor_types['ErratumIn'] = 'ErratumFor'
@@ -143,7 +150,12 @@ def post_comments_corrections(pmids_wanted):
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    
+    call main start function
+    
+    """
+
     pmids_wanted = []
 
 #    python post_comments_corrections_to_api.py -c 1234 4576 1828

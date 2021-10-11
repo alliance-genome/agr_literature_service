@@ -4,7 +4,7 @@
 
 Create an application container with your local changes
 ```bash
-Make build
+make build
 ```
 
 To spin up all the components of the stack
@@ -81,7 +81,7 @@ pg_restore --clean --if-exists -d <newdb> -h postgres -U postgres -p 5432 < <dat
 
 # Development
 
-First creat application image
+First create application image
 
 Use Docker Compose to spin up all the containers
 

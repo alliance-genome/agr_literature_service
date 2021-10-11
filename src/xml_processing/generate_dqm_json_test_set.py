@@ -58,7 +58,12 @@ def generate_dqm_json_test_set():
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    
+    call main start function
+    
+    """
+
     logger.info("starting generate_dqm_json_test_set.py")
     generate_dqm_json_test_set()
     logger.info("ending generate_dqm_json_test_set.py")

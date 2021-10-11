@@ -27,6 +27,12 @@ args = vars(parser.parse_args())
 
 
 def check_pmid_cross_reference(pmid):
+    """
+
+    :param pmid:
+    :return:
+    """
+
     api_port = environ.get('API_PORT')
     url = 'http://localhost:' + api_port + '/cross_reference/PMID:' + pmid
     #     'Authorization': 'Bearer <token_goes_here>',
@@ -93,6 +99,12 @@ def check_pmid_cross_reference(pmid):
 
 
 def output_message_json(process_results):
+    """
+
+    :param process_results:
+    :return:
+    """
+
     process_result = dict()
     if process_results:
         process_result = process_results.pop()
@@ -107,6 +119,12 @@ def output_message_json(process_results):
 
 
 def process_pmid(pmid):
+    """
+
+    :param pmid:
+    :return:
+    """
+
     process_results = check_pmid_cross_reference(pmid)
     if not process_results[0]['found']:
         base_path = environ.get('XML_PATH')
@@ -122,7 +140,12 @@ def process_pmid(pmid):
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    
+    call main start function
+    
+    """
+
     pmids_wanted = []
 
 #    python process_single_pmid.py -c 1234 4576 1828

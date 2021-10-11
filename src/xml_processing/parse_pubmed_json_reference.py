@@ -24,10 +24,15 @@ args = vars(parser.parse_args())
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    
+    call main start function
+    
+    """
+
     pmids_wanted = []
 
-#    python parse_pubmed_json_reference.py -c 1234 4576 1828
+    # python parse_pubmed_json_reference.py -c 1234 4576 1828
     if args['commandline']:
         logger.info("Processing commandline input")
         for pmid in args['commandline']:

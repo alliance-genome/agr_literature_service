@@ -26,6 +26,11 @@ process_path = base_path + 'chunking_pmids/'
 
 
 def generate_chunk_files():
+    """
+
+    :return:
+    """
+
     main_chunk_file = process_path + 'chunking_set'
     chunk_to_pmid_to_ftp = dict()
     current_chunk = 1
@@ -80,6 +85,9 @@ def generate_chunk_files():
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """ 
+    
+    call main start function
+    """
 
     generate_chunk_files()

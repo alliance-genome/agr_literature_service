@@ -1,9 +1,7 @@
 import json
 # import urllib.request
-
 import argparse
 # import re
-
 from os import environ, path, listdir
 # from os import makedirs
 import logging
@@ -117,10 +115,17 @@ args = vars(parser.parse_args())
 
 
 def split_identifier(identifier, ignore_error=False):
-    """Split Identifier.
+    """
+
+    Split Identifier.
 
     Does not throw exception anymore. Check return, if None returned, there was an error
+
+    :param identifier:
+    :param ignore_error:
+    :return:
     """
+
     prefix = None
     identifier_processed = None
     separator = None
@@ -142,6 +147,11 @@ def split_identifier(identifier, ignore_error=False):
 
 
 def load_ref_xref():
+    """
+
+    :return:
+    """
+
     # 7 seconds to populate file with 2476879 rows
     ref_xref_valid = dict()
     ref_xref_obsolete = dict()
@@ -183,6 +193,11 @@ def load_ref_xref():
 
 
 def load_pmids_not_found():
+    """
+
+    :return:
+    """
+
     pmids_not_found = set()
     base_path = environ.get('XML_PATH')
     pmids_not_found_file = base_path + 'pmids_not_found'
@@ -194,6 +209,13 @@ def load_pmids_not_found():
 
 
 def sort_dqm_references(input_path, input_mod):
+    """
+
+    :param input_path:
+    :param input_mod:
+    :return:
+    """
+
     # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
     base_path = environ.get('XML_PATH')
 
@@ -220,7 +242,7 @@ def sort_dqm_references(input_path, input_mod):
 #             for identifier in ref_xref_obsolete[agr][prefix]:
 #                 logger.info("agr %s obsolete prefix %s ident %s", agr, prefix, identifier)
 
-#     input_file = 'sanitized'	# set to sanitized to check after posting references to database, that all references are accounted for
+    # input_file = 'sanitized'	# set to sanitized to check after posting references to database, that all references are accounted for
     input_file = 'dqm'
     files_to_process = []
     if input_file == 'sanitized':
@@ -240,7 +262,7 @@ def sort_dqm_references(input_path, input_mod):
     for mod in mods:
         dqm[mod] = set()
 
-#         filename = input_path + '/REFERENCE_' + mod + '.json'
+    # filename = input_path + '/REFERENCE_' + mod + '.json'
 
     xrefs_to_add = dict()
 
@@ -255,7 +277,7 @@ def sort_dqm_references(input_path, input_mod):
             entries = dqm_data['data']
         # get rid of counter
         counter = 0
-#         max_counter = 10
+        # max_counter = 10
         max_counter = 100000000
         for entry in entries:
             counter = counter + 1
@@ -385,7 +407,12 @@ def sort_dqm_references(input_path, input_mod):
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    
+    call main start function
+    
+    """
+
     logger.info("starting sort_dqm_json_reference_updates.py")
 
     if args['file']:

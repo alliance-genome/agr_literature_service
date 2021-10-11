@@ -48,6 +48,13 @@ s3_client = boto3.client('s3')
 
 
 def expand_tgz(tgz_file, expand_dir):
+    """
+
+    :param tgz_file:
+    :param expand_dir:
+    :return:
+    """
+
     this_tarfile = tarfile.open(tgz_file)
     this_tarfile.extractall(temp_expand_dir)
     this_tarfile.close()
@@ -71,10 +78,18 @@ def generate_md5sum(expand_dir, pmid):
             output_fh.write("%s\t%s\n" % (filename, md5sum))
             md5_info += ("%s/%s\t%s\n" % (pmid, filename, md5sum))
         output_fh.close()
+
     return md5_info
 
 
 def upload_s3_dir(expand_dir, pmid):
+    """
+
+    :param expand_dir:
+    :param pmid:
+    :return:
+    """
+
     # bucket is 's3://agr-literature/develop/reference/documents/pubmed/pmid/' + pmid
     bucketname = 'agr-literature'
     for root, _dirs, files in walk(expand_dir):
@@ -85,6 +100,14 @@ def upload_s3_dir(expand_dir, pmid):
 
 
 def upload_file_to_s3(filepath, bucketname, s3_file_location):
+    """
+
+    :param filepath:
+    :param bucketname:
+    :param s3_file_location:
+    :return:
+    """
+
     try:
         response = s3_client.upload_file(filepath, bucketname, s3_file_location)
         if response is not None:
@@ -94,10 +117,16 @@ def upload_file_to_s3(filepath, bucketname, s3_file_location):
     except ClientError as e:
         logging.error(e)
         return False
+
     return True
 
 
 def process_tgz():
+    """
+
+    :return:
+    """
+
     date_file = '20210426_02'
     list_file = process_path + date_file + '.txt'
     count = 0
@@ -133,6 +162,8 @@ def process_tgz():
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    call main start function
+    """
 
     process_tgz()

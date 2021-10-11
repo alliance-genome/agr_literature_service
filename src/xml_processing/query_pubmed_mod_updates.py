@@ -20,7 +20,8 @@ load_dotenv()
 
 # pipenv run python query_pubmed_mod_updates.py
 
-# query pubmed for each MOD's search preferences, add PMID results into queue to download from pubmed if they've not already been processed by Alliance.  when ready, should output to inputs/new_results_<date>
+# query pubmed for each MOD's search preferences, add PMID results into queue to download from pubmed if they've not already
+# been processed by Alliance.  when ready, should output to inputs/new_results_<date>
 
 # eutils instructions
 # https://www.ncbi.nlm.nih.gov/books/NBK25499/
@@ -169,6 +170,11 @@ mods_to_query = ['FB', 'SGD', 'WB', 'ZFIN']
 
 
 def query_pubmed_mod_updates():
+    """
+
+    :return:
+    """
+
     populate_alliance_pmids()
     # query_pmc_mgi()			# find pmc articles for mice and 9 journals, get pmid mappings and list of pmc without pmid
     # download_pmc_without_pmid_mgi()     # download pmc xml for pmc without pmid and find their article type
@@ -176,6 +182,11 @@ def query_pubmed_mod_updates():
 
 
 def query_mods():
+    """
+
+    :return:
+    """
+
     logger.info("Starting query mods")
     search_output = ''
     sleep_delay = 1
@@ -214,6 +225,11 @@ def query_mods():
 
 
 def populate_alliance_pmids():
+    """
+
+    :return:
+    """
+
     infile = base_path + 'inputs/alliance_pmids'
     with open(infile, "r") as infile_fh:
         for line in infile_fh:
@@ -223,6 +239,11 @@ def populate_alliance_pmids():
 
 # find pmc articles for mice and 9 journals, get pmid mappings and list of pmc without pmid
 def query_pmc_mgi():
+    """
+
+    :return:
+    """
+
     logger.info("Starting query pmc mgi")
 
     idconv_slice_size = 200
@@ -289,6 +310,11 @@ def query_pmc_mgi():
 # pipenv run python query_pubmed_mod_updates.py > pmc_processing/pmcid_without_pmid_article_type
 # download pmc xml for pmc without pmid and find their article type
 def download_pmc_without_pmid_mgi():
+    """
+
+    :return:
+    """
+
     sleep_delay = 1
     articleTypes = {"research-article", "review-article", "other", "correction", "editorial", "article-commentary", "brief-report", "case-report", "letter", "discussion", "retraction", "oration", "reply", "news", "expression-of-concern"}
 
@@ -314,7 +340,9 @@ def download_pmc_without_pmid_mgi():
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=("Aging+cell"[Journal])+AND+(mice)&retmax=100000000
 # No.  Query by PMC e.g. https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pmc&term=("PLoS+Biology"[Journal])+AND+(mice)&retmax=100000000 get PMCIDs and pass in sets of 200 to API to map to PMID https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?tool=my_tool&idtype=pmcid&ids=8270425,8262914 then process the PMID and output list of any that don't map.  This search needs to be amended to restrict the type to "research article" because PubMed does not have abstracts, uncorrected proofs, etc. while PMC does (not sure how to add that filter yet).
 #
-#  XML at https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=8270425&retmode=xml  (for a PMCID) which says "research-article" and that corresponds to PMID https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=34181639&retmode=xml  which says "In-Data-Review" in PubMed.
+#  XML at https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=8270425&retmode=xml  (for a PMCID) which
+#  says "research-article" and that corresponds to PMID https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=34181639&retmode=xml
+#  which says "In-Data-Review" in PubMed.
 # 952
 
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=PMC3555923&retmode=xml
@@ -439,7 +467,12 @@ def download_pmc_without_pmid_mgi():
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    
+    call main start function
+    
+    """
+
     pmids_wanted = []
 
     query_pubmed_mod_updates()
