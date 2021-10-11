@@ -176,7 +176,7 @@ def post_resources():
                 print(primary_id + "\ttext " + str(post_return.text))
                 print(primary_id + "\tstatus_code " + str(post_return.status_code))
 
-                if (post_return.status_code == 201):
+                if post_return.status_code == 201:
                     response_dict = response_dict.replace('"', '')
                     for identifier in identifiers:
                         logger.info("I %s\t%s", identifier, response_dict)
@@ -202,9 +202,7 @@ def post_resources():
 
 if __name__ == "__main__":
     """
-    
     call main start function
-    
     """
 
     logger.info("starting post_resource_to_api.py")

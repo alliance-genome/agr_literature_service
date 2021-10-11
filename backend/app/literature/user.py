@@ -7,6 +7,13 @@ user_id: str = None
 
 
 def set_global_user_id(db: Session, id: str):
+    """
+
+    :param db:
+    :param id:
+    :return:
+    """
+
     global user_id
     user_id = id
 
@@ -15,4 +22,9 @@ def set_global_user_id(db: Session, id: str):
 
 
 def get_global_user_id():
+    """
+
+    :return:
+    """
+
     return user_id

@@ -408,9 +408,7 @@ def sort_dqm_references(input_path, input_mod):
 
 if __name__ == "__main__":
     """
-    
     call main start function
-    
     """
 
     logger.info("starting sort_dqm_json_reference_updates.py")

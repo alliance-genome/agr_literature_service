@@ -59,11 +59,11 @@ def generate_json():
 
             # Write the json data to output json file
 # UNCOMMENT TO write to json directory
-#             json_storage_path = base_path + 'pubmed_json/'
+            # json_storage_path = base_path + 'pubmed_json/'
             json_storage_path = base_path + 'temp_benchmark_copy/'
             json_filename = json_storage_path + pmid + '.json'
             with open(json_filename, "w") as json_file:
-#                 json_file.write(json_data)
+                # json_file.write(json_data)
                 json_file.write(xml)
                 json_file.close()
 
@@ -85,4 +85,3 @@ if __name__ == "__main__":
 
     generate_json()
     logger.info("Done opening and copying files")
-

@@ -515,11 +515,11 @@ def generate_json(pmids, previous_pmids):
                 # print publisher
                 data_dict['publisher'] = publisher
 
-# previously was only getting all abstract text together, but this was causing different types of abstracts to be concatenated
-#             regex_abstract_output = re.findall("<AbstractText.*?>(.+?)</AbstractText>", xml, re.DOTALL)
-#             if len(regex_abstract_output) > 0:
-#                 abstract = " ".join(regex_abstract_output)
-#                 data_dict['abstract'] = re.sub(r'\s+', ' ', abstract)
+            # previously was only getting all abstract text together, but this was causing different types of abstracts to be concatenated
+            # regex_abstract_output = re.findall("<AbstractText.*?>(.+?)</AbstractText>", xml, re.DOTALL)
+            # if len(regex_abstract_output) > 0:
+            #     abstract = " ".join(regex_abstract_output)
+            #     data_dict['abstract'] = re.sub(r'\s+', ' ', abstract)
 
             main_abstract_list = []
             regex_abstract_output = re.findall("<Abstract>(.+?)</Abstract>", xml, re.DOTALL)
@@ -659,9 +659,7 @@ def generate_json(pmids, previous_pmids):
 
 if __name__ == "__main__":
     """
-    
     call main start function
-    
     """
 
     pmids = []

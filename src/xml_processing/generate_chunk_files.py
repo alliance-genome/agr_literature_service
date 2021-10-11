@@ -85,8 +85,7 @@ def generate_chunk_files():
 
 
 if __name__ == "__main__":
-    """ 
-    
+    """
     call main start function
     """
 

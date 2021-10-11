@@ -210,9 +210,7 @@ def download_pubmed_xml(pmids_wanted):
 
 if __name__ == "__main__":
     """
-    
     call main start function
-    
     """
 
     pmids_wanted = []

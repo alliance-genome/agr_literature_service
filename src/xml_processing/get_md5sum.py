@@ -78,9 +78,7 @@ def generate_md5sums(file_type):
 
 if __name__ == "__main__":
     """
-    
     call main start function
-    
     """
 
     file_type = 'xml'

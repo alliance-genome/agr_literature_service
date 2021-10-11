@@ -468,9 +468,7 @@ def download_pmc_without_pmid_mgi():
 
 if __name__ == "__main__":
     """
-    
     call main start function
-    
     """
 
     pmids_wanted = []

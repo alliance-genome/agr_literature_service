@@ -1,5 +1,5 @@
 
-from os import environ, path, makedirs
+from os import environ, path
 import json
 import requests
 import argparse
@@ -61,12 +61,12 @@ def check_pmid_cross_reference(pmid):
 #     sanitized_reference_json_path = base_path + 'sanitized_reference_json/'
 #     if not path.exists(sanitized_reference_json_path):
 #         makedirs(sanitized_reference_json_path)
-# 
+#
 #     pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReferences']
 #     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher', 'plainLanguageAbstract', 'pubmedAbstractLanguages']
 #     replace_value_fields = ['authors', 'pubMedType', 'meshTerms', 'crossReferences']
 #     date_fields = ['issueDate', 'dateArrivedInPubmed', 'dateLastModified']
-# 
+#
 #     pubmed_data = dict()
 #     try:
 #         with open(pubmed_json_filepath, 'r') as f:
@@ -141,9 +141,7 @@ def process_pmid(pmid):
 
 if __name__ == "__main__":
     """
-    
     call main start function
-    
     """
 
     pmids_wanted = []

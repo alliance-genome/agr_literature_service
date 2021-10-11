@@ -183,9 +183,8 @@ def populate_from_local_file():
 
 
 if __name__ == "__main__":
-    """ 
-    
-    call main start function 
+    """
+    call main start function
     """
 
     file_data = ''

@@ -1,7 +1,6 @@
 
 import json
 from os import environ, path, listdir
-import logging
 import logging.config
 
 from dotenv import load_dotenv
@@ -134,7 +133,7 @@ def find_doi_duplicates():
 
 if __name__ == "__main__":
     """
-    call main start function 
+    call main start function
     """
 
     logger.info("starting find_duplicate_doi.py")

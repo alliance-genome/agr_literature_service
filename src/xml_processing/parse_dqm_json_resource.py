@@ -211,9 +211,7 @@ def load_pubmed_resource():
 
 if __name__ == "__main__":
     """
-    
     call main start function
-    
     """
 
     logger.info("Starting parse_dqm_json_resource.py")

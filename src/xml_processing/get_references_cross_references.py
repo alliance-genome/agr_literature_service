@@ -71,9 +71,7 @@ def update_reference_cross_reference():
 
 if __name__ == "__main__":
     """
-    
     call main start function
-    
     """
 
     update_reference_cross_reference()

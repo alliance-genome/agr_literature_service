@@ -335,9 +335,7 @@ def process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh):
 
 if __name__ == "__main__":
     """
-    
     call main start function
-    
     """
 
     logger.info("Starting post_reference_to_api.py")

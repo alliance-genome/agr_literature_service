@@ -81,9 +81,7 @@ def sort_not_found_pmids_by_mod():
 
 if __name__ == "__main__":
     """
-    
     call main start function
-    
     """
 
     sort_not_found_pmids_by_mod()

@@ -83,9 +83,7 @@ def recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list):
 
 if __name__ == "__main__":
     """
-    
     call main start function
-    
     """
 
     pmids_wanted = []

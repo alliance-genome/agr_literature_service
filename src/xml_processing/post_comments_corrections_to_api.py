@@ -112,13 +112,13 @@ def post_comments_corrections(pmids_wanted):
             primary_curie = reference_to_curie[primary_pmid]
         if secondary_pmid in reference_to_curie:
             secondary_curie = reference_to_curie[secondary_pmid]
-        if (primary_curie == ''):
+        if primary_curie == '':
             # print('ERROR ' + primary_pmid + ' does not map to an AGR Reference curie')
             logger.info("ERROR %s : %s does not map to an AGR Reference curie", mapping, primary_pmid)
-        if (secondary_curie == ''):
+        if secondary_curie == '':
             # print('ERROR ' + secondary_pmid + ' does not map to an AGR Reference curie')
             logger.info("ERROR %s does not map to an AGR Reference curie", secondary_pmid)
-        if (primary_curie != '') and (secondary_curie != ''):
+        if primary_curie != '' and secondary_curie != '':
             # print(primary_curie + '\t' + secondary_curie + '\t' + com_cor_type)
             # print('primary ' + primary_pmid + ' maps to ' + primary_curie)
             # print('secondary ' + secondary_pmid + ' maps to ' + secondary_curie)
@@ -151,9 +151,7 @@ def post_comments_corrections(pmids_wanted):
 
 if __name__ == "__main__":
     """
-    
     call main start function
-    
     """
 
     pmids_wanted = []

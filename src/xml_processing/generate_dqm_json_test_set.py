@@ -38,10 +38,10 @@ def generate_dqm_json_test_set():
         f = open(input_filename)
         dqm_data = json.load(f)
 
-# generate half-as-big set
-#        sample_amount = int(len(dqm_data['data']) / 2)
-#        dqm_data['data'] = dqm_data['data'][:sample_amount]	# half one
-#        dqm_data['data'] = dqm_data['data'][-sample_amount:]	# half two
+        # generate half-as-big set
+        # sample_amount = int(len(dqm_data['data']) / 2)
+        # dqm_data['data'] = dqm_data['data'][:sample_amount]	# half one
+        # dqm_data['data'] = dqm_data['data'][-sample_amount:]	# half two
 
         reference_amount = len(dqm_data['data'])
         if reference_amount > 3 * sample_amount:
@@ -59,9 +59,7 @@ def generate_dqm_json_test_set():
 
 if __name__ == "__main__":
     """
-    
     call main start function
-    
     """
 
     logger.info("starting generate_dqm_json_test_set.py")

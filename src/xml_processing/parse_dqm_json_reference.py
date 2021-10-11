@@ -95,7 +95,6 @@ def generate_pmid_data():
     :return:
     """
 
-
     logger.info("generating pmid sets from dqm data")
 
     # RGD should be first in mods list.  if conflicting allianceCategories the later mod gets priority
@@ -428,7 +427,7 @@ def load_pubmed_resource():
             if field in entry:
                 # value = entry[field].lower()
                 value = simplify_text_keep_digits(entry[field])
-                # if (nlm == '8000640'):
+                # if nlm == '8000640':
                 #     logger.info("field %s value %s", field, value)
                 # if value == '2985088r':
                 #     print("2985088r loaded\n")
@@ -740,11 +739,11 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
                                 pmid_data = pubmed_data[pmid_field]
                         if pmid_field in entry:
                             dqm_data = entry[pmid_field]
-                        if (dqm_data != ''):
+                        if dqm_data != '':
                             dqm_data = bs4.BeautifulSoup(dqm_data, "html.parser")
                         # UNCOMMENT to output log of data comparison between dqm and pubmed
                         if (dqm_data != '') or (compare_if_dqm_empty):
-                            if (pmid_field == 'title'):
+                            if pmid_field == 'title':
                                 compare_dqm_pubmed(fh_mod_report_title[mod], pmid, pmid_field, dqm_data, pmid_data)
                             else:
                                 compare_dqm_pubmed(fh_mod_report_differ[mod], pmid, pmid_field, dqm_data, pmid_data)
@@ -1058,10 +1057,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):
 
 if __name__ == "__main__":
     """
-    
     call main start function
-    
     """
+
     logger.info("starting parse_dqm_json_reference.py")
 
     # pipenv run python parse_dqm_json_reference.py -p

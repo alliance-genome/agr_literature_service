@@ -25,9 +25,7 @@ args = vars(parser.parse_args())
 
 if __name__ == "__main__":
     """
-    
     call main start function
-    
     """
 
     pmids_wanted = []

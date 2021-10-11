@@ -15,7 +15,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-
 # get_dqm_data.py downloads DQM MOD JSON from FMS and uncompresses. compares md5sum to current file to prevent downloading if it's the same
 # pipenv run python get_dqm_data.py
 
@@ -114,9 +113,7 @@ def download_dqm_json():
 
 if __name__ == "__main__":
     """
-    
     call main start function
-    
     """
 
     download_dqm_json()

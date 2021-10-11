@@ -86,7 +86,6 @@ def simplify_text(text):
 
 if __name__ == "__main__":
     """
-    
     call main start function
     """
 
