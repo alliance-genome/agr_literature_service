@@ -25,7 +25,7 @@ run-flake8:
 
 run-dev-bash:
 	docker run \
-		--network=agr_literature_service_demo_agr-literature \
+		--network=agr_literature_service_agr-literature \
 	    -p ${API_PORT}:8080 \
 	    -v ${PWD}:/workdir \
 		-t -i ${REG}/agr_literature_dev:${TAG} \

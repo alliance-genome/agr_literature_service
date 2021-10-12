@@ -246,7 +246,7 @@ def show(db: Session, curie: str):
        reference_data['merged_into_reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == reference_data['merged_into_id']).first()[0]
 
     if reference.mergee_references:
-        reference_data['mergee_reference_curies'] = [mergee.curie for mergee in reference.mergee_references]
+        reference_data['merged_reference_curies'] = [mergee.curie for mergee in reference.mergee_references]
 
     del reference_data['files']
 
