@@ -1,6 +1,4 @@
-import sqlalchemy
 from sqlalchemy.orm import Session
-from datetime import datetime
 
 from fastapi import HTTPException
 from fastapi import status
@@ -37,7 +35,6 @@ def create(db: Session, reference_comment_and_correction: ReferenceCommentAndCor
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail=f"Reference Comment and Correction with reference_curie_from  {reference_curie_from} and reference curie_to {reference_curie_to} already exists with id {db_obj.reference_comment_and_correction_id}")
 
-
     db_obj = ReferenceCommentAndCorrectionModel(reference_comment_and_correction_type=reference_comment_and_correction_type,
                                                 reference_from=reference_from,
                                                 reference_to=reference_to)
@@ -72,14 +69,14 @@ def patch(db: Session, reference_comment_and_correction_id: int, reference_comme
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_to).first()
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                  detail=f"Reference with curie {reference_curie_to} does not exist")
+                                    detail=f"Reference with curie {reference_curie_to} does not exist")
             db_obj.reference_to = reference
         elif field == 'reference_curie_from' and value:
             reference_curie_from = value
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_from).first()
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                  detail=f"Reference with curie {reference_curie_from} does not exist")
+                                    detail=f"Reference with curie {reference_curie_from} does not exist")
             db_obj.reference_from = reference
         else:
             setattr(db_obj, field, value)

@@ -4,21 +4,14 @@ import hashlib
 
 from botocore.client import BaseClient
 
-import sqlalchemy
-
 from sqlalchemy.orm import Session
-from datetime import datetime
 
 from fastapi import HTTPException
 from fastapi import status
-from fastapi import UploadFile
 
 from fastapi.encoders import jsonable_encoder
 
 from literature.models import ReferenceModel
-
-from literature.schemas import FileSchemaUpdate
-from literature.schemas import FileSchemaShow
 
 from literature.s3.upload import upload_file_to_bucket
 from literature.s3.delete import delete_file_in_bucket
@@ -29,12 +22,12 @@ from literature.config import config
 from literature.models import FileModel
 
 
-def create(db: Session, s3: BaseClient, parent_entity_type : str, curie: str, file_contents: str, display_name: str, content_type: str):
+def create(db: Session, s3: BaseClient, parent_entity_type : str, curie: str, file_contents: str, display_name: str, content_type: str) -> str:
     filename, file_extension = os.path.splitext(display_name)
     bucket_name = 'agr-literature'
     md5sum = hashlib.md5(file_contents).hexdigest()
     s3_filename = curie + '-File-' + md5sum + file_extension
-    folder= config.ENV_STATE + '/agr/'+ curie
+    folder = config.ENV_STATE + '/agr/' + curie
 
     file_data = {'s3_filename': s3_filename,
                  'size': len(file_contents),
@@ -54,12 +47,10 @@ def create(db: Session, s3: BaseClient, parent_entity_type : str, curie: str, fi
                           detail=f"Reference with the curie {curie} is not available")
 
         file_obj = db.query(FileModel).filter(FileModel.md5sum == md5sum,
-                                                 FileModel.reference_id == reference.reference_id).first()
+                                              FileModel.reference_id == reference.reference_id).first()
         if file_obj:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                 detail=f"File with md5sum {md5sum} and Reference Curie {curie} already exists: File ID {file_obj.file_id}")
-
-
 
     upload_obj = upload_file_to_bucket(s3_client=s3,
                                        file_obj=io.BytesIO(file_contents),
@@ -87,10 +78,10 @@ def destroy(db: Session, s3: BaseClient, filename: str):
                             detail=f"file with name {filename} not found")
 
     bucket_name = 'agr-literature'
-    delete_obj = delete_file_in_bucket(s3_client=s3,
-                                       bucket=bucket_name,
-                                       folder=file_obj.folder,
-                                       object_name=filename)
+    delete_file_in_bucket(s3_client=s3,
+                          bucket=bucket_name,
+                          folder=file_obj.folder,
+                          object_name=filename)
 
     db.delete(file_obj)
     db.commit()
@@ -98,7 +89,7 @@ def destroy(db: Session, s3: BaseClient, filename: str):
     return None
 
 
-def patch(db: Session, filename: str, file_update):#: FileSchemaUpdate):
+def patch(db: Session, filename: str, file_update) -> dict:  #: FileSchemaUpdate):
     file_db_obj = db.query(FileModel).filter(FileModel.s3_filename == filename).first()
     if not file_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -107,7 +98,7 @@ def patch(db: Session, filename: str, file_update):#: FileSchemaUpdate):
     for field, value in file_update.items():
         if field == "reference_curie" and value:
             reference_curie = value
-            reference = db.query(Reference).filter(Reference.curie == reference_curie).first()
+            reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Reference with curie {reference_curie} does not exist")
@@ -142,9 +133,9 @@ def show_by_md5sum(db: Session, md5sum: str):
 
     files_data = []
     for file_obj in files_obj:
-       file_data = jsonable_encoder(file_obj)
-       del file_data['reference_id']
-       files_data.append(file_data)
+        file_data = jsonable_encoder(file_obj)
+        del file_data['reference_id']
+        files_data.append(file_data)
 
     return files_data
 
@@ -163,7 +154,6 @@ def download(db: Session, s3: BaseClient, filename: str):
                                       file_obj.folder,
                                       file_obj.s3_filename),
             file_obj.content_type]
-
 
 
 def show_changesets(db: Session, filename: str):

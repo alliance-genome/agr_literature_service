@@ -1,6 +1,4 @@
-import sqlalchemy
 from sqlalchemy.orm import Session
-from datetime import datetime
 
 from fastapi import HTTPException
 from fastapi import status
@@ -52,14 +50,13 @@ def patch(db: Session, reference_automated_term_tag_id: int, reference_automated
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference Automated Tag Term ID with reference_automated_term_tag_id {reference_automated_term_tag_id} not found")
 
-
     for field, value in reference_automated_term_tag_update.items():
         if field == "reference_curie" and value:
             reference_curie_to = value
-            reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
+            reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_to).first()
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                  detail=f"Reference with curie {reference_curie} does not exist")
+                                    detail=f"Reference with curie {reference_curie_to} does not exist")
             db_obj.reference = reference
         else:
             setattr(db_obj, field, value)

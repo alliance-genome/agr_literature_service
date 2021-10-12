@@ -1,4 +1,3 @@
-import sqlalchemy
 from sqlalchemy.orm import Session
 from datetime import datetime
 
@@ -13,7 +12,7 @@ from literature.models import ReferenceModel
 from literature.models import ModReferenceTypeModel
 
 
-def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost):
+def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost) -> int:
     mod_reference_type_data = jsonable_encoder(mod_reference_type)
 
     reference_curie = mod_reference_type_data['reference_curie']
@@ -22,7 +21,7 @@ def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost):
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                               detail=f"Reference with curie {reference_curie} does not exist")
+                            detail=f"Reference with curie {reference_curie} does not exist")
 
     db_obj = ModReferenceTypeModel(**mod_reference_type_data)
     db_obj.reference = reference
@@ -32,7 +31,7 @@ def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost):
     return db_obj.mod_reference_type_id
 
 
-def destroy(db: Session, mod_reference_type_id: int):
+def destroy(db: Session, mod_reference_type_id: int) -> None:
     mod_reference_type = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
     if not mod_reference_type:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -56,7 +55,7 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update: Mo
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                  detail=f"Reference with curie {reference_curie} does not exist")
+                                    detail=f"Reference with curie {reference_curie} does not exist")
             mod_reference_type_db_obj.reference = reference
             mod_reference_type_db_obj.resource = None
         else:
