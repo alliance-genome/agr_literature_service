@@ -12,7 +12,7 @@ from literature.models import ResourceModel
 from literature.models import EditorModel
 from literature.models import CrossReferenceModel
 from literature.crud import cross_reference_crud
-from lookup import add_reference_resource
+from literature.crud.lookup import add_reference_resource
 
 
 def create(db: Session, editor: EditorSchemaPost) -> int:
