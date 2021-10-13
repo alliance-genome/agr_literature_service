@@ -11,7 +11,7 @@ from literature.models import ReferenceModel
 from literature.models import CrossReferenceModel
 from literature.models import ResourceModel
 from literature.models import AuthorModel
-from lookup import add_reference_resource
+from literature.crud.lookup import add_reference_resource
 
 
 def create(db: Session, author: AuthorSchemaCreate):

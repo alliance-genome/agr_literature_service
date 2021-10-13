@@ -12,7 +12,7 @@ from literature.models import CrossReferenceModel
 from literature.models import ReferenceModel
 from literature.models import ResourceModel
 from literature.models import ResourceDescriptorModel
-from lookup import add_reference_resource
+from literature.crud.lookup import add_reference_resource
 
 
 def create(db: Session, cross_reference: CrossReferenceSchema) -> str:
