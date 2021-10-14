@@ -1,4 +1,3 @@
-import sqlalchemy
 from sqlalchemy.orm import Session
 from datetime import datetime
 
@@ -12,20 +11,11 @@ from literature.models import ReferenceModel
 from literature.models import CrossReferenceModel
 from literature.models import ResourceModel
 from literature.models import AuthorModel
+from literature.crud.lookup import add_reference_resource
 
 
 def create(db: Session, author: AuthorSchemaCreate):
     author_data = jsonable_encoder(author)
-
-    resource_curie = None
-    if 'resource_curie' in author_data:
-        resource_curie = author_data['resource_curie']
-        del author_data['resource_curie']
-
-    reference_curie = None
-    if 'reference_curie' in author_data:
-        reference_curie = author_data['reference_curie']
-        del author_data['reference_curie']
 
     orcid = None
     if 'orcid' in author_data:
@@ -33,24 +23,7 @@ def create(db: Session, author: AuthorSchemaCreate):
         del author_data['orcid']
 
     db_obj = AuthorModel(**author_data)
-    if resource_curie and reference_curie:
-       raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                           detail=f"Only supply either resource_curie or reference_curie")
-    elif resource_curie:
-       resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
-       if not resource:
-           raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                               detail=f"Resource with curie {resource_curie} does not exist")
-       db_obj.resource = resource
-    elif reference_curie:
-       reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
-       if not reference:
-           raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                               detail=f"Reference with curie {reference_curie} does not exist")
-       db_obj.reference = reference
-    else:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"Supply one of resource_curie or reference_curie")
+    add_reference_resource(db, author_data, db_obj)
 
     if orcid:
         cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
@@ -77,50 +50,27 @@ def destroy(db: Session, author_id: int):
     return None
 
 
-def patch(db: Session, author_id: int, author_patch: AuthorSchemaCreate):
+def patch(db: Session, author_id: int, author_patch: AuthorSchemaCreate) -> dict:
     author_data = jsonable_encoder(author_patch)
 
     if 'resource_curie' in author_data and author_data['resource_curie'] and 'reference_curie' in author_data and author_data['reference_curie']:
-       raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                           detail=f"Only supply either resource_curie or reference_curie")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Only supply either resource_curie or reference_curie")
 
     author_db_obj = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
     if not author_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Author with author_id {author_id} not found")
-
-    if 'resource_curie' in author_data and author_data['resource_curie'] and not (('reference_curie' in author_data and author_data['reference_curie'] == None) or author_db_obj.reference == None):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                           detail=f"Trying to associate Resource when Reference already associated to Author. Only allowed to assign author to either reference or resource")
-
-    if 'reference_curie' in author_data and author_data['reference_curie'] and not (('resource_curie' in author_data and author_data['resource_curie'] == None) or author_db_obj.resource == None):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                           detail=f"Trying to associate Refrence when Resource already associated to Author. Only allowed to assign author to either reference or resource")
+    add_reference_resource(db, author_data, author_db_obj)
 
     for field, value in author_data.items():
-        if field == "resource_curie" and value:
-            resource_curie = value
-            resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
-            if not resource:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                  detail=f"Resource with curie {resource_curie} does not exist")
-            author_db_obj.resource = resource
-            author_db_obj.reference = None
-        elif field == 'reference_curie' and value:
-            reference_curie = value
-            reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
-            if not reference:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                  detail=f"Reference with curie {reference_curie} does not exist")
-            author_db_obj.reference = reference
-            author_db_obj.resource = None
-        elif field == 'orcid' and value:
-             orcid = value
-             cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
-             if not cross_reference_obj:
-                 cross_reference_obj = CrossReferenceModel(curie=orcid)
-                 db.add(cross_reference_obj)
-             author_db_obj.orcid_cross_reference = cross_reference_obj
+        if field == 'orcid' and value:
+            orcid = value
+            cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
+            if not cross_reference_obj:
+                cross_reference_obj = CrossReferenceModel(curie=orcid)
+                db.add(cross_reference_obj)
+            author_db_obj.orcid_cross_reference = cross_reference_obj
         else:
             setattr(author_db_obj, field, value)
 
@@ -139,11 +89,11 @@ def show(db: Session, author_id: int):
                             detail=f"Author with the author_id {author_id} is not available")
 
     if author_data['resource_id']:
-        author_data['resource_curie'] = db.query(Resource.curie).filter(Resource.resource_id == author_data['resource_id']).first()[0]
+        author_data['resource_curie'] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == author_data['resource_id']).first()
     del author_data['resource_id']
 
     if author_data['reference_id']:
-        author_data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == author_data['reference_id']).first()[0]
+        author_data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == author_data['reference_id']).first()
     del author_data['reference_id']
 
     return author_data
