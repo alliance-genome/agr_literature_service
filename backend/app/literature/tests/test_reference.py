@@ -68,7 +68,7 @@ def test_show_reference():
 
 
 def test_update_reference():
-    pass
+
     with pytest.raises(AttributeError):
         update_schema = ReferenceSchemaUpdate(title="Changed", category="thesis")
         print(dir(update_schema))
@@ -76,7 +76,12 @@ def test_update_reference():
 
     res = patch(db, 'AGR:AGR-Reference-0000000001', {'title': "new title"})
     assert res == {'message': 'updated'}
+
+    # fetch the new record.
     res = show(db, 'AGR:AGR-Reference-0000000001')
+
+    # do we have the new title?
     assert res['title'] == "new title"
+
     # abstract should still be there
     assert res['abstract'] == '3'
