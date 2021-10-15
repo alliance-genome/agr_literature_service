@@ -503,3 +503,17 @@ aws_secret_access_key = `
 - Proceed with the appropriate make commands as usual.
 - Reminder: this process needs to be repeated every time you get an error like this (usually ~ every 12 hours):
 `Error response from daemon: pull access denied for 100225593120.dkr.ecr.us-east-1.amazonaws.com/agr_neo4j_env, repository does not exist or may require 'docker login': denied: Your authorization token has expired. Reauthenticate and try again.`
+
+
+## testing (Tempory, will removed once it is all sorted properly)
+
+# kick of the postgres db
+docker-compose -f docker-compose-test.yml up
+
+# start the tests
+make run-dev-bash
+- export ENV_STATE=test
+- pytest
+
+# L:ook at the data in the test database if you want too 
+- psql -h agr-test-postgres -U postgres -d literature-test-idl

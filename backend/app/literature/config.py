@@ -5,7 +5,6 @@ from pydantic import BaseSettings, Field
 from literature.schemas import EnvStateSchema
 
 
-
 class GlobalConfig(BaseSettings):
     """Global configurations."""
 
@@ -16,7 +15,7 @@ class GlobalConfig(BaseSettings):
     ENV_STATE: Optional[EnvStateSchema] = Field(..., env="ENV_STATE")
     HOST: Optional[str] = Field(..., env="HOST")
 
-    #AWS Creds
+    # AWS Creds
     AWS_SECRET_ACCESS_KEY: Optional[str] = Field(..., env="AWS_SECRET_ACCESS_KEY")
     AWS_ACCESS_KEY_ID: Optional[str] = Field(..., env="AWS_ACCESS_KEY_ID")
 
@@ -39,12 +38,15 @@ class GlobalConfig(BaseSettings):
         """Loads the dotenv file."""
 
         env_file: str = ".env"
+        print("env_file: {}".format(env_file))
+
 
 class DevConfig(GlobalConfig):
     """Development configurations."""
 
     class Config:
         env_prefix: str = ""
+        print("env_prefix: {}".format(env_prefix))
 
 
 class ProdConfig(GlobalConfig):
@@ -52,6 +54,17 @@ class ProdConfig(GlobalConfig):
 
     class Config:
         env_prefix: str = "PROD_"
+        print("env_prefix: {}".format(env_prefix))
+
+
+class TestConfig(GlobalConfig):
+    """Production configurations."""
+
+    class Config:
+        env_file: str = "test.env"
+        # env_prefix: str = "TEST_"
+        print("env_file: {}".format(env_file))
+        # print("env_prefix: {}".format(env_prefix))
 
 
 class FactoryConfig:
@@ -59,13 +72,18 @@ class FactoryConfig:
 
     def __init__(self, env_state: Optional[str]):
         self.env_state = env_state
+        print("State: {}".format(env_state))
 
     def __call__(self):
         if self.env_state == "build":
+            print("Calling DEV")
             return DevConfig()
-
         elif self.env_state == "prod":
+            print("Calling Prod")
             return ProdConfig()
+        elif self.env_state == "test":
+            print("Calling Test")
+            return TestConfig()
 
 
 config = FactoryConfig(GlobalConfig().ENV_STATE)()

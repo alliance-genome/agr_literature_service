@@ -106,7 +106,7 @@ class ReferenceModel(Base):
     verified_people = relationship(
         'PersonModel',
         lazy='joined',
-        secondary = 'person_reference_link'
+        secondary='person_reference_link'
     )
 
     title = Column(

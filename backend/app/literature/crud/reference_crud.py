@@ -121,12 +121,18 @@ def destroy(db: Session, curie: str):
     return None
 
 
+
 def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
     reference_db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
 
     if not reference_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie {curie} not found")
+
+    print(reference_update)
+    author_data = jsonable_encoder(reference_update)
+    for field, value in author_data.items():
+        print("BOB: {}, {}".format(field, value))
 
     for field, value in reference_update.items():
         if field == "resource":
