@@ -54,25 +54,25 @@ class ReferenceSchemaPost(BaseModel):
 
 
 class ReferenceSchemaUpdate(BaseModel):
-    # title: Optional[str] = None
-    # category: Optional[ReferenceCategory] = None
+    title: Optional[str] = None
+    category: Optional[ReferenceCategory] = None
 
-    # citation: Optional[str] = None
-    # date_published: Optional[str] = None
-    # date_arrived_in_pubmed: Optional[str] = None
-    # date_last_modified: Optional[str] = None
-    # volume: Optional[str] = None
-    # plain_language_abstract: Optional[str] = None
-    # language: Optional[str] = None
-    # pages: Optional[str] = None
-    # abstract: Optional[str] = None
-    # keywords: Optional[List[str]] = None
-    # merged_into_reference_curie: Optional[str] = None
-    # pubmed_type: Optional[List[str]] = None
-    # publisher: Optional[str] = None
-    # issue_name: Optional[str] = None
-    # issue_date: Optional[str] = None
-    # resource: Optional[str] = None
+    citation: Optional[str] = None
+    date_published: Optional[str] = None
+    date_arrived_in_pubmed: Optional[str] = None
+    date_last_modified: Optional[str] = None
+    volume: Optional[str] = None
+    plain_language_abstract: Optional[str] = None
+    language: Optional[str] = None
+    pages: Optional[str] = None
+    abstract: Optional[str] = None
+    keywords: Optional[List[str]] = None
+    merged_into_reference_curie: Optional[str] = None
+    pubmed_type: Optional[List[str]] = None
+    publisher: Optional[str] = None
+    issue_name: Optional[str] = None
+    issue_date: Optional[str] = None
+    resource: Optional[str] = None
 
     @validator('title')
     def title_is_some(cls, v):
