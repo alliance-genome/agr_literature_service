@@ -3,18 +3,13 @@ import uvicorn
 import argparse
 
 from uvicorn.config import LOGGING_CONFIG
-from starlette.graphql import GraphQLApp
-
-from sqlalchemy.orm import Session
 
 from fastapi import FastAPI
-from fastapi import Depends
 
 from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
 
 from literature import models
-from literature import database
 from literature.database.main import engine
 
 
@@ -35,7 +30,7 @@ from literature.routers import reference_automated_term_tag_router
 from literature.routers import reference_manual_term_tag_router
 from literature.routers import bulk_downloads_router
 
-from literature.config import config
+# from literature.config import config
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 
 from initialize import setup_resource_descriptor
@@ -47,9 +42,9 @@ parser.add_argument('-v', dest='verbose', action='store_true')
 
 args = vars(parser.parse_args())
 
-title="Alliance Literature Service"
-version="0.1.0"
-description="This service provides access to the Alliance Bibliographic Corpus and metadata"
+title = "Alliance Literature Service"
+version = "0.1.0"
+description = "This service provides access to the Alliance Bibliographic Corpus and metadata"
 
 app = FastAPI(title=title,
               version=version,
@@ -122,7 +117,7 @@ def run():
     LOGGING_CONFIG["formatters"]["default"]["fmt"] = "%(asctime)s [%(name)s] %(levelprefix)s %(message)s"
     LOGGING_CONFIG["formatters"]["access"]["fmt"] = '%(asctime)s [%(name)s] %(levelprefix)s %(client_addr)s - ' \
                                                     '"%(request_line)s" %(status_code)s'
-
+    print(SQLALCHEMY_DATABASE_URL)
     uvicorn.run("main:app",
                 port=args['port'],
                 host=args['ip_address'],
