@@ -1,5 +1,5 @@
 import pytest
-from literature.crud.reference_crud import create, show, patch
+from literature.crud.reference_crud import create, show, patch, destroy
 from sqlalchemy import create_engine
 from sqlalchemy import MetaData
 
@@ -87,3 +87,15 @@ def test_update_reference():
 
     # abstract should still be there
     assert res['abstract'] == '3'
+
+
+def test_delete_Resource():
+    destroy(db, 'AGR:AGR-Reference-0000000002')
+
+    # It should now give an error on lookup.
+    with pytest.raises(HTTPException):
+        show(db, "AGR:AGR-Reference-0000000002")
+
+    # Deleting it again should give an error as the lookup will fail.
+    with pytest.raises(HTTPException):
+        destroy(db, 'AGR:AGR-Reference-0000000002')
