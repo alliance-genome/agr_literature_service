@@ -167,7 +167,7 @@ def get_medline_date_from_xml_date(pub_date):
         return medline_re_output.group(1)
 
 
-def generate_json(pmids, previous_pmids):
+def generate_json(pmids, previous_pmids):      # noqa: C901
     """
 
     :param pmids:

@@ -208,7 +208,7 @@ def load_pmids_not_found():
     return pmids_not_found
 
 
-def sort_dqm_references(input_path, input_mod):
+def sort_dqm_references(input_path, input_mod):      # noqa: C901
     """
 
     :param input_path:

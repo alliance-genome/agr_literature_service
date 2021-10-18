@@ -29,7 +29,8 @@ parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take
 args = vars(parser.parse_args())
 
 
-def post_comments_corrections(pmids_wanted):
+
+def post_comments_corrections(pmids_wanted):      # noqa: C901
     """
 
     :param pmids_wanted:

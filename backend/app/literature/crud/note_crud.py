@@ -10,7 +10,7 @@ from literature.schemas import NoteSchemaUpdate
 from literature.models import ReferenceModel
 from literature.models import ResourceModel
 from literature.models import NoteModel
-from lookup import add_reference_resource
+from literature.crud.lookup import add_reference_resource
 
 
 def create(db: Session, note: NoteSchemaPost) -> int:

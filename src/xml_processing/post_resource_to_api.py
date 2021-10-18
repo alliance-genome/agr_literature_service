@@ -42,7 +42,7 @@ resource_fields_not_in_pubmed = ['titleSynonyms', 'abbreviationSynonyms', 'isoAb
 # 2021-05-24 23:06:27,845 - literature logger - INFO - key printISSN
 
 
-def post_resources():
+def post_resources():      # noqa: C901
     """
 
     :return:

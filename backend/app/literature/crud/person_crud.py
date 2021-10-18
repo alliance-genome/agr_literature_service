@@ -9,7 +9,7 @@ from literature.schemas import PersonSchemaPost
 
 from literature.models import ReferenceModel
 from literature.models import PersonModel
-from lookup import add_reference_resource
+from literature.crud.lookup import add_reference_resource
 
 
 def create(db: Session, person: PersonSchemaPost):

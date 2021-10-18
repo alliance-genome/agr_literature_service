@@ -4,7 +4,8 @@
 
 Create an application container with your local changes
 ```bash
-make build
+make build-env
+make build-dev
 ```
 
 To spin up all the components of the stack

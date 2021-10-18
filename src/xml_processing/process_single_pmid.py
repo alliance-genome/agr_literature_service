@@ -1,5 +1,6 @@
+from os import environ
+from os import path
 
-from os import environ, path
 import json
 import requests
 import argparse
@@ -9,7 +10,7 @@ import logging.config
 from get_pubmed_xml import download_pubmed_xml
 from xml_to_json import generate_json
 from sanitize_pubmed_json import sanitize_pubmed_json_list
-from parse_dqm_json_reference import write_json
+# from parse_dqm_json_reference import write_json
 from post_reference_to_api import post_references
 
 
