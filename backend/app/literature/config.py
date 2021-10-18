@@ -71,13 +71,10 @@ class FactoryConfig:
 
     def __call__(self):
         if self.env_state == "build":
-            print("Calling DEV")
             return DevConfig()
         elif self.env_state == "prod":
-            print("Calling Prod")
             return ProdConfig()
         elif self.env_state == "test":
-            print("Calling Test")
             return TestConfig()
 
 
