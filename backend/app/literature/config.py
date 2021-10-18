@@ -46,7 +46,6 @@ class DevConfig(GlobalConfig):
 
     class Config:
         env_prefix: str = ""
-        print("env_prefix: {}".format(env_prefix))
 
 
 class ProdConfig(GlobalConfig):
@@ -54,7 +53,6 @@ class ProdConfig(GlobalConfig):
 
     class Config:
         env_prefix: str = "PROD_"
-        print("env_prefix: {}".format(env_prefix))
 
 
 class TestConfig(GlobalConfig):
@@ -62,9 +60,6 @@ class TestConfig(GlobalConfig):
 
     class Config:
         env_file: str = "test.env"
-        # env_prefix: str = "TEST_"
-        print("env_file: {}".format(env_file))
-        # print("env_prefix: {}".format(env_prefix))
 
 
 class FactoryConfig:
