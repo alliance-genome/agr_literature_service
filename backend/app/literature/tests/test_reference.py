@@ -23,27 +23,23 @@ db.execute('delete from "references"')
 
 
 def test_get_bad_reference():
-    print("Testing bad reference")
-    print(SQLALCHEMY_DATABASE_URL)
+
     with pytest.raises(HTTPException):
         show(db, "PMID:VQEVEQRVC")
 
 
 def test_create_reference():
     reference = ReferenceSchemaPost(title="Bob", category="thesis", abstract="3")
-    print(reference)
     res = create(db, reference)
     assert res == 'AGR:AGR-Reference-0000000001'
 
     reference = ReferenceSchemaPost(title="Another Bob", category="thesis")
-    print(reference)
     res = create(db, reference)
     assert res == 'AGR:AGR-Reference-0000000002'
 
     # create again with same title, category
-    # Apparebtly not a problem
+    # Apparently not a problem!!
     reference = ReferenceSchemaPost(title="Bob", category="thesis")
-    print(reference)
     res = create(db, reference)
     assert res == 'AGR:AGR-Reference-0000000003'
 
@@ -51,6 +47,11 @@ def test_create_reference():
     # ReferenceSchemaPost raises exception
     with pytest.raises(ValidationError):
         ReferenceSchemaPost(title=None, category="thesis")
+
+    # blank title
+    # ReferenceSchemaPost raises exception
+    with pytest.raises(ValidationError):
+        ReferenceSchemaPost(title="", category="thesis")
 
 
 def test_show_reference():
@@ -69,9 +70,10 @@ def test_show_reference():
 
 def test_update_reference():
 
+    # patch docs says it needs a ReferenceSchemaUpdate
+    # but does not work with this.
     with pytest.raises(AttributeError):
         update_schema = ReferenceSchemaUpdate(title="Changed", category="thesis")
-        print(dir(update_schema))
         patch(db, 'AGR:AGR-Reference-0000000001', update_schema)
 
     res = patch(db, 'AGR:AGR-Reference-0000000001', {'title': "new title"})

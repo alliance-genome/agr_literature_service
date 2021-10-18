@@ -515,5 +515,5 @@ make run-dev-bash
 - export ENV_STATE=test
 - pytest
 
-# L:ook at the data in the test database if you want too 
+# Look at the data in the test database if you want too 
 - psql -h agr-test-postgres -U postgres -d literature-test-idl

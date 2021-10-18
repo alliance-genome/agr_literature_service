@@ -72,9 +72,9 @@ class AuthorModel(Base):
     )
 
     first_author = Column(
-      Boolean,
-      nullable=True,
-      unique=False
+        Boolean,
+        nullable=True,
+        unique=False
     )
 
     order = Column(
@@ -106,8 +106,8 @@ class AuthorModel(Base):
     )
 
     middle_names = Column(
-       ARRAY(String()),
-       nullable=True
+        ARRAY(String()),
+        nullable=True
     )
 
     last_name = Column(
