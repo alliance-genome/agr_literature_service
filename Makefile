@@ -24,7 +24,7 @@ run-flake8:
 	docker run --rm -v ${PWD}:/workdir -i ${REG}/agr_literature_dev:${TAG} /bin/bash -c "python3 -m flake8 ."
 
 run-dev-bash:
-	docker run \
+	docker run --rm \
 		--network=agr_literature_service_agr-literature \
 	    -p ${API_PORT}:8080 \
 	    -v ${PWD}:/workdir \
@@ -39,3 +39,11 @@ docker-compose-up:
 
 docker-compose-down:
 	docker run -itd --env-file=.env -v /var/run/docker.sock:/var/run/docker.sock -v /home/core/.docker:/root/.docker -v ${PWD}:/var/tmp/ docker/compose:1.24.1  -f /var/tmp/docker-compose.yaml down 
+
+run-test-bash:
+	docker run -it --rm \
+		--network=agr_literature_service_agr-literature \
+	    -p ${API_PORT}:8080 \
+	    -v ${PWD}:/workdir \
+		${REG}/agr_literature_dev:${TAG} \
+		./run_tests.sh

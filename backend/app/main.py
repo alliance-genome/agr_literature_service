@@ -3,18 +3,13 @@ import uvicorn
 import argparse
 
 from uvicorn.config import LOGGING_CONFIG
-# from starlette.graphql import GraphQLApp
-
-# from sqlalchemy.orm import Session
 
 from fastapi import FastAPI
-# from fastapi import Depends
 
 from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
 
 from literature import models
-# from literature import database
 from literature.database.main import engine
 
 

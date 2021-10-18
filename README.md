@@ -511,9 +511,9 @@ aws_secret_access_key = `
 docker-compose -f docker-compose-test.yml up
 
 # start the tests
-make run-dev-bash
-- export ENV_STATE=test
-- pytest
+make run-dev-bash < ```bash &&
+  export ENV_STATE=test &&
+  pytest```
 
 # Look at the data in the test database if you want too 
 - psql -h agr-test-postgres -U postgres -d literature-test-idl
