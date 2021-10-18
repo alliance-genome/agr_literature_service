@@ -21,6 +21,11 @@ logger = logging.getLogger('post_comments_corrections_to_api')
 
 
 def update_reference_cross_reference():
+    """
+
+    :return:
+    """
+
     api_port = environ.get('API_PORT')
     base_path = environ.get('XML_PATH')
 
@@ -36,7 +41,8 @@ def update_reference_cross_reference():
 
     url = 'http://localhost:' + api_port + '/bulk_download/references/external_ids/'
     post_return = requests.get(url, headers=headers)
-    if (post_return.status_code == 401):
+
+    if post_return.status_code == 401:
         token = update_token()
         headers = generate_headers(token)
         post_return = requests.get(url, headers=headers)
@@ -64,7 +70,9 @@ def update_reference_cross_reference():
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    call main start function
+    """
 
     update_reference_cross_reference()
 

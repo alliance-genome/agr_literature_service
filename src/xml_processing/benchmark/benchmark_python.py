@@ -11,7 +11,7 @@ print("Processing file input from %s" % (file_list))
 with open(file_list, 'r') as fp:
     pmid = fp.readline()
     while pmid:
-#         print("Read %s END" % (pmid.rstrip()))
+        # print("Read %s END" % (pmid.rstrip()))
         pmids_wanted.append(pmid.rstrip())
         pmid = fp.readline()
 
@@ -29,10 +29,10 @@ full_path_pmid_json = glob.glob(storage_path + "*.json")
 count = 0
 slice_size = 10000
 for elem in full_path_pmid_json:
-#     print("ELEM %s END" % (elem))
+    # print("ELEM %s END" % (elem))
     elem = elem.replace(storage_path, '')
     elem = elem.replace('.json', '')
-#     print("Already had %s END" % (elem))
+    # print("Already had %s END" % (elem))
     if elem in pmids_wanted_set:
         count += 1
         # print("Remove %s from wanted set, count %s" % (elem, count))

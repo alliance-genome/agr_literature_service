@@ -14,6 +14,12 @@ get_db = database.get_db
 
 
 def update_resource_descriptor(db: Session = next(get_db(), None)):
+    """
+
+    :param db:
+    :return:
+    """
+
     with urllib.request.urlopen(config.RESOURCE_DESCRIPTOR_URL) as response:
         resource_descriptors = yaml.full_load(response)
 
@@ -22,18 +28,18 @@ def update_resource_descriptor(db: Session = next(get_db(), None)):
         for resource_descriptor in resource_descriptors:
             resource_descriptor_data = dict()
             for field, value in resource_descriptor.items():
-               if field == 'pages':
-                   page_objs = []
-                   for page in value:
-                       page_obj = ResourceDescriptorPageModel(name=page['name'],
-                                                              url=page['url'])
-                       db.add(page_obj)
-                       page_objs.append(page_obj)
-                   resource_descriptor_data['pages'] = page_objs
-               elif field == 'example_id':
-                   resource_descriptor_data['example_gid'] = value
-               else:
-                   resource_descriptor_data[field] = value
+                if field == 'pages':
+                    page_objs = []
+                    for page in value:
+                        page_obj = ResourceDescriptorPageModel(name=page['name'],
+                                                               url=page['url'])
+                        db.add(page_obj)
+                        page_objs.append(page_obj)
+                    resource_descriptor_data['pages'] = page_objs
+                elif field == 'example_id':
+                    resource_descriptor_data['example_gid'] = value
+                else:
+                    resource_descriptor_data[field] = value
 
             resource_descriptor_obj = ResourceDescriptorModel(**resource_descriptor_data)
             db.add(resource_descriptor_obj)
@@ -43,4 +49,9 @@ def update_resource_descriptor(db: Session = next(get_db(), None)):
 
 
 def setup_resource_descriptor():
+    """
+
+    :return:
+    """
+
     resource_descriptor_yaml = update_resource_descriptor()

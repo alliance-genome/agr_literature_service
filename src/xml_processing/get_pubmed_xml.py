@@ -21,8 +21,10 @@ load_dotenv()
 # pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 # pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/wormbase_pmids
 
-# PubMed randomly has ("Connection broken: InvalidChunkLength(got length b'', 0 bytes read)" that crashes this script.  Keep running it again until it gets all the entries, then generate the md5sum file by running
-# pipenv run python get_md5sum.py -x -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
+# PubMed randomly has ("Connection broken: InvalidChunkLength(got length b'', 0 bytes read)" that
+# crashes this script.  Keep running it again until it gets all the entries, then generate the md5sum file by running
+# pipenv run python get_md5sum.py -x -f /home/azurebrd/git/agr_literature_service_demo/src/xml_
+# processing/inputs/alliance_pmids
 
 
 # pipenv run python get_pubmed_xml.py -u "http://tazendra.caltech.edu/~azurebrd/cgi-bin/forms/generic.cgi?action=ListPmids"
@@ -72,9 +74,17 @@ storage_path = base_path + 'pubmed_xml/'
 
 
 def download_pubmed_xml(pmids_wanted):
-    # 4.5 minutes to download 28994 wormbase records in 10000 chunks
-    # 61 minutes to download 429899 alliance records in 10000 chunks
-    # 127 minutes to download 646714 alliance records in 5000 chunks, failed on 280
+    """
+
+    4.5 minutes to download 28994 wormbase records in 10000 chunks
+    61 minutes to download 429899 alliance records in 10000 chunks
+    127 minutes to download 646714 alliance records in 5000 chunks, failed on 280
+
+
+    :param pmids_wanted:
+    :return:
+    """
+
     pmids_slice_size = 5000
 
     if not path.exists(storage_path):
@@ -118,17 +128,19 @@ def download_pubmed_xml(pmids_wanted):
 #         https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=1,10,100,1000487,1000584&retmode=xml
 
 #         default way without a library, using get
-#         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" + pmids_joined + "&retmode=xml"
+#         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" \+
+#         pmids_joined + "&retmode=xml"
 #         print url
 #         f = urllib.urlopen(url)
 #         xml_all = f.read()
 
-#         using post with requests library, works well for 10000 pmids
+        # using post with requests library, works well for 10000 pmids
         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
         parameters = {'db': 'pubmed', 'retmode': 'xml', 'id': pmids_joined}
 
         try:
-            # PubMed randomly has ("Connection broken: InvalidChunkLength(got length b'', 0 bytes read)" that crashes this script.
+            # PubMed randomly has ("Connection broken: InvalidChunkLength(got length b'', 0 bytes read)"
+            # that crashes this script.
             with requests.post(url, data=parameters) as r:
                 xml_all = r.text
                 # xml_all = r.text.encode('utf-8').strip()		  # python2
@@ -197,7 +209,10 @@ def download_pubmed_xml(pmids_wanted):
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    call main start function
+    """
+
     pmids_wanted = []
 
 #    python get_pubmed_xml.py -d

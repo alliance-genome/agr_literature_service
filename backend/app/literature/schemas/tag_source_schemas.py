@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class TagSource(str, Enum):
     SGD = "SGD"
     ZFIN = "ZFIN"

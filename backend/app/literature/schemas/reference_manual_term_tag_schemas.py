@@ -32,6 +32,7 @@ class ReferenceManualTermTagSchemaShow(ReferenceManualTermTagSchemaPost):
         orm_mode = True
         extra = "forbid"
 
+
 class ReferenceManualTermTagSchemaPatch(BaseModel):
     reference_curie: Optional[str] = None
     ontology: Optional[str] = None

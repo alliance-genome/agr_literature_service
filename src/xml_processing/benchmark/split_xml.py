@@ -61,6 +61,12 @@ base_path = environ.get('XML_PATH')
 
 
 def make_directories(file_type):
+    """
+
+    :param file_type:
+    :return:
+    """
+
     base_destination_path = base_path + 'pubmed_' + file_type + '_split/'
     destination_path = base_destination_path + '0/'
     makedirs(destination_path, exist_ok=True)
@@ -74,6 +80,12 @@ def make_directories(file_type):
 
 
 def get_max_count_directory(file_type):
+    """
+
+    :param file_type:
+    :return:
+    """
+
     base_destination_path = base_path + 'pubmed_' + file_type + '_split/'
     destination_path = base_destination_path + '0/'
     max_count = len(listdir(destination_path))
@@ -91,6 +103,13 @@ def get_max_count_directory(file_type):
 
 
 def get_path_from_pmid(pmid, file_type):
+    """
+
+    :param pmid:
+    :param file_type:
+    :return:
+    """
+
     pmid_list = list(pmid)
     if len(pmid_list) < 4:
         destination_filepath = base_path + 'pubmed_' + file_type + '_split/0/' + pmid + '.' + file_type
@@ -105,6 +124,12 @@ def get_path_from_pmid(pmid, file_type):
 
 
 def transfer_file(file_type):
+    """
+
+    :param file_type:
+    :return:
+    """
+
     # open input xml file and read data in form of python dictionary using xmltodict module
     for pmid in pmids:
         storage_path = base_path + 'pubmed_' + file_type + '/'

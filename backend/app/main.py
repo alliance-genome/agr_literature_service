@@ -58,6 +58,11 @@ app.add_middleware(CORSMiddleware,
 
 
 def custom_openapi():
+    """
+
+    :return:
+    """
+
     if app.openapi_schema:
         return app.openapi_schema
     openapi_schema = get_openapi(
@@ -75,6 +80,11 @@ models.Base.metadata.create_all(engine)
 
 @app.on_event('startup')
 def setup_database():
+    """
+
+    :return:
+    """
+
     setup_resource_descriptor()
 
 
@@ -99,8 +109,14 @@ app.openapi = custom_openapi
 
 
 def run():
+    """
+
+    :return:
+    """
+
     LOGGING_CONFIG["formatters"]["default"]["fmt"] = "%(asctime)s [%(name)s] %(levelprefix)s %(message)s"
-    LOGGING_CONFIG["formatters"]["access"]["fmt"] = '%(asctime)s [%(name)s] %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s'
+    LOGGING_CONFIG["formatters"]["access"]["fmt"] = '%(asctime)s [%(name)s] %(levelprefix)s %(client_addr)s - ' \
+                                                    '"%(request_line)s" %(status_code)s'
     print(SQLALCHEMY_DATABASE_URL)
     uvicorn.run("main:app",
                 port=args['port'],

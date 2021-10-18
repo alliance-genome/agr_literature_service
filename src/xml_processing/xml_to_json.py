@@ -6,7 +6,6 @@ import argparse
 import re
 
 from os import environ, path, makedirs
-import logging
 import logging.config
 import hashlib
 
@@ -84,6 +83,12 @@ unknown_article_id_types = set()
 
 
 def represents_int(s):
+    """
+
+    :param s:
+    :return:
+    """
+
     try:
         int(s)
         return True
@@ -92,6 +97,12 @@ def represents_int(s):
 
 
 def month_name_to_number_string(string):
+    """
+
+    :param string:
+    :return:
+    """
+
     m = {
         'jan': '01',
         'feb': '02',
@@ -115,6 +126,12 @@ def month_name_to_number_string(string):
 
 
 def get_year_month_day_from_xml_date(pub_date):
+    """
+
+    :param pub_date:
+    :return:
+    """
+
     date_list = []
     year = ''
     month = '01'
@@ -139,12 +156,25 @@ def get_year_month_day_from_xml_date(pub_date):
 
 
 def get_medline_date_from_xml_date(pub_date):
+    """
+
+    :param pub_date:
+    :return:
+    """
+
     medline_re_output = re.search("<MedlineDate>(.+?)</MedlineDate>", pub_date)
     if medline_re_output is not None:
         return medline_re_output.group(1)
 
 
 def generate_json(pmids, previous_pmids):      # noqa: C901
+    """
+
+    :param pmids:
+    :param previous_pmids:
+    :return:
+    """
+
     # open input xml file and read data in form of python dictionary using xmltodict module
     md5data = ''
     # storage_path = base_path + 'pubmed_xml_20210322/'
@@ -242,7 +272,7 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                 # print types_group
                 data_dict['pubMedType'] = types_group
 
-# <CommentsCorrectionsList><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler. 1999 Dec;5(6):378</RefSource><PMID Version="1">10644162</PMID></CommentsCorrections><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler. 2000 Aug;6(4):291-2</RefSource><PMID Version="1">10962551</PMID></CommentsCorrections></CommentsCorrectionsList>
+            # <CommentsCorrectionsList><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler. 1999 Dec;5(6):378</RefSource><PMID Version="1">10644162</PMID></CommentsCorrections><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler. 2000 Aug;6(4):291-2</RefSource><PMID Version="1">10962551</PMID></CommentsCorrections></CommentsCorrectionsList>
             comments_corrections_group = re.findall("<CommentsCorrections (.+?)</CommentsCorrections>", xml, re.DOTALL)
             if len(comments_corrections_group) > 0:
                 data_dict['commentsCorrections'] = dict()
@@ -485,11 +515,11 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                 # print publisher
                 data_dict['publisher'] = publisher
 
-# previously was only getting all abstract text together, but this was causing different types of abstracts to be concatenated
-#             regex_abstract_output = re.findall("<AbstractText.*?>(.+?)</AbstractText>", xml, re.DOTALL)
-#             if len(regex_abstract_output) > 0:
-#                 abstract = " ".join(regex_abstract_output)
-#                 data_dict['abstract'] = re.sub(r'\s+', ' ', abstract)
+            # previously was only getting all abstract text together, but this was causing different types of abstracts to be concatenated
+            # regex_abstract_output = re.findall("<AbstractText.*?>(.+?)</AbstractText>", xml, re.DOTALL)
+            # if len(regex_abstract_output) > 0:
+            #     abstract = " ".join(regex_abstract_output)
+            #     data_dict['abstract'] = re.sub(r'\s+', ' ', abstract)
 
             main_abstract_list = []
             regex_abstract_output = re.findall("<Abstract>(.+?)</Abstract>", xml, re.DOTALL)
@@ -628,18 +658,20 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    call main start function
+    """
 
     pmids = []
 
-#    python xml_to_json.py -d
+    # python xml_to_json.py -d
     if args['database']:
         logger.info("Processing database entries")
 
     elif args['restapi']:
         logger.info("Processing rest api entries")
 
-#     python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
+    # python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
     elif args['file']:
         logger.info("Processing file input from %s", args['file'])
         with open(args['file'], 'r') as fp:
@@ -648,7 +680,7 @@ if __name__ == "__main__":
                 pmids.append(pmid.rstrip())
                 pmid = fp.readline()
 
-#     python xml_to_json.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
+    # python xml_to_json.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
     elif args['url']:
         logger.info("Processing url input from %s", args['url'])
         req = urllib.request.urlopen(args['url'])
@@ -657,13 +689,13 @@ if __name__ == "__main__":
         for pmid in lines:
             pmids.append(str(int(pmid)))
 
-#    python xml_to_json.py -c 1234 4576 1828
+    # python xml_to_json.py -c 1234 4576 1828
     elif args['commandline']:
         logger.info("Processing commandline input")
         for pmid in args['commandline']:
             pmids.append(pmid)
 
-#    python xml_to_json.py -s
+    # python xml_to_json.py -s
     elif args['sample']:
         logger.info("Processing hardcoded sample input")
         pmid = '12345678'
@@ -689,6 +721,7 @@ if __name__ == "__main__":
                 pmid = fp.readline()
 
     generate_json(pmids, previous_pmids)
+
     logger.info("Done converting XML to JSON")
 
 # capture ISSN / NLM

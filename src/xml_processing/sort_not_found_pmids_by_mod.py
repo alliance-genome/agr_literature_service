@@ -6,7 +6,6 @@
 
 
 from os import environ, path
-import logging
 import logging.config
 
 from dotenv import load_dotenv
@@ -23,6 +22,11 @@ base_path = environ.get('XML_PATH')
 
 
 def sort_not_found_pmids_by_mod():
+    """
+
+    :return:
+    """
+
     mod_to_pmids = dict()
 
     pmids_by_mods_file = base_path + 'pmids_by_mods'
@@ -76,6 +80,8 @@ def sort_not_found_pmids_by_mod():
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    call main start function
+    """
 
     sort_not_found_pmids_by_mod()

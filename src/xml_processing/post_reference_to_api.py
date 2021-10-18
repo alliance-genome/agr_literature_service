@@ -54,11 +54,25 @@ args = vars(parser.parse_args())
 
 
 def camel_to_snake(name):
+    """
+
+    :param name:
+    :return:
+    """
+
     name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
 
 
 def post_references(input_file, check_file_flag):      # noqa: C901
+    """
+
+    :param input_file:
+    :param check_file_flag:
+    :return:
+    """
+
     api_port = environ.get('API_PORT')
     # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
     base_path = environ.get('XML_PATH')
@@ -265,9 +279,20 @@ def post_references(input_file, check_file_flag):      # noqa: C901
 
 
 def process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh):
-    # output the json getting posted to the API
-    # json_object = json.dumps(new_entry, indent = 4)
-    # print(json_object)
+    """
+
+    output the json getting posted to the API
+    json_object = json.dumps(new_entry, indent = 4)
+    print(json_object)
+
+    :param url:
+    :param headers:
+    :param new_entry:
+    :param primary_id:
+    :param mapping_fh:
+    :param error_fh:
+    :return:
+    """
 
     post_return = requests.post(url, headers=headers, json=new_entry)
     process_text = str(post_return.text)
@@ -309,8 +334,11 @@ def process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh):
 
 
 if __name__ == "__main__":
-    """ call main start function """
-    logger.info("starting post_reference_to_api.py")
+    """
+    call main start function
+    """
+
+    logger.info("Starting post_reference_to_api.py")
 
     if args['authorization']:
         update_token()

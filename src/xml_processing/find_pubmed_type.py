@@ -51,6 +51,12 @@ comments_ref_type_set = set()
 
 
 def represents_int(s):
+    """
+
+    :param s:
+    :return:
+    """
+
     try:
         int(s)
         return True
@@ -59,6 +65,12 @@ def represents_int(s):
 
 
 def month_name_to_number_string(string):
+    """
+
+    :param string:
+    :return:
+    """
+
     m = {
         'jan': '01',
         'feb': '02',
@@ -82,6 +94,12 @@ def month_name_to_number_string(string):
 
 
 def get_year_month_day_from_xml_date(pub_date):
+    """
+
+    :param pub_date:
+    :return:
+    """
+
     date_list = []
     year = ''
     month = '01'
@@ -106,15 +124,27 @@ def get_year_month_day_from_xml_date(pub_date):
 
 
 def get_medline_date_from_xml_date(pub_date):
+    """
+
+    :param pub_date:
+    :return:
+    """
+
     medline_re_output = re.search("<MedlineDate>(.+?)</MedlineDate>", pub_date)
     if medline_re_output is not None:
         return medline_re_output.group(1)
 
 
 def generate_json():
-    # open input xml file and read data in form of python dictionary using xmltodict module
-    # storage_path = base_path + 'pubmed_xml_20210322/'
-    # json_storage_path = base_path + 'pubmed_json_20210322/'
+    """
+
+    open input xml file and read data in form of python dictionary using xmltodict module
+    storage_path = base_path + 'pubmed_xml_20210322/'
+    json_storage_path = base_path + 'pubmed_json_20210322/'
+
+    :return:
+    """
+
     storage_path = base_path + 'pubmed_xml/'
     json_storage_path = base_path + 'pubmed_json/'
     if not path.exists(storage_path):
@@ -131,7 +161,7 @@ def generate_json():
         with open(filename) as xml_file:
 
             xml = xml_file.read()
-            # print (xml)
+            # print(xml)
 
             # xmltodict is treating html markup like <i>text</i> as xml, which is creating mistaken structure in the conversion.
             # may be better to parse full xml instead.
@@ -163,7 +193,9 @@ def generate_json():
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    call main start function
+    """
 
 #    python find_pubmed_type.py -d
     if args['database']:
