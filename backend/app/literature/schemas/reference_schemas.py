@@ -95,6 +95,7 @@ class CommentAndCorrectionSchemaRelations(BaseModel):
     to_references: Optional[List[ReferenceCommentAndCorrectionSchemaRelated]] = None
     from_references: Optional[List[ReferenceCommentAndCorrectionSchemaRelated]] = None
 
+
 class ReferenceSchemaShow(BaseModelShow):
     reference_id: int
     curie: str

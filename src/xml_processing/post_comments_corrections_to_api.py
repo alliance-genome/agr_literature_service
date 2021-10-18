@@ -29,7 +29,14 @@ parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take
 args = vars(parser.parse_args())
 
 
+
 def post_comments_corrections(pmids_wanted):      # noqa: C901
+    """
+
+    :param pmids_wanted:
+    :return:
+    """
+
     logger.info(pmids_wanted)
 
     api_port = environ.get('API_PORT')
@@ -46,7 +53,8 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
         token = update_token()
     headers = generate_headers(token)
 
-    allowed_com_cor_types = ['CommentOn', 'ErratumFor', 'ExpressionOfConcernFor', 'ReprintOf', 'RepublishedFrom', 'RetractionOf', 'UpdateOf']
+    allowed_com_cor_types = ['CommentOn', 'ErratumFor', 'ExpressionOfConcernFor', 'ReprintOf',
+                             'RepublishedFrom', 'RetractionOf', 'UpdateOf']
     remap_com_cor_types = dict()
     remap_com_cor_types['CommentIn'] = 'CommentOn'
     remap_com_cor_types['ErratumIn'] = 'ErratumFor'
@@ -105,13 +113,13 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
             primary_curie = reference_to_curie[primary_pmid]
         if secondary_pmid in reference_to_curie:
             secondary_curie = reference_to_curie[secondary_pmid]
-        if (primary_curie == ''):
+        if primary_curie == '':
             # print('ERROR ' + primary_pmid + ' does not map to an AGR Reference curie')
             logger.info("ERROR %s : %s does not map to an AGR Reference curie", mapping, primary_pmid)
-        if (secondary_curie == ''):
+        if secondary_curie == '':
             # print('ERROR ' + secondary_pmid + ' does not map to an AGR Reference curie')
             logger.info("ERROR %s does not map to an AGR Reference curie", secondary_pmid)
-        if (primary_curie != '') and (secondary_curie != ''):
+        if primary_curie != '' and secondary_curie != '':
             # print(primary_curie + '\t' + secondary_curie + '\t' + com_cor_type)
             # print('primary ' + primary_pmid + ' maps to ' + primary_curie)
             # print('secondary ' + secondary_pmid + ' maps to ' + secondary_curie)
@@ -143,7 +151,10 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    call main start function
+    """
+
     pmids_wanted = []
 
 #    python post_comments_corrections_to_api.py -c 1234 4576 1828

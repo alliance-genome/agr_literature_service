@@ -4,7 +4,6 @@ import json
 import argparse
 
 from os import environ, path
-import logging
 import logging.config
 
 from dotenv import load_dotenv
@@ -15,10 +14,9 @@ load_dotenv()
 
 
 # python3 benchmark_read_json.py -f inputs/alliance_pmids
-# run this to test reading large number of files from single directory, and test read times.  
-#
+# run this to test reading large number of files from single directory, and test read times.
 # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-volume-types.html
-# seems limited to 
+# seems limited to
 # Max IOPS per volume 	40-200
 # Max throughput per volume 	40-90 MiB/s
 
@@ -39,6 +37,11 @@ pmids = []
 
 
 def benchmark_read_json():
+    """
+
+    :return:
+    """
+
     start = time.time()
     actual_start = time.time()
     logger.info("in benchmark %s", start)
@@ -68,7 +71,8 @@ def benchmark_read_json():
                 # pubmed_data = json.load(f)
                 # pubmed_data = json.load(line)	# uncomment to also test json conversion
                 f.close()
-        except:
+        except Exception as e:
+            print(str(e))
             pass
     end = time.time()
     diff_time = end - actual_start
@@ -76,6 +80,13 @@ def benchmark_read_json():
 
 
 def get_path_from_pmid(pmid, file_type):
+    """
+
+    :param pmid:
+    :param file_type:
+    :return:
+    """
+
     pmid_list = list(pmid)
     if len(pmid_list) < 4:
         destination_filepath = base_path + 'pubmed_' + file_type + '_split/0/' + pmid + '.' + file_type
@@ -86,6 +97,7 @@ def get_path_from_pmid(pmid, file_type):
         z = pmid_list.pop(0)
         destination_filepath = base_path + 'pubmed_' + file_type + '_split/' + str(w) + '/' + str(x) + '/' + str(y) + '/' + str(z) + '/' + pmid + '.' + file_type
     # logger.info("pmid %s %s", pmid, destination_filepath)
+
     return destination_filepath
 
 

@@ -25,7 +25,6 @@ class FileSchemaUpdate(BaseModel):
     institutes_permitted: Optional[List[str]] = None
     synonyms: Optional[List[str]] = None
 
-
     @validator('public')
     def public_is_some(cls, v):
         if v is None:

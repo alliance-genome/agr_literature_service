@@ -3,8 +3,6 @@ import requests
 from os import environ, path
 import logging
 import logging.config
-
-
 # from datetime import datetime
 
 from helper_post_to_api import generate_headers, update_token
@@ -45,6 +43,11 @@ resource_fields_not_in_pubmed = ['titleSynonyms', 'abbreviationSynonyms', 'isoAb
 
 
 def post_resources():      # noqa: C901
+    """
+
+    :return:
+    """
+
     api_port = environ.get('API_PORT')
     json_storage_path = base_path + 'sanitized_resource_json/'
     filesets = ['NLM', 'FB', 'ZFIN']
@@ -173,7 +176,7 @@ def post_resources():      # noqa: C901
                 print(primary_id + "\ttext " + str(post_return.text))
                 print(primary_id + "\tstatus_code " + str(post_return.status_code))
 
-                if (post_return.status_code == 201):
+                if post_return.status_code == 201:
                     response_dict = response_dict.replace('"', '')
                     for identifier in identifiers:
                         logger.info("I %s\t%s", identifier, response_dict)
@@ -198,7 +201,10 @@ def post_resources():      # noqa: C901
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    call main start function
+    """
+
     logger.info("starting post_resource_to_api.py")
 
     post_resources()
