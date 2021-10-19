@@ -275,7 +275,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     # filename = input_path + '/REFERENCE_' + mod + '.json'
 
     xrefs_to_add = dict()
-    aggregate_mod_tags_only = dict()
+    aggregate_mod_reference_types_only = dict()
+    aggregate_mod_biblio_all = dict()
 
     fh_mod_report = dict()
     report_file_path = base_path + 'report_files/'
@@ -394,12 +395,10 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
                     if flag_aggregate_mod:
                         # logger.info("Action : aggregate PMID mod data %s", agr)
-                        mod_ref_types = []
-                        if 'MODReferenceTypes' in entry:
-                            mod_ref_types = entry['MODReferenceTypes']
-                        aggregate_mod_tags_only[agr] = mod_ref_types
+                        aggregate_mod_reference_types_only[agr] = entry
                     elif flag_aggregate_biblio:
                         pass
+                        aggregate_mod_biblio_all[agr] = entry
                         # logger.info("Action : aggregate MOD biblio data %s", agr)
                         # TODO  figure out what to patch
                     # check if dqm has no pmid/doi, but pmid/doi in DB
@@ -442,18 +441,20 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     # logger.info("Action : add validated dqm xref %s %s to agr %s", prefix, ident, agr)
                     # TODO   create new xref
 
-    update_db_mod_tags_only(aggregate_mod_tags_only)
-
+    update_db_entries(aggregate_mod_reference_types_only, 'mod_reference_types_only')
+    # update_db_entries(aggregate_mod_biblio_all, 'mod_biblio_all')     # TODO sort this out
     for mod in fh_mod_report:
         fh_mod_report[mod].close()
     fh_mod_report['sanitized'].close()
 
 
-def update_db_mod_tags_only(aggregate_mod_tags_only):      # noqa: C901
+def update_db_entries(entries, processing_flag):      # noqa: C901
+    # TODO, when future endpoint can get N references from DB, get a set of N agr curies at once, match the db vs dqm reference info, and split the section for dealing with mod_reference_types into its own function
     """
     Take a dict of Alliance Reference curies and DQM MODReferenceTypes to compare against data stored in DB and update to match DQM data.
 
-    :param aggregate_mod_tags_only:
+    :param entries:
+    :param processing_flag:
     :return:
     """
     api_port = environ.get('API_PORT')
@@ -476,72 +477,80 @@ def update_db_mod_tags_only(aggregate_mod_tags_only):      # noqa: C901
 
     mapping_fh = None
     error_fh = None
-    for agr in aggregate_mod_tags_only:
+    for agr in entries:
         counter = counter + 1
         if counter > max_counter:
             break
-        dqm_mod_ref_types = aggregate_mod_tags_only[agr]
-        dqm_mrt_data = dict()
-        for mrt in dqm_mod_ref_types:
-            source = mrt['source']
-            ref_type = mrt['referenceType']
-            if source not in dqm_mrt_data:
-                dqm_mrt_data[source] = []
-            dqm_mrt_data[source].append(ref_type)
 
         url = 'http://localhost:' + api_port + '/reference/' + agr
         logger.info("get AGR reference info from database %s", url)
         get_return = requests.get(url)
         response_dict = json.loads(get_return.text)
         # logger.info("title %s", response_dict['title'])   # for debugging which reference was found
-        db_mod_ref_types = []
-        if 'mod_reference_types' in response_dict:
-            db_mod_ref_types = response_dict['mod_reference_types']
 
-        # for debugging changes
-        # dqm_mod_ref_types_json = json.dumps(dqm_mod_ref_types, indent=4)
-        # db_mod_ref_types_json = json.dumps(db_mod_ref_types, indent=4)
-        # logger.info("Action : aggregate PMID mod data %s was %s now %s", agr, db_mod_ref_types_json, dqm_mod_ref_types_json)
+        entry = entries[agr]
 
-        db_mrt_data = dict()
-        for mrt in db_mod_ref_types:
-            source = mrt['source']
-            ref_type = mrt['reference_type']
-            mrt_id = mrt['mod_reference_type_id']
-            if source not in db_mrt_data:
-                db_mrt_data[source] = dict()
-            db_mrt_data[source][ref_type] = mrt_id
+        if processing_flag == 'mod_reference_types_only':
+            # dqm_mod_ref_types = entries[agr]
+            dqm_mod_ref_types = []
+            if 'MODReferenceTypes' in entry:
+                dqm_mod_ref_types = entry['MODReferenceTypes']
+            dqm_mrt_data = dict()
+            for mrt in dqm_mod_ref_types:
+                source = mrt['source']
+                ref_type = mrt['referenceType']
+                if source not in dqm_mrt_data:
+                    dqm_mrt_data[source] = []
+                dqm_mrt_data[source].append(ref_type)
 
-        # try AGR:AGR-Reference-0000382879	WBPaper00000292
-        for mod in dqm_mrt_data:
-            lc_dqm = [x.lower() for x in dqm_mrt_data[mod]]
-            for dqm_mrt in dqm_mrt_data[mod]:
-                create_it = True
+            db_mod_ref_types = []
+            if 'mod_reference_types' in response_dict:
+                db_mod_ref_types = response_dict['mod_reference_types']
+
+            # for debugging changes
+            # dqm_mod_ref_types_json = json.dumps(dqm_mod_ref_types, indent=4)
+            # db_mod_ref_types_json = json.dumps(db_mod_ref_types, indent=4)
+            # logger.info("Action : aggregate PMID mod data %s was %s now %s", agr, db_mod_ref_types_json, dqm_mod_ref_types_json)
+
+            db_mrt_data = dict()
+            for mrt in db_mod_ref_types:
+                source = mrt['source']
+                ref_type = mrt['reference_type']
+                mrt_id = mrt['mod_reference_type_id']
+                if source not in db_mrt_data:
+                    db_mrt_data[source] = dict()
+                db_mrt_data[source][ref_type] = mrt_id
+
+            # try AGR:AGR-Reference-0000382879	WBPaper00000292
+            for mod in dqm_mrt_data:
+                lc_dqm = [x.lower() for x in dqm_mrt_data[mod]]
+                for dqm_mrt in dqm_mrt_data[mod]:
+                    create_it = True
+                    if mod in db_mrt_data:
+                        for db_mrt in db_mrt_data[mod]:
+                            if db_mrt.lower() in lc_dqm:
+                                create_it = False
+                    if create_it:
+                        logger.info("add %s %s to %s", mod, dqm_mrt, agr)
+                        url = 'http://localhost:' + api_port + '/reference/mod_reference_type/'
+                        new_entry = dict()
+                        new_entry["reference_type"] = dqm_mrt
+                        new_entry["source"] = mod
+                        new_entry["reference_curie"] = agr
+                        process_post_tuple = process_post('POST', url, headers, new_entry, agr, mapping_fh, error_fh)    # noqa: F841
                 if mod in db_mrt_data:
+                    lc_db_dict = {x.lower(): x for x in db_mrt_data[mod]}
+                    lc_db = set(lc_db_dict.keys())
                     for db_mrt in db_mrt_data[mod]:
-                        if db_mrt.lower() in lc_dqm:
-                            create_it = False
-                if create_it:
-                    logger.info("add %s %s to %s", mod, dqm_mrt, agr)
-                    url = 'http://localhost:' + api_port + '/reference/mod_reference_type/'
-                    new_entry = dict()
-                    new_entry["reference_type"] = dqm_mrt
-                    new_entry["source"] = mod
-                    new_entry["reference_curie"] = agr
-                    process_post_tuple = process_post('POST', url, headers, new_entry, agr, mapping_fh, error_fh)    # noqa: F841
-            if mod in db_mrt_data:
-                lc_db_dict = {x.lower(): x for x in db_mrt_data[mod]}
-                lc_db = set(lc_db_dict.keys())
-                for db_mrt in db_mrt_data[mod]:
-                    delete_it = True
-                    for dqm_mrt in dqm_mrt_data[mod]:
-                        if dqm_mrt.lower() in lc_db:
-                            delete_it = False
-                    if delete_it:
-                        mod_reference_type_id = str(db_mrt_data[mod][db_mrt])
-                        logger.info("remove %s %s from %s via %s", mod, db_mrt, agr, mod_reference_type_id)
-                        url = 'http://localhost:' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
-                        process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
+                        delete_it = True
+                        for dqm_mrt in dqm_mrt_data[mod]:
+                            if dqm_mrt.lower() in lc_db:
+                                delete_it = False
+                        if delete_it:
+                            mod_reference_type_id = str(db_mrt_data[mod][db_mrt])
+                            logger.info("remove %s %s from %s via %s", mod, db_mrt, agr, mod_reference_type_id)
+                            url = 'http://localhost:' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
+                            process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
 
 
 def process_post(method, url, headers, json_data, primary_id, mapping_fh, error_fh):
