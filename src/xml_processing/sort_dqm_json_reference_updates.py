@@ -437,7 +437,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                 # logger.info("Notify curator %s %s has multiple identifiers from dqms %s", agr, prefix, conflict_string)
                 fh_mod_report[mod].write("%s %s has multiple identifiers from dqms %s\n" % (agr, prefix, conflict_string))
             elif len(xrefs_to_add[agr][prefix]) == 1:
-                for ident in xrefs_to_add[agr][prefix]:
+                for _ident in xrefs_to_add[agr][prefix]:
                     pass
                     # logger.info("Action : add validated dqm xref %s %s to agr %s", prefix, ident, agr)
                     # TODO   create new xref
@@ -450,6 +450,12 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
 
 def update_db_mod_tags_only(aggregate_mod_tags_only):      # noqa: C901
+    """
+    Take a dict of Alliance Reference curies and DQM MODReferenceTypes to compare against data stored in DB and update to match DQM data.
+
+    :param aggregate_mod_tags_only:
+    :return:
+    """
     api_port = environ.get('API_PORT')
     base_path = environ.get('XML_PATH')
     okta_file = base_path + 'okta_token'
@@ -542,6 +548,18 @@ def update_db_mod_tags_only(aggregate_mod_tags_only):      # noqa: C901
 
 
 def process_post(method, url, headers, json_data, primary_id, mapping_fh, error_fh):
+    """
+    Call API with method, url, headers, optional json of data, agr reference curie, optional mapping filehandle, optional error filehandle
+
+    :param method:
+    :param url:
+    :param headers:
+    :param json_data:
+    :param primary_id:
+    :param mapping_fh:
+    :param error_fh:
+    :return:
+    """
     # output the json getting posted to the API
     # json_object = json.dumps(json_data, indent = 4)
     # print(json_object)
@@ -596,7 +614,12 @@ def process_post(method, url, headers, json_data, primary_id, mapping_fh, error_
     return headers, process_text, process_status_code
 
 
-def test_post():
+def test_request():
+    """
+    To test making a POST or DELETE request
+
+    :return:
+    """
     # api_port = environ.get('API_PORT')
     base_path = environ.get('XML_PATH')
     okta_file = base_path + 'okta_token'
@@ -610,25 +633,25 @@ def test_post():
         token = update_token()
     headers = generate_headers(token)
 
+    # create data with post
     url = 'http://dev.alliancegenome.org:4003/reference/mod_reference_type/'
     primary_id = "AGR:AGR-Reference-0000605510"
     new_entry = dict()
     new_entry["reference_type"] = "Book"
     new_entry["source"] = "WB"
     new_entry["reference_curie"] = primary_id
-# {
-#   "reference_type": "asdf",
-#   "source": "WB",
-#   "reference_curie": "AGR:AGR-Reference-0000605510"
-# }
+    # {
+    #   "reference_type": "asdf",
+    #   "source": "WB",
+    #   "reference_curie": "AGR:AGR-Reference-0000605510"
+    # }
     mapping_fh = None
     error_fh = None
     process_post_tuple = process_post('POST', url, headers, new_entry, primary_id, mapping_fh, error_fh)
 
-
-# delete works
-#     url = 'http://dev.alliancegenome.org:4003/reference/mod_reference_type/1006053'
-#     process_post_tuple = process_post('DELETE', url, headers, new_entry, primary_id, mapping_fh, error_fh)
+    # delete data with delete
+    # url = 'http://dev.alliancegenome.org:4003/reference/mod_reference_type/1006053'
+    # process_post_tuple = process_post('DELETE', url, headers, new_entry, primary_id, mapping_fh, error_fh)
 
     print(process_post_tuple)
     # headers = process_post_tuple[0]
@@ -643,7 +666,7 @@ if __name__ == "__main__":
 
     logger.info("starting sort_dqm_json_reference_updates.py")
 
-#     test_post()
+    # test_request()
 
     if args['file']:
         if args['mod']:
