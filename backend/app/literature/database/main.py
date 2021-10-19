@@ -5,7 +5,7 @@ from sqlalchemy import MetaData
 from literature.database.base import Base
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 
-from literature.continuum_plugins import  UserPlugin
+from literature.continuum_plugins import UserPlugin
 
 from sqlalchemy.orm import sessionmaker
 
@@ -16,6 +16,7 @@ from sqlalchemy_continuum.plugins import PropertyModTrackerPlugin
 metadata = MetaData()
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
+print(SQLALCHEMY_DATABASE_URL)
 Base.metadata.create_all(engine)
 
 SessionLocal = sessionmaker(bind=engine, autoflush=True)

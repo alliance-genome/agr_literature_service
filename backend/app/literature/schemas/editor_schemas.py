@@ -39,6 +39,7 @@ class EditorSchemaPost(BaseModel):
               }
         }
 
+
 class EditorSchemaShow(BaseModelShow):
     editor_id: int
     order: Optional[int] = None

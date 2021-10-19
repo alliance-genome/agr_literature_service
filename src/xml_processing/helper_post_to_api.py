@@ -7,16 +7,28 @@ base_path = environ.get('XML_PATH')
 
 
 def generate_headers(token):
+    """
+
+    :param token:
+    :return:
+    """
+
     authorization = 'Bearer ' + token
     headers = {
         'Authorization': authorization,
         'Content-Type': 'application/json',
         'Accept': 'application/json'
     }
+
     return headers
 
 
 def update_auth0_token():
+    """
+
+    :return:
+    """
+
     url = 'https://alliancegenome.us.auth0.com/oauth/token'
     headers = {
         'Content-Type': 'application/json',
@@ -44,6 +56,11 @@ def update_auth0_token():
 
 
 def update_okta_token():
+    """
+
+    :return:
+    """
+
     url = 'https://dev-30456587.okta.com/oauth2/default/v1/token'
     headers = {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -67,5 +84,11 @@ def update_okta_token():
 
 
 def update_token():
+    """
+
+    :return:
+    """
+
     token = update_okta_token()
+
     return token

@@ -82,7 +82,7 @@ pg_restore --clean --if-exists -d <newdb> -h postgres -U postgres -p 5432 < <dat
 
 # Development
 
-First creat application image
+First create application image
 
 Use Docker Compose to spin up all the containers
 
@@ -504,3 +504,15 @@ aws_secret_access_key = `
 - Proceed with the appropriate make commands as usual.
 - Reminder: this process needs to be repeated every time you get an error like this (usually ~ every 12 hours):
 `Error response from daemon: pull access denied for 100225593120.dkr.ecr.us-east-1.amazonaws.com/agr_neo4j_env, repository does not exist or may require 'docker login': denied: Your authorization token has expired. Reauthenticate and try again.`
+
+
+## testing
+
+# kick of the postgres db
+docker-compose -f docker-compose-test.yml up
+
+# start the tests
+make run-test-bash
+
+# Look at the data in the test database if you want too 
+- psql -h agr-test-postgres -U postgres -d literature-test-idl

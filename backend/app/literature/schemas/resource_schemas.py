@@ -2,7 +2,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from pydantic import BaseModel
-from pydantic import ValidationError
+# from pydantic import ValidationError
 from pydantic import validator
 
 from literature.schemas import BaseModelShow

@@ -1,4 +1,4 @@
-from typing import List, Optional, Any
+from typing import List, Optional
 
 from pydantic import BaseModel
 from pydantic import validator
@@ -52,6 +52,18 @@ class ReferenceSchemaPost(BaseModel):
         orm_mode = True
         extra = "forbid"
 
+    @validator('title')
+    def title_is_some(cls, v: str) -> str:
+        if not v:
+            raise ValueError('Cannot set title to None or blank string')
+        return v
+
+    @validator('category')
+    def category_is_some(cls, v):
+        if not v:
+            raise ValueError('Cannot set catagory to None or blank string')
+        return v
+
 
 class ReferenceSchemaUpdate(BaseModel):
     title: Optional[str] = None
@@ -75,15 +87,15 @@ class ReferenceSchemaUpdate(BaseModel):
     resource: Optional[str] = None
 
     @validator('title')
-    def title_is_some(cls, v):
-        if v is None:
-            raise ValueError('Cannot set title to None')
+    def title_is_some(cls, v: str) -> str:
+        if not v:
+            raise ValueError('Cannot set title to None or blank string')
         return v
 
     @validator('category')
     def category_is_some(cls, v):
-        if v is None:
-            raise ValueError('Cannot set catagory to None')
+        if not v:
+            raise ValueError('Cannot set catagory to None or blank string')
         return v
 
     class Config():
@@ -94,6 +106,7 @@ class ReferenceSchemaUpdate(BaseModel):
 class CommentAndCorrectionSchemaRelations(BaseModel):
     to_references: Optional[List[ReferenceCommentAndCorrectionSchemaRelated]] = None
     from_references: Optional[List[ReferenceCommentAndCorrectionSchemaRelated]] = None
+
 
 class ReferenceSchemaShow(BaseModelShow):
     reference_id: int

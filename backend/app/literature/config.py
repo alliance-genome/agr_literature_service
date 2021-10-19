@@ -5,7 +5,6 @@ from pydantic import BaseSettings, Field
 from literature.schemas import EnvStateSchema
 
 
-
 class GlobalConfig(BaseSettings):
     """Global configurations."""
 
@@ -16,7 +15,7 @@ class GlobalConfig(BaseSettings):
     ENV_STATE: Optional[EnvStateSchema] = Field(..., env="ENV_STATE")
     HOST: Optional[str] = Field(..., env="HOST")
 
-    #AWS Creds
+    # AWS Creds
     AWS_SECRET_ACCESS_KEY: Optional[str] = Field(..., env="AWS_SECRET_ACCESS_KEY")
     AWS_ACCESS_KEY_ID: Optional[str] = Field(..., env="AWS_ACCESS_KEY_ID")
 
@@ -39,6 +38,8 @@ class GlobalConfig(BaseSettings):
         """Loads the dotenv file."""
 
         env_file: str = ".env"
+        print("env_file: {}".format(env_file))
+
 
 class DevConfig(GlobalConfig):
     """Development configurations."""
@@ -54,18 +55,27 @@ class ProdConfig(GlobalConfig):
         env_prefix: str = "PROD_"
 
 
+class TestConfig(GlobalConfig):
+    """Production configurations."""
+
+    class Config:
+        env_file: str = "test.env"
+
+
 class FactoryConfig:
     """Returns a config instance dependending on the ENV_STATE variable."""
 
     def __init__(self, env_state: Optional[str]):
         self.env_state = env_state
+        print("State: {}".format(env_state))
 
     def __call__(self):
         if self.env_state == "build":
             return DevConfig()
-
         elif self.env_state == "prod":
             return ProdConfig()
+        elif self.env_state == "test":
+            return TestConfig()
 
 
 config = FactoryConfig(GlobalConfig().ENV_STATE)()

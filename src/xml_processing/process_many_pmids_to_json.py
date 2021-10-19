@@ -25,6 +25,12 @@ args = vars(parser.parse_args())
 
 
 def download_and_convert_pmids(pmids_wanted):
+    """
+
+    :param pmids_wanted:
+    :return:
+    """
+
     pmids_original = pmids_wanted
     pmids_additional = []
     pmids_new_list = pmids_wanted
@@ -52,6 +58,14 @@ def download_and_convert_pmids(pmids_wanted):
 
 
 def recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list):
+    """
+
+    :param pmids_original:
+    :param pmids_additional:
+    :param pmids_new_list:
+    :return:
+    """
+
     download_pubmed_xml(pmids_new_list)
     pmids_already_processed = pmids_original + pmids_additional
     pmids_new_list = generate_json(pmids_new_list, pmids_already_processed)
@@ -68,10 +82,13 @@ def recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list):
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    call main start function
+    """
+
     pmids_wanted = []
 
-#    python process_single_pmid.py -c 1234 4576 1828
+    # python process_single_pmid.py -c 1234 4576 1828
     if args['commandline']:
         logger.info("Processing commandline input")
         for pmid in args['commandline']:

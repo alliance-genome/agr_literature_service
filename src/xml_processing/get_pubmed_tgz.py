@@ -38,6 +38,12 @@ storage_path = base_path + 'pubmed_tgz/'
 
 
 def download_pubmed_tgz(pmids_wanted):
+    """
+
+    :param pmids_wanted:
+    :return:
+    """
+
     # ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_file_list.txt
 
     if not path.exists(storage_path):
@@ -91,7 +97,10 @@ def download_pubmed_tgz(pmids_wanted):
 
 
 if __name__ == "__main__":
-    """ call main start function """
+    """
+    call main start function
+    """
+
     pmids_wanted = []
 
 #    python get_pubmed_xml.py -d
