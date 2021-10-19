@@ -470,8 +470,9 @@ def update_db_mod_tags_only(aggregate_mod_tags_only):      # noqa: C901
     headers = generate_headers(token)
 
     counter = 0
-    # max_counter = 1000
-    max_counter = 3
+    max_counter = 10000000
+    # max_counter = 150
+    # max_counter = 3
 
     mapping_fh = None
     error_fh = None
@@ -511,24 +512,7 @@ def update_db_mod_tags_only(aggregate_mod_tags_only):      # noqa: C901
                 db_mrt_data[source] = dict()
             db_mrt_data[source][ref_type] = mrt_id
 
-        # FIX   this is removing other MOD's data
-        # TODO   reload database dump, try AGR:AGR-Reference-0000382879	WBPaper00000292
-        for mod in db_mrt_data:
-            # lc_db = [x.lower() for x in db_mrt_data[mod]]
-            lc_db_dict = {x.lower(): x for x in db_mrt_data[mod]}
-            lc_db = set(lc_db_dict.keys())
-            for db_mrt in db_mrt_data[mod]:
-                delete_it = True
-                if mod in dqm_mrt_data:
-                    for dqm_mrt in dqm_mrt_data[mod]:
-                        if dqm_mrt.lower() in lc_db:
-                            delete_it = False
-                if delete_it:
-                    mod_reference_type_id = str(db_mrt_data[mod][db_mrt])
-                    logger.info("remove %s from %s via %s", db_mrt, agr, mod_reference_type_id)
-                    url = 'http://localhost:' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
-                    process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)
-
+        # try AGR:AGR-Reference-0000382879	WBPaper00000292
         for mod in dqm_mrt_data:
             lc_dqm = [x.lower() for x in dqm_mrt_data[mod]]
             for dqm_mrt in dqm_mrt_data[mod]:
@@ -538,13 +522,26 @@ def update_db_mod_tags_only(aggregate_mod_tags_only):      # noqa: C901
                         if db_mrt.lower() in lc_dqm:
                             create_it = False
                 if create_it:
-                    logger.info("add %s to %s", dqm_mrt, agr)
+                    logger.info("add %s %s to %s", mod, dqm_mrt, agr)
                     url = 'http://localhost:' + api_port + '/reference/mod_reference_type/'
                     new_entry = dict()
                     new_entry["reference_type"] = dqm_mrt
                     new_entry["source"] = mod
                     new_entry["reference_curie"] = agr
                     process_post_tuple = process_post('POST', url, headers, new_entry, agr, mapping_fh, error_fh)    # noqa: F841
+            if mod in db_mrt_data:
+                lc_db_dict = {x.lower(): x for x in db_mrt_data[mod]}
+                lc_db = set(lc_db_dict.keys())
+                for db_mrt in db_mrt_data[mod]:
+                    delete_it = True
+                    for dqm_mrt in dqm_mrt_data[mod]:
+                        if dqm_mrt.lower() in lc_db:
+                            delete_it = False
+                    if delete_it:
+                        mod_reference_type_id = str(db_mrt_data[mod][db_mrt])
+                        logger.info("remove %s %s from %s via %s", mod, db_mrt, agr, mod_reference_type_id)
+                        url = 'http://localhost:' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
+                        process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
 
 
 def process_post(method, url, headers, json_data, primary_id, mapping_fh, error_fh):
