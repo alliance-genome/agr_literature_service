@@ -41,7 +41,7 @@ docker-compose-down:
 	docker run -itd --env-file=.env -v /var/run/docker.sock:/var/run/docker.sock -v /home/core/.docker:/root/.docker -v ${PWD}:/var/tmp/ docker/compose:1.24.1  -f /var/tmp/docker-compose.yaml down 
 
 run-test-bash:
-	docker volume rm agr_literature_service_agr-literature-test-pg-data    
+	-docker volume rm agr_literature_service_agr-literature-test-pg-data    
 	docker-compose -f docker-compose-test.yml up -d
 	sleep 5
 	# Minus at start means ignore exit code for that line
