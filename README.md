@@ -507,6 +507,8 @@ aws_secret_access_key = `
 
 
 ## testing
+You will need access to the alliance AWS (for downloading agr_literature_dev).
+
 
 # start the tests
 make run-test-bash
