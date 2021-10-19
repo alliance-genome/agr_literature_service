@@ -508,11 +508,5 @@ aws_secret_access_key = `
 
 ## testing
 
-# kick of the postgres db
-docker-compose -f docker-compose-test.yml up
-
 # start the tests
 make run-test-bash
-
-# Look at the data in the test database if you want too 
-- psql -h agr-test-postgres -U postgres -d literature-test-idl

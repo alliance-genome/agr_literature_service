@@ -2,22 +2,22 @@ version: "3.7"
 
 services:
   postgres:
-    container_name: agr-literature-pg
+    container_name: agr-literature-test-pg
     hostname: agr-test-postgres
     image: postgres:13.1-alpine
     restart: always
     environment:
       POSTGRES_USER: ${PSQL_USERNAME}
       POSTGRES_PASSWORD: ${PSQL_PASSWORD}
-      POSTGRES_DB: ${PSQL_DATABASE}
+      POSTGRES_DB: literature-test
       POSTGRES_PORT: ${PSQL_PORT}
     ports:
      - "5432:5432"
     volumes:
-      - "agr-literature-pg-data:/var/lib/postgresql/data"
+      - "agr-literature-test-pg-data:/var/lib/postgresql/data"
       - "./postgresql.conf:/etc/postgresql.conf"
     networks:
-      - agr-literature
+      - agr-literature-test
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -36,7 +36,7 @@ services:
 
 
 volumes:
-  agr-literature-pg-data:
+  agr-literature-test-pg-data:
 
 networks:
-  agr-literature:
+  agr-literature-test:
