@@ -7,10 +7,10 @@ services:
     image: postgres:13.1-alpine
     restart: always
     environment:
-      POSTGRES_USER: ${PSQL_USERNAME}
-      POSTGRES_PASSWORD: ${PSQL_PASSWORD}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
       POSTGRES_DB: literature-test
-      POSTGRES_PORT: ${PSQL_PORT}
+      POSTGRES_PORT: 5432
     ports:
      - "5432:5432"
     volumes:
@@ -23,16 +23,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # agr_literature:
-  #   container_name: agr-literature-app
-  #   hostname: agr-test-literature-app
-  #   restart: always
-  #   image: ${REG}/agr_literature_app:latest
-  #   networks:
-  #     - agr-literature
-  #   depends_on:
-  #     - postgres
 
 
 volumes:
