@@ -22,10 +22,7 @@ def create(db: Session, cross_reference: CrossReferenceSchema) -> str:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail=f"CrossReference with curie {cross_reference_data['curie']} already exists")
 
-    # res_ref = stripout(db, cross_reference)
-    # db_obj = CrossReferenceModel(**cross_reference_data)
     db_obj = create_obj(db, CrossReferenceModel, cross_reference_data)
-    # add(res_ref, db_obj)
 
     db.add(db_obj)
     db.commit()

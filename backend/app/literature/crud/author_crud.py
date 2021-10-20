@@ -22,9 +22,6 @@ def create(db: Session, author: AuthorSchemaCreate):
         orcid = author_data['orcid']
         del author_data['orcid']
 
-    # res_ref = stripout(db, author_data)
-    # author = AuthorModel(**author_data)
-    # add(author, res_ref)
     author = create_obj(db, AuthorModel, author_data)
     if orcid:
         cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
