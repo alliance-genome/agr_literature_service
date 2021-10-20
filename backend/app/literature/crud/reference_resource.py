@@ -26,11 +26,13 @@ def stripout(db: Session, file_update: dict) -> dict:
                             detail="Only supply either resource_curie or reference_curie")
     elif resource_curie:
         data_object['resource'] = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
+        print("Found res cur {}".format(data_object['resource']))
         if not data_object['resource']:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"Resource with curie {resource_curie} does not exist")
     elif reference_curie:
         data_object['reference'] = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
+        print("Found ref cur {}".format(data_object['reference']))
         if not data_object['reference']:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"Reference with curie {reference_curie} does not exist")
@@ -46,7 +48,8 @@ def add(ref_res_obj: dict, data_object: Any) -> None:
 
     NOTE: The keys for these will be removed from file_update.
     """
-    if 'resource' in ref_res_obj:
+
+    if ref_res_obj['resource']:
         data_object.resource = ref_res_obj['resource']
     else:
         data_object.reference = ref_res_obj['reference']

@@ -49,6 +49,7 @@ def test_create_author():
     # check db for author
     author = db.query(AuthorModel).filter(AuthorModel.name == "003_TCU").one()
     assert author.first_name == "string"
+    assert author.reference.curie == "AGR:AGR-Reference-0000000001"
 
 
 def test_update_author():
