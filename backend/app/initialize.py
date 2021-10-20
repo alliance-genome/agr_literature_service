@@ -55,3 +55,7 @@ def setup_resource_descriptor():
     """
 
     resource_descriptor_yaml = update_resource_descriptor()
+
+
+if __name__ == '__main__':
+    setup_resource_descriptor()

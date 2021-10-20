@@ -10,16 +10,22 @@ services:
       POSTGRES_PASSWORD: ${PSQL_PASSWORD}
       POSTGRES_DB: ${PSQL_DATABASE}
       POSTGRES_PORT: ${PSQL_PORT}
+    # set port for local development
+    #ports:
+    #  - "${PSQL_PORT}:${PSQL_PORT}"
     volumes:
       - "agr-literature-pg-data:/var/lib/postgresql/data"
       - "./postgresql.conf:/etc/postgresql.conf"
     networks:
       - agr-literature
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${PSQL_USERNAME}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    command:
+      postgres -c config_file=/etc/postgresql.conf
+
 
   pgadmin:
     container_name: agr-literature-pgadmin
@@ -56,17 +62,41 @@ services:
     volumes:
       - "agr-literature-es-data:/usr/share/elasticsearch/data"
     ports:
-      - 9201:9200
+      - "${ELASTICSEARCH_PORT}:${ELASTICSEARCH_PORT}"
     networks:
       - agr-literature
+
+  initdb:
+    container_name: agr-literature-initdb
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.initdb.env
+    networks:
+      - agr-literature
+    depends_on:
+      - postgres
+    restart: on-failure
+
+  pgsync:
+    container_name: agr-literature-pgsync
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.pgsync.env
+    networks:
+      - agr-literature
+    depends_on:
+      - initdb
+      - elasticsearch
+      - redis
+    restart: on-failure
 
   redis:
     container_name: agr-literature-redis
     image: "redis:alpine"
     restart: always
-    command: redis-server --requirepass ${REDIS_AUTH}
+    command: redis-server --requirepass "${REDIS_AUTH}"
     ports:
-     - "6379:6379"
+     - "${REDIS_PORT}:${REDIS_PORT}"
     volumes:
       - agr-literature-redis-data
       - "./redis.conf:/usr/local/etc/redis/redis.conf"
