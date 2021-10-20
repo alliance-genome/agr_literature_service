@@ -1,5 +1,3 @@
-from typing import List
-
 from sqlalchemy.orm import Session
 
 from fastapi import APIRouter
@@ -13,7 +11,6 @@ from literature import database
 
 from literature.user import set_global_user_id
 
-from literature.schemas import AuthorSchemaShow
 from literature.schemas import AuthorSchemaCreate
 from literature.schemas import ResponseMessageSchema
 

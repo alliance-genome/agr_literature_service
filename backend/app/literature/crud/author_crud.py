@@ -11,7 +11,7 @@ from literature.models import ReferenceModel
 from literature.models import CrossReferenceModel
 from literature.models import ResourceModel
 from literature.models import AuthorModel
-from literature.crud.lookup import add_reference_resource
+from literature.crud.reference_resource import add, stripout, create_obj
 
 
 def create(db: Session, author: AuthorSchemaCreate):
@@ -22,21 +22,22 @@ def create(db: Session, author: AuthorSchemaCreate):
         orcid = author_data['orcid']
         del author_data['orcid']
 
-    db_obj = AuthorModel(**author_data)
-    add_reference_resource(db, author_data, db_obj)
-
+    # res_ref = stripout(db, author_data)
+    # author = AuthorModel(**author_data)
+    # add(author, res_ref)
+    author = create_obj(db, AuthorModel, author_data)
     if orcid:
         cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
         if not cross_reference_obj:
             cross_reference_obj = CrossReferenceModel(curie=orcid)
             db.add(cross_reference_obj)
-        db_obj.orcid_cross_reference = cross_reference_obj
+        author.orcid_cross_reference = cross_reference_obj
 
-    db.add(db_obj)
+    db.add(author)
     db.commit()
-    db.refresh(db_obj)
+    db.refresh(author)
 
-    return db_obj.author_id
+    return author.author_id
 
 
 def destroy(db: Session, author_id: int):
@@ -61,7 +62,8 @@ def patch(db: Session, author_id: int, author_patch: AuthorSchemaCreate) -> dict
     if not author_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Author with author_id {author_id} not found")
-    add_reference_resource(db, author_data, author_db_obj)
+    res_ref = stripout(db, author_data)
+    add(res_ref, author_db_obj)
 
     for field, value in author_data.items():
         if field == 'orcid' and value:

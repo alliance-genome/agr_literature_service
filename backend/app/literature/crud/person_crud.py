@@ -9,14 +9,13 @@ from literature.schemas import PersonSchemaPost
 
 from literature.models import ReferenceModel
 from literature.models import PersonModel
-from literature.crud.lookup import add_reference_resource
+from literature.crud.reference_resource import add, stripout, create_obj
 
 
 def create(db: Session, person: PersonSchemaPost):
     person_data = jsonable_encoder(person)
 
-    db_obj = PersonModel(**person_data)
-    add_reference_resource(db, person_data, db_obj)
+    db_obj = create_obj(db, PersonModel, person_data)
 
     db.add(db_obj)
     db.commit()
@@ -42,7 +41,8 @@ def patch(db: Session, person_id: int, person_update: PersonSchemaPost):
     if not person_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Person with person_id {person_id} not found")
-    add_reference_resource(db, person_update, person_db_obj)
+    res_ref = stripout(db, person_update)
+    add(res_ref, person_db_obj)
     for field, value in person_update.items():
         setattr(person_db_obj, field, value)
 
