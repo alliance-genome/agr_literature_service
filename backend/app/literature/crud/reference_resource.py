@@ -11,6 +11,7 @@ from typing import Any
 def stripout(db: Session, file_update: dict) -> dict:
     data_object = {'resource': None,
                    'reference': None}
+
     resource_curie = None
     if 'resource_curie' in file_update:
         resource_curie = file_update['resource_curie']

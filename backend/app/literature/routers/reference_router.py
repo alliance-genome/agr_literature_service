@@ -14,6 +14,8 @@ from fastapi import Security
 from fastapi import File
 from fastapi import UploadFile
 from fastapi import HTTPException
+from fastapi import Query
+
 
 from fastapi_okta import OktaUser
 
@@ -118,6 +120,11 @@ def show(curie: str,
 def show(curie: str,
          db: Session = Depends(get_db)):
     return reference_crud.show(db, curie)
+
+@router.get("/from-curie-list")
+async def show_list(reference_curies: List[str] = Query([], max_length=5000)):
+    query_items = {"q": reference_curies}
+    return 'reference_curies'
 
 
 @router.get('/{curie}/files',

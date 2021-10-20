@@ -12,6 +12,7 @@ from literature import database
 from literature.user import set_global_user_id
 
 from literature.schemas import AuthorSchemaCreate
+from literature.schemas import AuthorSchemaShow
 from literature.schemas import ResponseMessageSchema
 
 from literature.crud import author_crud
@@ -27,8 +28,8 @@ get_db = database.get_db
 
 
 @router.post('/',
-             status_code=status.HTTP_201_CREATED,
-             response_model=str)
+             status_code=status.HTTP_201_CREATED)#,
+           #  response_model=int)
 def create(request: AuthorSchemaCreate,
            user: OktaUser = Security(auth.get_user),
            db: Session = Depends(get_db)):
@@ -60,6 +61,7 @@ async def patch(author_id: int,
 
 
 @router.get('/{author_id}',
+            response_model=AuthorSchemaShow,
             status_code=200)
 def show(author_id: int,
          db: Session = Depends(get_db)):
