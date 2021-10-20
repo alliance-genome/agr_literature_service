@@ -12,14 +12,13 @@ from literature.models import ResourceModel
 from literature.models import EditorModel
 from literature.models import CrossReferenceModel
 from literature.crud import cross_reference_crud
-from literature.crud.lookup import add_reference_resource
+from literature.crud.reference_resource import add, stripout, create_obj
 
 
 def create(db: Session, editor: EditorSchemaPost) -> int:
     editor_data = jsonable_encoder(editor)
 
-    db_obj = EditorModel(**editor_data)
-    add_reference_resource(db, editor_data, db_obj)
+    db_obj = create_obj(db, EditorModel, editor_data)
 
     orcid = None
     if 'orcid' in editor_data:
@@ -57,7 +56,8 @@ def patch(db: Session, editor_id: int, editor_update: EditorSchemaPost) -> dict:
     if not editor_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Editor with editor_id {editor_id} not found")
-    add_reference_resource(db, editor_update, editor_db_obj)
+    res_ref = stripout(db, editor_update)
+    add(res_ref, editor_db_obj)
 
     for field, value in editor_update.items():
         if field == 'orcid' and value:

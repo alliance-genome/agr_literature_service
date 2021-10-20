@@ -10,14 +10,13 @@ from literature.schemas import NoteSchemaUpdate
 from literature.models import ReferenceModel
 from literature.models import ResourceModel
 from literature.models import NoteModel
-from literature.crud.lookup import add_reference_resource
+from literature.crud.reference_resource import add, stripout, create_obj
 
 
 def create(db: Session, note: NoteSchemaPost) -> int:
     note_data = jsonable_encoder(note)
 
-    db_obj = NoteModel(**note_data)
-    add_reference_resource(db, note, db_obj)
+    db_obj = create_obj(db, NoteModel, note_data)
 
     db.add(db_obj)
     db.commit()
@@ -42,7 +41,8 @@ def patch(db: Session, note_id: int, note_update: NoteSchemaUpdate):
     if not note_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Note with note_id {note_id} not found")
-    add_reference_resource(db, note_update, note_db_obj)
+    res_ref = stripout(db, note_update)
+    add(res_ref, note_db_obj)
 
     for field, value in note_update.items():
         setattr(note_db_obj, field, value)

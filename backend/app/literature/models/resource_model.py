@@ -2,7 +2,6 @@ from datetime import datetime
 import pytz
 
 from sqlalchemy import Column
-from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
 from sqlalchemy import String
 from sqlalchemy import DateTime
@@ -148,3 +147,7 @@ class ResourceModel(Base):
         default=datetime.now(tz=pytz.timezone('UTC'))
     )
 
+    def __str__(self):
+        """Over write the default output."""
+        return "Resource id = {} created {} updated {}: curie='{}' title='{}...'".\
+            format(self.resource_id, self.date_created, self.date_updated, self.curie, self.title[:10])

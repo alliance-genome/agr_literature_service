@@ -12,7 +12,7 @@ from literature.models import CrossReferenceModel
 from literature.models import ReferenceModel
 from literature.models import ResourceModel
 from literature.models import ResourceDescriptorModel
-from literature.crud.lookup import add_reference_resource
+from literature.crud.reference_resource import create_obj, add_reference_resource
 
 
 def create(db: Session, cross_reference: CrossReferenceSchema) -> str:
@@ -22,8 +22,7 @@ def create(db: Session, cross_reference: CrossReferenceSchema) -> str:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail=f"CrossReference with curie {cross_reference_data['curie']} already exists")
 
-    db_obj = CrossReferenceModel(**cross_reference_data)
-    add_reference_resource(db, cross_reference, db_obj)
+    db_obj = create_obj(db, CrossReferenceModel, cross_reference_data)
 
     db.add(db_obj)
     db.commit()
@@ -48,7 +47,7 @@ def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaU
     if not cross_reference_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Cross Reference with curie {curie} not found")
-    add_reference_resource(db, cross_reference_update, cross_reference_db_obj)
+    add_reference_resource(db, cross_reference_db_obj, cross_reference_update)
 
     for field, value in cross_reference_update.items():
         setattr(cross_reference_db_obj, field, value)

@@ -257,3 +257,8 @@ class ReferenceModel(Base):
         nullable=False,
         default=datetime.now(tz=pytz.timezone('UTC'))
     )
+
+    def __str__(self):
+        """Over write the default output."""
+        return "Reference id = {} created {} updated {}: curie='{}' resource_id='{}' title='{}...'".\
+            format(self.reference_id, self.date_created, self.date_updated, self.curie, self.resource_id, self.title[:10])

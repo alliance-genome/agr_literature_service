@@ -1,5 +1,6 @@
 import sqlalchemy
 from datetime import datetime
+from typing import Union
 
 from fastapi import HTTPException
 from fastapi import status
@@ -95,7 +96,7 @@ def destroy(db: Session, curie: str):
     return None
 
 
-def patch(db: Session, curie: str, resource_update: ResourceSchemaUpdate):
+def patch(db: Session, curie: str, resource_update: Union[ResourceSchemaUpdate, dict]) -> dict:
     resource_db_obj = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
     if not resource_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
