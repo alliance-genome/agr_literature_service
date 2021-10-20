@@ -3,7 +3,10 @@ from literature.crud.reference_crud import create, show, patch, destroy
 from sqlalchemy import create_engine
 from sqlalchemy import MetaData
 
-from literature import models
+# from literature import models
+from literature.models import (
+    Base, AuthorModel, CrossReferenceModel
+)
 
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 from literature.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
@@ -17,10 +20,10 @@ SessionLocal = sessionmaker(bind=engine, autoflush=True)
 db = SessionLocal()
 
 # Add tables/schema if not already there.
-models.Base.metadata.create_all(engine)
+Base.metadata.create_all(engine)
 
 # Exit if this is not a test database, Exit.
-if "-test-" not in SQLALCHEMY_DATABASE_URL:
+if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
 db.execute('delete from cross_references')
@@ -171,8 +174,19 @@ def test_reference_large():
             assert author['name'] == 'S. Wu'
             assert author['order'] == 2
 
+    # Were authors created in the db?
+    author = db.query(AuthorModel).filter(AuthorModel.name == "D. Wu").one()
+    assert author.first_name == 'D.'
+    author = db.query(AuthorModel).filter(AuthorModel.name == "S. Wu").one()
+    assert author.first_name == 'S.'
+
     assert res["citation"] == "Wu and Wu, 2013, Biochem. Biophys. Res. Commun. 433(4): 538--541"
+
     assert res['cross_references'][0]['curie'] == 'FB:FBrf0221304'
+    # cross references in the db?
+    xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "FB:FBrf0221304").one()
+    assert xref.reference.curie == 'AGR:AGR-Reference-0000000004'
+
     assert res["issue_name"] == "4"
     assert res["language"] == "English"
     assert res["pages"] == "538--541"

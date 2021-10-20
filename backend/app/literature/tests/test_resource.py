@@ -16,7 +16,7 @@ SessionLocal = sessionmaker(bind=engine, autoflush=True)
 db = SessionLocal()
 
 # Exit if this is not a test database, Exit.
-if "-test-" not in SQLALCHEMY_DATABASE_URL:
+if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
 db.execute('delete from "editors"')
