@@ -1,12 +1,8 @@
-from datetime import datetime
-import pytz
-
 from sqlalchemy import Column
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
 from sqlalchemy import String
 from sqlalchemy import Boolean
-from sqlalchemy import DateTime
 from sqlalchemy import ARRAY
 
 from sqlalchemy.orm import relationship
@@ -24,9 +20,9 @@ class CrossReferenceModel(Base):
     )
 
     is_obsolete = Column(
-       Boolean,
-       unique=False,
-       default=False
+        Boolean,
+        unique=False,
+        default=False
     )
 
     reference_id = Column(
@@ -63,10 +59,15 @@ class CrossReferenceModel(Base):
 
     people = relationship(
         'PersonModel',
-        secondary = 'person_orcid_cross_reference_link'
+        secondary='person_orcid_cross_reference_link'
     )
 
     pages = Column(
-       ARRAY(String()),
-       nullable=True
+        ARRAY(String()),
+        nullable=True
     )
+
+    def __str__(self):
+        """Over write the default output."""
+        return "CrossReference: curie='{}' is_obsolete='{}' reference_id='{}', resource_id='{}' pages={}".\
+            format(self.curie, self.is_obsolete, self.reference_id, self.resource_id, self.pages)
