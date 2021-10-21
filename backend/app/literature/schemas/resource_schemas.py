@@ -33,6 +33,12 @@ class ResourceSchemaPost(BaseModel):
     authors: Optional[List[AuthorSchemaPost]] = None
     editors: Optional[List[EditorSchemaPost]] = None
 
+    @validator('title')
+    def title_is_some(cls, v):
+        if not v:
+            raise ValueError('Cannot set title to None')
+        return v
+
     class Config():
         orm_mode = True
         extra = "forbid"
@@ -56,7 +62,7 @@ class ResourceSchemaUpdate(BaseModel):
 
     @validator('title')
     def title_is_some(cls, v):
-        if v is None:
+        if not v:
             raise ValueError('Cannot set title to None')
         return v
 
