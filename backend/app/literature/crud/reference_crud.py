@@ -194,11 +194,14 @@ def show_notes(db: Session, curie: str):
     return notes_data
 
 
-def show(db: Session, curie: str):
+def show(db: Session, curie: str, http_request=True):
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one_or_none()
     if not reference:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Reference with the id {curie} is not available")
+        if http_request:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"Reference with the id {curie} is not available")
+        else:
+            return None
 
     reference_data = jsonable_encoder(reference)
     if reference.resource_id:
