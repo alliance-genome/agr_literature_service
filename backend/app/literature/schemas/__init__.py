@@ -27,10 +27,13 @@ from literature.schemas.resource_schemas import ResourceSchemaUpdate
 
 from literature.schemas.response_message_schemas import ResponseMessageSchema
 
-from literature.schemas.tag_name_schemas import TagName
-from literature.schemas.tag_source_schemas import TagSource
-from literature.schemas.reference_tag_schemas import ReferenceTag
-from literature.schemas.reference_tag_schemas import ReferenceTagShow
+
+from literature.schemas.pubmed_publication_status_enum import PubMedPublicationStatus
+
+from literature.schemas.tag_name_enum import TagName
+from literature.schemas.tag_source_enum import TagSource
+from literature.schemas.reference_tag_enum import ReferenceTag
+from literature.schemas.reference_tag_enum import ReferenceTagShow
 
 from literature.schemas.reference_category_schemas import ReferenceCategory
 
