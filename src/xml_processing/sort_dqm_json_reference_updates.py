@@ -107,6 +107,10 @@ load_dotenv()
 # this ticket https://agr-jira.atlassian.net/browse/AGR-3114
 # When mods send new data that does not have PMID, only update the mod_reference_types. PubMed will update all other info, including alliance category. 'tags' are another field coming only from the mods, but there's no API for updating it, and it will likely be replaced by in/outside corpus when that's implemented AGR-3115 , and the ATP tags SCRUM-529 .
 
+# zfin files at
+# https://zfin.org/downloads/ZFIN_1.0.1.4_Reference.json
+# https://zfin.org/downloads/ZFIN_1.0.1.4_Resource.json
+
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
@@ -441,7 +445,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     # logger.info("Action : add validated dqm xref %s %s to agr %s", prefix, ident, agr)
                     # TODO   create new xref
 
-    update_db_entries(aggregate_mod_reference_types_only, 'mod_reference_types_only')
+    # these take hours for each mod, process about 200 references per minute
+    # update_db_entries(aggregate_mod_reference_types_only, 'mod_reference_types_only')
     # update_db_entries(aggregate_mod_biblio_all, 'mod_biblio_all')     # TODO sort this out
     for mod in fh_mod_report:
         fh_mod_report[mod].close()
@@ -537,7 +542,7 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
                         new_entry["reference_type"] = dqm_mrt
                         new_entry["source"] = mod
                         new_entry["reference_curie"] = agr
-                        process_post_tuple = process_post('POST', url, headers, new_entry, agr, mapping_fh, error_fh)    # noqa: F841
+                        # process_post_tuple = process_post('POST', url, headers, new_entry, agr, mapping_fh, error_fh)    # noqa: F841
                 if mod in db_mrt_data:
                     lc_db_dict = {x.lower(): x for x in db_mrt_data[mod]}
                     lc_db = set(lc_db_dict.keys())
@@ -550,7 +555,7 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
                             mod_reference_type_id = str(db_mrt_data[mod][db_mrt])
                             logger.info("remove %s %s from %s via %s", mod, db_mrt, agr, mod_reference_type_id)
                             url = 'http://localhost:' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
-                            process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
+                            # process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
 
 
 def process_post(method, url, headers, json_data, primary_id, mapping_fh, error_fh):
@@ -665,6 +670,52 @@ def test_request():
     # process_status_code = process_post_tuple[2]
 
 
+def test_get_from_list():
+    """
+    To test making a POST on :4001 to get multiple references at once vs one-by-one.  It's just as slow, but leaving it in to test future different methods for getting data from database
+
+    :return:
+    """
+
+    # batch way
+    # 1000 records took 1 hour 31 minutes from :4001 - 2021-10-21 16:06:47 - 2021-10-21 17:37:52
+    # print('json_data')
+    # method = 'POST'
+    # url = 'http://dev.alliancegenome.org:4001/reference/get-from-list/'
+    # headers = {
+    #     'Content-Type': 'application/json',
+    #     'Accept': 'application/json'
+    # }
+    # json_data = []
+    # for i in range(1, 1001):
+    #     json_data.append('AGR:AGR-Reference-' + str(i).zfill(10))
+    # print(json_data)
+    #
+    # request_return = requests.request(method, url=url, headers=headers, json=json_data)
+    # process_text = str(request_return.text)
+    # print(process_text)
+
+
+    # one by one way
+    # 1000 records took 1 hour 31 minutes from :4001 - 2021-10-21 18:37:43 - 2021-10-21 20:08:49
+    print('json_data')
+    method = 'GET'
+    headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+    json_data = []
+    for i in range(1, 1001):
+        agr_id = 'AGR:AGR-Reference-' + str(i).zfill(10)
+        url = 'http://dev.alliancegenome.org:4001/reference/' + agr_id
+        print(url)
+        request_return = requests.request(method, url=url, headers=headers, json=json_data)
+        process_text = str(request_return.text)
+        print(process_text)
+    # print(json_data)
+
+
+
 if __name__ == "__main__":
     """
     call main start function
@@ -673,6 +724,7 @@ if __name__ == "__main__":
     logger.info("starting sort_dqm_json_reference_updates.py")
 
     # test_request()
+    # test_get_from_list()
 
     if args['file']:
         if args['mod']:
