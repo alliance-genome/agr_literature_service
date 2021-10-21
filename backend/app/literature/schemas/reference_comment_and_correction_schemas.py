@@ -10,8 +10,8 @@ from literature.schemas import ReferenceCommentAndCorrectionType
 
 
 class ReferenceCommentAndCorrectionSchemaPost(BaseModel):
-    reference_curie_from: str = None
-    reference_curie_to: str = None
+    reference_curie_from: Optional[str] = None
+    reference_curie_to: Optional[str] = None
     reference_comment_and_correction_type: ReferenceCommentAndCorrectionType
 
     @validator('reference_curie_from')
@@ -49,10 +49,10 @@ class ReferenceCommentAndCorrectionSchemaPatch(BaseModel):
         extra = "forbid"
 
 class ReferenceCommentAndCorrectionSchemaRelated(BaseModel):
-    reference_comment_and_correction_id: int = None
+    reference_comment_and_correction_id: Optional[int] = None
     reference_curie_from: Optional[str] = None
     reference_curie_to: Optional[str] = None
-    reference_comment_and_correction_type: ReferenceCommentAndCorrectionType = None
+    reference_comment_and_correction_type: Optional[ReferenceCommentAndCorrectionType] = None
 
     class Config():
         orm_mode = True

@@ -60,7 +60,7 @@ def create(request: ReferenceSchemaPost,
 @router.post('/add/{pubmed_id}/',
              status_code=status.HTTP_201_CREATED,
              response_model=str)
-def create(pubmed_id: str,
+def add(pubmed_id: str,
            user: OktaUser = Security(auth.get_user),
            db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
@@ -100,7 +100,7 @@ async def patch(curie: str,
 @router.get('/by_cross_reference/{curie:path}',
             status_code=200,
             response_model=ReferenceSchemaShow)
-def show(curie: str,
+def show_xref(curie: str,
          db: Session = Depends(get_db)):
     cross_reference = cross_reference_crud.show(db, curie)
 
@@ -123,7 +123,7 @@ def show(curie: str,
 @router.get('/{curie}/files',
             status_code=200,
             response_model=List[FileSchemaShow])
-def show(curie: str,
+def show_file(curie: str,
          db: Session = Depends(get_db)):
     return reference_crud.show_files(db, curie)
 
@@ -131,7 +131,7 @@ def show(curie: str,
 @router.get('/{curie}/notes',
             status_code=200,
             response_model=List[NoteSchemaShow])
-def show(curie: str,
+def show_notes(curie: str,
          db: Session = Depends(get_db)):
     return reference_crud.show_notes(db, curie)
 
@@ -154,6 +154,6 @@ async def create_upload_file(curie: str,
 
 @router.get('/{curie}/versions',
             status_code=200)
-def show(curie: str,
+def show_versions(curie: str,
          db: Session = Depends(get_db)):
     return reference_crud.show_changesets(db, curie)

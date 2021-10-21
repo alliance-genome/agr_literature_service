@@ -43,7 +43,7 @@ def patch(db: Session, person_id: int, person_update: PersonSchemaPost):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Person with person_id {person_id} not found")
     add_reference_resource(db, person_update, person_db_obj)
-    for field, value in person_update.items():
+    for field, value in person_update.dict().items():
         setattr(person_db_obj, field, value)
 
     person_db_obj.dateUpdated = datetime.utcnow()

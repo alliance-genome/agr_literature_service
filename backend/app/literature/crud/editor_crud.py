@@ -59,7 +59,7 @@ def patch(db: Session, editor_id: int, editor_update: EditorSchemaPost) -> dict:
                             detail=f"Editor with editor_id {editor_id} not found")
     add_reference_resource(db, editor_update, editor_db_obj)
 
-    for field, value in editor_update.items():
+    for field, value in editor_update.dict().items():
         if field == 'orcid' and value:
             orcid = value
             cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()

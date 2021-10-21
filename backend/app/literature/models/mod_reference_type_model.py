@@ -1,3 +1,5 @@
+from typing import Dict
+
 from sqlalchemy import Column
 from sqlalchemy import ForeignKey
 from sqlalchemy import String
@@ -10,7 +12,7 @@ from literature.database.base import Base
 
 class ModReferenceTypeModel(Base):
     __tablename__ = 'mod_reference_types'
-    __versioned__ = {}
+    __versioned__: Dict = {}
 
     mod_reference_type_id = Column(
         Integer,

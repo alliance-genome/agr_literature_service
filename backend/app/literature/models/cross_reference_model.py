@@ -1,4 +1,6 @@
 from datetime import datetime
+from typing import Dict
+
 import pytz
 
 from sqlalchemy import Column
@@ -16,7 +18,7 @@ from literature.database.base import Base
 
 class CrossReferenceModel(Base):
     __tablename__ = 'cross_references'
-    __versioned__ = {}
+    __versioned__: Dict = {}
 
     curie = Column(
         String,

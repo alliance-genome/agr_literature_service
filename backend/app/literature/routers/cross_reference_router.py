@@ -66,7 +66,7 @@ async def patch(curie: str,
 
 @router.get('/{curie:path}/versions',
             status_code=200)
-def show(curie: str,
+def show_xref_versions(curie: str,
          db: Session = Depends(get_db)):
     return cross_reference_crud.show_changesets(db, curie)
 
@@ -74,6 +74,6 @@ def show(curie: str,
 @router.get('/{curie:path}',
             response_model=CrossReferenceSchema,
             status_code=200)
-def show(curie: str,
+def show_xref(curie: str,
          db: Session = Depends(get_db)):
     return cross_reference_crud.show(db, curie, False)

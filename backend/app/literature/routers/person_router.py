@@ -73,6 +73,6 @@ def show(person_id: int,
 
 @router.get('/{person_id}/versions',
             status_code=200)
-def show(person_id: int,
+def show_versions(person_id: int,
          db: Session = Depends(get_db)):
     return person_crud.show_changesets(db, person_id)

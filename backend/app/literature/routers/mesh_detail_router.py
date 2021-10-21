@@ -76,6 +76,6 @@ def show(mesh_detail_id: int,
 
 @router.get('/{mesh_detail_id}/versions',
             status_code=200)
-def show(mesh_detail_id: int,
+def show_versions(mesh_detail_id: int,
          db: Session = Depends(get_db)):
     return mesh_detail_crud.show_changesets(db, mesh_detail_id)

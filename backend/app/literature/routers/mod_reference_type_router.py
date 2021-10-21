@@ -76,6 +76,6 @@ def show(mod_reference_type_id: int,
 
 @router.get('/{mod_reference_type_id}/versions',
             status_code=200)
-def show(mod_reference_type_id: int,
+def show_versions(mod_reference_type_id: int,
          db: Session = Depends(get_db)):
     return mod_reference_type_crud.show_changesets(db, mod_reference_type_id)

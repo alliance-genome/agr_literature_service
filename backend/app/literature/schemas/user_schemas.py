@@ -5,6 +5,8 @@ from pydantic import BaseModel
 from pydantic import ValidationError
 from pydantic import validator
 
+from literature.schemas.resource_schemas import ResourceSchemaShow
+
 
 class UserSchema(BaseModel):
     name:str

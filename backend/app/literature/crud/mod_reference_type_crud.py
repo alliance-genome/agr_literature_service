@@ -49,7 +49,7 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update: Mo
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with mod_reference_type_id {mod_reference_type_id} not found")
 
-    for field, value in mod_reference_type_update.items():
+    for field, value in mod_reference_type_update.dict().items():
         if field == 'reference_curie' and value:
             reference_curie = value
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()

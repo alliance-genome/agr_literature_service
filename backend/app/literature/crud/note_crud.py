@@ -44,7 +44,7 @@ def patch(db: Session, note_id: int, note_update: NoteSchemaUpdate):
                             detail=f"Note with note_id {note_id} not found")
     add_reference_resource(db, note_update, note_db_obj)
 
-    for field, value in note_update.items():
+    for field, value in note_update.dict().items():
         setattr(note_db_obj, field, value)
 
     db.commit()

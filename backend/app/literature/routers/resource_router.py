@@ -73,7 +73,7 @@ def patch(curie: str,
 @router.get('/{curie}/notes',
             status_code=200,
             response_model=List[NoteSchemaShow])
-def show(curie: str,
+def show_notes(curie: str,
          db: Session = Depends(get_db)):
      return resource_crud.show_notes(db, curie)
 
@@ -89,6 +89,6 @@ def show(curie: str,
 
 @router.get('/{curie}/versions',
             status_code=200)
-def show(curie: str,
+def show_versions(curie: str,
          db: Session = Depends(get_db)):
     return resource_crud.show_changesets(db, curie)

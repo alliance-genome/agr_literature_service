@@ -74,6 +74,6 @@ def show(reference_comment_and_correction_id: int,
 
 @router.get('/{reference_comment_and_correction_id}/versions',
             status_code=200)
-def show(reference_comment_and_correction_id: int,
+def show_versions(reference_comment_and_correction_id: int,
          db: Session = Depends(get_db)):
     return reference_comment_and_correction_crud.show_changesets(db, reference_comment_and_correction_id)

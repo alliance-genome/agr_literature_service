@@ -73,7 +73,7 @@ def show(filename: str,
 @router.get('/by_md5sum/{md5sum}',
             response_model=List[FileSchemaShow],
             status_code=200)
-def show(md5sum: str,
+def show_md5sum(md5sum: str,
          db: Session = Depends(get_db)):
     return file_crud.show_by_md5sum(db, md5sum)
 
@@ -81,7 +81,7 @@ def show(md5sum: str,
 
 @router.get('/download/{filename}',
             status_code=200)
-async def show(filename: str,
+async def download(filename: str,
          s3: BaseClient = Depends(s3_auth),
          user: OktaUser = Security(auth.get_user),
          db: Session = Depends(get_db)):
@@ -92,6 +92,6 @@ async def show(filename: str,
 
 @router.get('/{filename}/versions',
             status_code=200)
-def show(filename: str,
+def show_versions(filename: str,
          db: Session = Depends(get_db)):
     return file_crud.show_changesets(db, filename)

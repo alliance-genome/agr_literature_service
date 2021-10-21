@@ -74,6 +74,6 @@ def show(reference_manual_term_tag_id: int,
 
 @router.get('/{reference_manual_term_tag_id}/versions',
             status_code=200)
-def show(reference_manual_term_tag_id: int,
+def show_versions(reference_manual_term_tag_id: int,
          db: Session = Depends(get_db)):
     return reference_manual_term_tag_crud.show_changesets(db, reference_manual_term_tag_id)

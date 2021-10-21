@@ -1,4 +1,6 @@
 from datetime import datetime
+from typing import Dict
+
 import pytz
 
 from sqlalchemy import Column
@@ -19,7 +21,7 @@ from literature.schemas import TagSource
 
 class MeshDetailModel(Base):
     __tablename__ = 'mesh_details'
-    __versioned__ = {}
+    __versioned__: Dict = {}
 
     mesh_detail_id = Column(
         Integer,

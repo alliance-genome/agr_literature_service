@@ -50,7 +50,7 @@ def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaU
                             detail=f"Cross Reference with curie {curie} not found")
     add_reference_resource(db, cross_reference_update, cross_reference_db_obj)
 
-    for field, value in cross_reference_update.items():
+    for field, value in cross_reference_update.dict().items():
         setattr(cross_reference_db_obj, field, value)
 
     cross_reference_db_obj.date_updated = datetime.utcnow()

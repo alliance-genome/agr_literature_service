@@ -101,14 +101,14 @@ def patch(db: Session, curie: str, resource_update: ResourceSchemaUpdate):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Resource with curie {curie} not found")
 
-    if 'iso_abbreviation' in resource_update and resource_update['iso_abbreviation']:
-        iso_abbreviation_resource = db.query(ResourceModel).filter(ResourceModel.iso_abbreviation == resource_update['iso_abbreviation']).first()
+    if resource_update.iso_abbreviation is not None:
+        iso_abbreviation_resource = db.query(ResourceModel).filter(ResourceModel.iso_abbreviation == resource_update.iso_abbreviation).first()
 
         if iso_abbreviation_resource and iso_abbreviation_resource.curie != curie:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                 detail=f"Resource with iso_abbreviation {resource_update.iso_abbreviation} already exists")
 
-    for field, value in resource_update.items():
+    for field, value in resource_update.dict().items():
         setattr(resource_db_obj, field, value)
 
     resource_db_obj.date_updated = datetime.utcnow()

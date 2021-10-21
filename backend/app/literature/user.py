@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 from literature.crud import user_crud
 from literature.models.user_model import UserModel
 
-user_id: str = None
+from typing import Optional
+
+user_id: Optional[str] = None
 
 
 def set_global_user_id(db: Session, id: str):
