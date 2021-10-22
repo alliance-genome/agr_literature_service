@@ -82,7 +82,7 @@ run the following command::
 
 
 Development
-^^^^^^^^^^^
+-----------
 
 First create application image
 
@@ -96,7 +96,7 @@ Develop and run application server in Docker::
     python src/server.py --port=<port>
 
 Using curl on the endpoint
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+--------------------------
 
 Add a reference::
 
@@ -108,13 +108,17 @@ Get a Reference::
 
 
 Production
-^^^^^^^^^^
+----------
 
 use ``--prod`` argument to use the WSGI server in production when running the application
 
+----
+
+----
 
 
---------------------
+Code files
+---------
 
 Current Makefile
 ^^^^^^^^^^^^^^^
