@@ -5,7 +5,7 @@ import logging
 import logging.config
 # from datetime import datetime
 
-from helper_post_to_api import generate_headers, update_token
+from helper_post_to_api import generate_headers, update_token, get_authentication_token, process_api_request
 
 from dotenv import load_dotenv
 
@@ -80,13 +80,14 @@ def post_resources():      # noqa: C901
 #         'Accept': 'application/json'
 #     }
 
-    token = ''
-    if path.isfile(okta_file):
-        with open(okta_file, 'r') as okta_fh:
-            token = okta_fh.read().replace("\n", "")
-            okta_fh.close
-    else:
-        token = update_token()
+    # token = ''
+    # if path.isfile(okta_file):
+    #     with open(okta_file, 'r') as okta_fh:
+    #         token = okta_fh.read().replace("\n", "")
+    #         okta_fh.close
+    # else:
+    #     token = update_token()
+    token = get_authentication_token()
     headers = generate_headers(token)
 
     resource_primary_id_to_curie_file = base_path + 'resource_primary_id_to_curie'
@@ -109,7 +110,7 @@ def post_resources():      # noqa: C901
             filename = json_storage_path + 'RESOURCE_' + fileset + '.json'
             f = open(filename)
             resource_data = json.load(f)
-            # counter = 0
+            counter = 0
             for entry in resource_data['data']:
                 primary_id = entry['primaryId']
                 if primary_id in already_processed_primary_id:
@@ -119,9 +120,9 @@ def post_resources():      # noqa: C901
                 # if primary_id != 'NLM:8404639':
                 #     continue
 
-                # counter += 1
-                # if counter > 3:
-                #     break
+                counter += 1
+                if counter > 3:
+                    break
 
                 # to debug json from data file before changes
                 # json_object = json.dumps(entry, indent=4)
@@ -170,23 +171,26 @@ def post_resources():      # noqa: C901
                 #             xref['curie'] = str(datetime.now())
                 # new_entry['iso_abbreviation'] = str(datetime.now())
 
-                post_return = requests.post(url, headers=headers, json=new_entry)
-                response_dict = json.loads(post_return.text)
+                api_response_tuple = process_api_request('POST', url, headers, new_entry, primary_id, None, None)
+                headers = api_response_tuple[0]
+                response_text = api_response_tuple[1]
+                response_status_code = api_response_tuple[2]
+                log_info = api_response_tuple[3]
+                response_dict = json.loads(response_text)
 
-                print(primary_id + "\ttext " + str(post_return.text))
-                print(primary_id + "\tstatus_code " + str(post_return.status_code))
+                # print(primary_id + "\ttext " + str(response_text))
+                # print(primary_id + "\tstatus_code " + str(response_status_code))
+                if log_info:
+                    logger.info(log_info)
 
-                if post_return.status_code == 201:
+                if response_status_code == 201:
                     response_dict = response_dict.replace('"', '')
                     for identifier in identifiers:
-                        logger.info("I %s\t%s", identifier, response_dict)
+                        logger.info("%s\t%s", identifier, response_dict)
                         mapping_fh.write("%s\t%s\n" % (identifier, response_dict))
-                # if making multiple runs on data that has already gone into api
-                # elif (post_return.status_code == 409):
-                #     continue
                 else:
-                    logger.info("ERROR %s primaryId %s message %s", post_return.status_code, primary_id, response_dict['detail'])
-                    error_fh.write("ERROR %s primaryId %s message %s\n" % (post_return.status_code, primary_id, response_dict['detail']))
+                    logger.info("api error %s primaryId %s message %s", str(response_status_code), primary_id, response_dict['detail'])
+                    error_fh.write("api error %s primaryId %s message %s\n" % (str(response_status_code), primary_id, response_dict['detail']))
 
                 # to debug json after changes that was sent to api
                 # json_object = json.dumps(new_entry, indent = 4)
