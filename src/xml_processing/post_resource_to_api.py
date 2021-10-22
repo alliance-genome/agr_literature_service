@@ -1,11 +1,11 @@
 import json
-import requests
+# import requests
 from os import environ, path
 import logging
 import logging.config
 # from datetime import datetime
 
-from helper_post_to_api import generate_headers, update_token, get_authentication_token, process_api_request
+from helper_post_to_api import generate_headers, get_authentication_token, process_api_request
 
 from dotenv import load_dotenv
 
@@ -19,8 +19,6 @@ logger = logging.getLogger('literature logger')
 
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
-
-okta_file = base_path + 'okta_token'
 
 # resource_fields = ['primaryId', 'nlm', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
 # resource_fields_from_pubmed = ['title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
@@ -81,6 +79,7 @@ def post_resources():      # noqa: C901
 #     }
 
     # token = ''
+    # okta_file = base_path + 'okta_token'
     # if path.isfile(okta_file):
     #     with open(okta_file, 'r') as okta_fh:
     #         token = okta_fh.read().replace("\n", "")
