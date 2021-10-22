@@ -342,8 +342,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     continue
 
                 if len(agrs_found) == 0:
-                    pass
                     # logger.info("Action : Create New mod %s", entry['primaryId'])
+                    pass
                     # TODO  shunt this to set of new to create to use old pipeline on
                 elif len(agrs_found) > 1:
                     # logger.info("Notify curator, dqm %s too many matches %s", entry['primaryId'], ', '.join(sorted(agrs_found)))
@@ -395,15 +395,15 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                                     if ident not in xrefs_to_add[agr][prefix]:
                                         xrefs_to_add[agr][prefix][ident] = set()
                                     xrefs_to_add[agr][prefix][ident].add(filename)
-                                    # logger.info("Action : Add dqm xref %s %s to agr %s", prefix, ident, agr)
+                                    # logger.info("Action : Add dqm xref %s %s to agr %s", prefix, ident, agr)  # dealt with below, not needed
 
                     if flag_aggregate_mod:
                         # logger.info("Action : aggregate PMID mod data %s", agr)
                         aggregate_mod_reference_types_only[agr] = entry
                     elif flag_aggregate_biblio:
+                        # logger.info("Action : aggregate MOD biblio data %s", agr)
                         pass
                         aggregate_mod_biblio_all[agr] = entry
-                        # logger.info("Action : aggregate MOD biblio data %s", agr)
                         # TODO  figure out what to patch
                     # check if dqm has no pmid/doi, but pmid/doi in DB
                     if 'PMID' not in dqm_xrefs:
@@ -441,8 +441,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                 fh_mod_report[mod].write("%s %s has multiple identifiers from dqms %s\n" % (agr, prefix, conflict_string))
             elif len(xrefs_to_add[agr][prefix]) == 1:
                 for _ident in xrefs_to_add[agr][prefix]:
-                    pass
                     # logger.info("Action : add validated dqm xref %s %s to agr %s", prefix, ident, agr)
+                    pass
                     # TODO   create new xref
 
     # these take hours for each mod, process about 200 references per minute
@@ -695,7 +695,6 @@ def test_get_from_list():
     # process_text = str(request_return.text)
     # print(process_text)
 
-
     # one by one way
     # 1000 records took 1 hour 31 minutes from :4001 - 2021-10-21 18:37:43 - 2021-10-21 20:08:49
     print('json_data')
@@ -713,7 +712,6 @@ def test_get_from_list():
         process_text = str(request_return.text)
         print(process_text)
     # print(json_data)
-
 
 
 if __name__ == "__main__":
