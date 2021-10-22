@@ -9,7 +9,7 @@ served by this service.
 Contents:
 
 .. toctree::
-    :maxdepth: 5
+    :maxdepth: 3
 
     backend_api
     pubmed_pipeline
