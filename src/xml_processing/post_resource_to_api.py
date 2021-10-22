@@ -110,7 +110,7 @@ def post_resources():      # noqa: C901
             filename = json_storage_path + 'RESOURCE_' + fileset + '.json'
             f = open(filename)
             resource_data = json.load(f)
-            counter = 0
+            # counter = 0
             for entry in resource_data['data']:
                 primary_id = entry['primaryId']
                 if primary_id in already_processed_primary_id:
@@ -120,9 +120,9 @@ def post_resources():      # noqa: C901
                 # if primary_id != 'NLM:8404639':
                 #     continue
 
-                counter += 1
-                if counter > 3:
-                    break
+                # counter += 1
+                # if counter > 3:
+                #     break
 
                 # to debug json from data file before changes
                 # json_object = json.dumps(entry, indent=4)
