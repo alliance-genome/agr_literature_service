@@ -136,6 +136,8 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     remap_subkeys['authors']['firstname'] = 'first_name'
     remap_subkeys['authors']['lastname'] = 'last_name'
     remap_subkeys['authors']['middlenames'] = 'middle_names'
+    remap_subkeys['authors']['correspondingAuthor'] = 'corresponding_author'
+    remap_subkeys['authors']['firstAuthor'] = 'first_author'
 
     keys_found = set()
 

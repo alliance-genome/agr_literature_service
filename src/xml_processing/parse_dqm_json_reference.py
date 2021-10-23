@@ -678,6 +678,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):      # noqa: C901
                 if 'authors' in entry:
                     all_authors_have_rank = True
                     for author in entry['authors']:
+                        author['correspondingAuthor'] = False
+                        author['firstAuthor'] = False
                         if 'authorRank' not in author:
                             all_authors_have_rank = False
                     if all_authors_have_rank is False:
@@ -768,6 +770,11 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):      # noqa: C901
                         if pmid_field in pubmed_data:
                             # logger.info("PMID %s pmid_field %s data %s", pmid, pmid_field, pubmed_data[pmid_field])
                             entry[pmid_field] = pubmed_data[pmid_field]
+
+                if 'authors' in entry:
+                    for author in entry['authors']:
+                        author['correspondingAuthor'] = False
+                        author['firstAuthor'] = False
 
                 sanitized_cross_references = []
                 pubmed_xrefs = dict()
