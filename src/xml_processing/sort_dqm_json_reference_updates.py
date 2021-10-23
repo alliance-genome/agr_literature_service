@@ -406,7 +406,6 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                         # logger.info("Action : aggregate MOD biblio data %s", agr)
                         pass
                         aggregate_mod_biblio_all[agr] = entry
-                        # TODO  figure out what to patch
                     # check if dqm has no pmid/doi, but pmid/doi in DB
                     if 'PMID' not in dqm_xrefs:
                         if 'PMID' in ref_xref_valid[agr]:
@@ -449,14 +448,13 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
     # these take hours for each mod, process about 200 references per minute
     # update_db_entries(aggregate_mod_reference_types_only, 'mod_reference_types_only')
-    update_db_entries(aggregate_mod_biblio_all, 'mod_biblio_all')     # TODO sort this out
+    update_db_entries(aggregate_mod_biblio_all, 'mod_biblio_all')
     for mod in fh_mod_report:
         fh_mod_report[mod].close()
     fh_mod_report['sanitized'].close()
 
 
 def update_db_entries(entries, processing_flag):      # noqa: C901
-    # TODO, when future endpoint can get N references from DB, get a set of N agr curies at once, match the db vs dqm reference info, and split the section for dealing with mod_reference_types into its own function
     """
     Take a dict of Alliance Reference curies and DQM MODReferenceTypes to compare against data stored in DB and update to match DQM data.
 
@@ -464,6 +462,8 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
     :param processing_flag:
     :return:
     """
+
+    # TODO when future endpoint can get N references from DB, get a set of N agr curies at once, match the db vs dqm reference info, and split the section for dealing with mod_reference_types into its own function
 
     remap_keys = dict()
     remap_keys['datePublished'] = 'date_published'
@@ -483,7 +483,8 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
     # MODReferenceTypes and allianceCategory cannot be auto converted from camel to snake, so have two lists
     # fields_simple_snake = ['title', 'category', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issue_name', 'issue_date', 'date_published', 'date_last_modified']
     fields_simple_camel = ['title', 'allianceCategory', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issueName', 'issueDate', 'datePublished', 'dateLastModified']
-    # TODO deal with resource, keywords, tags
+    # TODO deal with authors, keywords, resource
+    # there's no API to update tags
 
     api_port = environ.get('API_PORT')
     # base_path = environ.get('XML_PATH')
@@ -504,8 +505,8 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
     # max_counter = 150
     max_counter = 1
 
-    live_changes = False
-    # live_changes = True
+    # live_changes = False
+    live_changes = True
     for agr in entries:
         counter = counter + 1
         if counter > max_counter:

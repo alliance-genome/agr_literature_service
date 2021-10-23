@@ -146,6 +146,8 @@ def process_api_request(method, url, headers, json_data, primary_id, mapping_fh,
         # log_info += primary_id + "\t" + response_dict
         # if mapping_fh is not None:
         #     mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
+    elif ((method == 'PATCH') and (request_return.status_code == 202)):
+        pass
     elif ((method == 'DELETE') and (request_return.status_code == 204)):
         pass
         # logger.info("%s\t%s\tsuccess", primary_id, url)
