@@ -104,6 +104,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     remap_keys['MODReferenceTypes'] = 'mod_reference_types'
     remap_keys['plainLanguageAbstract'] = 'plain_language_abstract'
     remap_keys['pubmedAbstractLanguages'] = 'pubmed_abstract_languages'
+    remap_keys['publicationStatus'] = 'pubmed_publication_status'
 
     subkeys_to_remove = dict()
     remap_subkeys = dict()
