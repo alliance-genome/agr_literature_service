@@ -231,6 +231,10 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
     # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
     base_path = environ.get('XML_PATH')
+    api_port = environ.get('API_PORT')    # noqa: F841
+
+    token = get_authentication_token()
+    headers = generate_headers(token)
 
     mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB']
     if input_mod in mods:
@@ -238,6 +242,9 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
     xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref()
     pmids_not_found = load_pmids_not_found()
+
+    # live_changes = False
+    live_changes = True
 
 #     # test data structure content
 #     for prefix in xref_ref:
@@ -294,6 +301,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     sanitized_report_filename = base_path + 'report_files/sanitized_updates'
     fh_mod_report.setdefault('sanitized', open(sanitized_report_filename, 'w'))
 
+    xref_to_pages = dict()
     for mod in sorted(files_to_process):
         for filename in sorted(files_to_process[mod]):
             logger.info(filename)
@@ -320,6 +328,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     for cross_reference in entry['crossReferences']:
                         if "id" in cross_reference:
                             xrefs.append(cross_reference["id"])
+                            if "pages" in cross_reference:
+                                xref_to_pages[cross_reference["id"]] = cross_reference["pages"]
                 if entry['primaryId'] not in xrefs:
                     xrefs.append(entry['primaryId'])
                 for cross_reference in xrefs:
@@ -441,20 +451,26 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                 # logger.info("Notify curator %s %s has multiple identifiers from dqms %s", agr, prefix, conflict_string)
                 fh_mod_report[mod].write("%s %s has multiple identifiers from dqms %s\n" % (agr, prefix, conflict_string))
             elif len(xrefs_to_add[agr][prefix]) == 1:
-                for _ident in xrefs_to_add[agr][prefix]:
-                    # logger.info("Action : add validated dqm xref %s %s to agr %s", prefix, ident, agr)
-                    pass
-                    # TODO   create new xref
+                for ident in xrefs_to_add[agr][prefix]:
+                    xref_id = prefix + ':' + ident
+                    new_entry = dict()
+                    new_entry["curie"] = xref_id
+                    new_entry["reference_curie"] = agr
+                    if xref_id in xref_to_pages:
+                        new_entry["pages"] = xref_to_pages[xref_id]
+                    # logger.info("add validated dqm xref %s s to agr %s", xref_id, agr)
+                    # url = 'http://localhost:' + api_port + '/cross_reference/'
+                    # headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
 
     # these take hours for each mod, process about 200 references per minute
-    # update_db_entries(aggregate_mod_reference_types_only, 'mod_reference_types_only')
-    update_db_entries(aggregate_mod_biblio_all, 'mod_biblio_all')
+    headers = update_db_entries(headers, aggregate_mod_reference_types_only, live_changes, 'mod_reference_types_only')
+    headers = update_db_entries(headers, aggregate_mod_biblio_all, live_changes, 'mod_biblio_all')
     for mod in fh_mod_report:
         fh_mod_report[mod].close()
     fh_mod_report['sanitized'].close()
 
 
-def update_db_entries(entries, processing_flag):      # noqa: C901
+def update_db_entries(headers, entries, live_changes, processing_flag):      # noqa: C901
     """
     Take a dict of Alliance Reference curies and DQM MODReferenceTypes to compare against data stored in DB and update to match DQM data.
 
@@ -480,6 +496,7 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
     remap_keys['plainLanguageAbstract'] = 'plain_language_abstract'
     remap_keys['pubmedAbstractLanguages'] = 'pubmed_abstract_languages'
     remap_keys['publicationStatus'] = 'pubmed_publication_status'
+
     # MODReferenceTypes and allianceCategory cannot be auto converted from camel to snake, so have two lists
     # fields_simple_snake = ['title', 'category', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issue_name', 'issue_date', 'date_published', 'date_last_modified']
     fields_simple_camel = ['title', 'allianceCategory', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issueName', 'issueDate', 'datePublished', 'dateLastModified']
@@ -497,16 +514,14 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
     #     # post_return = requests.post(url, headers=headers, json=new_entry)
     # else:
     #     token = update_token()
-    token = get_authentication_token()
-    headers = generate_headers(token)
+    # token = get_authentication_token()
+    # headers = generate_headers(token)
 
     counter = 0
     # max_counter = 10000000
     # max_counter = 150
     max_counter = 1
 
-    # live_changes = False
-    live_changes = True
     for agr in entries:
         counter = counter + 1
         if counter > max_counter:
@@ -521,6 +536,7 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
         dqm_entry = entries[agr]
 
         if processing_flag == 'mod_biblio_all':
+            # for debugging changes
             # dqm_entry_text = json.dumps(dqm_entry, indent=4)
             # db_entry_text = json.dumps(db_entry, indent=4)
             # print('db ')
@@ -528,8 +544,6 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
             # print('dqm ')
             # print(dqm_entry_text)
 
-            # fields_simple_snake = ['title', 'category', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issue_name', 'issue_date', 'date_published', 'date_last_modified'];
-            # fields_simple_camel = ['title', 'allianceCategory', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issueName', 'issueDate', 'datePublished', 'dateLastModified'];
             update_json = dict()
             for field_camel in fields_simple_camel:
                 field_snake = field_camel
@@ -546,104 +560,130 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
                 if dqm_value != db_value:
                     logger.info("patch %s field %s from db %s to dqm %s", agr, field_snake, db_value, dqm_value)
                     update_json[field_snake] = dqm_value
-            update_text = json.dumps(update_json, indent=4)
-            print('update ' + update_text)
-            if live_changes:
-                api_response_tuple = process_api_request('PATCH', url, headers, update_json, agr, None, None)    # noqa: F841
-                headers = api_response_tuple[0]
-                response_text = api_response_tuple[1]
-                response_status_code = api_response_tuple[2]
-                log_info = api_response_tuple[3]
-                if log_info:
-                    logger.info(log_info)
-                if response_status_code == 202:
-                    response_dict = json.loads(response_text)
-                    response_dict = str(response_dict).replace('"', '')
-                    logger.info("%s\t%s", agr, response_dict)
+            if update_json:
+                # for debugging changes
+                # update_text = json.dumps(update_json, indent=4)
+                # print('update ' + update_text)
+                headers = generic_api_patch(live_changes, url, headers, update_json, agr, None, None)
 
-        if processing_flag == 'mod_reference_types_only':
-            # dqm_mod_ref_types = entries[agr]
-            dqm_mod_ref_types = []
-            if 'MODReferenceTypes' in dqm_entry:
-                dqm_mod_ref_types = dqm_entry['MODReferenceTypes']
-            dqm_mrt_data = dict()
-            for mrt in dqm_mod_ref_types:
-                source = mrt['source']
-                ref_type = mrt['referenceType']
-                if source not in dqm_mrt_data:
-                    dqm_mrt_data[source] = []
-                dqm_mrt_data[source].append(ref_type)
+        # always update mod reference types, whether 'mod_reference_types_only' or 'mod_biblio_all'
+        headers = update_mod_reference_types(live_changes, headers, agr, dqm_entry, db_entry)
 
-            db_mod_ref_types = []
-            if 'mod_reference_types' in response_dict:
-                db_mod_ref_types = response_dict['mod_reference_types']
+    return headers
 
-            # for debugging changes
-            # dqm_mod_ref_types_json = json.dumps(dqm_mod_ref_types, indent=4)
-            # db_mod_ref_types_json = json.dumps(db_mod_ref_types, indent=4)
-            # logger.info("Action : aggregate PMID mod data %s was %s now %s", agr, db_mod_ref_types_json, dqm_mod_ref_types_json)
 
-            db_mrt_data = dict()
-            for mrt in db_mod_ref_types:
-                source = mrt['source']
-                ref_type = mrt['reference_type']
-                mrt_id = mrt['mod_reference_type_id']
-                if source not in db_mrt_data:
-                    db_mrt_data[source] = dict()
-                db_mrt_data[source][ref_type] = mrt_id
+def update_mod_reference_types(live_changes, headers, agr, dqm_entry, db_entry):
+    api_port = environ.get('API_PORT')
+    dqm_mod_ref_types = []
+    if 'MODReferenceTypes' in dqm_entry:
+        dqm_mod_ref_types = dqm_entry['MODReferenceTypes']
+    dqm_mrt_data = dict()
+    for mrt in dqm_mod_ref_types:
+        source = mrt['source']
+        ref_type = mrt['referenceType']
+        if source not in dqm_mrt_data:
+            dqm_mrt_data[source] = []
+        dqm_mrt_data[source].append(ref_type)
 
-            # try AGR:AGR-Reference-0000382879	WBPaper00000292
-            for mod in dqm_mrt_data:
-                lc_dqm = [x.lower() for x in dqm_mrt_data[mod]]
+    db_mod_ref_types = []
+    if 'mod_reference_types' in db_entry:
+        db_mod_ref_types = db_entry['mod_reference_types']
+
+    # for debugging changes
+    # dqm_mod_ref_types_json = json.dumps(dqm_mod_ref_types, indent=4)
+    # db_mod_ref_types_json = json.dumps(db_mod_ref_types, indent=4)
+    # logger.info("Action : aggregate PMID mod data %s was %s now %s", agr, db_mod_ref_types_json, dqm_mod_ref_types_json)
+
+    db_mrt_data = dict()
+    for mrt in db_mod_ref_types:
+        source = mrt['source']
+        ref_type = mrt['reference_type']
+        logger.info("db source %s ref_type %s", source, ref_type)
+        mrt_id = mrt['mod_reference_type_id']
+        if source not in db_mrt_data:
+            db_mrt_data[source] = dict()
+        db_mrt_data[source][ref_type] = mrt_id
+
+    # live_changes = False
+    # try AGR:AGR-Reference-0000382879	WBPaper00000292
+    for mod in dqm_mrt_data:
+        lc_dqm = [x.lower() for x in dqm_mrt_data[mod]]
+        for dqm_mrt in dqm_mrt_data[mod]:
+            create_it = True
+            if mod in db_mrt_data:
+                for db_mrt in db_mrt_data[mod]:
+                    if db_mrt.lower() in lc_dqm:
+                        create_it = False
+            if create_it:
+                logger.info("add %s %s to %s", mod, dqm_mrt, agr)
+                url = 'http://localhost:' + api_port + '/reference/mod_reference_type/'
+                new_entry = dict()
+                new_entry["reference_type"] = dqm_mrt
+                new_entry["source"] = mod
+                new_entry["reference_curie"] = agr
+                headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
+                # # process_post_tuple = process_post('POST', url, headers, new_entry, agr, mapping_fh, error_fh)    # noqa: F841
+        if mod in db_mrt_data:
+            lc_db_dict = {x.lower(): x for x in db_mrt_data[mod]}
+            lc_db = set(lc_db_dict.keys())
+            for db_mrt in db_mrt_data[mod]:
+                delete_it = True
                 for dqm_mrt in dqm_mrt_data[mod]:
-                    create_it = True
-                    if mod in db_mrt_data:
-                        for db_mrt in db_mrt_data[mod]:
-                            if db_mrt.lower() in lc_dqm:
-                                create_it = False
-                    if create_it:
-                        logger.info("add %s %s to %s", mod, dqm_mrt, agr)
-                        url = 'http://localhost:' + api_port + '/reference/mod_reference_type/'
-                        new_entry = dict()
-                        new_entry["reference_type"] = dqm_mrt
-                        new_entry["source"] = mod
-                        new_entry["reference_curie"] = agr
-                        # # process_post_tuple = process_post('POST', url, headers, new_entry, agr, mapping_fh, error_fh)    # noqa: F841
-                        if live_changes:
-                            api_response_tuple = process_api_request('POST', url, headers, new_entry, agr, None, None)    # noqa: F841
-                            headers = api_response_tuple[0]
-                            response_text = api_response_tuple[1]
-                            response_status_code = api_response_tuple[2]
-                            log_info = api_response_tuple[3]
-                            if log_info:
-                                logger.info(log_info)
-                            if response_status_code == 201:
-                                response_dict = json.loads(response_text)
-                                response_dict = str(response_dict).replace('"', '')
-                                logger.info("%s\t%s", agr, response_dict)
-                if mod in db_mrt_data:
-                    lc_db_dict = {x.lower(): x for x in db_mrt_data[mod]}
-                    lc_db = set(lc_db_dict.keys())
-                    for db_mrt in db_mrt_data[mod]:
-                        delete_it = True
-                        for dqm_mrt in dqm_mrt_data[mod]:
-                            if dqm_mrt.lower() in lc_db:
-                                delete_it = False
-                        if delete_it:
-                            mod_reference_type_id = str(db_mrt_data[mod][db_mrt])
-                            logger.info("remove %s %s from %s via %s", mod, db_mrt, agr, mod_reference_type_id)
-                            url = 'http://localhost:' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
-                            # # process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
-                            if live_changes:
-                                api_response_tuple = process_api_request('DELETE', url, headers, new_entry, agr, None, None)    # noqa: F841
-                                headers = api_response_tuple[0]
-                                response_text = api_response_tuple[1]
-                                response_status_code = api_response_tuple[2]
-                                log_info = api_response_tuple[3]
-                                if log_info:
-                                    logger.info(log_info)
-                                if response_status_code == 204:
-                                    logger.info("%s\t%s\tdelete success", agr, url)
+                    if dqm_mrt.lower() in lc_db:
+                        delete_it = False
+                if delete_it:
+                    mod_reference_type_id = str(db_mrt_data[mod][db_mrt])
+                    logger.info("remove %s %s from %s via %s", mod, db_mrt, agr, mod_reference_type_id)
+                    url = 'http://localhost:' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
+                    headers = generic_api_delete(live_changes, url, headers, None, agr, None, None)
+                    # # process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
+    return headers
+
+
+def generic_api_post(live_changes, url, headers, new_entry, agr, mapping_fh, error_fh):
+    if live_changes:
+        api_response_tuple = process_api_request('POST', url, headers, new_entry, agr, mapping_fh, error_fh)
+        headers = api_response_tuple[0]
+        response_text = api_response_tuple[1]
+        response_status_code = api_response_tuple[2]
+        log_info = api_response_tuple[3]
+        if log_info:
+            logger.info(log_info)
+        if response_status_code == 201:
+            response_dict = json.loads(response_text)
+            response_dict = str(response_dict).replace('"', '')
+            logger.info("%s\t%s", agr, response_dict)
+    return headers
+
+
+def generic_api_patch(live_changes, url, headers, update_json, agr, mapping_fh, error_fh):
+    if live_changes:
+        api_response_tuple = process_api_request('PATCH', url, headers, update_json, agr, mapping_fh, error_fh)
+        headers = api_response_tuple[0]
+        response_text = api_response_tuple[1]
+        response_status_code = api_response_tuple[2]
+        log_info = api_response_tuple[3]
+        if log_info:
+            logger.info(log_info)
+        if response_status_code == 202:
+            response_dict = json.loads(response_text)
+            response_dict = str(response_dict).replace('"', '')
+            logger.info("%s\t%s", agr, response_dict)
+    return headers
+
+
+def generic_api_delete(live_changes, url, headers, json_data, agr, mapping_fh, error_fh):
+    if live_changes:
+        api_response_tuple = process_api_request('DELETE', url, headers, json_data, agr, mapping_fh, error_fh)
+        headers = api_response_tuple[0]
+        response_text = api_response_tuple[1]    # noqa: F841
+        response_status_code = api_response_tuple[2]
+        log_info = api_response_tuple[3]
+        if log_info:
+            logger.info(log_info)
+        if response_status_code == 204:
+            logger.info("%s\t%s\tdelete success", agr, url)
+    return headers
 
 
 # get rid of this if process_api_request works on a full run
