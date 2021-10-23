@@ -9,7 +9,7 @@ from os import environ, path, listdir, makedirs
 import logging
 import logging.config
 
-from helper_post_to_api import generate_headers, update_token
+from helper_post_to_api import generate_headers, get_authentication_token, process_api_request
 
 from dotenv import load_dotenv
 
@@ -18,6 +18,8 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
+
+# Attention Paulo: I'm actively making changes to this script, testing it, and cleaning it up
 
 # pipenv run python sort_dqm_json_reference_updates.py -f dqm_data -m WB
 
@@ -446,7 +448,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     # TODO   create new xref
 
     # these take hours for each mod, process about 200 references per minute
-    # update_db_entries(aggregate_mod_reference_types_only, 'mod_reference_types_only')
+    update_db_entries(aggregate_mod_reference_types_only, 'mod_reference_types_only')
     # update_db_entries(aggregate_mod_biblio_all, 'mod_biblio_all')     # TODO sort this out
     for mod in fh_mod_report:
         fh_mod_report[mod].close()
@@ -463,16 +465,17 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
     :return:
     """
     api_port = environ.get('API_PORT')
-    base_path = environ.get('XML_PATH')
-    okta_file = base_path + 'okta_token'
-    token = ''
-    if path.isfile(okta_file):
-        with open(okta_file, 'r') as okta_fh:
-            token = okta_fh.read().replace("\n", "")
-            okta_fh.close
-        # post_return = requests.post(url, headers=headers, json=new_entry)
-    else:
-        token = update_token()
+    # base_path = environ.get('XML_PATH')
+    # okta_file = base_path + 'okta_token'
+    # token = ''
+    # if path.isfile(okta_file):
+    #     with open(okta_file, 'r') as okta_fh:
+    #         token = okta_fh.read().replace("\n", "")
+    #         okta_fh.close
+    #     # post_return = requests.post(url, headers=headers, json=new_entry)
+    # else:
+    #     token = update_token()
+    token = get_authentication_token()
     headers = generate_headers(token)
 
     counter = 0
@@ -480,8 +483,8 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
     # max_counter = 150
     # max_counter = 3
 
-    mapping_fh = None
-    error_fh = None
+    # live_changes = False
+    live_changes = True
     for agr in entries:
         counter = counter + 1
         if counter > max_counter:
@@ -542,7 +545,19 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
                         new_entry["reference_type"] = dqm_mrt
                         new_entry["source"] = mod
                         new_entry["reference_curie"] = agr
-                        # process_post_tuple = process_post('POST', url, headers, new_entry, agr, mapping_fh, error_fh)    # noqa: F841
+                        # # process_post_tuple = process_post('POST', url, headers, new_entry, agr, mapping_fh, error_fh)    # noqa: F841
+                        if live_changes:
+                            api_response_tuple = process_api_request('POST', url, headers, new_entry, agr, None, None)    # noqa: F841
+                            headers = api_response_tuple[0]
+                            response_text = api_response_tuple[1]
+                            response_status_code = api_response_tuple[2]
+                            log_info = api_response_tuple[3]
+                            if log_info:
+                                logger.info(log_info)
+                            if response_status_code == 201:
+                                response_dict = json.loads(response_text)
+                                response_dict = str(response_dict).replace('"', '')
+                                logger.info("%s\t%s", agr, response_dict)
                 if mod in db_mrt_data:
                     lc_db_dict = {x.lower(): x for x in db_mrt_data[mod]}
                     lc_db = set(lc_db_dict.keys())
@@ -555,74 +570,85 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
                             mod_reference_type_id = str(db_mrt_data[mod][db_mrt])
                             logger.info("remove %s %s from %s via %s", mod, db_mrt, agr, mod_reference_type_id)
                             url = 'http://localhost:' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
-                            # process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
+                            # # process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
+                            if live_changes:
+                                api_response_tuple = process_api_request('DELETE', url, headers, new_entry, agr, None, None)    # noqa: F841
+                                headers = api_response_tuple[0]
+                                response_text = api_response_tuple[1]
+                                response_status_code = api_response_tuple[2]
+                                log_info = api_response_tuple[3]
+                                if log_info:
+                                    logger.info(log_info)
+                                if response_status_code == 204:
+                                    logger.info("%s\t%s\tdelete success", agr, url)
 
 
-def process_post(method, url, headers, json_data, primary_id, mapping_fh, error_fh):
-    """
-    Call API with method, url, headers, optional json of data, agr reference curie, optional mapping filehandle, optional error filehandle
-
-    :param method:
-    :param url:
-    :param headers:
-    :param json_data:
-    :param primary_id:
-    :param mapping_fh:
-    :param error_fh:
-    :return:
-    """
-    # output the json getting posted to the API
-    # json_object = json.dumps(json_data, indent = 4)
-    # print(json_object)
-
-    request_return = requests.request(method, url=url, headers=headers, json=json_data)
-    process_text = str(request_return.text)
-    process_status_code = str(request_return.status_code)
-    # logger.info(primary_id + ' text ' + process_text)
-    # logger.info(primary_id + ' status_code ' + process_status_code)
-
-    response_dict = dict()
-    if not ((method == 'DELETE') and (request_return.status_code == 204)):
-        try:
-            response_dict = json.loads(request_return.text)
-        except ValueError:
-            logger.info("%s\tValueError", primary_id)
-            if error_fh is not None:
-                error_fh.write("ERROR %s primaryId did not return json\n" % (primary_id))
-            return headers, process_text, process_status_code
-
-    if ((method == 'POST') and (request_return.status_code == 201)):
-        response_dict = str(response_dict).replace('"', '')
-        logger.info("%s\t%s", primary_id, response_dict)
-        if mapping_fh is not None:
-            mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
-    elif ((method == 'DELETE') and (request_return.status_code == 204)):
-        logger.info("%s\t%s\tsuccess", primary_id, url)
-    elif (request_return.status_code == 401):
-        logger.info("%s\texpired token", primary_id)
-        if mapping_fh is not None:
-            mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
-        token = update_token()
-        headers = generate_headers(token)
-        process_post_tuple = process_post(method, url, headers, json_data, primary_id, mapping_fh, error_fh)
-        headers = process_post_tuple[0]
-        process_text = process_post_tuple[1]
-        process_status_code = process_post_tuple[2]
-    elif (request_return.status_code == 500):
-        logger.info("%s\tFAILURE", primary_id)
-        if mapping_fh is not None:
-            mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
-    # if redoing a run and want to skip errors of data having already gone in
-    # elif (request_return.status_code == 409):
-    #     continue
-    else:
-        detail = ''
-        if 'detail' in response_dict:
-            detail = response_dict['detail']
-        logger.info("ERROR %s primaryId %s message %s", request_return.status_code, primary_id, detail)
-        if error_fh is not None:
-            error_fh.write("ERROR %s primaryId %s message %s\n" % (request_return.status_code, primary_id, detail))
-    return headers, process_text, process_status_code
+# get rid of this if process_api_request works on a full run
+# def process_post(method, url, headers, json_data, primary_id, mapping_fh, error_fh):
+#     """
+#     Call API with method, url, headers, optional json of data, agr reference curie, optional mapping filehandle, optional error filehandle
+#
+#     :param method:
+#     :param url:
+#     :param headers:
+#     :param json_data:
+#     :param primary_id:
+#     :param mapping_fh:
+#     :param error_fh:
+#     :return:
+#     """
+#     # output the json getting posted to the API
+#     # json_object = json.dumps(json_data, indent = 4)
+#     # print(json_object)
+#
+#     request_return = requests.request(method, url=url, headers=headers, json=json_data)
+#     process_text = str(request_return.text)
+#     process_status_code = str(request_return.status_code)
+#     # logger.info(primary_id + ' text ' + process_text)
+#     # logger.info(primary_id + ' status_code ' + process_status_code)
+#
+#     response_dict = dict()
+#     if not ((method == 'DELETE') and (request_return.status_code == 204)):
+#         try:
+#             response_dict = json.loads(request_return.text)
+#         except ValueError:
+#             logger.info("%s\tValueError", primary_id)
+#             if error_fh is not None:
+#                 error_fh.write("ERROR %s primaryId did not return json\n" % (primary_id))
+#             return headers, process_text, process_status_code
+#
+#     if ((method == 'POST') and (request_return.status_code == 201)):
+#         response_dict = str(response_dict).replace('"', '')
+#         logger.info("%s\t%s", primary_id, response_dict)
+#         if mapping_fh is not None:
+#             mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
+#     elif ((method == 'DELETE') and (request_return.status_code == 204)):
+#         logger.info("%s\t%s\tsuccess", primary_id, url)
+#     elif (request_return.status_code == 401):
+#         logger.info("%s\texpired token", primary_id)
+#         if mapping_fh is not None:
+#             mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
+#         token = update_token()
+#         headers = generate_headers(token)
+#         process_post_tuple = process_post(method, url, headers, json_data, primary_id, mapping_fh, error_fh)
+#         headers = process_post_tuple[0]
+#         process_text = process_post_tuple[1]
+#         process_status_code = process_post_tuple[2]
+#     elif (request_return.status_code == 500):
+#         logger.info("%s\tFAILURE", primary_id)
+#         if mapping_fh is not None:
+#             mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
+#     # if redoing a run and want to skip errors of data having already gone in
+#     # elif (request_return.status_code == 409):
+#     #     continue
+#     else:
+#         detail = ''
+#         if 'detail' in response_dict:
+#             detail = response_dict['detail']
+#         logger.info("ERROR %s primaryId %s message %s", request_return.status_code, primary_id, detail)
+#         if error_fh is not None:
+#             error_fh.write("ERROR %s primaryId %s message %s\n" % (request_return.status_code, primary_id, detail))
+#     return headers, process_text, process_status_code
 
 
 def test_request():
@@ -632,16 +658,16 @@ def test_request():
     :return:
     """
     # api_port = environ.get('API_PORT')
-    base_path = environ.get('XML_PATH')
-    okta_file = base_path + 'okta_token'
-    token = ''
-    if path.isfile(okta_file):
-        with open(okta_file, 'r') as okta_fh:
-            token = okta_fh.read().replace("\n", "")
-            okta_fh.close
-        # post_return = requests.post(url, headers=headers, json=new_entry)
-    else:
-        token = update_token()
+    # okta_file = base_path + 'okta_token'
+    # token = ''
+    # if path.isfile(okta_file):
+    #     with open(okta_file, 'r') as okta_fh:
+    #         token = okta_fh.read().replace("\n", "")
+    #         okta_fh.close
+    #     # post_return = requests.post(url, headers=headers, json=new_entry)
+    # else:
+    #     token = update_token()
+    token = get_authentication_token()
     headers = generate_headers(token)
 
     # create data with post
@@ -656,18 +682,17 @@ def test_request():
     #   "source": "WB",
     #   "reference_curie": "AGR:AGR-Reference-0000605510"
     # }
-    mapping_fh = None
-    error_fh = None
-    process_post_tuple = process_post('POST', url, headers, new_entry, primary_id, mapping_fh, error_fh)
+    api_response_tuple = process_api_request('POST', url, headers, new_entry, primary_id, None, None)
 
     # delete data with delete
     # url = 'http://dev.alliancegenome.org:4003/reference/mod_reference_type/1006053'
-    # process_post_tuple = process_post('DELETE', url, headers, new_entry, primary_id, mapping_fh, error_fh)
+    # api_response_tuple = process_api_request('DELETE', url, headers, new_entry, primary_id, None, None)
 
-    print(process_post_tuple)
-    # headers = process_post_tuple[0]
-    # process_text = process_post_tuple[1]
-    # process_status_code = process_post_tuple[2]
+    print(api_response_tuple)
+    # headers = api_response_tuple[0]
+    # response_text = api_response_tuple[1]
+    # response_status_code = api_response_tuple[2]
+    # log_info = api_response_tuple[3]
 
 
 def test_get_from_list():
