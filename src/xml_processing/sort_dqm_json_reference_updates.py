@@ -448,8 +448,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     # TODO   create new xref
 
     # these take hours for each mod, process about 200 references per minute
-    update_db_entries(aggregate_mod_reference_types_only, 'mod_reference_types_only')
-    # update_db_entries(aggregate_mod_biblio_all, 'mod_biblio_all')     # TODO sort this out
+    # update_db_entries(aggregate_mod_reference_types_only, 'mod_reference_types_only')
+    update_db_entries(aggregate_mod_biblio_all, 'mod_biblio_all')     # TODO sort this out
     for mod in fh_mod_report:
         fh_mod_report[mod].close()
     fh_mod_report['sanitized'].close()
@@ -464,6 +464,27 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
     :param processing_flag:
     :return:
     """
+
+    remap_keys = dict()
+    remap_keys['datePublished'] = 'date_published'
+    remap_keys['dateArrivedInPubmed'] = 'date_arrived_in_pubmed'
+    remap_keys['dateLastModified'] = 'date_last_modified'
+    remap_keys['crossReferences'] = 'cross_references'
+    remap_keys['issueName'] = 'issue_name'
+    remap_keys['issueDate'] = 'issue_date'
+    remap_keys['pubMedType'] = 'pubmed_type'
+    remap_keys['meshTerms'] = 'mesh_terms'
+    remap_keys['allianceCategory'] = 'category'
+    remap_keys['MODReferenceType'] = 'mod_reference_types'
+    remap_keys['MODReferenceTypes'] = 'mod_reference_types'
+    remap_keys['plainLanguageAbstract'] = 'plain_language_abstract'
+    remap_keys['pubmedAbstractLanguages'] = 'pubmed_abstract_languages'
+    remap_keys['publicationStatus'] = 'pubmed_publication_status'
+    # MODReferenceTypes and allianceCategory cannot be auto converted from camel to snake, so have two lists
+    # fields_simple_snake = ['title', 'category', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issue_name', 'issue_date', 'date_published', 'date_last_modified']
+    fields_simple_camel = ['title', 'allianceCategory', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issueName', 'issueDate', 'datePublished', 'dateLastModified']
+    # TODO deal with resource, keywords, tags
+
     api_port = environ.get('API_PORT')
     # base_path = environ.get('XML_PATH')
     # okta_file = base_path + 'okta_token'
@@ -479,12 +500,12 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
     headers = generate_headers(token)
 
     counter = 0
-    max_counter = 10000000
+    # max_counter = 10000000
     # max_counter = 150
-    # max_counter = 3
+    max_counter = 1
 
-    # live_changes = False
-    live_changes = True
+    live_changes = False
+    # live_changes = True
     for agr in entries:
         counter = counter + 1
         if counter > max_counter:
@@ -493,16 +514,57 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
         url = 'http://localhost:' + api_port + '/reference/' + agr
         logger.info("get AGR reference info from database %s", url)
         get_return = requests.get(url)
-        response_dict = json.loads(get_return.text)
+        db_entry = json.loads(get_return.text)
         # logger.info("title %s", response_dict['title'])   # for debugging which reference was found
 
-        entry = entries[agr]
+        dqm_entry = entries[agr]
+
+        if processing_flag == 'mod_biblio_all':
+            # dqm_entry_text = json.dumps(dqm_entry, indent=4)
+            # db_entry_text = json.dumps(db_entry, indent=4)
+            # print('db ')
+            # print(db_entry_text)
+            # print('dqm ')
+            # print(dqm_entry_text)
+
+            # fields_simple_snake = ['title', 'category', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issue_name', 'issue_date', 'date_published', 'date_last_modified'];
+            # fields_simple_camel = ['title', 'allianceCategory', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issueName', 'issueDate', 'datePublished', 'dateLastModified'];
+            update_json = dict()
+            for field_camel in fields_simple_camel:
+                field_snake = field_camel
+                if field_camel in remap_keys:
+                    field_snake = remap_keys[field_camel]
+                dqm_value = None
+                db_value = None
+                if field_camel in dqm_entry:
+                    dqm_value = dqm_entry[field_camel]
+                    if field_snake == 'category':
+                        dqm_value = dqm_value.lower().replace(" ", "_")
+                if field_snake in db_entry:
+                    db_value = db_entry[field_snake]
+                if dqm_value != db_value:
+                    logger.info("patch %s field %s from db %s to dqm %s", agr, field_snake, db_value, dqm_value)
+                    update_json[field_snake] = dqm_value
+            update_text = json.dumps(update_json, indent=4)
+            print('update ' + update_text)
+            if live_changes:
+                api_response_tuple = process_api_request('PATCH', url, headers, update_json, agr, None, None)    # noqa: F841
+                headers = api_response_tuple[0]
+                response_text = api_response_tuple[1]
+                response_status_code = api_response_tuple[2]
+                log_info = api_response_tuple[3]
+                if log_info:
+                    logger.info(log_info)
+                if response_status_code == 202:
+                    response_dict = json.loads(response_text)
+                    response_dict = str(response_dict).replace('"', '')
+                    logger.info("%s\t%s", agr, response_dict)
 
         if processing_flag == 'mod_reference_types_only':
             # dqm_mod_ref_types = entries[agr]
             dqm_mod_ref_types = []
-            if 'MODReferenceTypes' in entry:
-                dqm_mod_ref_types = entry['MODReferenceTypes']
+            if 'MODReferenceTypes' in dqm_entry:
+                dqm_mod_ref_types = dqm_entry['MODReferenceTypes']
             dqm_mrt_data = dict()
             for mrt in dqm_mod_ref_types:
                 source = mrt['source']
