@@ -9,6 +9,8 @@ from os import environ, path, makedirs
 import logging
 import logging.config
 
+from helper_file_processing import split_identifier, write_json
+
 from dotenv import load_dotenv
 
 import bs4
@@ -57,35 +59,35 @@ args = vars(parser.parse_args())
 base_path = environ.get('XML_PATH')
 
 
-def split_identifier(identifier, ignore_error=False):
-    """
-    Split Identifier
-
-    Does not throw exception anymore. Check return, if None returned, there was an error
-
-    :param identifier:
-    :param ignore_error:
-    :return:
-    """
-
-    prefix = None
-    identifier_processed = None
-    separator = None
-
-    if ':' in identifier:
-        prefix, identifier_processed = identifier.split(':', 1)  # Split on the first occurrence
-        separator = ':'
-    elif '-' in identifier:
-        prefix, identifier_processed = identifier.split('-', 1)  # Split on the first occurrence
-        separator = '-'
-    else:
-        if not ignore_error:
-            logger.critical('Identifier does not contain \':\' or \'-\' characters.')
-            logger.critical('Splitting identifier is not possible.')
-            logger.critical('Identifier: %s', identifier)
-        prefix = identifier_processed = separator = None
-
-    return prefix, identifier_processed, separator
+# def split_identifier(identifier, ignore_error=False):
+#     """
+#     Split Identifier
+#
+#     Does not throw exception anymore. Check return, if None returned, there was an error
+#
+#     :param identifier:
+#     :param ignore_error:
+#     :return:
+#     """
+#
+#     prefix = None
+#     identifier_processed = None
+#     separator = None
+#
+#     if ':' in identifier:
+#         prefix, identifier_processed = identifier.split(':', 1)  # Split on the first occurrence
+#         separator = ':'
+#     elif '-' in identifier:
+#         prefix, identifier_processed = identifier.split('-', 1)  # Split on the first occurrence
+#         separator = '-'
+#     else:
+#         if not ignore_error:
+#             logger.critical('Identifier does not contain \':\' or \'-\' characters.')
+#             logger.critical('Splitting identifier is not possible.')
+#             logger.critical('Identifier: %s', identifier)
+#         prefix = identifier_processed = separator = None
+#
+#     return prefix, identifier_processed, separator
 
 
 def generate_pmid_data():      # noqa: C901
@@ -295,22 +297,22 @@ def chunks(list, size):
         yield list[i:i + size]
 
 
-def write_json(json_filename, dict_to_output):
-    """
-
-    :param json_filename:
-    :param dict_to_output:
-    :return:
-    """
-
-    with open(json_filename, "w") as json_file:
-        logger.info("Generating JSON for %s", json_filename)
-        json_data = json.dumps(dict_to_output, indent=4, sort_keys=True)
-#         logger.info("Writing JSON")
-        json_file.write(json_data)
-#         logger.info("Closing JSON file")
-        json_file.close()
-#         logger.info("Done with JSON")
+# def write_json(json_filename, dict_to_output):
+#     """
+#
+#     :param json_filename:
+#     :param dict_to_output:
+#     :return:
+#     """
+#
+#     with open(json_filename, "w") as json_file:
+#         logger.info("Generating JSON for %s", json_filename)
+#         json_data = json.dumps(dict_to_output, indent=4, sort_keys=True)
+# #         logger.info("Writing JSON")
+#         json_file.write(json_data)
+# #         logger.info("Closing JSON file")
+#         json_file.close()
+# #         logger.info("Done with JSON")
 
 
 def populate_expected_cross_reference_type():
