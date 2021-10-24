@@ -19,11 +19,22 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
 
-# Attention Paulo: I'm actively making changes to this script, testing it, and cleaning it up
-
 # pipenv run python sort_dqm_json_reference_updates.py -f dqm_data -m WB
 
 # pipenv run python sort_dqm_json_reference_updates.py -f dqm_data -m all > asdf_sanitized
+
+# first run  get_datatypes_cross_references.py  to generate mappings from references to xrefs and resources to xrefs
+
+# Attention Paulo: I'm actively making changes to this script, testing it, and cleaning it up
+
+# Workflow for DQM updates
+# 1 - run get_datatypes_cross_references.py  to generate mappings from references to xrefs and resources to xrefs
+# 2 - Get pubmed nlm resources with generate_pubmed_nlm_resource.py
+# 3 - TODO new script - compare pubmed resources with database resources-xref, update existing, create new ones
+# 4 - TODO new script - compare MOD (FB/ZFIN) resources with database, update existing, create new ones, update FB_resourceAbbreviation_to_NLM
+# 5 - generate new mappings from resources to xrefs (get_datatypes_cross_references.py)
+# 6 - run this script to update reference cross references, report to curators, update mod-specific references - TODO update reference-resource connections, generate dqm files for creating new references
+# 7 - create new references off of dqm references that are completely new through the get_pubmed_xml -> xml_to_json -> parse_dqm_json_reference pipeline (TODO check how it interacts with updates to FB_resourceAbbreviation_to_NLM)
 
 
 # When new data comes from DQMs, how do we update, possible cases
