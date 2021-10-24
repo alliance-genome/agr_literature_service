@@ -243,8 +243,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref()
     pmids_not_found = load_pmids_not_found()
 
-    # live_changes = False
-    live_changes = True
+    live_changes = False
+    # live_changes = True
 
 #     # test data structure content
 #     for prefix in xref_ref:
@@ -458,12 +458,13 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     new_entry["reference_curie"] = agr
                     if xref_id in xref_to_pages:
                         new_entry["pages"] = xref_to_pages[xref_id]
+                    # uncomment to process and log new xrefs
                     # logger.info("add validated dqm xref %s s to agr %s", xref_id, agr)
                     # url = 'http://localhost:' + api_port + '/cross_reference/'
                     # headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
 
     # these take hours for each mod, process about 200 references per minute
-    headers = update_db_entries(headers, aggregate_mod_reference_types_only, live_changes, 'mod_reference_types_only')
+    # headers = update_db_entries(headers, aggregate_mod_reference_types_only, live_changes, 'mod_reference_types_only')
     headers = update_db_entries(headers, aggregate_mod_biblio_all, live_changes, 'mod_biblio_all')
     for mod in fh_mod_report:
         fh_mod_report[mod].close()
@@ -518,9 +519,9 @@ def update_db_entries(headers, entries, live_changes, processing_flag):      # n
     # headers = generate_headers(token)
 
     counter = 0
-    # max_counter = 10000000
+    max_counter = 10000000
     # max_counter = 150
-    max_counter = 1
+    # max_counter = 1
 
     for agr in entries:
         counter = counter + 1
@@ -598,7 +599,6 @@ def update_mod_reference_types(live_changes, headers, agr, dqm_entry, db_entry):
     for mrt in db_mod_ref_types:
         source = mrt['source']
         ref_type = mrt['reference_type']
-        logger.info("db source %s ref_type %s", source, ref_type)
         mrt_id = mrt['mod_reference_type_id']
         if source not in db_mrt_data:
             db_mrt_data[source] = dict()
