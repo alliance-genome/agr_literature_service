@@ -8,7 +8,7 @@ import logging.config
 
 from helper_post_to_api import generate_headers, update_token, get_authentication_token
 
-# pipenv run python get_references_cross_references.py
+# pipenv run python get_datatypes_cross_references.py
 
 # about 1 minute 13 seconds to generate file with cross_references and is_obsolete
 # about 45 seconds to generate file when it only had cross_references without is_obsolete
@@ -30,14 +30,6 @@ def update_cross_references_file(datatype):
     api_port = environ.get('API_PORT')
     base_path = environ.get('XML_PATH')
 
-    # okta_file = base_path + 'okta_token'
-    # token = ''
-    # if path.isfile(okta_file):
-    #     with open(okta_file, 'r') as okta_fh:
-    #         token = okta_fh.read().replace("\n", "")
-    #         okta_fh.close
-    # else:
-    #     token = update_token()
     token = get_authentication_token()
     headers = generate_headers(token)
 
@@ -49,13 +41,11 @@ def update_cross_references_file(datatype):
         headers = generate_headers(token)
         post_return = requests.get(url, headers=headers)
 
-    key = 'cross_' + datatype + 's'
     response_array = json.loads(post_return.text)
     mapping_output = ''
     for entry in response_array:
         curie = entry['curie']
-        # xref_array = entry['cross_references']   # adam will probably make this the key instead of changing per datatype
-        xref_array = entry[key]
+        xref_array = entry['cross_references']
         for xref_dict in xref_array:
             if xref_dict is not None:
                 flag = 'valid'
@@ -78,7 +68,7 @@ if __name__ == "__main__":
     call main start function
     """
 
-    update_cross_references_file('reference')
+    # update_cross_references_file('reference')
     update_cross_references_file('resource')
 
     logger.info("Done Processing")
