@@ -186,13 +186,13 @@ def post_references(input_file, check_file_flag):      # noqa: C901
             # logger.info("opening file\t%s", filepath)
             f = open(filepath)
             reference_data = json.load(f)
-            counter = 0
+            # counter = 0
             for entry in reference_data:
 
                 # only take a couple of sample from each file for testing
-                counter += 1
-                if counter > 2:
-                    break
+                # counter += 1
+                # if counter > 2:
+                #     break
 
                 # output what we get from the file before converting for the API
                 # json_object = json.dumps(entry, indent=4)
