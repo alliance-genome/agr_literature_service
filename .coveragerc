@@ -1,5 +1,5 @@
 [run]
-source = best_practices
+source = backend
 
 [report]
 exclude_lines =
