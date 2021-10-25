@@ -100,7 +100,7 @@ def show_all_resources_external_ids(db: Session):
         .group_by(ResourceModel.curie)
 
     return [{'curie': resource[0],
-             'cross_resources': [{'curie': resource[1][idx],
+             'cross_references': [{'curie': resource[1][idx],
                                    'is_obsolete': resource[2][idx]}
                                   for idx in range(len(resource[1]))]}
             for resource in resources_query.all()]
