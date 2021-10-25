@@ -1,11 +1,11 @@
 import json
-import requests
+# import requests
 from os import environ, path
 import logging
 import logging.config
 # from datetime import datetime
 
-from helper_post_to_api import generate_headers, update_token
+from helper_post_to_api import generate_headers, get_authentication_token, process_api_request
 
 from dotenv import load_dotenv
 
@@ -19,8 +19,6 @@ logger = logging.getLogger('literature logger')
 
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
-
-okta_file = base_path + 'okta_token'
 
 # resource_fields = ['primaryId', 'nlm', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
 # resource_fields_from_pubmed = ['title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
@@ -80,13 +78,15 @@ def post_resources():      # noqa: C901
 #         'Accept': 'application/json'
 #     }
 
-    token = ''
-    if path.isfile(okta_file):
-        with open(okta_file, 'r') as okta_fh:
-            token = okta_fh.read().replace("\n", "")
-            okta_fh.close
-    else:
-        token = update_token()
+    # token = ''
+    # okta_file = base_path + 'okta_token'
+    # if path.isfile(okta_file):
+    #     with open(okta_file, 'r') as okta_fh:
+    #         token = okta_fh.read().replace("\n", "")
+    #         okta_fh.close
+    # else:
+    #     token = update_token()
+    token = get_authentication_token()
     headers = generate_headers(token)
 
     resource_primary_id_to_curie_file = base_path + 'resource_primary_id_to_curie'
@@ -170,23 +170,26 @@ def post_resources():      # noqa: C901
                 #             xref['curie'] = str(datetime.now())
                 # new_entry['iso_abbreviation'] = str(datetime.now())
 
-                post_return = requests.post(url, headers=headers, json=new_entry)
-                response_dict = json.loads(post_return.text)
+                api_response_tuple = process_api_request('POST', url, headers, new_entry, primary_id, None, None)
+                headers = api_response_tuple[0]
+                response_text = api_response_tuple[1]
+                response_status_code = api_response_tuple[2]
+                log_info = api_response_tuple[3]
+                response_dict = json.loads(response_text)
 
-                print(primary_id + "\ttext " + str(post_return.text))
-                print(primary_id + "\tstatus_code " + str(post_return.status_code))
+                # print(primary_id + "\ttext " + str(response_text))
+                # print(primary_id + "\tstatus_code " + str(response_status_code))
+                if log_info:
+                    logger.info(log_info)
 
-                if post_return.status_code == 201:
+                if response_status_code == 201:
                     response_dict = response_dict.replace('"', '')
                     for identifier in identifiers:
-                        logger.info("I %s\t%s", identifier, response_dict)
+                        logger.info("%s\t%s", identifier, response_dict)
                         mapping_fh.write("%s\t%s\n" % (identifier, response_dict))
-                # if making multiple runs on data that has already gone into api
-                # elif (post_return.status_code == 409):
-                #     continue
                 else:
-                    logger.info("ERROR %s primaryId %s message %s", post_return.status_code, primary_id, response_dict['detail'])
-                    error_fh.write("ERROR %s primaryId %s message %s\n" % (post_return.status_code, primary_id, response_dict['detail']))
+                    logger.info("api error %s primaryId %s message %s", str(response_status_code), primary_id, response_dict['detail'])
+                    error_fh.write("api error %s primaryId %s message %s\n" % (str(response_status_code), primary_id, response_dict['detail']))
 
                 # to debug json after changes that was sent to api
                 # json_object = json.dumps(new_entry, indent = 4)

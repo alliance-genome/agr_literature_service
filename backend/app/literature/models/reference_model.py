@@ -14,6 +14,7 @@ from sqlalchemy.orm import relationship
 from literature.database.base import Base
 
 from literature.schemas import ReferenceCategory
+from literature.schemas import PubMedPublicationStatus
 
 
 class ReferenceModel(Base):
@@ -216,6 +217,12 @@ class ReferenceModel(Base):
 
     category = Column(
         Enum(ReferenceCategory),
+        unique=False,
+        nullable=True
+    )
+
+    pubmed_publication_status = Column(
+        Enum(PubMedPublicationStatus),
         unique=False,
         nullable=True
     )

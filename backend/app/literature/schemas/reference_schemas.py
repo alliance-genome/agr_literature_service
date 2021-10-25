@@ -9,6 +9,7 @@ from literature.schemas import AuthorSchemaShow
 from literature.schemas import EditorSchemaPost
 from literature.schemas import EditorSchemaShow
 from literature.schemas import ReferenceCategory
+from literature.schemas import PubMedPublicationStatus
 from literature.schemas import ModReferenceTypeSchemaCreate
 from literature.schemas import ModReferenceTypeSchemaRelated
 from literature.schemas import ReferenceTag
@@ -31,6 +32,7 @@ class ReferenceSchemaPost(BaseModel):
     volume: Optional[str] = None
     plain_language_abstract: Optional[str] = None
     pubmed_abstract_languages: Optional[List[str]] = None
+    pubmed_publication_status: Optional[PubMedPublicationStatus] = None
     language: Optional[str] = None
     pages: Optional[str] = None
     abstract: Optional[str] = None
@@ -81,6 +83,8 @@ class ReferenceSchemaUpdate(BaseModel):
     keywords: Optional[List[str]] = None
     merged_into_reference_curie: Optional[str] = None
     pubmed_type: Optional[List[str]] = None
+    pubmed_abstract_languages: Optional[List[str]] = None
+    pubmed_publication_status: Optional[PubMedPublicationStatus] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     issue_date: Optional[str] = None
@@ -122,6 +126,7 @@ class ReferenceSchemaShow(BaseModelShow):
     volume: Optional[str] = None
     plain_language_abstract: Optional[str] = None
     pubmed_abstract_languages: Optional[List[str]] = None
+    pubmed_publication_status: Optional[PubMedPublicationStatus] = None
     language: Optional[str] = None
     pages: Optional[str] = None
     abstract: Optional[str] = None

@@ -6,9 +6,9 @@ import requests
 import logging
 import logging.config
 
-from helper_post_to_api import generate_headers, update_token
+from helper_post_to_api import generate_headers, update_token, get_authentication_token
 
-# pipenv run python get_references_cross_references.py
+# pipenv run python get_datatypes_cross_references.py
 
 # about 1 minute 13 seconds to generate file with cross_references and is_obsolete
 # about 45 seconds to generate file when it only had cross_references without is_obsolete
@@ -20,26 +20,20 @@ logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('post_comments_corrections_to_api')
 
 
-def update_reference_cross_reference():
+def update_cross_references_file(datatype):
     """
 
+    :param datatype:
     :return:
     """
 
     api_port = environ.get('API_PORT')
     base_path = environ.get('XML_PATH')
 
-    okta_file = base_path + 'okta_token'
-    token = ''
-    if path.isfile(okta_file):
-        with open(okta_file, 'r') as okta_fh:
-            token = okta_fh.read().replace("\n", "")
-            okta_fh.close
-    else:
-        token = update_token()
+    token = get_authentication_token()
     headers = generate_headers(token)
 
-    url = 'http://localhost:' + api_port + '/bulk_download/references/external_ids/'
+    url = 'http://localhost:' + api_port + '/bulk_download/' + datatype + 's/external_ids/'
     post_return = requests.get(url, headers=headers)
 
     if post_return.status_code == 401:
@@ -64,7 +58,7 @@ def update_reference_cross_reference():
                         flag = 'obsolete'
                 mapping_output += curie + '\t' + xref_id + '\t' + flag + '\n'
 
-    ref_xref_file = 'reference_curie_to_xref'
+    ref_xref_file = base_path + datatype + '_curie_to_xref'
     with open(ref_xref_file, "w") as ref_xref_file_fh:
         ref_xref_file_fh.write(mapping_output)
 
@@ -74,6 +68,7 @@ if __name__ == "__main__":
     call main start function
     """
 
-    update_reference_cross_reference()
+    # update_cross_references_file('reference')
+    update_cross_references_file('resource')
 
     logger.info("Done Processing")

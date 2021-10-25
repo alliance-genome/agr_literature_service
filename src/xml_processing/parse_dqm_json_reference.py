@@ -9,6 +9,8 @@ from os import environ, path, makedirs
 import logging
 import logging.config
 
+from helper_file_processing import split_identifier, write_json
+
 from dotenv import load_dotenv
 
 import bs4
@@ -34,6 +36,8 @@ load_dotenv()
 # in 4.5 minutes, logs show it read the last pmid
 # rewrote to split into chunks of 100000 entries by pubmed vs pubmod, MGI now runs in 3.5 minutes (without doing data comparison)
 
+# TODO when creating authors, make sure that  first_author: false, corresponding_author: false  otherwise they get a null, which looks different than false when toggling on/off the flags in the UI
+
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
@@ -55,35 +59,35 @@ args = vars(parser.parse_args())
 base_path = environ.get('XML_PATH')
 
 
-def split_identifier(identifier, ignore_error=False):
-    """
-    Split Identifier
-
-    Does not throw exception anymore. Check return, if None returned, there was an error
-
-    :param identifier:
-    :param ignore_error:
-    :return:
-    """
-
-    prefix = None
-    identifier_processed = None
-    separator = None
-
-    if ':' in identifier:
-        prefix, identifier_processed = identifier.split(':', 1)  # Split on the first occurrence
-        separator = ':'
-    elif '-' in identifier:
-        prefix, identifier_processed = identifier.split('-', 1)  # Split on the first occurrence
-        separator = '-'
-    else:
-        if not ignore_error:
-            logger.critical('Identifier does not contain \':\' or \'-\' characters.')
-            logger.critical('Splitting identifier is not possible.')
-            logger.critical('Identifier: %s', identifier)
-        prefix = identifier_processed = separator = None
-
-    return prefix, identifier_processed, separator
+# def split_identifier(identifier, ignore_error=False):
+#     """
+#     Split Identifier
+#
+#     Does not throw exception anymore. Check return, if None returned, there was an error
+#
+#     :param identifier:
+#     :param ignore_error:
+#     :return:
+#     """
+#
+#     prefix = None
+#     identifier_processed = None
+#     separator = None
+#
+#     if ':' in identifier:
+#         prefix, identifier_processed = identifier.split(':', 1)  # Split on the first occurrence
+#         separator = ':'
+#     elif '-' in identifier:
+#         prefix, identifier_processed = identifier.split('-', 1)  # Split on the first occurrence
+#         separator = '-'
+#     else:
+#         if not ignore_error:
+#             logger.critical('Identifier does not contain \':\' or \'-\' characters.')
+#             logger.critical('Splitting identifier is not possible.')
+#             logger.critical('Identifier: %s', identifier)
+#         prefix = identifier_processed = separator = None
+#
+#     return prefix, identifier_processed, separator
 
 
 def generate_pmid_data():      # noqa: C901
@@ -293,22 +297,22 @@ def chunks(list, size):
         yield list[i:i + size]
 
 
-def write_json(json_filename, dict_to_output):
-    """
-
-    :param json_filename:
-    :param dict_to_output:
-    :return:
-    """
-
-    with open(json_filename, "w") as json_file:
-        logger.info("Generating JSON for %s", json_filename)
-        json_data = json.dumps(dict_to_output, indent=4, sort_keys=True)
-#         logger.info("Writing JSON")
-        json_file.write(json_data)
-#         logger.info("Closing JSON file")
-        json_file.close()
-#         logger.info("Done with JSON")
+# def write_json(json_filename, dict_to_output):
+#     """
+#
+#     :param json_filename:
+#     :param dict_to_output:
+#     :return:
+#     """
+#
+#     with open(json_filename, "w") as json_file:
+#         logger.info("Generating JSON for %s", json_filename)
+#         json_data = json.dumps(dict_to_output, indent=4, sort_keys=True)
+# #         logger.info("Writing JSON")
+#         json_file.write(json_data)
+# #         logger.info("Closing JSON file")
+#         json_file.close()
+# #         logger.info("Done with JSON")
 
 
 def populate_expected_cross_reference_type():
@@ -485,9 +489,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):      # noqa: C901
     # assigns PMID to primaryId and to authors's referenceId.
     # if any reference's author doesn't have author Rank, assign authorRank based on array order.
     cross_ref_no_pages_ok_fields = ['DOI', 'PMID', 'PMC', 'PMCID']
-    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages']
+    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
     # single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher']
-    single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher', 'plainLanguageAbstract', 'pubmedAbstractLanguages']
+    single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
     replace_value_fields = ['authors', 'pubMedType', 'meshTerms']
     # date_fields = ['issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified']
     # datePublished is a string, not a proper date field
@@ -506,16 +510,16 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):      # noqa: C901
     # multiple mods, there's an out-of-memory crash
     pmid_multi_mods = load_pmid_multi_mods()
 
-# UNCOMMENT, put this back
+    # use these two lines to properly load resource data, but it takes a bit of time
     resource_to_nlm, resource_to_nlm_highest, resource_nlm_to_title = load_pubmed_resource()
     resource_to_mod, resource_to_mod_issn_nlm = load_mod_resource(mods, resource_to_nlm)
-#     resource_to_nlm = dict()
-#     resource_to_nlm_highest = dict()
-#     resource_nlm_to_title = dict()
-#     resource_to_mod = dict()
-#     for mod in mods:
-#         resource_to_mod[mod] = dict()
-# UNCOMMENT, put this back
+    # use these six lines to more quickly test other things that don't need resource data
+    # resource_to_nlm = dict()
+    # resource_to_nlm_highest = dict()
+    # resource_nlm_to_title = dict()
+    # resource_to_mod = dict()
+    # for mod in mods:
+    #     resource_to_mod[mod] = dict()
 
     expected_cross_reference_type, exclude_cross_reference_type, pubmed_not_dqm_cross_reference_type = populate_expected_cross_reference_type()
 
@@ -676,6 +680,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):      # noqa: C901
                 if 'authors' in entry:
                     all_authors_have_rank = True
                     for author in entry['authors']:
+                        author['correspondingAuthor'] = False
+                        author['firstAuthor'] = False
                         if 'authorRank' not in author:
                             all_authors_have_rank = False
                     if all_authors_have_rank is False:
@@ -691,6 +697,15 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):      # noqa: C901
                             author['referenceId'] = primary_id
                             authors_updated.append(author)
                         entry['authors'] = authors_updated
+                if 'crossReferences' in entry:
+                    sanitized_cross_references = []
+                    for cross_reference in entry['crossReferences']:
+                        id = cross_reference['id']
+                        prefix, identifier, separator = split_identifier(id)
+                        # cross references came from the mod, but some had a pmid (e.g. 24270275) that is no longer at PubMed, so do not add to cross_references
+                        if prefix.lower() != 'pmid':
+                            sanitized_cross_references.append(cross_reference)
+                    entry['crossReferences'] = sanitized_cross_references
                 if 'resourceAbbreviation' in entry:
                     # journal = entry['resourceAbbreviation'].lower()
                     # if journal not in resource_to_nlm:
@@ -757,6 +772,11 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):      # noqa: C901
                         if pmid_field in pubmed_data:
                             # logger.info("PMID %s pmid_field %s data %s", pmid, pmid_field, pubmed_data[pmid_field])
                             entry[pmid_field] = pubmed_data[pmid_field]
+
+                if 'authors' in entry:
+                    for author in entry['authors']:
+                        author['correspondingAuthor'] = False
+                        author['firstAuthor'] = False
 
                 sanitized_cross_references = []
                 pubmed_xrefs = dict()

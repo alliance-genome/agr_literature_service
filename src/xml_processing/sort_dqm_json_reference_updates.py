@@ -9,7 +9,9 @@ from os import environ, path, listdir, makedirs
 import logging
 import logging.config
 
-from helper_post_to_api import generate_headers, update_token
+from helper_post_to_api import generate_headers, get_authentication_token, process_api_request
+
+from helper_file_processing import load_ref_xref, split_identifier
 
 from dotenv import load_dotenv
 
@@ -22,6 +24,19 @@ load_dotenv()
 # pipenv run python sort_dqm_json_reference_updates.py -f dqm_data -m WB
 
 # pipenv run python sort_dqm_json_reference_updates.py -f dqm_data -m all > asdf_sanitized
+
+# first run  get_datatypes_cross_references.py  to generate mappings from references to xrefs and resources to xrefs
+
+# Attention Paulo: I'm actively making changes to this script, testing it, and cleaning it up
+
+# Workflow for DQM updates
+# 1 - run get_datatypes_cross_references.py  to generate mappings from references to xrefs and resources to xrefs
+# 2 - Get pubmed nlm resources with generate_pubmed_nlm_resource.py
+# 3 - TODO new script - compare pubmed resources with database resources-xref, update existing, create new ones
+# 4 - TODO new script - compare MOD (FB/ZFIN) resources with database, update existing, create new ones, update FB_resourceAbbreviation_to_NLM
+# 5 - generate new mappings from resources to xrefs (get_datatypes_cross_references.py)
+# 6 - run this script to update reference cross references, report to curators, update mod-specific references - TODO update reference-resource connections, generate dqm files for creating new references
+# 7 - create new references off of dqm references that are completely new through the get_pubmed_xml -> xml_to_json -> parse_dqm_json_reference pipeline (TODO check how it interacts with updates to FB_resourceAbbreviation_to_NLM)
 
 
 # When new data comes from DQMs, how do we update, possible cases
@@ -107,6 +122,10 @@ load_dotenv()
 # this ticket https://agr-jira.atlassian.net/browse/AGR-3114
 # When mods send new data that does not have PMID, only update the mod_reference_types. PubMed will update all other info, including alliance category. 'tags' are another field coming only from the mods, but there's no API for updating it, and it will likely be replaced by in/outside corpus when that's implemented AGR-3115 , and the ATP tags SCRUM-529 .
 
+# zfin files at
+# https://zfin.org/downloads/ZFIN_1.0.1.4_Reference.json
+# https://zfin.org/downloads/ZFIN_1.0.1.4_Resource.json
+
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
@@ -121,82 +140,82 @@ parser.add_argument('-m', '--mod', action='store', help='which mod, use all or l
 args = vars(parser.parse_args())
 
 
-def split_identifier(identifier, ignore_error=False):
-    """
+# def split_identifier(identifier, ignore_error=False):
+#     """
+# 
+#     Split Identifier.
+# 
+#     Does not throw exception anymore. Check return, if None returned, there was an error
+# 
+#     :param identifier:
+#     :param ignore_error:
+#     :return:
+#     """
+# 
+#     prefix = None
+#     identifier_processed = None
+#     separator = None
+# 
+#     if ':' in identifier:
+#         prefix, identifier_processed = identifier.split(':', 1)  # Split on the first occurrence
+#         separator = ':'
+#     elif '-' in identifier:
+#         prefix, identifier_processed = identifier.split('-', 1)  # Split on the first occurrence
+#         separator = '-'
+#     else:
+#         if not ignore_error:
+#             logger.critical('Identifier does not contain \':\' or \'-\' characters.')
+#             logger.critical('Splitting identifier is not possible.')
+#             logger.critical('Identifier: %s', identifier)
+#         prefix = identifier_processed = separator = None
+# 
+#     return prefix, identifier_processed, separator
 
-    Split Identifier.
 
-    Does not throw exception anymore. Check return, if None returned, there was an error
-
-    :param identifier:
-    :param ignore_error:
-    :return:
-    """
-
-    prefix = None
-    identifier_processed = None
-    separator = None
-
-    if ':' in identifier:
-        prefix, identifier_processed = identifier.split(':', 1)  # Split on the first occurrence
-        separator = ':'
-    elif '-' in identifier:
-        prefix, identifier_processed = identifier.split('-', 1)  # Split on the first occurrence
-        separator = '-'
-    else:
-        if not ignore_error:
-            logger.critical('Identifier does not contain \':\' or \'-\' characters.')
-            logger.critical('Splitting identifier is not possible.')
-            logger.critical('Identifier: %s', identifier)
-        prefix = identifier_processed = separator = None
-
-    return prefix, identifier_processed, separator
-
-
-def load_ref_xref():
-    """
-
-    :return:
-    """
-
-    # 7 seconds to populate file with 2476879 rows
-    ref_xref_valid = dict()
-    ref_xref_obsolete = dict()
-    xref_ref = dict()
-    base_path = environ.get('XML_PATH')
-#     reference_primary_id_to_curie_file = base_path + 'reference_curie_to_xref_sample'
-    reference_primary_id_to_curie_file = base_path + 'reference_curie_to_xref'
-    if path.isfile(reference_primary_id_to_curie_file):
-        with open(reference_primary_id_to_curie_file, 'r') as read_fh:
-            for line in read_fh:
-                line_data = line.rstrip().split("\t")
-                agr = line_data[0]
-                xref = line_data[1]
-                status = line_data[2]
-                prefix, identifier, separator = split_identifier(xref)
-                if status == 'valid':
-                    if agr not in ref_xref_valid:
-                        ref_xref_valid[agr] = dict()
-                    ref_xref_valid[agr][prefix] = identifier
-                    # previously a reference and prefix could have multiple values
-                    # if prefix not in ref_xref_valid[agr]:
-                    #     ref_xref_valid[agr][prefix] = set()
-                    # if identifier not in ref_xref_valid[agr][prefix]:
-                    #     ref_xref_valid[agr][prefix].add(identifier)
-                    if prefix not in xref_ref:
-                        xref_ref[prefix] = dict()
-                    if identifier not in xref_ref[prefix]:
-                        xref_ref[prefix][identifier] = agr
-                elif status == 'obsolete':
-                    if agr not in ref_xref_obsolete:
-                        ref_xref_obsolete[agr] = dict()
-                    # a reference and prefix can still have multiple obsolete values
-                    if prefix not in ref_xref_obsolete[agr]:
-                        ref_xref_obsolete[agr][prefix] = set()
-                    if identifier not in ref_xref_obsolete[agr][prefix]:
-                        ref_xref_obsolete[agr][prefix].add(identifier.lower())
-            read_fh.close
-    return xref_ref, ref_xref_valid, ref_xref_obsolete
+# def load_ref_xref():
+#     """
+# 
+#     :return:
+#     """
+# 
+#     # 7 seconds to populate file with 2476879 rows
+#     ref_xref_valid = dict()
+#     ref_xref_obsolete = dict()
+#     xref_ref = dict()
+#     base_path = environ.get('XML_PATH')
+# #     reference_primary_id_to_curie_file = base_path + 'reference_curie_to_xref_sample'
+#     reference_primary_id_to_curie_file = base_path + 'reference_curie_to_xref'
+#     if path.isfile(reference_primary_id_to_curie_file):
+#         with open(reference_primary_id_to_curie_file, 'r') as read_fh:
+#             for line in read_fh:
+#                 line_data = line.rstrip().split("\t")
+#                 agr = line_data[0]
+#                 xref = line_data[1]
+#                 status = line_data[2]
+#                 prefix, identifier, separator = split_identifier(xref)
+#                 if status == 'valid':
+#                     if agr not in ref_xref_valid:
+#                         ref_xref_valid[agr] = dict()
+#                     ref_xref_valid[agr][prefix] = identifier
+#                     # previously a reference and prefix could have multiple values
+#                     # if prefix not in ref_xref_valid[agr]:
+#                     #     ref_xref_valid[agr][prefix] = set()
+#                     # if identifier not in ref_xref_valid[agr][prefix]:
+#                     #     ref_xref_valid[agr][prefix].add(identifier)
+#                     if prefix not in xref_ref:
+#                         xref_ref[prefix] = dict()
+#                     if identifier not in xref_ref[prefix]:
+#                         xref_ref[prefix][identifier] = agr
+#                 elif status == 'obsolete':
+#                     if agr not in ref_xref_obsolete:
+#                         ref_xref_obsolete[agr] = dict()
+#                     # a reference and prefix can still have multiple obsolete values
+#                     if prefix not in ref_xref_obsolete[agr]:
+#                         ref_xref_obsolete[agr][prefix] = set()
+#                     if identifier not in ref_xref_obsolete[agr][prefix]:
+#                         ref_xref_obsolete[agr][prefix].add(identifier.lower())
+#             read_fh.close
+#     return xref_ref, ref_xref_valid, ref_xref_obsolete
 
 
 def load_pmids_not_found():
@@ -225,13 +244,20 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
     # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
     base_path = environ.get('XML_PATH')
+    api_port = environ.get('API_PORT')    # noqa: F841
+
+    token = get_authentication_token()
+    headers = generate_headers(token)
 
     mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB']
     if input_mod in mods:
         mods = [input_mod]
 
-    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref()
+    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
     pmids_not_found = load_pmids_not_found()
+
+    live_changes = False
+    # live_changes = True
 
 #     # test data structure content
 #     for prefix in xref_ref:
@@ -288,6 +314,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     sanitized_report_filename = base_path + 'report_files/sanitized_updates'
     fh_mod_report.setdefault('sanitized', open(sanitized_report_filename, 'w'))
 
+    xref_to_pages = dict()
     for mod in sorted(files_to_process):
         for filename in sorted(files_to_process[mod]):
             logger.info(filename)
@@ -314,6 +341,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     for cross_reference in entry['crossReferences']:
                         if "id" in cross_reference:
                             xrefs.append(cross_reference["id"])
+                            if "pages" in cross_reference:
+                                xref_to_pages[cross_reference["id"]] = cross_reference["pages"]
                 if entry['primaryId'] not in xrefs:
                     xrefs.append(entry['primaryId'])
                 for cross_reference in xrefs:
@@ -338,8 +367,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     continue
 
                 if len(agrs_found) == 0:
-                    pass
                     # logger.info("Action : Create New mod %s", entry['primaryId'])
+                    pass
                     # TODO  shunt this to set of new to create to use old pipeline on
                 elif len(agrs_found) > 1:
                     # logger.info("Notify curator, dqm %s too many matches %s", entry['primaryId'], ', '.join(sorted(agrs_found)))
@@ -391,16 +420,15 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                                     if ident not in xrefs_to_add[agr][prefix]:
                                         xrefs_to_add[agr][prefix][ident] = set()
                                     xrefs_to_add[agr][prefix][ident].add(filename)
-                                    # logger.info("Action : Add dqm xref %s %s to agr %s", prefix, ident, agr)
+                                    # logger.info("Action : Add dqm xref %s %s to agr %s", prefix, ident, agr)  # dealt with below, not needed
 
                     if flag_aggregate_mod:
                         # logger.info("Action : aggregate PMID mod data %s", agr)
                         aggregate_mod_reference_types_only[agr] = entry
                     elif flag_aggregate_biblio:
+                        # logger.info("Action : aggregate MOD biblio data %s", agr)
                         pass
                         aggregate_mod_biblio_all[agr] = entry
-                        # logger.info("Action : aggregate MOD biblio data %s", agr)
-                        # TODO  figure out what to patch
                     # check if dqm has no pmid/doi, but pmid/doi in DB
                     if 'PMID' not in dqm_xrefs:
                         if 'PMID' in ref_xref_valid[agr]:
@@ -436,20 +464,28 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                 # logger.info("Notify curator %s %s has multiple identifiers from dqms %s", agr, prefix, conflict_string)
                 fh_mod_report[mod].write("%s %s has multiple identifiers from dqms %s\n" % (agr, prefix, conflict_string))
             elif len(xrefs_to_add[agr][prefix]) == 1:
-                for _ident in xrefs_to_add[agr][prefix]:
-                    pass
-                    # logger.info("Action : add validated dqm xref %s %s to agr %s", prefix, ident, agr)
-                    # TODO   create new xref
+                for ident in xrefs_to_add[agr][prefix]:
+                    xref_id = prefix + ':' + ident
+                    new_entry = dict()
+                    new_entry["curie"] = xref_id
+                    new_entry["reference_curie"] = agr
+                    if xref_id in xref_to_pages:
+                        new_entry["pages"] = xref_to_pages[xref_id]
+                    # uncomment to process and log new xrefs
+                    # logger.info("add validated dqm xref %s s to agr %s", xref_id, agr)
+                    # url = 'http://localhost:' + api_port + '/cross_reference/'
+                    # headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
 
-    update_db_entries(aggregate_mod_reference_types_only, 'mod_reference_types_only')
-    # update_db_entries(aggregate_mod_biblio_all, 'mod_biblio_all')     # TODO sort this out
+    # UNDO, 4003 api is broken from api code update on database needing sql udpate
+    # these take hours for each mod, process about 200 references per minute
+    # headers = update_db_entries(headers, aggregate_mod_reference_types_only, live_changes, 'mod_reference_types_only')
+    # headers = update_db_entries(headers, aggregate_mod_biblio_all, live_changes, 'mod_biblio_all')
     for mod in fh_mod_report:
         fh_mod_report[mod].close()
     fh_mod_report['sanitized'].close()
 
 
-def update_db_entries(entries, processing_flag):      # noqa: C901
-    # TODO, when future endpoint can get N references from DB, get a set of N agr curies at once, match the db vs dqm reference info, and split the section for dealing with mod_reference_types into its own function
+def update_db_entries(headers, entries, live_changes, processing_flag):      # noqa: C901
     """
     Take a dict of Alliance Reference curies and DQM MODReferenceTypes to compare against data stored in DB and update to match DQM data.
 
@@ -457,26 +493,50 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
     :param processing_flag:
     :return:
     """
+
+    # TODO when future endpoint can get N references from DB, get a set of N agr curies at once, match the db vs dqm reference info, and split the section for dealing with mod_reference_types into its own function
+
+    remap_keys = dict()
+    remap_keys['datePublished'] = 'date_published'
+    remap_keys['dateArrivedInPubmed'] = 'date_arrived_in_pubmed'
+    remap_keys['dateLastModified'] = 'date_last_modified'
+    remap_keys['crossReferences'] = 'cross_references'
+    remap_keys['issueName'] = 'issue_name'
+    remap_keys['issueDate'] = 'issue_date'
+    remap_keys['pubMedType'] = 'pubmed_type'
+    remap_keys['meshTerms'] = 'mesh_terms'
+    remap_keys['allianceCategory'] = 'category'
+    remap_keys['MODReferenceType'] = 'mod_reference_types'
+    remap_keys['MODReferenceTypes'] = 'mod_reference_types'
+    remap_keys['plainLanguageAbstract'] = 'plain_language_abstract'
+    remap_keys['pubmedAbstractLanguages'] = 'pubmed_abstract_languages'
+    remap_keys['publicationStatus'] = 'pubmed_publication_status'
+
+    # MODReferenceTypes and allianceCategory cannot be auto converted from camel to snake, so have two lists
+    # fields_simple_snake = ['title', 'category', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issue_name', 'issue_date', 'date_published', 'date_last_modified']
+    fields_simple_camel = ['title', 'allianceCategory', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issueName', 'issueDate', 'datePublished', 'dateLastModified']
+    # TODO deal with authors, keywords, resource
+    # there's no API to update tags
+
     api_port = environ.get('API_PORT')
-    base_path = environ.get('XML_PATH')
-    okta_file = base_path + 'okta_token'
-    token = ''
-    if path.isfile(okta_file):
-        with open(okta_file, 'r') as okta_fh:
-            token = okta_fh.read().replace("\n", "")
-            okta_fh.close
-        # post_return = requests.post(url, headers=headers, json=new_entry)
-    else:
-        token = update_token()
-    headers = generate_headers(token)
+    # base_path = environ.get('XML_PATH')
+    # okta_file = base_path + 'okta_token'
+    # token = ''
+    # if path.isfile(okta_file):
+    #     with open(okta_file, 'r') as okta_fh:
+    #         token = okta_fh.read().replace("\n", "")
+    #         okta_fh.close
+    #     # post_return = requests.post(url, headers=headers, json=new_entry)
+    # else:
+    #     token = update_token()
+    # token = get_authentication_token()
+    # headers = generate_headers(token)
 
     counter = 0
     max_counter = 10000000
     # max_counter = 150
-    # max_counter = 3
+    # max_counter = 1
 
-    mapping_fh = None
-    error_fh = None
     for agr in entries:
         counter = counter + 1
         if counter > max_counter:
@@ -485,139 +545,227 @@ def update_db_entries(entries, processing_flag):      # noqa: C901
         url = 'http://localhost:' + api_port + '/reference/' + agr
         logger.info("get AGR reference info from database %s", url)
         get_return = requests.get(url)
-        response_dict = json.loads(get_return.text)
+        db_entry = json.loads(get_return.text)
         # logger.info("title %s", response_dict['title'])   # for debugging which reference was found
 
-        entry = entries[agr]
+        dqm_entry = entries[agr]
 
-        if processing_flag == 'mod_reference_types_only':
-            # dqm_mod_ref_types = entries[agr]
-            dqm_mod_ref_types = []
-            if 'MODReferenceTypes' in entry:
-                dqm_mod_ref_types = entry['MODReferenceTypes']
-            dqm_mrt_data = dict()
-            for mrt in dqm_mod_ref_types:
-                source = mrt['source']
-                ref_type = mrt['referenceType']
-                if source not in dqm_mrt_data:
-                    dqm_mrt_data[source] = []
-                dqm_mrt_data[source].append(ref_type)
-
-            db_mod_ref_types = []
-            if 'mod_reference_types' in response_dict:
-                db_mod_ref_types = response_dict['mod_reference_types']
-
+        if processing_flag == 'mod_biblio_all':
             # for debugging changes
-            # dqm_mod_ref_types_json = json.dumps(dqm_mod_ref_types, indent=4)
-            # db_mod_ref_types_json = json.dumps(db_mod_ref_types, indent=4)
-            # logger.info("Action : aggregate PMID mod data %s was %s now %s", agr, db_mod_ref_types_json, dqm_mod_ref_types_json)
+            # dqm_entry_text = json.dumps(dqm_entry, indent=4)
+            # db_entry_text = json.dumps(db_entry, indent=4)
+            # print('db ')
+            # print(db_entry_text)
+            # print('dqm ')
+            # print(dqm_entry_text)
 
-            db_mrt_data = dict()
-            for mrt in db_mod_ref_types:
-                source = mrt['source']
-                ref_type = mrt['reference_type']
-                mrt_id = mrt['mod_reference_type_id']
-                if source not in db_mrt_data:
-                    db_mrt_data[source] = dict()
-                db_mrt_data[source][ref_type] = mrt_id
+            update_json = dict()
+            for field_camel in fields_simple_camel:
+                field_snake = field_camel
+                if field_camel in remap_keys:
+                    field_snake = remap_keys[field_camel]
+                dqm_value = None
+                db_value = None
+                if field_camel in dqm_entry:
+                    dqm_value = dqm_entry[field_camel]
+                    if field_snake == 'category':
+                        dqm_value = dqm_value.lower().replace(" ", "_")
+                if field_snake in db_entry:
+                    db_value = db_entry[field_snake]
+                if dqm_value != db_value:
+                    logger.info("patch %s field %s from db %s to dqm %s", agr, field_snake, db_value, dqm_value)
+                    update_json[field_snake] = dqm_value
+            if update_json:
+                # for debugging changes
+                # update_text = json.dumps(update_json, indent=4)
+                # print('update ' + update_text)
+                headers = generic_api_patch(live_changes, url, headers, update_json, agr, None, None)
 
-            # try AGR:AGR-Reference-0000382879	WBPaper00000292
-            for mod in dqm_mrt_data:
-                lc_dqm = [x.lower() for x in dqm_mrt_data[mod]]
+        # always update mod reference types, whether 'mod_reference_types_only' or 'mod_biblio_all'
+        headers = update_mod_reference_types(live_changes, headers, agr, dqm_entry, db_entry)
+
+    return headers
+
+
+def update_mod_reference_types(live_changes, headers, agr, dqm_entry, db_entry):
+    api_port = environ.get('API_PORT')
+    dqm_mod_ref_types = []
+    if 'MODReferenceTypes' in dqm_entry:
+        dqm_mod_ref_types = dqm_entry['MODReferenceTypes']
+    dqm_mrt_data = dict()
+    for mrt in dqm_mod_ref_types:
+        source = mrt['source']
+        ref_type = mrt['referenceType']
+        if source not in dqm_mrt_data:
+            dqm_mrt_data[source] = []
+        dqm_mrt_data[source].append(ref_type)
+
+    db_mod_ref_types = []
+    if 'mod_reference_types' in db_entry:
+        db_mod_ref_types = db_entry['mod_reference_types']
+
+    # for debugging changes
+    # dqm_mod_ref_types_json = json.dumps(dqm_mod_ref_types, indent=4)
+    # db_mod_ref_types_json = json.dumps(db_mod_ref_types, indent=4)
+    # logger.info("Action : aggregate PMID mod data %s was %s now %s", agr, db_mod_ref_types_json, dqm_mod_ref_types_json)
+
+    db_mrt_data = dict()
+    for mrt in db_mod_ref_types:
+        source = mrt['source']
+        ref_type = mrt['reference_type']
+        mrt_id = mrt['mod_reference_type_id']
+        if source not in db_mrt_data:
+            db_mrt_data[source] = dict()
+        db_mrt_data[source][ref_type] = mrt_id
+
+    # live_changes = False
+    # try AGR:AGR-Reference-0000382879	WBPaper00000292
+    for mod in dqm_mrt_data:
+        lc_dqm = [x.lower() for x in dqm_mrt_data[mod]]
+        for dqm_mrt in dqm_mrt_data[mod]:
+            create_it = True
+            if mod in db_mrt_data:
+                for db_mrt in db_mrt_data[mod]:
+                    if db_mrt.lower() in lc_dqm:
+                        create_it = False
+            if create_it:
+                logger.info("add %s %s to %s", mod, dqm_mrt, agr)
+                url = 'http://localhost:' + api_port + '/reference/mod_reference_type/'
+                new_entry = dict()
+                new_entry["reference_type"] = dqm_mrt
+                new_entry["source"] = mod
+                new_entry["reference_curie"] = agr
+                headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
+                # # process_post_tuple = process_post('POST', url, headers, new_entry, agr, mapping_fh, error_fh)    # noqa: F841
+        if mod in db_mrt_data:
+            lc_db_dict = {x.lower(): x for x in db_mrt_data[mod]}
+            lc_db = set(lc_db_dict.keys())
+            for db_mrt in db_mrt_data[mod]:
+                delete_it = True
                 for dqm_mrt in dqm_mrt_data[mod]:
-                    create_it = True
-                    if mod in db_mrt_data:
-                        for db_mrt in db_mrt_data[mod]:
-                            if db_mrt.lower() in lc_dqm:
-                                create_it = False
-                    if create_it:
-                        logger.info("add %s %s to %s", mod, dqm_mrt, agr)
-                        url = 'http://localhost:' + api_port + '/reference/mod_reference_type/'
-                        new_entry = dict()
-                        new_entry["reference_type"] = dqm_mrt
-                        new_entry["source"] = mod
-                        new_entry["reference_curie"] = agr
-                        process_post_tuple = process_post('POST', url, headers, new_entry, agr, mapping_fh, error_fh)    # noqa: F841
-                if mod in db_mrt_data:
-                    lc_db_dict = {x.lower(): x for x in db_mrt_data[mod]}
-                    lc_db = set(lc_db_dict.keys())
-                    for db_mrt in db_mrt_data[mod]:
-                        delete_it = True
-                        for dqm_mrt in dqm_mrt_data[mod]:
-                            if dqm_mrt.lower() in lc_db:
-                                delete_it = False
-                        if delete_it:
-                            mod_reference_type_id = str(db_mrt_data[mod][db_mrt])
-                            logger.info("remove %s %s from %s via %s", mod, db_mrt, agr, mod_reference_type_id)
-                            url = 'http://localhost:' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
-                            process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
+                    if dqm_mrt.lower() in lc_db:
+                        delete_it = False
+                if delete_it:
+                    mod_reference_type_id = str(db_mrt_data[mod][db_mrt])
+                    logger.info("remove %s %s from %s via %s", mod, db_mrt, agr, mod_reference_type_id)
+                    url = 'http://localhost:' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
+                    headers = generic_api_delete(live_changes, url, headers, None, agr, None, None)
+                    # # process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
+    return headers
 
 
-def process_post(method, url, headers, json_data, primary_id, mapping_fh, error_fh):
-    """
-    Call API with method, url, headers, optional json of data, agr reference curie, optional mapping filehandle, optional error filehandle
+def generic_api_post(live_changes, url, headers, new_entry, agr, mapping_fh, error_fh):
+    if live_changes:
+        api_response_tuple = process_api_request('POST', url, headers, new_entry, agr, mapping_fh, error_fh)
+        headers = api_response_tuple[0]
+        response_text = api_response_tuple[1]
+        response_status_code = api_response_tuple[2]
+        log_info = api_response_tuple[3]
+        if log_info:
+            logger.info(log_info)
+        if response_status_code == 201:
+            response_dict = json.loads(response_text)
+            response_dict = str(response_dict).replace('"', '')
+            logger.info("%s\t%s", agr, response_dict)
+    return headers
 
-    :param method:
-    :param url:
-    :param headers:
-    :param json_data:
-    :param primary_id:
-    :param mapping_fh:
-    :param error_fh:
-    :return:
-    """
-    # output the json getting posted to the API
-    # json_object = json.dumps(json_data, indent = 4)
-    # print(json_object)
 
-    request_return = requests.request(method, url=url, headers=headers, json=json_data)
-    process_text = str(request_return.text)
-    process_status_code = str(request_return.status_code)
-    # logger.info(primary_id + ' text ' + process_text)
-    # logger.info(primary_id + ' status_code ' + process_status_code)
+def generic_api_patch(live_changes, url, headers, update_json, agr, mapping_fh, error_fh):
+    if live_changes:
+        api_response_tuple = process_api_request('PATCH', url, headers, update_json, agr, mapping_fh, error_fh)
+        headers = api_response_tuple[0]
+        response_text = api_response_tuple[1]
+        response_status_code = api_response_tuple[2]
+        log_info = api_response_tuple[3]
+        if log_info:
+            logger.info(log_info)
+        if response_status_code == 202:
+            response_dict = json.loads(response_text)
+            response_dict = str(response_dict).replace('"', '')
+            logger.info("%s\t%s", agr, response_dict)
+    return headers
 
-    response_dict = dict()
-    if not ((method == 'DELETE') and (request_return.status_code == 204)):
-        try:
-            response_dict = json.loads(request_return.text)
-        except ValueError:
-            logger.info("%s\tValueError", primary_id)
-            if error_fh is not None:
-                error_fh.write("ERROR %s primaryId did not return json\n" % (primary_id))
-            return headers, process_text, process_status_code
 
-    if ((method == 'POST') and (request_return.status_code == 201)):
-        response_dict = str(response_dict).replace('"', '')
-        logger.info("%s\t%s", primary_id, response_dict)
-        if mapping_fh is not None:
-            mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
-    elif ((method == 'DELETE') and (request_return.status_code == 204)):
-        logger.info("%s\t%s\tsuccess", primary_id, url)
-    elif (request_return.status_code == 401):
-        logger.info("%s\texpired token", primary_id)
-        if mapping_fh is not None:
-            mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
-        token = update_token()
-        headers = generate_headers(token)
-        process_post_tuple = process_post(method, url, headers, json_data, primary_id, mapping_fh, error_fh)
-        headers = process_post_tuple[0]
-        process_text = process_post_tuple[1]
-        process_status_code = process_post_tuple[2]
-    elif (request_return.status_code == 500):
-        logger.info("%s\tFAILURE", primary_id)
-        if mapping_fh is not None:
-            mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
-    # if redoing a run and want to skip errors of data having already gone in
-    # elif (request_return.status_code == 409):
-    #     continue
-    else:
-        detail = ''
-        if 'detail' in response_dict:
-            detail = response_dict['detail']
-        logger.info("ERROR %s primaryId %s message %s", request_return.status_code, primary_id, detail)
-        if error_fh is not None:
-            error_fh.write("ERROR %s primaryId %s message %s\n" % (request_return.status_code, primary_id, detail))
-    return headers, process_text, process_status_code
+def generic_api_delete(live_changes, url, headers, json_data, agr, mapping_fh, error_fh):
+    if live_changes:
+        api_response_tuple = process_api_request('DELETE', url, headers, json_data, agr, mapping_fh, error_fh)
+        headers = api_response_tuple[0]
+        response_text = api_response_tuple[1]    # noqa: F841
+        response_status_code = api_response_tuple[2]
+        log_info = api_response_tuple[3]
+        if log_info:
+            logger.info(log_info)
+        if response_status_code == 204:
+            logger.info("%s\t%s\tdelete success", agr, url)
+    return headers
+
+
+# get rid of this if process_api_request works on a full run
+# def process_post(method, url, headers, json_data, primary_id, mapping_fh, error_fh):
+#     """
+#     Call API with method, url, headers, optional json of data, agr reference curie, optional mapping filehandle, optional error filehandle
+#
+#     :param method:
+#     :param url:
+#     :param headers:
+#     :param json_data:
+#     :param primary_id:
+#     :param mapping_fh:
+#     :param error_fh:
+#     :return:
+#     """
+#     # output the json getting posted to the API
+#     # json_object = json.dumps(json_data, indent = 4)
+#     # print(json_object)
+#
+#     request_return = requests.request(method, url=url, headers=headers, json=json_data)
+#     process_text = str(request_return.text)
+#     process_status_code = str(request_return.status_code)
+#     # logger.info(primary_id + ' text ' + process_text)
+#     # logger.info(primary_id + ' status_code ' + process_status_code)
+#
+#     response_dict = dict()
+#     if not ((method == 'DELETE') and (request_return.status_code == 204)):
+#         try:
+#             response_dict = json.loads(request_return.text)
+#         except ValueError:
+#             logger.info("%s\tValueError", primary_id)
+#             if error_fh is not None:
+#                 error_fh.write("ERROR %s primaryId did not return json\n" % (primary_id))
+#             return headers, process_text, process_status_code
+#
+#     if ((method == 'POST') and (request_return.status_code == 201)):
+#         response_dict = str(response_dict).replace('"', '')
+#         logger.info("%s\t%s", primary_id, response_dict)
+#         if mapping_fh is not None:
+#             mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
+#     elif ((method == 'DELETE') and (request_return.status_code == 204)):
+#         logger.info("%s\t%s\tsuccess", primary_id, url)
+#     elif (request_return.status_code == 401):
+#         logger.info("%s\texpired token", primary_id)
+#         if mapping_fh is not None:
+#             mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
+#         token = update_token()
+#         headers = generate_headers(token)
+#         process_post_tuple = process_post(method, url, headers, json_data, primary_id, mapping_fh, error_fh)
+#         headers = process_post_tuple[0]
+#         process_text = process_post_tuple[1]
+#         process_status_code = process_post_tuple[2]
+#     elif (request_return.status_code == 500):
+#         logger.info("%s\tFAILURE", primary_id)
+#         if mapping_fh is not None:
+#             mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
+#     # if redoing a run and want to skip errors of data having already gone in
+#     # elif (request_return.status_code == 409):
+#     #     continue
+#     else:
+#         detail = ''
+#         if 'detail' in response_dict:
+#             detail = response_dict['detail']
+#         logger.info("ERROR %s primaryId %s message %s", request_return.status_code, primary_id, detail)
+#         if error_fh is not None:
+#             error_fh.write("ERROR %s primaryId %s message %s\n" % (request_return.status_code, primary_id, detail))
+#     return headers, process_text, process_status_code
 
 
 def test_request():
@@ -627,16 +775,16 @@ def test_request():
     :return:
     """
     # api_port = environ.get('API_PORT')
-    base_path = environ.get('XML_PATH')
-    okta_file = base_path + 'okta_token'
-    token = ''
-    if path.isfile(okta_file):
-        with open(okta_file, 'r') as okta_fh:
-            token = okta_fh.read().replace("\n", "")
-            okta_fh.close
-        # post_return = requests.post(url, headers=headers, json=new_entry)
-    else:
-        token = update_token()
+    # okta_file = base_path + 'okta_token'
+    # token = ''
+    # if path.isfile(okta_file):
+    #     with open(okta_file, 'r') as okta_fh:
+    #         token = okta_fh.read().replace("\n", "")
+    #         okta_fh.close
+    #     # post_return = requests.post(url, headers=headers, json=new_entry)
+    # else:
+    #     token = update_token()
+    token = get_authentication_token()
     headers = generate_headers(token)
 
     # create data with post
@@ -651,18 +799,61 @@ def test_request():
     #   "source": "WB",
     #   "reference_curie": "AGR:AGR-Reference-0000605510"
     # }
-    mapping_fh = None
-    error_fh = None
-    process_post_tuple = process_post('POST', url, headers, new_entry, primary_id, mapping_fh, error_fh)
+    api_response_tuple = process_api_request('POST', url, headers, new_entry, primary_id, None, None)
 
     # delete data with delete
     # url = 'http://dev.alliancegenome.org:4003/reference/mod_reference_type/1006053'
-    # process_post_tuple = process_post('DELETE', url, headers, new_entry, primary_id, mapping_fh, error_fh)
+    # api_response_tuple = process_api_request('DELETE', url, headers, new_entry, primary_id, None, None)
 
-    print(process_post_tuple)
-    # headers = process_post_tuple[0]
-    # process_text = process_post_tuple[1]
-    # process_status_code = process_post_tuple[2]
+    print(api_response_tuple)
+    # headers = api_response_tuple[0]
+    # response_text = api_response_tuple[1]
+    # response_status_code = api_response_tuple[2]
+    # log_info = api_response_tuple[3]
+
+
+def test_get_from_list():
+    """
+    To test making a POST on :4001 to get multiple references at once vs one-by-one.  It's just as slow, but leaving it in to test future different methods for getting data from database
+
+    :return:
+    """
+
+    # batch way
+    # 1000 records took 1 hour 31 minutes from :4001 - 2021-10-21 16:06:47 - 2021-10-21 17:37:52
+    # print('json_data')
+    # method = 'POST'
+    # url = 'http://dev.alliancegenome.org:4001/reference/get-from-list/'
+    # headers = {
+    #     'Content-Type': 'application/json',
+    #     'Accept': 'application/json'
+    # }
+    # json_data = []
+    # for i in range(1, 1001):
+    #     json_data.append('AGR:AGR-Reference-' + str(i).zfill(10))
+    # print(json_data)
+    #
+    # request_return = requests.request(method, url=url, headers=headers, json=json_data)
+    # process_text = str(request_return.text)
+    # print(process_text)
+
+    # one by one way
+    # 1000 records took 1 hour 31 minutes from :4001 - 2021-10-21 18:37:43 - 2021-10-21 20:08:49
+    print('json_data')
+    method = 'GET'
+    headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+    json_data = []
+    for i in range(1, 1001):
+        agr_id = 'AGR:AGR-Reference-' + str(i).zfill(10)
+        url = 'http://dev.alliancegenome.org:4001/reference/' + agr_id
+        print(url)
+        request_return = requests.request(method, url=url, headers=headers, json=json_data)
+        process_text = str(request_return.text)
+        print(process_text)
+    # print(json_data)
 
 
 if __name__ == "__main__":
@@ -673,6 +864,7 @@ if __name__ == "__main__":
     logger.info("starting sort_dqm_json_reference_updates.py")
 
     # test_request()
+    # test_get_from_list()
 
     if args['file']:
         if args['mod']:

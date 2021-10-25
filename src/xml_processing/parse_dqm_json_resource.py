@@ -4,6 +4,8 @@ from os import environ, path, makedirs
 import logging
 import logging.config
 
+from helper_file_processing import load_pubmed_resource_basic, split_identifier, write_json, save_pubmed_resource
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -34,53 +36,68 @@ def create_storage_path():
         makedirs(json_storage_path)
 
 
-def split_identifier(identifier, ignore_error=False):
-    """
-
-    Split Identifier.
-
-    Does not throw exception anymore. Check return, if None returned, there was an error
-
-    :param identifier:
-    :param ignore_error:
-    :return:
-    """
-
-    prefix = None
-    identifier_processed = None
-    separator = None
-
-    if ':' in identifier:
-        prefix, identifier_processed = identifier.split(':', 1)  # Split on the first occurrence
-        separator = ':'
-    elif '-' in identifier:
-        prefix, identifier_processed = identifier.split('-', 1)  # Split on the first occurrence
-        separator = '-'
-    else:
-        if not ignore_error:
-            logger.critical('Identifier does not contain \':\' or \'-\' characters.')
-            logger.critical('Splitting identifier is not possible.')
-            logger.critical('Identifier: %s', identifier)
-        prefix = identifier_processed = separator = None
-
-    return prefix, identifier_processed, separator
-
-
-def write_json(json_filename, dict_to_output):
-    """
-
-    :param json_filename:
-    :param dict_to_output:
-    :return:
-    """
-
-    with open(json_filename, "w") as json_file:
-        logger.info("Generating JSON for %s", json_filename)
-        json_data = json.dumps(dict_to_output, indent=4, sort_keys=True)
-        json_file.write(json_data)
-        json_file.close()
-
-
+# def split_identifier(identifier, ignore_error=False):
+#     """
+#
+#     Split Identifier.
+#
+#     Does not throw exception anymore. Check return, if None returned, there was an error
+#
+#     :param identifier:
+#     :param ignore_error:
+#     :return:
+#     """
+#
+#     prefix = None
+#     identifier_processed = None
+#     separator = None
+#
+#     if ':' in identifier:
+#         prefix, identifier_processed = identifier.split(':', 1)  # Split on the first occurrence
+#         separator = ':'
+#     elif '-' in identifier:
+#         prefix, identifier_processed = identifier.split('-', 1)  # Split on the first occurrence
+#         separator = '-'
+#     else:
+#         if not ignore_error:
+#             logger.critical('Identifier does not contain \':\' or \'-\' characters.')
+#             logger.critical('Splitting identifier is not possible.')
+#             logger.critical('Identifier: %s', identifier)
+#         prefix = identifier_processed = separator = None
+#
+#     return prefix, identifier_processed, separator
+#
+#
+# def write_json(json_filename, dict_to_output):
+#     """
+#
+#     :param json_filename:
+#     :param dict_to_output:
+#     :return:
+#     """
+#
+#     with open(json_filename, "w") as json_file:
+#         logger.info("Generating JSON for %s", json_filename)
+#         json_data = json.dumps(dict_to_output, indent=4, sort_keys=True)
+#         json_file.write(json_data)
+#         json_file.close()
+#
+#
+# def save_pubmed_resource(pubmed_by_nlm):
+#     """
+#
+#     :param pubmed_by_nlm:
+#     :return:
+#     """
+#
+#     pubmed_data = dict()
+#     pubmed_data['data'] = []
+#     for nlm in pubmed_by_nlm:
+#         pubmed_data['data'].append(pubmed_by_nlm[nlm])
+#     json_filename = json_storage_path + 'RESOURCE_NLM.json'
+#     write_json(json_filename, pubmed_data)
+#
+#
 def load_fb_resource_to_nlm():
     """
 
@@ -177,38 +194,6 @@ def load_zfin_resource(pubmed_by_nlm):
     return pubmed_by_nlm
 
 
-def save_pubmed_resource(pubmed_by_nlm):
-    """
-
-    :param pubmed_by_nlm:
-    :return:
-    """
-
-    pubmed_data = dict()
-    pubmed_data['data'] = []
-    for nlm in pubmed_by_nlm:
-        pubmed_data['data'].append(pubmed_by_nlm[nlm])
-    json_filename = json_storage_path + 'RESOURCE_NLM.json'
-    write_json(json_filename, pubmed_data)
-
-
-def load_pubmed_resource():
-    """
-
-    :return:
-    """
-
-    filename = base_path + 'pubmed_resource_json/resource_pubmed_all.json'
-    f = open(filename)
-    resource_data = json.load(f)
-    pubmed_by_nlm = dict()
-    for entry in resource_data:
-        # primary_id = entry['primaryId']
-        nlm = entry['nlm']
-        pubmed_by_nlm[nlm] = entry
-    return pubmed_by_nlm
-
-
 if __name__ == "__main__":
     """
     call main start function
@@ -217,10 +202,10 @@ if __name__ == "__main__":
     logger.info("Starting parse_dqm_json_resource.py")
 
     create_storage_path()
-    pubmed_by_nlm = load_pubmed_resource()
+    pubmed_by_nlm = load_pubmed_resource_basic()
     pubmed_by_nlm = load_zfin_resource(pubmed_by_nlm)
     pubmed_by_nlm = load_fb_resource(pubmed_by_nlm)
-    save_pubmed_resource(pubmed_by_nlm)
+    save_pubmed_resource(json_storage_path, pubmed_by_nlm)
 
     logger.info("ending parse_dqm_json_resource.py")
 
