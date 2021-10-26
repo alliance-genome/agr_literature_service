@@ -11,7 +11,7 @@ import logging.config
 
 from helper_post_to_api import generate_headers, get_authentication_token, process_api_request
 
-from helper_file_processing import load_ref_xref, split_identifier
+from helper_file_processing import load_ref_xref, split_identifier, write_json
 
 from dotenv import load_dotenv
 
@@ -316,6 +316,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
     xref_to_pages = dict()
     for mod in sorted(files_to_process):
+        references_to_create = []
         for filename in sorted(files_to_process[mod]):
             logger.info(filename)
             dqm_data = dict()
@@ -367,8 +368,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     continue
 
                 if len(agrs_found) == 0:
-                    # logger.info("Action : Create New mod %s", entry['primaryId'])
-                    pass
+                    logger.info("Action : Create New mod %s", entry['primaryId'])
+                    references_to_create.append(entry)
                     # TODO  shunt this to set of new to create to use old pipeline on
                 elif len(agrs_found) > 1:
                     # logger.info("Notify curator, dqm %s too many matches %s", entry['primaryId'], ', '.join(sorted(agrs_found)))
@@ -439,6 +440,9 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                             # logger.info("Notify curator %s has DOI %s, dqm %s does not", agr, ref_xref_valid[agr]['DOI'], entry['primaryId'])
                             fh_mod_report[mod].write("%s has DOI %s, dqm %s does not\n" % (agr, ref_xref_valid[agr]['DOI'], entry['primaryId']))
 
+        save_new_references_to_file(references_to_create, mod)
+
+
     # check all db agrId->modId, check each dqm mod still had modId
     for agr in ref_xref_valid:
         for prefix in ref_xref_valid[agr]:
@@ -483,6 +487,17 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     for mod in fh_mod_report:
         fh_mod_report[mod].close()
     fh_mod_report['sanitized'].close()
+
+
+def save_new_references_to_file(references_to_create, mod):
+    base_path = environ.get('XML_PATH')
+    json_storage_path = base_path + 'dqm_data_updates_new/'
+    if not path.exists(json_storage_path):
+        makedirs(json_storage_path)
+    dqm_data = dict()
+    dqm_data['data'] = references_to_create
+    json_filename = json_storage_path + 'REFERENCE_' + mod + '.json'
+    write_json(json_filename, dqm_data)
 
 
 def update_db_entries(headers, entries, live_changes, processing_flag):      # noqa: C901
