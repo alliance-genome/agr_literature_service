@@ -156,6 +156,12 @@ def load_pmids_not_found():
     return pmids_not_found
 
 
+def make_url_ref_curie_prefix():
+    api_port = environ.get('API_PORT')    # noqa: F841
+    url_ref_curie_prefix = 'https://dev' + api_port + '-literature-rest.alliancegenome.org/reference/'
+    return url_ref_curie_prefix
+
+
 def sort_dqm_references(input_path, input_mod):      # noqa: C901
     """
 
@@ -167,7 +173,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
     base_path = environ.get('XML_PATH')
     api_port = environ.get('API_PORT')    # noqa: F841
-    url_ref_curie_prefix = 'https://dev' + api_port + '-literature-rest.alliancegenome.org/reference/'
+    # url_ref_curie_prefix = 'https://dev' + api_port + '-literature-rest.alliancegenome.org/reference/'
+    url_ref_curie_prefix = make_url_ref_curie_prefix()
 
     token = get_authentication_token()
     headers = generate_headers(token)
@@ -367,49 +374,50 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
         save_new_references_to_file(references_to_create, mod)
 
-    # check all db agrId->modId, check each dqm mod still had modId
-    for agr in ref_xref_valid:
-        agr_url = url_ref_curie_prefix + agr
-        for prefix in ref_xref_valid[agr]:
-            if prefix in mods:
-                # for identifier in ref_xref_valid[agr][prefix]:
-                identifier = ref_xref_valid[agr][prefix]
-                ident_found = False
-                if prefix in dqm:
-                    if identifier in dqm[prefix]:
-                        ident_found = True
-                if not ident_found:
-                    # logger.info("Notify curator %s %s %s not in dqm submission", agr_url, prefix, identifier)
-                    fh_mod_report[mod].write("%s %s %s not in dqm submission\n" % (agr_url, prefix, identifier))
+        # check all db agrId->modId, check each dqm mod still had modId
+        for agr in ref_xref_valid:
+            agr_url = url_ref_curie_prefix + agr
+            for prefix in ref_xref_valid[agr]:
+                if prefix in mods:
+                    # for identifier in ref_xref_valid[agr][prefix]:
+                    identifier = ref_xref_valid[agr][prefix]
+                    ident_found = False
+                    if prefix in dqm:
+                        if identifier in dqm[prefix]:
+                            ident_found = True
+                    if not ident_found:
+                        # logger.info("Notify curator %s %s %s not in dqm submission", agr_url, prefix, identifier)
+                        fh_mod_report[mod].write("%s %s %s not in dqm submission\n" % (agr_url, prefix, identifier))
 
-    for agr in xrefs_to_add:
-        agr_url = url_ref_curie_prefix + agr
-        for prefix in xrefs_to_add[agr]:
-            if len(xrefs_to_add[agr][prefix]) > 1:
-                conflict_list = []
-                for ident in xrefs_to_add[agr][prefix]:
-                    filenames = ' '.join(sorted(xrefs_to_add[agr][prefix][ident]))
-                    conflict_list.append(ident + ' ' + filenames)
-                conflict_string = ', '.join(conflict_list)
-                # logger.info("Notify curator %s %s has multiple identifiers from dqms %s", agr_url, prefix, conflict_string)
-                fh_mod_report[mod].write("%s %s has multiple identifiers from dqms %s\n" % (agr_url, prefix, conflict_string))
-            elif len(xrefs_to_add[agr][prefix]) == 1:
-                for ident in xrefs_to_add[agr][prefix]:
-                    xref_id = prefix + ':' + ident
-                    new_entry = dict()
-                    new_entry["curie"] = xref_id
-                    new_entry["reference_curie"] = agr
-                    if xref_id in xref_to_pages:
-                        new_entry["pages"] = xref_to_pages[xref_id]
-                    # uncomment to process and log new xrefs
-                    # logger.info("add validated dqm xref %s s to agr %s", xref_id, agr)
-                    # url = 'http://localhost:' + api_port + '/cross_reference/'
-                    # headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
+        for agr in xrefs_to_add:
+            agr_url = url_ref_curie_prefix + agr
+            for prefix in xrefs_to_add[agr]:
+                if len(xrefs_to_add[agr][prefix]) > 1:
+                    conflict_list = []
+                    for ident in xrefs_to_add[agr][prefix]:
+                        filenames = ' '.join(sorted(xrefs_to_add[agr][prefix][ident]))
+                        conflict_list.append(ident + ' ' + filenames)
+                    conflict_string = ', '.join(conflict_list)
+                    # logger.info("Notify curator %s %s has multiple identifiers from dqms %s", agr_url, prefix, conflict_string)
+                    fh_mod_report[mod].write("%s %s has multiple identifiers from dqms %s\n" % (agr_url, prefix, conflict_string))
+                elif len(xrefs_to_add[agr][prefix]) == 1:
+                    for ident in xrefs_to_add[agr][prefix]:
+                        xref_id = prefix + ':' + ident
+                        new_entry = dict()
+                        new_entry["curie"] = xref_id
+                        new_entry["reference_curie"] = agr
+                        if xref_id in xref_to_pages:
+                            new_entry["pages"] = xref_to_pages[xref_id]
+                        if live_changes:
+                            logger.info("add validated dqm xref %s s to agr %s", xref_id, agr)
+                            url = 'http://localhost:' + api_port + '/cross_reference/'
+                            headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
 
-    # UNDO, 4003 api is broken from api code update on database needing sql udpate
-    # these take hours for each mod, process about 200 references per minute
-    # headers = update_db_entries(headers, aggregate_mod_reference_types_only, live_changes, 'mod_reference_types_only')
-    # headers = update_db_entries(headers, aggregate_mod_biblio_all, live_changes, 'mod_biblio_all')
+        # UNDO, 4003 api is broken from api code update on database needing sql udpate
+        # these take hours for each mod, process about 200 references per minute
+        # headers = update_db_entries(headers, aggregate_mod_reference_types_only, live_changes, fh_mod_report[mod], 'mod_reference_types_only')
+        headers = update_db_entries(headers, aggregate_mod_biblio_all, live_changes, fh_mod_report[mod], 'mod_biblio_all')
+
     for mod in fh_mod_report:
         fh_mod_report[mod].close()
     fh_mod_report['sanitized'].close()
@@ -426,7 +434,7 @@ def save_new_references_to_file(references_to_create, mod):
     write_json(json_filename, dqm_data)
 
 
-def update_db_entries(headers, entries, live_changes, processing_flag):      # noqa: C901
+def update_db_entries(headers, entries, live_changes, report_fh, processing_flag):      # noqa: C901
     """
     Take a dict of Alliance Reference curies and DQM MODReferenceTypes to compare against data stored in DB and update to match DQM data.
 
@@ -450,24 +458,28 @@ def update_db_entries(headers, entries, live_changes, processing_flag):      # n
     remap_keys['plainLanguageAbstract'] = 'plain_language_abstract'
     remap_keys['pubmedAbstractLanguages'] = 'pubmed_abstract_languages'
     remap_keys['publicationStatus'] = 'pubmed_publication_status'
+    # remap_keys['resourceAbbreviation'] = 'resource_title'
 
     # MODReferenceTypes and allianceCategory cannot be auto converted from camel to snake, so have two lists
     # fields_simple_snake = ['title', 'category', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issue_name', 'issue_date', 'date_published', 'date_last_modified']
     fields_simple_camel = ['title', 'allianceCategory', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issueName', 'issueDate', 'datePublished', 'dateLastModified']
-    # TODO deal with authors, keywords, resource
+    # TODO deal with authors
     # there's no API to update tags
 
     api_port = environ.get('API_PORT')
+    url_ref_curie_prefix = make_url_ref_curie_prefix()
 
     counter = 0
-    max_counter = 10000000
+    # max_counter = 10000000
     # max_counter = 150
-    # max_counter = 1
+    max_counter = 1
 
     for agr in entries:
         counter = counter + 1
         if counter > max_counter:
             break
+
+        agr_url = url_ref_curie_prefix + agr    # noqa: F841
 
         url = 'http://localhost:' + api_port + '/reference/' + agr
         logger.info("get AGR reference info from database %s", url)
@@ -506,6 +518,12 @@ def update_db_entries(headers, entries, live_changes, processing_flag):      # n
             if keywords_changed[0]:
                 logger.info("patch %s field keywords from db %s to dqm %s", agr, keywords_changed[2], keywords_changed[1])
                 update_json['keywords'] = keywords_changed[1]
+            # if curators want to get reports of how resource change, put this back, but we're comparing resource titles with dqm resource abbreviations, so they often differ even if they would match if we had a resource lookup by names and synonyms.
+            # e.g. WBPaper00000007 has db title "Comptes rendus des seances de l'Academie des sciences. Serie D, Sciences naturelles" and dqm abbreviation "C R Seances Acad Sci D"
+            # resource_changed = compare_resource(db_entry, dqm_entry)
+            # if resource_changed[0]:
+            #     logger.info("%s dqm resource differs db %s dqm %s", agr_url, resource_changed[2], resource_changed[1])
+            #     report_fh.write("%s dqm resource differs db '%s' dqm '%s'\n" % (agr_url, resource_changed[2], resource_changed[1]))
             if update_json:
                 # for debugging changes
                 # update_text = json.dumps(update_json, indent=4)
@@ -516,6 +534,21 @@ def update_db_entries(headers, entries, live_changes, processing_flag):      # n
         headers = update_mod_reference_types(live_changes, headers, agr, dqm_entry, db_entry)
 
     return headers
+
+
+def compare_resource(db_entry, dqm_entry):
+    db_resource_title = ''
+    dqm_resource_abbreviation = ''
+    if 'resource_title' in db_entry:
+        if db_entry['resource_title'] is not None:
+            db_resource_title = db_entry['resource_title']
+    if 'resourceAbbreviation' in dqm_entry:
+        if dqm_entry['resourceAbbreviation'] is not None:
+            dqm_resource_abbreviation = dqm_entry['resourceAbbreviation']
+    if db_resource_title.lower() == dqm_resource_abbreviation.lower():
+        return False, None, None
+    else:
+        return True, dqm_resource_abbreviation, db_resource_title
 
 
 def compare_keywords(db_entry, dqm_entry):
