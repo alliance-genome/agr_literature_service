@@ -167,6 +167,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
     base_path = environ.get('XML_PATH')
     api_port = environ.get('API_PORT')    # noqa: F841
+    url_ref_curie_prefix = 'https://dev' + api_port + '-literature-rest.alliancegenome.org/reference/'
 
     token = get_authentication_token()
     headers = generate_headers(token)
@@ -293,11 +294,12 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     # logger.info("Action : Create New mod %s", entry['primaryId'])
                     references_to_create.append(entry)
                 elif len(agrs_found) > 1:
-                    # logger.info("Notify curator, dqm %s too many matches %s", entry['primaryId'], ', '.join(sorted(agrs_found)))
-                    fh_mod_report[mod].write("dqm %s too many matches %s\n" % (entry['primaryId'], ', '.join(sorted(agrs_found))))
+                    # logger.info("Notify curator, dqm %s too many matches %s", entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found))))
+                    fh_mod_report[mod].write("dqm %s too many matches %s\n" % (entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found)))))
                 elif len(agrs_found) == 1:
                     # logger.info("Normal %s", entry['primaryId'])
                     agr = agrs_found.pop()
+                    agr_url = url_ref_curie_prefix + agr
                     flag_aggregate_biblio = False
                     flag_aggregate_mod = False
                     for prefix in dqm_xrefs:
@@ -308,8 +310,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                             if agr in ref_xref_valid:
                                 # logger.info("agr found %s", agr)
                                 if prefix == 'PMID' and ident in pmids_not_found:
-                                    # logger.info("Notify curator dqm has PMID not in PubMed %s %s in agr %s", prefix, ident, agr)
-                                    fh_mod_report[mod].write("dqm has PMID not in PubMed %s %s in agr %s\n" % (prefix, ident, agr))
+                                    # logger.info("Notify curator dqm has PMID not in PubMed %s %s in agr %s", prefix, ident, agr_url)
+                                    fh_mod_report[mod].write("dqm has PMID not in PubMed %s %s in agr %s\n" % (prefix, ident, agr_url))
                                 elif prefix in ref_xref_valid[agr]:
                                     agr_had_prefix = True
                                     # logger.info("agr prefix found %s %s", agr, prefix)
@@ -328,12 +330,12 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                                     if ident.lower() in ref_xref_obsolete[agr][prefix]:
                                         dqm_xref_obsolete_found = True
                             if dqm_xref_obsolete_found:
-                                # logger.info("Notify curator dqm has obsolete xref %s %s in agr %s", prefix, ident, agr)
-                                fh_mod_report[mod].write("dqm has obsolete xref %s %s in agr %s\n" % (prefix, ident, agr))
+                                # logger.info("Notify curator dqm has obsolete xref %s %s in agr %s", prefix, ident, agr_url)
+                                fh_mod_report[mod].write("dqm has obsolete xref %s %s in agr %s\n" % (prefix, ident, agr_url))
                             if not dqm_xref_valid_found:
                                 if agr_had_prefix:
-                                    # logger.info("Notify curator, %s had %s %s, dqm submitted %s", agr, prefix, ref_xref_valid[agr][prefix], ident)
-                                    fh_mod_report[mod].write("%s had %s %s, dqm submitted %s\n" % (agr, prefix, ref_xref_valid[agr][prefix], ident))
+                                    # logger.info("Notify curator, %s had %s %s, dqm submitted %s", agr_url, prefix, ref_xref_valid[agr][prefix], ident)
+                                    fh_mod_report[mod].write("%s had %s %s, dqm submitted %s\n" % (agr_url, prefix, ref_xref_valid[agr][prefix], ident))
                                 elif not dqm_xref_obsolete_found:
                                     if agr not in xrefs_to_add:
                                         xrefs_to_add[agr] = dict()
@@ -357,16 +359,17 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     if 'PMID' not in dqm_xrefs:
                         if 'PMID' in ref_xref_valid[agr]:
                             # logger.info("Notify curator %s has PMID %s, dqm %s does not", agr, ref_xref_valid[agr]['PMID'], entry['primaryId'])
-                            fh_mod_report[mod].write("%s has PMID %s, dqm %s does not\n" % (agr, ref_xref_valid[agr]['PMID'], entry['primaryId']))
+                            fh_mod_report[mod].write("%s has PMID %s, dqm %s does not\n" % (agr_url, ref_xref_valid[agr]['PMID'], entry['primaryId']))
                     if 'DOI' not in dqm_xrefs:
                         if 'DOI' in ref_xref_valid[agr]:
                             # logger.info("Notify curator %s has DOI %s, dqm %s does not", agr, ref_xref_valid[agr]['DOI'], entry['primaryId'])
-                            fh_mod_report[mod].write("%s has DOI %s, dqm %s does not\n" % (agr, ref_xref_valid[agr]['DOI'], entry['primaryId']))
+                            fh_mod_report[mod].write("%s has DOI %s, dqm %s does not\n" % (agr_url, ref_xref_valid[agr]['DOI'], entry['primaryId']))
 
         save_new_references_to_file(references_to_create, mod)
 
     # check all db agrId->modId, check each dqm mod still had modId
     for agr in ref_xref_valid:
+        agr_url = url_ref_curie_prefix + agr
         for prefix in ref_xref_valid[agr]:
             if prefix in mods:
                 # for identifier in ref_xref_valid[agr][prefix]:
@@ -376,10 +379,11 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     if identifier in dqm[prefix]:
                         ident_found = True
                 if not ident_found:
-                    # logger.info("Notify curator %s %s %s not in dqm submission", agr, prefix, identifier)
-                    fh_mod_report[mod].write("%s %s %s not in dqm submission\n" % (agr, prefix, identifier))
+                    # logger.info("Notify curator %s %s %s not in dqm submission", agr_url, prefix, identifier)
+                    fh_mod_report[mod].write("%s %s %s not in dqm submission\n" % (agr_url, prefix, identifier))
 
     for agr in xrefs_to_add:
+        agr_url = url_ref_curie_prefix + agr
         for prefix in xrefs_to_add[agr]:
             if len(xrefs_to_add[agr][prefix]) > 1:
                 conflict_list = []
@@ -387,8 +391,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     filenames = ' '.join(sorted(xrefs_to_add[agr][prefix][ident]))
                     conflict_list.append(ident + ' ' + filenames)
                 conflict_string = ', '.join(conflict_list)
-                # logger.info("Notify curator %s %s has multiple identifiers from dqms %s", agr, prefix, conflict_string)
-                fh_mod_report[mod].write("%s %s has multiple identifiers from dqms %s\n" % (agr, prefix, conflict_string))
+                # logger.info("Notify curator %s %s has multiple identifiers from dqms %s", agr_url, prefix, conflict_string)
+                fh_mod_report[mod].write("%s %s has multiple identifiers from dqms %s\n" % (agr_url, prefix, conflict_string))
             elif len(xrefs_to_add[agr][prefix]) == 1:
                 for ident in xrefs_to_add[agr][prefix]:
                     xref_id = prefix + ':' + ident
@@ -404,8 +408,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
     # UNDO, 4003 api is broken from api code update on database needing sql udpate
     # these take hours for each mod, process about 200 references per minute
-    headers = update_db_entries(headers, aggregate_mod_reference_types_only, live_changes, 'mod_reference_types_only')
-    headers = update_db_entries(headers, aggregate_mod_biblio_all, live_changes, 'mod_biblio_all')
+    # headers = update_db_entries(headers, aggregate_mod_reference_types_only, live_changes, 'mod_reference_types_only')
+    # headers = update_db_entries(headers, aggregate_mod_biblio_all, live_changes, 'mod_biblio_all')
     for mod in fh_mod_report:
         fh_mod_report[mod].close()
     fh_mod_report['sanitized'].close()
