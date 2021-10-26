@@ -11,7 +11,7 @@ import logging.config
 
 from helper_post_to_api import generate_headers, get_authentication_token, process_api_request
 
-from helper_file_processing import load_ref_xref, split_identifier, write_json
+from helper_file_processing import load_ref_xref, split_identifier, write_json, clean_up_keywords
 
 from dotenv import load_dotenv
 
@@ -138,84 +138,6 @@ parser.add_argument('-m', '--mod', action='store', help='which mod, use all or l
 # parser.add_argument('-c', '--commandline', nargs='*', action='store', help='placeholder for process_single_pmid.py')
 
 args = vars(parser.parse_args())
-
-
-# def split_identifier(identifier, ignore_error=False):
-#     """
-# 
-#     Split Identifier.
-# 
-#     Does not throw exception anymore. Check return, if None returned, there was an error
-# 
-#     :param identifier:
-#     :param ignore_error:
-#     :return:
-#     """
-# 
-#     prefix = None
-#     identifier_processed = None
-#     separator = None
-# 
-#     if ':' in identifier:
-#         prefix, identifier_processed = identifier.split(':', 1)  # Split on the first occurrence
-#         separator = ':'
-#     elif '-' in identifier:
-#         prefix, identifier_processed = identifier.split('-', 1)  # Split on the first occurrence
-#         separator = '-'
-#     else:
-#         if not ignore_error:
-#             logger.critical('Identifier does not contain \':\' or \'-\' characters.')
-#             logger.critical('Splitting identifier is not possible.')
-#             logger.critical('Identifier: %s', identifier)
-#         prefix = identifier_processed = separator = None
-# 
-#     return prefix, identifier_processed, separator
-
-
-# def load_ref_xref():
-#     """
-# 
-#     :return:
-#     """
-# 
-#     # 7 seconds to populate file with 2476879 rows
-#     ref_xref_valid = dict()
-#     ref_xref_obsolete = dict()
-#     xref_ref = dict()
-#     base_path = environ.get('XML_PATH')
-# #     reference_primary_id_to_curie_file = base_path + 'reference_curie_to_xref_sample'
-#     reference_primary_id_to_curie_file = base_path + 'reference_curie_to_xref'
-#     if path.isfile(reference_primary_id_to_curie_file):
-#         with open(reference_primary_id_to_curie_file, 'r') as read_fh:
-#             for line in read_fh:
-#                 line_data = line.rstrip().split("\t")
-#                 agr = line_data[0]
-#                 xref = line_data[1]
-#                 status = line_data[2]
-#                 prefix, identifier, separator = split_identifier(xref)
-#                 if status == 'valid':
-#                     if agr not in ref_xref_valid:
-#                         ref_xref_valid[agr] = dict()
-#                     ref_xref_valid[agr][prefix] = identifier
-#                     # previously a reference and prefix could have multiple values
-#                     # if prefix not in ref_xref_valid[agr]:
-#                     #     ref_xref_valid[agr][prefix] = set()
-#                     # if identifier not in ref_xref_valid[agr][prefix]:
-#                     #     ref_xref_valid[agr][prefix].add(identifier)
-#                     if prefix not in xref_ref:
-#                         xref_ref[prefix] = dict()
-#                     if identifier not in xref_ref[prefix]:
-#                         xref_ref[prefix][identifier] = agr
-#                 elif status == 'obsolete':
-#                     if agr not in ref_xref_obsolete:
-#                         ref_xref_obsolete[agr] = dict()
-#                     # a reference and prefix can still have multiple obsolete values
-#                     if prefix not in ref_xref_obsolete[agr]:
-#                         ref_xref_obsolete[agr][prefix] = set()
-#                     if identifier not in ref_xref_obsolete[agr][prefix]:
-#                         ref_xref_obsolete[agr][prefix].add(identifier.lower())
-#             read_fh.close
-#     return xref_ref, ref_xref_valid, ref_xref_obsolete
 
 
 def load_pmids_not_found():
@@ -368,9 +290,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     continue
 
                 if len(agrs_found) == 0:
-                    logger.info("Action : Create New mod %s", entry['primaryId'])
+                    # logger.info("Action : Create New mod %s", entry['primaryId'])
                     references_to_create.append(entry)
-                    # TODO  shunt this to set of new to create to use old pipeline on
                 elif len(agrs_found) > 1:
                     # logger.info("Notify curator, dqm %s too many matches %s", entry['primaryId'], ', '.join(sorted(agrs_found)))
                     fh_mod_report[mod].write("dqm %s too many matches %s\n" % (entry['primaryId'], ', '.join(sorted(agrs_found))))
@@ -427,9 +348,11 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                         # logger.info("Action : aggregate PMID mod data %s", agr)
                         aggregate_mod_reference_types_only[agr] = entry
                     elif flag_aggregate_biblio:
+                        if 'keywords' in entry:
+                            entry = clean_up_keywords(mod, entry)
                         # logger.info("Action : aggregate MOD biblio data %s", agr)
-                        pass
                         aggregate_mod_biblio_all[agr] = entry
+                        pass
                     # check if dqm has no pmid/doi, but pmid/doi in DB
                     if 'PMID' not in dqm_xrefs:
                         if 'PMID' in ref_xref_valid[agr]:
@@ -441,7 +364,6 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                             fh_mod_report[mod].write("%s has DOI %s, dqm %s does not\n" % (agr, ref_xref_valid[agr]['DOI'], entry['primaryId']))
 
         save_new_references_to_file(references_to_create, mod)
-
 
     # check all db agrId->modId, check each dqm mod still had modId
     for agr in ref_xref_valid:
@@ -482,8 +404,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
     # UNDO, 4003 api is broken from api code update on database needing sql udpate
     # these take hours for each mod, process about 200 references per minute
-    # headers = update_db_entries(headers, aggregate_mod_reference_types_only, live_changes, 'mod_reference_types_only')
-    # headers = update_db_entries(headers, aggregate_mod_biblio_all, live_changes, 'mod_biblio_all')
+    headers = update_db_entries(headers, aggregate_mod_reference_types_only, live_changes, 'mod_reference_types_only')
+    headers = update_db_entries(headers, aggregate_mod_biblio_all, live_changes, 'mod_biblio_all')
     for mod in fh_mod_report:
         fh_mod_report[mod].close()
     fh_mod_report['sanitized'].close()
@@ -509,8 +431,6 @@ def update_db_entries(headers, entries, live_changes, processing_flag):      # n
     :return:
     """
 
-    # TODO when future endpoint can get N references from DB, get a set of N agr curies at once, match the db vs dqm reference info, and split the section for dealing with mod_reference_types into its own function
-
     remap_keys = dict()
     remap_keys['datePublished'] = 'date_published'
     remap_keys['dateArrivedInPubmed'] = 'date_arrived_in_pubmed'
@@ -534,18 +454,6 @@ def update_db_entries(headers, entries, live_changes, processing_flag):      # n
     # there's no API to update tags
 
     api_port = environ.get('API_PORT')
-    # base_path = environ.get('XML_PATH')
-    # okta_file = base_path + 'okta_token'
-    # token = ''
-    # if path.isfile(okta_file):
-    #     with open(okta_file, 'r') as okta_fh:
-    #         token = okta_fh.read().replace("\n", "")
-    #         okta_fh.close
-    #     # post_return = requests.post(url, headers=headers, json=new_entry)
-    # else:
-    #     token = update_token()
-    # token = get_authentication_token()
-    # headers = generate_headers(token)
 
     counter = 0
     max_counter = 10000000
@@ -590,6 +498,10 @@ def update_db_entries(headers, entries, live_changes, processing_flag):      # n
                 if dqm_value != db_value:
                     logger.info("patch %s field %s from db %s to dqm %s", agr, field_snake, db_value, dqm_value)
                     update_json[field_snake] = dqm_value
+            keywords_changed = compare_keywords(db_entry, dqm_entry)
+            if keywords_changed[0]:
+                logger.info("patch %s field keywords from db %s to dqm %s", agr, keywords_changed[2], keywords_changed[1])
+                update_json['keywords'] = keywords_changed[1]
             if update_json:
                 # for debugging changes
                 # update_text = json.dumps(update_json, indent=4)
@@ -600,6 +512,24 @@ def update_db_entries(headers, entries, live_changes, processing_flag):      # n
         headers = update_mod_reference_types(live_changes, headers, agr, dqm_entry, db_entry)
 
     return headers
+
+
+def compare_keywords(db_entry, dqm_entry):
+    # e.g. ZFIN:ZDB-PUB-150828-18
+    db_keywords = []
+    dqm_keywords = []
+    if 'keywords' in db_entry:
+        if db_entry['keywords'] is not None:
+            db_keywords = db_entry['keywords']
+    lower_db_keywords = [i.lower() for i in db_keywords]
+    if 'keywords' in dqm_entry:
+        if dqm_entry['keywords'] is not None:
+            dqm_keywords = dqm_entry['keywords']
+    lower_dqm_keywords = [i.lower() for i in dqm_keywords]
+    if set(lower_db_keywords) == set(lower_dqm_keywords):
+        return False, None, None
+    else:
+        return True, dqm_keywords, db_keywords
 
 
 def update_mod_reference_types(live_changes, headers, agr, dqm_entry, db_entry):
