@@ -1,4 +1,3 @@
-
 import json
 from os import environ, path, listdir
 import logging.config

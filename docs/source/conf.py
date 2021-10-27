@@ -14,8 +14,8 @@ import ntpath
 import os
 import sys
 sys.path.insert(0, os.path.abspath('.'))
-sys.path.insert(0, os.path.abspath('../src'))
-sys.path.insert(0, os.path.abspath('../backend/'))
+sys.path.append(os.path.abspath('../../src/xml_processing'))
+# sys.path.append(os.path.abspath('../../backend'))
 
 # -- Project information -----------------------------------------------------
 
