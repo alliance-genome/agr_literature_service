@@ -3,6 +3,10 @@ from os import environ, path
 import json
 import requests
 
+import bs4
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
+
 base_path = environ.get('XML_PATH')
 
 
@@ -135,3 +139,34 @@ def write_json(json_filename, dict_to_output):
         json_data = json.dumps(dict_to_output, indent=4, sort_keys=True)
         json_file.write(json_data)
         json_file.close()
+
+
+def clean_up_keywords(mod, entry):
+    # e.g. 9882485 25544291 24201188 31188077
+    if mod == 'ZFIN':
+        if 'keywords' in entry:
+            if entry['keywords'][0] == '':
+                entry['keywords'] = []
+            else:
+                # zfin has all keywords in the first array element, they cannot fix it
+                zfin_value = entry['keywords'][0]
+                zfin_value = str(bs4.BeautifulSoup(zfin_value, "html.parser"))
+                comma_count = 0
+                semicolon_count = 0
+                if ", " in zfin_value:
+                    comma_count = zfin_value.count(',')
+                if "; " in zfin_value:
+                    semicolon_count = zfin_value.count(';')
+                if (comma_count == 0) and (semicolon_count == 0):
+                    entry['keywords'] = [zfin_value]
+                elif comma_count >= semicolon_count:
+                    entry['keywords'] = zfin_value.split(", ")
+                else:
+                    entry['keywords'] = zfin_value.split("; ")
+    else:
+        keywords = []
+        for mod_keyword in entry['keywords']:
+            mod_keyword = str(bs4.BeautifulSoup(mod_keyword, "html.parser"))
+            keywords.append(mod_keyword)
+        entry['keywords'] = keywords
+    return entry

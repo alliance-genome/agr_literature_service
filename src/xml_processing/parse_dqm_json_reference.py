@@ -9,7 +9,7 @@ from os import environ, path, makedirs
 import logging
 import logging.config
 
-from helper_file_processing import split_identifier, write_json
+from helper_file_processing import split_identifier, write_json, clean_up_keywords
 
 from dotenv import load_dotenv
 
@@ -706,6 +706,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):      # noqa: C901
                         if prefix.lower() != 'pmid':
                             sanitized_cross_references.append(cross_reference)
                     entry['crossReferences'] = sanitized_cross_references
+                if 'keywords' in entry:
+                    entry = clean_up_keywords(mod, entry)
                 if 'resourceAbbreviation' in entry:
                     # journal = entry['resourceAbbreviation'].lower()
                     # if journal not in resource_to_nlm:
@@ -819,31 +821,33 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):      # noqa: C901
                     entry['keywords'] = []
                 else:
                     # e.g. 9882485 25544291 24201188 31188077
-                    if mod == 'ZFIN':
-                        if 'keywords' in entry:
-                            if entry['keywords'][0] == '':
-                                entry['keywords'] = []
-                            else:
-                                zfin_value = entry['keywords'][0]
-                                zfin_value = str(bs4.BeautifulSoup(zfin_value, "html.parser"))
-                                comma_count = 0
-                                semicolon_count = 0
-                                if ", " in zfin_value:
-                                    comma_count = zfin_value.count(',')
-                                if "; " in zfin_value:
-                                    semicolon_count = zfin_value.count(';')
-                                if (comma_count == 0) and (semicolon_count == 0):
-                                    entry['keywords'] = [zfin_value]
-                                elif comma_count >= semicolon_count:
-                                    entry['keywords'] = zfin_value.split(", ")
-                                else:
-                                    entry['keywords'] = zfin_value.split("; ")
-                    else:
-                        keywords = []
-                        for mod_keyword in entry['keywords']:
-                            mod_keyword = str(bs4.BeautifulSoup(mod_keyword, "html.parser"))
-                            keywords.append(mod_keyword)
-                        entry['keywords'] = keywords
+                    entry = clean_up_keywords(mod, entry)
+                    # remove this after checking it works well
+                    # if mod == 'ZFIN':
+                    #     if 'keywords' in entry:
+                    #         if entry['keywords'][0] == '':
+                    #             entry['keywords'] = []
+                    #         else:
+                    #             zfin_value = entry['keywords'][0]
+                    #             zfin_value = str(bs4.BeautifulSoup(zfin_value, "html.parser"))
+                    #             comma_count = 0
+                    #             semicolon_count = 0
+                    #             if ", " in zfin_value:
+                    #                 comma_count = zfin_value.count(',')
+                    #             if "; " in zfin_value:
+                    #                 semicolon_count = zfin_value.count(';')
+                    #             if (comma_count == 0) and (semicolon_count == 0):
+                    #                 entry['keywords'] = [zfin_value]
+                    #             elif comma_count >= semicolon_count:
+                    #                 entry['keywords'] = zfin_value.split(", ")
+                    #             else:
+                    #                 entry['keywords'] = zfin_value.split("; ")
+                    # else:
+                    #     keywords = []
+                    #     for mod_keyword in entry['keywords']:
+                    #         mod_keyword = str(bs4.BeautifulSoup(mod_keyword, "html.parser"))
+                    #         keywords.append(mod_keyword)
+                    #     entry['keywords'] = keywords
 
                 if 'keywords' in pubmed_data:
                     # aggregate for all MODs except ZFIN, which has misformed data and can't fix it.
@@ -851,32 +855,6 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):      # noqa: C901
                     for mod_keyword in pubmed_data['keywords']:
                         if mod_keyword.upper() not in map(str.upper, entry['keywords']):
                             entry['keywords'].append(mod_keyword)
-
-#                 if 'keywords' in pubmed_data:
-#                     # aggregate for all MODs except ZFIN, which has misformed data and can't fix it.
-#                     if mod == 'ZFIN':
-#                         entry['keywords'] = pubmed_data['keywords']
-#                     else:
-#                         if 'keywords' not in entry:
-#                             entry['keywords'] = []
-#                         # 19308247 aggregates keywords for WB
-#                         for mod_keyword in pubmed_data['keywords']:
-#                             entry['keywords'].append(mod_keyword)
-#                 else:
-#                     # keep the MOD's value for all MODs except ZFIN, which has misformed data and can't fix it.
-#                     if mod == 'ZFIN':
-#                         if 'keywords' in entry:
-#                             if entry['keywords'][0] != '':
-#                                 zfin_value = entry['keywords'][0]
-#                                 zfin_value = str(bs4.BeautifulSoup(zfin_value, "html.parser"))
-#                                 if ", " in zfin_value:
-#                                     entry['keywords'] = zfin_value.split(", ")
-#                                 else:
-#                                     if "; " in zfin_value:
-#                                         entry['keywords'] = zfin_value.split("; ")
-#                                     else:
-#                                         entry['keywords'] = zfin_value
-# #                                 logger.info("PMID %s does not have keywords, ZFIN has %s", pmid, entry['keywords'])
 
 # # datePublished, keywords, and crossReferences, MODReferenceTypes, tags, allianceCategory, resourceAbbreviation
 # # datePublished - pubmed value, if no value use mod's, if multiple mod's different, error
