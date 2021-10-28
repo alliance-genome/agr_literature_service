@@ -2,6 +2,8 @@ Pipeline
 ========
 
 
+.. automodule:: get_pubmed_xml
+    :members:
 
 
 .. toctree::
