@@ -1,9 +1,7 @@
 """
 get_pubmed_xml
 ==============
-
-
-This module downloads XML files from PubMed based on a list of PMIDs
+"""
 
 # pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
 # pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
@@ -39,7 +37,6 @@ This module downloads XML files from PubMed based on a list of PMIDs
 # to get a batch of pmids by pmids
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=1,10,100,1000487,1000584&retmode=xml
 
-"""
 import sys
 import time
 import re
@@ -65,15 +62,19 @@ coloredlogs.install(level='DEBUG')
 
 def download_pubmed_xml(pmids_wanted, storage_path, base_path):
     """
+    main function that downloads PubMed XMLs from a list of IDs
+    currently downloaded XMLs are checked and won't be redownloaded (provided a previously used
+    base_path and storage_path are used
 
     Performance:
-    4.5 minutes to download 28994 wormbase records in 10000 chunks
-    61 minutes to download 429899 alliance records in 10000 chunks
-    127 minutes to download 646714 alliance records in 5000 chunks, failed on 280
+    4.5 minutes to download 28994 WormBase records in 10000 chunks
+    61 minutes to download 429899 Alliance records in 10000 chunks
+    127 minutes to download 646714 Alliance records in 5000 chunks, failed on 280
 
 
     :param pmids_wanted: list of PMIDs to be processed
-    :param storage_path
+    :param storage_path: path to the directory where XMLs will be stored
+    :param base_path: path where the application will generate output
     :return:
     """
 
@@ -134,8 +135,8 @@ def download_pubmed_xml(pmids_wanted, storage_path, base_path):
         try:
             with requests.post(url, data=parameters) as r:
                 xml_all = r.text
-    #             # xml_all = r.text.encode('utf-8').strip()		  # python2
-                # xml_split = xml_all.split("\n<Pubmed")		  # before 2021 08 11  xml output had linebreaks between pmids, making that easier
+                # xml_all = r.text.encode('utf-8').strip()		  # python2
+                # xml_split = xml_all.split("\n<Pubmed")	 # before 2021 08 11  xml output had linebreaks between pmids, making that easier
                 xml_split = re.split('(<Pubmed[^>]*Article>)', xml_all)	  # some types are not PubmedArticle, like PubmedBookArticle, e.g. 32644453
                 header = xml_split.pop(0)
                 # header = header + "\n<Pubmed" + xml_split.pop(0)	  # before when splitting on linebreak without capturing was manually adding the split
@@ -159,7 +160,6 @@ def download_pubmed_xml(pmids_wanted, storage_path, base_path):
                         f.close()
                         md5sum = hashlib.md5(clean_xml.encode('utf-8')).hexdigest()
                         md5dict[pmid] = md5sum
-
                 if len(pmids_slice) == pmids_slice_size:
                     logger.info('Waiting to process more pmids')
                     time.sleep(5)
@@ -207,9 +207,14 @@ def download_pubmed_xml(pmids_wanted, storage_path, base_path):
 @click.option('-u', '--url', 'url', help='take input from entries in file at url', required=False)
 def process_tasks(cli, db, ffile, api, sample, url):
     """
-    main function that process arguments from the command line
+    auxiliary  function that process arguments from the command line
 
-
+    :param cli: PMIDs as cli inputs
+    :param db: PMIDs from DB query (not fully implemented)
+    :param ffile: PMIDs from a file (one per line), path entered
+    :param api: PMIDs from a REST API endpoint
+    :param sample: hardcoded PMIDs
+    :param url: PMIDs from a file at the end of a URL
     :return:
     """
 
