@@ -173,9 +173,13 @@ def process_api_request(method, url, headers, json_data, primary_id, mapping_fh,
     # elif (request_return.status_code == 409):
     #     continue
     else:
-        detail = ''
-        if 'detail' in response_dict:
-            detail = response_dict['detail']
+        # usually when the api will have a string in response_dict['detail'], but if it fails because e.g. there isn't a title, it will give 
+        # {"detail": [{"loc": ["body", "title"], "msg": "field required", "type": "value_error.missing"}]}
+        # so safer to json.dumps messages
+        # detail = ''
+        # if 'detail' in response_dict:
+        #     detail = response_dict['detail']
+        detail = json.dumps(response_dict)
         # logger.info("ERROR %s primaryId %s message %s", request_return.status_code, primary_id, detail)
         log_info += "api error unexpected response " + str(request_return.status_code) + " primaryId " + primary_id + " message " + detail
         # if error_fh is not None:
