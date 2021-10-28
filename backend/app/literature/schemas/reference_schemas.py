@@ -49,6 +49,7 @@ class ReferenceSchemaPost(BaseModel):
     authors: Optional[List[AuthorSchemaPost]] = None
     editors: Optional[List[EditorSchemaPost]] = None
     resource: Optional[str] = None
+    open_access: Optional[bool] = None
 
     class Config():
         orm_mode = True
@@ -89,6 +90,7 @@ class ReferenceSchemaUpdate(BaseModel):
     issue_name: Optional[str] = None
     issue_date: Optional[str] = None
     resource: Optional[str] = None
+    open_access: Optional[bool] = None
 
     @validator('title')
     def title_is_some(cls, v: str) -> str:
@@ -146,3 +148,4 @@ class ReferenceSchemaShow(BaseModelShow):
     authors: Optional[List[AuthorSchemaShow]] = None
     editors: Optional[List[EditorSchemaShow]] = None
     comment_and_corrections: CommentAndCorrectionSchemaRelations = None
+    open_access: Optional[bool] = None
