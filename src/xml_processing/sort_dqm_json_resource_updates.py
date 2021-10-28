@@ -24,6 +24,12 @@ load_dotenv()
 
 # Attention Paulo: This is still in progress, need to test it against a newly populated database after hearing back about oddly high-numbered NLMs
 
+# rename this to sort_dqm_json_resource_updates
+# work off of sanitized_resource_json  mod + NLM files
+# should it also update NLM resources ?  yes, 13.5 minutes is not long
+# test time to get all resources 0000042513 - 13.5 minutes.  
+# keep working off of lit-4003, comparing data from 20211025 files (loaded at lit-4005)
+
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
@@ -36,6 +42,7 @@ args = vars(parser.parse_args())
 
 def update_nlm_resources():
     """
+    Replace this with checking against sanitized_resource_json/ mod + NLM data
 
     :return:
     """
@@ -160,13 +167,41 @@ def update_resources(live_changes, headers, resources_to_update):
                     logger.info("%s\t%s", agr, response_dict)
 
 
+def test_get_from_list():
+    """
+    To test making a GET on :4005 to get multiple references at once vs one-by-one.  It's just as slow, but leaving it in to test future different methods for getting data from database
+    20 seconds for 1000 resources
+    13.5 minutes for all 42513 resources
+
+    :return:
+    """
+
+    print('json_data')
+    method = 'GET'
+    headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+    json_data = []
+    # for i in range(1, 1001):
+    for i in range(1, 42514):
+        agr_id = 'AGR:AGR-Resource-' + str(i).zfill(10)
+        url = 'http://dev.alliancegenome.org:4005/resource/' + agr_id
+        print(url)
+        request_return = requests.request(method, url=url, headers=headers, json=json_data)
+        process_text = str(request_return.text)
+        print(process_text)
+    # print(json_data)
+
+
 if __name__ == "__main__":
     """
     call main start function
     """
 
-    logger.info("starting update_nlm_resources.py")
+    logger.info("starting sort_dqm_json_resource_updates.py")
 
-    update_nlm_resources()
+    # update_nlm_resources()
+    test_get_from_list()
 
-    logger.info("ending update_nlm_resources.py")
+    logger.info("ending sort_dqm_json_resource_updates.py")
