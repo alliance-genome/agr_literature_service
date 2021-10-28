@@ -34,8 +34,6 @@ logger = logging.getLogger('literature logger')
 # resource_fields_not_in_pubmed = ['titleSynonyms', 'abbreviationSynonyms', 'copyrightDate',
 #                                  'publisher', 'editorsOrAuthors', 'volumes', 'pages', 'abstractOrSummary']
 
-# TODO  when done developing and running scripts posting to API, switch back from DEV folder and file to live one
-
 
 def create_storage_path(json_storage_path):
     """
@@ -259,7 +257,7 @@ def generate_resource_abbreviation_to_nlm_from_dqm_references(input_path, mod): 
     # fb have fb ids for resources, but from the resourceAbbreviation and pubmed xml's nlm, we can update fb resource data to primary key off of nlm
     # parse_dqm_json_resource takes one second, but generating this takes 49 seconds for FB data, 56s for SGD, 150s for MGI, 15s WB
     # so save to a file for ease of altering this script in the future, being able to load the file with load_mod_resource_to_nlm(mod)
-    json_filename = base_path + 'DEV_' + mod + '_resourceAbbreviation_to_NLM.json'
+    json_filename = base_path + mod + '_resourceAbbreviation_to_NLM.json'
     write_json(json_filename, mod_resource_abbreviation_to_nlm)
 
     return mod_resource_abbreviation_to_nlm
@@ -350,7 +348,7 @@ if __name__ == "__main__":
     logger.info("Starting parse_dqm_json_resource.py")
 
     base_path = environ.get('XML_PATH')
-    json_storage_path = base_path + 'DEV_sanitized_resource_json/'
+    json_storage_path = base_path + 'sanitized_resource_json/'
     create_storage_path(json_storage_path)
 
     mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB']
