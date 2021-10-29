@@ -29,7 +29,6 @@ make_versioned(user_cls='UserModel',
                plugins=[user_plugin, PropertyModTrackerPlugin()])
 
 
-
 def get_db():
     db = SessionLocal()
     try:
