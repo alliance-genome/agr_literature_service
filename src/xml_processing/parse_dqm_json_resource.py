@@ -252,7 +252,12 @@ def generate_resource_abbreviation_to_nlm_from_dqm_references(input_path, mod): 
             if 'nlm' in pubmed_data:
                 nlm = pubmed_data['nlm']
                 if 'resourceAbbreviation' in entry:
-                    mod_resource_abbreviation_to_nlm[entry['resourceAbbreviation']] = nlm
+                    resource_abbreviation = entry['resourceAbbreviation']
+                    if resource_abbreviation in mod_resource_abbreviation_to_nlm:
+                        if nlm not in mod_resource_abbreviation_to_nlm[resource_abbreviation]:
+                            mod_resource_abbreviation_to_nlm[resource_abbreviation].append(nlm)
+                    else:
+                        mod_resource_abbreviation_to_nlm[entry['resourceAbbreviation']] = [nlm]
 
     # fb have fb ids for resources, but from the resourceAbbreviation and pubmed xml's nlm, we can update fb resource data to primary key off of nlm
     # parse_dqm_json_resource takes one second, but generating this takes 49 seconds for FB data, 56s for SGD, 150s for MGI, 15s WB
@@ -294,7 +299,8 @@ def load_mod_resource(json_storage_path, pubmed_by_nlm, mod):      # noqa: C901
                 elif 'abbreviationSynonyms' in entry:
                     for abbreviation in entry['abbreviationSynonyms']:
                         if abbreviation in mod_to_nlm:
-                            nlm = mod_to_nlm[abbreviation]
+                            if len(mod_to_nlm) == 1:
+                                nlm = mod_to_nlm[abbreviation]
                 if nlm != '':
                     if nlm in pubmed_by_nlm:
                         nlm_cross_refs = set()
