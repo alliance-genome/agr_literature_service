@@ -1,13 +1,21 @@
+"""
+xml_to_json
+===========
+
+module that converts XMLs to JSON files
+
+"""
+
+
 import json
 import urllib.request
 # import xmltodict
-
 import argparse
 import re
-
 from os import environ, path, makedirs
 import logging.config
 import hashlib
+import click
 
 # from dotenv import load_dotenv
 #
@@ -56,15 +64,9 @@ logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
-parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
-parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
-parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
-parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
-parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
 
-args = vars(parser.parse_args())
+
+
 
 # todo: save this in an env variable
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
@@ -657,58 +659,77 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
     return new_pmids
 
 
-if __name__ == "__main__":
+@click.command()
+@click.option('-c', '--commandline', 'cli', multiple=True, help='take input from command line flag', required=False)
+@click.option('-d', '--database', 'db', help='take input from database query', required=False)
+@click.option('-f', '--file', 'ffile', help='take input from entries in file with full path', required=False)
+@click.option('-r', '--restapi', 'api', help='take input from rest api', required=False)
+@click.option('-s', '--sample', 'sample', help='test sample input from hardcoded entries', required=False, default=False, is_flag=True)
+@click.option('-u', '--url', 'url', help='take input from entries in file at url', required=False)
+def process_tasks(cli, db, ffile, api, sample, url):
     """
-    call main start function
+
+    :param cli:
+    :param db:
+    :param ffile:
+    :param api:
+    :param sample:
+    :param url:
+    :return:
     """
 
-    pmids = []
 
-    # python xml_to_json.py -d
-    if args['database']:
-        logger.info("Processing database entries")
+    # set storage location
+    # todo: see if environment variable check works
+    # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+    if len(os.environ.get('XML_PATH')) == 0:
+        sys.exit()
+    else:
+        base_path = os.environ.get('XML_PATH')
+        storage_path = base_path + 'pubmed_xml/'
 
-    elif args['restapi']:
-        logger.info("Processing rest api entries")
+    logger.info('Base path is at ' + base_path)
+    logger.info('XMLs will be saved on ' + storage_path)
 
-    # python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
-    elif args['file']:
-        logger.info("Processing file input from %s", args['file'])
-        with open(args['file'], 'r') as fp:
-            pmid = fp.readline()
-            while pmid:
-                pmids.append(pmid.rstrip())
-                pmid = fp.readline()
+    # print(os.environ.get('XML_PATH'))
 
-    # python xml_to_json.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
-    elif args['url']:
-        logger.info("Processing url input from %s", args['url'])
-        req = urllib.request.urlopen(args['url'])
+    pmids = []        # list that will contain the PMIDs to be downloaded
+
+    # checking parameters
+    if db:
+        # python xml_to_json.py -d
+        logger.info('Processing database entries')
+    elif api:
+        # python xml_to_json.py -r
+        logger.info('Processing rest api entries')
+    elif ffile:
+        # python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/pmid_file.txt
+        logger.info('Processing file input from ' + ffile)
+        # this requires a well structured input
+        pmids = open(ffile).read().splitlines()
+    elif url:
+        # python xml_to_json.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
+        logger.info('Processing url input from %s', url)
+        req = urllib.request.urlopen(url)
         data = req.read()
         lines = data.splitlines()
         for pmid in lines:
             pmids.append(str(int(pmid)))
-
-    # python xml_to_json.py -c 1234 4576 1828
-    elif args['commandline']:
+    elif cli:
+        # python xml_to_json.py -c 1234 4576 1828
         logger.info("Processing commandline input")
-        for pmid in args['commandline']:
+        for pmid in cli:
             pmids.append(pmid)
-
-    # python xml_to_json.py -s
-    elif args['sample']:
+    elif sample:
+        # python xml_to_json.py -s
         logger.info("Processing hardcoded sample input")
-        pmid = '12345678'
-        pmids.append(pmid)
-        pmid = '12345679'
-        pmids.append(pmid)
-        pmid = '12345680'
-        pmids.append(pmid)
+        pmids = ['12345678', '12345679', '12345680']
+    # else:
+    #     logger.info("Processing database entries")
 
-    else:
-        logger.info("Processing database entries")
 
-    # when iterating manually through list of PMIDs from PubMed XML CommentsCorrections, and wanting to exclude PMIDs that have already been looked at from original alliance DQM input, or previous iterations.
+    # when iterating manually through list of PMIDs from PubMed XML CommentsCorrections,
+    # and wanting to exclude PMIDs that have already been looked at from original alliance DQM input, or previous iterations.
     previous_pmids = []
     previous_pmids_files = []
     # previous_pmids_files = ['inputs/alliance_pmids', 'inputs/comcor_add1', 'inputs/comcor_add2', 'inputs/comcor_add3']
@@ -723,6 +744,14 @@ if __name__ == "__main__":
     generate_json(pmids, previous_pmids)
 
     logger.info("Done converting XML to JSON")
+
+
+if __name__ == "__main__":
+    """
+    call main start function
+    """
+
+    process_tasks()
 
 # capture ISSN / NLM
 #         <MedlineJournalInfo>

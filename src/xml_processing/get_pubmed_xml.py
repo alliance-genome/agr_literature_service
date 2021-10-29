@@ -57,8 +57,6 @@ logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 coloredlogs.install(level='DEBUG')
 
-# TODO: save this in an env variable
-
 
 def download_pubmed_xml(pmids_wanted, storage_path, base_path):
     """
@@ -244,7 +242,7 @@ def process_tasks(cli, db, ffile, api, sample, url):
     elif ffile:
         # python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/pmid_file.txt
         logger.info('Processing file input from ' + ffile)
-        # this requires a well satructured input
+        # this requires a well structured input
         pmids_wanted = open(ffile).read().splitlines()
     elif url:
         # python get_pubmed_xml.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
@@ -262,12 +260,7 @@ def process_tasks(cli, db, ffile, api, sample, url):
     elif sample:
         # python get_pubmed_xml.py -s
         logger.info("Processing hardcoded sample input")
-        pmid = '12345678'
-        pmids_wanted.append(pmid)
-        pmid = '12345679'
-        pmids_wanted.append(pmid)
-        pmid = '12345680'
-        pmids_wanted.append(pmid)
+        pmids_wanted = ['12345678', '12345679', '12345680']
     # else:
     #     logger.info("Processing database entries")
 
