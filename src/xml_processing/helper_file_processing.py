@@ -1,7 +1,7 @@
 from os import environ, path
 
 import json
-import requests
+# import requests
 
 import bs4
 import warnings
@@ -48,6 +48,7 @@ def split_identifier(identifier, ignore_error=False):
 
 def load_ref_xref(datatype):
     """
+    datatype can be reference or resource, generate mappings of their curies to their cross_reference curies
 
     :param datatype:
     :return:
@@ -58,9 +59,9 @@ def load_ref_xref(datatype):
     ref_xref_obsolete = dict()
     xref_ref = dict()
     base_path = environ.get('XML_PATH')
-    reference_primary_id_to_curie_file = base_path + datatype + '_curie_to_xref'
-    if path.isfile(reference_primary_id_to_curie_file):
-        with open(reference_primary_id_to_curie_file, 'r') as read_fh:
+    datatype_primary_id_to_curie_file = base_path + datatype + '_curie_to_xref'
+    if path.isfile(datatype_primary_id_to_curie_file):
+        with open(datatype_primary_id_to_curie_file, 'r') as read_fh:
             for line in read_fh:
                 line_data = line.rstrip().split("\t")
                 agr = line_data[0]
