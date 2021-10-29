@@ -110,7 +110,8 @@ def update_sanitized_resources(datatype):
             # logger.info("create primary_id %s", primary_id)
             resources_to_create[primary_id] = resource_dict
 
-    save_resource_file(json_storage_path, resources_to_create, datatype)  # this needs to post_resource_to_api, figure out appending to resource_primary_id_to_curie
+    if resources_to_create:
+        save_resource_file(json_storage_path, resources_to_create, datatype)  # this needs to post_resource_to_api, figure out appending to resource_primary_id_to_curie
 
     update_resources(live_changes, headers, resources_to_update)
 
@@ -309,6 +310,7 @@ def compare_xref(agr, dqm_entry, xref_ref, ref_xref_valid, ref_xref_obsolete, he
 
 def compare_list(db_entry, dqm_entry, field_camel, remap_keys):
     """
+    compare case-insensitive if two lists contain the same values from db and dqm dicts
 
     :param db_entry:
     :param dqm_entry:
