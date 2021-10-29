@@ -1,5 +1,6 @@
 sqlalchemy==1.2.17
 fastapi==0.68.1
+fastapi-health==0.4.0
 uvicorn[standard]==0.15.0
 alembic==1.4.3
 async-exit-stack==1.0.1
