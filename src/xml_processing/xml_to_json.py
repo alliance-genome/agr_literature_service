@@ -10,12 +10,12 @@ module that converts XMLs to JSON files
 import json
 import urllib.request
 # import xmltodict
-import argparse
 import re
 from os import environ, path, makedirs
 import logging.config
 import hashlib
 import click
+import coloredlogs
 
 # from dotenv import load_dotenv
 #
@@ -62,15 +62,7 @@ import click
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
-
-
-
-
-
-
-# todo: save this in an env variable
-# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
-base_path = environ.get('XML_PATH')
+coloredlogs.install(level='DEBUG')
 
 
 known_article_id_types = {
@@ -81,7 +73,7 @@ known_article_id_types = {
 #     'doi': {'pages': 'DOI', 'prefix': 'DOI:'},
 #     'pmc': {'pages': 'PMC', 'prefix': 'PMCID:'}}
 ignore_article_id_types = {'bookaccession', 'mid', 'pii', 'pmcid'}
-unknown_article_id_types = set()
+unknown_article_id_types = set([])
 
 
 def represents_int(s):
@@ -169,7 +161,7 @@ def get_medline_date_from_xml_date(pub_date):
         return medline_re_output.group(1)
 
 
-def generate_json(pmids, previous_pmids):      # noqa: C901
+def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
     """
 
     :param pmids:
@@ -187,10 +179,10 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
         makedirs(storage_path)
     if not path.exists(json_storage_path):
         makedirs(json_storage_path)
-#     new_pmids = []
-#     ref_types = []
-    new_pmids_set = set()
-    ref_types_set = set()
+    # new_pmids = []
+    # ref_types = []
+    new_pmids_set = set([])
+    ref_types_set = set([])
     for pmid in pmids:
         filename = storage_path + pmid + '.xml'
         # if getting pmids from directories split into multiple sub-subdirectories
@@ -203,13 +195,14 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
             xml = xml_file.read()
             # print (xml)
 
-            # xmltodict is treating html markup like <i>text</i> as xml, which is creating mistaken structure in the conversion.
+            # xmltodict is treating html markup like <i>text</i> as xml,
+            # which is creating mistaken structure in the conversion.
             # may be better to parse full xml instead.
             # data_dict = xmltodict.parse(xml_file.read())
             xml_file.close()
 
             # print (pmid)
-            data_dict = dict()
+            data_dict = {}
 
             # e.g. 21290765 has BookDocument and ArticleTitle
             book_re_output = re.search("<BookDocument>", xml)
@@ -219,7 +212,7 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
             title_re_output = re.search("<ArticleTitle[^>]*?>(.+?)</ArticleTitle>", xml, re.DOTALL)
             if title_re_output is not None:
                 # print title
-                title = title_re_output.group(1).replace('\n', ' ').replace('\r', '')
+                title = title_re_output.group(1).rstrip()
                 title = re.sub(r'\s+', ' ', title)
                 data_dict['title'] = title
                 if 'is_book' not in data_dict:
@@ -229,7 +222,7 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                 book_title_re_output = re.search("<BookTitle[^>]*?>(.+?)</BookTitle>", xml, re.DOTALL)
                 if book_title_re_output is not None:
                     # print title
-                    title = book_title_re_output.group(1).replace('\n', ' ').replace('\r', '')
+                    title = book_title_re_output.group(1).rstrip()
                     title = re.sub(r'\s+', ' ', title)
                     data_dict['title'] = title
                     data_dict['is_book'] = 'book'
@@ -238,7 +231,7 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                     vernacular_title_re_output = re.search("<VernacularTitle[^>]*?>(.+?)</VernacularTitle>", xml, re.DOTALL)
                     if vernacular_title_re_output is not None:
                         # print title
-                        title = vernacular_title_re_output.group(1).replace('\n', ' ').replace('\r', '')
+                        title = vernacular_title_re_output.group(1).rstrip()
                         title = re.sub(r'\s+', ' ', title)
                         data_dict['title'] = title
                         data_dict['is_vernacular'] = 'vernacular'
@@ -247,34 +240,31 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
 
             journal_re_output = re.search("<MedlineTA>(.+?)</MedlineTA>", xml)
             if journal_re_output is not None:
-                # print journal
                 data_dict['journal'] = journal_re_output.group(1)
 
             pages_re_output = re.search("<MedlinePgn>(.+?)</MedlinePgn>", xml)
             if pages_re_output is not None:
-                # print pages
                 data_dict['pages'] = pages_re_output.group(1)
 
             volume_re_output = re.search("<Volume>(.+?)</Volume>", xml)
             if volume_re_output is not None:
-                # print volume
                 data_dict['volume'] = volume_re_output.group(1)
 
             issue_re_output = re.search("<Issue>(.+?)</Issue>", xml)
             if issue_re_output is not None:
-                # print issue
                 data_dict['issueName'] = issue_re_output.group(1)
 
             if re.findall("<PublicationType>(.+?)</PublicationType>", xml):
                 types_group = re.findall("<PublicationType>(.+?)</PublicationType>", xml)
-                # print types_group
                 data_dict['pubMedType'] = types_group
             elif re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml):
                 types_group = re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml)
-                # print types_group
                 data_dict['pubMedType'] = types_group
 
-            # <CommentsCorrectionsList><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler. 1999 Dec;5(6):378</RefSource><PMID Version="1">10644162</PMID></CommentsCorrections><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler. 2000 Aug;6(4):291-2</RefSource><PMID Version="1">10962551</PMID></CommentsCorrections></CommentsCorrectionsList>
+            # <CommentsCorrectionsList><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler.
+            # 1999 Dec;5(6):378</RefSource><PMID Version="1">10644162</PMID></CommentsCorrections><CommentsCorrections
+            # RefType="CommentIn"><RefSource>Mult Scler. 2000 Aug;6(4):291-2</RefSource><PMID Version="1">10962551</PMID>
+            # </CommentsCorrections></CommentsCorrectionsList>
             comments_corrections_group = re.findall("<CommentsCorrections (.+?)</CommentsCorrections>", xml, re.DOTALL)
             if len(comments_corrections_group) > 0:
                 data_dict['commentsCorrections'] = dict()
@@ -287,7 +277,8 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                     other_pmid_re_output = re.search("<PMID[^>]*?>(.+?)</PMID>", comcor_xml)
                     if other_pmid_re_output is not None:
                         other_pmid = other_pmid_re_output.group(1)
-                    if (other_pmid != '') and (ref_type != '') and (ref_type != 'CommentIn') and (ref_type != 'CommentOn'):
+                    if (other_pmid != '') and (ref_type != '') and (ref_type != 'CommentIn') \
+                            and (ref_type != 'CommentOn'):
                         if ref_type in data_dict['commentsCorrections']:
                             if other_pmid not in data_dict['commentsCorrections'][ref_type]:
                                 data_dict['commentsCorrections'][ref_type].append(other_pmid)
@@ -338,9 +329,7 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                     orcid_re_output = re.search("<Identifier Source=\"ORCID\">.*?([0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]).*?</Identifier>", author_xml)
                     if orcid_re_output is not None:
                         orcid = orcid_re_output.group(1)
-                        orcid_dict = {}
-                        orcid_dict["id"] = 'ORCID:' + orcid_re_output.group(1)
-                        orcid_dict["pages"] = ["person/orcid"]
+                        orcid_dict = {"id": 'ORCID:' + orcid_re_output.group(1), "pages": ["person/orcid"]}
                         author_cross_references.append(orcid_dict)
 
                     # e.g. 30003105 30002370
@@ -401,11 +390,8 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                 if date_list[0]:
                     date_string = "-".join(date_list)
                     # print date_string
-                    date_dict = {}
-                    date_dict['date_string'] = date_string
-                    date_dict['year'] = date_list[0]
-                    date_dict['month'] = date_list[1]
-                    date_dict['day'] = date_list[2]
+                    date_dict = {'date_string': date_string, 'year': date_list[0], 'month': date_list[1],
+                                 'day': date_list[2]}
                     # datePublished is a string, not a date-time
                     data_dict['datePublished'] = date_string
                     data_dict['issueDate'] = date_dict
@@ -422,12 +408,8 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                 date_list = get_year_month_day_from_xml_date(date_revised)
                 if date_list[0]:
                     date_string = "-".join(date_list)
-                    # print date_string
-                    date_dict = {}
-                    date_dict['date_string'] = date_string
-                    date_dict['year'] = date_list[0]
-                    date_dict['month'] = date_list[1]
-                    date_dict['day'] = date_list[2]
+                    date_dict = {'date_string': date_string, 'year': date_list[0], 'month': date_list[1],
+                                 'day': date_list[2]}
                     data_dict['dateLastModified'] = date_dict
 
             date_received_re_output = re.search("<PubMedPubDate PubStatus=\"received\">(.+?)</PubMedPubDate>", xml, re.DOTALL)
@@ -436,12 +418,8 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                 date_list = get_year_month_day_from_xml_date(date_received)
                 if date_list[0]:
                     date_string = "-".join(date_list)
-                    # print date_string
-                    date_dict = {}
-                    date_dict['date_string'] = date_string
-                    date_dict['year'] = date_list[0]
-                    date_dict['month'] = date_list[1]
-                    date_dict['day'] = date_list[2]
+                    date_dict = {'date_string': date_string, 'year': date_list[0], 'month': date_list[1],
+                                 'day': date_list[2]}
                     data_dict['dateArrivedInPubmed'] = date_dict
 
             cross_references = []
@@ -449,14 +427,14 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
             article_id_list_re_output = re.search("<ArticleIdList>(.*?)</ArticleIdList>", xml, re.DOTALL)
             if article_id_list_re_output is not None:
                 article_id_list = article_id_list_re_output.group(1)
-                # print pmid + " AIDL " + article_id_list
                 article_id_group = re.findall("<ArticleId IdType=\"(.*?)\">(.+?)</ArticleId>", article_id_list)
                 if len(article_id_group) > 0:
                     type_has_value = set()
                     for type_value in article_id_group:
                         type = type_value[0]
                         value = type_value[1]
-                        # convert the only html entities found in DOIs  &lt; &gt; &amp;#60; &amp;#62;	e.g. PMID:8824556 PMID:10092111
+                        # convert the only html entities found in DOIs  &lt; &gt; &amp;#60; &amp;#62;
+                        # e.g. PMID:8824556 PMID:10092111
                         value = value.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;#60;', '<').replace('&amp;#62;', '>')
                         # print pmid + " type " + type + " value " + value
                         if type in known_article_id_types:
@@ -572,7 +550,8 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
             elif pip_abstract != '':           # e.g. 9643811 has pip but not main abstract
                 data_dict['abstract'] = pip_abstract
 
-            # some xml has keywords spanning multiple lines e.g. 30110134 ; others get captured inside other keywords e.g. 31188077
+            # some xml has keywords spanning multiple lines e.g. 30110134
+            # others get captured inside other keywords e.g. 31188077
             regex_keyword_output = re.findall("<Keyword .*?>(.+?)</Keyword>", xml, re.DOTALL)
             if len(regex_keyword_output) > 0:
                 keywords = []
@@ -594,31 +573,29 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                         qualifier_group = re.findall("<QualifierName.*?>(.+?)</QualifierName>", mesh_xml, re.DOTALL)
                         if len(qualifier_group) > 0:
                             for mesh_qualifier_term in qualifier_group:
-                                mesh_dict = {}
-                                mesh_dict["referenceId"] = 'PMID:' + pmid
-                                mesh_dict["meshHeadingTerm"] = mesh_heading_term
-                                mesh_dict["meshQualifierTerm"] = mesh_qualifier_term
+                                mesh_dict = {"referenceId": 'PMID:' + pmid, "meshHeadingTerm": mesh_heading_term,
+                                             "meshQualifierTerm": mesh_qualifier_term}
                                 meshs_list.append(mesh_dict)
                         else:
-                            mesh_dict = {}
-                            mesh_dict["referenceId"] = 'PMID:' + pmid
-                            mesh_dict["meshHeadingTerm"] = mesh_heading_term
+                            mesh_dict = {"referenceId": 'PMID:' + pmid, "meshHeadingTerm": mesh_heading_term}
                             meshs_list.append(mesh_dict)
-#                 for mesh_xml in meshs_group:
-#                     descriptor_group = re.findall("<DescriptorName.*?UI=\"(.+?)\".*?>(.+?)</DescriptorName>", mesh_xml, re.DOTALL)
-#                     if len(descriptor_group) > 0:
-#                         for id_name in descriptor_group:
-#                             mesh_dict = {}
-#                             mesh_dict["referenceId"] = id_name[0]
-#                             mesh_dict["meshHeadingTerm"] = id_name[1]
-#                             meshs_list.append(mesh_dict)
-#                     qualifier_group = re.findall("<QualifierName.*?UI=\"(.+?)\".*?>(.+?)</QualifierName>", mesh_xml, re.DOTALL)
-#                     if len(qualifier_group) > 0:
-#                         for id_name in qualifier_group:
-#                             mesh_dict = {}
-#                             mesh_dict["referenceId"] = id_name[0]
-#                             mesh_dict["meshQualifierTerm"] = id_name[1]
-#                             meshs_list.append(mesh_dict)
+                # for mesh_xml in meshs_group:
+                #     descriptor_group = re.findall("<DescriptorName.*?UI=\"(.+?)\".*?>(.+?)</DescriptorName>",
+                #                                  mesh_xml, re.DOTALL)
+                #     if len(descriptor_group) > 0:
+                #         for id_name in descriptor_group:
+                #             mesh_dict = {}
+                #             mesh_dict["referenceId"] = id_name[0]
+                #             mesh_dict["meshHeadingTerm"] = id_name[1]
+                #             meshs_list.append(mesh_dict)
+                #     qualifier_group = re.findall("<QualifierName.*?UI=\"(.+?)\".*?>(.+?)</QualifierName>",
+                #                                 mesh_xml, re.DOTALL)
+                #     if len(qualifier_group) > 0:
+                #         for id_name in qualifier_group:
+                #             mesh_dict = {}
+                #             mesh_dict["referenceId"] = id_name[0]
+                #             mesh_dict["meshQualifierTerm"] = id_name[1]
+                #             meshs_list.append(mesh_dict)
                 data_dict['meshTerms'] = meshs_list
 
             # generate the object using json.dumps()
@@ -631,7 +608,7 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
             json_data = json.dumps(data_dict, indent=4, sort_keys=True)
 
             # Write the json data to output json file
-# UNCOMMENT TO write to json directory
+            # UNCOMMENT TO write to json directory
             json_filename = json_storage_path + pmid + '.json'
             # if getting pmids from directories split into multiple sub-subdirectories
             # json_filename = get_path_from_pmid(pmid, 'json')
@@ -647,7 +624,7 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
         md5file_fh.write(md5data)
 
     for unknown_article_id_type in unknown_article_id_types:
-        logger.info("unknown_article_id_type %s", unknown_article_id_type)
+        logger.warning("unknown_article_id_type %s", unknown_article_id_type)
 
     for ref_type in ref_types_set:
         logger.info("ref_type %s", ref_type)
@@ -678,7 +655,6 @@ def process_tasks(cli, db, ffile, api, sample, url):
     :return:
     """
 
-
     # set storage location
     # todo: see if environment variable check works
     # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
@@ -686,14 +662,11 @@ def process_tasks(cli, db, ffile, api, sample, url):
         sys.exit()
     else:
         base_path = os.environ.get('XML_PATH')
-        storage_path = base_path + 'pubmed_xml/'
 
     logger.info('Base path is at ' + base_path)
     logger.info('XMLs will be saved on ' + storage_path)
 
-    # print(os.environ.get('XML_PATH'))
-
-    pmids = []        # list that will contain the PMIDs to be downloaded
+    pmids = []        # list that will contain the PMIDs to be converted
 
     # checking parameters
     if db:
@@ -733,7 +706,10 @@ def process_tasks(cli, db, ffile, api, sample, url):
     previous_pmids = []
     previous_pmids_files = []
     # previous_pmids_files = ['inputs/alliance_pmids', 'inputs/comcor_add1', 'inputs/comcor_add2', 'inputs/comcor_add3']
-    # previous_pmids_files = ['inputs/alliance_pmids', 'inputs/comcor_add1', 'inputs/comcor_add2', 'inputs/comcor_add3', 'inputs/comcor_add4', 'inputs/comcor_add5', 'inputs/comcor_add6', 'inputs/comcor_add7', 'inputs/comcor_add8', 'inputs/comcor_add9', 'inputs/comcor_add10', 'inputs/comcor_add11']
+    # previous_pmids_files = ['inputs/alliance_pmids', 'inputs/comcor_add1', 'inputs/comcor_add2',
+    #                        'inputs/comcor_add3', 'inputs/comcor_add4', 'inputs/comcor_add5', 'inputs/comcor_add6',
+    #                        'inputs/comcor_add7', 'inputs/comcor_add8', 'inputs/comcor_add9', 'inputs/comcor_add10',
+    #                        'inputs/comcor_add11']
     for previous_pmids_file in previous_pmids_files:
         with open(previous_pmids_file, 'r') as fp:
             pmid = fp.readline()
@@ -741,7 +717,7 @@ def process_tasks(cli, db, ffile, api, sample, url):
                 previous_pmids.append(pmid.rstrip())
                 pmid = fp.readline()
 
-    generate_json(pmids, previous_pmids)
+    generate_json(pmids, previous_pmids, base_path)
 
     logger.info("Done converting XML to JSON")
 
