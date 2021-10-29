@@ -28,7 +28,9 @@ if "literature-test" not in SQLALCHEMY_DATABASE_URL:
 
 db.execute('delete from cross_references')
 db.execute('delete from authors')
+db.execute('delete from editors')
 db.execute('delete from "references"')
+db.execute('delete from resources')
 
 
 def test_get_bad_reference():
@@ -186,6 +188,7 @@ def test_reference_large():
     assert res['cross_references'][0]['curie'] == 'FB:FBrf0221304'
     # cross references in the db?
     xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "FB:FBrf0221304").one()
+    print("BOB: xref is '{}'".format(xref))
     assert xref.reference.curie == 'AGR:AGR-Reference-0000000004'
 
     assert res["issue_name"] == "4"
