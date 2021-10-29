@@ -19,6 +19,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
 
+# TODO  -p  should also be able to take directory so that dqm updates can run on dqm_data_updates_new/
 
 # pipenv run python parse_dqm_json_reference.py -p  takes about 90 seconds to run
 # pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 3.5 minutes without looking at pubmed json

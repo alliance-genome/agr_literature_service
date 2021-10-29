@@ -39,6 +39,9 @@ resource_fields_not_in_pubmed = ['titleSynonyms', 'abbreviationSynonyms', 'isoAb
 # 2021-05-24 23:06:27,845 - literature logger - INFO - key pages
 # 2021-05-24 23:06:27,845 - literature logger - INFO - key printISSN
 
+# TODO take argv of directory to read data from to differentiate drop and reload from updates
+# TODO get already_processed_primary_id from database dump of resource_curie_to_xref instead resource_primary_id_to_curie
+
 
 def post_resources():      # noqa: C901
     """
@@ -53,7 +56,7 @@ def post_resources():      # noqa: C901
     remap_keys = dict()
     remap_keys['isoAbbreviation'] = 'iso_abbreviation'
     remap_keys['medlineAbbreviation'] = 'medline_abbreviation'
-    remap_keys['abbreviationSynonyms'] = 'title_synonyms'
+    remap_keys['abbreviationSynonyms'] = 'abbreviation_synonyms'
     remap_keys['crossReferences'] = 'cross_references'
     remap_keys['editorsOrAuthors'] = 'editors'
     remap_keys['printISSN'] = 'print_issn'
