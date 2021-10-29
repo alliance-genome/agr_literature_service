@@ -5,7 +5,7 @@ import logging
 import logging.config
 import re
 
-from helper_file_processing import load_pubmed_resource_basic, write_json, save_pubmed_resource
+from helper_file_processing import load_pubmed_resource_basic, write_json, save_resource_file
 # from helper_file_processing import split_identifier
 
 from dotenv import load_dotenv
@@ -356,7 +356,7 @@ if __name__ == "__main__":
     pubmed_by_nlm = load_pubmed_resource_basic()
     for mod in mods:
         pubmed_by_nlm = load_mod_resource(json_storage_path, pubmed_by_nlm, mod)
-    save_pubmed_resource(json_storage_path, pubmed_by_nlm)
+    save_resource_file(json_storage_path, pubmed_by_nlm, 'NLM')
 
     logger.info("ending parse_dqm_json_resource.py")
 

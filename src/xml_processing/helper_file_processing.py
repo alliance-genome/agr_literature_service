@@ -109,7 +109,7 @@ def load_pubmed_resource_basic():
     return pubmed_by_nlm
 
 
-def save_pubmed_resource(json_storage_path, pubmed_by_nlm):
+def save_resource_file(json_storage_path, pubmed_by_nlm, datatype):
     """
 
     :param json_storage_path:
@@ -121,7 +121,7 @@ def save_pubmed_resource(json_storage_path, pubmed_by_nlm):
     pubmed_data['data'] = []
     for nlm in pubmed_by_nlm:
         pubmed_data['data'].append(pubmed_by_nlm[nlm])
-    json_filename = json_storage_path + 'RESOURCE_NLM.json'
+    json_filename = json_storage_path + 'RESOURCE_' + datatype + '.json'
     write_json(json_filename, pubmed_data)
 
 
