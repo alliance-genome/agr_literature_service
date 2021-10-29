@@ -307,10 +307,13 @@ def load_mod_resource(json_storage_path, pubmed_by_nlm, mod):      # noqa: C901
                                     pubmed_by_nlm[nlm]['crossReferences'].append(cross_ref)
                         if 'primaryId' in entry:
                             if entry['primaryId'] not in nlm_cross_refs:
-                                nlm_cross_refs.add(entry['primaryId'])
-                                cross_ref = dict()
-                                cross_ref['id'] = entry['primaryId']
-                                pubmed_by_nlm[nlm]['crossReferences'].append(cross_ref)
+                                # the zfin primaryId is the nlm without the prefix, check if it already exists before adding for other MOD data
+                                zfin_nlm = 'NLM:' + entry['primaryId']
+                                if zfin_nlm not in nlm_cross_refs:
+                                    nlm_cross_refs.add(entry['primaryId'])
+                                    cross_ref = dict()
+                                    cross_ref['id'] = entry['primaryId']
+                                    pubmed_by_nlm[nlm]['crossReferences'].append(cross_ref)
                         # this causes conflicts if different MODs match an NLM and they send different non-pubmed information
                         # whichever mod runs last will have the final value
                         for field in resource_fields_not_in_pubmed:
