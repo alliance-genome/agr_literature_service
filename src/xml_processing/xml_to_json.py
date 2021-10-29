@@ -254,6 +254,11 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
             if issue_re_output is not None:
                 data_dict['issueName'] = issue_re_output.group(1)
 
+            pubstatus_re_output = re.search("<PublicationStatus>(.+?)</PublicationStatus>", xml)
+            if pubstatus_re_output is not None:
+                # print pubstatus
+                data_dict['publicationStatus'] = pubstatus_re_output.group(1)
+
             if re.findall("<PublicationType>(.+?)</PublicationType>", xml):
                 types_group = re.findall("<PublicationType>(.+?)</PublicationType>", xml)
                 data_dict['pubMedType'] = types_group

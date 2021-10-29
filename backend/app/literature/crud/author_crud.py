@@ -16,7 +16,7 @@ from literature.crud.reference_resource import add, stripout, create_obj
 
 def create(db: Session, author: AuthorSchemaCreate):
     author_data = jsonable_encoder(author)
-    print(author_data)
+
     orcid = None
     if 'orcid' in author_data:
         orcid = author_data['orcid']

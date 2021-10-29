@@ -10,10 +10,12 @@ from sqlalchemy import ARRAY
 from sqlalchemy import Enum
 
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql.sqltypes import Boolean
 
 from literature.database.base import Base
 
 from literature.schemas import ReferenceCategory
+from literature.schemas import PubMedPublicationStatus
 
 
 class ReferenceModel(Base):
@@ -220,6 +222,12 @@ class ReferenceModel(Base):
         nullable=True
     )
 
+    pubmed_publication_status = Column(
+        Enum(PubMedPublicationStatus),
+        unique=False,
+        nullable=True
+    )
+
     issue_name = Column(
         String(),
         unique=False,
@@ -256,6 +264,12 @@ class ReferenceModel(Base):
         DateTime,
         nullable=False,
         default=datetime.now(tz=pytz.timezone('UTC'))
+    )
+
+    open_access = Column(
+        Boolean,
+        nullable=False,
+        default=False
     )
 
     def __str__(self):

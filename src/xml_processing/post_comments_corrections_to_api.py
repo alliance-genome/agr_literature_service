@@ -1,12 +1,12 @@
 from os import path
 from os import environ
 import json
-import requests
+# import requests
 import argparse
 import logging
 import logging.config
 
-from helper_post_to_api import generate_headers, update_token
+from helper_post_to_api import generate_headers, get_authentication_token, process_api_request
 
 # from sanitize_pubmed_json import sanitize_pubmed_json_list
 # from post_reference_to_api import post_references
@@ -29,7 +29,6 @@ parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take
 args = vars(parser.parse_args())
 
 
-
 def post_comments_corrections(pmids_wanted):      # noqa: C901
     """
 
@@ -43,14 +42,15 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
     # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
     base_path = environ.get('XML_PATH')
 
-    okta_file = base_path + 'okta_token'
-    token = ''
-    if path.isfile(okta_file):
-        with open(okta_file, 'r') as okta_fh:
-            token = okta_fh.read().replace("\n", "")
-            okta_fh.close
-    else:
-        token = update_token()
+    # okta_file = base_path + 'okta_token'
+    # token = ''
+    # if path.isfile(okta_file):
+    #     with open(okta_file, 'r') as okta_fh:
+    #         token = okta_fh.read().replace("\n", "")
+    #         okta_fh.close
+    # else:
+    #     token = update_token()
+    token = get_authentication_token()
     headers = generate_headers(token)
 
     allowed_com_cor_types = ['CommentOn', 'ErratumFor', 'ExpressionOfConcernFor', 'ReprintOf',
@@ -130,24 +130,28 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
             new_entry['reference_comment_and_correction_type'] = com_cor_type
 
 # uncomment to test
-            post_return = requests.post(url, headers=headers, json=new_entry)
-            # response_dict = json.loads(post_return.text)
-            # print(primary_curie + "\t" + secondary_curie + "\ttext " + str(post_return.text))
-            # print(primary_curie + "\t" + secondary_curie + "\tstatus_code " + str(post_return.status_code))
-            logger.info("%s\t%s\t%s\t%s\t%s\ttext %s\tstatus_code %s", primary_pmid, primary_curie, secondary_pmid, secondary_curie, com_cor_type, str(post_return.text), str(post_return.status_code))
 
-# delete later
-#                 if (post_return.status_code == 201):
-#                     response_dict = response_dict.replace('"', '')
-#                     for identifier in identifiers:
-#                         logger.info("I %s\t%s", identifier, response_dict)
-#                         mapping_fh.write("%s\t%s\n" % (identifier, response_dict))
-#                 # if making multiple runs on data that has already gone into api
-#                 # elif (post_return.status_code == 409):
-#                 #     continue
-#                 else:
-#                     logger.info("ERROR %s primaryId %s message %s", post_return.status_code, primary_id, response_dict['detail'])
-#                     error_fh.write("ERROR %s primaryId %s message %s\n" % (post_return.status_code, primary_id, response_dict['detail']))
+            api_response_tuple = process_api_request('POST', url, headers, new_entry, primary_pmid, None, None)
+            headers = api_response_tuple[0]
+            response_text = api_response_tuple[1]
+            response_status_code = api_response_tuple[2]
+            log_info = api_response_tuple[3]
+            response_dict = json.loads(response_text)
+
+            if log_info:
+                logger.info(log_info)
+
+            if (response_status_code == 201):
+                logger.info("%s\t%s\t%s\t%s\t%s\ttext %s\tstatus_code %s", primary_pmid, primary_curie, secondary_pmid, secondary_curie, com_cor_type, response_text, response_status_code)
+            else:
+                logger.info("api error %s primary pmid %s message %s", str(response_status_code), primary_pmid, response_dict['detail'])
+
+            # get rid of this if process_api_request works on a full run
+            # post_return = requests.post(url, headers=headers, json=new_entry)
+            # # response_dict = json.loads(post_return.text)
+            # # print(primary_curie + "\t" + secondary_curie + "\ttext " + str(post_return.text))
+            # # print(primary_curie + "\t" + secondary_curie + "\tstatus_code " + str(post_return.status_code))
+            # logger.info("%s\t%s\t%s\t%s\t%s\ttext %s\tstatus_code %s", primary_pmid, primary_curie, secondary_pmid, secondary_curie, com_cor_type, str(post_return.text), str(post_return.status_code))
 
 
 if __name__ == "__main__":

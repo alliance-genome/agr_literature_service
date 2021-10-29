@@ -151,7 +151,8 @@ def test_reference_large():
             }
         ],
         "title": "A conserved serine residue regulates the stability of Drosophila Salvador",
-        "volume": "433"
+        "volume": "433",
+        "open_access": True
     }
 
     # process the reference.
@@ -194,3 +195,4 @@ def test_reference_large():
     assert res["tags"][0]["tag_source"] == "FB"
     assert res["title"] == "A conserved serine residue regulates the stability of Drosophila Salvador"
     assert res["volume"] == "433"
+    assert res['open_access']

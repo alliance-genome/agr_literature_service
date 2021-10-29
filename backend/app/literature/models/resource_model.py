@@ -8,6 +8,7 @@ from sqlalchemy import DateTime
 from sqlalchemy import ARRAY
 
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql.sqltypes import Boolean
 
 from literature.database.base import Base
 
@@ -145,6 +146,12 @@ class ResourceModel(Base):
         DateTime,
         nullable=False,
         default=datetime.now(tz=pytz.timezone('UTC'))
+    )
+
+    open_access = Column(
+        Boolean,
+        nullable=False,
+        default=False
     )
 
     def __str__(self):

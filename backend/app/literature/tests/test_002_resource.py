@@ -31,7 +31,7 @@ def test_get_bad_Resource():
 
 
 def test_create_Resource():
-    Resource = ResourceSchemaPost(title="Bob", abstract="3")
+    Resource = ResourceSchemaPost(title="Bob", abstract="3", open_access=True)
     res = create(db, Resource)
     assert res == 'AGR:AGR-Resource-0000000001'
 

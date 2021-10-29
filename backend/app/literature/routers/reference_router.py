@@ -121,20 +121,6 @@ def show(curie: str,
          db: Session = Depends(get_db)):
     return reference_crud.show(db, curie)
 
-@router.post("/get-from-list/",
-             status_code=200,
-             response_model=List[ReferenceSchemaShow])
-async def show_list(reference_curies: List[str],
-                    db: Session = Depends(get_db)):
-
-    results = []
-    for reference_curie in reference_curies:
-        result = reference_crud.show(db, reference_curie, http_request=False)
-        if result:
-            results.append(result)
-
-    return results
-
 
 @router.get('/{curie}/files',
             status_code=200,
