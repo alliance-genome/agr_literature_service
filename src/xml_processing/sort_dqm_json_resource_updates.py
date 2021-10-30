@@ -102,8 +102,9 @@ def update_sanitized_resources(datatype):
             if identifier in xref_ref[prefix]:
                 agr = xref_ref[prefix][identifier]
                 if agr in resources_to_update:
-                    logger.info("ERROR agr %s has multiple values to update", agr)
-                resources_to_update[agr] = resource_dict
+                    logger.info("ERROR agr %s has multiple values to update %s %s", agr, primary_id, resources_to_update[agr]['primaryId'])
+                else:
+                    resources_to_update[agr] = resource_dict
                 # logger.info("update primary_id %s db %s", primary_id, agr)
                 found = True
         if not found:
