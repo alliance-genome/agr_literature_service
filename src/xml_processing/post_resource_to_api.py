@@ -1,5 +1,6 @@
 import json
 # import requests
+import argparse
 from os import environ, path
 import logging
 import logging.config
@@ -10,10 +11,6 @@ from helper_post_to_api import generate_headers, get_authentication_token, proce
 from dotenv import load_dotenv
 
 load_dotenv()
-
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
 
 # pipenv run python3 post_resource_to_api.py > log_post_resource_to_api
 
@@ -43,14 +40,25 @@ resource_fields_not_in_pubmed = ['titleSynonyms', 'abbreviationSynonyms', 'isoAb
 # TODO get already_processed_primary_id from database dump of resource_curie_to_xref instead resource_primary_id_to_curie
 
 
-def post_resources():      # noqa: C901
+log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
+logging.config.fileConfig(log_file_path)
+logger = logging.getLogger('literature logger')
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-f', '--file', action='store', help='take input from RESOURCE files in full path')
+
+args = vars(parser.parse_args())
+
+
+def post_resources(input_path):      # noqa: C901
     """
 
+    :param input_path:
     :return:
     """
 
     api_port = environ.get('API_PORT')
-    json_storage_path = base_path + 'sanitized_resource_json/'
+    json_storage_path = base_path + input_path + '/'
     filesets = ['NLM', 'FB', 'ZFIN']
     keys_to_remove = {'nlm', 'primaryId'}
     remap_keys = dict()
@@ -213,7 +221,11 @@ if __name__ == "__main__":
 
     logger.info("starting post_resource_to_api.py")
 
-    post_resources()
+    if args['file']:
+        post_resources(args['file'])
+
+    else:
+        logger.info("No flag passed in.  Use -h for help.")
 
     logger.info("ending post_resource_to_api.py")
 

@@ -1,7 +1,9 @@
 from os import environ, path
 
 import json
-# import requests
+import requests
+
+from helper_post_to_api import generate_headers, update_token, get_authentication_token
 
 import bs4
 import warnings
@@ -186,3 +188,49 @@ def clean_up_keywords(mod, entry):
             keywords.append(mod_keyword)
         entry['keywords'] = keywords
     return entry
+
+
+def generate_cross_references_file(datatype):
+    """
+    This function generates bulk cross_reference data from the API and database.
+    4 seconds for resource
+    88 seconds for reference
+
+    :param datatype:
+    :return:
+    """
+
+    api_port = environ.get('API_PORT')
+    base_path = environ.get('XML_PATH')
+
+    token = get_authentication_token()
+    headers = generate_headers(token)
+
+    url = 'http://localhost:' + api_port + '/bulk_download/' + datatype + 's/external_ids/'
+    post_return = requests.get(url, headers=headers)
+
+    if post_return.status_code == 401:
+        token = update_token()
+        headers = generate_headers(token)
+        post_return = requests.get(url, headers=headers)
+
+    response_array = json.loads(post_return.text)
+    mapping_output = ''
+    for entry in response_array:
+        curie = entry['curie']
+        xref_array = entry['cross_references']
+        for xref_dict in xref_array:
+            if xref_dict is not None:
+                flag = 'valid'
+                xref_id = ''
+                if 'curie' in xref_dict:
+                    if xref_dict['curie']:
+                        xref_id = xref_dict['curie']
+                if 'is_obsolete' in xref_dict:
+                    if xref_dict['is_obsolete']:
+                        flag = 'obsolete'
+                mapping_output += curie + '\t' + xref_id + '\t' + flag + '\n'
+
+    ref_xref_file = base_path + datatype + '_curie_to_xref'
+    with open(ref_xref_file, "w") as ref_xref_file_fh:
+        ref_xref_file_fh.write(mapping_output)
