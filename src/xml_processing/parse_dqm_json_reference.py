@@ -21,7 +21,7 @@ load_dotenv()
 
 # TODO  -p  should also be able to take directory so that dqm updates can run on dqm_data_updates_new/
 
-# pipenv run python parse_dqm_json_reference.py -p  takes about 90 seconds to run
+# pipenv run python parse_dqm_json_reference.py -f dqm_data/ -p  takes about 90 seconds to run
 # pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 3.5 minutes without looking at pubmed json
 # pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 13.5 minutes with comparing to pubmed json into output chunks without comparing fields for differences
 # pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 19 minutes with comparing to pubmed json into output chunks and comparing fields for differences
@@ -45,9 +45,9 @@ logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-p', '--generate-pmid-data', action='store_true', help='generate pmid outputs')
+parser.add_argument('-p', '--generate-pmid-data', action='store_true', help='generate pmid outputs, requires -f')
 parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
-parser.add_argument('-m', '--mod', action='store', help='which mod, use all or leave blank for all')
+parser.add_argument('-m', '--mod', action='store', help='which mod, use all for all, requires -f')
 parser.add_argument('-c', '--commandline', nargs='*', action='store', help='placeholder for process_single_pmid.py')
 # parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
 # parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
@@ -91,12 +91,13 @@ base_path = environ.get('XML_PATH')
 #     return prefix, identifier_processed, separator
 
 
-def generate_pmid_data():      # noqa: C901
+def generate_pmid_data(input_path):      # noqa: C901
     """
 
     output set of PMID identifiers that will need XML downloaded
     output pmids and the mods that have them
 
+    :param input_path:
     :return:
     """
 
@@ -119,18 +120,21 @@ def generate_pmid_data():      # noqa: C901
     check_pmid_is_unique = True
 
     for mod in mods:
-        # filename = 'dqm_data/1.0.1.4_REFERENCE_WB_0.json'
-        filename = base_path + 'dqm_data/REFERENCE_' + mod + '.json'
+        filename = base_path + input_path + '/REFERENCE_' + mod + '.json'
         logger.info("Loading %s data from %s", mod, filename)
-        f = open(filename)
-        dqm_data = json.load(f)
+        dqm_data = dict()
+        try:
+            with open(filename, 'r') as f:
+                dqm_data = json.load(f)
+                f.close()
+        except IOError:
+            logger.info("No reference data to update from MOD %s", mod)
+        if not dqm_data:
+            continue
 
         primary_id_unique = dict()
         pmid_unique = dict()
 
-        # wb_papers = dict()
-        # mod_papers = dict()
-        # pmid_papers = dict()
         for entry in dqm_data['data']:
 
             if check_primary_id_is_unique:
@@ -141,17 +145,9 @@ def generate_pmid_data():      # noqa: C901
 
             pmid = '0'
             prefix, identifier, separator = split_identifier(entry['primaryId'])
-#             if prefix == 'WB':
-#                 wb_papers[identifier] = entry
             if prefix == 'PMID':
                 pmid = identifier
-#                 pmid_papers[identifier] = entry
-#                 try:
-#                     pmid_stats[identifier].append(mod)
-#                 except KeyError:
-#                     pmid_stats[identifier] = [mod]
             elif prefix in mods:
-                # mod_papers[identifier] = entry
                 if 'crossReferences' in entry:
                     for cross_reference in entry['crossReferences']:
                         prefix_xref, identifier_xref, separator_xref = split_identifier(cross_reference['id'])
@@ -185,29 +181,23 @@ def generate_pmid_data():      # noqa: C901
                 if pmid_unique[pmid] > 1:
                     print("%s pmid %s has %s mentions" % (mod, pmid, pmid_unique[pmid]))
 
-
-#         for identifier in pmid_papers:
-#             entry = pmid_papers[identifier]
-#             print(identifier)
-#         #     print(identifier + ' ' + entry['allianceCategory'])
-
-# output each mod's count of pmid references
+    # output each mod's count of pmid references
     for mod in pmid_references:
         count = len(pmid_references[mod])
         print("%s has %s pmid references" % (mod, count))
-#         logger.info("%s has %s pmid references", mod, count)
+        # logger.info("%s has %s pmid references", mod, count)
 
     # output each mod's count of non-pmid references
     for mod in non_pmid_references:
         count = len(non_pmid_references[mod])
         print("%s has %s non-pmid references" % (mod, count))
-#         logger.info("%s has %s non-pmid references", mod, count)
+        # logger.info("%s has %s non-pmid references", mod, count)
 
-# output actual reference identifiers that are not pmid
-#     for mod in non_pmid_references:
-#         for primary_id in non_pmid_references[mod]:
-#             print("%s non-pmid %s" % (mod, primary_id))
-# #             logger.info("%s non-pmid %s", mod, primary_id)
+    # output actual reference identifiers that are not pmid
+    # for mod in non_pmid_references:
+    #     for primary_id in non_pmid_references[mod]:
+    #         print("%s non-pmid %s" % (mod, primary_id))
+    #         # logger.info("%s non-pmid %s", mod, primary_id)
 
     # if a reference has an unexpected prefix, give a warning
     for prefix in unknown_prefix:
@@ -229,7 +219,7 @@ def generate_pmid_data():      # noqa: C901
             count = len(ref_mods_list)
             ref_mods_str = ", ".join(ref_mods_list)
             pmid_mods_file.write("%s\t%s\t%s\n" % (identifier, count, ref_mods_str))
-#             logger.info("pmid %s\t%s\t%s", identifier, count, ref_mods_str)
+            # logger.info("pmid %s\t%s\t%s", identifier, count, ref_mods_str)
         pmid_mods_file.close()
 
     # for primary_id in primary_ids:
@@ -279,11 +269,10 @@ def compare_dqm_pubmed(fh, pmid, field, dqm_data, pubmed_data):
     pubmed_clean = simplify_text(pubmed_data)
     if dqm_clean != pubmed_clean:
         fh.write("dqm and pubmed differ\t%s\t%s\t%s\t%s\n" % (field, pmid, dqm_data, pubmed_data))
-#         logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_clean, pubmed_clean)
-#         logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_data, pubmed_data)
-#         return "%s\t%s\t%s\t%s" % (field, pmid, dqm_data, pubmed_data)
-#     else:
-#         logger.info("%s\t%s\t%s", field, pmid, 'GOOD')
+        # logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_clean, pubmed_clean)
+        # logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_data, pubmed_data)
+    # else:
+    #     logger.info("%s\t%s\t%s", field, pmid, 'GOOD')
 
 
 def chunks(list, size):
@@ -296,24 +285,6 @@ def chunks(list, size):
 
     for i in range(0, len(list), size):
         yield list[i:i + size]
-
-
-# def write_json(json_filename, dict_to_output):
-#     """
-#
-#     :param json_filename:
-#     :param dict_to_output:
-#     :return:
-#     """
-#
-#     with open(json_filename, "w") as json_file:
-#         logger.info("Generating JSON for %s", json_filename)
-#         json_data = json.dumps(dict_to_output, indent=4, sort_keys=True)
-# #         logger.info("Writing JSON")
-#         json_file.write(json_data)
-# #         logger.info("Closing JSON file")
-#         json_file.close()
-# #         logger.info("Done with JSON")
 
 
 def populate_expected_cross_reference_type():
@@ -420,8 +391,6 @@ def load_pubmed_resource():
     resource_to_nlm_highest = dict()
     resource_nlm_to_title = dict()
     resource_fields = ['primaryId', 'nlm', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
-    # TODO create dict mapping printISSN and onlineISSN as ISSN to nlm, pass that to load_mod_resource
-    #  to extract ISSN from crossReferences id and map to nlm
     # ZFIN does not have ISSN in crossReferences, and may have already fixed them for 4.1.0
     for entry in resource_data:
         primary_id = entry['primaryId']
@@ -571,11 +540,12 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):      # noqa: C901
     schema_data = dict()
     with urllib.request.urlopen(agr_schemas_reference_json_url) as url:
         schema_data = json.loads(url.read().decode())
-#         print(schema_data)
+        # print(schema_data)
 
+    # this has been obsoleted by generating from parse_dqm_json_resource.py but leaving in here until a full run works
     # fb have fb ids for resources, but from the resourceAbbreviation and pubmed xml's nlm, we can update
     # fb resource data to primary key off of nlm
-    fb_resource_abbreviation_to_nlm = dict()
+    # fb_resource_abbreviation_to_nlm = dict()
 
     sanitized_pubmed_multi_mod_data = []
     unmerged_pubmed_data = dict()			# pubmed data by pmid and mod that needs some fields merged
@@ -805,9 +775,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):      # noqa: C901
                     nlm = pubmed_data['nlm']
                     entry['nlm'] = ['NLM:' + nlm]
                     entry['resource'] = 'NLM:' + nlm
-                    if mod == 'FB':
-                        if 'resourceAbbreviation' in entry:
-                            fb_resource_abbreviation_to_nlm[entry['resourceAbbreviation']] = nlm
+                    # this has been obsoleted by generating from parse_dqm_json_resource.py but leaving in here until a full run works
+                    # if mod == 'FB':
+                    #     if 'resourceAbbreviation' in entry:
+                    #         fb_resource_abbreviation_to_nlm[entry['resourceAbbreviation']] = nlm
                     if nlm in resource_nlm_to_title:
                         # logger.info("PMID %s has NLM %s setting to title %s", pmid, nlm, resource_nlm_to_title[nlm])
                         entry['resourceAbbreviation'] = resource_nlm_to_title[nlm]
@@ -1038,9 +1009,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):      # noqa: C901
     for mod in fh_mod_report_reference_no_resource:
         fh_mod_report_reference_no_resource[mod].close()
 
+    # this has been obsoleted by generating from parse_dqm_json_resource.py but leaving in here until a full run works
     # fb have fb ids for resources, but from the resourceAbbreviation and pubmed xml's nlm, we can update fb resource data to primary key off of nlm
-    json_filename = base_path + 'FB_resourceAbbreviation_to_NLM.json'
-    write_json(json_filename, fb_resource_abbreviation_to_nlm)
+    # json_filename = base_path + 'FB_resourceAbbreviation_to_NLM.json'
+    # write_json(json_filename, fb_resource_abbreviation_to_nlm)
 
 
 # check merging with these pmids and mod with data in dqm_merge/ manually generated files, based on pmids_by_mods
@@ -1061,26 +1033,24 @@ if __name__ == "__main__":
 
     logger.info("starting parse_dqm_json_reference.py")
 
-    # pipenv run python parse_dqm_json_reference.py -p
-    if args['generate_pmid_data']:
-        logger.info("Generating PMID files from DQM data")
-        generate_pmid_data()
+    if args['file']:
+        # pipenv run python parse_dqm_json_reference.py -p
+        if args['generate_pmid_data']:
+            logger.info("Generating PMID files from DQM data")
+            generate_pmid_data(args['file'])
 
-# pipenv run python parse_dqm_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m ZFIN
-# pipenv run python parse_dqm_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m SGD
-# pipenv run python parse_dqm_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m WB
-# pipenv run python parse_dqm_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_sample/ -m all
-# pipenv run python parse_dqm_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_merge/ -m all
-    elif args['file']:
-        if args['mod']:
+        # pipenv run python parse_dqm_json_reference.py -f dqm_sample/ -m WB
+        # pipenv run python parse_dqm_json_reference.py -f dqm_data_updates_new/ -m all
+        elif args['mod']:
             aggregate_dqm_with_pubmed(args['file'], args['mod'])
+
         else:
-            aggregate_dqm_with_pubmed(args['file'], 'all')
+            logger.info("No valid processing for directory passed in.  Use -h for help.")
 
     elif args['commandline']:
         logger.info("placeholder for process_single_pmid.py")
 
     else:
-        logger.info("No flag passed in.  Use -h for help.")
+        logger.info("No valid processing flag passed in.  Use -h for help.")
 
     logger.info("ending parse_dqm_json_reference.py")
