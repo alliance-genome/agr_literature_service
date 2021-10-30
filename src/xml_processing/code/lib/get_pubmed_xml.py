@@ -37,24 +37,22 @@ get_pubmed_xml
 # to get a batch of pmids by pmids
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=1,10,100,1000487,1000584&retmode=xml
 
-import sys
+
 import time
 import re
 import requests
 import os
-import logging.config
+import logging
 import glob
 import hashlib
-# from dotenv import load_dotenv
-import click
 import coloredlogs
-import urllib
 
+
+# from dotenv import load_dotenv
 # load_dotenv()
 
-log_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../logging.conf')
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG')
 
 
@@ -75,6 +73,9 @@ def download_pubmed_xml(pmids_wanted, storage_path, base_path):
     :param base_path: path where the application will generate output
     :return:
     """
+
+    logger.error(len(pmids_wanted))
+    print(len(pmids_wanted))
 
     pmids_slice_size = 5000
 
@@ -110,7 +111,6 @@ def download_pubmed_xml(pmids_wanted, storage_path, base_path):
     else:
         logger.info('No MD5SUM information found')
 
-    #
     for index in range(0, len(pmids_wanted), pmids_slice_size):
         pmids_slice = pmids_wanted[index:index + pmids_slice_size]
         pmids_joined = ', '.join(pmids_slice)
@@ -195,81 +195,6 @@ def download_pubmed_xml(pmids_wanted, storage_path, base_path):
 #     logger.info("Downloading %s into %s", url, filename)
 #     urllib.urlretrieve(url, filename)
 #     time.sleep( 5 )
-
-@click.command()
-@click.option('-c', '--commandline', 'cli', multiple=True, help='take input from command line flag', required=False)
-@click.option('-d', '--database', 'db', help='take input from database query', required=False)
-@click.option('-f', '--file', 'ffile', help='take input from entries in file with full path', required=False)
-@click.option('-r', '--restapi', 'api', help='take input from rest api', required=False)
-@click.option('-s', '--sample', 'sample', help='test sample input from hardcoded entries', required=False, default=False, is_flag=True)
-@click.option('-u', '--url', 'url', help='take input from entries in file at url', required=False)
-def process_tasks(cli, db, ffile, api, sample, url):
-    """
-    auxiliary  function that process arguments from the command line
-
-    :param cli: PMIDs as cli inputs
-    :param db: PMIDs from DB query (not fully implemented)
-    :param ffile: PMIDs from a file (one per line), path entered
-    :param api: PMIDs from a REST API endpoint
-    :param sample: hardcoded PMIDs
-    :param url: PMIDs from a file at the end of a URL
-    :return:
-    """
-
-    # set storage location
-    # todo: see if environment variable check works
-    # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
-    if len(os.environ.get('XML_PATH')) == 0:
-        sys.exit()
-    else:
-        base_path = os.environ.get('XML_PATH')
-        storage_path = base_path + 'pubmed_xml/'
-
-    logger.info('Base path is at ' + base_path)
-    logger.info('XMLs will be saved on ' + storage_path)
-
-    # print(os.environ.get('XML_PATH'))
-
-    pmids_wanted = []        # list that will contain the PMIDs to be downloaded
-
-    # checking parameters
-    if db:
-        # python get_pubmed_xml.py -d
-        logger.info('Processing database entries')
-    elif api:
-        # python get_pubmed_xml.py -r
-        logger.info('Processing rest api entries')
-    elif ffile:
-        # python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/pmid_file.txt
-        logger.info('Processing file input from ' + ffile)
-        # this requires a well structured input
-        pmids_wanted = open(ffile).read().splitlines()
-    elif url:
-        # python get_pubmed_xml.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
-        logger.info('Processing url input from %s', url)
-        req = urllib.request.urlopen(url)
-        data = req.read()
-        lines = data.splitlines()
-        for pmid in lines:
-            pmids_wanted.append(str(int(pmid)))
-    elif cli:
-        # python get_pubmed_xml.py -c 1234 4576 1828
-        logger.info("Processing commandline input")
-        for pmid in cli:
-            pmids_wanted.append(pmid)
-    elif sample:
-        # python get_pubmed_xml.py -s
-        logger.info("Processing hardcoded sample input")
-        pmids_wanted = ['12345678', '12345679', '12345680']
-    # else:
-    #     logger.info("Processing database entries")
-
-    if len(pmids_wanted) > 0:
-        logger.info('Starting XML download')
-        download_pubmed_xml(pmids_wanted, storage_path, base_path)
-    else:
-        logger.error('No PMIDs to be downloaded')
-
 
 if __name__ == '__main__':
     """

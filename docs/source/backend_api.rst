@@ -112,16 +112,14 @@ Production
 
 use ``--prod`` argument to use the WSGI server in production when running the application
 
-----
 
-----
 
 
 Code files
----------
+----------
 
 Current Makefile
-^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
 
 .. code-block:: bash
 
@@ -183,7 +181,7 @@ Current Makefile
 
 
 Current docker-compose file
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: yaml
 

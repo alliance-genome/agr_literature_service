@@ -21,9 +21,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG')
 
 # contants that need to be modified on new MODs or new release
