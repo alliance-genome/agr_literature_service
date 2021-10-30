@@ -103,11 +103,26 @@ def load_pubmed_resource_basic():
     f = open(filename)
     resource_data = json.load(f)
     pubmed_by_nlm = dict()
+    nlm_by_issn = dict()
     for entry in resource_data:
         # primary_id = entry['primaryId']
         nlm = entry['nlm']
         pubmed_by_nlm[nlm] = entry
-    return pubmed_by_nlm
+        if 'printISSN' in entry:
+            pissn = entry['printISSN']
+            if pissn in nlm_by_issn:
+                if nlm not in nlm_by_issn[pissn]:
+                    nlm_by_issn[pissn].append(nlm)
+            else:
+                nlm_by_issn[pissn] = [nlm]
+        if 'onlineISSN' in entry:
+            oissn = entry['onlineISSN']
+            if oissn in nlm_by_issn:
+                if nlm not in nlm_by_issn[oissn]:
+                    nlm_by_issn[oissn].append(nlm)
+            else:
+                nlm_by_issn[oissn] = [nlm]
+    return pubmed_by_nlm, nlm_by_issn
 
 
 def save_resource_file(json_storage_path, pubmed_by_nlm, datatype):
