@@ -183,9 +183,11 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     if input_mod in mods:
         mods = [input_mod]
 
-    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+    # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference2')   # to test against older database mappings
     pmids_not_found = load_pmids_not_found()
 
+    # make this True for live changes
     # live_changes = False
     live_changes = True
 
@@ -471,8 +473,8 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     url_ref_curie_prefix = make_url_ref_curie_prefix()
 
     counter = 0
-    # max_counter = 10000000
-    max_counter = 3
+    max_counter = 10000000
+    # max_counter = 3
 
     for agr in entries:
         counter = counter + 1

@@ -254,25 +254,29 @@ def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
     # db_entry_text = json.dumps(db_entry, indent=4)
     # print('db entry ')
     # print(db_entry_text)
+    # dqm_entry_text = json.dumps(dqm_entry, indent=4)
+    # print('dqm entry ')
+    # print(dqm_entry_text)
     db_authors = []
     dqm_authors = []
     if datatype in db_entry:
         if db_entry[datatype] is not None:
             db_authors = db_entry[datatype]
-    if datatype in dqm_entry:
-        if dqm_entry[datatype] is not None:
-            dqm_authors = dqm_entry[datatype]
+
+    dqm_key = datatype
+    if datatype == 'editors':
+        dqm_key = 'editorsOrAuthors'
+    if dqm_key in dqm_entry:
+        if dqm_entry[dqm_key] is not None:
+            dqm_authors = dqm_entry[dqm_key]
     db_has_change = False
     db_ordered = dict()
     for author_dict in db_authors:
-        if author_dict['corresponding_author']:
-            # print('has corresponding_author ')
-            # print(author_dict['corresponding_author'])
-            db_has_change = True
-        if author_dict['first_author']:
-            # print('has first_author ')
-            # print(author_dict['first_author'])
-            db_has_change = True
+        if datatype == 'authors':
+            if author_dict['corresponding_author']:
+                db_has_change = True
+            if author_dict['first_author']:
+                db_has_change = True
         if 'order' not in author_dict:
             # print('no order ')
             db_has_change = True
@@ -321,10 +325,13 @@ def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
                 db_value = db_dict[field]
             if db_value != dqm_value:
                 patch_dict[field] = dqm_value  # must assign None to fields if dqm did not set author at that order number
-                print("field changed %s %s %s" % (field, db_value, dqm_value))
+                # print("field changed %s %s %s" % (field, db_value, dqm_value))
                 author_changed = True
         if author_changed:
-            to_patch.append({'author_id': db_dict['author_id'], 'patch_dict': patch_dict})
+            if datatype == 'authors':
+                to_patch.append({'author_id': db_dict['author_id'], 'patch_dict': patch_dict})
+            elif datatype == 'editors':
+                to_patch.append({'editor_id': db_dict['editor_id'], 'patch_dict': patch_dict})
 
     for order in sorted(dqm_ordered.keys()):
         if order not in db_ordered:
