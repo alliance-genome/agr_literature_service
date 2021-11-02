@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class ReferenceCommentAndCorrectionType(str, Enum):
     RetractionOf = "RetractionOf"
     CommentOn = "CommentOn"

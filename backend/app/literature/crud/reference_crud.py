@@ -212,10 +212,7 @@ def show(db: Session, curie: str, http_request=True):
         cross_references = []
         for cross_reference in reference_data['cross_references']:
             cross_reference_show = jsonable_encoder(cross_reference_crud.show(db, cross_reference['curie']))
-            print("BOB: xref '{}'".format(cross_reference_show))
-            # cross_reference_show.pop('reference_curie', None)
             del cross_reference_show['reference_curie']
-            print("BOB2: xref '{}'".format(cross_reference_show))
             cross_references.append(cross_reference_show)
         reference_data['cross_references'] = cross_references
 

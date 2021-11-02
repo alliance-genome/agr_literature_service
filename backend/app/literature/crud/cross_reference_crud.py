@@ -44,7 +44,6 @@ def destroy(db: Session, curie: str) -> None:
 def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaUpdate) -> dict:
 
     cross_reference_db_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == curie).first()
-    print("BOB: xef patch: '{}'".format(cross_reference_db_obj))
     if not cross_reference_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Cross Reference with curie {curie} not found")
@@ -61,13 +60,11 @@ def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaU
 
 def show(db: Session, curie: str, indirect=True) -> dict:
     cross_reference = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == curie).first()
-    print("BOB: xref '{}'".format(cross_reference))
     if not cross_reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"CrossReference with the curie {curie} is not available")
 
     cross_reference_data = jsonable_encoder(cross_reference)
-    print("BOB: xref json '{}'".format(cross_reference_data))
     if cross_reference_data['resource_id']:
         cross_reference_data['resource_curie'] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == cross_reference_data['resource_id']).first().curie
     del cross_reference_data['resource_id']

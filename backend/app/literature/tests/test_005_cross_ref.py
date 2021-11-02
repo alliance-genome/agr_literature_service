@@ -7,7 +7,7 @@ from sqlalchemy import MetaData
 from literature.models import (
     Base, CrossReferenceModel
 )
-from literature.schemas import CrossReferenceSchemaPost, CrossReferenceSchemaUpdate
+from literature.schemas import CrossReferenceSchemaPost
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 from sqlalchemy.orm import sessionmaker
 from fastapi import HTTPException
@@ -33,7 +33,10 @@ def test_get_bad_xref():
 
 def test_create_xref():
 
-    xml = {"curie": 'XREF:123456', "reference_curie": 'AGR:AGR-Reference-0000000001'}
+    db.execute("INSERT INTO resource_descriptors  (db_prefix, name, default_url) VALUES ('XREF', 'Madeup', 'http://www.bob.com/[%s]')")
+    db.commit()
+
+    xml = {"curie": 'XREF:123456', "reference_curie": 'AGR:AGR-Reference-0000000001', "pages": ["reference"]}
     xref_schema = CrossReferenceSchemaPost(**xml)
     print("BOB: {}".format(xref_schema))
     res = create(db, xref_schema)
@@ -43,6 +46,8 @@ def test_create_xref():
     xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "XREF:123456").one()
     assert xref.curie == "XREF:123456"
     assert xref.reference.curie == 'AGR:AGR-Reference-0000000001'
+    # what has it stored for pages?
+    assert xref.pages == ["reference"]
 
     # Now do a resource one
     xml = {"curie": 'XREF:anoth', "resource_curie": 'AGR:AGR-Resource-0000000001'}
@@ -80,8 +85,40 @@ def test_show_xref():
 
 
 def test_patch_xref():
-    xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "XREF:123456").one()
+    # xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "XREF:123456").one()
     # xref_schema = CrossReferenceSchemaUpdate(is_obsolete=True, reference_curie="AGR:AGR-Reference-0000000001")
     # print("xref schema: '{}'".format(xref_schema))
-    res = patch(db, xref.curie, {'is_obsolete': True})
-    assert res
+    res = patch(db, "XREF:123456", {'is_obsolete': True, 'pages': ["different"]})
+    assert res['message'] == "updated"
+    xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "XREF:123456").one()
+    assert xref.is_obsolete
+    assert xref.pages == ["different"]
+
+
+def test_changesets():
+    # xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "XREF:123456").one()
+    res = show_changesets(db, "XREF:123456")
+
+    # Pages      : None -> reference -> different
+    # is_obsolete: None -> False -> True
+    for transaction in res:
+        print(transaction)
+        if not transaction['changeset']['pages'][0]:
+            assert transaction['changeset']['pages'][1] == ["reference"]
+            assert not transaction['changeset']['is_obsolete'][1]
+        else:
+            assert transaction['changeset']['pages'][1] == ["different"]
+            assert transaction['changeset']['is_obsolete'][1]
+
+
+def test_destroy_xref():
+    xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "XREF:anoth").one()
+    destroy(db, xref.curie)
+
+    # It should now give an error on lookup.
+    with pytest.raises(HTTPException):
+        show(db, xref.curie)
+
+    # Deleting it again should give an error as the lookup will fail.
+    with pytest.raises(HTTPException):
+        destroy(db, xref.curie)
