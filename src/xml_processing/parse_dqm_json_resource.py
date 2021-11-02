@@ -5,8 +5,7 @@ import logging
 import logging.config
 import re
 
-from helper_file_processing import load_pubmed_resource_basic, write_json, save_resource_file
-# from helper_file_processing import split_identifier
+from helper_file_processing import load_pubmed_resource_basic, write_json, save_resource_file, split_identifier
 
 from dotenv import load_dotenv
 
@@ -200,6 +199,7 @@ def create_storage_path(json_storage_path):
 def load_mod_resource_to_nlm(mod):
     """
 
+    :param mod:
     :return:
     """
 
@@ -215,8 +215,17 @@ def load_mod_resource_to_nlm(mod):
 
 
 def generate_resource_abbreviation_to_nlm_from_dqm_references(input_path, mod):      # noqa: C901
-    # fb have fb ids for resources, but from the resourceAbbreviation and pubmed xml's nlm, we can update
-    # fb resource data to primary key off of nlm
+    """
+    This mapping via abbreviationSynonyms to mod_to_nlm never matches anything after adding the mapping via online and print issn through crossReferences.  Leaving this here in case future data finds it helps with MOD data that lacks issn information, but has resource abbreviationSynonyms that matches against reference resourceAbbreviation and PubMed XML nlm.
+    This takes about a minute to run, compared to the whole script running in a second without this.
+
+    FB have FB ids for resources, but from the references's resourceAbbreviation and pubmed xml's nlm, we can update to match against resources's abbreviationSynonyms
+
+    :param input_path:
+    :param mod:
+    :return:
+    """
+
     mod_resource_abbreviation_to_nlm = dict()
     filename = input_path + 'REFERENCE_' + mod + '.json'
     logger.info("Processing %s", filename)
@@ -230,7 +239,7 @@ def generate_resource_abbreviation_to_nlm_from_dqm_references(input_path, mod): 
         pmid = None
         primary_id = entry['primaryId']
         orig_primary_id = entry['primaryId']
-#         print("primaryId %s" % (entry['primaryId']))
+        # print("primaryId %s" % (entry['primaryId']))
 
         pmid_group = re.search(r"^PMID:([0-9]+)", primary_id)
         if pmid_group is not None:
@@ -268,10 +277,13 @@ def generate_resource_abbreviation_to_nlm_from_dqm_references(input_path, mod): 
     return mod_resource_abbreviation_to_nlm
 
 
-def load_mod_resource(json_storage_path, pubmed_by_nlm, mod):      # noqa: C901
+def load_mod_resource(json_storage_path, pubmed_by_nlm, nlm_by_issn, mod):      # noqa: C901
     """
 
+    :param json_storage_path:
     :param pubmed_by_nlm:
+    :param nlm_by_issn:
+    :param mod:
     :return:
     """
 
@@ -279,11 +291,12 @@ def load_mod_resource(json_storage_path, pubmed_by_nlm, mod):      # noqa: C901
                                      'publisher', 'editorsOrAuthors', 'volumes', 'pages', 'abstractOrSummary']
     base_path = environ.get('XML_PATH')
 
-    mod_to_nlm = dict()
-    if mod == 'FB':   # only FB sending abbreviationSynonyms in dqm resource file that can be mapped to resource via NLM
-        # mod_to_nlm = load_mod_resource_to_nlm(mod)   # for modifying this script without re-generating mod_to_nlm from input_path
-        input_path = base_path + 'dqm_data/'
-        mod_to_nlm = generate_resource_abbreviation_to_nlm_from_dqm_references(input_path, mod)
+    # leaving this here in case comment at generate_resource_abbreviation_to_nlm_from_dqm_references helps
+    # mod_to_nlm = dict()
+    # if mod == 'FB':   # only FB sending abbreviationSynonyms in dqm resource file that can be mapped to resource via NLM
+    #     # mod_to_nlm = load_mod_resource_to_nlm(mod)   # for modifying this script without re-generating mod_to_nlm from input_path
+    #     input_path = base_path + 'dqm_data/'
+    #     mod_to_nlm = generate_resource_abbreviation_to_nlm_from_dqm_references(input_path, mod)
 
     filename = base_path + 'dqm_data/RESOURCE_' + mod + '.json'
     try:
@@ -296,11 +309,21 @@ def load_mod_resource(json_storage_path, pubmed_by_nlm, mod):      # noqa: C901
                     primary_id = entry['primaryId']
                 if primary_id in pubmed_by_nlm:
                     nlm = primary_id
-                elif 'abbreviationSynonyms' in entry:
-                    for abbreviation in entry['abbreviationSynonyms']:
-                        if abbreviation in mod_to_nlm:
-                            if len(mod_to_nlm) == 1:
-                                nlm = mod_to_nlm[abbreviation]
+                elif 'crossReferences' in entry:
+                    for cross_ref in entry['crossReferences']:
+                        if 'id' in cross_ref:
+                            prefix, identifier, separator = split_identifier(cross_ref['id'])
+                            if prefix == 'ISSN':
+                                if identifier in nlm_by_issn:
+                                    if len(nlm_by_issn[identifier]) == 1:
+                                        nlm = nlm_by_issn[identifier][0]
+                # leaving this here in case comment at generate_resource_abbreviation_to_nlm_from_dqm_references helps
+                # elif 'abbreviationSynonyms' in entry:
+                #     for abbreviation in entry['abbreviationSynonyms']:
+                #         if abbreviation in mod_to_nlm:
+                #             if len(mod_to_nlm) == 1:
+                #                 nlm = mod_to_nlm[abbreviation]
+                #                 logger.info("found %s in %s", nlm, entry['primaryId'])
                 if nlm != '':
                     if nlm in pubmed_by_nlm:
                         nlm_cross_refs = set()
@@ -362,9 +385,9 @@ if __name__ == "__main__":
 
     mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB']
 
-    pubmed_by_nlm = load_pubmed_resource_basic()
+    pubmed_by_nlm, nlm_by_issn = load_pubmed_resource_basic()
     for mod in mods:
-        pubmed_by_nlm = load_mod_resource(json_storage_path, pubmed_by_nlm, mod)
+        pubmed_by_nlm = load_mod_resource(json_storage_path, pubmed_by_nlm, nlm_by_issn, mod)
     save_resource_file(json_storage_path, pubmed_by_nlm, 'NLM')
 
     logger.info("ending parse_dqm_json_resource.py")

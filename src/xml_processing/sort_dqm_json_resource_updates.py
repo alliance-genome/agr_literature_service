@@ -8,7 +8,7 @@ import logging.config
 
 from helper_post_to_api import generate_headers, get_authentication_token, process_api_request
 
-from helper_file_processing import load_ref_xref, save_resource_file, split_identifier
+from helper_file_processing import load_ref_xref, save_resource_file, split_identifier, compare_authors_or_editors
 
 from dotenv import load_dotenv
 
@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
 
-# pipenv run python update_nlm_resources.py
+# pipenv run python sort_dqm_json_resource_updates.py
 
 # first run  get_datatypes_cross_references.py  to generate mappings from references to xrefs and resources to xrefs
 # and  generate_pubmed_nlm_resource.py  to generate pubmed_resource_json/resource_pubmed_all.json
@@ -82,6 +82,7 @@ def update_sanitized_resources(datatype):
     headers = generate_headers(token)
 
     xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('resource')
+    # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('resource2')  # to test against older database mappings
     sanitized_resources = load_sanitized_resource(datatype)
     resources_to_update = dict()
     resources_to_create = dict()
@@ -89,7 +90,8 @@ def update_sanitized_resources(datatype):
     # e.g. create ZFIN:ZDB-JRNL-210824-1
     # counter = 0
     # make this True for live changes
-    live_changes = False
+    # live_changes = False
+    live_changes = True
     for resource_dict in sanitized_resources:
         # counter = counter + 1
         # if counter > 2:
@@ -102,8 +104,9 @@ def update_sanitized_resources(datatype):
             if identifier in xref_ref[prefix]:
                 agr = xref_ref[prefix][identifier]
                 if agr in resources_to_update:
-                    logger.info("ERROR agr %s has multiple values to update", agr)
-                resources_to_update[agr] = resource_dict
+                    logger.info("ERROR agr %s has multiple values to update %s %s", agr, primary_id, resources_to_update[agr]['primaryId'])
+                else:
+                    resources_to_update[agr] = resource_dict
                 # logger.info("update primary_id %s db %s", primary_id, agr)
                 found = True
         if not found:
@@ -157,17 +160,18 @@ def update_resources(live_changes, headers, resources_to_update):
     # TODO deal with editors, example AGR:AGR-Resource-0000034288     FB:FBmultipub_7448
 
     xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('resource')
+    # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('resource2')  # to test against older database mappings
 
     api_port = environ.get('API_PORT')
 
-    # counter = 0
-    # max_counter = 10000000
+    counter = 0
+    max_counter = 10000000
     # max_counter = 1
 
     for agr in resources_to_update:
-        # counter = counter + 1
-        # if counter > max_counter:
-        #     break
+        counter = counter + 1
+        if counter > max_counter:
+            break
 
         # to test only on something that gets a new online_issn
         # if agr != 'AGR:AGR-Resource-0000015274':
@@ -203,22 +207,61 @@ def update_resources(live_changes, headers, resources_to_update):
                 update_json[list_changed[3]] = list_changed[1]
         if 'crossReferences' in dqm_entry:
             headers = compare_xref(agr, dqm_entry, xref_ref, ref_xref_valid, ref_xref_obsolete, headers, live_changes)
+        editors_changed = compare_authors_or_editors(db_entry, dqm_entry, 'editors')
+        # editor API needs updates.  reference_curie required to post reference authors but for some reason resource_curie not allowed here, cannot connect new editor to resource if resource_curie is not passed in
+        if editors_changed[0]:
+            pass
+        #    # live_changes = True
+        #    # e.g. FB:FBmultipub_7448
+        #    for patch_data in editors_changed[1]:
+        #        patch_dict = patch_data['patch_dict']
+        #        # patch_dict['resource_curie'] = agr   # reference_curie required to patch reference authors but for some reason not allowed here
+        #        logger.info("patch %s editor_id %s patch_dict %s", agr, patch_data['editor_id'], patch_dict)
+        #        editor_patch_url = 'http://localhost:' + api_port + '/editor/' + str(patch_data['editor_id'])
+        #        headers = generic_api_patch(live_changes, editor_patch_url, headers, patch_dict, str(patch_data['editor_id']), None, None)
+        #    for create_dict in editors_changed[2]:
+        #        create_dict['resource_curie'] = agr   # reference_curie required to post reference authors but for some reason not allowed here
+        #        logger.info("add to %s create_dict %s", agr, create_dict)
+        #        editor_post_url = 'http://localhost:' + api_port + '/editor/'
+        #        headers = generic_api_post(live_changes, editor_post_url, headers, create_dict, agr, None, None)
         if update_json:
             # for debugging changes
             # update_text = json.dumps(update_json, indent=4)
             # print('update ' + update_text)
-            if live_changes:
-                api_response_tuple = process_api_request('PATCH', url, headers, update_json, agr, None, None)
-                headers = api_response_tuple[0]
-                response_text = api_response_tuple[1]
-                response_status_code = api_response_tuple[2]
-                log_info = api_response_tuple[3]
-                if log_info:
-                    logger.info(log_info)
-                if response_status_code == 202:
-                    response_dict = json.loads(response_text)
-                    response_dict = str(response_dict).replace('"', '')
-                    logger.info("%s\t%s", agr, response_dict)
+            headers = generic_api_patch(live_changes, url, headers, update_json, agr, None, None)
+
+
+# these are the same as in  sort_dqm_json_reference_updates.py  but not sure I'll want different logging or response handling later
+def generic_api_post(live_changes, url, headers, new_entry, agr, mapping_fh, error_fh):
+    if live_changes:
+        api_response_tuple = process_api_request('POST', url, headers, new_entry, agr, mapping_fh, error_fh)
+        headers = api_response_tuple[0]
+        response_text = api_response_tuple[1]
+        response_status_code = api_response_tuple[2]
+        log_info = api_response_tuple[3]
+        if log_info:
+            logger.info(log_info)
+        if response_status_code == 201:
+            response_dict = json.loads(response_text)
+            response_dict = str(response_dict).replace('"', '')
+            logger.info("%s\t%s", agr, response_dict)
+    return headers
+
+
+def generic_api_patch(live_changes, url, headers, update_json, agr, mapping_fh, error_fh):
+    if live_changes:
+        api_response_tuple = process_api_request('PATCH', url, headers, update_json, agr, mapping_fh, error_fh)
+        headers = api_response_tuple[0]
+        response_text = api_response_tuple[1]
+        response_status_code = api_response_tuple[2]
+        log_info = api_response_tuple[3]
+        if log_info:
+            logger.info(log_info)
+        if response_status_code == 202:
+            response_dict = json.loads(response_text)
+            response_dict = str(response_dict).replace('"', '')
+            logger.info("%s\t%s", agr, response_dict)
+    return headers
 
 
 def camel_to_snake(field_camel, remap_keys):

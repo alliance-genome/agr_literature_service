@@ -7,6 +7,7 @@ import logging
 import logging.config
 
 from helper_post_to_api import generate_headers, get_authentication_token, process_api_request
+from helper_file_processing import generate_cross_references_file, load_ref_xref
 
 # from sanitize_pubmed_json import sanitize_pubmed_json_list
 # from post_reference_to_api import post_references
@@ -65,14 +66,23 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
     remap_com_cor_types['UpdateIn'] = 'UpdateOf'
 
     reference_to_curie = dict()
-    reference_primary_id_to_curie_file = base_path + 'reference_primary_id_to_curie'
-    if path.isfile(reference_primary_id_to_curie_file):
-        with open(reference_primary_id_to_curie_file, 'r') as read_fh:
-            for line in read_fh:
-                line_data = line.split("\t")
-                if line_data[0]:
-                    reference_to_curie[line_data[0]] = line_data[1].rstrip()
-            read_fh.close
+    # previously loading from reference_primary_id_to_curie from past run of this script
+    # reference_primary_id_to_curie_file = base_path + 'reference_primary_id_to_curie'
+    # if path.isfile(reference_primary_id_to_curie_file):
+    #     with open(reference_primary_id_to_curie_file, 'r') as read_fh:
+    #         for line in read_fh:
+    #             line_data = line.split("\t")
+    #             if line_data[0]:
+    #                 reference_to_curie[line_data[0]] = line_data[1].rstrip()
+    #         read_fh.close
+
+    generate_cross_references_file('reference')   # this updates from references in the database, and takes 88 seconds. if updating this script, comment it out after running it once
+    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+    reference_to_curie = dict()
+    for prefix in xref_ref:
+        for identifier in xref_ref[prefix]:
+            xref_curie = prefix + ':' + identifier
+            reference_to_curie[xref_curie] = xref_ref[prefix][identifier]
 
     mappings_set = set()
     for pmid in pmids_wanted:
@@ -101,8 +111,14 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
 
     url = 'http://localhost:' + api_port + '/reference_comment_and_correction/'
     mappings = sorted(mappings_set)
+    # counter = 0
     for mapping in mappings:
         # print(mapping)
+        # only take a couple of samples for testing
+        # counter += 1
+        # if counter > 2:
+        #     break
+
         map_data = mapping.split("\t")
         primary_pmid = 'PMID:' + map_data[0]
         secondary_pmid = 'PMID:' + map_data[1]
@@ -129,7 +145,9 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
             new_entry['reference_curie_to'] = secondary_curie
             new_entry['reference_comment_and_correction_type'] = com_cor_type
 
-# uncomment to test
+            # output what is sent to API after converting file data
+            # json_object = json.dumps(new_entry, indent=4)
+            # print(json_object)
 
             api_response_tuple = process_api_request('POST', url, headers, new_entry, primary_pmid, None, None)
             headers = api_response_tuple[0]

@@ -1,14 +1,15 @@
 from os import path
-from os import environ
-import json
-import requests
-# import argparse
+# from os import environ
+# import json
+# import requests
+import argparse
 import logging
 import logging.config
 
-from helper_post_to_api import generate_headers, update_token, get_authentication_token
+from helper_file_processing import generate_cross_references_file
 
-# pipenv run python get_datatypes_cross_references.py
+# pipenv run python get_datatypes_cross_references.py -d resource
+# pipenv run python get_datatypes_cross_references.py -d reference
 
 # about 1 minute 13 seconds to generate file with cross_references and is_obsolete
 # about 45 seconds to generate file when it only had cross_references without is_obsolete
@@ -17,58 +18,30 @@ from helper_post_to_api import generate_headers, update_token, get_authenticatio
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('post_comments_corrections_to_api')
+logger = logging.getLogger('get_datatypes_cross_references')
 
 
-def update_cross_references_file(datatype):
-    """
+parser = argparse.ArgumentParser()
+parser.add_argument('-d', '--datatype', action='store', help='take input from RESOURCE files in full path')
 
-    :param datatype:
-    :return:
-    """
-
-    api_port = environ.get('API_PORT')
-    base_path = environ.get('XML_PATH')
-
-    token = get_authentication_token()
-    headers = generate_headers(token)
-
-    url = 'http://localhost:' + api_port + '/bulk_download/' + datatype + 's/external_ids/'
-    post_return = requests.get(url, headers=headers)
-
-    if post_return.status_code == 401:
-        token = update_token()
-        headers = generate_headers(token)
-        post_return = requests.get(url, headers=headers)
-
-    response_array = json.loads(post_return.text)
-    mapping_output = ''
-    for entry in response_array:
-        curie = entry['curie']
-        xref_array = entry['cross_references']
-        for xref_dict in xref_array:
-            if xref_dict is not None:
-                flag = 'valid'
-                xref_id = ''
-                if 'curie' in xref_dict:
-                    if xref_dict['curie']:
-                        xref_id = xref_dict['curie']
-                if 'is_obsolete' in xref_dict:
-                    if xref_dict['is_obsolete']:
-                        flag = 'obsolete'
-                mapping_output += curie + '\t' + xref_id + '\t' + flag + '\n'
-
-    ref_xref_file = base_path + datatype + '_curie_to_xref'
-    with open(ref_xref_file, "w") as ref_xref_file_fh:
-        ref_xref_file_fh.write(mapping_output)
+args = vars(parser.parse_args())
 
 
 if __name__ == "__main__":
     """
+    This script generates bulk cross_reference data from the API and database.
+    4 seconds for resource
+    88 seconds for reference
+
     call main start function
     """
 
-    # update_cross_references_file('reference')
-    update_cross_references_file('resource')
+    logger.info("starting get_datatypes_cross_references.py")
 
-    logger.info("Done Processing")
+    if args['datatype']:
+        generate_cross_references_file(args['datatype'])
+
+    else:
+        logger.info("No flag passed in.  Use -h for help.")
+
+    logger.info("ending get_datatypes_cross_references.py")
