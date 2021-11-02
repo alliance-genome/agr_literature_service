@@ -16,6 +16,7 @@ from literature.user import set_global_user_id
 
 from literature.schemas import EditorSchemaShow
 from literature.schemas import EditorSchemaPost
+from literature.schemas import EditorSchemaCreate
 from literature.schemas import ResponseMessageSchema
 
 from literature.crud import editor_crud
@@ -31,7 +32,7 @@ get_db = database.get_db
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              response_model=str)
-def create(request: EditorSchemaPost,
+def create(request: EditorSchemaCreate,
            user: OktaUser = Security(auth.get_user),
            db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
@@ -52,7 +53,7 @@ def destroy(editor_id: int,
               status_code=status.HTTP_202_ACCEPTED,
               response_model=ResponseMessageSchema)
 async def patch(editor_id: int,
-                request: EditorSchemaPost,
+                request: EditorSchemaCreate,
                 user: OktaUser = Security(auth.get_user),
                 db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
