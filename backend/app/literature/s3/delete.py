@@ -9,13 +9,14 @@ def delete_file_in_bucket(s3_client, bucket, folder, object_name=None):
     :return: True if file was uploaded, else False
     """
     # If S3 object_name was not specified, use file_name
-    if object_name is None:
-        object_name = file_obj
+    # Below commented out as file_obj does not exist
+    # if object_name is None:
+    #     object_name = file_obj
 
     # Delete the file
     try:
-        response = s3_client.delete_object(Bucket=bucket,
-                                           Key=f"{folder}/{object_name}")
+        s3_client.delete_object(Bucket=bucket,
+                                Key=f"{folder}/{object_name}")
     except ClientError as e:
         print(e)
         return False

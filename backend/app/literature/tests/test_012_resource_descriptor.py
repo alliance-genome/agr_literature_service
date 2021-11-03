@@ -1,4 +1,3 @@
-import pytest
 # NOTE: updtae here not patch?
 from literature.crud.resource_descriptor_crud import show, update
 from sqlalchemy import create_engine

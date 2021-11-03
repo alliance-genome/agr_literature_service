@@ -1,6 +1,3 @@
-from datetime import datetime
-import pytz
-
 from sqlalchemy import Column
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
@@ -16,15 +13,15 @@ class ResourceDescriptorPageModel(Base):
     __tablename__ = 'resource_descriptor_pages'
 
     resource_descriptor_pages_id = Column(
-       Integer,
-       primary_key=True,
-       autoincrement=True
+        Integer,
+        primary_key=True,
+        autoincrement=True
     )
 
     name = Column(
-       String,
-       unique=False,
-       nullable=False
+        String,
+        unique=False,
+        nullable=False
     )
 
     url = Column(
@@ -34,18 +31,16 @@ class ResourceDescriptorPageModel(Base):
     )
 
     resource_descriptor_id = Column(
-         Integer,
-         ForeignKey('resource_descriptors.resource_descriptor_id',
-                    ondelete='CASCADE'),
-         index=True
+        Integer,
+        ForeignKey('resource_descriptors.resource_descriptor_id',
+                   ondelete='CASCADE'),
+        index=True
     )
 
     resource_descriptor = relationship(
         'ResourceDescriptorModel',
         back_populates="pages"
     )
-
-
 
 
 class ResourceDescriptorModel(Base):

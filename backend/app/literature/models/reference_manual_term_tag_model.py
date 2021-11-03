@@ -1,15 +1,7 @@
-from datetime import datetime
-import pytz
-
-from sqlalchemy import Enum
 from sqlalchemy import Column
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
-from sqlalchemy import Float
 from sqlalchemy import String
-from sqlalchemy import Boolean
-from sqlalchemy import DateTime
-from sqlalchemy import ARRAY
 
 from sqlalchemy.orm import relationship
 
@@ -39,9 +31,9 @@ class ReferenceManualTermTagModel(Base):
     )
 
     ontology = Column(
-         String(),
-         unique=False,
-         nullable=False
+        String(),
+        unique=False,
+        nullable=False
     )
 
     datatype = Column(

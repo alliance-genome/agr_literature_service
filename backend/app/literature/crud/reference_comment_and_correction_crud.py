@@ -11,7 +11,6 @@ from literature.models import ReferenceCommentAndCorrectionModel
 from literature.models import ReferenceModel
 
 
-
 def create(db: Session, reference_comment_and_correction: ReferenceCommentAndCorrectionSchemaPost):
     reference_comment_and_correction_data = jsonable_encoder(reference_comment_and_correction)
     reference_curie_from = reference_comment_and_correction_data['reference_curie_from']
