@@ -110,18 +110,17 @@
   { "data": { "id": "n15", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "report_files/" } },
   { "data": { "id": "n16", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "resource_xml/\nresource_abbreviation\n_not_matched" } },
   { "data": { "id": "n17", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "sanitized_\nreference_\njson/" } },
-  { "data": { "id": "n18", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "FB_\nresourceAbbreviation_\nto_NLM.json" } },
 
   { "data": { "id": "n19", "width": 40, "height": 40, "shape": "circle", "color": "#11479e", "label": "parse_dqm_json_resource.py" } },
   { "data": { "id": "n20", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "sanitized_resource_json/" } },
 
   { "data": { "id": "n24", "width": 40, "height": 40, "shape": "circle", "color": "#11479e", "label": "parse_pubmed_json_reference.py\n-f inputs/pubmed_only_pmids" } },
 
-  { "data": { "id": "n25", "width": 40, "height": 40, "shape": "circle", "color": "#11479e", "label": "post_resource_to_api.py" } },
-  { "data": { "id": "n26", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "resource_primary_id_to_curie" } },
+  { "data": { "id": "n25", "width": 40, "height": 40, "shape": "circle", "color": "#11479e", "label": "post_resource_to_api.py\n-f sanitized_resource_json" } },
+  { "data": { "id": "n26", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "database with\nagr resources" } },
 
   { "data": { "id": "n27", "width": 40, "height": 40, "shape": "circle", "color": "#11479e", "label": "post_reference_to_api.py" } },
-  { "data": { "id": "n28", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "reference_primary_id_to_curie" } },
+  { "data": { "id": "n28", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "database with\nagr references" } },
 
   { "data": { "id": "n29", "width": 40, "height": 40, "shape": "circle", "color": "#11479e", "label": "post_comments_corrections_to_api.py\n-f inputs/all_pmids" } },
 
@@ -156,7 +155,6 @@
   { "data": { "id": "e18", "source": "n14", "target": "n16", "arrow": "triangle", "targetArrowShape": "triangle", "color": "#9dbaea" } },
   { "data": { "id": "e19", "source": "n14", "target": "n17", "arrow": "triangle", "targetArrowShape": "triangle", "color": "#9dbaea" } },
   { "data": { "id": "e21", "source": "n2", "target": "n19", "arrow": "triangle", "targetArrowShape": "triangle", "color": "#9dbaea" } },
-  { "data": { "id": "e22", "source": "n18", "target": "n19", "sourceArrowShape": "triangle", "targetArrowShape": "triangle", "color": "#9dbaea" } },
   { "data": { "id": "e23", "source": "n13", "target": "n19", "arrow": "triangle", "targetArrowShape": "triangle", "color": "#9dbaea" } },
   { "data": { "id": "e24", "source": "n19", "target": "n20", "arrow": "triangle", "targetArrowShape": "triangle", "color": "#9dbaea" } },
   { "data": { "id": "e31", "source": "n22", "target": "n24", "arrow": "triangle", "targetArrowShape": "triangle", "color": "#9dbaea" } },
@@ -173,10 +171,14 @@
   { "data": { "id": "e41", "source": "n27", "target": "n30", "arrow": "triangle", "targetArrowShape": "triangle", "color": "#9dbaea" } },
   { "data": { "id": "e42", "source": "n29", "target": "n30", "arrow": "triangle", "targetArrowShape": "triangle", "color": "#9dbaea" } },
   { "data": { "id": "e43", "source": "n10", "target": "n24", "arrow": "triangle", "targetArrowShape": "triangle", "color": "#9dbaea" } },
-  { "data": { "id": "e44", "source": "n10", "target": "n19", "arrow": "triangle", "targetArrowShape": "triangle", "color": "#9dbaea" } }
             ]
           }
         });
+
+// These 3 were for mapping of resources from MOD/FB resources abbreviationSynonyms against reference's resourceAbbreviation and PubMed XML NLM.  Made obsolete because FB has good ISSN data, and we can map via ISSN to NLM
+//   { "data": { "id": "n18", "width": 40, "height": 40, "shape": "rectangle", "color": "#11479e", "label": "FB_\nresourceAbbreviation_\nto_NLM.json" } },
+//   { "data": { "id": "e22", "source": "n18", "target": "n19", "sourceArrowShape": "triangle", "targetArrowShape": "triangle", "color": "#9dbaea" } },
+//   { "data": { "id": "e44", "source": "n10", "target": "n19", "arrow": "triangle", "targetArrowShape": "triangle", "color": "#9dbaea" } }
 
       });
     </script>

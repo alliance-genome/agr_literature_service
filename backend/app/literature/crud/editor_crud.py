@@ -6,6 +6,7 @@ from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
 from literature.schemas import EditorSchemaPost
+from literature.schemas import EditorSchemaCreate
 
 from literature.models import ReferenceModel
 from literature.models import ResourceModel
@@ -14,7 +15,7 @@ from literature.models import CrossReferenceModel
 from literature.crud.reference_resource import add, stripout, create_obj
 
 
-def create(db: Session, editor: EditorSchemaPost) -> int:
+def create(db: Session, editor: EditorSchemaCreate) -> int:
     editor_data = jsonable_encoder(editor)
 
     orcid = None
@@ -49,7 +50,7 @@ def destroy(db: Session, editor_id: int) -> None:
     return None
 
 
-def patch(db: Session, editor_id: int, editor_update: EditorSchemaPost) -> dict:
+def patch(db: Session, editor_id: int, editor_update: EditorSchemaCreate) -> dict:
 
     editor_db_obj = db.query(EditorModel).filter(EditorModel.editor_id == editor_id).first()
     if not editor_db_obj:
