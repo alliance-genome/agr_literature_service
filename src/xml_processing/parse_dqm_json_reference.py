@@ -300,6 +300,7 @@ def populate_expected_cross_reference_type():
     expected_cross_reference_type.add('SGD:S'.lower())
     expected_cross_reference_type.add('RGD:'.lower())
     expected_cross_reference_type.add('MGI:'.lower())
+    expected_cross_reference_type.add('ISBN:'.lower())
     expected_cross_reference_type.add('FB:FBrf'.lower())
     expected_cross_reference_type.add('ZFIN:ZDB-PUB-'.lower())
 
