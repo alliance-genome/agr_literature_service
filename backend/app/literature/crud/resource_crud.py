@@ -92,11 +92,11 @@ def create(db: Session, resource: ResourceSchemaPost):
 
 def show_all_resources_external_ids(db: Session):
     resources_query = db.query(ResourceModel.curie,
-                                cast(func.array_agg(CrossReferenceModel.curie),
-                                     ARRAY(String)),
-                                cast(func.array_agg(CrossReferenceModel.is_obsolete),
-                                     ARRAY(Boolean))) \
-                   .outerjoin(ResourceModel.cross_references) \
+                               cast(func.array_agg(CrossReferenceModel.curie),
+                                    ARRAY(String)),
+                               cast(func.array_agg(CrossReferenceModel.is_obsolete),
+                                    ARRAY(Boolean))) \
+        .outerjoin(ResourceModel.cross_references) \
         .group_by(ResourceModel.curie)
 
     return [{'curie': resource[0],

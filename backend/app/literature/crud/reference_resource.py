@@ -8,7 +8,7 @@ from fastapi import (
 from typing import Any
 
 
-def stripout(db: Session, file_update: dict) -> dict:
+def stripout(db: Session, file_update: dict, non_fatal: bool = False) -> dict:
     data_object = {'resource': None,
                    'reference': None}
 
@@ -37,8 +37,9 @@ def stripout(db: Session, file_update: dict) -> dict:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"Reference with curie {reference_curie} does not exist")
     else:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail="Supply one of resource_curie or reference_curie")
+        if not non_fatal:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail="Supply one of resource_curie or reference_curie")
 
     return data_object
 
@@ -46,12 +47,12 @@ def stripout(db: Session, file_update: dict) -> dict:
 def add(ref_res_obj: dict, data_object: Any) -> None:
     """Lookup reference or resource and add to data_object.
 
-    NOTE: The keys for these will be removed from file_update.
+   NOTE: The keys for these will be removed from file_update.
     """
 
     if ref_res_obj['resource']:
         data_object.resource = ref_res_obj['resource']
-    else:
+    elif ref_res_obj['reference']:
         data_object.reference = ref_res_obj['reference']
 
 
@@ -62,6 +63,6 @@ def create_obj(db: Session, obj_type: Any, obj_data):
     return db_obj
 
 
-def add_reference_resource(db: Session, db_obj: Any, obj_data: dict) -> None:
-    res_ref = stripout(db, obj_data)
+def add_reference_resource(db: Session, db_obj: Any, obj_data: dict, non_fatal: bool = False) -> None:
+    res_ref = stripout(db, obj_data, non_fatal)
     add(res_ref, db_obj)

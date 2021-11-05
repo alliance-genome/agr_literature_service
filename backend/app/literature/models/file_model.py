@@ -1,5 +1,4 @@
 from datetime import datetime
-import pytz
 
 from sqlalchemy import Column
 from sqlalchemy import ForeignKey
@@ -15,6 +14,7 @@ from sqlalchemy.orm import relationship
 from literature.database.base import Base
 
 from literature.schemas import FileCategories
+
 
 class FileModel(Base):
     __tablename__ = 'files'
@@ -33,10 +33,10 @@ class FileModel(Base):
     )
 
     reference_id = Column(
-         Integer,
-         ForeignKey('references.reference_id',
-                    ondelete='CASCADE'),
-         index=True
+        Integer,
+        ForeignKey('references.reference_id',
+                   ondelete='CASCADE'),
+        index=True
     )
 
     reference = relationship(
@@ -57,7 +57,6 @@ class FileModel(Base):
         String,
         nullable=True
     )
-
 
     category = Column(
         Enum(FileCategories),
