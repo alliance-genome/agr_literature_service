@@ -11,7 +11,7 @@ import logging.config
 
 from helper_post_to_api import generate_headers, get_authentication_token, process_api_request
 
-from helper_file_processing import load_ref_xref, split_identifier, write_json, clean_up_keywords
+from helper_file_processing import load_ref_xref, split_identifier, write_json, clean_up_keywords, compare_authors_or_editors
 
 from dotenv import load_dotenv
 
@@ -183,11 +183,13 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     if input_mod in mods:
         mods = [input_mod]
 
-    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+    # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference2')   # to test against older database mappings
     pmids_not_found = load_pmids_not_found()
 
-    live_changes = False
-    # live_changes = True
+    # make this True for live changes
+    # live_changes = False
+    live_changes = True
 
 #     # test data structure content
 #     for prefix in xref_ref:
@@ -258,7 +260,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                 entries = dqm_data['data']
             # get rid of counter
             counter = 0
-#             max_counter = 10
+            # max_counter = 10
             max_counter = 100000000
             for entry in entries:
                 counter = counter + 1
@@ -359,6 +361,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     elif flag_aggregate_biblio:
                         if 'keywords' in entry:
                             entry = clean_up_keywords(mod, entry)
+# PUT THIS BACK ?
                         # logger.info("Action : aggregate MOD biblio data %s", agr)
                         aggregate_mod_biblio_all[agr] = entry
                         pass
@@ -470,9 +473,8 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     url_ref_curie_prefix = make_url_ref_curie_prefix()
 
     counter = 0
-    # max_counter = 10000000
-    # max_counter = 150
-    max_counter = 1
+    max_counter = 10000000
+    # max_counter = 3
 
     for agr in entries:
         counter = counter + 1
@@ -518,6 +520,21 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
             if keywords_changed[0]:
                 logger.info("patch %s field keywords from db %s to dqm %s", agr, keywords_changed[2], keywords_changed[1])
                 update_json['keywords'] = keywords_changed[1]
+            authors_changed = compare_authors_or_editors(db_entry, dqm_entry, 'authors')
+            if authors_changed[0]:
+                # live_changes = True
+                for patch_data in authors_changed[1]:
+                    patch_dict = patch_data['patch_dict']
+                    patch_dict['reference_curie'] = agr
+                    logger.info("patch %s author_id %s patch_dict %s", agr, patch_data['author_id'], patch_dict)
+                    author_patch_url = 'http://localhost:' + api_port + '/author/' + str(patch_data['author_id'])
+                    headers = generic_api_patch(live_changes, author_patch_url, headers, patch_dict, str(patch_data['author_id']), None, None)
+                for create_dict in authors_changed[2]:
+                    create_dict['reference_curie'] = agr
+                    logger.info("add to %s create_dict %s", agr, create_dict)
+                    author_post_url = 'http://localhost:' + api_port + '/author/'
+                    headers = generic_api_post(live_changes, author_post_url, headers, create_dict, agr, None, None)
+
             # if curators want to get reports of how resource change, put this back, but we're comparing resource titles with dqm resource abbreviations, so they often differ even if they would match if we had a resource lookup by names and synonyms.
             # e.g. WBPaper00000007 has db title "Comptes rendus des seances de l'Academie des sciences. Serie D, Sciences naturelles" and dqm abbreviation "C R Seances Acad Sci D"
             # resource_changed = compare_resource(db_entry, dqm_entry)
