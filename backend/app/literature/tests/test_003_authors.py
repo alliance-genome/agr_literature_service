@@ -37,7 +37,7 @@ def test_create_author():
         "first_name": "string",
         "last_name": "string",
         "name": "003_TCU",
-        "orcid": "AUT:BOB",
+        "orcid": "ORCID:1234-1234-1234-123X",
         "reference_curie": "AGR:AGR-Reference-0000000001"
     }
     res = create(db, xml)
@@ -46,14 +46,14 @@ def test_create_author():
     author = db.query(AuthorModel).filter(AuthorModel.name == "003_TCU").one()
     assert author.first_name == "string"
     assert author.reference.curie == "AGR:AGR-Reference-0000000001"
-    assert author.orcid == "AUT:BOB"
-    assert author.orcid_cross_reference.curie == "AUT:BOB"
+    assert author.orcid == "ORCID:1234-1234-1234-123X"
+    assert author.orcid_cross_reference.curie == "ORCID:1234-1234-1234-123X"
 
 
 def test_update_author():
     xml = {'first_name': "003_TUA",
            'reference_curie': 'AGR:AGR-Reference-0000000003',
-           'orcid': "AUT:JANE"}
+           'orcid': "ORCID:4321-4321-4321-321X"}
     author = db.query(AuthorModel).filter(AuthorModel.name == "003_TCU").one()
     res = patch(db, author.author_id, xml)
     assert res
@@ -61,24 +61,23 @@ def test_update_author():
     assert author.author_id == mod_author.author_id
     assert mod_author.first_name == "003_TUA"
     print(mod_author.orcid_cross_reference)
-    assert mod_author.orcid_cross_reference.curie == "AUT:JANE"
+    assert mod_author.orcid_cross_reference.curie == "ORCID:4321-4321-4321-321X"
 
 
 def test_show_author():
     author = db.query(AuthorModel).filter(AuthorModel.name == "003_TCU").one()
     res = show(db, author.author_id)
-    assert res['orcid'] == "AUT:JANE"
+    assert res['orcid'] == "ORCID:4321-4321-4321-321X"
 
     res = show_changesets(db, author.author_id)
 
-    print("BOB: {}".format(res[0]))
-    # Orcid changed from None -> AUT:BOB -> AUT:JANE
+    # Orcid changed from None -> ORCID:1234-1234-1234-123X -> ORCID:4321-4321-4321-321X
     for transaction in res:
         if not transaction['changeset']['orcid'][0]:
-            assert transaction['changeset']['orcid'][1] == 'AUT:BOB'
+            assert transaction['changeset']['orcid'][1] == 'ORCID:1234-1234-1234-123X'
         else:
-            assert transaction['changeset']['orcid'][0] == 'AUT:BOB'
-            assert transaction['changeset']['orcid'][1] == 'AUT:JANE'
+            assert transaction['changeset']['orcid'][0] == 'ORCID:1234-1234-1234-123X'
+            assert transaction['changeset']['orcid'][1] == 'ORCID:4321-4321-4321-321X'
 
 
 def test_destroy_author():

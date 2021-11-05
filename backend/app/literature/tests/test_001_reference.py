@@ -188,7 +188,6 @@ def test_reference_large():
     assert res['cross_references'][0]['curie'] == 'FB:FBrf0221304'
     # cross references in the db?
     xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "FB:FBrf0221304").one()
-    print("BOB: xref is '{}'".format(xref))
     assert xref.reference.curie == 'AGR:AGR-Reference-0000000004'
 
     assert res["issue_name"] == "4"

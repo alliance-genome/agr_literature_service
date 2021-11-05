@@ -37,7 +37,7 @@ def test_create_editor():
         "first_name": "string",
         "last_name": "string",
         "name": "003_TCU",
-        "orcid": "XREF:BOB",
+        "orcid": "ORCID:2345-2345-2345-234X",
         "reference_curie": "AGR:AGR-Reference-0000000001"
     }
     res = create(db, xml)
@@ -49,7 +49,7 @@ def test_create_editor():
 
 def test_patch_editor():
     xml = {'first_name': "003_TUA",
-           'orcid': "XREF:JANE",
+           'orcid': "ORCID:5432-5432-5432-432X",
            'reference_curie': 'AGR:AGR-Reference-0000000003'}
     editor = db.query(EditorModel).filter(EditorModel.name == "003_TCU").one()
     res = patch(db, editor.editor_id, xml)
@@ -62,21 +62,20 @@ def test_patch_editor():
 def test_show_editor():
     editor = db.query(EditorModel).filter(EditorModel.name == "003_TCU").one()
     edi = show(db, editor.editor_id)
-    assert edi['orcid'] == "XREF:JANE"
+    assert edi['orcid'] == "ORCID:5432-5432-5432-432X"
 
 
 def test_changesets():
     editor = db.query(EditorModel).filter(EditorModel.name == "003_TCU").one()
     res = show_changesets(db, editor.editor_id)
 
-    print("BOB: {}".format(res[0]))
-    # Orcid changed from None -> AUT:BOB -> AUT:JANE
+    # Orcid changed from None -> ORCID:2345-2345-2345-234X -> ORCID:5432-5432-5432-432X
     for transaction in res:
         if not transaction['changeset']['orcid'][0]:
-            assert transaction['changeset']['orcid'][1] == 'XREF:BOB'
+            assert transaction['changeset']['orcid'][1] == 'ORCID:2345-2345-2345-234X'
         else:
-            assert transaction['changeset']['orcid'][0] == 'XREF:BOB'
-            assert transaction['changeset']['orcid'][1] == 'XREF:JANE'
+            assert transaction['changeset']['orcid'][0] == 'ORCID:2345-2345-2345-234X'
+            assert transaction['changeset']['orcid'][1] == 'ORCID:5432-5432-5432-432X'
 
 
 def test_destroy_editor():

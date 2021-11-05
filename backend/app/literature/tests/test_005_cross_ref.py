@@ -38,7 +38,6 @@ def test_create_xref():
 
     xml = {"curie": 'XREF:123456', "reference_curie": 'AGR:AGR-Reference-0000000001', "pages": ["reference"]}
     xref_schema = CrossReferenceSchemaPost(**xml)
-    print("BOB: {}".format(xref_schema))
     res = create(db, xref_schema)
     assert res
 

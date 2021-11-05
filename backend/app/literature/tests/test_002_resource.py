@@ -95,7 +95,7 @@ def test_resource_create_large():
         "abbreviation_synonyms": ["Jackson, Mathews, Wickens, 1996"],
         "cross_references": [
             {
-                "curie": "FB:FBrf09999999",
+                "curie": "FB:FBrf0044885",
                 "pages": [
                     "something"
                 ]
@@ -131,7 +131,7 @@ def test_resource_create_large():
     # fetch the new record.
     res = show(db, 'AGR:AGR-Resource-0000000004')
 
-    assert res['cross_references'][0]['curie'] == "FB:FBrf09999999"
+    assert res['cross_references'][0]['curie'] == "FB:FBrf0044885"
 
     # Not sure of order in array of the editors so:-
     assert len(res['editors']) == 3
