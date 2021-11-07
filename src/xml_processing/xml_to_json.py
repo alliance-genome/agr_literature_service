@@ -6,7 +6,8 @@ import argparse
 import re
 
 from os import environ, path, makedirs
-import logging.config
+# import logging.config
+import logging
 import hashlib
 
 # from dotenv import load_dotenv
@@ -51,9 +52,14 @@ import hashlib
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000
 
 
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+# log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
+# logging.config.fileConfig(log_file_path)
+# logger = logging.getLogger('literature logger')
+
+logging.basicConfig(level=logging.INFO,
+                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
+                    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
 
 
 parser = argparse.ArgumentParser()
