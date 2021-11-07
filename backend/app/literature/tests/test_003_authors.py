@@ -1,5 +1,5 @@
 import pytest
-from literature.crud.author_crud import create, show, patch
+from literature.crud.author_crud import create, show, patch, show_changesets, destroy
 from sqlalchemy import create_engine
 from sqlalchemy import MetaData
 
@@ -24,10 +24,6 @@ Base.metadata.create_all(engine)
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
-db.execute('delete from cross_references')
-db.execute('delete from authors')
-db.execute('delete from "references"')
-
 
 def test_get_bad_author():
 
@@ -41,7 +37,7 @@ def test_create_author():
         "first_name": "string",
         "last_name": "string",
         "name": "003_TCU",
-        "orcid": "BOB",
+        "orcid": "ORCID:1234-1234-1234-123X",
         "reference_curie": "AGR:AGR-Reference-0000000001"
     }
     res = create(db, xml)
@@ -50,14 +46,48 @@ def test_create_author():
     author = db.query(AuthorModel).filter(AuthorModel.name == "003_TCU").one()
     assert author.first_name == "string"
     assert author.reference.curie == "AGR:AGR-Reference-0000000001"
+    assert author.orcid == "ORCID:1234-1234-1234-123X"
+    assert author.orcid_cross_reference.curie == "ORCID:1234-1234-1234-123X"
 
 
 def test_update_author():
     xml = {'first_name': "003_TUA",
-           'reference_curie': 'AGR:AGR-Reference-0000000003'}
+           'reference_curie': 'AGR:AGR-Reference-0000000003',
+           'orcid': "ORCID:4321-4321-4321-321X"}
     author = db.query(AuthorModel).filter(AuthorModel.name == "003_TCU").one()
     res = patch(db, author.author_id, xml)
     assert res
     mod_author = db.query(AuthorModel).filter(AuthorModel.name == "003_TCU").one()
     assert author.author_id == mod_author.author_id
     assert mod_author.first_name == "003_TUA"
+    print(mod_author.orcid_cross_reference)
+    assert mod_author.orcid_cross_reference.curie == "ORCID:4321-4321-4321-321X"
+
+
+def test_show_author():
+    author = db.query(AuthorModel).filter(AuthorModel.name == "003_TCU").one()
+    res = show(db, author.author_id)
+    assert res['orcid'] == "ORCID:4321-4321-4321-321X"
+
+    res = show_changesets(db, author.author_id)
+
+    # Orcid changed from None -> ORCID:1234-1234-1234-123X -> ORCID:4321-4321-4321-321X
+    for transaction in res:
+        if not transaction['changeset']['orcid'][0]:
+            assert transaction['changeset']['orcid'][1] == 'ORCID:1234-1234-1234-123X'
+        else:
+            assert transaction['changeset']['orcid'][0] == 'ORCID:1234-1234-1234-123X'
+            assert transaction['changeset']['orcid'][1] == 'ORCID:4321-4321-4321-321X'
+
+
+def test_destroy_author():
+    author = db.query(AuthorModel).filter(AuthorModel.name == "003_TCU").one()
+    destroy(db, author.author_id)
+
+    # It should now give an error on lookup.
+    with pytest.raises(HTTPException):
+        show(db, author.author_id)
+
+    # Deleting it again should give an error as the lookup will fail.
+    with pytest.raises(HTTPException):
+        destroy(db, author.author_id)

@@ -1,11 +1,8 @@
-from typing import List
 from typing import Optional
 
 from pydantic import BaseModel
-from pydantic import ValidationError
 from pydantic import validator
 
-from literature.schemas import BaseModelShow
 from literature.schemas import ReferenceCommentAndCorrectionType
 
 
@@ -26,7 +23,6 @@ class ReferenceCommentAndCorrectionSchemaPost(BaseModel):
             raise ValueError('must start with AGR:AGR-Reference-<number>')
         return v
 
-
     class Config():
         orm_mode = True
         extra = "forbid"
@@ -39,6 +35,7 @@ class ReferenceCommentAndCorrectionSchemaShow(ReferenceCommentAndCorrectionSchem
         orm_mode = True
         extra = "forbid"
 
+
 class ReferenceCommentAndCorrectionSchemaPatch(BaseModel):
     reference_curie_from: Optional[str] = None
     reference_curie_to: Optional[str] = None
@@ -47,6 +44,7 @@ class ReferenceCommentAndCorrectionSchemaPatch(BaseModel):
     class Config():
         orm_mode = True
         extra = "forbid"
+
 
 class ReferenceCommentAndCorrectionSchemaRelated(BaseModel):
     reference_comment_and_correction_id: int = None

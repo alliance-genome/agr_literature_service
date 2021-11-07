@@ -1,5 +1,3 @@
-from typing import List
-
 from sqlalchemy.orm import Session
 
 from fastapi import APIRouter
@@ -16,7 +14,6 @@ from literature.user import set_global_user_id
 
 from literature.schemas import MeshDetailSchemaShow
 from literature.schemas import MeshDetailSchemaPost
-from literature.schemas import MeshDetailSchemaCreate
 from literature.schemas import MeshDetailSchemaUpdate
 from literature.schemas import ResponseMessageSchema
 
@@ -31,14 +28,16 @@ router = APIRouter(
 
 
 get_db = database.get_db
+db_session: Session = Depends(get_db)
+db_user = Security(auth.get_user)
 
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              response_model=int)
 def create(request: MeshDetailSchemaPost,
-           user: OktaUser = Security(auth.get_user),
-           db: Session = Depends(get_db)):
+           user: OktaUser = db_user,
+           db: Session = db_session):
     set_global_user_id(db, user.id)
     return mesh_detail_crud.create(db, request)
 
@@ -46,8 +45,8 @@ def create(request: MeshDetailSchemaPost,
 @router.delete('/{mesh_detail_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(mesh_detail_id: int,
-            user: OktaUser = Security(auth.get_user),
-            db: Session = Depends(get_db)):
+            user: OktaUser = db_user,
+            db: Session = db_session):
     set_global_user_id(db, user.id)
     mesh_detail_crud.destroy(db, mesh_detail_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -58,8 +57,8 @@ def destroy(mesh_detail_id: int,
               response_model=ResponseMessageSchema)
 async def patch(mesh_detail_id: int,
                 request: MeshDetailSchemaUpdate,
-                user: OktaUser = Security(auth.get_user),
-                db: Session = Depends(get_db)):
+                user: OktaUser = db_user,
+                db: Session = db_session):
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)
 
@@ -70,12 +69,12 @@ async def patch(mesh_detail_id: int,
             response_model=MeshDetailSchemaShow,
             status_code=200)
 def show(mesh_detail_id: int,
-         db: Session = Depends(get_db)):
+         db: Session = db_session):
     return mesh_detail_crud.show(db, mesh_detail_id)
 
 
 @router.get('/{mesh_detail_id}/versions',
             status_code=200)
-def show(mesh_detail_id: int,
-         db: Session = Depends(get_db)):
+def show_versions(mesh_detail_id: int,
+                  db: Session = db_session):
     return mesh_detail_crud.show_changesets(db, mesh_detail_id)

@@ -1,5 +1,5 @@
 import pytest
-from literature.crud.editor_crud import create, show, patch
+from literature.crud.editor_crud import create, show, patch, destroy, show_changesets
 from sqlalchemy import create_engine
 from sqlalchemy import MetaData
 
@@ -24,10 +24,6 @@ Base.metadata.create_all(engine)
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
-db.execute('delete from cross_references')
-db.execute('delete from editors')
-db.execute('delete from "references"')
-
 
 def test_get_bad_editor():
 
@@ -41,7 +37,7 @@ def test_create_editor():
         "first_name": "string",
         "last_name": "string",
         "name": "003_TCU",
-        "orcid": "BOB",
+        "orcid": "ORCID:2345-2345-2345-234X",
         "reference_curie": "AGR:AGR-Reference-0000000001"
     }
     res = create(db, xml)
@@ -51,8 +47,9 @@ def test_create_editor():
     assert editor.first_name == "string"
 
 
-def test_update_editor():
+def test_patch_editor():
     xml = {'first_name': "003_TUA",
+           'orcid': "ORCID:5432-5432-5432-432X",
            'reference_curie': 'AGR:AGR-Reference-0000000003'}
     editor = db.query(EditorModel).filter(EditorModel.name == "003_TCU").one()
     res = patch(db, editor.editor_id, xml)
@@ -60,3 +57,35 @@ def test_update_editor():
     mod_editor = db.query(EditorModel).filter(EditorModel.name == "003_TCU").one()
     assert editor.editor_id == mod_editor.editor_id
     assert mod_editor.first_name == "003_TUA"
+
+
+def test_show_editor():
+    editor = db.query(EditorModel).filter(EditorModel.name == "003_TCU").one()
+    edi = show(db, editor.editor_id)
+    assert edi['orcid'] == "ORCID:5432-5432-5432-432X"
+
+
+def test_changesets():
+    editor = db.query(EditorModel).filter(EditorModel.name == "003_TCU").one()
+    res = show_changesets(db, editor.editor_id)
+
+    # Orcid changed from None -> ORCID:2345-2345-2345-234X -> ORCID:5432-5432-5432-432X
+    for transaction in res:
+        if not transaction['changeset']['orcid'][0]:
+            assert transaction['changeset']['orcid'][1] == 'ORCID:2345-2345-2345-234X'
+        else:
+            assert transaction['changeset']['orcid'][0] == 'ORCID:2345-2345-2345-234X'
+            assert transaction['changeset']['orcid'][1] == 'ORCID:5432-5432-5432-432X'
+
+
+def test_destroy_editor():
+    editor = db.query(EditorModel).filter(EditorModel.name == "003_TCU").one()
+    destroy(db, editor.editor_id)
+
+    # It should now give an error on lookup.
+    with pytest.raises(HTTPException):
+        show(db, editor.editor_id)
+
+    # Deleting it again should give an error as the lookup will fail.
+    with pytest.raises(HTTPException):
+        destroy(db, editor.editor_id)

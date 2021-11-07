@@ -1,12 +1,6 @@
-from datetime import datetime
-import pytz
-
 from sqlalchemy import Column
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
-from sqlalchemy import String
-from sqlalchemy import DateTime
-from sqlalchemy import ARRAY
 from sqlalchemy import Enum
 
 from sqlalchemy.orm import relationship
@@ -15,6 +9,7 @@ from literature.database.base import Base
 
 from literature.schemas import TagName
 from literature.schemas import TagSource
+
 
 class ReferenceTagModel(Base):
     __tablename__ = 'reference_tags'
@@ -27,17 +22,16 @@ class ReferenceTagModel(Base):
     )
 
     reference_id = Column(
-         Integer,
-         ForeignKey('references.reference_id',
-                    ondelete='CASCADE'),
-         index=True
+        Integer,
+        ForeignKey('references.reference_id',
+                   ondelete='CASCADE'),
+        index=True
     )
 
     reference = relationship(
         'ReferenceModel',
         back_populates="tags"
     )
-
 
     tag_name = Column(
         Enum(TagName),

@@ -12,11 +12,11 @@ class PersonOrcidCrossReferenceLinkModel(Base):
     person_id = Column(
         Integer,
         ForeignKey('people.person_id'),
-        primary_key = True
+        primary_key=True
     )
 
     cross_reference_curie = Column(
         String,
         ForeignKey('cross_references.curie'),
-        primary_key = True
+        primary_key=True
     )

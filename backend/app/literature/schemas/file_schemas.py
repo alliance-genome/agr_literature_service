@@ -4,7 +4,6 @@ from typing import Optional
 from datetime import datetime
 
 from pydantic import BaseModel
-from pydantic import ValidationError
 from pydantic import validator
 
 from literature.schemas import FileCategories
@@ -13,7 +12,7 @@ from literature.schemas import ReferenceSchemaShow
 
 class FileSchemaUpdate(BaseModel):
     public: Optional[bool] = None
-    extension: Optional[str] =  None
+    extension: Optional[str] = None
     content_type: Optional[str] = None
     reference_id: Optional[str] = None
     category: Optional[FileCategories] = None
@@ -50,8 +49,8 @@ class FileSchemaUpdate(BaseModel):
         return v
 
     class Config():
-         orm_mode = True
-         extra = "forbid"
+        orm_mode = True
+        extra = "forbid"
 
 
 class FileSchemaShow(BaseModel):
@@ -77,5 +76,5 @@ class FileSchemaShow(BaseModel):
     synonyms: Optional[List[str]] = None
 
     class Config():
-         orm_mode = True
-         extra = "forbid"
+        orm_mode = True
+        extra = "forbid"
