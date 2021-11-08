@@ -22,10 +22,10 @@ from literature.config import config
 from literature.models import FileModel
 
 
-def create(db: Session, s3: BaseClient, parent_entity_type : str, curie: str, file_contents: str, display_name: str, content_type: str) -> str:
-    filename, file_extension = os.path.splitext(display_name)
+def create(db: Session, s3: BaseClient, parent_entity_type : str, curie: str, file_contents: bytes, display_name: str, content_type: str) -> str:
+    _, file_extension = os.path.splitext(display_name)
     bucket_name = 'agr-literature'
-    md5sum = hashlib.md5(bytes(file_contents, "utf-8")).hexdigest()
+    md5sum = hashlib.md5(file_contents).hexdigest()
     s3_filename = curie + '-File-' + md5sum + file_extension
     folder = config.ENV_STATE + '/agr/' + curie
 
@@ -53,7 +53,7 @@ def create(db: Session, s3: BaseClient, parent_entity_type : str, curie: str, fi
                                 detail=f"File with md5sum {md5sum} and Reference Curie {curie} already exists: File ID {file_obj.file_id}")
 
     upload_obj = upload_file_to_bucket(s3_client=s3,
-                                       file_obj=io.BytesIO(bytes(file_contents, "utf-8")),
+                                       file_obj=io.BytesIO(file_contents),
                                        bucket=bucket_name,
                                        folder=folder,
                                        object_name=s3_filename)

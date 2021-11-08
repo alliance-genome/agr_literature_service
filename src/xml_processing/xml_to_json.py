@@ -9,6 +9,8 @@ from os import environ, path, makedirs
 import logging.config
 import hashlib
 
+from typing import Set, List
+
 # from dotenv import load_dotenv
 #
 # load_dotenv()
@@ -79,7 +81,7 @@ known_article_id_types = {
 #     'doi': {'pages': 'DOI', 'prefix': 'DOI:'},
 #     'pmc': {'pages': 'PMC', 'prefix': 'PMCID:'}}
 ignore_article_id_types = {'bookaccession', 'mid', 'pii', 'pmcid'}
-unknown_article_id_types = set()
+unknown_article_id_types = set() # type: Set
 
 
 def represents_int(s):
@@ -710,7 +712,7 @@ if __name__ == "__main__":
 
     # when iterating manually through list of PMIDs from PubMed XML CommentsCorrections, and wanting to exclude PMIDs that have already been looked at from original alliance DQM input, or previous iterations.
     previous_pmids = []
-    previous_pmids_files = []
+    previous_pmids_files = [] # type: List
     # previous_pmids_files = ['inputs/alliance_pmids', 'inputs/comcor_add1', 'inputs/comcor_add2', 'inputs/comcor_add3']
     # previous_pmids_files = ['inputs/alliance_pmids', 'inputs/comcor_add1', 'inputs/comcor_add2', 'inputs/comcor_add3', 'inputs/comcor_add4', 'inputs/comcor_add5', 'inputs/comcor_add6', 'inputs/comcor_add7', 'inputs/comcor_add8', 'inputs/comcor_add9', 'inputs/comcor_add10', 'inputs/comcor_add11']
     for previous_pmids_file in previous_pmids_files:

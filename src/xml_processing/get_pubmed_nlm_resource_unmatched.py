@@ -12,6 +12,7 @@ import logging
 import logging.config
 
 from dotenv import load_dotenv
+from typing import Set, List
 
 load_dotenv()
 
@@ -27,12 +28,12 @@ logger = logging.getLogger('literature logger')
 
 
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
-base_path = environ.get('XML_PATH')
+base_path = environ.get('XML_PATH', "")
 storage_path = base_path + 'resource_xml/'
 
 
-pmids = []
-pmids_found = set()
+pmids = []              # type: List
+pmids_found = set()     # type: Set
 
 
 def download_pubmed_unmatched_resource_xml():

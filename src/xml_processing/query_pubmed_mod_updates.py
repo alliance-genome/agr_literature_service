@@ -12,6 +12,7 @@ import logging.config
 # import glob
 # import hashlib
 from datetime import datetime
+from typing import Set, List
 
 from dotenv import load_dotenv
 
@@ -128,7 +129,7 @@ parser.add_argument('-u', '--url', action='store', help='take input from entries
 
 args = vars(parser.parse_args())
 
-base_path = environ.get('XML_PATH')
+base_path = environ.get('XML_PATH', "")
 search_path = base_path + 'pubmed_searches/'
 search_outfile_path = base_path + 'pubmed_searches/search_new_mods/'
 pmc_process_path = base_path + 'pubmed_searches/pmc_processing/'
@@ -147,7 +148,7 @@ if not path.exists(pmc_storage_path):
 #     'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=%27drosophil*[ALL]%20OR%20melanogaster[ALL]%20AND%202020/07/21:2021/07/21[EDAT]%20NOT%20pubstatusaheadofprint%27&retmax=100000000',
 #     'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*[ALL]+OR+melanogaster[ALL]+NOT+pubstatusaheadofprint&retmax=100000000',
 
-alliance_pmids = set()
+alliance_pmids = set() # type: Set
 mod_esearch_url = {
     'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=drosophil*[ALL]+OR+melanogaster[ALL]+NOT+pubstatusaheadofprint',
     'ZFIN': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=zebrafish[Title/Abstract]+OR+zebra+fish[Title/Abstract]+OR+danio[Title/Abstract]+OR+zebrafish[keyword]+OR+zebra+fish[keyword]+OR+danio[keyword]+OR+zebrafish[Mesh+Terms]+OR+zebra+fish[Mesh+Terms]+OR+danio[Mesh+Terms]',
@@ -471,7 +472,7 @@ if __name__ == "__main__":
     call main start function
     """
 
-    pmids_wanted = []
+    pmids_wanted = [] # type: List
 
     query_pubmed_mod_updates()
 

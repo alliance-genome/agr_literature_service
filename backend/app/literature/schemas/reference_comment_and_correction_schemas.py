@@ -10,8 +10,8 @@ from literature.schemas import ReferenceCommentAndCorrectionType
 
 
 class ReferenceCommentAndCorrectionSchemaPost(BaseModel):
-    reference_curie_from: Optional[str] = None
-    reference_curie_to: Optional[str] = None
+    reference_curie_from: str
+    reference_curie_to: str
     reference_comment_and_correction_type: ReferenceCommentAndCorrectionType
 
     @validator('reference_curie_from')

@@ -1,6 +1,6 @@
 import subprocess
 
-from typing import List
+from typing import List, cast
 
 from sqlalchemy.orm import Session
 
@@ -152,7 +152,16 @@ async def create_upload_file(curie: str,
                              user: OktaUser = Security(auth.get_user),
                              db: Session = Depends(get_db)):
     set_global_user_id(db, user.id)
-    file_contents = await file_obj.read()
+    
+    file_contents = bytes()
+    # Check if file is in binary mode. read() will return bytes
+    if "b" in file_obj.file.mode:
+        file_contents = cast(bytes, await file_obj.read())
+    else:
+        # file is in text mode. So convert read() to bytes
+        contents = cast(str, await file_obj.read())
+        file_contents = bytes(contents, "utf-8")
+    
     filename = file_obj.filename
     content_type = file_obj.content_type
 

@@ -69,7 +69,7 @@ args = vars(parser.parse_args())
 
 # todo: save this in an env variable
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
-base_path = environ.get('XML_PATH')
+base_path = environ.get('XML_PATH', "")
 storage_path = base_path + 'pubmed_xml/'
 
 

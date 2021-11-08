@@ -15,7 +15,7 @@ logger = logging.getLogger('literature logger')
 # pipenv run python parse_dqm_json_resource.py
 
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
-base_path = environ.get('XML_PATH')
+base_path = environ.get('XML_PATH', "")
 json_storage_path = base_path + 'sanitized_resource_json/'
 
 # resource_fields = ['primaryId', 'nlm', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']

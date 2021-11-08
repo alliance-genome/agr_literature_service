@@ -7,3 +7,4 @@ flake8-bugbear==20.11.1
 sphinx
 livereload
 myst-parser
+mypy==0.910

@@ -22,19 +22,19 @@ def create(db: Session, author: AuthorSchemaCreate):
         orcid = author_data['orcid']
         del author_data['orcid']
 
-    author = create_obj(db, AuthorModel, author_data)
+    author_model = create_obj(db, AuthorModel, author_data) # type: AuthorModel
     if orcid:
         cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
         if not cross_reference_obj:
             cross_reference_obj = CrossReferenceModel(curie=orcid)
             db.add(cross_reference_obj)
-        author.orcid_cross_reference = cross_reference_obj
+        author_model.orcid_cross_reference = cross_reference_obj
 
     db.add(author)
     db.commit()
     db.refresh(author)
 
-    return author.author_id
+    return author_model.author_id
 
 
 def destroy(db: Session, author_id: int):

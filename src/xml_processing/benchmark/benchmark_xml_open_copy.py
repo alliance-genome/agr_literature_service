@@ -13,12 +13,13 @@ import re
 from os import environ, path
 import logging
 import logging.config
+from typing import List
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-pmids = []
+pmids = [] # type: List
 
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')

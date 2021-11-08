@@ -18,7 +18,7 @@ logger = logging.getLogger('literature logger')
 # pipenv run python3 post_resource_to_api.py > log_post_resource_to_api
 
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
-base_path = environ.get('XML_PATH')
+base_path = environ.get('XML_PATH', "")
 
 okta_file = base_path + 'okta_token'
 

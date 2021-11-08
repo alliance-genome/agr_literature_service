@@ -9,10 +9,10 @@ from literature.schemas import BaseModelShow
 
 
 class ReferenceManualTermTagSchemaPost(BaseModel):
-    reference_curie: Optional[str] = None
-    ontology: Optional[str] = None
-    datatype: Optional[str] = None
-    term: Optional[str] = None
+    reference_curie: str
+    ontology: str
+    datatype: str
+    term: str
 
     @validator('reference_curie')
     def must_be_alliance_reference_curie(cls, v):
@@ -34,10 +34,10 @@ class ReferenceManualTermTagSchemaShow(ReferenceManualTermTagSchemaPost):
 
 
 class ReferenceManualTermTagSchemaPatch(BaseModel):
-    reference_curie: Optional[str] = None
-    ontology: Optional[str] = None
-    datatype: Optional[str] = None
-    term: Optional[str] = None
+    reference_curie: str
+    ontology: str
+    datatype: str
+    term: str
 
     @validator('reference_curie')
     def reference_is_some(cls, v):

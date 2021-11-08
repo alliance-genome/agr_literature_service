@@ -96,9 +96,9 @@ def destroy(db: Session, curie: str):
     return None
 
 
-def patch(db: Session, curie: str, resource_update: Union[ResourceSchemaUpdate, dict]) -> dict:
+def patch(db: Session, curie: str, resource_update: ResourceSchemaUpdate) -> dict:
     resource_db_obj = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
-    if not resource_db_obj:
+    if resource_db_obj is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Resource with curie {curie} not found")
 

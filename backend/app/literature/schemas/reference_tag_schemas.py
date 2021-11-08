@@ -7,8 +7,8 @@ from literature.schemas import TagSource
 
 
 class ReferenceTag(BaseModel):
-    tag_name: Optional[TagName] = None
-    tag_source: Optional[TagSource] = None
+    tag_name: TagName
+    tag_source: TagSource
 
     class Config():
          orm_mode = True
