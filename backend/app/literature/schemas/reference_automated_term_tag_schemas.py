@@ -1,11 +1,7 @@
-from typing import List
 from typing import Optional
 
 from pydantic import BaseModel
-from pydantic import ValidationError
 from pydantic import validator
-
-from literature.schemas import BaseModelShow
 
 
 class ReferenceAutomatedTermTagSchemaPost(BaseModel):
@@ -33,6 +29,7 @@ class ReferenceAutomatedTermTagSchemaShow(ReferenceAutomatedTermTagSchemaPost):
     class Config():
         orm_mode = True
         extra = "forbid"
+
 
 class ReferenceAutomatedTermTagSchemaPatch(BaseModel):
     reference_curie: Optional[str] = None

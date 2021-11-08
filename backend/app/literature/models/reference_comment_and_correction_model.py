@@ -7,10 +7,6 @@ from sqlalchemy import Enum
 from sqlalchemy import Column
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
-from sqlalchemy import String
-from sqlalchemy import Boolean
-from sqlalchemy import DateTime
-from sqlalchemy import ARRAY
 
 from sqlalchemy.orm import relationship
 
@@ -56,7 +52,7 @@ class ReferenceCommentAndCorrectionModel(Base):
     )
 
     reference_comment_and_correction_type = Column(
-         Enum(ReferenceCommentAndCorrectionType),
-         unique=False,
-         nullable=False
+        Enum(ReferenceCommentAndCorrectionType),
+        unique=False,
+        nullable=False
     )

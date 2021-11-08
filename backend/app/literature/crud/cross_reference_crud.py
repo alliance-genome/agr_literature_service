@@ -47,7 +47,7 @@ def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaU
     if not cross_reference_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Cross Reference with curie {curie} not found")
-    add_reference_resource(db, cross_reference_db_obj, cross_reference_update)
+    add_reference_resource(db, cross_reference_db_obj, cross_reference_update, non_fatal=True)
 
     for field, value in cross_reference_update.dict().items():
         setattr(cross_reference_db_obj, field, value)

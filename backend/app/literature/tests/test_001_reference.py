@@ -28,7 +28,9 @@ if "literature-test" not in SQLALCHEMY_DATABASE_URL:
 
 db.execute('delete from cross_references')
 db.execute('delete from authors')
+db.execute('delete from editors')
 db.execute('delete from "references"')
+db.execute('delete from resources')
 
 
 def test_get_bad_reference():
@@ -151,7 +153,8 @@ def test_reference_large():
             }
         ],
         "title": "A conserved serine residue regulates the stability of Drosophila Salvador",
-        "volume": "433"
+        "volume": "433",
+        "open_access": True
     }
 
     # process the reference.
@@ -194,3 +197,4 @@ def test_reference_large():
     assert res["tags"][0]["tag_source"] == "FB"
     assert res["title"] == "A conserved serine residue regulates the stability of Drosophila Salvador"
     assert res["volume"] == "433"
+    assert res['open_access']

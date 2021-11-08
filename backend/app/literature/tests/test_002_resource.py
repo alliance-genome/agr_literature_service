@@ -3,6 +3,10 @@ from literature.crud.resource_crud import create, show, patch, destroy
 from sqlalchemy import create_engine
 from sqlalchemy import MetaData
 
+from literature.models import (
+    ResourceModel
+)
+
 
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 from literature.schemas import ResourceSchemaPost, ResourceSchemaUpdate
@@ -19,10 +23,6 @@ db = SessionLocal()
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
-db.execute('delete from "editors"')
-db.execute('delete from "cross_references"')
-db.execute('delete from "resources"')
-
 
 def test_get_bad_Resource():
 
@@ -31,7 +31,7 @@ def test_get_bad_Resource():
 
 
 def test_create_Resource():
-    Resource = ResourceSchemaPost(title="Bob", abstract="3")
+    Resource = ResourceSchemaPost(title="Bob", abstract="3", open_access=True)
     res = create(db, Resource)
     assert res == 'AGR:AGR-Resource-0000000001'
 
@@ -88,6 +88,74 @@ def test_update_Resource():
 
     # abstract should still be there
     assert res['abstract'] == '3'
+
+
+def test_resource_create_large():
+    xml = {
+        "abbreviation_synonyms": ["Jackson, Mathews, Wickens, 1996"],
+        "cross_references": [
+            {
+                "curie": "FB:FBrf0044885",
+                "pages": [
+                    "something"
+                ]
+            }
+        ],
+        "editors": [
+            {
+                "order": 1,
+                "first_name": "R.J.",
+                "last_name": "Jackson",
+                "name": "R.J. Jackson"
+            },
+            {
+                "order": 2,
+                "first_name": "M.",
+                "last_name": "Mathews",
+                "name": "M. Mathews"
+            },
+            {
+                "order": 3,
+                "first_name": "M.P.",
+                "last_name": "Wickens",
+                "name": "M.P. Wickens"
+            }],
+        "pages": "lxi + 351pp",
+        "title": "Abstracts of papers presented at the 1996 meeting"
+    }
+    # process the resource
+    resource = ResourceSchemaPost(**xml)
+    res = create(db, resource)
+    assert res == 'AGR:AGR-Resource-0000000004'
+
+    # fetch the new record.
+    res = show(db, 'AGR:AGR-Resource-0000000004')
+
+    assert res['cross_references'][0]['curie'] == "FB:FBrf0044885"
+
+    # Not sure of order in array of the editors so:-
+    assert len(res['editors']) == 3
+    for editor in res['editors']:
+        if editor['order'] == '1':
+            assert editor["first_name"] == "R.J."
+            assert editor["last_name"] == "Jackson"
+            assert editor["name"] == "R.J. Jackson"
+        elif editor['order'] == '3':
+            assert editor["first_name"] == "Wickens"
+            assert editor["last_name"] == "Jackson"
+            assert editor["name"] == "M.P. Wickens"
+    assert res['title'] == "Abstracts of papers presented at the 1996 meeting"
+    assert res['pages'] == "lxi + 351pp"
+    assert res["abbreviation_synonyms"][0] == "Jackson, Mathews, Wickens, 1996"
+    assert not res['open_access']
+
+    res = db.query(ResourceModel).filter(ResourceModel.curie == 'AGR:AGR-Resource-0000000004').one()
+    assert res.title == "Abstracts of papers presented at the 1996 meeting"
+    assert len(res.editors) == 3
+    # open access defaults to False
+    assert not res.open_access
+
+    assert len(res.cross_references) == 1
 
 
 def test_delete_Resource():

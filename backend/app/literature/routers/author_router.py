@@ -25,14 +25,15 @@ router = APIRouter(
 )
 
 get_db = database.get_db
+db_session: Session = Depends(get_db)
+db_user = Security(auth.get_user)
 
 
 @router.post('/',
-             status_code=status.HTTP_201_CREATED)#,
-           #  response_model=int)
+             status_code=status.HTTP_201_CREATED)
 def create(request: AuthorSchemaCreate,
-           user: OktaUser = Security(auth.get_user),
-           db: Session = Depends(get_db)):
+           user: OktaUser = db_user,
+           db: Session = db_session):
     set_global_user_id(db, user.id)
     return author_crud.create(db, request)
 
@@ -40,8 +41,8 @@ def create(request: AuthorSchemaCreate,
 @router.delete('/{author_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(author_id: int,
-            user: OktaUser = Security(auth.get_user),
-            db: Session = Depends(get_db)):
+            user: OktaUser = db_user,
+            db: Session = db_session):
     set_global_user_id(db, user.id)
     author_crud.destroy(db, author_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -52,8 +53,8 @@ def destroy(author_id: int,
               response_model=ResponseMessageSchema)
 async def patch(author_id: int,
                 request: AuthorSchemaCreate,
-                user: OktaUser = Security(auth.get_user),
-                db: Session = Depends(get_db)):
+                user: OktaUser = db_user,
+                db: Session = db_session):
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)
 
@@ -64,12 +65,12 @@ async def patch(author_id: int,
             response_model=AuthorSchemaShow,
             status_code=200)
 def show(author_id: int,
-         db: Session = Depends(get_db)):
+         db: Session = db_session):
     return author_crud.show(db, author_id)
 
 
 @router.get('/{author_id}/versions', # type: ignore
             status_code=200)
-def show(author_id: int,
-         db: Session = Depends(get_db)):
+def show_versions(author_id: int,
+                  db: Session = db_session):
     return author_crud.show_changesets(db, author_id)

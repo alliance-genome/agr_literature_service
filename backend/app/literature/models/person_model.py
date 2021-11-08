@@ -4,10 +4,8 @@ from typing import Dict
 import pytz
 
 from sqlalchemy import Column
-from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
 from sqlalchemy import String
-from sqlalchemy import Boolean
 from sqlalchemy import DateTime
 from sqlalchemy import ARRAY
 
@@ -28,7 +26,7 @@ class PersonModel(Base):
 
     references = relationship(
         'ReferenceModel',
-        secondary = 'person_reference_link'
+        secondary='person_reference_link'
     )
 
     editors = relationship(
@@ -44,7 +42,7 @@ class PersonModel(Base):
     orcids = relationship(
         'CrossReferenceModel',
         lazy='joined',
-        secondary = 'person_orcid_cross_reference_link'
+        secondary='person_orcid_cross_reference_link'
     )
 
     order = Column(
@@ -71,8 +69,8 @@ class PersonModel(Base):
     )
 
     middle_names = Column(
-       ARRAY(String()),
-       nullable=True
+        ARRAY(String()),
+        nullable=True
     )
 
     last_name = Column(

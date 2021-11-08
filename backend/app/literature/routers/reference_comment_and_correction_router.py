@@ -28,14 +28,16 @@ router = APIRouter(
 
 
 get_db = database.get_db
+db_session: Session = Depends(get_db)
+db_user = Security(auth.get_user)
 
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              response_model=str)
 def create(request: ReferenceCommentAndCorrectionSchemaPost,
-           user: OktaUser = Security(auth.get_user),
-           db: Session = Depends(get_db)):
+           user: OktaUser = db_user,
+           db: Session = db_session):
     set_global_user_id(db, user.id)
     return reference_comment_and_correction_crud.create(db, request)
 
@@ -43,8 +45,8 @@ def create(request: ReferenceCommentAndCorrectionSchemaPost,
 @router.delete('/{reference_comment_and_correction_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(reference_comment_and_correction_id: int,
-            user: OktaUser = Security(auth.get_user),
-            db: Session = Depends(get_db)):
+            user: OktaUser = db_user,
+            db: Session = db_session):
     set_global_user_id(db, user.id)
     reference_comment_and_correction_crud.destroy(db, reference_comment_and_correction_id)
 
@@ -56,8 +58,8 @@ def destroy(reference_comment_and_correction_id: int,
               response_model=ResponseMessageSchema)
 async def patch(reference_comment_and_correction_id: int,
                 request: ReferenceCommentAndCorrectionSchemaPatch,
-                user: OktaUser = Security(auth.get_user),
-                db: Session = Depends(get_db)):
+                user: OktaUser = db_user,
+                db: Session = db_session):
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)
 
@@ -68,12 +70,12 @@ async def patch(reference_comment_and_correction_id: int,
             response_model=ReferenceCommentAndCorrectionSchemaShow,
             status_code=200)
 def show(reference_comment_and_correction_id: int,
-         db: Session = Depends(get_db)):
+         db: Session = db_session):
     return reference_comment_and_correction_crud.show(db, reference_comment_and_correction_id)
 
 
 @router.get('/{reference_comment_and_correction_id}/versions',
             status_code=200)
 def show_versions(reference_comment_and_correction_id: int,
-         db: Session = Depends(get_db)):
+                  db: Session = db_session):
     return reference_comment_and_correction_crud.show_changesets(db, reference_comment_and_correction_id)

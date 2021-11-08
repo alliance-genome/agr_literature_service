@@ -1,13 +1,14 @@
 
 import json
-import requests
+# import requests
 import argparse
 import re
 from os import environ, path, listdir
 import logging
 import logging.config
 
-from helper_post_to_api import generate_headers, update_token
+from helper_post_to_api import generate_headers, update_token, get_authentication_token, process_api_request
+from helper_file_processing import generate_cross_references_file, load_ref_xref, split_identifier
 
 # post to api data from sanitized_reference_json/
 # python post_reference_to_api.py
@@ -77,8 +78,6 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
     base_path = environ.get('XML_PATH')
 
-    okta_file = base_path + 'okta_token'
-
     files_to_process = []
     if input_file == 'sanitized':
         json_storage_path = base_path + 'sanitized_reference_json/'
@@ -106,6 +105,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     remap_keys['MODReferenceTypes'] = 'mod_reference_types'
     remap_keys['plainLanguageAbstract'] = 'plain_language_abstract'
     remap_keys['pubmedAbstractLanguages'] = 'pubmed_abstract_languages'
+    remap_keys['publicationStatus'] = 'pubmed_publication_status'
 
     subkeys_to_remove = dict()
     remap_subkeys = dict()
@@ -137,48 +137,58 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     remap_subkeys['authors']['firstname'] = 'first_name'
     remap_subkeys['authors']['lastname'] = 'last_name'
     remap_subkeys['authors']['middlenames'] = 'middle_names'
+    remap_subkeys['authors']['correspondingAuthor'] = 'corresponding_author'
+    remap_subkeys['authors']['firstAuthor'] = 'first_author'
 
     keys_found = set()
 
-    token = ''
-    if path.isfile(okta_file):
-        with open(okta_file, 'r') as okta_fh:
-            token = okta_fh.read().replace("\n", "")
-            okta_fh.close
-    else:
-        token = update_token()
+    # token = ''
+    # okta_file = base_path + 'okta_token'
+    # if path.isfile(okta_file):
+    #     with open(okta_file, 'r') as okta_fh:
+    #         token = okta_fh.read().replace("\n", "")
+    #         okta_fh.close
+    # else:
+    #     token = update_token()
+    token = get_authentication_token()
     headers = generate_headers(token)
 
-#     url = 'http://localhost:49161/reference/'
     url = 'http://localhost:' + api_port + '/reference/'
-#     headers = {
-#         'Authorization': 'Bearer <token_goes_here>',
-#         'Content-Type': 'application/json',
-#         'Accept': 'application/json'
-#     }
 
-    resource_primary_id_to_curie_file = base_path + 'resource_primary_id_to_curie'
     reference_primary_id_to_curie_file = base_path + 'reference_primary_id_to_curie'
     errors_in_posting_reference_file = base_path + 'errors_in_posting_reference'
 
-    already_processed_primary_id = set()
-    if check_file_flag == 'yes_file_check':
-        if path.isfile(reference_primary_id_to_curie_file):
-            with open(reference_primary_id_to_curie_file, 'r') as read_fh:
-                for line in read_fh:
-                    line_data = line.split("\t")
-                    if line_data[0]:
-                        already_processed_primary_id.add(line_data[0].rstrip())
-                read_fh.close
+    # previously loading from reference_primary_id_to_curie from past run of this script
+    # already_processed_primary_id = set()
+    # if check_file_flag == 'yes_file_check':
+    #     if path.isfile(reference_primary_id_to_curie_file):
+    #         with open(reference_primary_id_to_curie_file, 'r') as read_fh:
+    #             for line in read_fh:
+    #                 line_data = line.split("\t")
+    #                 if line_data[0]:
+    #                     already_processed_primary_id.add(line_data[0].rstrip())
+    #             read_fh.close
 
+    generate_cross_references_file('resource')   # this updates from resources in the database, and takes 4 seconds. if updating this script, comment it out after running it once
+    generate_cross_references_file('reference')   # this updates from references in the database, and takes 88 seconds. if updating this script, comment it out after running it once
+
+    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('resource')
     resource_to_curie = dict()
-    if path.isfile(resource_primary_id_to_curie_file):
-        with open(resource_primary_id_to_curie_file, 'r') as read_fh:
-            for line in read_fh:
-                line_data = line.rstrip().split("\t")
-                if line_data[0]:
-                    resource_to_curie[line_data[0]] = line_data[1]
-            read_fh.close
+    for prefix in xref_ref:
+        for identifier in xref_ref[prefix]:
+            xref_curie = prefix + ':' + identifier
+            resource_to_curie[xref_curie] = xref_ref[prefix][identifier]
+    # previously loading from resource_primary_id_to_curie from past run of post_resource_to_api
+    # resource_primary_id_to_curie_file = base_path + 'resource_primary_id_to_curie'
+    # if path.isfile(resource_primary_id_to_curie_file):
+    #     with open(resource_primary_id_to_curie_file, 'r') as read_fh:
+    #         for line in read_fh:
+    #             line_data = line.rstrip().split("\t")
+    #             if line_data[0]:
+    #                 resource_to_curie[line_data[0]] = line_data[1]
+    #         read_fh.close
+
+    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
 
     process_results = []
     with open(reference_primary_id_to_curie_file, 'a') as mapping_fh, open(errors_in_posting_reference_file, 'a') as error_fh:
@@ -202,8 +212,15 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                 # print(json_object)
 
                 primary_id = entry['primaryId']
-                if primary_id in already_processed_primary_id:
-                    continue
+                prefix, identifier, separator = split_identifier(primary_id)
+                if prefix in xref_ref:
+                    if identifier in xref_ref[prefix]:
+                        logger.info("%s\talready in", primary_id)
+                        continue
+                # previously loading from reference_primary_id_to_curie from past run of this script
+                # if primary_id in already_processed_primary_id:
+                #     continue
+
                 # if primary_id != 'PMID:9643811':
                 #     continue
 
@@ -211,7 +228,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
 
                 for key in entry:
                     keys_found.add(key)
-#                     logger.info("key found\t%s\t%s", key, entry[key])
+                    # logger.info("key found\t%s\t%s", key, entry[key])
                     if key in remap_keys:
                         # logger.info("remap\t%s\t%s", key, remap_keys[key])
                         # this renames a key, but it can be accessed again in the for key loop, so sometimes a key is visited twice while another is skipped, so have to create a new dict to populate instead
@@ -229,7 +246,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                             for subkey in sub_element:
                                 if subkey in remap_subkeys[key]:
                                     new_sub_element[remap_subkeys[key][subkey]] = sub_element[subkey]
-#                                     logger.info("remap subkey\t%s\t%s", subkey, remap_subkeys[key][subkey])
+                                    # logger.info("remap subkey\t%s\t%s", subkey, remap_subkeys[key][subkey])
                                 elif key not in subkeys_to_remove or subkey not in subkeys_to_remove[key]:
                                     new_sub_element[subkey] = sub_element[subkey]
                             new_list.append(new_sub_element)
@@ -260,77 +277,97 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                 # json_object = json.dumps(new_entry, indent=4)
                 # print(json_object)
 
-                process_post_tuple = process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh)
-                headers = process_post_tuple[0]
-                process_text = process_post_tuple[1]
-                process_status_code = process_post_tuple[2]
-                process_result = dict()
-                process_result['text'] = process_text
-                process_result['status_code'] = process_status_code
-                process_results.append(process_result)
+                # get rid of this if process_api_request works on a full run
+                # process_post_tuple = process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh)
+                # headers = process_post_tuple[0]
+                # process_text = process_post_tuple[1]
+                # process_status_code = process_post_tuple[2]
+                # process_result = dict()
+                # process_result['text'] = process_text
+                # process_result['status_code'] = process_status_code
+                # process_results.append(process_result)
 
-#    if wanting to output keys in data for figuring out mapping
-#         for key in keys_found:
-#             logger.info("key %s", key)
+                api_response_tuple = process_api_request('POST', url, headers, new_entry, primary_id, None, None)
+                headers = api_response_tuple[0]
+                response_text = api_response_tuple[1]
+                response_status_code = api_response_tuple[2]
+                log_info = api_response_tuple[3]
+                response_dict = json.loads(response_text)
+
+                if log_info:
+                    logger.info(log_info)
+
+                if (response_status_code == 201):
+                    response_dict = response_dict.replace('"', '')
+                    logger.info("%s\t%s", primary_id, response_dict)
+                    mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
+                else:
+                    logger.info("api error %s primaryId %s message %s", str(response_status_code), primary_id, response_dict['detail'])
+                    error_fh.write("api error %s primaryId %s message %s\n" % (str(response_status_code), primary_id, response_dict['detail']))
+
+        # if wanting to output keys in data for figuring out mapping
+        # for key in keys_found:
+        #     logger.info("key %s", key)
 
         mapping_fh.close
         error_fh.close
     return process_results
 
 
-def process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh):
-    """
-
-    output the json getting posted to the API
-    json_object = json.dumps(new_entry, indent = 4)
-    print(json_object)
-
-    :param url:
-    :param headers:
-    :param new_entry:
-    :param primary_id:
-    :param mapping_fh:
-    :param error_fh:
-    :return:
-    """
-
-    post_return = requests.post(url, headers=headers, json=new_entry)
-    process_text = str(post_return.text)
-    process_status_code = str(post_return.status_code)
-    logger.info(primary_id + ' text ' + process_text)
-    logger.info(primary_id + ' status_code ' + process_status_code)
-
-    response_dict = dict()
-    try:
-        response_dict = json.loads(post_return.text)
-    except ValueError:
-        logger.info("%s\tValueError", primary_id)
-        error_fh.write("ERROR %s primaryId did not convert to json\n" % (primary_id))
-        return headers, process_text, process_status_code
-
-    if (post_return.status_code == 201):
-        response_dict = response_dict.replace('"', '')
-        logger.info("%s\t%s", primary_id, response_dict)
-        mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
-    elif (post_return.status_code == 401):
-        logger.info("%s\texpired token", primary_id)
-        mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
-        token = update_token()
-        headers = generate_headers(token)
-        process_post_tuple = process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh)
-        headers = process_post_tuple[0]
-        process_text = process_post_tuple[1]
-        process_status_code = process_post_tuple[2]
-    elif (post_return.status_code == 500):
-        logger.info("%s\tFAILURE", primary_id)
-        mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
-    # if redoing a run and want to skip errors of data having already gone in
-    # elif (post_return.status_code == 409):
-    #     continue
-    else:
-        logger.info("ERROR %s primaryId %s message %s", post_return.status_code, primary_id, response_dict['detail'])
-        error_fh.write("ERROR %s primaryId %s message %s\n" % (post_return.status_code, primary_id, response_dict['detail']))
-    return headers, process_text, process_status_code
+# get rid of this if process_api_request works on a full run
+# def process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh):
+#     """
+#
+#     output the json getting posted to the API
+#     json_object = json.dumps(new_entry, indent = 4)
+#     print(json_object)
+#
+#     :param url:
+#     :param headers:
+#     :param new_entry:
+#     :param primary_id:
+#     :param mapping_fh:
+#     :param error_fh:
+#     :return:
+#     """
+#
+#     post_return = requests.post(url, headers=headers, json=new_entry)
+#     process_text = str(post_return.text)
+#     process_status_code = str(post_return.status_code)
+#     logger.info(primary_id + ' text ' + process_text)
+#     logger.info(primary_id + ' status_code ' + process_status_code)
+#
+#     response_dict = dict()
+#     try:
+#         response_dict = json.loads(post_return.text)
+#     except ValueError:
+#         logger.info("%s\tValueError", primary_id)
+#         error_fh.write("ERROR %s primaryId did not convert to json\n" % (primary_id))
+#         return headers, process_text, process_status_code
+#
+#     if (post_return.status_code == 201):
+#         response_dict = response_dict.replace('"', '')
+#         logger.info("%s\t%s", primary_id, response_dict)
+#         mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
+#     elif (post_return.status_code == 401):
+#         logger.info("%s\texpired token", primary_id)
+#         mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
+#         token = update_token()
+#         headers = generate_headers(token)
+#         process_post_tuple = process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh)
+#         headers = process_post_tuple[0]
+#         process_text = process_post_tuple[1]
+#         process_status_code = process_post_tuple[2]
+#     elif (post_return.status_code == 500):
+#         logger.info("%s\tFAILURE", primary_id)
+#         mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
+#     # if redoing a run and want to skip errors of data having already gone in
+#     # elif (post_return.status_code == 409):
+#     #     continue
+#     else:
+#         logger.info("ERROR %s primaryId %s message %s", post_return.status_code, primary_id, response_dict['detail'])
+#         error_fh.write("ERROR %s primaryId %s message %s\n" % (post_return.status_code, primary_id, response_dict['detail']))
+#     return headers, process_text, process_status_code
 
 
 if __name__ == "__main__":

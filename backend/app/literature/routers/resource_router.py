@@ -13,7 +13,6 @@ from fastapi_okta import OktaUser
 from literature import database
 
 from literature.user import set_global_user_id
-from literature.user import get_global_user_id
 
 from literature.schemas import ResourceSchemaShow
 from literature.schemas import ResourceSchemaPost
@@ -33,6 +32,8 @@ router = APIRouter(
 
 
 get_db = database.get_db
+db_session: Session = Depends(get_db)
+db_user = Security(auth.get_user)
 
 
 @router.post('/',
@@ -40,8 +41,8 @@ get_db = database.get_db
 
              response_model=str)
 def create(request: ResourceSchemaPost,
-           user: OktaUser = Security(auth.get_user),
-           db: Session = Depends(get_db)):
+           user: OktaUser = db_user,
+           db: Session = db_session):
     set_global_user_id(db, user.id)
     return resource_crud.create(db, request)
 
@@ -50,8 +51,8 @@ def create(request: ResourceSchemaPost,
 
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(curie: str,
-            user: OktaUser = Security(auth.get_user),
-            db: Session = Depends(get_db)):
+            user: OktaUser = db_user,
+            db: Session = db_session):
     set_global_user_id(db, user.id)
     resource_crud.destroy(db, curie)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -62,8 +63,8 @@ def destroy(curie: str,
               response_model=ResponseMessageSchema)
 def patch(curie: str,
           request: ResourceSchemaUpdate,
-          user: OktaUser = Security(auth.get_user),
-          db: Session = Depends(get_db)):
+          user: OktaUser = db_user,
+          db: Session = db_session):
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)
 
@@ -74,15 +75,15 @@ def patch(curie: str,
             status_code=200,
             response_model=List[NoteSchemaShow])
 def show_notes(curie: str,
-         db: Session = Depends(get_db)):
-     return resource_crud.show_notes(db, curie)
+               db: Session = db_session):
+    return resource_crud.show_notes(db, curie)
 
 
 @router.get('/{curie}',
             status_code=200,
             response_model=ResourceSchemaShow)
 def show(curie: str,
-         db: Session = Depends(get_db)):
+         db: Session = db_session):
     print(curie)
     return resource_crud.show(db, curie)
 
@@ -90,5 +91,5 @@ def show(curie: str,
 @router.get('/{curie}/versions',
             status_code=200)
 def show_versions(curie: str,
-         db: Session = Depends(get_db)):
+                  db: Session = db_session):
     return resource_crud.show_changesets(db, curie)

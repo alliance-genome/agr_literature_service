@@ -15,7 +15,7 @@ def upload_file_to_bucket(s3_client, file_obj, bucket, folder, object_name=None)
 
     # Upload the file
     try:
-        response = s3_client.upload_fileobj(file_obj, bucket, f"{folder}/{object_name}")
+        s3_client.upload_fileobj(file_obj, bucket, f"{folder}/{object_name}")
     except ClientError as e:
         print(e)
         return False

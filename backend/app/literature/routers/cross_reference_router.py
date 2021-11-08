@@ -1,5 +1,3 @@
-from typing import List
-
 from sqlalchemy.orm import Session
 
 from fastapi import APIRouter
@@ -16,7 +14,6 @@ from literature.user import set_global_user_id
 
 from literature.schemas import CrossReferenceSchema
 from literature.schemas import CrossReferenceSchemaUpdate
-from literature.schemas import CrossReferenceSchemaRelated
 from literature.schemas import CrossReferenceSchemaPost
 from literature.schemas import ResponseMessageSchema
 
@@ -28,15 +25,17 @@ router = APIRouter(
     tags=['Cross Reference']
 )
 
-
 get_db = database.get_db
+db_session: Session = Depends(get_db)
+db_user = Security(auth.get_user)
+
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              response_model=str)
 def create(request: CrossReferenceSchemaPost,
-           user: OktaUser = Security(auth.get_user),
-           db: Session = Depends(get_db)):
+           user: OktaUser = db_user,
+           db: Session = db_session):
     set_global_user_id(db, user.id)
     return cross_reference_crud.create(db, request)
 
@@ -44,8 +43,8 @@ def create(request: CrossReferenceSchemaPost,
 @router.delete('/{curie:path}',
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(curie: str,
-            user: OktaUser = Security(auth.get_user),
-            db: Session = Depends(get_db)):
+            user: OktaUser = db_user,
+            db: Session = db_session):
     set_global_user_id(db, user.id)
     cross_reference_crud.destroy(db, curie)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -55,9 +54,9 @@ def destroy(curie: str,
               status_code=status.HTTP_202_ACCEPTED,
               response_model=ResponseMessageSchema)
 async def patch(curie: str,
-           request: CrossReferenceSchemaUpdate,
-           user: OktaUser = Security(auth.get_user),
-           db: Session = Depends(get_db)):
+                request: CrossReferenceSchemaUpdate,
+                user: OktaUser = db_user,
+                db: Session = db_session):
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)
 
@@ -66,14 +65,14 @@ async def patch(curie: str,
 
 @router.get('/{curie:path}/versions',
             status_code=200)
-def show_xref_versions(curie: str,
-         db: Session = Depends(get_db)):
+def show_version(curie: str,
+                 db: Session = db_session):
     return cross_reference_crud.show_changesets(db, curie)
 
 
 @router.get('/{curie:path}',
             response_model=CrossReferenceSchema,
             status_code=200)
-def show_xref(curie: str,
-         db: Session = Depends(get_db)):
+def show(curie: str,
+         db: Session = db_session):
     return cross_reference_crud.show(db, curie, False)

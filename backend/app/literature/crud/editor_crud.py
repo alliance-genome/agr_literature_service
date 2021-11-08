@@ -6,24 +6,24 @@ from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
 from literature.schemas import EditorSchemaPost
+from literature.schemas import EditorSchemaCreate
 
 from literature.models import ReferenceModel
 from literature.models import ResourceModel
 from literature.models import EditorModel
 from literature.models import CrossReferenceModel
-from literature.crud import cross_reference_crud
 from literature.crud.reference_resource import add, stripout, create_obj
 
 
-def create(db: Session, editor: EditorSchemaPost) -> int:
+def create(db: Session, editor: EditorSchemaCreate) -> int:
     editor_data = jsonable_encoder(editor)
-
-    db_obj = create_obj(db, EditorModel, editor_data)
 
     orcid = None
     if 'orcid' in editor_data:
         orcid = editor_data['orcid']
         del editor_data['orcid']
+
+    db_obj = create_obj(db, EditorModel, editor_data)
 
     if orcid:
         cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
@@ -50,7 +50,7 @@ def destroy(db: Session, editor_id: int) -> None:
     return None
 
 
-def patch(db: Session, editor_id: int, editor_update: EditorSchemaPost) -> dict:
+def patch(db: Session, editor_id: int, editor_update: EditorSchemaCreate) -> dict:
 
     editor_db_obj = db.query(EditorModel).filter(EditorModel.editor_id == editor_id).first()
     if not editor_db_obj:
@@ -91,10 +91,6 @@ def show(db: Session, editor_id: int) -> dict:
     if editor_data['reference_id']:
         editor_data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == editor_data['reference_id']).first()
     del editor_data['reference_id']
-
-    if editor_data['orcid']:
-        orcid = editor_data['orcid']
-        editor_data['orcid'] = jsonable_encoder(cross_reference_crud.show(db, orcid['curie']))
 
     return editor_data
 

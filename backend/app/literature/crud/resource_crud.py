@@ -19,6 +19,12 @@ from literature.models import EditorModel
 from literature.models import CrossReferenceModel
 from literature.models import MeshDetailModel
 
+from sqlalchemy import ARRAY
+from sqlalchemy import Boolean
+from sqlalchemy import String
+from sqlalchemy import func
+from sqlalchemy.sql.expression import cast
+
 
 def create_next_curie(curie):
     curie_parts = curie.rsplit('-', 1)
@@ -82,6 +88,22 @@ def create(db: Session, resource: ResourceSchemaPost):
     db.commit()
 
     return curie
+
+
+def show_all_resources_external_ids(db: Session):
+    resources_query = db.query(ResourceModel.curie,
+                               cast(func.array_agg(CrossReferenceModel.curie),
+                                    ARRAY(String)),
+                               cast(func.array_agg(CrossReferenceModel.is_obsolete),
+                                    ARRAY(Boolean))) \
+        .outerjoin(ResourceModel.cross_references) \
+        .group_by(ResourceModel.curie)
+
+    return [{'curie': resource[0],
+             'cross_references': [{'curie': resource[1][idx],
+                                   'is_obsolete': resource[2][idx]}
+                                  for idx in range(len(resource[1]))]}
+            for resource in resources_query.all()]
 
 
 def destroy(db: Session, curie: str):

@@ -11,9 +11,11 @@ from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
 
+from fastapi_health import health
+
 from literature import models
 from literature.database.main import engine
-
+from literature.database.main import is_database_online
 
 from literature.routers import resource_router
 from literature.routers import reference_router
@@ -106,6 +108,8 @@ app.include_router(reference_comment_and_correction_router.router)
 app.include_router(reference_automated_term_tag_router.router)
 app.include_router(reference_manual_term_tag_router.router)
 app.include_router(bulk_downloads_router.router)
+
+app.add_api_route("/health", health([is_database_online]))
 
 app.openapi = custom_openapi # type: ignore
 

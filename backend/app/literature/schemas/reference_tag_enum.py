@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -11,13 +11,13 @@ class ReferenceTag(BaseModel):
     tag_source: TagSource
 
     class Config():
-         orm_mode = True
-         extra = "forbid"
+        orm_mode = True
+        extra = "forbid"
 
 
 class ReferenceTagShow(ReferenceTag):
     reference_tag_id: int
 
     class Config():
-         orm_mode = True
-         extra = "forbid"
+        orm_mode = True
+        extra = "forbid"

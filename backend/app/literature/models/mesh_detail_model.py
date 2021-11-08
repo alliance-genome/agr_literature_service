@@ -7,16 +7,10 @@ from sqlalchemy import Column
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
 from sqlalchemy import String
-from sqlalchemy import DateTime
-from sqlalchemy import ARRAY
-from sqlalchemy import Enum
 
 from sqlalchemy.orm import relationship
 
 from literature.database.base import Base
-
-from literature.schemas import TagName
-from literature.schemas import TagSource
 
 
 class MeshDetailModel(Base):
@@ -30,17 +24,16 @@ class MeshDetailModel(Base):
     )
 
     reference_id = Column(
-         Integer,
-         ForeignKey('references.reference_id',
-                    ondelete='CASCADE'),
-         index=True
+        Integer,
+        ForeignKey('references.reference_id',
+                   ondelete='CASCADE'),
+        index=True
     )
 
     reference = relationship(
         'ReferenceModel',
         back_populates="mesh_terms"
     )
-
 
     heading_term = Column(
         String,

@@ -17,6 +17,7 @@ from literature.database.base import Base
 
 from literature.schemas import FileCategories
 
+
 class FileModel(Base):
     __tablename__ = 'files'
     __versioned__: Dict = {}
@@ -34,10 +35,10 @@ class FileModel(Base):
     )
 
     reference_id = Column(
-         Integer,
-         ForeignKey('references.reference_id',
-                    ondelete='CASCADE'),
-         index=True
+        Integer,
+        ForeignKey('references.reference_id',
+                   ondelete='CASCADE'),
+        index=True
     )
 
     reference = relationship(
@@ -58,7 +59,6 @@ class FileModel(Base):
         String,
         nullable=True
     )
-
 
     category = Column(
         Enum(FileCategories),
