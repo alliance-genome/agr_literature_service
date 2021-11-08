@@ -1,6 +1,4 @@
 
-import json
-
 import argparse
 
 from os import environ, path
@@ -52,9 +50,7 @@ def benchmark_read_json():
     time_rate = 1
     for pmid in pmids:
         filename = get_path_from_pmid(pmid, 'xml')
-        # filename = base_path + 'pubmed_xml/' + pmid + '.xml'
         counter = counter + 1
-        pubmed_data = dict()
         try:
             with open(filename, 'r') as f:
                 line = f.read()
@@ -68,8 +64,6 @@ def benchmark_read_json():
                     last_size = size
                     start = end
                     logger.info("read %s seconds %s entries, %s size, %s size_rate, %s rate, %s avg_file_size", time_rate, counter, size, size_rate, rate, avg_file_size)
-                # pubmed_data = json.load(f)
-                # pubmed_data = json.load(line)	# uncomment to also test json conversion
                 f.close()
         except Exception as e:
             print(str(e))
@@ -118,4 +112,3 @@ if __name__ == "__main__":
 
     benchmark_read_json()
     logger.info("ending benchmark_read_json.py")
-
