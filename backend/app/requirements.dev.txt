@@ -8,3 +8,9 @@ sphinx
 livereload
 myst-parser
 mypy==0.910
+types-PyYAML
+types-aiofiles
+types-orjson
+types-pytz
+types-requests
+types-ujson
