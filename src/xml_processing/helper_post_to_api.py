@@ -1,6 +1,6 @@
 from os import environ, path
 
-import json
+from json import dumps, loads
 import requests
 
 base_path = environ.get('XML_PATH')
@@ -39,12 +39,12 @@ def update_auth0_token():
     data_dict['client_id'] = environ.get('AUTH0_CLIENT_ID')
     data_dict['client_secret'] = environ.get('AUTH0_CLIENT_SECRET')
     # data for this api must be a string instead of a dict
-    header_entry = json.dumps(data_dict)
+    header_entry = dumps(data_dict)
     # logger.info("data %s data end", header_entry)
     post_return = requests.post(url, headers=headers, data=header_entry)
     # logger.info("post return %s status end", post_return.status_code)
     # logger.info("post return %s text end", post_return.text)
-    response_dict = json.loads(post_return.text)
+    response_dict = loads(post_return.text)
     token = response_dict['access_token']
     # logger.info("token %s", token)
     auth0_file = base_path + 'auth0_token'
@@ -72,7 +72,7 @@ def update_okta_token():
     data_dict['scope'] = 'admin'
     post_return = requests.post(url, headers=headers, data=data_dict)
     # logger.info("token %s", token)
-    response_dict = json.loads(post_return.text)
+    response_dict = loads(post_return.text)
     token = response_dict['access_token']
     # logger.info("token %s", token)
     okta_file = base_path + 'okta_token'
@@ -131,7 +131,7 @@ def process_api_request(method, url, headers, json_data, primary_id, mapping_fh,
     response_dict = dict()
     if not ((method == 'DELETE') and (request_return.status_code == 204)):
         try:
-            response_dict = json.loads(request_return.text)
+            response_dict = loads(request_return.text)
         except ValueError:
             # logger.info("%s\tValueError", primary_id)
             log_info += "api error ValueError: " + primary_id + " did not return json"
@@ -173,13 +173,13 @@ def process_api_request(method, url, headers, json_data, primary_id, mapping_fh,
     # elif (request_return.status_code == 409):
     #     continue
     else:
-        # usually when the api will have a string in response_dict['detail'], but if it fails because e.g. there isn't a title, it will give 
+        # usually when the api will have a string in response_dict['detail'], but if it fails because e.g. there isn't a title, it will give
         # {"detail": [{"loc": ["body", "title"], "msg": "field required", "type": "value_error.missing"}]}
         # so safer to json.dumps messages
         # detail = ''
         # if 'detail' in response_dict:
         #     detail = response_dict['detail']
-        detail = json.dumps(response_dict)
+        detail = dumps(response_dict)
         # logger.info("ERROR %s primaryId %s message %s", request_return.status_code, primary_id, detail)
         log_info += "api error unexpected response " + str(request_return.status_code) + " primaryId " + primary_id + " message " + detail
         # if error_fh is not None:

@@ -13,7 +13,6 @@ from literature import database
 from literature.user import set_global_user_id
 
 from literature.schemas import EditorSchemaPost
-from literature.schemas import EditorSchemaCreate
 from literature.schemas import ResponseMessageSchema
 
 from literature.crud import editor_crud
@@ -32,7 +31,6 @@ db_user = Security(auth.get_user)
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              response_model=str)
-
 def create(request: EditorSchemaPost,
            user: OktaUser = db_user,
            db: Session = db_session):

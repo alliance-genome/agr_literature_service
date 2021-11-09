@@ -5,7 +5,6 @@ from fastapi import HTTPException
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
-from literature.schemas import EditorSchemaPost
 from literature.schemas import EditorSchemaCreate
 
 from literature.models import ReferenceModel

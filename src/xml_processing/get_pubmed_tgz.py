@@ -1,6 +1,6 @@
 import time
 import urllib
-import requests		# flake8 will complain about this, but without it urllib.request will not work
+import requests		# noqa flake8 will complain about this, but without it urllib.request will not work
 import argparse
 
 from os import environ, path, makedirs
