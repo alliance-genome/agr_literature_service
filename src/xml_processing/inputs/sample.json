@@ -1,0 +1,86 @@
+{
+  "comments": [
+    "21290765 has BookDocument and ArticleTitle",
+    "33054145 21413221 BookTitle",
+    "28304499 28308877 VernacularTitle",
+    "27899353 30979869 CollectiveName",
+    "30003105 <Identifier Source=\"ORCID\">0000-0002-9948-4783</Identifier>",
+    "30002370 <Identifier Source=\"ORCID\">http://orcid.org/0000-0003-0416-374X</Identifier>",
+    "30003105 30002370 <AffiliationInfo>",
+    "20301347, 21413225 do not have the PMID itself in the ArticleIdList, so must be appended to the cross_references",
+    "some xml has keywords spanning multiple lines e.g. 30110134 ; others get captured inside other keywords e.g. 31188077"
+  ],
+  "data": [
+    {
+      "pmid": "PMID:21290765",
+      "modId": ["WB:WBPaper00040000"],
+      "check": ["BookDocument", "ArticleTitle"]
+    }, {
+      "pmid": "PMID:33054145",
+      "modId": ["SGD:S000298041"],
+      "check": ["BookTitle"]
+    }, {
+      "pmid": "PMID:21413221",
+      "modId": ["WB:WBPaper00004071"],
+      "check": ["BookTitle"]
+    }, {
+      "pmid": "PMID:28308877",
+      "modId": ["FB:FBrf0020888"],
+      "check": ["VernacularTitle"]
+    }, {
+      "pmid": "PMID:28304499",
+      "modId": ["FB:FBrf0019024"],
+      "check": ["VernacularTitle"]
+    }, {
+      "pmid": "PMID:27899353",
+      "modId": ["RGD:11570444"],
+      "check": ["CollectiveName"]
+    }, {
+      "pmid": "PMID:30979869",
+      "modId": ["MGI:6305446"],
+      "check": ["CollectiveName"]
+    }, {
+      "pmid": "PMID:30003105",
+      "modId": ["ZFIN:ZDB-PUB-180714-6"],
+      "check": ["ORCID", "AffiliationInfo"]
+    }, {
+      "pmid": "PMID:30002370",
+      "modId": ["SGD:S000217483"],
+      "check": ["ORCID", "AffiliationInfo"]
+    }, {
+      "pmid": "PMID:20301347",
+      "modId": ["RGD:11352983"],
+      "check": ["PMID"]
+    }, {
+      "pmid": "PMID:21413225",
+      "modId": ["WB:WBPaper00002666"],
+      "check": ["PMID"]
+    }, {
+      "pmid": "PMID:30110134",
+      "modId": ["ZFIN:ZDB-PUB-180816-15"],
+      "check": ["Keywords"]
+    }, {
+      "pmid": "PMID:31188077",
+      "modId": ["ZFIN:ZDB-PUB-190613-8"],
+      "check": ["Keywords"]
+    }, {
+      "pmid": "PMID:21873635",
+      "modId": ["FB:FBrf0239784", "MGI:6201960", "RGD:13792537", "SGD:S000246339", "WB:WBPaper00046480", "ZFIN:ZDB-PUB-110330-1"],
+      "check": ["AggregateMods"]
+    }, {
+      "pmid": "PMID:31193955",
+      "modId": ["ZFIN:ZDB-PUB-190614-11"],
+      "doi": "DOI:10.1016/j.gene.2019.100011",
+      "check": ["DOI"]
+    }, {
+      "pmid": "PMID:34530988",
+      "modId": ["ZFIN:ZDB-PUB-210918-21"],
+      "doi": "DOI:10.1016/j.gene.2019.100011",
+      "check": ["DOI"]
+    }, {
+      "pmid": "PMID:10206683",
+      "modId": ["RGD:11526447"],
+      "check": ["html_doi", "html_abstract"]
+    }
+  ]
+}
