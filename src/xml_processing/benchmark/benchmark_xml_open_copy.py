@@ -1,14 +1,8 @@
-import json
-import urllib
-
-
 # python3 xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 #
 # benchmark using python to open xml files, copy to temp_benchmark_copy/
 
-
 import argparse
-import re
 
 from os import environ, path
 import logging
@@ -53,9 +47,6 @@ def generate_json():
             # may be better to parse full xml instead.
             # data_dict = xmltodict.parse(xml_file.read())
             xml_file.close()
-
-            # print (pmid)
-            data_dict = dict()
 
             # Write the json data to output json file
 # UNCOMMENT TO write to json directory
