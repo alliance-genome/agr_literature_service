@@ -81,6 +81,42 @@
       "pmid": "PMID:10206683",
       "modId": ["RGD:11526447"],
       "check": ["html_doi", "html_abstract"]
+    }, {
+      "modId": ["WB:WBPaper00000003"],
+      "check": ["no_pmid"]
+    }, {
+      "modId": ["WB:WBPaper00000005"],
+      "check": ["no_pmid"]
+    }, {
+      "modId": ["ZFIN:ZDB-PUB-040528-2"],
+      "check": ["no_pmid"]
+    }, {
+      "modId": ["ZFIN:ZDB-PUB-050216-15"],
+      "check": ["no_pmid"]
+    }, {
+      "modId": ["SGD:S000182237"],
+      "check": ["no_pmid"]
+    }, {
+      "modId": ["SGD:S000128229"],
+      "check": ["no_pmid"]
+    }, {
+      "modId": ["FB:FBrf0035013"],
+      "check": ["no_pmid"]
+    }, {
+      "modId": ["FB:FBrf0035013"],
+      "check": ["no_pmid"]
+    }, {
+      "modId": ["RGD:10002756"],
+      "check": ["no_pmid"]
+    }, {
+      "modId": ["RGD:10002786"],
+      "check": ["no_pmid"]
+    }, {
+      "modId": ["MGI:48543"],
+      "check": ["no_pmid"]
+    }, {
+      "modId": ["MGI:48554"],
+      "check": ["no_pmid"]
     }
   ]
 }
