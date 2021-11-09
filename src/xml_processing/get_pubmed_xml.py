@@ -7,6 +7,7 @@ import requests
 
 import os
 from os import environ, path, makedirs
+import sys
 # import logging
 # import logging.config
 import glob
@@ -16,6 +17,7 @@ from dotenv import load_dotenv
 
 import logging
 logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
                     format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)

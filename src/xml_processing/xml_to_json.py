@@ -6,6 +6,7 @@ import argparse
 import re
 
 from os import environ, path, makedirs
+import sys
 # import logging.config
 import logging
 import hashlib
@@ -57,6 +58,7 @@ import hashlib
 # logger = logging.getLogger('literature logger')
 
 logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
                     format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)

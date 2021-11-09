@@ -1,6 +1,7 @@
 import time
 from os import environ, path, makedirs
 import argparse
+import sys
 import logging
 # import logging.config
 
@@ -17,6 +18,7 @@ from xml_to_json import generate_json
 # logging.config.fileConfig(log_file_path)
 # logger = logging.getLogger('literature logger')
 logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
                     format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
