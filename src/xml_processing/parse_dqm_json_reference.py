@@ -555,9 +555,13 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):      # noqa: C901
         logger.info("Processing %s", filename)
         unexpected_mod_properties = set()
         dqm_data = dict()
-        with open(filename, 'r') as f:
-            dqm_data = json.load(f)
-            f.close()
+        try:
+            with open(filename, 'r') as f:
+                dqm_data = json.load(f)
+                f.close()
+        except IOError:
+            logger.info("No file found for mod %s %s", mod, filename)
+            continue
         entries = dqm_data['data']
         sanitized_pubmod_data = []
         sanitized_pubmed_single_mod_data = []

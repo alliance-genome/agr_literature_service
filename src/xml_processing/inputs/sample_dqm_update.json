@@ -88,6 +88,24 @@
       "modId": ["WB:WBPaper00000005"],
       "check": ["no_pmid"]
     }, {
+      "modId": ["WB:WBPaper00000006"],
+      "check": ["no_pmid"]
+    }, {
+      "modId": ["WB:WBPaper00000007"],
+      "check": ["no_pmid"]
+    }, {
+      "modId": ["WB:WBPaper00000010"],
+      "check": ["no_pmid"]
+    }, {
+      "modId": ["WB:WBPaper00000011"],
+      "check": ["no_pmid"]
+    }, {
+      "modId": ["WB:WBPaper00000015"],
+      "check": ["no_pmid"]
+    }, {
+      "modId": ["WB:WBPaper00000016"],
+      "check": ["no_pmid"]
+    }, {
       "modId": ["ZFIN:ZDB-PUB-040528-2"],
       "check": ["no_pmid"]
     }, {
@@ -117,6 +135,10 @@
     }, {
       "modId": ["MGI:48554"],
       "check": ["no_pmid"]
+    }, {
+      "pmid": "PMID:2",
+      "modId": ["RGD:1303381"],
+      "check": ["has_erratum"]
     }
   ]
 }

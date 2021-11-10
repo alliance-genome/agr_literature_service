@@ -7,13 +7,15 @@ from helper_file_processing import split_identifier
 from os import environ, path, makedirs
 import sys
 import logging
+import argparse
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
 
-# pipenv run python generate_dqm_json_test_set.py
+# pipenv run python generate_dqm_json_test_set.py -i inputs/sample_dqm_load.json -d dqm_load_sample/
+# pipenv run python generate_dqm_json_test_set.py -i inputs/sample_dqm_update.json -d dqm_update_sample/
 # Take large dqm json data and generate a smaller subset to test with
 # This takes about 90 seconds to run
 
@@ -24,17 +26,24 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
+parser = argparse.ArgumentParser()
+parser.add_argument('-i', '--input', action='store', help='input json file to use')
+parser.add_argument('-d', '--directory', action='store', help='output directory to generate into')
+args = vars(parser.parse_args())
 
-def generate_dqm_json_test_set_from_sample_json():
+
+def generate_dqm_json_test_set_from_sample_json(input_file, output_directory):
     """
-    generate dqm_sample/ files based on manually chosen entries in inputs/sample.json
+    generate <output_directory>/ files based on manually chosen entries in <input_file>
     """
 
     base_path = environ.get('XML_PATH')
-    sample_path = base_path + 'dqm_sample/'
+    # sample_path = base_path + 'dqm_sample/'
+    sample_path = base_path + output_directory
     if not path.exists(sample_path):
         makedirs(sample_path)
-    sample_file = base_path + 'inputs/sample.json'
+    # sample_file = base_path + 'inputs/sample.json'
+    sample_file = base_path + input_file
     sample_json = dict()
     try:
         with open(sample_file, 'r') as f:
@@ -134,6 +143,11 @@ if __name__ == "__main__":
     """
 
     logger.info("starting generate_dqm_json_test_set.py")
-    generate_dqm_json_test_set_from_sample_json()
+
     # generate_dqm_json_test_set_from_start_mid_end()
+    if args['input'] and args['directory']:
+        generate_dqm_json_test_set_from_sample_json(args['input'], args['directory'])
+    else:
+        logger.info("Must pass a -i input file and a -d output directory")
+
     logger.info("ending generate_dqm_json_test_set.py")
