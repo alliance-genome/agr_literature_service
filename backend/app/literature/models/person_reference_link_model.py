@@ -12,11 +12,11 @@ class PersonReferenceLinkModel(Base):
     person_id = Column(
         Integer,
         ForeignKey('people.person_id'),
-        primary_key = True
+        primary_key=True
     )
 
     reference_curie = Column(
         String,
         ForeignKey('references.curie'),
-        primary_key = True
+        primary_key=True
     )

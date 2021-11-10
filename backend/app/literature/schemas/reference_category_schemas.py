@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class ReferenceCategory(str, Enum):
     Research_Article = "research_article"
     Review_Article = "review_article"

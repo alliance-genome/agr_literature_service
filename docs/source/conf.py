@@ -10,7 +10,6 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-import ntpath
 import os
 import sys
 sys.path.insert(0, os.path.abspath('.'))
@@ -57,7 +56,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", ".venv"]
 
 
 # -- Options for HTML output -------------------------------------------------
-# html_theme = 'alabaster'
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
 pygments_style = 'sphinx'
+

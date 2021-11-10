@@ -1,7 +1,36 @@
+
 """
 get_pubmed_xml
 ==============
 """
+=======
+import time
+import urllib
+import argparse
+
+import re
+import requests
+
+import os
+from os import environ, path, makedirs
+import sys
+# import logging
+# import logging.config
+import glob
+import hashlib
+
+from dotenv import load_dotenv
+
+import logging
+logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
+                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
+                    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
+
+
+load_dotenv()
+
 
 # pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
 # pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
@@ -9,8 +38,7 @@ get_pubmed_xml
 
 # PubMed randomly has ("Connection broken: InvalidChunkLength(got length b'', 0 bytes read)" that
 # crashes this script.  Keep running it again until it gets all the entries, then generate the md5sum file by running
-# pipenv run python get_md5sum.py -x -f /home/azurebrd/git/agr_literature_service_demo/src/xml_
-# processing/inputs/alliance_pmids
+# pipenv run python get_md5sum.py -x -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
 
 
 # pipenv run python get_pubmed_xml.py -u "http://tazendra.caltech.edu/~azurebrd/cgi-bin/forms/generic.cgi?action=ListPmids"
@@ -38,6 +66,7 @@ get_pubmed_xml
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=1,10,100,1000487,1000584&retmode=xml
 
 
+
 import time
 import re
 import requests
@@ -46,6 +75,11 @@ import logging
 import glob
 import hashlib
 import coloredlogs
+
+# log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
+# logging.config.fileConfig(log_file_path)
+# logger = logging.getLogger('literature logger')
+
 
 
 # from dotenv import load_dotenv

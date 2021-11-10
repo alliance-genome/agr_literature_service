@@ -12,6 +12,7 @@ import urllib.request
 # import xmltodict
 import re
 from os import environ, path, makedirs
+import sys
 import logging
 import hashlib
 import click
@@ -59,9 +60,33 @@ import coloredlogs
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000
 
 
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG')
+
+
+logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
+                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
+                    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
+parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
+parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
+parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
+parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
+parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
+
+args = vars(parser.parse_args())
+
+# todo: save this in an env variable
+# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+base_path = environ.get('XML_PATH')
+>>>>>>> main:src/xml_processing/xml_to_json.py
 
 
 known_article_id_types = {

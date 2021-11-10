@@ -80,6 +80,17 @@ def download_dqm_json():
     for datatype in DATATYPES:
         for mod in MODS:
             url = 'https://fms.alliancegenome.org/api/datafile/by/' + RELEASE + '/' + datatype + '/' + mod + '?latest=true'
+
+    mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
+    datatypes = ['REFERENCE', 'REF-EXCHANGE', 'RESOURCE']
+#     mods = ['WB']
+#     datatypes = ['RESOURCE']
+#     mods = ['WB', 'FB']
+#     datatypes = ['REFERENCE']
+    release = '4.1.1'
+    for datatype in datatypes:
+        for mod in mods:
+            url = 'https://fms.alliancegenome.org/api/datafile/by/' + release + '/' + datatype + '/' + mod + '?latest=true'
             response = urllib.request.urlopen(url)
             data = json.loads(response.read())
             # data = ''

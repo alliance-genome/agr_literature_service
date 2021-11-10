@@ -1,8 +1,9 @@
 import time
 from os import environ, path, makedirs
 import argparse
+import sys
 import logging
-import logging.config
+# import logging.config
 
 from get_pubmed_xml import download_pubmed_xml
 from xml_to_json import generate_json
@@ -13,9 +14,14 @@ from xml_to_json import generate_json
 # enter a file with a list of pmids as an argument, download xml, convert to json, find new pmids in commentsCorrections, recurse, output list of pubmed-based (as opposed to MOD-DQM-based) pmids to  inputs/pubmed_only_pmids
 
 
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+# log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
+# logging.config.fileConfig(log_file_path)
+# logger = logging.getLogger('literature logger')
+logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
+                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
+                    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')

@@ -36,7 +36,7 @@ def create_next_curie(curie) -> str:
     return "-".join([curie_parts[0], str(number).rjust(10, '0')])
 
 
-def create(db: Session, reference: ReferenceSchemaPost):
+def create(db: Session, reference: ReferenceSchemaPost):  # noqa
     reference_data = {}
 
     if reference.cross_references:
@@ -194,7 +194,7 @@ def show_notes(db: Session, curie: str):
     return notes_data
 
 
-def show(db: Session, curie: str, http_request=True):
+def show(db: Session, curie: str, http_request=True):  # noqa
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one_or_none()
     if not reference:
         if http_request:
