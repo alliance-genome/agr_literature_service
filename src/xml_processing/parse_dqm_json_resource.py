@@ -227,7 +227,7 @@ if __name__ == "__main__":
 
     logger.info("Starting parse_dqm_json_resource.py")
 
-    base_path = environ.get('XML_PATH')
+    base_path = environ.get('XML_PATH', "")
     json_storage_path = base_path + 'sanitized_resource_json/'
     create_storage_path(json_storage_path)
 

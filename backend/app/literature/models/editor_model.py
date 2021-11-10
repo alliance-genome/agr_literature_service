@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Dict
 import pytz
 
 from sqlalchemy import Column
@@ -15,7 +16,7 @@ from literature.database.base import Base
 
 class EditorModel(Base):
     __tablename__ = 'editors'
-    __versioned__ = {}
+    __versioned__: Dict = {}
 
     editor_id = Column(
         Integer,

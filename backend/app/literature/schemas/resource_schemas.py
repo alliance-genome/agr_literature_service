@@ -20,7 +20,6 @@ class ResourceSchemaPost(BaseModel):
     title_synonyms: Optional[List[str]] = None
     abbreviation_synonyms: Optional[List[str]] = None
     iso_abbreviation: Optional[str] = None
-    abbreviation_synonyms: Optional[List[str]] = None
     medline_abbreviation: Optional[str] = None
     copyright_date: Optional[datetime] = None
     publisher: Optional[str] = None
@@ -52,7 +51,6 @@ class ResourceSchemaUpdate(BaseModel):
     title_synonyms: Optional[List[str]] = None
     abbreviation_synonyms: Optional[List[str]] = None
     iso_abbreviation: Optional[str] = None
-    abbreviation_synonyms: Optional[List[str]] = None
     medline_abbreviation: Optional[str] = None
     copyright_date: Optional[datetime] = None
     publisher: Optional[str] = None

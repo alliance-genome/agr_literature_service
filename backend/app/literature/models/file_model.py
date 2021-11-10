@@ -1,4 +1,6 @@
 from datetime import datetime
+import pytz
+from typing import Dict
 
 from sqlalchemy import Column
 from sqlalchemy import ForeignKey
@@ -18,7 +20,7 @@ from literature.schemas import FileCategories
 
 class FileModel(Base):
     __tablename__ = 'files'
-    __versioned__ = {}
+    __versioned__: Dict = {}
 
     file_id = Column(
         Integer,

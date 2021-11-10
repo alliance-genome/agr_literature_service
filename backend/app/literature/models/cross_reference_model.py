@@ -1,3 +1,5 @@
+from typing import Dict
+
 from sqlalchemy import Column
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
@@ -12,7 +14,7 @@ from literature.database.base import Base
 
 class CrossReferenceModel(Base):
     __tablename__ = 'cross_references'
-    __versioned__ = {}
+    __versioned__: Dict = {}
 
     curie = Column(
         String,

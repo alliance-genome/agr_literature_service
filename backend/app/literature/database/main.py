@@ -39,5 +39,8 @@ def get_db():
         db.close()
 
 
-def is_database_online(session: Session = Depends(get_db)):
+db_session = Depends(get_db)
+
+
+def is_database_online(session: Session = db_session):
     return {"database": "online"} if session else False

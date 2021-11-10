@@ -147,5 +147,5 @@ class ReferenceSchemaShow(BaseModelShow):
     resource_title: Optional[str] = None
     authors: Optional[List[AuthorSchemaShow]] = None
     editors: Optional[List[EditorSchemaShow]] = None
-    comment_and_corrections: CommentAndCorrectionSchemaRelations = None
+    comment_and_corrections: CommentAndCorrectionSchemaRelations
     open_access: Optional[bool] = None

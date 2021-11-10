@@ -19,7 +19,7 @@ get_db = database.get_db
 @router.get('/schema/download',
             status_code=200,
             response_class=StreamingResponse)
-async def show():
+async def download():
     return StreamingResponse(db_schema_crud.download_image(),
                              media_type="image/png")
 

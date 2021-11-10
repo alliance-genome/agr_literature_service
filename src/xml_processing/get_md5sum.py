@@ -20,13 +20,14 @@ import logging.config
 import hashlib
 
 # from shutil import copyfile
+from typing import List
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
 
-pmids = []
+pmids = [] # type: List
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
@@ -47,7 +48,7 @@ args = vars(parser.parse_args())
 
 # todo: save this in an env variable
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
-base_path = environ.get('XML_PATH')
+base_path = environ.get('XML_PATH', "")
 
 
 def generate_md5sums(file_type):
@@ -110,11 +111,11 @@ if __name__ == "__main__":
 #     python get_md5sum.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
     elif args['url']:
         logger.info("Processing url input from %s", args['url'])
-        req = urllib.urlopen(args['url'])
-        data = req.read()
-        lines = data.splitlines()
-        for pmid in lines:
-            pmids.append(pmid)
+        with urllib.request.urlopen(args["url"]) as req:
+            data = req.read()
+            lines = data.splitlines()
+            for pmid in lines:
+                pmids.append(pmid)
 
 #    python get_md5sum.py -c 1234 4576 1828
     elif args['commandline']:

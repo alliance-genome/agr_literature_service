@@ -34,7 +34,7 @@ logging.getLogger("s3transfer.futures").setLevel(logging.WARNING)
 
 
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
-base_path = environ.get('XML_PATH')
+base_path = environ.get('XML_PATH', "")
 process_path = base_path + 'chunking_pmids/'
 
 base_expand_dir = process_path + 'expand_tgz/'

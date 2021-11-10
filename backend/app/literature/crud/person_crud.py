@@ -43,7 +43,7 @@ def patch(db: Session, person_id: int, person_update: PersonSchemaPost):
                             detail=f"Person with person_id {person_id} not found")
     res_ref = stripout(db, person_update)
     add(res_ref, person_db_obj)
-    for field, value in person_update.items():
+    for field, value in person_update.dict().items():
         setattr(person_db_obj, field, value)
 
     person_db_obj.dateUpdated = datetime.utcnow()

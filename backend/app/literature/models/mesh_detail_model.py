@@ -1,3 +1,8 @@
+from datetime import datetime
+from typing import Dict
+
+import pytz
+
 from sqlalchemy import Column
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
@@ -10,7 +15,7 @@ from literature.database.base import Base
 
 class MeshDetailModel(Base):
     __tablename__ = 'mesh_details'
-    __versioned__ = {}
+    __versioned__: Dict = {}
 
     mesh_detail_id = Column(
         Integer,

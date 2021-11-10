@@ -44,7 +44,7 @@ def patch(db: Session, note_id: int, note_update: NoteSchemaUpdate):
     res_ref = stripout(db, note_update)
     add(res_ref, note_db_obj)
 
-    for field, value in note_update.items():
+    for field, value in note_update.dict().items():
         setattr(note_db_obj, field, value)
 
     db.commit()
