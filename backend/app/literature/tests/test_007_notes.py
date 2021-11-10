@@ -37,6 +37,14 @@ def test_create_note():
     res = create(db, note_schema)
     assert res == 1
 
+    # add note for reference test later (0013)
+    xml = {'reference_curie': "AGR:AGR-Reference-0000000001",
+           'name': "Name for ref test",
+           'note': "Note for ref test"}
+    note_schema = NoteSchemaPost(**xml)
+    res = create(db, note_schema)
+    assert res == 2
+
 
 def test_show_note():
     res = show(db, 1)

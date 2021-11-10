@@ -47,6 +47,22 @@ def test_create_editor():
     assert editor.first_name == "string"
 
 
+def test_create_editor_for_ref_later():
+    xml = {
+        "order": 2,
+        "first_name": "string2",
+        "last_name": "string3",
+        "name": "Name2",
+        "orcid": "ORCID:3333-4444-5555-666X",
+        "reference_curie": "AGR:AGR-Reference-0000000001"
+    }
+    res = create(db, xml)
+    assert res
+    # check db for editor
+    editor = db.query(EditorModel).filter(EditorModel.name == "Name2").one()
+    assert editor.first_name == "string2"
+
+
 def test_patch_editor():
     xml = {'first_name': "003_TUA",
            'orcid': "ORCID:5432-5432-5432-432X",
