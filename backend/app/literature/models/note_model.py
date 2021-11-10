@@ -1,4 +1,6 @@
 from datetime import datetime
+from typing import Dict
+
 import pytz
 
 from sqlalchemy import Column
@@ -14,7 +16,7 @@ from literature.database.base import Base
 
 class NoteModel(Base):
     __tablename__ = 'notes'
-    __versioned__ = {}
+    __versioned__: Dict = {}
 
     note_id = Column(
         Integer,

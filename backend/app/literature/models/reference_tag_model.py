@@ -1,3 +1,8 @@
+from datetime import datetime
+from typing import Dict
+
+import pytz
+
 from sqlalchemy import Column
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
@@ -13,7 +18,7 @@ from literature.schemas import TagSource
 
 class ReferenceTagModel(Base):
     __tablename__ = 'reference_tags'
-    __versioned__ = {}
+    __versioned__: Dict = {}
 
     reference_tag_id = Column(
         Integer,

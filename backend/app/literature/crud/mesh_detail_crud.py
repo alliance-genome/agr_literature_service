@@ -48,7 +48,7 @@ def patch(db: Session, mesh_detail_id: int, mesh_detail_update: MeshDetailSchema
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"MeshDetail with mesh_detail_id {mesh_detail_id} not found")
 
-    for field, value in mesh_detail_update.items():
+    for field, value in mesh_detail_update.dict().items():
         if field == 'reference_curie' and value:
             reference_curie = value
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()

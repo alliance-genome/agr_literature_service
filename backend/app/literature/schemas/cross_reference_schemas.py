@@ -7,7 +7,7 @@ from pydantic import validator
 class CrossReferenceSchemaRelated(BaseModel):
     curie: str
     pages: Optional[List[str]] = None
-    is_obsolete: bool = None
+    is_obsolete: Optional[bool] = None
 
     @validator('curie')
     def name_must_contain_space(cls, v):

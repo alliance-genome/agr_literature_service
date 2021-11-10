@@ -32,7 +32,7 @@ class GlobalConfig(BaseSettings):
     PSQL_PORT: Optional[str] = None
     PSQL_DATABASE: Optional[str] = None
 
-    RESOURCE_DESCRIPTOR_URL: str = None
+    RESOURCE_DESCRIPTOR_URL: str
 
     class Config:
         """Loads the dotenv file."""

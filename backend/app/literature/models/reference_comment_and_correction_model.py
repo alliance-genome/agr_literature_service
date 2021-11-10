@@ -1,3 +1,8 @@
+from datetime import datetime
+from typing import Dict
+
+import pytz
+
 from sqlalchemy import Enum
 from sqlalchemy import Column
 from sqlalchemy import ForeignKey
@@ -12,7 +17,7 @@ from literature.schemas import ReferenceCommentAndCorrectionType
 
 class ReferenceCommentAndCorrectionModel(Base):
     __tablename__ = 'reference_comments_and_corrections'
-    __versioned__ = {}
+    __versioned__: Dict = {}
 
     reference_comment_and_correction_id = Column(
         Integer,

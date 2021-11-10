@@ -1,3 +1,5 @@
+from typing import List, Dict, Any
+
 import sqlalchemy
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -36,8 +38,8 @@ def create_next_curie(curie) -> str:
     return "-".join([curie_parts[0], str(number).rjust(10, '0')])
 
 
-def create(db: Session, reference: ReferenceSchemaPost):  # noqa
-    reference_data = {}
+def create(db: Session, reference: ReferenceSchemaPost): # noqa
+    reference_data = {} # type: Dict[str, Any]
 
     if reference.cross_references:
         for cross_reference in reference.cross_references:
@@ -128,7 +130,7 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie {curie} not found")
 
-    for field, value in reference_update.items():
+    for field, value in reference_update.dict().items():
         if field == "resource":
             resource_curie = value
             resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
@@ -252,7 +254,7 @@ def show(db: Session, curie: str, http_request=True):  # noqa
 
     del reference_data['files']
 
-    comment_and_corrections_data = {'to_references': [], 'from_references': []}
+    comment_and_corrections_data = {'to_references': [], 'from_references': []} # type: Dict[str, List[str]]
     for comment_and_correction in reference.comment_and_corrections_out:
         comment_and_correction_data = reference_comment_and_correction_crud.show(db, comment_and_correction.reference_comment_and_correction_id)
         del comment_and_correction_data['reference_curie_from']

@@ -3,6 +3,7 @@ import argparse
 
 from os import environ, path
 import logging.config
+from typing import List
 
 from dotenv import load_dotenv
 
@@ -31,7 +32,7 @@ args = vars(parser.parse_args())
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
 
-pmids = []
+pmids = [] # type: List
 
 
 def benchmark_read_json():

@@ -24,6 +24,9 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
+# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
+base_path = environ.get('XML_PATH', "")
+sample_path = base_path + 'dqm_sample/'
 
 def generate_dqm_json_test_set_from_sample_json():
     """

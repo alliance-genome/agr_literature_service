@@ -50,7 +50,7 @@ def patch(db: Session, reference_manual_term_tag_id: int, reference_manual_term_
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference Manual Term Tag ID with reference_manual_term_tag_id {reference_manual_term_tag_id} not found")
 
-    for field, value in reference_manual_term_tag_update.items():
+    for field, value in reference_manual_term_tag_update.dict().items():
         if field == "reference_curie" and value:
             reference_curie_to = value
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_to).first()

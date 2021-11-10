@@ -1,6 +1,6 @@
 import sqlalchemy
 from datetime import datetime
-from typing import Union
+from typing import Dict, Union
 
 from fastapi import HTTPException
 from fastapi import status
@@ -23,7 +23,7 @@ from sqlalchemy import ARRAY
 from sqlalchemy import Boolean
 from sqlalchemy import String
 from sqlalchemy import func
-from sqlalchemy.sql.expression import cast
+from sqlalchemy.sql.expression import cast, update
 
 
 def create_next_curie(curie):
@@ -118,20 +118,29 @@ def destroy(db: Session, curie: str):
     return None
 
 
-def patch(db: Session, curie: str, resource_update: Union[ResourceSchemaUpdate, dict]) -> dict:
+def patch(db: Session, curie: str, resource_update: Union[ResourceSchemaUpdate, Dict]) -> dict:
     resource_db_obj = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
-    if not resource_db_obj:
+    if resource_db_obj is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Resource with curie {curie} not found")
 
-    if 'iso_abbreviation' in resource_update and resource_update['iso_abbreviation']:
-        iso_abbreviation_resource = db.query(ResourceModel).filter(ResourceModel.iso_abbreviation == resource_update['iso_abbreviation']).first()
+    if isinstance(resource_update, ResourceSchemaUpdate):
+        if resource_update.iso_abbreviation is not None:
+            iso_abbreviation_resource = db.query(ResourceModel).filter(ResourceModel.iso_abbreviation == resource_update.iso_abbreviation).first()
 
-        if iso_abbreviation_resource and iso_abbreviation_resource.curie != curie:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                                detail=f"Resource with iso_abbreviation {resource_update.iso_abbreviation} already exists")
+            if iso_abbreviation_resource and iso_abbreviation_resource.curie != curie:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                    detail=f"Resource with iso_abbreviation {resource_update.iso_abbreviation} already exists")
 
-    for field, value in resource_update.items():
+    update_dict = {} # type: Dict
+    if isinstance(resource_update, ResourceSchemaUpdate):
+        update_dict = resource_update.dict()
+    elif isinstance(resource_update, Dict):
+        update_dict = resource_update
+    else:
+        update_dict = {}
+
+    for field, value in update_dict.items():
         setattr(resource_db_obj, field, value)
 
     resource_db_obj.date_updated = datetime.utcnow()

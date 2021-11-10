@@ -1,4 +1,6 @@
 from datetime import datetime
+from typing import Dict
+
 import pytz
 
 from sqlalchemy import Column
@@ -20,7 +22,7 @@ from literature.schemas import PubMedPublicationStatus
 
 class ReferenceModel(Base):
     __tablename__ = 'references'
-    __versioned__ = {}
+    __versioned__: Dict = {}
 
     reference_id = Column(
         Integer,

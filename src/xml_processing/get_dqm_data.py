@@ -28,7 +28,7 @@ logger = logging.getLogger('literature logger')
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 # base_path = '/home/core/git/azurebrd/agr_literature_service_demo/src/xml_processing/'
 # base_path = '/workdir/src/xml_processing/'
-base_path = environ.get('XML_PATH')
+base_path = environ.get('XML_PATH', "")
 storage_path = base_path + 'dqm_data/'
 
 

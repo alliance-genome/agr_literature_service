@@ -1,3 +1,9 @@
+from datetime import datetime
+from typing import Dict
+
+import pytz
+
+from sqlalchemy import Enum
 from sqlalchemy import Column
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
@@ -10,7 +16,7 @@ from literature.database.base import Base
 
 class ReferenceManualTermTagModel(Base):
     __tablename__ = 'reference_manual_term_tags'
-    __versioned__ = {}
+    __versioned__: Dict = {}
 
     reference_manual_term_tag_id = Column(
         Integer,
