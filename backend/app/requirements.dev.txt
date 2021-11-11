@@ -14,3 +14,4 @@ types-orjson
 types-pytz
 types-requests
 types-ujson
+types-docutils
