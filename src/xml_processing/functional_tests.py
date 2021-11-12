@@ -29,7 +29,12 @@ logger = logging.getLogger(__name__)
 # 3 minutes on 34 references from 'inputs/sample_dqm_load.json'
 
 
-def get_some_references():
+def test_load_references():
+    """
+    Load cross_references to database, and sample.json mapping them to the agr reference curie and the types of checks each should have.  Query each reference from the database, and run the appropriate test.
+
+    """
+
     xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
     input_file = 'inputs/sample_dqm_load.json'
     sample_json = load_sample_json(input_file)
@@ -83,10 +88,24 @@ def get_some_references():
 
 
 def erratum_check(agr_data):
+    """
+    future: check a database reference has comment_and_corrections connection to another reference
+
+    :param agr_data:
+    :return:
+    """
+
     return 'Success: Errata references created, but connections not created yet, add to sample_reference_populate_load.sh later'
 
 
 def category_book_check(agr_data):
+    """
+    check a database reference has a category of 'book' from PubMed XML <BookDocument>
+
+    :param agr_data:
+    :return:
+    """
+
     if 'category' in agr_data:
         if agr_data['category'] == 'book':
             return 'Success'
@@ -94,6 +113,13 @@ def category_book_check(agr_data):
 
 
 def title_check(agr_data):
+    """
+    check a database reference has a title
+
+    :param agr_data:
+    :return:
+    """
+
     if 'title' in agr_data:
         if agr_data['title'] != '':
             return 'Success'
@@ -101,6 +127,13 @@ def title_check(agr_data):
 
 
 def author_name_check(agr_data):
+    """
+    check a database reference has all authors with names, because <CollectiveName> in PubMed XML is not standard author pattern
+
+    :param agr_data:
+    :return:
+    """
+
     if 'authors' not in agr_data:
         return 'Failure: No authors found'
     result = 'Success'
@@ -115,6 +148,13 @@ def author_name_check(agr_data):
 
 
 def author_affiliation_check(agr_data):
+    """
+    check a database reference has an author with an affiliation
+
+    :param agr_data:
+    :return:
+    """
+
     if 'authors' not in agr_data:
         return 'Failure: No authors found'
     for author in agr_data['authors']:
@@ -126,6 +166,13 @@ def author_affiliation_check(agr_data):
 
 
 def author_orcid_check(agr_data):
+    """
+    check a database reference has an author with an orcid
+
+    :param agr_data:
+    :return:
+    """
+
     if 'authors' not in agr_data:
         return 'Failure: No authors found'
     for author in agr_data['authors']:
@@ -137,6 +184,13 @@ def author_orcid_check(agr_data):
 
 
 def xref_mods_check(agr_data):
+    """
+    check a database reference has cross_references to six base mods
+
+    :param agr_data:
+    :return:
+    """
+
     prefixes = set()
     if 'cross_references' in agr_data:
         for xref in agr_data['cross_references']:
@@ -150,10 +204,24 @@ def xref_mods_check(agr_data):
 
 
 def html_abstract_check(agr_data):
+    """
+    future: check a database reference does not have html in the abstract
+
+    :param agr_data:
+    :return:
+    """
+
     return 'Success: Abstracts do have html, have not decided whether they should not'
 
 
 def html_doi_check(agr_data):
+    """
+    check a database reference does not have html in the doi
+
+    :param agr_data:
+    :return:
+    """
+
     if 'cross_references' in agr_data:
         for xref in agr_data['cross_references']:
             if 'curie' in xref:
@@ -165,6 +233,13 @@ def html_doi_check(agr_data):
 
 
 def keywords_check(agr_data):
+    """
+    check a database reference does have a keyword
+
+    :param agr_data:
+    :return:
+    """
+
     if 'keywords' in agr_data:
         for keyword in agr_data['keywords']:
             if keyword != '':
@@ -173,6 +248,13 @@ def keywords_check(agr_data):
 
 
 def has_doi_check(agr_data):
+    """
+    check a database reference does have a doi
+
+    :param agr_data:
+    :return:
+    """
+
     if 'cross_references' in agr_data:
         for xref in agr_data['cross_references']:
             if 'curie' in xref:
@@ -183,6 +265,13 @@ def has_doi_check(agr_data):
 
 
 def has_pmid_check(agr_data):
+    """
+    check a database reference does have a pmid
+
+    :param agr_data:
+    :return:
+    """
+
     if 'cross_references' in agr_data:
         for xref in agr_data['cross_references']:
             if 'curie' in xref:
@@ -193,6 +282,13 @@ def has_pmid_check(agr_data):
 
 
 def no_pmid_check(agr_data):
+    """
+    check a database reference does not have a pmid
+
+    :param agr_data:
+    :return:
+    """
+
     if 'cross_references' in agr_data:
         for xref in agr_data['cross_references']:
             if 'curie' in xref:
@@ -203,6 +299,14 @@ def no_pmid_check(agr_data):
 
 
 def test_check(agr_data, check):
+    """
+    case switch for different types of tests
+
+    :param agr_data:
+    :param check:
+    :return:
+    """
+
     options = {
         'VernacularTitle': title_check,
         'BookTitle': title_check,
@@ -237,6 +341,6 @@ if __name__ == "__main__":
 
     # run this once after data is loaded
     generate_cross_references_file('reference')
-    get_some_references()
+    test_load_references()
 
     logger.info("ending sort_dqm_json_reference_updates.py")
