@@ -11,6 +11,9 @@ from xml_to_json import generate_json
 
 # pipenv run python process_many_pmids_to_json.py -f inputs/alliance_pmids
 #
+# to force skip of downloading xml
+# pipenv run python process_many_pmids_to_json.py -s -f inputs/alliance_pmids
+#
 # enter a file with a list of pmids as an argument, download xml, convert to json, find new pmids in commentsCorrections, recurse, output list of pubmed-based (as opposed to MOD-DQM-based) pmids to  inputs/pubmed_only_pmids
 
 
