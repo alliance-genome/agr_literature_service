@@ -534,7 +534,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
         fh_mod_report_resource_unmatched.setdefault(mod, open(filename_resource_unmatched, 'w'))
         fh_mod_report_reference_no_resource.setdefault(mod, open(filename_reference_no_resource, 'w'))
 
-    multi_report_filename = base_path + 'report_files/multi_mod'
+    multi_report_filename = base_path + output_directory + 'report_files/multi_mod'
     fh_mod_report.setdefault('multi', open(multi_report_filename, 'w'))
     # these are not needed, there are no dqm vs pubmed comparisons for multiple mods
     # multi_report_filename_title = base_path + 'report_files/multi_mod_dqm_pubmed_title_differ'
