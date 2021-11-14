@@ -71,9 +71,9 @@ def create(db: Session, resource: ResourceSchemaPost):
                         obj_data['orcid_cross_reference'] = cross_reference_obj
                     del obj_data['orcid']
                     if field == 'authors':
-                        db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)  # type: AuthorModel
+                        db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
                     else:
-                        db_obj = create_obj(db, EditorModel, obj_data, non_fatal=True)  # type: EditorModel
+                        db_obj = create_obj(db, EditorModel, obj_data, non_fatal=True)
                 elif field == 'cross_references':
                     db_obj = CrossReferenceModel(**obj_data)
                 elif field == 'mesh_terms':
