@@ -7,7 +7,7 @@ from sqlalchemy import MetaData
 from literature.models import (
     Base, CrossReferenceModel
 )
-from literature.schemas import CrossReferenceSchemaPost
+from literature.schemas import CrossReferenceSchemaPost, CrossReferenceSchemaUpdate
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 from sqlalchemy.orm import sessionmaker
 from fastapi import HTTPException
@@ -77,17 +77,12 @@ def test_show_xref():
     assert res['curie'] == "XREF:123456"
     assert res['reference_curie'] == 'AGR:AGR-Reference-0000000001'
 
-    # Causes a crash?? recursive error?
-    # res = show(db, "XREF:anoth")
-    # assert res['curie'] == "XREF:anoth"
-    # assert res['resource_curie'] == 'AGR:AGR-Resource-0000000001'
-
 
 def test_patch_xref():
-    # xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "XREF:123456").one()
-    # xref_schema = CrossReferenceSchemaUpdate(is_obsolete=True, reference_curie="AGR:AGR-Reference-0000000001")
-    # print("xref schema: '{}'".format(xref_schema))
-    res = patch(db, "XREF:123456", {'is_obsolete': True, 'pages': ["different"]})
+    xref_schema = CrossReferenceSchemaUpdate(is_obsolete=True,
+                                             pages=["different"],
+                                             reference_curie="AGR:AGR-Reference-0000000001")
+    res = patch(db, "XREF:123456", xref_schema)
     assert res['message'] == "updated"
     xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "XREF:123456").one()
     assert xref.is_obsolete
@@ -95,7 +90,6 @@ def test_patch_xref():
 
 
 def test_changesets():
-    # xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "XREF:123456").one()
     res = show_changesets(db, "XREF:123456")
 
     # Pages      : None -> reference -> different

@@ -22,6 +22,7 @@ from literature.models import CrossReferenceModel
 from literature.models import ModReferenceTypeModel
 from literature.models import ReferenceTagModel
 from literature.models import MeshDetailModel
+from literature.crud.reference_resource import create_obj
 
 from sqlalchemy import ARRAY
 from sqlalchemy import Boolean
@@ -39,7 +40,7 @@ def create_next_curie(curie) -> str:
 
 
 def create(db: Session, reference: ReferenceSchemaPost): # noqa
-    reference_data = {} # type: Dict[str, Any]
+    reference_data = {}  # type: Dict[str, Any]
 
     if reference.cross_references:
         for cross_reference in reference.cross_references:
@@ -75,9 +76,9 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
                         obj_data['orcid_cross_reference'] = cross_reference_obj
                     del obj_data['orcid']
                     if field == 'authors':
-                        db_obj = AuthorModel(**obj_data)
+                        db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)  # type: AuthorModel
                     else:
-                        db_obj = EditorModel(**obj_data)
+                        db_obj = create_obj(db, EditorModel, obj_data, non_fatal=True)  # type: EditorModel
                 elif field == 'mod_reference_types':
                     db_obj = ModReferenceTypeModel(**obj_data)
                 elif field == 'tags':
@@ -131,7 +132,7 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
                             detail=f"Reference with curie {curie} not found")
 
     for field, value in reference_update.dict().items():
-        if field == "resource":
+        if field == "resource" and value:
             resource_curie = value
             resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
             if not resource:
@@ -254,7 +255,7 @@ def show(db: Session, curie: str, http_request=True):  # noqa
 
     del reference_data['files']
 
-    comment_and_corrections_data = {'to_references': [], 'from_references': []} # type: Dict[str, List[str]]
+    comment_and_corrections_data = {'to_references': [], 'from_references': []}  # type: Dict[str, List[str]]
     for comment_and_correction in reference.comment_and_corrections_out:
         comment_and_correction_data = reference_comment_and_correction_crud.show(db, comment_and_correction.reference_comment_and_correction_id)
         del comment_and_correction_data['reference_curie_from']

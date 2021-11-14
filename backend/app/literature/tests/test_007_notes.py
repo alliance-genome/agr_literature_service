@@ -63,7 +63,8 @@ def test_patch_note():
            'note': "Note2",
            'reference_curie': "AGR:AGR-Reference-0000000003"}
 
-    res = patch(db, 1, xml)
+    note_schema = NoteSchemaPost(**xml)
+    res = patch(db, 1, note_schema)
     assert res == {"message": "updated"}
     note_obj = db.query(NoteModel).filter(NoteModel.note_id == 1).one()
     assert note_obj.name == "Name2"

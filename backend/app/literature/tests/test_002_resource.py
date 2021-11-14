@@ -71,13 +71,9 @@ def test_show_Resource():
 
 def test_update_Resource():
 
-    # patch docs says it needs a ResourceSchemaUpdate
-    # but does not work with this.
-    with pytest.raises(AttributeError):
-        update_schema = ResourceSchemaUpdate(title="Changed")
-        patch(db, 'AGR:AGR-Resource-0000000001', update_schema)
+    update_schema = ResourceSchemaUpdate(title="new title")
+    res = patch(db, 'AGR:AGR-Resource-0000000001', update_schema)
 
-    res = patch(db, 'AGR:AGR-Resource-0000000001', {'title': "new title"})
     assert res == {'message': 'updated'}
 
     # fetch the new record.
@@ -86,8 +82,10 @@ def test_update_Resource():
     # do we have the new title?
     assert res['title'] == "new title"
 
-    # abstract should still be there
-    assert res['abstract'] == '3'
+    # NOTE: abstract set to None as it was not in the update and
+    #       schemaupdate sets all items not listed to default values.
+    #       In this case abstract is None
+    assert res['abstract'] is None
 
 
 def test_resource_create_large():

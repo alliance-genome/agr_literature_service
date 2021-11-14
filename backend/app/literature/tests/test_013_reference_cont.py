@@ -7,7 +7,7 @@ from literature.models import (
     Base
 )
 from literature.database.config import SQLALCHEMY_DATABASE_URL
-from literature.schemas import ReferenceSchemaPost
+from literature.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
 from sqlalchemy.orm import sessionmaker
 metadata = MetaData()
 
@@ -60,9 +60,10 @@ def test_show_notes():
 
 
 def test_patch():
-    res = patch(db, 'AGR:AGR-Reference-0000000001',
-                {'merged_into_reference_curie': "AGR:AGR-Reference-0000000003",
-                 'resource': "AGR:AGR-Resource-0000000003"})
+    xml = {'merged_into_reference_curie': "AGR:AGR-Reference-0000000003",
+           'resource': "AGR:AGR-Resource-0000000003"}
+    schema = ReferenceSchemaUpdate(**xml)
+    res = patch(db, 'AGR:AGR-Reference-0000000001', schema)
     assert res == {'message': 'updated'}
 
     # fetch the new record.

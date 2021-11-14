@@ -18,12 +18,13 @@ from literature.models import AuthorModel
 from literature.models import EditorModel
 from literature.models import CrossReferenceModel
 from literature.models import MeshDetailModel
+from literature.crud.reference_resource import create_obj
 
 from sqlalchemy import ARRAY
 from sqlalchemy import Boolean
 from sqlalchemy import String
 from sqlalchemy import func
-from sqlalchemy.sql.expression import cast, update
+from sqlalchemy.sql.expression import cast
 
 
 def create_next_curie(curie):
@@ -70,9 +71,9 @@ def create(db: Session, resource: ResourceSchemaPost):
                         obj_data['orcid_cross_reference'] = cross_reference_obj
                     del obj_data['orcid']
                     if field == 'authors':
-                        db_obj = AuthorModel(**obj_data)
+                        db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)  # type: AuthorModel
                     else:
-                        db_obj = EditorModel(**obj_data)
+                        db_obj = create_obj(db, EditorModel, obj_data, non_fatal=True)  # type: EditorModel
                 elif field == 'cross_references':
                     db_obj = CrossReferenceModel(**obj_data)
                 elif field == 'mesh_terms':
@@ -132,7 +133,7 @@ def patch(db: Session, curie: str, resource_update: Union[ResourceSchemaUpdate, 
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"Resource with iso_abbreviation {resource_update.iso_abbreviation} already exists")
 
-    update_dict = {} # type: Dict
+    update_dict = {}  # type: Dict
     if isinstance(resource_update, ResourceSchemaUpdate):
         update_dict = resource_update.dict()
     elif isinstance(resource_update, Dict):
