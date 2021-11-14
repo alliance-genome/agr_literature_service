@@ -386,9 +386,14 @@ def load_pubmed_resource():
     """
 
     # logger.info("Starting load_pubmed_resource")
+    resource_data = dict()
     filename = base_path + 'pubmed_resource_json/resource_pubmed_all.json'
-    f = open(filename)
-    resource_data = json.load(f)
+    try:
+        f = open(filename)
+        resource_data = json.load(f)
+        f.close()
+    except IOError:
+        logger.info("No resource_pubmed_all.json file at %s", filename)
     resource_to_nlm = dict()
     resource_to_nlm_highest = dict()
     resource_nlm_to_title = dict()
