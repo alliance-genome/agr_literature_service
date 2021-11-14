@@ -6,7 +6,10 @@ from sqlalchemy import MetaData
 from literature.models import (
     Base, ReferenceCommentAndCorrectionModel, ReferenceModel
 )
-from literature.schemas import ReferenceCommentAndCorrectionSchemaPost
+from literature.schemas import (
+    ReferenceCommentAndCorrectionSchemaPost,
+    ReferenceCommentAndCorrectionSchemaPatch
+)
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 from sqlalchemy.orm import sessionmaker
 from fastapi import HTTPException
@@ -33,13 +36,13 @@ def test_get_bad_rcc():
 def test_bad_missing_args():
     xml = {'reference_curie_from': "AGR:AGR-Reference-0000000001",
            'reference_comment_and_correction_type': "CommentOn"}
-    with pytest.raises(HTTPException):  # ref_cur_to missing
+    with pytest.raises(ValidationError):  # ref_cur_to missing
         rcc_schema = ReferenceCommentAndCorrectionSchemaPost(**xml)
         create(db, rcc_schema)
 
     xml = {'reference_curie_to': "AGR:AGR-Reference-0000000001",
            'reference_comment_and_correction_type': "CommentOn"}
-    with pytest.raises(HTTPException):  # ref_cur_to missing
+    with pytest.raises(ValidationError):  # ref_cur_to missing
         rcc_schema = ReferenceCommentAndCorrectionSchemaPost(**xml)
         create(db, rcc_schema)
 
@@ -78,7 +81,8 @@ def test_patch_rcc():
            'reference_curie_to': "AGR:AGR-Reference-0000000001",
            'reference_comment_and_correction_type': "ReprintOf"}
 
-    res = patch(db, rcc_obj.reference_comment_and_correction_id, xml)
+    schema = ReferenceCommentAndCorrectionSchemaPatch(**xml)
+    res = patch(db, rcc_obj.reference_comment_and_correction_id, schema)
     assert res == {"message": "updated"}
 
     rcc_obj: ReferenceCommentAndCorrectionModel = db.query(ReferenceCommentAndCorrectionModel).\

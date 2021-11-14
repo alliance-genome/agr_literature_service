@@ -6,7 +6,7 @@ from sqlalchemy import MetaData
 from literature.models import (
     Base, ModReferenceTypeModel
 )
-from literature.schemas import ModReferenceTypeSchemaPost
+from literature.schemas import ModReferenceTypeSchemaPost, ModReferenceTypeSchemaUpdate
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 from sqlalchemy.orm import sessionmaker
 from fastapi import HTTPException
@@ -44,16 +44,11 @@ def test_create_mrt():
 
 
 def test_patch_mrt():
-    # Errors with schema for patching
-    # sch = ModReferenceTypeSchemaUpdate(
-    #    reference_curie="AGR:AGR-Reference-0000000003",
-    #    reference_type="string3",
-    #    source="string4"
-    # )
     xml = {"reference_curie": "AGR:AGR-Reference-0000000003",
            "reference_type": "string3",
            "source": "string4"}
-    res = patch(db, 1, xml)
+    schema = ModReferenceTypeSchemaUpdate(**xml)
+    res = patch(db, 1, schema)
     assert res == {"message": "updated"}
 
     # check db for mrt

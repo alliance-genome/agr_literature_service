@@ -19,8 +19,9 @@ class AuthorSchemaPost(BaseModel):
 
     first_author: Optional[bool] = False
     affiliation: Optional[List[str]] = None
-    corresponding_author: Optional[bool] = None
-
+    corresponding_author: Optional[bool] = False
+    reference_curie: Optional[str] = None
+    resource_curie: Optional[str] = None
     orcid: Optional[str] = None
 
     @validator('orcid')
@@ -66,6 +67,7 @@ class AuthorSchemaShow(BaseModelShow):
     corresponding_author: Optional[bool] = None
 
 
+# NOTE: Why Create and Post????
 class AuthorSchemaCreate(AuthorSchemaPost):
     reference_curie: Optional[str] = None
     resource_curie: Optional[str] = None

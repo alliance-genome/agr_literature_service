@@ -15,6 +15,8 @@ class EditorSchemaPost(BaseModel):
     middle_names: Optional[List[str]] = None
     last_name: Optional[str] = None
     orcid: Optional[str] = None
+    reference_curie: Optional[str] = None
+    resource_curie: Optional[str] = None
 
     @validator('orcid')
     def check_orcids(cls, v):

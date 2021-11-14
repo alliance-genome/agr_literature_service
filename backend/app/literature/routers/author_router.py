@@ -69,7 +69,7 @@ def show(author_id: int,
     return author_crud.show(db, author_id)
 
 
-@router.get('/{author_id}/versions', # type: ignore
+@router.get('/{author_id}/versions',  # type: ignore
             status_code=200)
 def show_versions(author_id: int,
                   db: Session = db_session):

@@ -6,7 +6,10 @@ from sqlalchemy import MetaData
 from literature.models import (
     Base, ReferenceManualTermTagModel
 )
-from literature.schemas import ReferenceManualTermTagSchemaPost
+from literature.schemas import (
+    ReferenceManualTermTagSchemaPost,
+    ReferenceManualTermTagSchemaPatch
+)
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 from sqlalchemy.orm import sessionmaker
 from fastapi import HTTPException
@@ -53,16 +56,16 @@ def test_show_ratt():
 
 
 def test_update_ratt():
-    # NOTE: gibberish passes as we do no schema checking
     xml = {'term': "term2",
            'datatype': 'datatype2',
-           'gibberish': 'you know it',
+           'ontology': 'ont2',
            'reference_curie': "AGR:AGR-Reference-0000000003"}
-    res = patch(db, 1, xml)
+    schema = ReferenceManualTermTagSchemaPatch(**xml)
+    res = patch(db, 1, schema)
     assert res == {'message': 'updated'}
 
     ratt = db.query(ReferenceManualTermTagModel).\
-        filter(ReferenceManualTermTagModel.ontology == "Ont1").one()
+        filter(ReferenceManualTermTagModel.ontology == "ont2").one()
     assert ratt.reference.curie == "AGR:AGR-Reference-0000000003"
     assert ratt.datatype == "datatype2"
     assert ratt.term == 'term2'

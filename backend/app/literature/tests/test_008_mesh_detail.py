@@ -6,7 +6,7 @@ from sqlalchemy import MetaData
 from literature.models import (
     Base, MeshDetailModel
 )
-from literature.schemas import MeshDetailSchemaPost
+from literature.schemas import MeshDetailSchemaPost, MeshDetailSchemaUpdate
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 from sqlalchemy.orm import sessionmaker
 from fastapi import HTTPException
@@ -54,8 +54,8 @@ def test_patch_mesh():
     xml = {'heading_term': "Head2",
            'qualifier_term': "Qual2",
            'reference_curie': "AGR:AGR-Reference-0000000003"}
-
-    res = patch(db, 1, xml)
+    schema = MeshDetailSchemaUpdate(**xml)
+    res = patch(db, 1, schema)
     assert res == {"message": "updated"}
     mesh_detail_obj = db.query(MeshDetailModel).filter(MeshDetailModel.mesh_detail_id == 1).one()
     assert mesh_detail_obj.heading_term == "Head2"

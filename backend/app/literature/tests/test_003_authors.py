@@ -40,6 +40,7 @@ def test_create_author():
         "orcid": "ORCID:1234-1234-1234-123X",
         "reference_curie": "AGR:AGR-Reference-0000000001"
     }
+    # auth_schema = AuthorSchemaPost(**xml)
     res = create(db, xml)
     assert res
     # check db for author
