@@ -1,0 +1,293 @@
+{
+    "data": [
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Peer Reviewed Article",
+                    "source": "MGI"
+                }
+            ],
+            "abstract": "",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "name": "Bodmer WF",
+                    "referenceId": "BodmerWFMGI:48543"
+                }
+            ],
+            "citation": "Heredity 1961;16():485-95",
+            "crossReferences": [
+                {
+                    "id": "MGI:48543",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "dateLastModified": "2019-08-14T00:00:00-04:00",
+            "datePublished": "1961",
+            "issueName": "",
+            "pages": "485-95",
+            "primaryId": "MGI:48543",
+            "resourceAbbreviation": "Heredity",
+            "tags": [
+                {
+                    "referenceId": "MGI:48543",
+                    "tagName": "inCorpus",
+                    "tagSource": "MGI"
+                }
+            ],
+            "title": "Viability effects and recombination differences in a linkage test with pallid and fidget in the house mouse.",
+            "volume": "16"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Newsletter",
+                    "source": "MGI"
+                }
+            ],
+            "abstract": "Full text of MNL contribution:  Research notes: Linkage of pg with si and Sl in L.G. IV. Linkage of pygmy (pg) to \"a silvering gene\" was reported in MNL 9, Suppl. P.7 . This report was based on the work of Dr. J.W.B. King, but neither the data nor the recombination frequency were given. Dr. King has kindly given us his data which are as follows: si - pg (si +/+ pg x si +/+ pg); + +: 321; + si: 65; pg +: 137; pg si: 3; Total: 526; p +/- s. e., %: 20.1 +/- 5.92 We have worked out the recombination and its standard error, allowing for the incomplete penetrance of si, by Bailey's equations 5.43 and 5.44 (Introduction to the mathematical theory of genetic linkage, 1961). Following the report in MNL 29: 48 of linkage between silver (si) and steel (Sl) and at the suggestion of Dr. Margaret C. Green, we have tested pg against Sl and found them to be linked. The data are as follows: S1 - pg (S1 +/+ pg x + +/+ pg); + +: 88; S1 +: 113; + pg: 57; Sl pg: 7; Total: 265; p +/- s.e., %: 14.2 +/-  4.04. The usefulness of si as a marker is somewhat enhanced by the fulfillment of the prediction that pg and Sl should be linked. It is to be hoped that the order can be established from the existing 2-point tests when the si - Sl recombination is known. The data reported here would make the recombination between si and Sl 34 +/- 7% if the order is si  pg - Sl, or 6 +/- 7% if the order is si - Sl - pg. (Falconer and Isaacson)",
+            "allianceCategory": "Other",
+            "authors": [
+                {
+                    "name": "Falconer DS",
+                    "referenceId": "FalconerDSMGI:48554"
+                },
+                {
+                    "name": " Isaacson JH",
+                    "referenceId": "IsaacsonJHMGI:48554"
+                }
+            ],
+            "citation": "Mouse News Lett 1965;32():30-31",
+            "crossReferences": [
+                {
+                    "id": "MGI:48554",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "dateLastModified": "2006-12-12T00:00:00-05:00",
+            "datePublished": "1965",
+            "issueName": "",
+            "pages": "30-31",
+            "primaryId": "MGI:48554",
+            "resourceAbbreviation": "Mouse News Lett",
+            "tags": [
+                {
+                    "referenceId": "MGI:48554",
+                    "tagName": "inCorpus",
+                    "tagSource": "MGI"
+                }
+            ],
+            "title": "Linkage of pg with si and Sl in L.G. IV",
+            "volume": "32"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Peer Reviewed Article",
+                    "source": "MGI"
+                }
+            ],
+            "abstract": "The goal of the Gene Ontology (GO) project is to provide a uniform way to describe the functions of gene products from organisms across all kingdoms of life and thereby enable analysis of genomic data. Protein annotations are either based on experiments or predicted from protein sequences. Since most sequences have not been experimentally characterized, most available annotations need to be based on predictions. To make as accurate inferences as possible, the GO Consortium's Reference Genome Project is using an explicit evolutionary framework to infer annotations of proteins from a broad set of genomes from experimental annotations in a semi-automated manner. Most components in the pipeline, such as selection of sequences, building multiple sequence alignments and phylogenetic trees, retrieving experimental annotations and depositing inferred annotations, are fully automated. However, the most crucial step in our pipeline relies on software-assisted curation by an expert biologist. This curation tool, Phylogenetic Annotation and INference Tool (PAINT) helps curators to infer annotations among members of a protein family. PAINT allows curators to make precise assertions as to when functions were gained and lost during evolution and record the evidence (e.g. experimentally supported GO annotations and phylogenetic information including orthology) for those assertions. In this article, we describe how we use PAINT to infer protein function in a phylogenetic context with emphasis on its strengths, limitations and guidelines. We also discuss specific examples showing how PAINT annotations compare with those generated by other highly used homology-based methods.",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "name": "Gaudet P",
+                    "referenceId": "GaudetPPMID:21873635"
+                },
+                {
+                    "name": " Livstone MS",
+                    "referenceId": "LivstoneMSPMID:21873635"
+                },
+                {
+                    "name": " Lewis SE",
+                    "referenceId": "LewisSEPMID:21873635"
+                },
+                {
+                    "name": " Thomas PD",
+                    "referenceId": "ThomasPDPMID:21873635"
+                }
+            ],
+            "citation": "Brief Bioinform 2011 Sep;12(5):449-62",
+            "crossReferences": [
+                {
+                    "id": "MGI:6201960",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "dateLastModified": "2018-10-17T00:00:00-04:00",
+            "datePublished": "2011 Sep",
+            "issueName": "5",
+            "pages": "449-62",
+            "primaryId": "PMID:21873635",
+            "resourceAbbreviation": "Brief Bioinform",
+            "tags": [
+                {
+                    "referenceId": "PMID:21873635",
+                    "tagName": "inCorpus",
+                    "tagSource": "MGI"
+                }
+            ],
+            "title": "Phylogenetic-based propagation of functional annotations within the Gene Ontology consortium.",
+            "volume": "12"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Peer Reviewed Article",
+                    "source": "MGI"
+                }
+            ],
+            "abstract": "Hypothalamic neurons expressing the anorectic peptide Pro-opiomelanocortin (Pomc) regulate food intake and body weight. Here, we show that Steroid Receptor Coactivator-1 (SRC-1) interacts with a target of leptin receptor activation, phosphorylated STAT3, to potentiate Pomc transcription. Deletion of SRC-1 in Pomc neurons in mice attenuates their depolarization by leptin, decreases Pomc expression and increases food intake leading to high-fat diet-induced obesity. In humans, fifteen rare heterozygous variants in SRC-1 found in severely obese individuals impair leptin-mediated Pomc reporter activity in cells, whilst four variants found in non-obese controls do not. In a knock-in mouse model of a loss of function human variant (SRC-1(L1376P)), leptin-induced depolarization of Pomc neurons and Pomc expression are significantly reduced, and food intake and body weight are increased. In summary, we demonstrate that SRC-1 modulates the function of hypothalamic Pomc neurons, and suggest that targeting SRC-1 may represent a useful therapeutic strategy for weight loss.",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "name": "Yang Y",
+                    "referenceId": "YangYPMID:30979869"
+                },
+                {
+                    "name": " van der Klaauw AA",
+                    "referenceId": "vanderKlaauwAAPMID:30979869"
+                },
+                {
+                    "name": " Zhu L",
+                    "referenceId": "ZhuLPMID:30979869"
+                },
+                {
+                    "name": " Cacciottolo TM",
+                    "referenceId": "CacciottoloTMPMID:30979869"
+                },
+                {
+                    "name": " He Y",
+                    "referenceId": "HeYPMID:30979869"
+                },
+                {
+                    "name": " Stadler LKJ",
+                    "referenceId": "StadlerLKJPMID:30979869"
+                },
+                {
+                    "name": " Wang C",
+                    "referenceId": "WangCPMID:30979869"
+                },
+                {
+                    "name": " Xu P",
+                    "referenceId": "XuPPMID:30979869"
+                },
+                {
+                    "name": " Saito K",
+                    "referenceId": "SaitoKPMID:30979869"
+                },
+                {
+                    "name": " Hinton A Jr",
+                    "referenceId": "HintonAJrPMID:30979869"
+                },
+                {
+                    "name": " Yan X",
+                    "referenceId": "YanXPMID:30979869"
+                },
+                {
+                    "name": " Keogh JM",
+                    "referenceId": "KeoghJMPMID:30979869"
+                },
+                {
+                    "name": " Henning E",
+                    "referenceId": "HenningEPMID:30979869"
+                },
+                {
+                    "name": " Banton MC",
+                    "referenceId": "BantonMCPMID:30979869"
+                },
+                {
+                    "name": " Hendricks AE",
+                    "referenceId": "HendricksAEPMID:30979869"
+                },
+                {
+                    "name": " Bochukova EG",
+                    "referenceId": "BochukovaEGPMID:30979869"
+                },
+                {
+                    "name": " Mistry V",
+                    "referenceId": "MistryVPMID:30979869"
+                },
+                {
+                    "name": " Lawler KL",
+                    "referenceId": "LawlerKLPMID:30979869"
+                },
+                {
+                    "name": " Liao L",
+                    "referenceId": "LiaoLPMID:30979869"
+                },
+                {
+                    "name": " Xu J",
+                    "referenceId": "XuJPMID:30979869"
+                },
+                {
+                    "name": " O'Rahilly S",
+                    "referenceId": "O'RahillySPMID:30979869"
+                },
+                {
+                    "name": " Tong Q",
+                    "referenceId": "TongQPMID:30979869"
+                },
+                {
+                    "name": " Ines Barroso",
+                    "referenceId": "InesBarrosoPMID:30979869"
+                },
+                {
+                    "name": " O'Malley BW",
+                    "referenceId": "O'MalleyBWPMID:30979869"
+                },
+                {
+                    "name": " Farooqi IS",
+                    "referenceId": "FarooqiISPMID:30979869"
+                },
+                {
+                    "name": " Xu Y",
+                    "referenceId": "XuYPMID:30979869"
+                }
+            ],
+            "citation": "Nat Commun 2019 Apr 12;10(1):1718",
+            "crossReferences": [
+                {
+                    "id": "MGI:6305446",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "dateLastModified": "2021-01-18T00:00:00-05:00",
+            "datePublished": "2019 Apr 12",
+            "issueName": "1",
+            "pages": "1718",
+            "primaryId": "PMID:30979869",
+            "resourceAbbreviation": "Nat Commun",
+            "tags": [
+                {
+                    "referenceId": "PMID:30979869",
+                    "tagName": "inCorpus",
+                    "tagSource": "MGI"
+                }
+            ],
+            "title": "Steroid receptor coactivator-1 modulates the function of Pomc neurons and energy homeostasis.",
+            "volume": "10"
+        }
+    ],
+    "metaData": {
+        "dataProvider": {
+            "crossReference": {
+                "id": "MGI",
+                "pages": [
+                    "homepage"
+                ]
+            },
+            "type": "curated"
+        },
+        "dateProduced": "2021-11-01T14:17:38-04:00",
+        "release": "MGI 6.18 2021-10-19"
+    }
+}

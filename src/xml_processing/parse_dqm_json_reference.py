@@ -48,6 +48,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-p', '--generate-pmid-data', action='store_true', help='generate pmid outputs, requires -f')
 parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
 parser.add_argument('-m', '--mod', action='store', help='which mod, use all for all, requires -f')
+parser.add_argument('-d', '--directory', action='store', help='output directory to generate into, requires -f')
 parser.add_argument('-c', '--commandline', nargs='*', action='store', help='placeholder for process_single_pmid.py')
 # parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
 # parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
@@ -91,7 +92,7 @@ base_path = environ.get('XML_PATH')
 #     return prefix, identifier_processed, separator
 
 
-def generate_pmid_data(input_path):      # noqa: C901
+def generate_pmid_data(input_path, output_directory):      # noqa: C901
     """
 
     output set of PMID identifiers that will need XML downloaded
@@ -204,7 +205,7 @@ def generate_pmid_data(input_path):      # noqa: C901
         logger.info("WARNING: unknown prefix %s", prefix)
 
     # output set of identifiers that will need XML downloaded
-    output_pmid_file = base_path + 'inputs/alliance_pmids'
+    output_pmid_file = base_path + output_directory + 'inputs/alliance_pmids'
     with open(output_pmid_file, "w") as pmid_file:
         # for pmid in sorted(pmid_stats.iterkeys(), key=int):	# python 2
         for pmid in sorted(pmid_stats, key=int):
@@ -212,7 +213,7 @@ def generate_pmid_data(input_path):      # noqa: C901
         pmid_file.close()
 
     # output pmids and the mods that have them
-    output_pmid_mods_file = base_path + 'pmids_by_mods'
+    output_pmid_mods_file = base_path + output_directory + 'pmids_by_mods'
     with open(output_pmid_mods_file, "w") as pmid_mods_file:
         for identifier in pmid_stats:
             ref_mods_list = pmid_stats[identifier]
@@ -453,7 +454,7 @@ def load_pmid_multi_mods():
     return pmid_multi_mods
 
 
-def aggregate_dqm_with_pubmed(input_path, input_mod):      # noqa: C901
+def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # noqa: C901
     # reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
     # outputs sanitized json to sanitized_reference_json/
     # does checks on dqm crossReferences.  if primaryId is not PMID, and a crossReference is PubMed,
@@ -497,11 +498,11 @@ def aggregate_dqm_with_pubmed(input_path, input_mod):      # noqa: C901
     resource_not_found = dict()
     cross_reference_types = dict()
 
-    json_storage_path = base_path + 'sanitized_reference_json/'
+    json_storage_path = base_path + output_directory + 'sanitized_reference_json/'
     if not path.exists(json_storage_path):
         makedirs(json_storage_path)
 
-    report_file_path = base_path + 'report_files/'
+    report_file_path = base_path + output_directory + 'report_files/'
     if not path.exists(report_file_path):
         makedirs(report_file_path)
 
@@ -1039,15 +1040,19 @@ if __name__ == "__main__":
     logger.info("starting parse_dqm_json_reference.py")
 
     if args['file']:
+        output_directory = ''
+        if args['directory']:
+            output_directory = args['directory']
+
         # pipenv run python parse_dqm_json_reference.py -p
         if args['generate_pmid_data']:
             logger.info("Generating PMID files from DQM data")
-            generate_pmid_data(args['file'])
+            generate_pmid_data(args['file'], output_directory)
 
         # pipenv run python parse_dqm_json_reference.py -f dqm_sample/ -m WB
         # pipenv run python parse_dqm_json_reference.py -f dqm_data_updates_new/ -m all
         elif args['mod']:
-            aggregate_dqm_with_pubmed(args['file'], args['mod'])
+            aggregate_dqm_with_pubmed(args['file'], args['mod'], output_directory)
 
         else:
             logger.info("No valid processing for directory passed in.  Use -h for help.")
