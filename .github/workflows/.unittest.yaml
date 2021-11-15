@@ -11,6 +11,15 @@ jobs:
         name: setup python
         with:
           python-version: 3.9
+      - name: AWS credentials configuration
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Amazon ECR login
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
@@ -18,4 +27,3 @@ jobs:
           pip install -r backend/app/requirements.dev.txt
       - name: run unit_tests
         run: make run-test-bash
-        continue-on-error: true
