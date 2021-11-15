@@ -19,8 +19,8 @@ jobs:
       - name: AWS credentials configuration
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          aws-access-key-id: ${{ github.test2 }}
-          aws-secret-access-key: ${{ github.test }}
+          aws-access-key-id: ${{ github.test }}
+          aws-secret-access-key: ${{ github.test2 }}
           aws-region: us-east-1
       - name: Amazon ECR login
         id: login-ecr
