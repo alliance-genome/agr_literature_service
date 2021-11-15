@@ -33,7 +33,7 @@ load_dotenv()
 # 1 - get_datatypes_cross_references.py - to generate mappings from references to xrefs and resources to xrefs
 # 2 - generate_pubmed_nlm_resource.py - get pubmed nlm resources
 # 3 - sort_dqm_json_resource_updates.py - compare pubmed and MOD resources with database resources-xref, update existing, create new ones
-# 4 - get_datatypes_cross_references.py - generate new mappings from resources to xrefs 
+# 4 - get_datatypes_cross_references.py - generate new mappings from resources to xrefs
 # 5 - run this script to update reference cross references, report to curators, update mod-specific references - TODO update reference-resource connections, generate dqm files for creating new references
 # 6 - create new references off of dqm references that are completely new through the get_pubmed_xml -> xml_to_json -> parse_dqm_json_reference pipeline
 

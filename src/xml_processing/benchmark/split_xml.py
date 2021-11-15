@@ -36,7 +36,7 @@ load_dotenv()
 # to get set of pmids with search term 'elegans'
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000
 
-pmids = [] # type: List
+pmids = []  # type: List
 
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')

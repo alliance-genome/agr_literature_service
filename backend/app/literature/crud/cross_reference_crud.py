@@ -15,7 +15,6 @@ from literature.models import ResourceDescriptorModel
 from literature.crud.reference_resource import create_obj, add_reference_resource
 
 
-
 def create(db: Session, cross_reference: CrossReferenceSchema) -> str:
     cross_reference_data = jsonable_encoder(cross_reference)
 
