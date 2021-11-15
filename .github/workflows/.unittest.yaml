@@ -1,22 +1,31 @@
 name: unittest
-on: [push]
-jobs:
-  run-make:
-    runs-on: ubuntu-latest
-    steps:
-    - name: checkout repo
-    uses: actions/checkout@v2
-        with:
-          ref: ${{ github.head_ref }}
-    - name: setup python
-      uses: actions/setup-python@v2
-        name: setup python
-        with:
-          python-version: 3.9
-    - name: Install Dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r backend/app/requirements.txt
-        pip install -r backend/app/requirements.dev.txt
-    - name: run unit_tests
-      run: make run-local-flake8
+ on: [push]
+ jobs:
+   run-make:
+     runs-on: ubuntu-latest
+     steps:
+     - name: checkout repo
+     uses: actions/checkout@v2
+         with:
+           ref: ${{ github.head_ref }}
+     - name: setup python
+       uses: actions/setup-python@v2
+         name: setup python
+         with:
+           python-version: 3.9
+     - name: AWS credentials configuration
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+     - name: Amazon ECR login
+       id: login-ecr
+       uses: aws-actions/amazon-ecr-login@v1
+     - name: Install Dependencies
+       run: |
+         python -m pip install --upgrade pip
+         pip install -r backend/app/requirements.txt
+         pip install -r backend/app/requirements.dev.txt
+     - name: run unit_tests
+       run: make run-local-flake8
