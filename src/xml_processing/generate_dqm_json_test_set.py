@@ -32,17 +32,8 @@ parser.add_argument('-d', '--directory', action='store', help='output directory 
 args = vars(parser.parse_args())
 
 
-def generate_dqm_json_test_set_from_sample_json(input_file, output_directory):
-    """
-    generate <output_directory>/ files based on manually chosen entries in <input_file>
-    """
-
+def load_sample_json(input_file):
     base_path = environ.get('XML_PATH')
-    # sample_path = base_path + 'dqm_sample/'
-    sample_path = base_path + output_directory
-    if not path.exists(sample_path):
-        makedirs(sample_path)
-    # sample_file = base_path + 'inputs/sample.json'
     sample_file = base_path + input_file
     sample_json = dict()
     try:
@@ -56,6 +47,21 @@ def generate_dqm_json_test_set_from_sample_json(input_file, output_directory):
     if 'data' not in sample_json:
         logger.info("No 'data' in sample.json file at %s", sample_file)
         return
+    return sample_json
+
+
+def generate_dqm_json_test_set_from_sample_json(input_file, output_directory):
+    """
+    generate <output_directory>/ files based on manually chosen entries in <input_file>
+    """
+
+    base_path = environ.get('XML_PATH')
+    sample_json = load_sample_json(input_file)
+    if not sample_json:
+        return
+    sample_path = base_path + output_directory
+    if not path.exists(sample_path):
+        makedirs(sample_path)
     pmids_wanted = set()
     mod_ids_wanted = dict()
     ids_wanted = set()
