@@ -24,8 +24,7 @@ from typing import Set, List
 
 # pipenv run python find_pubmed_type.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 
-
-pmids = [] # type: List
+pmids = []     # type: List
 
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
@@ -47,9 +46,8 @@ args = vars(parser.parse_args())
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH', "")
 
-
-publication_type_set = set() # type: Set
-comments_ref_type_set = set() # type: Set
+publication_type_set = set()     # type: Set
+comments_ref_type_set = set()     # type: Set
 
 
 def represents_int(s):

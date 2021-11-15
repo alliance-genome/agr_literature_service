@@ -111,7 +111,7 @@ app.include_router(bulk_downloads_router.router)
 
 app.add_api_route("/health", health([is_database_online]))
 
-app.openapi = custom_openapi # type: ignore
+app.openapi = custom_openapi  # type: ignore
 
 
 def run():

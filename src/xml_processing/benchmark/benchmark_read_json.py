@@ -32,7 +32,7 @@ args = vars(parser.parse_args())
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
 
-pmids = [] # type: List
+pmids = []  # type: List
 
 
 def benchmark_read_json():
