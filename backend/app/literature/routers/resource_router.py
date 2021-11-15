@@ -84,7 +84,6 @@ def show_notes(curie: str,
             response_model=ResourceSchemaShow)
 def show(curie: str,
          db: Session = db_session):
-    print(curie)
     return resource_crud.show(db, curie)
 
 

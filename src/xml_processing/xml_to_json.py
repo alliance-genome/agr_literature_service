@@ -726,6 +726,7 @@ if __name__ == "__main__":
     # when iterating manually through list of PMIDs from PubMed XML CommentsCorrections, and wanting to exclude PMIDs that have already been looked at from original alliance DQM input, or previous iterations.
     previous_pmids = []
     previous_pmids_files = []   # type: List
+
     # previous_pmids_files = ['inputs/alliance_pmids', 'inputs/comcor_add1', 'inputs/comcor_add2', 'inputs/comcor_add3']
     # previous_pmids_files = ['inputs/alliance_pmids', 'inputs/comcor_add1', 'inputs/comcor_add2', 'inputs/comcor_add3', 'inputs/comcor_add4', 'inputs/comcor_add5', 'inputs/comcor_add6', 'inputs/comcor_add7', 'inputs/comcor_add8', 'inputs/comcor_add9', 'inputs/comcor_add10', 'inputs/comcor_add11']
     for previous_pmids_file in previous_pmids_files:

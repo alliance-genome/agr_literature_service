@@ -7,7 +7,7 @@ from sqlalchemy import MetaData
 from literature.models import (
     Base, EditorModel
 )
-
+from literature.schemas import EditorSchemaPost
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 from sqlalchemy.orm import sessionmaker
 from fastapi import HTTPException
@@ -40,6 +40,7 @@ def test_create_editor():
         "orcid": "ORCID:2345-2345-2345-234X",
         "reference_curie": "AGR:AGR-Reference-0000000001"
     }
+
     res = create(db, xml)
     assert res
     # check db for editor
@@ -47,26 +48,44 @@ def test_create_editor():
     assert editor.first_name == "string"
 
 
+def test_create_editor_for_ref_later():
+    xml = {
+        "order": 2,
+        "first_name": "string2",
+        "last_name": "string3",
+        "name": "Name2",
+        "orcid": "ORCID:3333-4444-5555-666X",
+        "reference_curie": "AGR:AGR-Reference-0000000001"
+    }
+    res = create(db, xml)
+    assert res
+    # check db for editor
+    editor = db.query(EditorModel).filter(EditorModel.name == "Name2").one()
+    assert editor.first_name == "string2"
+
+
 def test_patch_editor():
     xml = {'first_name': "003_TUA",
            'orcid': "ORCID:5432-5432-5432-432X",
            'reference_curie': 'AGR:AGR-Reference-0000000003'}
     editor = db.query(EditorModel).filter(EditorModel.name == "003_TCU").one()
-    res = patch(db, editor.editor_id, xml)
+
+    ed_schem = EditorSchemaPost(**xml)
+    res = patch(db, editor.editor_id, ed_schem)
     assert res
-    mod_editor = db.query(EditorModel).filter(EditorModel.name == "003_TCU").one()
+    mod_editor = db.query(EditorModel).filter(EditorModel.first_name == "003_TUA").one()
     assert editor.editor_id == mod_editor.editor_id
-    assert mod_editor.first_name == "003_TUA"
+    assert mod_editor.orcid == "ORCID:5432-5432-5432-432X"
 
 
 def test_show_editor():
-    editor = db.query(EditorModel).filter(EditorModel.name == "003_TCU").one()
+    editor = db.query(EditorModel).filter(EditorModel.first_name == "003_TUA").one()
     edi = show(db, editor.editor_id)
     assert edi['orcid'] == "ORCID:5432-5432-5432-432X"
 
 
 def test_changesets():
-    editor = db.query(EditorModel).filter(EditorModel.name == "003_TCU").one()
+    editor = db.query(EditorModel).filter(EditorModel.first_name == "003_TUA").one()
     res = show_changesets(db, editor.editor_id)
 
     # Orcid changed from None -> ORCID:2345-2345-2345-234X -> ORCID:5432-5432-5432-432X
@@ -79,7 +98,7 @@ def test_changesets():
 
 
 def test_destroy_editor():
-    editor = db.query(EditorModel).filter(EditorModel.name == "003_TCU").one()
+    editor = db.query(EditorModel).filter(EditorModel.first_name == "003_TUA").one()
     destroy(db, editor.editor_id)
 
     # It should now give an error on lookup.

@@ -1,5 +1,5 @@
 import pytest
-from literature.crud.reference_crud import create, show, patch, destroy
+from literature.crud.reference_crud import create, show, patch, destroy, show_changesets
 from sqlalchemy import create_engine
 from sqlalchemy import MetaData
 
@@ -29,6 +29,7 @@ if "literature-test" not in SQLALCHEMY_DATABASE_URL:
 db.execute('delete from cross_references')
 db.execute('delete from authors')
 db.execute('delete from editors')
+db.execute('delete from notes')
 db.execute('delete from "references"')
 db.execute('delete from resources')
 
@@ -40,7 +41,7 @@ def test_get_bad_reference():
 
 
 def test_create_reference():
-    reference = ReferenceSchemaPost(title="Bob", category="thesis", abstract="3")
+    reference = ReferenceSchemaPost(title="Bob", category="thesis", abstract="3", language="MadeUp")
     res = create(db, reference)
     assert res == 'AGR:AGR-Reference-0000000001'
 
@@ -83,12 +84,12 @@ def test_update_reference():
 
     # patch docs says it needs a ReferenceSchemaUpdate
     # but does not work with this.
-    with pytest.raises(AttributeError):
-        update_schema = ReferenceSchemaUpdate(title="Changed", category="thesis")
-        patch(db, 'AGR:AGR-Reference-0000000001', update_schema)
+    # with pytest.raises(AttributeError):
+    update_schema = ReferenceSchemaUpdate(title="new title", category="book", language="New")
+    patch(db, 'AGR:AGR-Reference-0000000001', update_schema)
 
-    res = patch(db, 'AGR:AGR-Reference-0000000001', {'title': "new title"})
-    assert res == {'message': 'updated'}
+    # res = patch(db, 'AGR:AGR-Reference-0000000001', {'title': "new title", 'category': "book"})
+    # assert res == {'message': 'updated'}
 
     # fetch the new record.
     res = show(db, 'AGR:AGR-Reference-0000000001')
@@ -96,11 +97,35 @@ def test_update_reference():
     # do we have the new title?
     assert res['title'] == "new title"
 
-    # abstract should still be there
-    assert res['abstract'] == '3'
+    # do we have the new title?
+    assert res['category'] == "book"
+
+    # language changed
+    assert res['language'] == "New"
+
+    # NOTE: abstract set to None as it was not in the update and
+    #       schemaupdate sets all items not listed to default values.
+    #       In this case abstract is None
+    assert res['abstract'] is None
 
 
-def test_delete_Resource():
+def test_changesets():
+    res = show_changesets(db, 'AGR:AGR-Reference-0000000001')
+
+    # title            : None -> bob -> 'new title'
+    # catergory        : None -> thesis -> book
+    for transaction in res:
+        print(transaction)
+        if not transaction['changeset']['title'][0]:
+            assert transaction['changeset']['reference_id'][1] == 1
+            assert transaction['changeset']['title'][1] == "Bob"
+            assert transaction['changeset']['category'][1] == "thesis"
+        else:
+            assert transaction['changeset']['title'][1] == "new title"
+            assert transaction['changeset']['category'][1] == "book"
+
+
+def test_delete_Reference():
     destroy(db, 'AGR:AGR-Reference-0000000002')
 
     # It should now give an error on lookup.

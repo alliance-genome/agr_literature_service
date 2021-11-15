@@ -10,7 +10,7 @@ from literature.schemas import NoteSchemaUpdate
 from literature.models import ReferenceModel
 from literature.models import ResourceModel
 from literature.models import NoteModel
-from literature.crud.reference_resource import add, stripout, create_obj
+from literature.crud.reference_resource import create_obj
 
 
 def create(db: Session, note: NoteSchemaPost) -> int:
@@ -41,10 +41,11 @@ def patch(db: Session, note_id: int, note_update: NoteSchemaUpdate):
     if not note_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Note with note_id {note_id} not found")
-    res_ref = stripout(db, note_update)
-    add(res_ref, note_db_obj)
 
     for field, value in note_update.dict().items():
+        if field == 'reference_curie':
+            field = 'reference'
+            value = db.query(ReferenceModel).filter(ReferenceModel.curie == value).first()
         setattr(note_db_obj, field, value)
 
     db.commit()

@@ -3,8 +3,6 @@ from typing import List
 from pydantic import BaseModel
 from literature.schemas import ResourceSchemaShow
 
-from literature.schemas.resource_schemas import ResourceSchemaShow
-
 
 class UserSchema(BaseModel):
     name: str

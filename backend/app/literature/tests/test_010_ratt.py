@@ -6,7 +6,10 @@ from sqlalchemy import MetaData
 from literature.models import (
     Base, ReferenceAutomatedTermTagModel
 )
-from literature.schemas import ReferenceAutomatedTermTagSchemaPost
+from literature.schemas import (
+    ReferenceAutomatedTermTagSchemaPost,
+    ReferenceAutomatedTermTagSchemaPatch
+)
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 from sqlalchemy.orm import sessionmaker
 from fastapi import HTTPException
@@ -63,14 +66,15 @@ def test_update_ratt():
     xml = {'term': "term2",
            'datatype': 'datatype2',
            'automated_system': 'auto2',
-           'gibberish': 'you know it',
+           'ontology': "ont2",
            'confidence_score': 75.2,
            'reference_curie': "AGR:AGR-Reference-0000000003"}
-    res = patch(db, 1, xml)
+    schema = ReferenceAutomatedTermTagSchemaPatch(**xml)
+    res = patch(db, 1, schema)
     assert res == {'message': 'updated'}
 
     ratt = db.query(ReferenceAutomatedTermTagModel).\
-        filter(ReferenceAutomatedTermTagModel.ontology == "Ont1").one()
+        filter(ReferenceAutomatedTermTagModel.ontology == "ont2").one()
     assert ratt.reference.curie == "AGR:AGR-Reference-0000000003"
     assert ratt.datatype == "datatype2"
     assert ratt.term == 'term2'
