@@ -1,5 +1,4 @@
 from datetime import datetime
-import pytz
 from typing import Dict
 
 from sqlalchemy import Column

@@ -145,7 +145,7 @@ async def create_upload_file(curie: str,
                              user: OktaUser = db_user,
                              db: Session = db_session):
     set_global_user_id(db, user.id)
-    
+
     file_contents = bytes()
     # Check if file is in binary mode. read() will return bytes
     if "b" in file_obj.file.mode:
@@ -154,7 +154,7 @@ async def create_upload_file(curie: str,
         # file is in text mode. So convert read() to bytes
         contents = cast(str, await file_obj.read())
         file_contents = bytes(contents, "utf-8")
-    
+
     filename = file_obj.filename
     content_type = file_obj.content_type
 
