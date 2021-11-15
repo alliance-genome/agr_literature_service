@@ -90,7 +90,7 @@ class ReferenceSchemaUpdate(BaseModel):
     issue_name: Optional[str] = None
     issue_date: Optional[str] = None
     resource: Optional[str] = None
-    open_access: Optional[bool] = None
+    open_access: Optional[bool] = False
 
     @validator('title')
     def title_is_some(cls, v: str) -> str:

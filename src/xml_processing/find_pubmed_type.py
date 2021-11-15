@@ -24,7 +24,6 @@ from typing import Set, List
 
 # pipenv run python find_pubmed_type.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 
-
 pmids = []     # type: List
 
 
@@ -46,7 +45,6 @@ args = vars(parser.parse_args())
 # todo: save this in an env variable
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH', "")
-
 
 publication_type_set = set()     # type: Set
 comments_ref_type_set = set()     # type: Set

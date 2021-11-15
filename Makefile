@@ -23,8 +23,14 @@ build-app:
 run-flake8:
 	docker run --rm -v ${PWD}:/workdir -i ${REG}/agr_literature_dev:${TAG} /bin/bash -c "python3 -m flake8 ."
 
+run-local-flake8:
+	python3 -m flake8 .
+
 run-mypy:
 	docker run --rm -v ${PWD}:/workdir -i ${REG}/agr_literature_dev:${TAG} /bin/bash -c "mypy --config-file mypy.config ."
+
+run-local-mypy:
+	mypy --config-file mypy.config .
 
 run-dev-bash:
 	docker run --rm \
