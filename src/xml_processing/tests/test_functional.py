@@ -82,13 +82,14 @@ def test_load_references():
         #     break
         url = 'http://localhost:' + api_port + '/reference/' + agr
         logger.info("get AGR reference info from database %s", url)
+        # TODO
         # put this back when database works
-        # get_return = requests.get(url)
-        # db_entry = json.loads(get_return.text)
-        # # logger.info(db_entry)
-        # for check in agr_wanted[agr]:
-        #     test_result = check_test(db_entry, check)
-        #     logger.info("agr %s check %s result %s", agr, check, test_result)
+        get_return = requests.get(url)
+        db_entry = json.loads(get_return.text)
+        # logger.info(db_entry)
+        for check in agr_wanted[agr]:
+            test_result = check_test(db_entry, check)
+            logger.info("agr %s check %s result %s", agr, check, test_result)
 
 
 def erratum_check(agr_data):
@@ -346,7 +347,7 @@ if __name__ == "__main__":
     assert 1 == 1
 
     # run this once after data is loaded
-#     generate_cross_references_file('reference')
+    generate_cross_references_file('reference')
     test_load_references()
 
     logger.info("ending sort_dqm_json_reference_updates.py")
