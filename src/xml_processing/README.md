@@ -34,7 +34,7 @@
 - Connect to docker
   - docker run --rm --network=agr_literature_service_agr-literature -p 5432:5432 -v ${PWD}:/workdir -t -i 100225593120.dkr.ecr.us-east-1.amazonaws.com/agr_literature_dev:latest /bin/bash
   - cd /workdir/src/xml_processing/tests/
-- TODO Stuff after here hasn't been tested in docker because the database doesn't work 2021 11 14
+- TODO Stuff after here hasn't been tested in docker because we're not sure that's messing with the live database.  2021 11 15
   - Probably have to check XML_PATH and API_PORT
 - Load base data into database (generate inputs/ lists, pubmed_json/ , post to api/db)
   - ./sample_reference_populate_load.sh
@@ -45,4 +45,4 @@
   - DELETE FROM public.cross_references WHERE reference_id IS NOT NULL;
   - DELETE FROM public."authors" WHERE reference_id IS NOT NULL;
   - DELETE FROM public."references" WHERE reference_id IS NOT NULL;
-- TODO write checks on load data and update data, probably inject changes also
+- TODO make update changes, write checks on update data
