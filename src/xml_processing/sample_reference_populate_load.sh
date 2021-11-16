@@ -10,8 +10,6 @@ export XML_PATH=/home/azurebrd/git/dqm_updates/agr_literature_service/src/xml_pr
 # inside docker, tests run
 # export XML_PATH=/workdir/src/xml_processing/tests/
 
-# TODO  copy this to tests/ with -d tests/ instead of -d ./
-
 pipenv run python3 parse_dqm_json_reference.py -p -d ./ -f dqm_load_sample/ > log_parse_dqm_json_reference_load_pmid_list
 pipenv run python3 process_many_pmids_to_json.py -s -f inputs/alliance_pmids > log_process_many_pmids_to_json_load
 pipenv run python3 parse_dqm_json_reference.py -d ./ -f dqm_load_sample/ -m all > log_parse_dqm_json_reference_load_sanitize
