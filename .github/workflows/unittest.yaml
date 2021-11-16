@@ -20,7 +20,11 @@ jobs:
         env:
           aws-access-key-id: ${{ secrets.test }}
           aws-secret-access-key: ${{ secrets.test2 }}
-          aws-region: us-east-1        
+          bob: ${{ github.test }}
+          bob1: ${{ secrets.Test }}
+          bob2: ${{ secrets.TEST }}
+          bob3: ${{ secrets.test_env.Test }}
+          aws-region: us-east-1      
         run: |
           env
           echo '${{ secrets.test }}'
