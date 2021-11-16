@@ -9,6 +9,7 @@
 - Make sure API_PORT is pointing to correct database and XML_PATH are pointing to your processing directory
   - export API_PORT=4005
   - export XML_PATH=<your_processing_path>/tests/
+  - cd <your_processing_path>
 - Get dqm data into dqm_data/
   - pipenv run python3 get_dqm_data.py
 - Optional: edit  tests/inputs/sample_dqm_load.json  and  tests/inputs/sample_dqm_update.json  for different data
@@ -20,6 +21,8 @@
   - pipenv run python3 parse_dqm_json_reference.py -p -d ./ -f dqm_load_sample/ > log_parse_dqm_json_reference_load_pmid_list
 - Generate new pubmed_xml/
   - pipenv run python3 get_pubmed_xml.py -f inputs/alliance_pmids > log_get_pubmed_xml
+
+### This should be part of the testing, could probably be done within docker, once we trust that docker actions won't mess with the live database
 
 - Generate pubmed_json/
   - pipenv run python3 xml_to_json.py -f inputs/alliance_pmids > log_xml_to_json
