@@ -57,6 +57,7 @@ run-test-bash: build-env build-dev
 	-docker run -i --rm \
 		--network=agr_literature_service_agr-literature-test \
 	    -p 8080:8080 \
+		-e PYTHONPATH:/workdir/src/xml_processing/ \
 	    -v ${PWD}:/workdir \
 		${REG}/agr_literature_dev:${TAG} \
 		./run_tests.sh

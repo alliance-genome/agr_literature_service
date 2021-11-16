@@ -34,4 +34,5 @@ jobs:
           PSQL_HOST: agr-test-postgres
           PSQL_PORT: 5432
           PSQL_DATABASE: literature-test
+          PYTHONPATH: src/xml_processing/
         run: make run-test-bash
