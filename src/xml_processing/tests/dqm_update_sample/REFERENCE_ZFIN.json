@@ -17,6 +17,12 @@
                     "referenceId": "PMID:31188077"
                 },
                 {
+                    "firstName": "Julien",
+                    "lastName": "Philippe",
+                    "name": "Philippe,J.",
+                    "referenceId": "PMID:31188077"
+                },
+                {
                     "firstName": "Weibin",
                     "lastName": "Zhou",
                     "name": "Zhou,W.",
@@ -26,12 +32,6 @@
                     "firstName": "Mi-Sun",
                     "lastName": "Lee",
                     "name": "Lee,M.",
-                    "referenceId": "PMID:31188077"
-                },
-                {
-                    "firstName": "Julien",
-                    "lastName": "Philippe",
-                    "name": "Philippe,J.",
                     "referenceId": "PMID:31188077"
                 }
             ],
@@ -188,27 +188,9 @@
             "allianceCategory": "Research Article",
             "authors": [
                 {
-                    "firstName": "Karol",
-                    "lastName": "Granados",
-                    "name": "Granados,K.",
-                    "referenceId": "PMID:30110134"
-                },
-                {
-                    "firstName": "Daniel",
-                    "lastName": "Novak",
-                    "name": "Novak,D.",
-                    "referenceId": "PMID:30110134"
-                },
-                {
-                    "firstName": "Jochen",
-                    "lastName": "Utikal",
-                    "name": "Utikal,J.",
-                    "referenceId": "PMID:30110134"
-                },
-                {
-                    "firstName": "Qian",
-                    "lastName": "Sun",
-                    "name": "Sun,Q.",
+                    "firstName": "Huizi",
+                    "lastName": "Wu",
+                    "name": "Wu,H.",
                     "referenceId": "PMID:30110134"
                 },
                 {
@@ -218,21 +200,39 @@
                     "referenceId": "PMID:30110134"
                 },
                 {
+                    "firstName": "Lionel",
+                    "lastName": "Larrib\u00e8re",
+                    "name": "Larrib\u00e8re,L.",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "firstName": "Jochen",
+                    "lastName": "Utikal",
+                    "name": "Utikal,J.",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "firstName": "Daniel",
+                    "lastName": "Novak",
+                    "name": "Novak,D.",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "firstName": "Karol",
+                    "lastName": "Granados",
+                    "name": "Granados,K.",
+                    "referenceId": "PMID:30110134"
+                },
+                {
                     "firstName": "Viktor",
                     "lastName": "Umansky",
                     "name": "Umansky,V.",
                     "referenceId": "PMID:30110134"
                 },
                 {
-                    "firstName": "Huizi",
-                    "lastName": "Wu",
-                    "name": "Wu,H.",
-                    "referenceId": "PMID:30110134"
-                },
-                {
-                    "firstName": "Lionel",
-                    "lastName": "Larrib\u00e8re",
-                    "name": "Larrib\u00e8re,L.",
+                    "firstName": "Qian",
+                    "lastName": "Sun",
+                    "name": "Sun,Q.",
                     "referenceId": "PMID:30110134"
                 }
             ],
@@ -336,12 +336,6 @@
             "allianceCategory": "Internal Process Reference",
             "authors": [
                 {
-                    "firstName": "Michael S",
-                    "lastName": "Livstone",
-                    "name": "Livstone,M.",
-                    "referenceId": "PMID:21873635"
-                },
-                {
                     "firstName": "Suzanna E",
                     "lastName": "Lewis",
                     "name": "Lewis,S.",
@@ -357,6 +351,12 @@
                     "firstName": "Paul D",
                     "lastName": "Thomas",
                     "name": "Thomas,P.",
+                    "referenceId": "PMID:21873635"
+                },
+                {
+                    "firstName": "Michael S",
+                    "lastName": "Livstone",
+                    "name": "Livstone,M.",
                     "referenceId": "PMID:21873635"
                 }
             ],
@@ -420,9 +420,9 @@
             "allianceCategory": "Research Article",
             "authors": [
                 {
-                    "firstName": "Antonio Emidio",
-                    "lastName": "Fortunato",
-                    "name": "Fortunato,A.",
+                    "firstName": "Francesco",
+                    "lastName": "Aniello",
+                    "name": "Aniello,F.",
                     "referenceId": "PMID:31193955"
                 },
                 {
@@ -432,15 +432,9 @@
                     "referenceId": "PMID:31193955"
                 },
                 {
-                    "firstName": "Filomena",
-                    "lastName": "Ristoratore",
-                    "name": "Ristoratore,F.",
-                    "referenceId": "PMID:31193955"
-                },
-                {
-                    "firstName": "Takashi",
-                    "lastName": "Kondo",
-                    "name": "Kondo,T.",
+                    "firstName": "Alessandra",
+                    "lastName": "Gentile",
+                    "name": "Gentile,A.",
                     "referenceId": "PMID:31193955"
                 },
                 {
@@ -450,15 +444,15 @@
                     "referenceId": "PMID:31193955"
                 },
                 {
-                    "firstName": "Marcella",
-                    "lastName": "Fiengo",
-                    "name": "Fiengo,M.",
+                    "firstName": "Filomena",
+                    "lastName": "Ristoratore",
+                    "name": "Ristoratore,F.",
                     "referenceId": "PMID:31193955"
                 },
                 {
-                    "firstName": "Ugo",
-                    "lastName": "Coppola",
-                    "name": "Coppola,U.",
+                    "firstName": "Marcella",
+                    "lastName": "Fiengo",
+                    "name": "Fiengo,M.",
                     "referenceId": "PMID:31193955"
                 },
                 {
@@ -468,45 +462,9 @@
                     "referenceId": "PMID:31193955"
                 },
                 {
-                    "firstName": "Paolo",
-                    "lastName": "Sordino",
-                    "name": "Sordino,P.",
-                    "referenceId": "PMID:31193955"
-                },
-                {
-                    "firstName": "Raffaella",
-                    "lastName": "De Paolo",
-                    "name": "De Paolo,R.",
-                    "referenceId": "PMID:31193955"
-                },
-                {
-                    "firstName": "Francesco",
-                    "lastName": "Aniello",
-                    "name": "Aniello,F.",
-                    "referenceId": "PMID:31193955"
-                },
-                {
                     "firstName": "Denis",
                     "lastName": "Duboule",
                     "name": "Duboule,D.",
-                    "referenceId": "PMID:31193955"
-                },
-                {
-                    "firstName": "Alessandra",
-                    "lastName": "Gentile",
-                    "name": "Gentile,A.",
-                    "referenceId": "PMID:31193955"
-                },
-                {
-                    "firstName": "Fernanda",
-                    "lastName": "Langellotto",
-                    "name": "Langellotto,F.",
-                    "referenceId": "PMID:31193955"
-                },
-                {
-                    "firstName": "Aldo",
-                    "lastName": "Donizetti",
-                    "name": "Donizetti,A.",
                     "referenceId": "PMID:31193955"
                 },
                 {
@@ -516,21 +474,63 @@
                     "referenceId": "PMID:31193955"
                 },
                 {
-                    "firstName": "Lorella M T",
-                    "lastName": "Canzoniero",
-                    "name": "Canzoniero,L.",
-                    "referenceId": "PMID:31193955"
-                },
-                {
                     "firstName": "Rita",
                     "lastName": "Marino",
                     "name": "Marino,R.",
                     "referenceId": "PMID:31193955"
                 },
                 {
+                    "firstName": "Takashi",
+                    "lastName": "Kondo",
+                    "name": "Kondo,T.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Lorella M T",
+                    "lastName": "Canzoniero",
+                    "name": "Canzoniero,L.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Aldo",
+                    "lastName": "Donizetti",
+                    "name": "Donizetti,A.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Fernanda",
+                    "lastName": "Langellotto",
+                    "name": "Langellotto,F.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Ugo",
+                    "lastName": "Coppola",
+                    "name": "Coppola,U.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
                     "firstName": "Stephen W",
                     "lastName": "Wilson",
                     "name": "Wilson,S.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Raffaella",
+                    "lastName": "De Paolo",
+                    "name": "De Paolo,R.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Antonio Emidio",
+                    "lastName": "Fortunato",
+                    "name": "Fortunato,A.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Paolo",
+                    "lastName": "Sordino",
+                    "name": "Sordino,P.",
                     "referenceId": "PMID:31193955"
                 }
             ],
@@ -582,6 +582,12 @@
             "allianceCategory": "Research Article",
             "authors": [
                 {
+                    "firstName": "Jue",
+                    "lastName": "Wang",
+                    "name": "Wang,J.",
+                    "referenceId": "PMID:30003105"
+                },
+                {
                     "firstName": "Zhen",
                     "lastName": "Shang",
                     "name": "Shang,Z.",
@@ -594,33 +600,21 @@
                     "referenceId": "PMID:30003105"
                 },
                 {
-                    "firstName": "Lei",
-                    "lastName": "Zhao",
-                    "name": "Zhao,L.",
-                    "referenceId": "PMID:30003105"
-                },
-                {
-                    "firstName": "Dan",
-                    "lastName": "Li",
-                    "name": "Li,D.",
-                    "referenceId": "PMID:30003105"
-                },
-                {
-                    "firstName": "Xing",
-                    "lastName": "Chen",
-                    "name": "Chen,X.",
-                    "referenceId": "PMID:30003105"
-                },
-                {
                     "firstName": "Jiaqi",
                     "lastName": "Tan",
                     "name": "Tan,J.",
                     "referenceId": "PMID:30003105"
                 },
                 {
-                    "firstName": "Jue",
+                    "firstName": "Lei",
+                    "lastName": "Zhao",
+                    "name": "Zhao,L.",
+                    "referenceId": "PMID:30003105"
+                },
+                {
+                    "firstName": "Gaoxiang",
                     "lastName": "Wang",
-                    "name": "Wang,J.",
+                    "name": "Wang,G.",
                     "referenceId": "PMID:30003105"
                 },
                 {
@@ -630,15 +624,21 @@
                     "referenceId": "PMID:30003105"
                 },
                 {
+                    "firstName": "Xing",
+                    "lastName": "Chen",
+                    "name": "Chen,X.",
+                    "referenceId": "PMID:30003105"
+                },
+                {
                     "firstName": "Jianfeng",
                     "lastName": "Zhou",
                     "name": "Zhou,J.",
                     "referenceId": "PMID:30003105"
                 },
                 {
-                    "firstName": "Gaoxiang",
-                    "lastName": "Wang",
-                    "name": "Wang,G.",
+                    "firstName": "Dan",
+                    "lastName": "Li",
+                    "name": "Li,D.",
                     "referenceId": "PMID:30003105"
                 }
             ],
@@ -764,6 +764,6 @@
             },
             "type": "curated"
         },
-        "dateProduced": "2021-11-03T22:31:01-07:00"
+        "dateProduced": "2021-11-08T03:41:54-08:00"
     }
 }

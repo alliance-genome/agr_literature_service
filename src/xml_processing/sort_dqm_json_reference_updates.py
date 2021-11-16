@@ -188,21 +188,21 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     # live_changes = False
     live_changes = True
 
-#     # test data structure content
-#     for prefix in xref_ref:
-#         for identifier in xref_ref[prefix]:
-#             agr = xref_ref[prefix][identifier]
-#             logger.info("agr %s prefix %s ident %s", agr, prefix, identifier)
-#
-#     for agr in ref_xref_valid:
-#         for prefix in ref_xref_valid[agr]:
-#             for identifier in ref_xref_valid[agr][prefix]:
-#                 logger.info("agr %s valid prefix %s ident %s", agr, prefix, identifier)
-#
-#     for agr in ref_xref_obsolete:
-#         for prefix in ref_xref_obsolete[agr]:
-#             for identifier in ref_xref_obsolete[agr][prefix]:
-#                 logger.info("agr %s obsolete prefix %s ident %s", agr, prefix, identifier)
+    # test data structure content
+    # for prefix in xref_ref:
+    #     for identifier in xref_ref[prefix]:
+    #         agr = xref_ref[prefix][identifier]
+    #         logger.info("agr %s prefix %s ident %s", agr, prefix, identifier)
+    #
+    # for agr in ref_xref_valid:
+    #     for prefix in ref_xref_valid[agr]:
+    #         for identifier in ref_xref_valid[agr][prefix]:
+    #             logger.info("agr %s valid prefix %s ident %s", agr, prefix, identifier)
+    #
+    # for agr in ref_xref_obsolete:
+    #     for prefix in ref_xref_obsolete[agr]:
+    #         for identifier in ref_xref_obsolete[agr][prefix]:
+    #             logger.info("agr %s obsolete prefix %s ident %s", agr, prefix, identifier)
 
     # input_file = 'sanitized'	# set to sanitized to check after posting references to database, that all references are accounted for
     input_file = 'dqm'
@@ -636,7 +636,7 @@ def update_mod_reference_types(live_changes, headers, agr, dqm_entry, db_entry):
                 new_entry["source"] = mod
                 new_entry["reference_curie"] = agr
                 headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
-                # # process_post_tuple = process_post('POST', url, headers, new_entry, agr, mapping_fh, error_fh)    # noqa: F841
+                # process_post_tuple = process_post('POST', url, headers, new_entry, agr, mapping_fh, error_fh)    # noqa: F841
         if mod in db_mrt_data:
             lc_db_dict = {x.lower(): x for x in db_mrt_data[mod]}
             lc_db = set(lc_db_dict.keys())
@@ -650,7 +650,7 @@ def update_mod_reference_types(live_changes, headers, agr, dqm_entry, db_entry):
                     logger.info("remove %s %s from %s via %s", mod, db_mrt, agr, mod_reference_type_id)
                     url = 'http://localhost:' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
                     headers = generic_api_delete(live_changes, url, headers, None, agr, None, None)
-                    # # process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
+                    # process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
     return headers
 
 

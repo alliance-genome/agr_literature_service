@@ -1,16 +1,12 @@
 from os import path
 from os import environ
 import json
-# import requests
 import argparse
 import logging
 import logging.config
 
 from helper_post_to_api import generate_headers, get_authentication_token, process_api_request
 from helper_file_processing import generate_cross_references_file, load_ref_xref
-
-# from sanitize_pubmed_json import sanitize_pubmed_json_list
-# from post_reference_to_api import post_references
 
 # pipenv run python post_comments_corrections_to_api.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/all_pmids > log_post_comments_corrections_to_api
 # enter a file of pmids as an argument, sanitize, post to api
@@ -40,17 +36,8 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
     logger.info(pmids_wanted)
 
     api_port = environ.get('API_PORT')
-    # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
     base_path = environ.get('XML_PATH')
 
-    # okta_file = base_path + 'okta_token'
-    # token = ''
-    # if path.isfile(okta_file):
-    #     with open(okta_file, 'r') as okta_fh:
-    #         token = okta_fh.read().replace("\n", "")
-    #         okta_fh.close
-    # else:
-    #     token = update_token()
     token = get_authentication_token()
     headers = generate_headers(token)
 
@@ -164,13 +151,6 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
             else:
                 logger.info("api error %s primary pmid %s message %s", str(response_status_code), primary_pmid, response_dict['detail'])
 
-            # get rid of this if process_api_request works on a full run
-            # post_return = requests.post(url, headers=headers, json=new_entry)
-            # # response_dict = json.loads(post_return.text)
-            # # print(primary_curie + "\t" + secondary_curie + "\ttext " + str(post_return.text))
-            # # print(primary_curie + "\t" + secondary_curie + "\tstatus_code " + str(post_return.status_code))
-            # logger.info("%s\t%s\t%s\t%s\t%s\ttext %s\tstatus_code %s", primary_pmid, primary_curie, secondary_pmid, secondary_curie, com_cor_type, str(post_return.text), str(post_return.status_code))
-
 
 if __name__ == "__main__":
     """
@@ -187,11 +167,17 @@ if __name__ == "__main__":
 
     elif args['file']:
         logger.info("Processing file input from %s", args['file'])
-        with open(args['file'], 'r') as fp:
-            pmid = fp.readline()
-            while pmid:
-                pmids_wanted.append(pmid.rstrip())
+        base_path = environ.get('XML_PATH')
+        filename = base_path + args['file']
+        try:
+            with open(filename, 'r') as fp:
                 pmid = fp.readline()
+                while pmid:
+                    pmids_wanted.append(pmid.rstrip())
+                    pmid = fp.readline()
+                fp.close()
+        except IOError:
+            logger.info("No input file at %s", filename)
 
     else:
         logger.info("Must enter a PMID through command line")
