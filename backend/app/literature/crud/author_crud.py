@@ -17,12 +17,12 @@ from literature.crud.reference_resource import add, stripout, create_obj
 def create(db: Session, author: AuthorSchemaPost) -> AuthorModel:
     author_data = jsonable_encoder(author)
 
-    orcid = None
+    orcid = None  # type: ReferenceModel
     if 'orcid' in author_data:
         orcid = author_data['orcid']
         del author_data['orcid']
 
-    author_model = create_obj(db, AuthorModel, author_data)# type: ReferenceModel
+    author_model=create_obj(db, AuthorModel, author_data) # type: ReferenceModel
     if orcid:
         cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
         if not cross_reference_obj:
