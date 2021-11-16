@@ -16,6 +16,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/app/requirements.txt
           pip install -r backend/app/requirements.dev.txt
+      - name: deebug stuff delete later
+        run: |
+          env
+          echo '${{ github.test }}'
       - name: AWS credentials configuration
         uses: aws-actions/configure-aws-credentials@v1
         with:
