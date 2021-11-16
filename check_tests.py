@@ -10,4 +10,6 @@ if not okay:
     for line in lines:
         print(line)
     exit(-1)
-exit(0)
+else:
+    print("pytest successful. No FAILED found in output")
+    exit(0)
