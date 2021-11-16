@@ -12,133 +12,156 @@
   ],
   "data": [
     {
-      "pmid": "PMID:21290765",
-      "modId": ["WB:WBPaper00040000"],
-      "check": ["BookDocument", "ArticleTitle"]
-    }, {
-      "pmid": "PMID:33054145",
-      "modId": ["SGD:S000298041"],
-      "check": ["BookTitle"]
-    }, {
-      "pmid": "PMID:21413221",
-      "modId": ["WB:WBPaper00004071"],
-      "check": ["BookTitle"]
-    }, {
-      "pmid": "PMID:28308877",
-      "modId": ["FB:FBrf0020888"],
-      "check": ["VernacularTitle"]
-    }, {
-      "pmid": "PMID:28304499",
-      "modId": ["FB:FBrf0019024"],
-      "check": ["VernacularTitle"]
-    }, {
-      "pmid": "PMID:27899353",
-      "modId": ["RGD:11570444"],
-      "check": ["CollectiveName"]
-    }, {
-      "pmid": "PMID:30979869",
-      "modId": ["MGI:6305446"],
-      "check": ["CollectiveName"]
-    }, {
-      "pmid": "PMID:30003105",
-      "modId": ["ZFIN:ZDB-PUB-180714-6"],
-      "check": ["ORCID", "AffiliationInfo"]
-    }, {
-      "pmid": "PMID:30002370",
-      "modId": ["SGD:S000217483"],
-      "check": ["ORCID", "AffiliationInfo"]
-    }, {
-      "pmid": "PMID:20301347",
-      "modId": ["RGD:11352983"],
-      "check": ["PMID"]
-    }, {
-      "pmid": "PMID:21413225",
-      "modId": ["WB:WBPaper00002666"],
-      "check": ["PMID"]
-    }, {
-      "pmid": "PMID:30110134",
-      "modId": ["ZFIN:ZDB-PUB-180816-15"],
-      "check": ["Keywords"]
-    }, {
-      "pmid": "PMID:31188077",
-      "modId": ["ZFIN:ZDB-PUB-190613-8"],
-      "check": ["Keywords"]
-    }, {
-      "pmid": "PMID:21873635",
-      "modId": ["FB:FBrf0239784", "MGI:6201960", "RGD:13792537", "SGD:S000246339", "WB:WBPaper00046480", "ZFIN:ZDB-PUB-110330-1"],
-      "check": ["AggregateMods"]
-    }, {
       "pmid": "PMID:31193955",
       "modId": ["ZFIN:ZDB-PUB-190614-11"],
       "doi": "DOI:10.1016/j.gene.2019.100011",
-      "check": ["DOI"]
+      "update_check": {
+        "DOI": "DOI:10.1016/j.gene.2019.100011",
+        "doi_conflict": "DOI:10.1016/j.gene.2019.100011"
+      }
     }, {
       "pmid": "PMID:34530988",
       "modId": ["ZFIN:ZDB-PUB-210918-21"],
       "doi": "DOI:10.1016/j.gene.2019.100011",
-      "check": ["DOI"]
+      "update_check": {
+        "doi_conflict": "DOI:10.1016/j.gene.2019.100011"
+      }
+    }, {
+      "modId": ["WB:WBPaper00000003"],
+      "update_check": {
+        "title": "A new title"
+      }
+    }
+  ],
+  "load_data": [
+    {
+      "modId": ["WB:WBPaper00000003"],
+      "update_check": ["no_pmid"]
+    }, {
+      "modId": ["WB:WBPaper00000005"],
+      "update_check": ["no_pmid"]
+    }, {
+      "modId": ["WB:WBPaper00000006"],
+      "update_check": ["no_pmid"]
+    }, {
+      "modId": ["WB:WBPaper00000007"],
+      "update_check": ["no_pmid"]
+    }, {
+      "modId": ["WB:WBPaper00000010"],
+      "update_check": ["no_pmid"]
+    }, {
+      "modId": ["WB:WBPaper00000011"],
+      "update_check": ["no_pmid"]
+    }, {
+      "modId": ["WB:WBPaper00000015"],
+      "update_check": ["no_pmid"]
+    }, {
+      "modId": ["WB:WBPaper00000016"],
+      "update_check": ["no_pmid"]
+    }, {
+      "pmid": "PMID:21290765",
+      "modId": ["WB:WBPaper00040000"],
+      "update_check": ["BookDocument", "ArticleTitle"]
+    }, {
+      "pmid": "PMID:33054145",
+      "modId": ["SGD:S000298041"],
+      "update_check": ["BookTitle"]
+    }, {
+      "pmid": "PMID:21413221",
+      "modId": ["WB:WBPaper00004071"],
+      "update_check": ["BookTitle"]
+    }, {
+      "pmid": "PMID:28308877",
+      "modId": ["FB:FBrf0020888"],
+      "update_check": ["VernacularTitle"]
+    }, {
+      "pmid": "PMID:28304499",
+      "modId": ["FB:FBrf0019024"],
+      "update_check": ["VernacularTitle"]
+    }, {
+      "pmid": "PMID:27899353",
+      "modId": ["RGD:11570444"],
+      "update_check": ["CollectiveName"]
+    }, {
+      "pmid": "PMID:30979869",
+      "modId": ["MGI:6305446"],
+      "update_check": ["CollectiveName"]
+    }, {
+      "pmid": "PMID:30003105",
+      "modId": ["ZFIN:ZDB-PUB-180714-6"],
+      "update_check": ["ORCID", "AffiliationInfo"]
+    }, {
+      "pmid": "PMID:30002370",
+      "modId": ["SGD:S000217483"],
+      "update_check": ["ORCID", "AffiliationInfo"]
+    }, {
+      "pmid": "PMID:20301347",
+      "modId": ["RGD:11352983"],
+      "update_check": ["PMID"]
+    }, {
+      "pmid": "PMID:21413225",
+      "modId": ["WB:WBPaper00002666"],
+      "update_check": ["PMID"]
+    }, {
+      "pmid": "PMID:30110134",
+      "modId": ["ZFIN:ZDB-PUB-180816-15"],
+      "update_check": ["Keywords"]
+    }, {
+      "pmid": "PMID:31188077",
+      "modId": ["ZFIN:ZDB-PUB-190613-8"],
+      "update_check": ["Keywords"]
+    }, {
+      "pmid": "PMID:21873635",
+      "modId": ["FB:FBrf0239784", "MGI:6201960", "RGD:13792537", "SGD:S000246339", "WB:WBPaper00046480", "ZFIN:ZDB-PUB-110330-1"],
+      "update_check": ["AggregateMods"]
+    }, {
+      "pmid": "PMID:31193955",
+      "modId": ["ZFIN:ZDB-PUB-190614-11"],
+      "doi": "DOI:10.1016/j.gene.2019.100011",
+      "update_check": ["DOI"]
+    }, {
+      "pmid": "PMID:34530988",
+      "modId": ["ZFIN:ZDB-PUB-210918-21"],
+      "doi": "DOI:10.1016/j.gene.2019.100011",
+      "update_check": ["DOI"]
     }, {
       "pmid": "PMID:10206683",
       "modId": ["RGD:11526447"],
-      "check": ["html_doi", "html_abstract"]
-    }, {
-      "modId": ["WB:WBPaper00000003"],
-      "check": ["no_pmid"]
-    }, {
-      "modId": ["WB:WBPaper00000005"],
-      "check": ["no_pmid"]
-    }, {
-      "modId": ["WB:WBPaper00000006"],
-      "check": ["no_pmid"]
-    }, {
-      "modId": ["WB:WBPaper00000007"],
-      "check": ["no_pmid"]
-    }, {
-      "modId": ["WB:WBPaper00000010"],
-      "check": ["no_pmid"]
-    }, {
-      "modId": ["WB:WBPaper00000011"],
-      "check": ["no_pmid"]
-    }, {
-      "modId": ["WB:WBPaper00000015"],
-      "check": ["no_pmid"]
-    }, {
-      "modId": ["WB:WBPaper00000016"],
-      "check": ["no_pmid"]
+      "update_check": ["html_doi", "html_abstract"]
     }, {
       "modId": ["ZFIN:ZDB-PUB-040528-2"],
-      "check": ["no_pmid"]
+      "update_check": ["no_pmid"]
     }, {
       "modId": ["ZFIN:ZDB-PUB-050216-15"],
-      "check": ["no_pmid"]
+      "update_check": ["no_pmid"]
     }, {
       "modId": ["SGD:S000182237"],
-      "check": ["no_pmid"]
+      "update_check": ["no_pmid"]
     }, {
       "modId": ["SGD:S000128229"],
-      "check": ["no_pmid"]
+      "update_check": ["no_pmid"]
     }, {
       "modId": ["FB:FBrf0035013"],
-      "check": ["no_pmid"]
+      "update_check": ["no_pmid"]
     }, {
       "modId": ["FB:FBrf0035013"],
-      "check": ["no_pmid"]
+      "update_check": ["no_pmid"]
     }, {
       "modId": ["RGD:10002756"],
-      "check": ["no_pmid"]
+      "update_check": ["no_pmid"]
     }, {
       "modId": ["RGD:10002786"],
-      "check": ["no_pmid"]
+      "update_check": ["no_pmid"]
     }, {
       "modId": ["MGI:48543"],
-      "check": ["no_pmid"]
+      "update_check": ["no_pmid"]
     }, {
       "modId": ["MGI:48554"],
-      "check": ["no_pmid"]
+      "update_check": ["no_pmid"]
     }, {
       "pmid": "PMID:2",
       "modId": ["RGD:1303381"],
-      "check": ["has_erratum"]
+      "update_check": ["has_erratum"]
     }
   ]
 }

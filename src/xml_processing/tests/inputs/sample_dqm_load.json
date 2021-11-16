@@ -14,128 +14,203 @@
     {
       "pmid": "PMID:21290765",
       "modId": ["WB:WBPaper00040000"],
-      "check": ["BookDocument", "ArticleTitle"]
+      "load_check": {
+        "BookDocument": "book",
+        "ArticleTitle": "Mechanotransduction in the Nematode <i>Caenorhabditis elegans</i>"
+      }
     }, {
       "pmid": "PMID:33054145",
       "modId": ["SGD:S000298041"],
-      "check": ["BookTitle"]
+      "load_check": {
+        "BookTitle": "FAQ: If the Yeast Ain’t Happy, Ain’t Nobody Happy: The Microbiology of Beer"
+      }
     }, {
       "pmid": "PMID:21413221",
       "modId": ["WB:WBPaper00004071"],
-      "check": ["BookTitle"]
+      "load_check": {
+        "BookTitle": "<i>C. elegans</i> II"
+      }
     }, {
       "pmid": "PMID:28308877",
       "modId": ["FB:FBrf0020888"],
-      "check": ["VernacularTitle"]
+      "load_check": {
+        "VernacularTitle": "Geschlechtsbedingte Unterschiede bei Tagesrhythmen von Insekten."
+      }
     }, {
       "pmid": "PMID:28304499",
       "modId": ["FB:FBrf0019024"],
-      "check": ["VernacularTitle"]
+      "load_check": {
+        "VernacularTitle": "Embryonale Entwicklungsstörungen bei Defizienz und Tetraploidie des 2. Chromosoms vonDrosophila melanogaster."
+      }
     }, {
       "pmid": "PMID:27899353",
       "modId": ["RGD:11570444"],
-      "check": ["CollectiveName"]
+      "load_check": {
+        "CollectiveName": "Group of HGNC consultants for KAL1 nomenclature"
+      }
     }, {
       "pmid": "PMID:30979869",
       "modId": ["MGI:6305446"],
-      "check": ["CollectiveName"]
+      "load_check": {
+        "CollectiveName": "UK10K Consortium"
+      }
     }, {
       "pmid": "PMID:30003105",
       "modId": ["ZFIN:ZDB-PUB-180714-6"],
-      "check": ["ORCID", "AffiliationInfo"]
+      "load_check": {
+        "ORCID": "ORCID:0000-0002-1756-0560",
+        "AffiliationInfo": "Department of Hematology, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China."
+      }
     }, {
       "pmid": "PMID:30002370",
       "modId": ["SGD:S000217483"],
-      "check": ["ORCID", "AffiliationInfo"]
+      "load_check": {
+        "ORCID": "ORCID:0000-0003-0416-374X",
+        "AffiliationInfo": "State Key Laboratory of Mycology, Institute of Microbiology, Chinese Academy of Sciences, Beijing, 100101, China."
+      }
     }, {
       "pmid": "PMID:20301347",
       "modId": ["RGD:11352983"],
-      "check": ["PMID"]
+      "load_check": {
+        "PMID": "PMID:20301347"
+      }
     }, {
       "pmid": "PMID:21413225",
       "modId": ["WB:WBPaper00002666"],
-      "check": ["PMID"]
+      "load_check": {
+        "PMID": "PMID:21413225"
+      }
     }, {
       "pmid": "PMID:30110134",
       "modId": ["ZFIN:ZDB-PUB-180816-15"],
-      "check": ["Keywords"]
+      "load_check": {
+        "Keywords": "FOXD1"
+      }
     }, {
       "pmid": "PMID:31188077",
       "modId": ["ZFIN:ZDB-PUB-190613-8"],
-      "check": ["Keywords"]
+      "load_check": {
+        "Keywords": "otolith"
+      }
     }, {
       "pmid": "PMID:21873635",
       "modId": ["FB:FBrf0239784", "MGI:6201960", "RGD:13792537", "SGD:S000246339", "WB:WBPaper00046480", "ZFIN:ZDB-PUB-110330-1"],
-      "check": ["AggregateMods"]
+      "load_check": {
+        "AggregateMods": ["WB", "FB", "ZFIN", "SGD", "MGI", "RGD"]
+      }
     }, {
       "pmid": "PMID:31193955",
       "modId": ["ZFIN:ZDB-PUB-190614-11"],
       "doi": "DOI:10.1016/j.gene.2019.100011",
-      "check": ["DOI"]
+      "load_check": {
+        "DOI": "DOI:10.1016/j.gene.2019.100011",
+        "doi_conflict": "DOI:10.1016/j.gene.2019.100011"
+      }
     }, {
       "pmid": "PMID:34530988",
       "modId": ["ZFIN:ZDB-PUB-210918-21"],
       "doi": "DOI:10.1016/j.gene.2019.100011",
-      "check": ["DOI"]
+      "load_check": {
+        "doi_conflict": "DOI:10.1016/j.gene.2019.100011"
+      }
     }, {
       "pmid": "PMID:10206683",
       "modId": ["RGD:11526447"],
-      "check": ["html_doi", "html_abstract"]
+      "load_check": {
+        "html_doi": "DOI:10.1002/(SICI)1098-1004(1998)11:5<413::AID-HUMU16>3.0.CO;2-I",
+        "html_abstract": "We used the single strand conformation polymorphism (SSCP) method to investigate 13 apparently unrelated Spanish patients with familial hypercholesterolemia (FH) for mutations in the promoter region and the 18 exons and their flanking intron sequences of the low density lipoprotein (LDL) receptor gene. We found 16 aberrant SSCP patterns, and the underlying mutations were characterized by DNA sequencing. Five novel missense mutations, Q71E, C74G, C95R, C281Y and D679E, and one nonsense mutation, Q133X, were identified. We also found six missense mutations, S156L, D200Y, D200G, E256K, T413K and C646Y, and one stop codon mutation, W(-18)X, that were previously described in patients from other populations. A new frameshift mutation, 2085del19, was found in one patient. We also identified three splicing mutations; two of them are novel mutations, 1706-10G-&gt;A and 2390-1G-&gt;A, and the other one has been reported recently, 313+1G-&gt;C. Four patients were found to carry two different mutations in the same allele: Q71E and 313+1G-&gt;C; C95R and D679E; W(-18)X and E256K, and C281Y and 1706-10G-&gt;A. Our results demonstrate that there is a broad spectrum of mutations in the LDL receptor gene in the Spanish population."
+      }
     }, {
       "modId": ["WB:WBPaper00000003"],
-      "check": ["no_pmid"]
+      "load_check": {
+        "no_pmid": "no_pmid"
+      }
     }, {
       "modId": ["WB:WBPaper00000005"],
-      "check": ["no_pmid"]
+      "load_check": {
+        "no_pmid": "no_pmid"
+      }
     }, {
       "modId": ["WB:WBPaper00000006"],
-      "check": ["no_pmid"]
+      "load_check": {
+        "no_pmid": "no_pmid"
+      }
     }, {
       "modId": ["WB:WBPaper00000007"],
-      "check": ["no_pmid"]
+      "load_check": {
+        "no_pmid": "no_pmid"
+      }
     }, {
       "modId": ["WB:WBPaper00000010"],
-      "check": ["no_pmid"]
+      "load_check": {
+        "no_pmid": "no_pmid"
+      }
     }, {
       "modId": ["WB:WBPaper00000011"],
-      "check": ["no_pmid"]
+      "load_check": {
+        "no_pmid": "no_pmid"
+      }
     }, {
       "modId": ["WB:WBPaper00000014"],
-      "check": ["no_pmid"]
+      "load_check": {
+        "no_pmid": "no_pmid"
+      }
     }, {
       "modId": ["ZFIN:ZDB-PUB-040528-2"],
-      "check": ["no_pmid"]
+      "load_check": {
+        "no_pmid": "no_pmid"
+      }
     }, {
       "modId": ["ZFIN:ZDB-PUB-050216-15"],
-      "check": ["no_pmid"]
+      "load_check": {
+        "no_pmid": "no_pmid"
+      }
     }, {
       "modId": ["SGD:S000182237"],
-      "check": ["no_pmid"]
+      "load_check": {
+        "no_pmid": "no_pmid"
+      }
     }, {
       "modId": ["SGD:S000128229"],
-      "check": ["no_pmid"]
+      "load_check": {
+        "no_pmid": "no_pmid"
+      }
     }, {
       "modId": ["FB:FBrf0035013"],
-      "check": ["no_pmid"]
+      "load_check": {
+        "no_pmid": "no_pmid"
+      }
     }, {
       "modId": ["FB:FBrf0035013"],
-      "check": ["no_pmid"]
+      "load_check": {
+        "no_pmid": "no_pmid"
+      }
     }, {
       "modId": ["RGD:10002756"],
-      "check": ["no_pmid"]
+      "load_check": {
+        "no_pmid": "no_pmid"
+      }
     }, {
       "modId": ["RGD:10002786"],
-      "check": ["no_pmid"]
+      "load_check": {
+        "no_pmid": "no_pmid"
+      }
     }, {
       "modId": ["MGI:48543"],
-      "check": ["no_pmid"]
+      "load_check": {
+        "no_pmid": "no_pmid"
+      }
     }, {
       "modId": ["MGI:48554"],
-      "check": ["no_pmid"]
+      "load_check": {
+        "no_pmid": "no_pmid"
+      }
     }, {
       "pmid": "PMID:2",
       "modId": ["RGD:1303381"],
-      "check": ["has_erratum"]
+      "load_check": {
+        "has_erratum": "PMID:8"
+      }
     }
   ]
 }
