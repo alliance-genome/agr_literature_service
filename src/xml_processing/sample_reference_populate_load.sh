@@ -18,3 +18,4 @@ pipenv run python3 parse_dqm_json_reference.py -d ./ -f dqm_load_sample/ -m all 
 pipenv run python3 parse_pubmed_json_reference.py -f inputs/pubmed_only_pmids > log_parse_pubmed_json_reference_load
 
 pipenv run python3 post_reference_to_api.py > log_post_reference_to_api_load         # 16 seconds
+pipenv run python3 post_comments_corrections_to_api.py -f inputs/all_pmids > log_post_comments_corrections_to_api_load

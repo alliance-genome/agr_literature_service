@@ -1,5 +1,5 @@
 from os import path
-# from os import environ
+from os import environ
 import argparse
 import logging
 import logging.config
@@ -38,11 +38,17 @@ if __name__ == "__main__":
 
     elif args['file']:
         logger.info("Processing file input from %s", args['file'])
-        with open(args['file'], 'r') as fp:
-            pmid = fp.readline()
-            while pmid:
-                pmids_wanted.append(pmid.rstrip())
+        base_path = environ.get('XML_PATH')
+        filename = base_path + args['file']
+        try:
+            with open(filename, 'r') as fp:
                 pmid = fp.readline()
+                while pmid:
+                    pmids_wanted.append(pmid.rstrip())
+                    pmid = fp.readline()
+                fp.close()
+        except IOError:
+            logger.info("No input file at %s", filename)
 
     else:
         logger.info("Must enter a PMID through command line")
