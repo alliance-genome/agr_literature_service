@@ -16,27 +16,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/app/requirements.txt
           pip install -r backend/app/requirements.dev.txt
-      - name: debug stuff delete later
-        env:
-          aws-access-key-id: ${{ secrets.test }}
-          aws-secret-access-key: ${{ secrets.test2 }}
-          bob: ${{ github.test2 }}
-          bob1: ${{ secrets.Test2 }}
-          bob2: ${{ secrets.TEST2 }}
-          bob3: ${{ secrets.test_env.Test2 }}
-          aws-region: us-east-1      
-        run: |
-          env
-          echo '${{ secrets.test }}'
       - name: AWS credentials configuration
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          aws-access-key-id: ${{ secrets.test }}
-          aws-secret-access-key: ${{ secrets.test2 }}
+          aws-access-key-id: ${{ secrets.aws_access_key_id }}
+          aws-secret-access-key: ${{ secrets.aws_secret_access_key }}
           aws-region: us-east-1
       - name: Amazon ECR login
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
-
       - name: run unit tests
+        env:
+          ENV_STATE: test
+          HOST: 0.0.0.0
+          PSQL_USERNAME: postgres
+          PSQL_PASSWORD: postgres
+          PSQL_HOST: agr-test-postgres
+          PSQL_PORT: 5432
+          PSQL_DATABASE: literature-test
         run: make run-test-bash
