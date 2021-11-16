@@ -34,9 +34,66 @@ logger = logging.getLogger(__name__)
 # pipenv run python test_functional.py
 
 
+def resolve_dqm_to_agr(entry, xref_ref):
+    """
+    Take a dqm entry and the database mappings of cross_references to reference curies, and return the agr curie for the dqm entry, and whether it was found in xref file.
+
+    :param entry:
+    :param xref_ref:
+    :return:
+    """
+
+    agr_found = False
+    agr = ''
+    if 'pmid' in entry:
+        prefix, identifier, separator = split_identifier(entry['pmid'])
+        if prefix in xref_ref:
+            if identifier in xref_ref[prefix]:
+                agr_found = True
+                agr = xref_ref[prefix][identifier]
+    if not agr_found and 'modId' in entry:
+        for mod_id in entry['modId']:
+            if agr_found:
+                break
+            prefix, identifier, separator = split_identifier(mod_id)
+            if prefix in xref_ref:
+                if identifier in xref_ref[prefix]:
+                    agr_found = True
+                    agr = xref_ref[prefix][identifier]
+    return agr, agr_found
+
+
+def test_update_references():
+    """
+    Load cross_references from database, and sample_dqm_update.json mapping them to the agr reference curie and the types of checks each should have.  Query each reference from the database, and run the appropriate test.
+
+    """
+
+    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+    input_file = 'inputs/sample_dqm_update.json'
+    sample_json = load_sample_json(input_file)
+    if not sample_json:
+        return
+    agr_wanted = dict()
+    for entry in sample_json['data']:
+        agr, agr_found = resolve_dqm_to_agr(entry, xref_ref)
+        if not agr_found:
+            assert 'doi_conflict' in entry['update_check']
+            continue
+        if agr not in agr_wanted:
+            agr_wanted[agr] = dict()
+        if 'update_check' in entry:
+            for check in entry['update_check']:
+                # for debugging
+                # json_data = json.dumps(entry['update_check'], indent=4, sort_keys=True)
+                # logger.info(json_data)
+                agr_wanted[agr][check] = entry['update_check'][check]
+    # TODO update generate_dqm_json_test_set.py to inject changes based on inputs/sample_dqm_update.json ;  then check here
+
+
 def test_load_references():
     """
-    Load cross_references to database, and sample.json mapping them to the agr reference curie and the types of checks each should have.  Query each reference from the database, and run the appropriate test.
+    Load cross_references from database, and sample_dqm_load.json mapping them to the agr reference curie and the types of checks each should have.  Query each reference from the database, and run the appropriate test.
 
     """
 
@@ -47,23 +104,7 @@ def test_load_references():
         return
     agr_wanted = dict()
     for entry in sample_json['data']:
-        agr_found = False
-        agr = ''
-        if 'pmid' in entry:
-            prefix, identifier, separator = split_identifier(entry['pmid'])
-            if prefix in xref_ref:
-                if identifier in xref_ref[prefix]:
-                    agr_found = True
-                    agr = xref_ref[prefix][identifier]
-        if not agr_found and 'modId' in entry:
-            for mod_id in entry['modId']:
-                if agr_found:
-                    break
-                prefix, identifier, separator = split_identifier(mod_id)
-                if prefix in xref_ref:
-                    if identifier in xref_ref[prefix]:
-                        agr_found = True
-                        agr = xref_ref[prefix][identifier]
+        agr, agr_found = resolve_dqm_to_agr(entry, xref_ref)
         if not agr_found:
             assert 'doi_conflict' in entry['load_check']
             continue
@@ -387,6 +428,7 @@ if __name__ == "__main__":
 
     # run this once after data is loaded
     generate_cross_references_file('reference')
-    test_load_references()
+    # test_load_references()
+    test_update_references()
 
     logger.info("ending sort_dqm_json_reference_updates.py")
