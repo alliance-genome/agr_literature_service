@@ -45,7 +45,7 @@ def test_create_author():
     assert res
     # check db for author
     author = db.query(AuthorModel).filter(AuthorModel.name == "003_TCU").one()
-    assert author.first_name == "string"
+    assert author.first_name == "bad_example want to crash"
     assert author.reference.curie == "AGR:AGR-Reference-0000000001"
     assert author.orcid == "ORCID:1234-1234-1234-123X"
     assert author.orcid_cross_reference.curie == "ORCID:1234-1234-1234-123X"
