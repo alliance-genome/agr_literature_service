@@ -54,11 +54,13 @@ run-test-bash: build-env build-dev
 	docker-compose -f docker-compose-test.yml up -d
 	sleep 5
 	# Minus at start means ignore exit code for that line
-	-docker run -it --rm \
+	-docker run -i --rm \
 		--network=agr_literature_service_agr-literature-test \
 	    -p 8080:8080 \
+		-e PYTHONPATH:/workdir/src/xml_processing/ \
 	    -v ${PWD}:/workdir \
 		${REG}/agr_literature_dev:${TAG} \
-		./run_tests.sh
+		./run_tests.sh > pytest.out
 	docker-compose -f docker-compose-test.yml down
-
+    #doing here after shutdown of database 
+	python3 check_tests.py
