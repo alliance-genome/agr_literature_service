@@ -17,7 +17,7 @@ jobs:
           pip install -r backend/app/requirements.txt
           pip install -r backend/app/requirements.dev.txt
       - name: debug stuff delete later
-        with:
+        env:
           aws-access-key-id: ${{ secrets.test }}
           aws-secret-access-key: ${{ secrets.test2 }}
           aws-region: us-east-1        
