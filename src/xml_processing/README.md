@@ -37,6 +37,7 @@
 - Load base data into database (generate inputs/ lists, pubmed_json/ , post to api/db)
   - ./sample_reference_populate_load.sh
 - Process updates into database (generate xref file, do updates, run pipeline on new references)
+  - Note the populate new references pipeline uses the same inputs/* and pmids_by_mods, so they update.  Do not push them into github after run.
   - ./sample_reference_populate_update.sh
 - Clean up / archive logs, generated input files (todo)
 - Optionally reset database from pgadmin, or drop/re-create database

@@ -13,6 +13,7 @@ export XML_PATH=/home/azurebrd/git/dqm_updates/agr_literature_service/src/xml_pr
 pipenv run python3 get_datatypes_cross_references.py -d reference > log_get_datatypes_cross_references_01_reference
 pipenv run python3 sort_dqm_json_reference_updates.py -f dqm_update_sample/ -m WB > log_sort_dqm_json_reference_updates
 
+# Note the populate new references pipeline uses the same inputs/* and pmids_by_mods, so they update.  Do not push them into github after run.
 pipenv run python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -p > log_parse_dqm_json_reference_update_create_pmid_list
 pipenv run python3 get_pubmed_xml.py -f inputs/alliance_pmids > log_get_pubmed_xml_update_create
 pipenv run python3 xml_to_json.py -f inputs/alliance_pmids > log_xml_to_json_update_create
