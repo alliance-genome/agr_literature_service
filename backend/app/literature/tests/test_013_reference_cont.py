@@ -40,6 +40,7 @@ def test_reference_create_with_existing_items():
         "volume": "433",
         "open_access": True
     }
+
     assert 1 == 1
     # process the reference.
     reference = ReferenceSchemaPost(**full_xml)
