@@ -12,12 +12,16 @@
             "authors": [
                 {
                     "authorRank": 1,
-                    "name": "Abdul Kader N",
+                    "firstName": "Bobbie",
+                    "lastName": "Robertson",
+                    "name": "BOB",
                     "referenceId": "WB:WBPaper00000003"
                 },
                 {
                     "authorRank": 2,
-                    "name": "Brun J",
+                    "firstName": "Ronnie",
+                    "lastName": "Smith",
+                    "name": "RON",
                     "referenceId": "WB:WBPaper00000003"
                 }
             ],
@@ -41,7 +45,7 @@
                     "tagSource": "WB"
                 }
             ],
-            "title": "Induction, detection and isolation of temperature-sensitive lethal and/or sterile mutants in nematodes. I. The free-living nematode C. elegans.",
+            "title": "A new title",
             "volume": "1"
         },
         {
@@ -401,7 +405,7 @@
         {
             "MODReferenceTypes": [
                 {
-                    "referenceType": "Book",
+                    "referenceType": "Journal_article",
                     "source": "WB"
                 }
             ],

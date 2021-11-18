@@ -27,16 +27,64 @@
         "doi_conflict": "DOI:10.1016/j.gene.2019.100011"
       }
     }, {
+      "pmid": "PMID:21413221",
+      "modId": ["WB:WBPaper00004071"],
+      "update_check": {
+         "MODReferenceTypes": [
+           {
+             "referenceType": "Journal_article",
+             "source": "WB"
+           }
+         ]
+      },
+      "update_replace": {
+         "MODReferenceTypes": [
+           {
+             "referenceType": "Journal_article",
+             "source": "WB"
+           }
+         ]
+      }
+    }, {
       "modId": ["WB:WBPaper00000003"],
       "update_check": {
-        "title": "A new title"
+        "title": "A new title",
+        "authors": [
+          {
+            "authorRank": 1,
+            "name": "BOB",
+            "first_name": "Bobbie",
+            "last_name": "Robertson",
+            "referenceId": "WB:WBPaper00000003"
+          },
+          {
+            "authorRank": 2,
+            "name": "RON",
+            "first_name": "Ronnie",
+            "last_name": "Smith",
+            "referenceId": "WB:WBPaper00000003"
+          }
+        ]
+      },
+      "update_replace": {
+        "title": "A new title",
+        "authors": [
+          {
+            "authorRank": 1,
+            "name": "BOB",
+            "firstName": "Bobbie",
+            "lastName": "Robertson",
+            "referenceId": "WB:WBPaper00000003"
+          },
+          {
+            "authorRank": 2,
+            "name": "RON",
+            "firstName": "Ronnie",
+            "lastName": "Smith",
+            "referenceId": "WB:WBPaper00000003"
+          }
+        ]
       }
-    }
-  ],
-  "load_data": [
-    {
-      "modId": ["WB:WBPaper00000003"],
-      "update_check": ["no_pmid"]
     }, {
       "modId": ["WB:WBPaper00000005"],
       "update_check": ["no_pmid"]
@@ -65,10 +113,6 @@
     }, {
       "pmid": "PMID:33054145",
       "modId": ["SGD:S000298041"],
-      "update_check": ["BookTitle"]
-    }, {
-      "pmid": "PMID:21413221",
-      "modId": ["WB:WBPaper00004071"],
       "update_check": ["BookTitle"]
     }, {
       "pmid": "PMID:28308877",
@@ -114,16 +158,6 @@
       "pmid": "PMID:21873635",
       "modId": ["FB:FBrf0239784", "MGI:6201960", "RGD:13792537", "SGD:S000246339", "WB:WBPaper00046480", "ZFIN:ZDB-PUB-110330-1"],
       "update_check": ["AggregateMods"]
-    }, {
-      "pmid": "PMID:31193955",
-      "modId": ["ZFIN:ZDB-PUB-190614-11"],
-      "doi": "DOI:10.1016/j.gene.2019.100011",
-      "update_check": ["DOI"]
-    }, {
-      "pmid": "PMID:34530988",
-      "modId": ["ZFIN:ZDB-PUB-210918-21"],
-      "doi": "DOI:10.1016/j.gene.2019.100011",
-      "update_check": ["DOI"]
     }, {
       "pmid": "PMID:10206683",
       "modId": ["RGD:11526447"],
