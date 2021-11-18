@@ -3,8 +3,6 @@ import requests
 
 import re
 
-# import pytest    # don't know how this works, pytest not installed on dev server
-
 from os import environ
 import logging
 import logging.config
@@ -31,6 +29,9 @@ logger = logging.getLogger(__name__)
 # 3 minutes on 34 references from 'inputs/sample_dqm_load.json'
 #
 # to run outside docker set PYTHONPATH to src/xml_processing/ directory and XML_PATH to src/xml_processing/tests/ directory
+# pipenv run python functional_tests.py
+#
+# once pytest can work with this script rename to test_functional.py and
 # pipenv run python test_functional.py
 
 
@@ -87,8 +88,20 @@ def test_update_references():
                 # for debugging
                 # json_data = json.dumps(entry['update_check'], indent=4, sort_keys=True)
                 # logger.info(json_data)
+                logger.info("check %s", check)
                 agr_wanted[agr][check] = entry['update_check'][check]
-    # TODO update generate_dqm_json_test_set.py to inject changes based on inputs/sample_dqm_update.json ;  then check here
+    api_port = environ.get('API_PORT')
+    for agr in sorted(agr_wanted):
+        db_entry = dict()
+        if agr_wanted[agr]:
+            url = 'http://localhost:' + api_port + '/reference/' + agr
+            logger.info("get AGR reference info from database %s", url)
+            get_return = requests.get(url)
+            db_entry = json.loads(get_return.text)
+            # logger.info(db_entry)
+        for check in agr_wanted[agr]:
+            test_result = check_test(db_entry, check, agr_wanted[agr][check])
+            logger.info("agr %s check %s result %s", agr, check, test_result)
 
 
 def test_load_references():
@@ -142,6 +155,7 @@ def erratum_check(agr_data, value):
     future: check a database reference has comment_and_corrections connection to another reference
 
     :param agr_data:
+    :param value:
     :return:
     """
 
@@ -154,6 +168,7 @@ def category_book_check(agr_data, value):
     check a database reference has a category of 'book' from PubMed XML <BookDocument>
 
     :param agr_data:
+    :param value:
     :return:
     """
 
@@ -169,6 +184,7 @@ def title_check(agr_data, value):
     check a database reference has a title
 
     :param agr_data:
+    :param value:
     :return:
     """
 
@@ -179,16 +195,97 @@ def title_check(agr_data, value):
     return 'Failure'
 
 
+def mod_reference_types_check(agr_data, values):
+    """
+    check a database reference has explicit mod reference types
+
+    :param agr_data:
+    :param value:
+    :return:
+    """
+
+    failure_string = ''
+    db_values = set()
+    if 'mod_reference_types' in agr_data:
+        for mrt_db in agr_data['mod_reference_types']:
+            db_string = ''
+            if 'reference_type' in mrt_db:
+                db_string = db_string + mrt_db['reference_type']
+            if 'source' in mrt_db:
+                db_string = db_string + mrt_db['source']
+            db_values.add(db_string)
+    for mrt_dqm in values:
+        dqm_string = ''
+        if 'reference_type' in mrt_dqm:
+            dqm_string = dqm_string + mrt_dqm['reference_type']
+        if 'source' in mrt_dqm:
+            dqm_string = dqm_string + mrt_dqm['source']
+        if dqm_string not in db_values:
+            mrt_string = json.dumps(mrt_dqm, indent=4, sort_keys=True)
+            failure_string = failure_string + mrt_string + " not in database. "
+    if failure_string != '':
+        failure_string = 'Failure: ' + failure_string
+        return failure_string
+    else:
+        return 'Success'
+
+
+def authors_exact_check(agr_data, values):
+    """
+    check a database reference has exact author info for explicit fields from dqm file
+
+    :param agr_data:
+    :param value:
+    :return:
+    """
+
+    if 'authors' not in agr_data:
+        return 'Failure: No authors found in database'
+    failure_string = ''
+    db_values = set()
+    if 'authors' in agr_data:
+        for aut_db in agr_data['authors']:
+            db_string = ''
+            if 'order' in aut_db:
+                db_string = db_string + str(aut_db['order'])
+            if 'name' in aut_db:
+                db_string = db_string + aut_db['name']
+            if 'first_name' in aut_db:
+                db_string = db_string + aut_db['first_name']
+            if 'last_name' in aut_db:
+                db_string = db_string + aut_db['last_name']
+            db_values.add(db_string)
+    for aut_dqm in values:
+        dqm_string = ''
+        if 'order' in aut_dqm:
+            dqm_string = dqm_string + str(aut_dqm['order'])
+        if 'name' in aut_dqm:
+            dqm_string = dqm_string + aut_dqm['name']
+        if 'first_name' in aut_dqm:
+            dqm_string = dqm_string + aut_dqm['first_name']
+        if 'last_name' in aut_dqm:
+            dqm_string = dqm_string + aut_dqm['last_name']
+        if dqm_string not in db_values:
+            aut_string = json.dumps(aut_dqm, indent=4, sort_keys=True)
+            failure_string = failure_string + aut_string + " not in database. "
+    if failure_string != '':
+        failure_string = 'Failure: ' + failure_string
+        return failure_string
+    else:
+        return 'Success'
+
+
 def author_name_check(agr_data, value):
     """
     check a database reference has all authors with names, because <CollectiveName> in PubMed XML is not standard author pattern
 
     :param agr_data:
+    :param value:
     :return:
     """
 
     if 'authors' not in agr_data:
-        return 'Failure: No authors found'
+        return 'Failure: No authors found in database'
     result = 'Success'
     has_specific_value = False
     for author in agr_data['authors']:
@@ -211,12 +308,13 @@ def author_affiliation_check(agr_data, value):
     check a database reference has an author with an affiliation
 
     :param agr_data:
+    :param value:
     :return:
     """
 
     result = 'Failure'
     if 'authors' not in agr_data:
-        return 'Failure: No authors found'
+        return 'Failure: No authors found in database'
     for author in agr_data['authors']:
         if 'affiliation' in author and author['affiliation'] is not None:
             for affiliation in author['affiliation']:
@@ -231,12 +329,13 @@ def author_orcid_check(agr_data, value):
     check a database reference has an author with an orcid
 
     :param agr_data:
+    :param value:
     :return:
     """
 
     result = 'Failure'
     if 'authors' not in agr_data:
-        result = 'Failure: No authors found'
+        result = 'Failure: No authors found in database'
     for author in agr_data['authors']:
         if 'orcid' in author and author['orcid'] is not None:
             if 'curie' in author['orcid']:
@@ -251,6 +350,7 @@ def xref_mods_check(agr_data, mods):
     check a database reference has cross_references to six base mods
 
     :param agr_data:
+    :param value:
     :return:
     """
 
@@ -279,6 +379,7 @@ def html_abstract_check(agr_data, value):
     future: check a database reference does not have html in the abstract
 
     :param agr_data:
+    :param value:
     :return:
     """
 
@@ -294,6 +395,7 @@ def html_doi_check(agr_data, value):
     check a database reference does not have html in the doi
 
     :param agr_data:
+    :param value:
     :return:
     """
 
@@ -316,6 +418,7 @@ def keywords_check(agr_data, value):
     check a database reference does have a keyword
 
     :param agr_data:
+    :param value:
     :return:
     """
 
@@ -328,11 +431,24 @@ def keywords_check(agr_data, value):
     return result
 
 
+def doi_conflict_check(agr_data, value):
+    """
+    check a database reference has a conflict from DOI.  always pass this here, it gets checked during cross_reference resolution
+
+    :param agr_data:
+    :param value:
+    :return:
+    """
+
+    return 'Success'
+
+
 def has_doi_check(agr_data, value):
     """
     check a database reference does have a doi
 
     :param agr_data:
+    :param value:
     :return:
     """
 
@@ -351,6 +467,7 @@ def has_pmid_check(agr_data, value):
     check a database reference does have a pmid
 
     :param agr_data:
+    :param value:
     :return:
     """
 
@@ -369,6 +486,7 @@ def no_pmid_check(agr_data, value):
     check a database reference does not have a pmid
 
     :param agr_data:
+    :param value:
     :return:
     """
 
@@ -389,6 +507,7 @@ def check_test(agr_data, check, value):
 
     :param agr_data:
     :param check:
+    :param value:
     :return:
     """
 
@@ -396,11 +515,13 @@ def check_test(agr_data, check, value):
         'VernacularTitle': title_check,
         'BookTitle': title_check,
         'ArticleTitle': title_check,
+        'title': title_check,
         'CollectiveName': author_name_check,
         'AggregateMods': xref_mods_check,
         'html_doi': html_doi_check,
         'html_abstract': html_abstract_check,
         'BookDocument': category_book_check,
+        'doi_conflict': doi_conflict_check,
         'DOI': has_doi_check,
         'PMID': has_pmid_check,
         'no_pmid': no_pmid_check,
@@ -408,6 +529,8 @@ def check_test(agr_data, check, value):
         'AffiliationInfo': author_affiliation_check,
         'Keywords': keywords_check,
         'has_erratum': erratum_check,
+        'MODReferenceTypes': mod_reference_types_check,
+        'authors': authors_exact_check,
         'FAIL': title_check
     }
     if check in options:
@@ -428,7 +551,7 @@ if __name__ == "__main__":
 
     # run this once after data is loaded
     generate_cross_references_file('reference')
-    # test_load_references()
+    test_load_references()
     test_update_references()
 
     logger.info("ending sort_dqm_json_reference_updates.py")
