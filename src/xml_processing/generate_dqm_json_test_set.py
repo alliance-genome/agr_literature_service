@@ -50,7 +50,7 @@ def load_sample_json(input_file):
     return sample_json
 
 
-def generate_dqm_json_test_set_from_sample_json(input_file, output_directory):
+def generate_dqm_json_test_set_from_sample_json(input_file, output_directory):   # noqa C901
     """
     generate <output_directory>/ files based on manually chosen entries in <input_file>
     """
@@ -65,11 +65,17 @@ def generate_dqm_json_test_set_from_sample_json(input_file, output_directory):
     pmids_wanted = set()
     mod_ids_wanted = dict()
     ids_wanted = set()
+    ids_wanted_replace = dict()
     for entry in sample_json['data']:
         if 'pmid' in entry:
             prefix, identifier, separator = split_identifier(entry['pmid'])
             pmids_wanted.add(identifier)
             ids_wanted.add(entry['pmid'])
+            if 'update_replace' in entry:
+                if entry['pmid'] not in ids_wanted_replace:
+                    ids_wanted_replace[entry['pmid']] = dict()
+                for field in entry['update_replace']:
+                    ids_wanted_replace[entry['pmid']][field] = entry['update_replace'][field]
         if 'modId' in entry:
             for mod_id in entry['modId']:
                 prefix, identifier, separator = split_identifier(mod_id)
@@ -77,6 +83,11 @@ def generate_dqm_json_test_set_from_sample_json(input_file, output_directory):
                     mod_ids_wanted[prefix] = set()
                 mod_ids_wanted[prefix].add(identifier)
                 ids_wanted.add(mod_id)
+                if 'update_replace' in entry:
+                    if mod_id not in ids_wanted_replace:
+                        ids_wanted_replace[mod_id] = dict()
+                    for field in entry['update_replace']:
+                        ids_wanted_replace[mod_id][field] = entry['update_replace'][field]
     for mod in mod_ids_wanted:
         logger.info("generating sample set for %s", mod)
         input_filename = base_path + 'dqm_data/REFERENCE_' + mod + '.json'
@@ -94,6 +105,10 @@ def generate_dqm_json_test_set_from_sample_json(input_file, output_directory):
         dqm_wanted = []
         for entry in dqm_data['data']:
             if 'primaryId' in entry and entry['primaryId'] in ids_wanted:
+                xref_id = entry['primaryId']
+                if xref_id in ids_wanted_replace:
+                    for field in ids_wanted_replace[xref_id]:
+                        entry[field] = ids_wanted_replace[xref_id][field]
                 dqm_wanted.append(entry)
                 logger.info("Found primaryId %s in %s", entry['primaryId'], mod)
         dqm_data['data'] = dqm_wanted

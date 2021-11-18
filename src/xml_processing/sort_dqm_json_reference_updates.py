@@ -220,7 +220,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
         for mod in mods:
             if mod not in files_to_process:
                 files_to_process[mod] = []
-            filename = input_path + '/REFERENCE_' + mod + '.json'
+            filename = base_path + input_path + '/REFERENCE_' + mod + '.json'
             files_to_process[mod].append(filename)
 
     dqm = dict()

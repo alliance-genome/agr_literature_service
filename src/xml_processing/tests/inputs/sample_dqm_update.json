@@ -27,141 +27,143 @@
         "doi_conflict": "DOI:10.1016/j.gene.2019.100011"
       }
     }, {
-      "modId": ["WB:WBPaper00000003"],
-      "update_check": {
-        "title": "A new title"
-      }
-    }
-  ],
-  "load_data": [
-    {
-      "modId": ["WB:WBPaper00000003"],
-      "update_check": ["no_pmid"]
-    }, {
-      "modId": ["WB:WBPaper00000005"],
-      "update_check": ["no_pmid"]
-    }, {
-      "modId": ["WB:WBPaper00000006"],
-      "update_check": ["no_pmid"]
-    }, {
-      "modId": ["WB:WBPaper00000007"],
-      "update_check": ["no_pmid"]
-    }, {
-      "modId": ["WB:WBPaper00000010"],
-      "update_check": ["no_pmid"]
-    }, {
-      "modId": ["WB:WBPaper00000011"],
-      "update_check": ["no_pmid"]
-    }, {
-      "modId": ["WB:WBPaper00000015"],
-      "update_check": ["no_pmid"]
-    }, {
-      "modId": ["WB:WBPaper00000016"],
-      "update_check": ["no_pmid"]
-    }, {
-      "pmid": "PMID:21290765",
-      "modId": ["WB:WBPaper00040000"],
-      "update_check": ["BookDocument", "ArticleTitle"]
-    }, {
-      "pmid": "PMID:33054145",
-      "modId": ["SGD:S000298041"],
-      "update_check": ["BookTitle"]
-    }, {
       "pmid": "PMID:21413221",
       "modId": ["WB:WBPaper00004071"],
-      "update_check": ["BookTitle"]
+      "update_check": {
+         "MODReferenceTypes": [
+           {
+             "reference_type": "Journal_article",
+             "source": "WB"
+           }
+         ]
+      },
+      "update_replace": {
+         "MODReferenceTypes": [
+           {
+             "referenceType": "Journal_article",
+             "source": "WB"
+           }
+         ]
+      }
+    }, {
+      "modId": ["WB:WBPaper00000003"],
+      "update_check": {
+        "title": "A new title",
+        "authors": [
+          {
+            "order": 1,
+            "name": "BOB",
+            "first_name": "Bobbie",
+            "last_name": "Robertson",
+            "referenceId": "WB:WBPaper00000003"
+          },
+          {
+            "order": 2,
+            "name": "RON",
+            "first_name": "Ronnie",
+            "last_name": "Smith",
+            "referenceId": "WB:WBPaper00000003"
+          }
+        ]
+      },
+      "update_replace": {
+        "title": "A new title",
+        "authors": [
+          {
+            "authorRank": 1,
+            "name": "BOB",
+            "firstName": "Bobbie",
+            "lastName": "Robertson",
+            "referenceId": "WB:WBPaper00000003"
+          },
+          {
+            "authorRank": 2,
+            "name": "RON",
+            "firstName": "Ronnie",
+            "lastName": "Smith",
+            "referenceId": "WB:WBPaper00000003"
+          }
+        ]
+      }
+    }, {
+      "modId": ["WB:WBPaper00000005"]
+    }, {
+      "modId": ["WB:WBPaper00000006"]
+    }, {
+      "modId": ["WB:WBPaper00000007"]
+    }, {
+      "modId": ["WB:WBPaper00000010"]
+    }, {
+      "modId": ["WB:WBPaper00000011"]
+    }, {
+      "modId": ["WB:WBPaper00000015"]
+    }, {
+      "modId": ["WB:WBPaper00000016"]
+    }, {
+      "pmid": "PMID:21290765",
+      "modId": ["WB:WBPaper00040000"]
+    }, {
+      "pmid": "PMID:33054145",
+      "modId": ["SGD:S000298041"]
     }, {
       "pmid": "PMID:28308877",
-      "modId": ["FB:FBrf0020888"],
-      "update_check": ["VernacularTitle"]
+      "modId": ["FB:FBrf0020888"]
     }, {
       "pmid": "PMID:28304499",
-      "modId": ["FB:FBrf0019024"],
-      "update_check": ["VernacularTitle"]
+      "modId": ["FB:FBrf0019024"]
     }, {
       "pmid": "PMID:27899353",
-      "modId": ["RGD:11570444"],
-      "update_check": ["CollectiveName"]
+      "modId": ["RGD:11570444"]
     }, {
       "pmid": "PMID:30979869",
-      "modId": ["MGI:6305446"],
-      "update_check": ["CollectiveName"]
+      "modId": ["MGI:6305446"]
     }, {
       "pmid": "PMID:30003105",
-      "modId": ["ZFIN:ZDB-PUB-180714-6"],
-      "update_check": ["ORCID", "AffiliationInfo"]
+      "modId": ["ZFIN:ZDB-PUB-180714-6"]
     }, {
       "pmid": "PMID:30002370",
-      "modId": ["SGD:S000217483"],
-      "update_check": ["ORCID", "AffiliationInfo"]
+      "modId": ["SGD:S000217483"]
     }, {
       "pmid": "PMID:20301347",
-      "modId": ["RGD:11352983"],
-      "update_check": ["PMID"]
+      "modId": ["RGD:11352983"]
     }, {
       "pmid": "PMID:21413225",
-      "modId": ["WB:WBPaper00002666"],
-      "update_check": ["PMID"]
+      "modId": ["WB:WBPaper00002666"]
     }, {
       "pmid": "PMID:30110134",
-      "modId": ["ZFIN:ZDB-PUB-180816-15"],
-      "update_check": ["Keywords"]
+      "modId": ["ZFIN:ZDB-PUB-180816-15"]
     }, {
       "pmid": "PMID:31188077",
-      "modId": ["ZFIN:ZDB-PUB-190613-8"],
-      "update_check": ["Keywords"]
+      "modId": ["ZFIN:ZDB-PUB-190613-8"]
     }, {
       "pmid": "PMID:21873635",
-      "modId": ["FB:FBrf0239784", "MGI:6201960", "RGD:13792537", "SGD:S000246339", "WB:WBPaper00046480", "ZFIN:ZDB-PUB-110330-1"],
-      "update_check": ["AggregateMods"]
-    }, {
-      "pmid": "PMID:31193955",
-      "modId": ["ZFIN:ZDB-PUB-190614-11"],
-      "doi": "DOI:10.1016/j.gene.2019.100011",
-      "update_check": ["DOI"]
-    }, {
-      "pmid": "PMID:34530988",
-      "modId": ["ZFIN:ZDB-PUB-210918-21"],
-      "doi": "DOI:10.1016/j.gene.2019.100011",
-      "update_check": ["DOI"]
+      "modId": ["FB:FBrf0239784", "MGI:6201960", "RGD:13792537", "SGD:S000246339", "WB:WBPaper00046480", "ZFIN:ZDB-PUB-110330-1"]
     }, {
       "pmid": "PMID:10206683",
-      "modId": ["RGD:11526447"],
-      "update_check": ["html_doi", "html_abstract"]
+      "modId": ["RGD:11526447"]
     }, {
-      "modId": ["ZFIN:ZDB-PUB-040528-2"],
-      "update_check": ["no_pmid"]
+      "modId": ["ZFIN:ZDB-PUB-040528-2"]
     }, {
-      "modId": ["ZFIN:ZDB-PUB-050216-15"],
-      "update_check": ["no_pmid"]
+      "modId": ["ZFIN:ZDB-PUB-050216-15"]
     }, {
-      "modId": ["SGD:S000182237"],
-      "update_check": ["no_pmid"]
+      "modId": ["SGD:S000182237"]
     }, {
-      "modId": ["SGD:S000128229"],
-      "update_check": ["no_pmid"]
+      "modId": ["SGD:S000128229"]
     }, {
-      "modId": ["FB:FBrf0035013"],
-      "update_check": ["no_pmid"]
+      "modId": ["FB:FBrf0035013"]
     }, {
-      "modId": ["FB:FBrf0035013"],
-      "update_check": ["no_pmid"]
+      "modId": ["FB:FBrf0035013"]
     }, {
-      "modId": ["RGD:10002756"],
-      "update_check": ["no_pmid"]
+      "modId": ["RGD:10002756"]
     }, {
-      "modId": ["RGD:10002786"],
-      "update_check": ["no_pmid"]
+      "modId": ["RGD:10002786"]
     }, {
-      "modId": ["MGI:48543"],
-      "update_check": ["no_pmid"]
+      "modId": ["MGI:48543"]
     }, {
-      "modId": ["MGI:48554"],
-      "update_check": ["no_pmid"]
+      "modId": ["MGI:48554"]
     }, {
       "pmid": "PMID:2",
-      "modId": ["RGD:1303381"],
-      "update_check": ["has_erratum"]
+      "modId": ["RGD:1303381"]
     }
   ]
 }
