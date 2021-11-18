@@ -223,11 +223,14 @@ def mod_reference_types_check(agr_data, values):
         if dqm_string not in db_values:
             mrt_string = json.dumps(mrt_dqm, indent=4, sort_keys=True)
             failure_string = failure_string + mrt_string + " not in database. "
+    result = 'Failure'
     if failure_string != '':
         failure_string = 'Failure: ' + failure_string
-        return failure_string
+        result = failure_string
     else:
-        return 'Success'
+        result = 'Success'
+    assert result == 'Success'
+    return result
 
 
 def authors_exact_check(agr_data, values):
@@ -268,11 +271,14 @@ def authors_exact_check(agr_data, values):
         if dqm_string not in db_values:
             aut_string = json.dumps(aut_dqm, indent=4, sort_keys=True)
             failure_string = failure_string + aut_string + " not in database. "
+    result = 'Failure'
     if failure_string != '':
         failure_string = 'Failure: ' + failure_string
-        return failure_string
+        result = failure_string
     else:
-        return 'Success'
+        result = 'Success'
+    assert result == 'Success'
+    return result
 
 
 def author_name_check(agr_data, value):
@@ -546,8 +552,6 @@ if __name__ == "__main__":
     """
 
     logger.info("starting functional_tests.py")
-
-    assert 1 == 1
 
     # run this once after data is loaded
     generate_cross_references_file('reference')
