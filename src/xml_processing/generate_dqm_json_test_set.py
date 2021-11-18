@@ -50,7 +50,7 @@ def load_sample_json(input_file):
     return sample_json
 
 
-def generate_dqm_json_test_set_from_sample_json(input_file, output_directory):
+def generate_dqm_json_test_set_from_sample_json(input_file, output_directory):   # noqa C901
     """
     generate <output_directory>/ files based on manually chosen entries in <input_file>
     """
