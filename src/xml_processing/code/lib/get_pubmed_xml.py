@@ -196,9 +196,9 @@ def download_pubmed_xml(pmids_wanted, storage_path, base_path):
 #     urllib.urlretrieve(url, filename)
 #     time.sleep( 5 )
 
-if __name__ == '__main__':
-    """
-    call main processing function
-    """
-
-    process_tasks()
+# if __name__ == '__main__':
+#     """
+#     call main processing function
+#     """
+#
+#     process_tasks()

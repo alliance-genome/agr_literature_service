@@ -30,6 +30,7 @@ MODS = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
 RELEASE = '4.1.0'
 DATATYPES = ['REFERENCE', 'REF-EXCHANGE', 'RESOURCE']
 
+
 def get_md5_sum_from_path(filename):
     """
 

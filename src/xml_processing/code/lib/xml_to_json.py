@@ -9,14 +9,13 @@ module that converts XMLs to JSON files
 
 import json
 import urllib.request
-# import xmltodict
 import re
-from os import environ, path, makedirs
-import sys
+import os
 import logging
 import hashlib
 import click
 import coloredlogs
+import sys
 
 # from dotenv import load_dotenv
 #
@@ -60,33 +59,9 @@ import coloredlogs
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000
 
 
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG')
-
-
-logging.basicConfig(level=logging.INFO,
-                    stream=sys.stdout,
-                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
-                    datefmt='%Y-%m-%d %H:%M:%S')
-logger = logging.getLogger(__name__)
-
-
-parser = argparse.ArgumentParser()
-parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
-parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
-parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
-parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
-parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
-parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
-
-args = vars(parser.parse_args())
-
-# todo: save this in an env variable
-# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
-base_path = environ.get('XML_PATH')
->>>>>>> main:src/xml_processing/xml_to_json.py
 
 
 known_article_id_types = {
@@ -180,7 +155,7 @@ def get_medline_date_from_xml_date(pub_date):
     :return:
     """
 
-    medline_re_output = re.search("<MedlineDate>(.+?)</MedlineDate>", pub_date)
+    medline_re_output = re.search('<MedlineDate>(.+?)</MedlineDate>', pub_date)
     if medline_re_output is not None:
         return medline_re_output.group(1)
 
@@ -199,10 +174,10 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
     # json_storage_path = base_path + 'pubmed_json_20210322/'
     storage_path = base_path + 'pubmed_xml/'
     json_storage_path = base_path + 'pubmed_json/'
-    if not path.exists(storage_path):
-        makedirs(storage_path)
-    if not path.exists(json_storage_path):
-        makedirs(json_storage_path)
+    if not os.path.exists(storage_path):
+        os.makedirs(storage_path)
+    if not os.path.exists(json_storage_path):
+        os.makedirs(json_storage_path)
     # new_pmids = []
     # ref_types = []
     new_pmids_set = set([])
@@ -211,7 +186,7 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
         filename = storage_path + pmid + '.xml'
         # if getting pmids from directories split into multiple sub-subdirectories
         # filename = get_path_from_pmid(pmid, 'xml')
-        if not path.exists(filename):
+        if not os.path.exists(filename):
             continue
         # logger.info("processing %s", filename)
         with open(filename) as xml_file:
@@ -229,11 +204,11 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
             data_dict = {}
 
             # e.g. 21290765 has BookDocument and ArticleTitle
-            book_re_output = re.search("<BookDocument>", xml)
+            book_re_output = re.search('<BookDocument>', xml)
             if book_re_output is not None:
                 data_dict['is_book'] = 'book'
 
-            title_re_output = re.search("<ArticleTitle[^>]*?>(.+?)</ArticleTitle>", xml, re.DOTALL)
+            title_re_output = re.search('<ArticleTitle[^>]*?>(.+?)</ArticleTitle>', xml, re.DOTALL)
             if title_re_output is not None:
                 # print title
                 title = title_re_output.group(1).rstrip()
@@ -243,7 +218,7 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
                     data_dict['is_journal'] = 'journal'
             else:
                 # e.g. 33054145 21413221
-                book_title_re_output = re.search("<BookTitle[^>]*?>(.+?)</BookTitle>", xml, re.DOTALL)
+                book_title_re_output = re.search('<BookTitle[^>]*?>(.+?)</BookTitle>', xml, re.DOTALL)
                 if book_title_re_output is not None:
                     # print title
                     title = book_title_re_output.group(1).rstrip()
@@ -252,7 +227,7 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
                     data_dict['is_book'] = 'book'
                 else:
                     # e.g. 28304499 28308877
-                    vernacular_title_re_output = re.search("<VernacularTitle[^>]*?>(.+?)</VernacularTitle>", xml, re.DOTALL)
+                    vernacular_title_re_output = re.search('<VernacularTitle[^>]*?>(.+?)</VernacularTitle>', xml, re.DOTALL)
                     if vernacular_title_re_output is not None:
                         # print title
                         title = vernacular_title_re_output.group(1).rstrip()
@@ -262,39 +237,39 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
                     else:
                         logger.info("%s has no title", pmid)
 
-            journal_re_output = re.search("<MedlineTA>(.+?)</MedlineTA>", xml)
+            journal_re_output = re.search('<MedlineTA>(.+?)</MedlineTA>', xml)
             if journal_re_output is not None:
                 data_dict['journal'] = journal_re_output.group(1)
 
-            pages_re_output = re.search("<MedlinePgn>(.+?)</MedlinePgn>", xml)
+            pages_re_output = re.search('<MedlinePgn>(.+?)</MedlinePgn>', xml)
             if pages_re_output is not None:
                 data_dict['pages'] = pages_re_output.group(1)
 
-            volume_re_output = re.search("<Volume>(.+?)</Volume>", xml)
+            volume_re_output = re.search('<Volume>(.+?)</Volume>', xml)
             if volume_re_output is not None:
                 data_dict['volume'] = volume_re_output.group(1)
 
-            issue_re_output = re.search("<Issue>(.+?)</Issue>", xml)
+            issue_re_output = re.search('<Issue>(.+?)</Issue>', xml)
             if issue_re_output is not None:
                 data_dict['issueName'] = issue_re_output.group(1)
 
-            pubstatus_re_output = re.search("<PublicationStatus>(.+?)</PublicationStatus>", xml)
+            pubstatus_re_output = re.search('<PublicationStatus>(.+?)</PublicationStatus>', xml)
             if pubstatus_re_output is not None:
                 # print pubstatus
                 data_dict['publicationStatus'] = pubstatus_re_output.group(1)
 
-            if re.findall("<PublicationType>(.+?)</PublicationType>", xml):
-                types_group = re.findall("<PublicationType>(.+?)</PublicationType>", xml)
+            if re.findall('<PublicationType>(.+?)</PublicationType>', xml):
+                types_group = re.findall('<PublicationType>(.+?)</PublicationType>', xml)
                 data_dict['pubMedType'] = types_group
-            elif re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml):
-                types_group = re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml)
+            elif re.findall('<PublicationType UI=\".*?\">(.+?)</PublicationType>', xml):
+                types_group = re.findall('<PublicationType UI=\".*?\">(.+?)</PublicationType>', xml)
                 data_dict['pubMedType'] = types_group
 
             # <CommentsCorrectionsList><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler.
             # 1999 Dec;5(6):378</RefSource><PMID Version="1">10644162</PMID></CommentsCorrections><CommentsCorrections
             # RefType="CommentIn"><RefSource>Mult Scler. 2000 Aug;6(4):291-2</RefSource><PMID Version="1">10962551</PMID>
             # </CommentsCorrections></CommentsCorrectionsList>
-            comments_corrections_group = re.findall("<CommentsCorrections (.+?)</CommentsCorrections>", xml, re.DOTALL)
+            comments_corrections_group = re.findall('<CommentsCorrections (.+?)</CommentsCorrections>', xml, re.DOTALL)
             if len(comments_corrections_group) > 0:
                 data_dict['commentsCorrections'] = dict()
                 for comcor_xml in comments_corrections_group:
@@ -320,7 +295,7 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
                             new_pmids_set.add(other_pmid)
 
             # this will need to be restructured to match schema
-            authors_group = re.findall("<Author.*?>(.+?)</Author>", xml, re.DOTALL)
+            authors_group = re.findall('<Author.*?>(.+?)</Author>', xml, re.DOTALL)
             if len(authors_group) > 0:
                 authors_list = []
                 authors_rank = 0
@@ -334,20 +309,20 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
                     orcid = ''
                     affiliation = []
                     author_cross_references = []
-                    lastname_re_output = re.search("<LastName>(.+?)</LastName>", author_xml)
+                    lastname_re_output = re.search('<LastName>(.+?)</LastName>', author_xml)
                     if lastname_re_output is not None:
                         lastname = lastname_re_output.group(1)
-                    firstname_re_output = re.search("<ForeName>(.+?)</ForeName>", author_xml)
+                    firstname_re_output = re.search('<ForeName>(.+?)</ForeName>', author_xml)
                     if firstname_re_output is not None:
                         firstname = firstname_re_output.group(1)
-                    firstinit_re_output = re.search("<Initials>(.+?)</Initials>", author_xml)
+                    firstinit_re_output = re.search('<Initials>(.+?)</Initials>', author_xml)
                     if firstinit_re_output is not None:
                         firstinit = firstinit_re_output.group(1)
                     if firstinit and not firstname:
                         firstname = firstinit
 
                     # e.g. 27899353 30979869
-                    collective_re_output = re.search("<CollectiveName>(.+?)</CollectiveName>", author_xml, re.DOTALL)
+                    collective_re_output = re.search('<CollectiveName>(.+?)</CollectiveName>', author_xml, re.DOTALL)
                     if collective_re_output is not None:
                         collective_name = collective_re_output.group(1).replace('\n', ' ').replace('\r', '')
                         collective_name = re.sub(r'\s+', ' ', collective_name)
@@ -355,10 +330,10 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
                     # e.g. 30003105   <Identifier Source="ORCID">0000-0002-9948-4783</Identifier>
                     # e.g. 30002370   <Identifier Source="ORCID">http://orcid.org/0000-0003-0416-374X</Identifier>
                     # orcid_re_output = re.search("<Identifier Source=\"ORCID\">(.+?)</Identifier>", author_xml)
-                    orcid_re_output = re.search("<Identifier Source=\"ORCID\">.*?([0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]).*?</Identifier>", author_xml)
+                    orcid_re_output = re.search('<Identifier Source=\"ORCID\">.*?([0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]).*?</Identifier>', author_xml)
                     if orcid_re_output is not None:
                         orcid = orcid_re_output.group(1)
-                        orcid_dict = {"id": 'ORCID:' + orcid_re_output.group(1), "pages": ["person/orcid"]}
+                        orcid_dict = {'id': 'ORCID:' + orcid_re_output.group(1), 'pages': ['person/orcid']}
                         author_cross_references.append(orcid_dict)
 
                     # e.g. 30003105 30002370
@@ -366,10 +341,10 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
                     #     <Affiliation>Department of Animal Medical Sciences, Faculty of Life Sciences, Kyoto Sangyo University , Kyoto , Japan.</Affiliation>
                     # </AffiliationInfo>
                     affiliation_list = []
-                    affiliation_info_group = re.findall("<AffiliationInfo>(.*?)</AffiliationInfo>", author_xml, re.DOTALL)
+                    affiliation_info_group = re.findall('<AffiliationInfo>(.*?)</AffiliationInfo>', author_xml, re.DOTALL)
                     for affiliation_info in affiliation_info_group:
                         # print(pmid + " AIDL " + affiliation_info)
-                        affiliation_group = re.findall("<Affiliation>(.+?)</Affiliation>", affiliation_info, re.DOTALL)
+                        affiliation_group = re.findall('<Affiliation>(.+?)</Affiliation>', affiliation_info, re.DOTALL)
                         for affiliation in affiliation_group:
                             # print(pmid + " subset " + affiliation)
                             if affiliation not in affiliation_list:
@@ -385,13 +360,13 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
                     # else:
                     #     print "NO\t" + pmid
                     if firstname != '':
-                        author_dict["firstname"] = firstname
+                        author_dict['firstname'] = firstname
                     if firstinit != '':
-                        author_dict["firstinit"] = firstinit
+                        author_dict['firstinit'] = firstinit
                     if lastname != '':
-                        author_dict["lastname"] = lastname
+                        author_dict['lastname'] = lastname
                     if collective_name != '':
-                        author_dict["collectivename"] = collective_name
+                        author_dict['collectivename'] = collective_name
                     if (firstname != '') and (lastname != ''):
                         fullname = firstname + ' ' + lastname
                     elif collective_name != '':
@@ -399,20 +374,20 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
                     elif lastname != '':
                         fullname = lastname
                     else:
-                        logger.info("%s has no name match %s", pmid, author_xml)
+                        logger.info('%s has no name match %s', pmid, author_xml)
                     if orcid != '':
-                        author_dict["orcid"] = orcid
-                    author_dict["name"] = fullname
-                    author_dict["authorRank"] = authors_rank
+                        author_dict['orcid'] = orcid
+                    author_dict['name'] = fullname
+                    author_dict['authorRank'] = authors_rank
                     if len(affiliation_list) > 0:
-                        author_dict["affiliation"] = affiliation_list
+                        author_dict['affiliation'] = affiliation_list
                     if len(author_cross_references) > 0:
-                        author_dict["crossReferences"] = author_cross_references
+                        author_dict['crossReferences'] = author_cross_references
                     # print fullname
                     authors_list.append(author_dict)
                 data_dict['authors'] = authors_list
 
-            pub_date_re_output = re.search("<PubDate>(.+?)</PubDate>", xml, re.DOTALL)
+            pub_date_re_output = re.search('<PubDate>(.+?)</PubDate>', xml, re.DOTALL)
             if pub_date_re_output is not None:
                 pub_date = pub_date_re_output.group(1)
                 date_list = get_year_month_day_from_xml_date(pub_date)
@@ -436,12 +411,12 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
                 date_revised = date_revised_re_output.group(1)
                 date_list = get_year_month_day_from_xml_date(date_revised)
                 if date_list[0]:
-                    date_string = "-".join(date_list)
+                    date_string = '-'.join(date_list)
                     date_dict = {'date_string': date_string, 'year': date_list[0], 'month': date_list[1],
                                  'day': date_list[2]}
                     data_dict['dateLastModified'] = date_dict
 
-            date_received_re_output = re.search("<PubMedPubDate PubStatus=\"received\">(.+?)</PubMedPubDate>", xml, re.DOTALL)
+            date_received_re_output = re.search('<PubMedPubDate PubStatus=\"received\">(.+?)</PubMedPubDate>', xml, re.DOTALL)
             if date_received_re_output is not None:
                 date_received = date_received_re_output.group(1)
                 date_list = get_year_month_day_from_xml_date(date_received)
@@ -453,10 +428,10 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
 
             cross_references = []
             has_self_pmid = False       # e.g. 20301347, 21413225 do not have the PMID itself in the ArticleIdList, so must be appended to the cross_references
-            article_id_list_re_output = re.search("<ArticleIdList>(.*?)</ArticleIdList>", xml, re.DOTALL)
+            article_id_list_re_output = re.search('<ArticleIdList>(.*?)</ArticleIdList>', xml, re.DOTALL)
             if article_id_list_re_output is not None:
                 article_id_list = article_id_list_re_output.group(1)
-                article_id_group = re.findall("<ArticleId IdType=\"(.*?)\">(.+?)</ArticleId>", article_id_list)
+                article_id_group = re.findall('<ArticleId IdType=\"(.*?)\">(.+?)</ArticleId>', article_id_list)
                 if len(article_id_group) > 0:
                     type_has_value = set()
                     for type_value in article_id_group:
@@ -470,36 +445,36 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
                             if value == pmid:
                                 has_self_pmid = True
                             if type in type_has_value:
-                                logger.info("%s has multiple for type %s", pmid, type)
+                                logger.info('%s has multiple for type %s', pmid, type)
                             type_has_value.add(type)
                             # cross_references.append({'id': known_article_id_types[type]['prefix'] + value, 'pages': [known_article_id_types[type]['pages']]})
                             cross_references.append({'id': known_article_id_types[type]['prefix'] + value})
                             data_dict[type] = value			# for cleaning up crossReferences when reading dqm data
                         else:
                             if type not in ignore_article_id_types:
-                                logger.info("%s has unexpected type %s", pmid, type)
+                                logger.info('%s has unexpected type %s', pmid, type)
                                 unknown_article_id_types.add(type)
             if not has_self_pmid:
                 cross_references.append({'id': 'PMID:' + pmid})
 
-            medline_journal_info_re_output = re.search("<MedlineJournalInfo>(.*?)</MedlineJournalInfo>", xml, re.DOTALL)
+            medline_journal_info_re_output = re.search('<MedlineJournalInfo>(.*?)</MedlineJournalInfo>', xml, re.DOTALL)
             if medline_journal_info_re_output is not None:
                 medline_journal_info = medline_journal_info_re_output.group(1)
                 # print pmid + " medline_journal_info " + medline_journal_info
                 nlm = ''
                 issn = ''
                 journal_abbrev = ''
-                nlm_re_output = re.search("<NlmUniqueID>(.+?)</NlmUniqueID>", medline_journal_info)
+                nlm_re_output = re.search('<NlmUniqueID>(.+?)</NlmUniqueID>', medline_journal_info)
                 if nlm_re_output is not None:
                     nlm = nlm_re_output.group(1)
                     cross_references.append({'id': 'NLM:' + nlm})
                     # cross_references.append({'id': 'NLM:' + nlm, 'pages': ['NLM']})
-                issn_re_output = re.search("<ISSNLinking>(.+?)</ISSNLinking>", medline_journal_info)
+                issn_re_output = re.search('<ISSNLinking>(.+?)</ISSNLinking>', medline_journal_info)
                 if issn_re_output is not None:
                     issn = issn_re_output.group(1)
                     cross_references.append({'id': 'ISSN:' + issn})
                     # cross_references.append({'id': 'ISSN:' + issn, 'pages': ['ISSN']})
-                journal_abbrev_re_output = re.search("<MedlineTA>(.+?)</MedlineTA>", medline_journal_info)
+                journal_abbrev_re_output = re.search('<MedlineTA>(.+?)</MedlineTA>', medline_journal_info)
                 if journal_abbrev_re_output is not None:
                     journal_abbrev = journal_abbrev_re_output.group(1)
                 data_dict['nlm'] = nlm			# for mapping to resource
@@ -516,9 +491,9 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
                 #     print "NO\t" + pmid
 
             if len(cross_references) > 0:
-                data_dict["crossReferences"] = cross_references
+                data_dict['crossReferences'] = cross_references
 
-            publisher_re_output = re.search("<PublisherName>(.+?)</PublisherName>", xml)
+            publisher_re_output = re.search('<PublisherName>(.+?)</PublisherName>', xml)
             if publisher_re_output is not None:
                 publisher = publisher_re_output.group(1)
                 # print publisher
@@ -531,45 +506,45 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
             #     data_dict['abstract'] = re.sub(r'\s+', ' ', abstract)
 
             main_abstract_list = []
-            regex_abstract_output = re.findall("<Abstract>(.+?)</Abstract>", xml, re.DOTALL)
+            regex_abstract_output = re.findall('<Abstract>(.+?)</Abstract>', xml, re.DOTALL)
             if len(regex_abstract_output) > 0:
                 for abs in regex_abstract_output:
-                    regex_abstract_text_output = re.findall("<AbstractText.*?>(.+?)</AbstractText>", abs, re.DOTALL)
+                    regex_abstract_text_output = re.findall('<AbstractText.*?>(.+?)</AbstractText>', abs, re.DOTALL)
                     if len(regex_abstract_text_output) > 0:
                         for abstext in regex_abstract_text_output:
                             main_abstract_list.append(abstext)
-            main_abstract = " ".join(main_abstract_list)
+            main_abstract = ' '.join(main_abstract_list)
             if main_abstract != '':
                 main_abstract = re.sub(r'\s+', ' ', main_abstract)
 
             pip_abstract_list = []
             plain_abstract_list = []
             lang_abstract_list = []
-            regex_other_abstract_output = re.findall("<OtherAbstract (.+?)</OtherAbstract>", xml, re.DOTALL)
+            regex_other_abstract_output = re.findall('<OtherAbstract (.+?)</OtherAbstract>', xml, re.DOTALL)
             if len(regex_other_abstract_output) > 0:
                 for other_abstract in regex_other_abstract_output:
                     abs_type = ''
                     abs_lang = ''
-                    abs_type_re_output = re.search("Type=\"(.*?)\"", other_abstract)
+                    abs_type_re_output = re.search('Type=\"(.*?)\"', other_abstract)
                     if abs_type_re_output is not None:
                         abs_type = abs_type_re_output.group(1)
-                    abs_lang_re_output = re.search("Language=\"(.*?)\"", other_abstract)
+                    abs_lang_re_output = re.search('Language=\"(.*?)\"', other_abstract)
                     if abs_lang_re_output is not None:
                         abs_lang = abs_lang_re_output.group(1)
                     if abs_type == 'Publisher':
                         lang_abstract_list.append(abs_lang)
                     else:
-                        regex_abstract_text_output = re.findall("<AbstractText.*?>(.+?)</AbstractText>", other_abstract, re.DOTALL)
+                        regex_abstract_text_output = re.findall('<AbstractText.*?>(.+?)</AbstractText>', other_abstract, re.DOTALL)
                         if len(regex_abstract_text_output) > 0:
                             for abstext in regex_abstract_text_output:
                                 if abs_type == 'plain-language-summary':
                                     plain_abstract_list.append(abstext)
                                 elif abs_type == 'PIP':
                                     pip_abstract_list.append(abstext)
-            pip_abstract = " ".join(pip_abstract_list)    # e.g. 9643811 has pip but not main
+            pip_abstract = ' '.join(pip_abstract_list)    # e.g. 9643811 has pip but not main
             if pip_abstract != '':
                 pip_abstract = re.sub(r'\s+', ' ', pip_abstract)
-            plain_abstract = " ".join(plain_abstract_list)
+            plain_abstract = ' '.join(plain_abstract_list)
             if plain_abstract != '':           # e.g. 32338603 has plain abstract
                 data_dict['plainLanguageAbstract'] = re.sub(r'\s+', ' ', plain_abstract)
             if len(lang_abstract_list) > 0:    # e.g. 30160698 has fre and spa
@@ -581,7 +556,7 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
 
             # some xml has keywords spanning multiple lines e.g. 30110134
             # others get captured inside other keywords e.g. 31188077
-            regex_keyword_output = re.findall("<Keyword .*?>(.+?)</Keyword>", xml, re.DOTALL)
+            regex_keyword_output = re.findall('<Keyword .*?>(.+?)</Keyword>', xml, re.DOTALL)
             if len(regex_keyword_output) > 0:
                 keywords = []
                 for keyword in regex_keyword_output:
@@ -592,21 +567,21 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
                     keywords.append(keyword)
                 data_dict['keywords'] = keywords
 
-            meshs_group = re.findall("<MeshHeading>(.+?)</MeshHeading>", xml, re.DOTALL)
+            meshs_group = re.findall('<MeshHeading>(.+?)</MeshHeading>', xml, re.DOTALL)
             if len(meshs_group) > 0:
                 meshs_list = []
                 for mesh_xml in meshs_group:
-                    descriptor_re_output = re.search("<DescriptorName.*?>(.+?)</DescriptorName>", mesh_xml, re.DOTALL)
+                    descriptor_re_output = re.search('<DescriptorName.*?>(.+?)</DescriptorName>', mesh_xml, re.DOTALL)
                     if descriptor_re_output is not None:
                         mesh_heading_term = descriptor_re_output.group(1)
-                        qualifier_group = re.findall("<QualifierName.*?>(.+?)</QualifierName>", mesh_xml, re.DOTALL)
+                        qualifier_group = re.findall('<QualifierName.*?>(.+?)</QualifierName>', mesh_xml, re.DOTALL)
                         if len(qualifier_group) > 0:
                             for mesh_qualifier_term in qualifier_group:
-                                mesh_dict = {"referenceId": 'PMID:' + pmid, "meshHeadingTerm": mesh_heading_term,
-                                             "meshQualifierTerm": mesh_qualifier_term}
+                                mesh_dict = {'referenceId': 'PMID:' + pmid, 'meshHeadingTerm': mesh_heading_term,
+                                             'meshQualifierTerm': mesh_qualifier_term}
                                 meshs_list.append(mesh_dict)
                         else:
-                            mesh_dict = {"referenceId": 'PMID:' + pmid, "meshHeadingTerm": mesh_heading_term}
+                            mesh_dict = {'referenceId': 'PMID:' + pmid, 'meshHeadingTerm': mesh_heading_term}
                             meshs_list.append(mesh_dict)
                 # for mesh_xml in meshs_group:
                 #     descriptor_group = re.findall("<DescriptorName.*?UI=\"(.+?)\".*?>(.+?)</DescriptorName>",
@@ -641,26 +616,26 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
             json_filename = json_storage_path + pmid + '.json'
             # if getting pmids from directories split into multiple sub-subdirectories
             # json_filename = get_path_from_pmid(pmid, 'json')
-            with open(json_filename, "w") as json_file:
+            with open(json_filename, 'w') as json_file:
                 json_file.write(json_data)
                 json_file.close()
             md5sum = hashlib.md5(json_data.encode('utf-8')).hexdigest()
-            md5data += pmid + "\t" + md5sum + "\n"
+            md5data += pmid + '\t' + md5sum + '\n'
 
     md5file = json_storage_path + 'md5sum'
-    logger.info("Writing md5sum mappings to %s", md5file)
-    with open(md5file, "a") as md5file_fh:
+    logger.info('Writing md5sum mappings to %s', md5file)
+    with open(md5file, 'a') as md5file_fh:
         md5file_fh.write(md5data)
 
     for unknown_article_id_type in unknown_article_id_types:
-        logger.warning("unknown_article_id_type %s", unknown_article_id_type)
+        logger.warning('unknown_article_id_type %s', unknown_article_id_type)
 
     for ref_type in ref_types_set:
-        logger.info("ref_type %s", ref_type)
+        logger.info('ref_type %s', ref_type)
 
     new_pmids = sorted(new_pmids_set)
     for pmid in new_pmids:
-        logger.info("new_pmid %s", pmid)
+        logger.info('new_pmid %s', pmid)
 
     return new_pmids
 
@@ -692,6 +667,7 @@ def process_tasks(cli, db, ffile, api, sample, url):
     else:
         base_path = os.environ.get('XML_PATH')
 
+    storage_path = base_path + 'pubmed_xml/'
     logger.info('Base path is at ' + base_path)
     logger.info('XMLs will be saved on ' + storage_path)
 
@@ -719,16 +695,15 @@ def process_tasks(cli, db, ffile, api, sample, url):
             pmids.append(str(int(pmid)))
     elif cli:
         # python xml_to_json.py -c 1234 4576 1828
-        logger.info("Processing commandline input")
+        logger.info('Processing commandline input')
         for pmid in cli:
             pmids.append(pmid)
     elif sample:
         # python xml_to_json.py -s
-        logger.info("Processing hardcoded sample input")
+        logger.info('Processing hardcoded sample input')
         pmids = ['12345678', '12345679', '12345680']
     # else:
     #     logger.info("Processing database entries")
-
 
     # when iterating manually through list of PMIDs from PubMed XML CommentsCorrections,
     # and wanting to exclude PMIDs that have already been looked at from original alliance DQM input, or previous iterations.
@@ -751,20 +726,9 @@ def process_tasks(cli, db, ffile, api, sample, url):
     logger.info("Done converting XML to JSON")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     """
     call main start function
     """
 
     process_tasks()
-
-# capture ISSN / NLM
-#         <MedlineJournalInfo>
-#             <Country>England</Country>
-#             <MedlineTA>J Travel Med</MedlineTA>
-#             <NlmUniqueID>9434456</NlmUniqueID>
-#             <ISSNLinking>1195-1982</ISSNLinking>
-#         </MedlineJournalInfo>
-# not from
-#             <Journal>
-#                 <ISSN IssnType="Electronic">1708-8305</ISSN>
