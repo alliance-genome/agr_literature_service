@@ -1,6 +1,6 @@
 """
 generate_pubmed_nlm_resources.py
-===============================
+================================
 
 # generate from local file and do not upload to s3
 # pipenv run python generate_pubmed_nlm_resource.py -l

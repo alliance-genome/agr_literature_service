@@ -7,22 +7,17 @@ Pipeline
 .. automodule:: get_pubmed_xml
     :members:
 
-.. click:: get_pubmed_xml:process_tasks
-   :prog: get_pubmed_xml:process_tasks
-   :show-nested:
-
-
 .. automodule:: get_dqm_data
     :members:
-
 
 .. automodule:: xml_to_json
     :members:
 
-.. click:: get_pubmed_xml:xml_to_json
-   :prog: get_pubmed_xml:xml_to_json
-   :show-nested:
+.. automodule:: generate_pubmed_nlm_resource
+    :members:
 
+.. automodule:: process_many_pmids_to_json
+    :members:
 
 .. toctree::
     :maxdepth: 2
