@@ -6,6 +6,7 @@ for line in lines:
     if 'FAILED' in line:
         okay = False
 
+
 if not okay:
     for line in lines:
         print(line)
