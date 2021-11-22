@@ -9,8 +9,9 @@ import os
 import sys
 import click
 import logging
-from lib import (get_dqm_data, get_pubmed_xml, xml_to_json)
+from lib import (get_pubmed_xml, get_dqm_data, xml_to_json)
 import coloredlogs
+import urllib
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,7 +25,9 @@ coloredlogs.install(level='DEBUG')
 @click.option('-r', '--restapi', 'api', help='take input from rest api', required=False)
 @click.option('-s', '--sample', 'sample', help='test sample input from hardcoded entries', required=False, default=False, is_flag=True)
 @click.option('-u', '--url', 'url', help='take input from entries in file at url', required=False)
-def run_pipeline(cli, db, ffile, api, sample, url):
+@click.option('-D', '--dqm', 'dqm', help='get the DQM data', required=False)
+@click.option('-x', '--xml', 'xml', help='convert XML files to JSON', required=False)
+def run_pipeline(cli, db, ffile, api, sample, url, dqm, xml):
     """
 
     :param cli:
@@ -81,8 +84,14 @@ def run_pipeline(cli, db, ffile, api, sample, url):
         # python get_pubmed_xml.py -s
         logger.info('Processing hardcoded sample input')
         pmids = ['12345678', '12345679', '12345680']
-    # else:
-    #     logger.info("Processing database entries")
+    elif dqm:
+        logger.info('Getting DQM data')
+        get_dqm_data.download_dqm_json()
+        sys.exit()
+    elif xml:
+        logger.info('Converting XML to JSON')
+        xml_to_json.process_tasks(ffile)
+        sys.exit()
 
     if len(pmids) > 0:
         logger.info('Starting XML download for %d PMIDs', len(pmids))
@@ -94,4 +103,3 @@ def run_pipeline(cli, db, ffile, api, sample, url):
 if __name__ == '__main__':
 
     run_pipeline()
-
