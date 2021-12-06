@@ -1,0 +1,366 @@
+{
+    "data": [
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "JOURNAL ARTICLE",
+                    "source": "RGD"
+                }
+            ],
+            "abstract": "We used the single strand conformation polymorphism (SSCP) method to investigate  13 apparently unrelated Spanish patients with familial hypercholesterolemia (FH)  for mutations in the promoter region and the 18 exons and their flanking intron sequences of the low density lipoprotein (LDL) receptor gene. We found 16 aberrant SSCP patterns, and the underlying mutations were characterized by DNA sequencing. Five novel missense mutations, Q71E, C74G, C95R, C281Y and D679E, and one nonsense mutation, Q133X, were identified. We also found six missense mutations, S156L, D200Y, D200G, E256K, T413K and C646Y, and one stop codon mutation, W(-18)X, that were previously described in patients from other populations. A new frameshift mutation, 2085del19, was found in one patient. We also identified three splicing mutations; two of them are novel mutations, 1706-10G->A and 2390-1G->A, and the other one has been reported recently, 313+1G->C. Four patients were found to carry two different mutations in the same  allele: Q71E and 313+1G->C; C95R and D679E; W(-18)X and E256K, and C281Y and 1706-10G->A. Our results demonstrate that there is a broad spectrum of mutations  in the LDL receptor gene in the Spanish population.",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "firstName": "A",
+                    "lastName": "Cenarro",
+                    "name": "Cenarro A",
+                    "referenceId": "RGD:A62829"
+                },
+                {
+                    "authorRank": 2,
+                    "firstName": "HK",
+                    "lastName": "Jensen",
+                    "name": "Jensen HK",
+                    "referenceId": "RGD:A57707"
+                },
+                {
+                    "authorRank": 3,
+                    "firstName": "E",
+                    "lastName": "Casao",
+                    "name": "Casao",
+                    "referenceId": "RGD:A360534"
+                },
+                {
+                    "authorRank": 4,
+                    "firstName": "F",
+                    "lastName": "Civeira",
+                    "name": "Civeira F",
+                    "referenceId": "RGD:A62837"
+                },
+                {
+                    "authorRank": 5,
+                    "firstName": "J",
+                    "lastName": "Gonzalez-Bonillo",
+                    "name": "Gonzalez-Bonillo",
+                    "referenceId": "RGD:A360535"
+                },
+                {
+                    "authorRank": 6,
+                    "firstName": "JC",
+                    "lastName": "Rodriguez-Rey",
+                    "name": "Rodriguez-Rey JC",
+                    "referenceId": "RGD:A125482"
+                },
+                {
+                    "authorRank": 7,
+                    "firstName": "N",
+                    "lastName": "Gregersen",
+                    "name": "Gregersen N",
+                    "referenceId": "RGD:A28402"
+                },
+                {
+                    "authorRank": 8,
+                    "firstName": "M",
+                    "lastName": "Pocovi",
+                    "name": "Pocovi M",
+                    "referenceId": "RGD:A62836"
+                }
+            ],
+            "citation": "Cenarro A, etal., Hum Mutat. 1998;11(5):413.",
+            "crossReferences": [
+                {
+                    "id": "RGD:11526447",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "dateLastModified": "2016-08-10T20:16:31.000-05:00",
+            "datePublished": "1000-08-01T00:00:00.000-06:00",
+            "issueName": "5",
+            "pages": "413",
+            "primaryId": "PMID:10206683",
+            "title": "Identification of recurrent and novel mutations in the LDL receptor gene in Spanish patients with familial hypercholesterolemia. Mutations in brief no. 135.  Online.",
+            "volume": "11"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "JOURNAL ARTICLE",
+                    "source": "RGD"
+                }
+            ],
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "firstName": "KS",
+                    "lastName": "Bose",
+                    "name": "Bose KS",
+                    "referenceId": "RGD:A48036"
+                },
+                {
+                    "authorRank": 2,
+                    "firstName": "RH",
+                    "lastName": "Sarma",
+                    "name": "Sarma RH",
+                    "referenceId": "RGD:A48037"
+                }
+            ],
+            "citation": "Bose KS and Sarma RH, Biochem Biophys Res Commun 1975 Oct 27;66(4):1173-9.",
+            "crossReferences": [
+                {
+                    "id": "RGD:1303381",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "dateLastModified": "2004-12-09T11:19:16.000-06:00",
+            "datePublished": "1975-12-01T00:00:00.000-06:00",
+            "issueName": "4",
+            "pages": "1173-9",
+            "primaryId": "PMID:2",
+            "title": "Delineation of the intimate details of the backbone conformation of pyridine nucleotide coenzymes in aqueous solution.",
+            "volume": "66"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "BOOK REVIEW",
+                    "source": "RGD"
+                }
+            ],
+            "abstract": "<br><b>CLINICAL CHARACTERISTICS: </b>Congenital myasthenic syndromes (designated as CMS throughout this entry) are characterized by fatigable weakness of skeletal muscle (e.g., ocular, bulbar, limb muscles) with onset at or shortly after birth or in early childhood; rarely, symptoms may not manifest until later in childhood. Cardiac and smooth muscle are usually not involved. Severity and course of disease are highly variable, ranging from minor symptoms to progressive disabling weakness. In some subtypes of CMS, myasthenic symptoms may be mild, but sudden severe exacerbations of weakness or even sudden episodes of respiratory insufficiency may be precipitated by fever, infections, or excitement. Major findings of the neonatal-onset subtype include: respiratory insufficiency with sudden apnea and cyanosis; feeding difficulties; poor suck and cry; choking spells; eyelid ptosis; and facial, bulbar, and generalized weakness. Arthrogryposis multiplex congenita may also be present. Stridor in infancy may be an important clue to CMS. Later childhood-onset subtypes show abnormal muscle fatigability with difficulty in activities such as running or climbing stairs; motor milestones may be delayed; fluctuating eyelid ptosis and fixed or fluctuating extraocular muscle weakness are common presentations.<br><b>DIAGNOSIS/TESTING: </b>The diagnosis of CMS is based on clinical findings, a decremental EMG response of the compound muscle action potential (CMAP) on low-frequency (2-3 Hz) stimulation, a positive response to acetylcholinesterase (AchE) inhibitors, absence of anti-acetylcholine receptor (AChR) and anti-MuSK antibodies in the serum, and lack of improvement of clinical symptoms with immunosuppressive therapy. Pathogenic variants in one of multiple genes encoding proteins expressed at the neuromuscular junction are currently known to be associated with subtypes of CMS. The most commonly associated genes include: CHAT, CHRNE, COLQ, DOK7, GFPT, and RAPSN.<br><b>MANAGEMENT: </b>Treatment of manifestations: Most individuals with CMS benefit from AChE inhibitors and/or the potassium channel blocker 3,4-diaminopyridine (3,4-DAP); however, caution must be used in giving 3,4-DAP to young children and individuals with fast-channel CMS (FCCMS). Individuals with COLQ and DOK7 pathogenic variants usually do not respond to long-term treatment with AChE inhibitors. Some individuals with slow-channel CMS (SCCMS) are treated with quinidine, which has some major side effects and may be detrimental in individuals with AChR deficiency. Fluoxetine is reported to be beneficial for SCCMS. Ephedrine and albuterol have been beneficial in several individuals, especially as a therapeutic option for those with DOK7 or COLQ pathogenic variants. Prevention of primary manifestations: Prophylactic anticholinesterase therapy to prevent sudden respiratory insufficiency or apneic attacks provoked by fever or infections in those with pathogenic variants in CHAT or RAPSN. Parents of infants are advised to use apnea monitors and be trained in CPR. Agents/circumstances to avoid: Drugs known to affect neuromuscular transmission and exacerbate symptoms of myasthenia gravis (e.g., ciprofloxacin, chloroquine, procaine, lithium, phenytoin, beta-blockers, procainamide, quinidine). Evaluation of relatives at risk: If the pathogenic variants in the family are known, molecular genetic testing can be used to clarify the genetic status of at-risk asymptomatic family members, especially newborns or young children, who could benefit from early treatment to prevent sudden respiratory failure.<br><b>GENETIC COUNSELING: </b>Congenital myasthenic syndromes are inherited in an autosomal recessive or an autosomal dominant manner. In autosomal recessive CMS (AR-CMS), the parents of an affected child are obligate heterozygotes and therefore carry one pathogenic variant. Heterozygotes (carriers) are asymptomatic. At conception, each sib of an affected individual has a 25% chance of being affected, a 50% chance of being an asymptomatic carrier, and a 25% chance of being unaffected and not a carrier. In autosomal dominant CMS (AD-CMS), some individuals have an affected parent while others have a de novo pathogenic variant. The proportion of cases caused by de novo pathogenic variants is unknown. Each child of an individual with AD-CMS has a 50% chance of inheriting the pathogenic variant. Prenatal testing and preimplantation genetic diagnosis are possible if the pathogenic variant(s) have been identified in an affected family member.",
+            "allianceCategory": "Other",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "firstName": "Angela",
+                    "lastName": "Abicht",
+                    "name": "Abicht A",
+                    "referenceId": "RGD:A422382"
+                },
+                {
+                    "authorRank": 2,
+                    "firstName": "Juliane",
+                    "lastName": "M\u00fcller",
+                    "name": "M\u00fcller J",
+                    "referenceId": "RGD:A437078"
+                },
+                {
+                    "authorRank": 3,
+                    "firstName": "Hanns",
+                    "lastName": "Lochm\u00fcller",
+                    "name": "Lochm\u00fcller H",
+                    "referenceId": "RGD:A422383"
+                }
+            ],
+            "citation": "PubMed Book Article",
+            "crossReferences": [
+                {
+                    "id": "RGD:11352983",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "dateLastModified": "2017-01-04T14:59:33.000-06:00",
+            "datePublished": "1993-12-01T00:00:00.000-06:00",
+            "primaryId": "PMID:20301347",
+            "title": "Congenital Myasthenic Syndromes"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "JOURNAL ARTICLE",
+                    "source": "RGD"
+                }
+            ],
+            "abstract": "The goal of the Gene Ontology (GO) project is to provide a uniform way to describe the functions of gene products from organisms across all kingdoms of life and thereby enable analysis of genomic data. Protein annotations are either based on experiments or predicted from protein sequences. Since most sequences have not been experimentally characterized, most available annotations need to be based on predictions. To make as accurate inferences as possible, the GO Consortium's Reference Genome Project is using an explicit evolutionary framework to infer annotations of proteins from a broad set of genomes from experimental annotations in a semi-automated manner. Most components in the pipeline, such as selection of sequences, building multiple sequence alignments and phylogenetic trees, retrieving experimental annotations and depositing inferred annotations, are fully automated. However, the most crucial step in our pipeline relies on software-assisted curation by an expert biologist. This curation tool, Phylogenetic Annotation and INference Tool (PAINT) helps curators to infer annotations among members of a protein family. PAINT allows curators to make precise assertions as to when functions were gained and lost during evolution and record the evidence (e.g. experimentally supported GO annotations and phylogenetic information including orthology) for those assertions. In this article, we describe how we use PAINT to infer protein function in a phylogenetic context with emphasis on its strengths, limitations and guidelines. We also discuss specific examples showing how PAINT annotations compare with those generated by other highly used homology-based methods.",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "firstName": "Pascale",
+                    "lastName": "Gaudet",
+                    "name": "Gaudet P",
+                    "referenceId": "RGD:A463967"
+                },
+                {
+                    "authorRank": 2,
+                    "firstName": "Michael S",
+                    "lastName": "Livstone",
+                    "name": "Livstone MS",
+                    "referenceId": "RGD:A463968"
+                },
+                {
+                    "authorRank": 3,
+                    "firstName": "Suzanna E",
+                    "lastName": "Lewis",
+                    "name": "Lewis SE",
+                    "referenceId": "RGD:A463969"
+                },
+                {
+                    "authorRank": 4,
+                    "firstName": "Paul D",
+                    "lastName": "Thomas",
+                    "name": "Thomas PD",
+                    "referenceId": "RGD:A463970"
+                }
+            ],
+            "citation": "Gaudet P, etal., Brief Bioinform. 2011 Sep;12(5):449-62. doi: 10.1093/bib/bbr042. Epub 2011 Aug 27.",
+            "crossReferences": [
+                {
+                    "id": "RGD:13792537",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "dateLastModified": "2018-09-12T02:47:48.000-05:00",
+            "datePublished": "2011-09-01T00:00:00.000-05:00",
+            "issueName": "5",
+            "pages": "449-62",
+            "primaryId": "PMID:21873635",
+            "title": "Phylogenetic-based propagation of functional annotations within the Gene Ontology consortium.",
+            "volume": "12"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "JOURNAL ARTICLE",
+                    "source": "RGD"
+                }
+            ],
+            "abstract": "It is accepted that confusion regarding the description of genetic variants occurs when researchers do not use standard nomenclature. The Human Genome Organization Gene Nomenclature Committee contacted a panel of consultants, all working on the KAL1 gene, to propose an update of the nomenclature of the gene, as there was a convention in the literature of using the 'KAL1' symbol, when referring to the gene, but using the name 'anosmin-1' when referring to the protein. The new name, ANOS1, reflects protein name and is more transferrable across species.",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "firstName": "F",
+                    "lastName": "De Castro",
+                    "name": "De Castro F",
+                    "referenceId": "RGD:A7961"
+                },
+                {
+                    "authorRank": 2,
+                    "firstName": "R",
+                    "lastName": "Seal",
+                    "name": "Seal",
+                    "referenceId": "RGD:A416773"
+                },
+                {
+                    "authorRank": 3,
+                    "firstName": "R",
+                    "lastName": "Maggi",
+                    "name": "Maggi",
+                    "referenceId": "RGD:A416774"
+                },
+                {
+                    "authorRank": 4,
+                    "name": "",
+                    "referenceId": "RGD:A417289"
+                }
+            ],
+            "citation": "de Castro F, etal., Brief Funct Genomics. 2016 Nov 29. pii: elw037.",
+            "crossReferences": [
+                {
+                    "id": "RGD:11570444",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "dateLastModified": "2016-12-14T20:07:25.000-06:00",
+            "datePublished": "2016-12-01T00:00:00.000-06:00",
+            "primaryId": "PMID:27899353",
+            "title": "ANOS1: a unified nomenclature for Kallmann syndrome 1 gene (KAL1) and anosmin-1."
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "PERSONAL COMMUNICATION",
+                    "source": "RGD"
+                }
+            ],
+            "abstract": "Personal communication between Dr. V. Kren's group and the RGD curators. They submitted the data to RGD. ",
+            "allianceCategory": "Personal Communication",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "firstName": "KREN",
+                    "lastName": "Dr. V.",
+                    "name": "Dr. V.",
+                    "referenceId": "RGD:A201083"
+                },
+                {
+                    "authorRank": 2,
+                    "firstName": "LISKA",
+                    "lastName": "Frantisek",
+                    "name": "Frantisek",
+                    "referenceId": "RGD:A201084"
+                }
+            ],
+            "citation": "Personal communication between Dr. V. Kren's group and the RGD curators.",
+            "crossReferences": [
+                {
+                    "id": "RGD:10002756",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "dateLastModified": "2015-04-24T10:49:05.000-05:00",
+            "datePublished": "",
+            "primaryId": "RGD:10002756",
+            "title": "Data registered by Dr. V. Kren's group"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "PERSONAL COMMUNICATION",
+                    "source": "RGD"
+                }
+            ],
+            "abstract": "Personal communication between Dr. Jintao Zhang's group and the RGD curators. They submitted the data to RGD.",
+            "allianceCategory": "Personal Communication",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "firstName": "ZHANG",
+                    "lastName": "Dr. Jintao",
+                    "name": "Dr. Jintao",
+                    "referenceId": "RGD:A201160"
+                }
+            ],
+            "citation": "Personal communication between Dr. Jintao Zhang's group and the RGD curators.",
+            "crossReferences": [
+                {
+                    "id": "RGD:10002786",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "dateLastModified": "2015-04-28T14:20:00.000-05:00",
+            "datePublished": "",
+            "primaryId": "RGD:10002786",
+            "title": "Data registered by Dr. Jintao Zhang's group"
+        }
+    ],
+    "metaData": {
+        "dataProvider": {
+            "crossReference": {
+                "id": "RGD",
+                "pages": [
+                    "homepage"
+                ]
+            },
+            "type": "curated"
+        },
+        "dateProduced": "2021-11-05T23:35:27.945-05:00",
+        "release": "RGD Reference Extractor, AGR schema 1.0.1.4, build Jan 25, 2021"
+    }
+}

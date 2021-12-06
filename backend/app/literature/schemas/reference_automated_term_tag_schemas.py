@@ -1,19 +1,15 @@
-from typing import List
 from typing import Optional
 
 from pydantic import BaseModel
-from pydantic import ValidationError
 from pydantic import validator
-
-from literature.schemas import BaseModelShow
 
 
 class ReferenceAutomatedTermTagSchemaPost(BaseModel):
-    reference_curie: str = None
-    ontology: str = None
-    datatype: str = None
-    term: str = None
-    automated_system: str = None
+    reference_curie: Optional[str] = None
+    ontology: Optional[str] = None
+    datatype: Optional[str] = None
+    term: Optional[str] = None
+    automated_system: Optional[str] = None
     confidence_score: Optional[float] = None
 
     @validator('reference_curie')
@@ -33,6 +29,7 @@ class ReferenceAutomatedTermTagSchemaShow(ReferenceAutomatedTermTagSchemaPost):
     class Config():
         orm_mode = True
         extra = "forbid"
+
 
 class ReferenceAutomatedTermTagSchemaPatch(BaseModel):
     reference_curie: Optional[str] = None

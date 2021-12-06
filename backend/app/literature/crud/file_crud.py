@@ -22,8 +22,8 @@ from literature.config import config
 from literature.models import FileModel
 
 
-def create(db: Session, s3: BaseClient, parent_entity_type : str, curie: str, file_contents: str, display_name: str, content_type: str) -> str:
-    filename, file_extension = os.path.splitext(display_name)
+def create(db: Session, s3: BaseClient, parent_entity_type : str, curie: str, file_contents: bytes, display_name: str, content_type: str) -> str:
+    _, file_extension = os.path.splitext(display_name)
     bucket_name = 'agr-literature'
     md5sum = hashlib.md5(file_contents).hexdigest()
     s3_filename = curie + '-File-' + md5sum + file_extension

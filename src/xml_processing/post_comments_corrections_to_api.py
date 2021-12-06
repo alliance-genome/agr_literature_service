@@ -1,15 +1,12 @@
 from os import path
 from os import environ
 import json
-import requests
 import argparse
 import logging
 import logging.config
 
-from helper_post_to_api import generate_headers, update_token
-
-# from sanitize_pubmed_json import sanitize_pubmed_json_list
-# from post_reference_to_api import post_references
+from helper_post_to_api import generate_headers, get_authentication_token, process_api_request
+from helper_file_processing import generate_cross_references_file, load_ref_xref
 
 # pipenv run python post_comments_corrections_to_api.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/all_pmids > log_post_comments_corrections_to_api
 # enter a file of pmids as an argument, sanitize, post to api
@@ -29,7 +26,6 @@ parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take
 args = vars(parser.parse_args())
 
 
-
 def post_comments_corrections(pmids_wanted):      # noqa: C901
     """
 
@@ -40,17 +36,9 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
     logger.info(pmids_wanted)
 
     api_port = environ.get('API_PORT')
-    # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
     base_path = environ.get('XML_PATH')
 
-    okta_file = base_path + 'okta_token'
-    token = ''
-    if path.isfile(okta_file):
-        with open(okta_file, 'r') as okta_fh:
-            token = okta_fh.read().replace("\n", "")
-            okta_fh.close
-    else:
-        token = update_token()
+    token = get_authentication_token()
     headers = generate_headers(token)
 
     allowed_com_cor_types = ['CommentOn', 'ErratumFor', 'ExpressionOfConcernFor', 'ReprintOf',
@@ -65,14 +53,23 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
     remap_com_cor_types['UpdateIn'] = 'UpdateOf'
 
     reference_to_curie = dict()
-    reference_primary_id_to_curie_file = base_path + 'reference_primary_id_to_curie'
-    if path.isfile(reference_primary_id_to_curie_file):
-        with open(reference_primary_id_to_curie_file, 'r') as read_fh:
-            for line in read_fh:
-                line_data = line.split("\t")
-                if line_data[0]:
-                    reference_to_curie[line_data[0]] = line_data[1].rstrip()
-            read_fh.close
+    # previously loading from reference_primary_id_to_curie from past run of this script
+    # reference_primary_id_to_curie_file = base_path + 'reference_primary_id_to_curie'
+    # if path.isfile(reference_primary_id_to_curie_file):
+    #     with open(reference_primary_id_to_curie_file, 'r') as read_fh:
+    #         for line in read_fh:
+    #             line_data = line.split("\t")
+    #             if line_data[0]:
+    #                 reference_to_curie[line_data[0]] = line_data[1].rstrip()
+    #         read_fh.close
+
+    generate_cross_references_file('reference')   # this updates from references in the database, and takes 88 seconds. if updating this script, comment it out after running it once
+    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+    reference_to_curie = dict()
+    for prefix in xref_ref:
+        for identifier in xref_ref[prefix]:
+            xref_curie = prefix + ':' + identifier
+            reference_to_curie[xref_curie] = xref_ref[prefix][identifier]
 
     mappings_set = set()
     for pmid in pmids_wanted:
@@ -101,8 +98,14 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
 
     url = 'http://localhost:' + api_port + '/reference_comment_and_correction/'
     mappings = sorted(mappings_set)
+    # counter = 0
     for mapping in mappings:
         # print(mapping)
+        # only take a couple of samples for testing
+        # counter += 1
+        # if counter > 2:
+        #     break
+
         map_data = mapping.split("\t")
         primary_pmid = 'PMID:' + map_data[0]
         secondary_pmid = 'PMID:' + map_data[1]
@@ -129,25 +132,24 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
             new_entry['reference_curie_to'] = secondary_curie
             new_entry['reference_comment_and_correction_type'] = com_cor_type
 
-# uncomment to test
-            post_return = requests.post(url, headers=headers, json=new_entry)
-            # response_dict = json.loads(post_return.text)
-            # print(primary_curie + "\t" + secondary_curie + "\ttext " + str(post_return.text))
-            # print(primary_curie + "\t" + secondary_curie + "\tstatus_code " + str(post_return.status_code))
-            logger.info("%s\t%s\t%s\t%s\t%s\ttext %s\tstatus_code %s", primary_pmid, primary_curie, secondary_pmid, secondary_curie, com_cor_type, str(post_return.text), str(post_return.status_code))
+            # output what is sent to API after converting file data
+            # json_object = json.dumps(new_entry, indent=4)
+            # print(json_object)
 
-# delete later
-#                 if (post_return.status_code == 201):
-#                     response_dict = response_dict.replace('"', '')
-#                     for identifier in identifiers:
-#                         logger.info("I %s\t%s", identifier, response_dict)
-#                         mapping_fh.write("%s\t%s\n" % (identifier, response_dict))
-#                 # if making multiple runs on data that has already gone into api
-#                 # elif (post_return.status_code == 409):
-#                 #     continue
-#                 else:
-#                     logger.info("ERROR %s primaryId %s message %s", post_return.status_code, primary_id, response_dict['detail'])
-#                     error_fh.write("ERROR %s primaryId %s message %s\n" % (post_return.status_code, primary_id, response_dict['detail']))
+            api_response_tuple = process_api_request('POST', url, headers, new_entry, primary_pmid, None, None)
+            headers = api_response_tuple[0]
+            response_text = api_response_tuple[1]
+            response_status_code = api_response_tuple[2]
+            log_info = api_response_tuple[3]
+            response_dict = json.loads(response_text)
+
+            if log_info:
+                logger.info(log_info)
+
+            if (response_status_code == 201):
+                logger.info("%s\t%s\t%s\t%s\t%s\ttext %s\tstatus_code %s", primary_pmid, primary_curie, secondary_pmid, secondary_curie, com_cor_type, response_text, response_status_code)
+            else:
+                logger.info("api error %s primary pmid %s message %s", str(response_status_code), primary_pmid, response_dict['detail'])
 
 
 if __name__ == "__main__":
@@ -165,11 +167,17 @@ if __name__ == "__main__":
 
     elif args['file']:
         logger.info("Processing file input from %s", args['file'])
-        with open(args['file'], 'r') as fp:
-            pmid = fp.readline()
-            while pmid:
-                pmids_wanted.append(pmid.rstrip())
+        base_path = environ.get('XML_PATH')
+        filename = base_path + args['file']
+        try:
+            with open(filename, 'r') as fp:
                 pmid = fp.readline()
+                while pmid:
+                    pmids_wanted.append(pmid.rstrip())
+                    pmid = fp.readline()
+                fp.close()
+        except IOError:
+            logger.info("No input file at %s", filename)
 
     else:
         logger.info("Must enter a PMID through command line")

@@ -1,13 +1,13 @@
 from datetime import datetime
+from typing import Dict
+
 import pytz
 
 from sqlalchemy import Column
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
 from sqlalchemy import String
-from sqlalchemy import Boolean
 from sqlalchemy import DateTime
-from sqlalchemy import ARRAY
 
 from sqlalchemy.orm import relationship
 
@@ -16,7 +16,7 @@ from literature.database.base import Base
 
 class NoteModel(Base):
     __tablename__ = 'notes'
-    __versioned__ = {}
+    __versioned__: Dict = {}
 
     note_id = Column(
         Integer,

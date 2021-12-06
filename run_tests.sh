@@ -1,3 +1,5 @@
 #!/usr/bin/env bash
 export ENV_STATE=test
-pytest 
+# pytest -vv
+pytest --cov --cov-fail-under=80 -vv --cov-report html
+

@@ -1,7 +1,7 @@
 # import logging
 from os import environ, path, makedirs
 import json
-from parse_dqm_json_reference import write_json
+from helper_file_processing import write_json
 
 # log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 # logging.config.fileConfig(log_file_path)

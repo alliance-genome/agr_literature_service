@@ -6,8 +6,12 @@ import argparse
 import re
 
 from os import environ, path, makedirs
-import logging.config
+import sys
+# import logging.config
+import logging
 import hashlib
+
+from typing import Set, List
 
 # from dotenv import load_dotenv
 #
@@ -51,9 +55,15 @@ import hashlib
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000
 
 
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+# log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
+# logging.config.fileConfig(log_file_path)
+# logger = logging.getLogger('literature logger')
+
+logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
+                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
+                    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
 
 
 parser = argparse.ArgumentParser()
@@ -79,7 +89,7 @@ known_article_id_types = {
 #     'doi': {'pages': 'DOI', 'prefix': 'DOI:'},
 #     'pmc': {'pages': 'PMC', 'prefix': 'PMCID:'}}
 ignore_article_id_types = {'bookaccession', 'mid', 'pii', 'pmcid'}
-unknown_article_id_types = set()
+unknown_article_id_types = set()   # type: Set
 
 
 def represents_int(s):
@@ -262,6 +272,11 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
             if issue_re_output is not None:
                 # print issue
                 data_dict['issueName'] = issue_re_output.group(1)
+
+            pubstatus_re_output = re.search("<PublicationStatus>(.+?)</PublicationStatus>", xml)
+            if pubstatus_re_output is not None:
+                # print pubstatus
+                data_dict['publicationStatus'] = pubstatus_re_output.group(1)
 
             if re.findall("<PublicationType>(.+?)</PublicationType>", xml):
                 types_group = re.findall("<PublicationType>(.+?)</PublicationType>", xml)
@@ -710,7 +725,8 @@ if __name__ == "__main__":
 
     # when iterating manually through list of PMIDs from PubMed XML CommentsCorrections, and wanting to exclude PMIDs that have already been looked at from original alliance DQM input, or previous iterations.
     previous_pmids = []
-    previous_pmids_files = []
+    previous_pmids_files = []   # type: List
+
     # previous_pmids_files = ['inputs/alliance_pmids', 'inputs/comcor_add1', 'inputs/comcor_add2', 'inputs/comcor_add3']
     # previous_pmids_files = ['inputs/alliance_pmids', 'inputs/comcor_add1', 'inputs/comcor_add2', 'inputs/comcor_add3', 'inputs/comcor_add4', 'inputs/comcor_add5', 'inputs/comcor_add6', 'inputs/comcor_add7', 'inputs/comcor_add8', 'inputs/comcor_add9', 'inputs/comcor_add10', 'inputs/comcor_add11']
     for previous_pmids_file in previous_pmids_files:

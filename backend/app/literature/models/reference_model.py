@@ -1,4 +1,6 @@
 from datetime import datetime
+from typing import Dict
+
 import pytz
 
 from sqlalchemy import Column
@@ -10,15 +12,17 @@ from sqlalchemy import ARRAY
 from sqlalchemy import Enum
 
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql.sqltypes import Boolean
 
 from literature.database.base import Base
 
 from literature.schemas import ReferenceCategory
+from literature.schemas import PubMedPublicationStatus
 
 
 class ReferenceModel(Base):
     __tablename__ = 'references'
-    __versioned__ = {}
+    __versioned__: Dict = {}
 
     reference_id = Column(
         Integer,
@@ -220,6 +224,12 @@ class ReferenceModel(Base):
         nullable=True
     )
 
+    pubmed_publication_status = Column(
+        Enum(PubMedPublicationStatus),
+        unique=False,
+        nullable=True
+    )
+
     issue_name = Column(
         String(),
         unique=False,
@@ -257,3 +267,14 @@ class ReferenceModel(Base):
         nullable=False,
         default=datetime.now(tz=pytz.timezone('UTC'))
     )
+
+    open_access = Column(
+        Boolean,
+        nullable=False,
+        default=False
+    )
+
+    def __str__(self):
+        """Over write the default output."""
+        return "Reference id = {} created {} updated {}: curie='{}' resource_id='{}' title='{}...'".\
+            format(self.reference_id, self.date_created, self.date_updated, self.curie, self.resource_id, self.title[:10])

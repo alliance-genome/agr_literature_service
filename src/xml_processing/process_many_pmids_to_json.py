@@ -1,8 +1,9 @@
 import time
 from os import environ, path, makedirs
 import argparse
+import sys
 import logging
-import logging.config
+# import logging.config
 
 from get_pubmed_xml import download_pubmed_xml
 from xml_to_json import generate_json
@@ -10,21 +11,30 @@ from xml_to_json import generate_json
 
 # pipenv run python process_many_pmids_to_json.py -f inputs/alliance_pmids
 #
+# to force skip of downloading xml
+# pipenv run python process_many_pmids_to_json.py -s -f inputs/alliance_pmids
+#
 # enter a file with a list of pmids as an argument, download xml, convert to json, find new pmids in commentsCorrections, recurse, output list of pubmed-based (as opposed to MOD-DQM-based) pmids to  inputs/pubmed_only_pmids
 
 
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+# log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
+# logging.config.fileConfig(log_file_path)
+# logger = logging.getLogger('literature logger')
+logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
+                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
+                    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
 parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
+parser.add_argument('-s', '--skip-download', action='store_true', help='do not download PubMed XML in testing mode')
 
 args = vars(parser.parse_args())
 
 
-def download_and_convert_pmids(pmids_wanted):
+def download_and_convert_pmids(pmids_wanted, skip_download_flag):
     """
 
     :param pmids_wanted:
@@ -34,7 +44,7 @@ def download_and_convert_pmids(pmids_wanted):
     pmids_original = pmids_wanted
     pmids_additional = []
     pmids_new_list = pmids_wanted
-    pmids_additional = recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list)
+    pmids_additional = recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list, skip_download_flag)
 
     base_path = environ.get('XML_PATH')
     inputs_path = base_path + 'inputs/'
@@ -57,7 +67,7 @@ def download_and_convert_pmids(pmids_wanted):
         pubmed_all_fh.write(pmids_all_string)
 
 
-def recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list):
+def recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list, skip_download_flag):
     """
 
     :param pmids_original:
@@ -66,7 +76,8 @@ def recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list):
     :return:
     """
 
-    download_pubmed_xml(pmids_new_list)
+    if not skip_download_flag:
+        download_pubmed_xml(pmids_new_list)
     pmids_already_processed = pmids_original + pmids_additional
     pmids_new_list = generate_json(pmids_new_list, pmids_already_processed)
     # for pmid in pmids_new_list:
@@ -77,16 +88,23 @@ def recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list):
     if pmids_new_list:
         time.sleep(1)
         pmids_additional.extend(pmids_new_list)
-        recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list)
+        recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list, skip_download_flag)
     return pmids_additional
 
 
 if __name__ == "__main__":
     """
     call main start function
+
+    skip download flag is to avoid downloading new pubmed_xml/ when running tests,
+    although if the files already exist there from the repo, they won't get downloaded anyway.
     """
 
     pmids_wanted = []
+
+    skip_download_flag = False
+    if args['skip_download']:
+        skip_download_flag = args['skip_download']
 
     # python process_single_pmid.py -c 1234 4576 1828
     if args['commandline']:
@@ -105,6 +123,6 @@ if __name__ == "__main__":
     else:
         logger.info("Must enter a PMID through command line")
 
-    download_and_convert_pmids(pmids_wanted)
+    download_and_convert_pmids(pmids_wanted, skip_download_flag)
 
     logger.info("Done Processing")

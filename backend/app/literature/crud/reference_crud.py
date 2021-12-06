@@ -1,3 +1,5 @@
+from typing import List, Dict, Any
+
 import sqlalchemy
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -20,6 +22,7 @@ from literature.models import CrossReferenceModel
 from literature.models import ModReferenceTypeModel
 from literature.models import ReferenceTagModel
 from literature.models import MeshDetailModel
+from literature.crud.reference_resource import create_obj
 
 from sqlalchemy import ARRAY
 from sqlalchemy import Boolean
@@ -36,8 +39,8 @@ def create_next_curie(curie) -> str:
     return "-".join([curie_parts[0], str(number).rjust(10, '0')])
 
 
-def create(db: Session, reference: ReferenceSchemaPost):
-    reference_data = {}
+def create(db: Session, reference: ReferenceSchemaPost): # noqa
+    reference_data = {}  # type: Dict[str, Any]
 
     if reference.cross_references:
         for cross_reference in reference.cross_references:
@@ -73,9 +76,9 @@ def create(db: Session, reference: ReferenceSchemaPost):
                         obj_data['orcid_cross_reference'] = cross_reference_obj
                     del obj_data['orcid']
                     if field == 'authors':
-                        db_obj = AuthorModel(**obj_data)
+                        db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
                     else:
-                        db_obj = EditorModel(**obj_data)
+                        db_obj = create_obj(db, EditorModel, obj_data, non_fatal=True)
                 elif field == 'mod_reference_types':
                     db_obj = ModReferenceTypeModel(**obj_data)
                 elif field == 'tags':
@@ -128,8 +131,8 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie {curie} not found")
 
-    for field, value in reference_update.items():
-        if field == "resource":
+    for field, value in reference_update.dict().items():
+        if field == "resource" and value:
             resource_curie = value
             resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
             if not resource:
@@ -194,11 +197,14 @@ def show_notes(db: Session, curie: str):
     return notes_data
 
 
-def show(db: Session, curie: str):
+def show(db: Session, curie: str, http_request=True):  # noqa
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one_or_none()
     if not reference:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Reference with the id {curie} is not available")
+        if http_request:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"Reference with the id {curie} is not available")
+        else:
+            return None
 
     reference_data = jsonable_encoder(reference)
     if reference.resource_id:
@@ -249,7 +255,7 @@ def show(db: Session, curie: str):
 
     del reference_data['files']
 
-    comment_and_corrections_data = {'to_references': [], 'from_references': []}
+    comment_and_corrections_data = {'to_references': [], 'from_references': []}  # type: Dict[str, List[str]]
     for comment_and_correction in reference.comment_and_corrections_out:
         comment_and_correction_data = reference_comment_and_correction_crud.show(db, comment_and_correction.reference_comment_and_correction_id)
         del comment_and_correction_data['reference_curie_from']

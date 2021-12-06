@@ -11,9 +11,10 @@ from literature.models.resource_descriptor_models import ResourceDescriptorPageM
 
 
 get_db = database.get_db
+db_session = next(get_db(), None)
 
 
-def update_resource_descriptor(db: Session = next(get_db(), None)):
+def update_resource_descriptor(db: Session = db_session):
     """
 
     :param db:
@@ -54,7 +55,7 @@ def setup_resource_descriptor():
     :return:
     """
 
-    resource_descriptor_yaml = update_resource_descriptor()
+    update_resource_descriptor()
 
 
 if __name__ == '__main__':

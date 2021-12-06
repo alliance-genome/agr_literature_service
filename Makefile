@@ -15,7 +15,7 @@ build-env:
 		-f ./docker/Dockerfile.env
 
 build-dev:
-	docker build . --build-arg REG=${REG} -t ${REG}/agr_literature_dev:${TAG} -f ./docker/Dockerfile.dev.env
+	docker build . --build-arg REG=${REG} -t ${REG}/agr_literature_dev:${TAG} -f ./docker/Dockerfile.dev.env --progress=plain
 
 build-app:
 	docker build . --build-arg REG=${REG} -t ${REG}/agr_literature_app:${TAG} -f ./docker/Dockerfile.app.env
@@ -23,9 +23,18 @@ build-app:
 run-flake8:
 	docker run --rm -v ${PWD}:/workdir -i ${REG}/agr_literature_dev:${TAG} /bin/bash -c "python3 -m flake8 ."
 
+run-local-flake8:
+	python3 -m flake8 .
+
+run-mypy:
+	docker run --rm -v ${PWD}:/workdir -i ${REG}/agr_literature_dev:${TAG} /bin/bash -c "mypy --config-file mypy.config ."
+
+run-local-mypy:
+	mypy --config-file mypy.config .
+
 run-dev-bash:
 	docker run --rm \
-		--network=agr_literature_service_agr-literature \
+	    --network=agr_literature_service_agr-literature \
 	    -p ${API_PORT}:8080 \
 	    -v ${PWD}:/workdir \
 		-t -i ${REG}/agr_literature_dev:${TAG} \
@@ -40,10 +49,18 @@ docker-compose-up:
 docker-compose-down:
 	docker run -itd --env-file=.env -v /var/run/docker.sock:/var/run/docker.sock -v /home/core/.docker:/root/.docker -v ${PWD}:/var/tmp/ docker/compose:1.24.1  -f /var/tmp/docker-compose.yaml down 
 
-run-test-bash:
-	docker run -it --rm \
-		--network=agr_literature_service_agr-literature \
-	    -p ${API_PORT}:8080 \
+run-test-bash: build-env build-dev
+	-docker volume rm agr_literature_service_agr-literature-test-pg-data    
+	docker-compose -f docker-compose-test.yml up -d
+	sleep 5
+	# Minus at start means ignore exit code for that line
+	-docker run -i --rm \
+		--network=agr_literature_service_agr-literature-test \
+	    -p 8080:8080 \
+		-e PYTHONPATH:/workdir/src/xml_processing/ \
 	    -v ${PWD}:/workdir \
 		${REG}/agr_literature_dev:${TAG} \
-		./run_tests.sh
+		./run_tests.sh > pytest.out
+	docker-compose -f docker-compose-test.yml down
+    #doing here after shutdown of database 
+	python3 check_tests.py

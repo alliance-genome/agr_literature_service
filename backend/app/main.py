@@ -2,6 +2,8 @@ import uvicorn
 
 import argparse
 
+from typing import Dict, Any
+
 from uvicorn.config import LOGGING_CONFIG
 
 from fastapi import FastAPI
@@ -9,9 +11,11 @@ from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
 
+from fastapi_health import health
+
 from literature import models
 from literature.database.main import engine
-
+from literature.database.main import is_database_online
 
 from literature.routers import resource_router
 from literature.routers import reference_router
@@ -57,7 +61,7 @@ app.add_middleware(CORSMiddleware,
                    allow_headers=["*"])
 
 
-def custom_openapi():
+def custom_openapi() -> Dict[str, Any]:
     """
 
     :return:
@@ -105,7 +109,9 @@ app.include_router(reference_automated_term_tag_router.router)
 app.include_router(reference_manual_term_tag_router.router)
 app.include_router(bulk_downloads_router.router)
 
-app.openapi = custom_openapi
+app.add_api_route("/health", health([is_database_online]))
+
+app.openapi = custom_openapi  # type: ignore
 
 
 def run():

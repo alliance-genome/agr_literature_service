@@ -1,14 +1,13 @@
 from typing import List, Optional
 
 from pydantic import BaseModel
-from pydantic import ValidationError
 from pydantic import validator
 
 
 class CrossReferenceSchemaRelated(BaseModel):
     curie: str
     pages: Optional[List[str]] = None
-    is_obsolete: bool = None
+    is_obsolete: Optional[bool] = None
 
     @validator('curie')
     def name_must_contain_space(cls, v):
@@ -69,11 +68,11 @@ class CrossReferenceSchema(BaseModel):
     url: Optional[str] = None
     is_obsolete: Optional[bool] = False
 
-    resource_curie:  Optional[str] = None
+    resource_curie: Optional[str] = None
     reference_curie: Optional[str] = None
 
-    author_ids: Optional[List[int]]= None
-    editor_ids: Optional[List[int]]= None
+    author_ids: Optional[List[int]] = None
+    editor_ids: Optional[List[int]] = None
 
     class Config():
         orm_mode = True
@@ -82,7 +81,7 @@ class CrossReferenceSchema(BaseModel):
 
 class CrossReferenceSchemaUpdate(BaseModel):
     pages: Optional[List[str]] = None
-    resource_curie:  Optional[str] = None
+    resource_curie: Optional[str] = None
     reference_curie: Optional[str] = None
     is_obsolete: Optional[bool] = None
 

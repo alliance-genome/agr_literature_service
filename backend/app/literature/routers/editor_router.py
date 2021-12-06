@@ -1,5 +1,3 @@
-from typing import List
-
 from sqlalchemy.orm import Session
 
 from fastapi import APIRouter
@@ -14,7 +12,6 @@ from literature import database
 
 from literature.user import set_global_user_id
 
-from literature.schemas import EditorSchemaShow
 from literature.schemas import EditorSchemaPost
 from literature.schemas import ResponseMessageSchema
 
@@ -27,13 +24,16 @@ router = APIRouter(
 )
 
 get_db = database.get_db
+db_session: Session = Depends(get_db)
+db_user = Security(auth.get_user)
+
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              response_model=str)
 def create(request: EditorSchemaPost,
-           user: OktaUser = Security(auth.get_user),
-           db: Session = Depends(get_db)):
+           user: OktaUser = db_user,
+           db: Session = db_session):
     set_global_user_id(db, user.id)
     return editor_crud.create(db, request)
 
@@ -41,8 +41,8 @@ def create(request: EditorSchemaPost,
 @router.delete('/{editor_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(editor_id: int,
-            user: OktaUser= Security(auth.get_user),
-            db: Session = Depends(get_db)):
+            user: OktaUser = db_user,
+            db: Session = db_session):
     set_global_user_id(db, user.id)
     editor_crud.destroy(db, editor_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -53,8 +53,9 @@ def destroy(editor_id: int,
               response_model=ResponseMessageSchema)
 async def patch(editor_id: int,
                 request: EditorSchemaPost,
-                user: OktaUser = Security(auth.get_user),
-                db: Session = Depends(get_db)):
+                user: OktaUser = db_user,
+                db: Session = db_session):
+
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)
 
@@ -64,12 +65,12 @@ async def patch(editor_id: int,
 @router.get('/{editor_id}',
             status_code=200)
 def show(editor_id: int,
-         db: Session = Depends(get_db)):
+         db: Session = db_session):
     return editor_crud.show(db, editor_id)
 
 
 @router.get('/{editor_id}/versions',
             status_code=200)
-def show(editor_id: int,
-         db: Session = Depends(get_db)):
+def show_versions(editor_id: int,
+                  db: Session = db_session):
     return editor_crud.show_changesets(db, editor_id)

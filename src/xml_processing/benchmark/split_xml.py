@@ -23,6 +23,7 @@ import logging.config
 
 from shutil import copyfile
 
+from typing import List
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -35,7 +36,7 @@ load_dotenv()
 # to get set of pmids with search term 'elegans'
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000
 
-pmids = []
+pmids = []  # type: List
 
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
@@ -173,11 +174,11 @@ if __name__ == "__main__":
 #     python split_xml.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
     elif args['url']:
         logger.info("Processing url input from %s", args['url'])
-        req = urllib.urlopen(args['url'])
-        data = req.read()
-        lines = data.splitlines()
-        for pmid in lines:
-            pmids.append(pmid)
+        with urllib.request.urlopen(args['url']) as req:
+            data = req.read()
+            lines = data.splitlines()
+            for pmid in lines:
+                pmids.append(pmid)
 
 #    python split_xml.py -c 1234 4576 1828
     elif args['commandline']:

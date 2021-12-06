@@ -4,26 +4,26 @@ from pydantic import BaseModel
 
 
 class MeshDetailSchemaCreate(BaseModel):
-   heading_term: str
-   qualifier_term: Optional[str]
+    heading_term: str
+    qualifier_term: Optional[str]
 
-   class Config():
+    class Config():
         orm_mode = True
         extra = "forbid"
 
 
 class MeshDetailSchemaPost(MeshDetailSchemaCreate):
-   reference_curie: str
+    reference_curie: str
 
-   class Config():
+    class Config():
         orm_mode = True
         extra = "forbid"
 
 
 class MeshDetailSchemaShow(MeshDetailSchemaPost):
-   mesh_detail_id: int
+    mesh_detail_id: int
 
-   class Config():
+    class Config():
         orm_mode = True
         extra = "forbid"
 
@@ -37,10 +37,10 @@ class MeshDetailSchemaRelated(MeshDetailSchemaCreate):
 
 
 class MeshDetailSchemaUpdate(BaseModel):
-   reference_curie: Optional[str]
-   heading_term: Optional[str]
-   qualifier_term: Optional[str]
+    reference_curie: Optional[str]
+    heading_term: Optional[str]
+    qualifier_term: Optional[str]
 
-   class Config():
+    class Config():
         orm_mode = True
         extra = "forbid"

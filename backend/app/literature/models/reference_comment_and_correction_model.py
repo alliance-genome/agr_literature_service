@@ -1,14 +1,9 @@
-from datetime import datetime
-import pytz
+from typing import Dict
 
 from sqlalchemy import Enum
 from sqlalchemy import Column
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
-from sqlalchemy import String
-from sqlalchemy import Boolean
-from sqlalchemy import DateTime
-from sqlalchemy import ARRAY
 
 from sqlalchemy.orm import relationship
 
@@ -19,7 +14,7 @@ from literature.schemas import ReferenceCommentAndCorrectionType
 
 class ReferenceCommentAndCorrectionModel(Base):
     __tablename__ = 'reference_comments_and_corrections'
-    __versioned__ = {}
+    __versioned__: Dict = {}
 
     reference_comment_and_correction_id = Column(
         Integer,
@@ -54,7 +49,7 @@ class ReferenceCommentAndCorrectionModel(Base):
     )
 
     reference_comment_and_correction_type = Column(
-         Enum(ReferenceCommentAndCorrectionType),
-         unique=False,
-         nullable=False
+        Enum(ReferenceCommentAndCorrectionType),
+        unique=False,
+        nullable=False
     )

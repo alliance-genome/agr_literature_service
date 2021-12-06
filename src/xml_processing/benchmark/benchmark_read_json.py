@@ -1,10 +1,9 @@
 
-import json
-
 import argparse
 
 from os import environ, path
 import logging.config
+from typing import List
 
 from dotenv import load_dotenv
 
@@ -33,7 +32,7 @@ args = vars(parser.parse_args())
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
 
-pmids = []
+pmids = []  # type: List
 
 
 def benchmark_read_json():
@@ -52,9 +51,7 @@ def benchmark_read_json():
     time_rate = 1
     for pmid in pmids:
         filename = get_path_from_pmid(pmid, 'xml')
-        # filename = base_path + 'pubmed_xml/' + pmid + '.xml'
         counter = counter + 1
-        pubmed_data = dict()
         try:
             with open(filename, 'r') as f:
                 line = f.read()
@@ -68,8 +65,6 @@ def benchmark_read_json():
                     last_size = size
                     start = end
                     logger.info("read %s seconds %s entries, %s size, %s size_rate, %s rate, %s avg_file_size", time_rate, counter, size, size_rate, rate, avg_file_size)
-                # pubmed_data = json.load(f)
-                # pubmed_data = json.load(line)	# uncomment to also test json conversion
                 f.close()
         except Exception as e:
             print(str(e))
@@ -118,4 +113,3 @@ if __name__ == "__main__":
 
     benchmark_read_json()
     logger.info("ending benchmark_read_json.py")
-

@@ -1,5 +1,6 @@
 import sqlalchemy
 from datetime import datetime
+from typing import Dict, Union
 
 from fastapi import HTTPException
 from fastapi import status
@@ -17,6 +18,13 @@ from literature.models import AuthorModel
 from literature.models import EditorModel
 from literature.models import CrossReferenceModel
 from literature.models import MeshDetailModel
+from literature.crud.reference_resource import create_obj
+
+from sqlalchemy import ARRAY
+from sqlalchemy import Boolean
+from sqlalchemy import String
+from sqlalchemy import func
+from sqlalchemy.sql.expression import cast
 
 
 def create_next_curie(curie):
@@ -63,9 +71,9 @@ def create(db: Session, resource: ResourceSchemaPost):
                         obj_data['orcid_cross_reference'] = cross_reference_obj
                     del obj_data['orcid']
                     if field == 'authors':
-                        db_obj = AuthorModel(**obj_data)
+                        db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
                     else:
-                        db_obj = EditorModel(**obj_data)
+                        db_obj = create_obj(db, EditorModel, obj_data, non_fatal=True)
                 elif field == 'cross_references':
                     db_obj = CrossReferenceModel(**obj_data)
                 elif field == 'mesh_terms':
@@ -83,6 +91,22 @@ def create(db: Session, resource: ResourceSchemaPost):
     return curie
 
 
+def show_all_resources_external_ids(db: Session):
+    resources_query = db.query(ResourceModel.curie,
+                               cast(func.array_agg(CrossReferenceModel.curie),
+                                    ARRAY(String)),
+                               cast(func.array_agg(CrossReferenceModel.is_obsolete),
+                                    ARRAY(Boolean))) \
+        .outerjoin(ResourceModel.cross_references) \
+        .group_by(ResourceModel.curie)
+
+    return [{'curie': resource[0],
+             'cross_references': [{'curie': resource[1][idx],
+                                   'is_obsolete': resource[2][idx]}
+                                  for idx in range(len(resource[1]))]}
+            for resource in resources_query.all()]
+
+
 def destroy(db: Session, curie: str):
     resource = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
 
@@ -95,20 +119,29 @@ def destroy(db: Session, curie: str):
     return None
 
 
-def patch(db: Session, curie: str, resource_update: ResourceSchemaUpdate):
+def patch(db: Session, curie: str, resource_update: Union[ResourceSchemaUpdate, Dict]) -> dict:
     resource_db_obj = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
-    if not resource_db_obj:
+    if resource_db_obj is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Resource with curie {curie} not found")
 
-    if 'iso_abbreviation' in resource_update and resource_update['iso_abbreviation']:
-        iso_abbreviation_resource = db.query(ResourceModel).filter(ResourceModel.iso_abbreviation == resource_update['iso_abbreviation']).first()
+    if isinstance(resource_update, ResourceSchemaUpdate):
+        if resource_update.iso_abbreviation is not None:
+            iso_abbreviation_resource = db.query(ResourceModel).filter(ResourceModel.iso_abbreviation == resource_update.iso_abbreviation).first()
 
-        if iso_abbreviation_resource and iso_abbreviation_resource.curie != curie:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                                detail=f"Resource with iso_abbreviation {resource_update.iso_abbreviation} already exists")
+            if iso_abbreviation_resource and iso_abbreviation_resource.curie != curie:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                    detail=f"Resource with iso_abbreviation {resource_update.iso_abbreviation} already exists")
 
-    for field, value in resource_update.items():
+    update_dict = {}  # type: Dict
+    if isinstance(resource_update, ResourceSchemaUpdate):
+        update_dict = resource_update.dict()
+    elif isinstance(resource_update, Dict):
+        update_dict = resource_update
+    else:
+        update_dict = {}
+
+    for field, value in update_dict.items():
         setattr(resource_db_obj, field, value)
 
     resource_db_obj.date_updated = datetime.utcnow()

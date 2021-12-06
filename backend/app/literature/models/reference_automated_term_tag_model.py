@@ -1,15 +1,9 @@
-from datetime import datetime
-import pytz
-
-from sqlalchemy import Enum
+from typing import Dict
 from sqlalchemy import Column
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
 from sqlalchemy import Float
 from sqlalchemy import String
-from sqlalchemy import Boolean
-from sqlalchemy import DateTime
-from sqlalchemy import ARRAY
 
 from sqlalchemy.orm import relationship
 
@@ -18,7 +12,7 @@ from literature.database.base import Base
 
 class ReferenceAutomatedTermTagModel(Base):
     __tablename__ = 'reference_automated_term_tags'
-    __versioned__ = {}
+    __versioned__: Dict = {}
 
     reference_automated_term_tag_id = Column(
         Integer,
@@ -39,9 +33,9 @@ class ReferenceAutomatedTermTagModel(Base):
     )
 
     ontology = Column(
-         String(),
-         unique=False,
-         nullable=False
+        String(),
+        unique=False,
+        nullable=False
     )
 
     datatype = Column(

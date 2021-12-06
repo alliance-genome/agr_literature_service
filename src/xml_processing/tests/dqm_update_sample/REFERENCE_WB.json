@@ -1,0 +1,578 @@
+{
+    "data": [
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Journal_article",
+                    "source": "WB"
+                }
+            ],
+            "abstract": "Applying a series of techniques intended to induce, detect and isolate lethal and/or sterile temperature-sensitive mutants, specific to the self-fertilizing hermaphrodite nematode Caenorhabditis elegans, Bergerac strain, 25 such mutants have been found. Optimal conditions for the application of mutagenic treatment and the detection of such mutations are discussed.",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "firstName": "Bobbie",
+                    "lastName": "Robertson",
+                    "name": "BOB",
+                    "referenceId": "WB:WBPaper00000003"
+                },
+                {
+                    "authorRank": 2,
+                    "firstName": "Ronnie",
+                    "lastName": "Smith",
+                    "name": "RON",
+                    "referenceId": "WB:WBPaper00000003"
+                }
+            ],
+            "citation": "Abdul Kader N et al. (1978) Revue de Nematologie \"Induction, detection and isolation of temperature-sensitive lethal and/or ....\"",
+            "crossReferences": [
+                {
+                    "id": "WB:WBPaper00000003",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "1978",
+            "pages": "27-37",
+            "primaryId": "WB:WBPaper00000003",
+            "resourceAbbreviation": "Revue de Nematologie",
+            "tags": [
+                {
+                    "referenceId": "WB:WBPaper00000003",
+                    "tagName": "inCorpus",
+                    "tagSource": "WB"
+                }
+            ],
+            "title": "A new title",
+            "volume": "1"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Journal_article",
+                    "source": "WB"
+                }
+            ],
+            "abstract": "Before diakinesis, the development of the oocytes of C. elegans takes place in the presence of a specific anatomical structure: the rachis. This is an undivided, anucleated cytoplasmic mass placed in the central part of the ovary. Electron microscopy shows that, at first, in the gonial region, it is made of two branches which infiltrate themselves between the oogonia and then converge in a single axial column. Afterwards, this column will be pushed to the outside of the gonad and will disappear when the great oocyte increase takes place. Until then, the rachis is limited by its own envelope and connects each germinal cell through a pore present in the double layered membrane. The cytoplasmic bridge established between the oogonia and the rachis, the presence of a typical Golgi apparatus and of numerous mitochondria in the rachis strongly suggest that the rachis plays a role in the oocyte",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "name": "Abi-Rached M",
+                    "referenceId": "WB:WBPaper00000005"
+                },
+                {
+                    "authorRank": 2,
+                    "name": "Brun J",
+                    "referenceId": "WB:WBPaper00000005"
+                }
+            ],
+            "citation": "Abi-Rached M et al. (1975) Nematologica \"Etude ultrastructurale des relations entre ovocytes et rachis au cours de ....\"",
+            "crossReferences": [
+                {
+                    "id": "DOI:10.1163/187529275X00518"
+                },
+                {
+                    "id": "WB:WBPaper00000005",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "1975",
+            "pages": "151-162",
+            "primaryId": "WB:WBPaper00000005",
+            "resourceAbbreviation": "Nematologica",
+            "tags": [
+                {
+                    "referenceId": "WB:WBPaper00000005",
+                    "tagName": "inCorpus",
+                    "tagSource": "WB"
+                }
+            ],
+            "title": "Etude ultrastructurale des relations entre ovocytes et rachis au cours de l'Sovogenese du nematode C. elegans.",
+            "volume": "21"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Journal_article",
+                    "source": "WB"
+                }
+            ],
+            "abstract": "Electron microscope studies in and around the nucleus of C. elegans oogonia and primary oocytes showed fibrogranular formations whose presence is not always constant. The nucleolus, very large in the first oogenetic stages, disappeared during early diakinesis. In pachytene and diplotene, it underwent a vacuolization phase in its central part. Perinuclear corpuscules and groups of granules were limited to the vitellogenetic phase of meiotic I prophase: they were localized in the vicinity of the nuclear membrane and nucleolus. The perinuclear formations, detectable as early as germigene, remained until full ooplasmic growth. Their localization at the limit of the nucleus led to their involvement in the exchange processes which took place between the nucleolus and the cytoplasm, by way of the perinucleolar granules and",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "name": "Abi-Rached M",
+                    "referenceId": "WB:WBPaper00000006"
+                },
+                {
+                    "authorRank": 2,
+                    "name": "Brun J",
+                    "referenceId": "WB:WBPaper00000006"
+                }
+            ],
+            "citation": "Abi-Rached M et al. (1978) Revue de Nematologie \"Ultrastructural changes in the nuclear and perinuclear regions of the oogonia ....\"",
+            "crossReferences": [
+                {
+                    "id": "WB:WBPaper00000006",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "1978",
+            "pages": "63-72",
+            "primaryId": "WB:WBPaper00000006",
+            "resourceAbbreviation": "Revue de Nematologie",
+            "tags": [
+                {
+                    "referenceId": "WB:WBPaper00000006",
+                    "tagName": "inCorpus",
+                    "tagSource": "WB"
+                }
+            ],
+            "title": "Ultrastructural changes in the nuclear and perinuclear regions of the oogonia and primary oocytes of C. elegans, Bergerac strain.",
+            "volume": "1"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Journal_article",
+                    "source": "WB"
+                }
+            ],
+            "abstract": "During oogenesis in the hermaphroditic nematode C. elegans, the synaptonemal complex is not detectable until the homologous chromosomes are at least partly paired (that is until meiotic prophase synapsis). In the pachytene stage, the complex has a typically classic organization. At the separation phase, the complex persists in certain places, in the diplotene stage and even in early diakinesis. These zones which persist during separation of the homologous chromosomes are believed to correspond to chiasma. This interpretation therefore implicates the complex in the recombination mechanism.",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "name": "Abi-Rached M",
+                    "referenceId": "WB:WBPaper00000007"
+                },
+                {
+                    "authorRank": 2,
+                    "name": "Brun J",
+                    "referenceId": "WB:WBPaper00000007"
+                }
+            ],
+            "citation": "Abi-Rached M et al. (1979) C R Seances Acad Sci D \"Changes in the synaptonemal complex in the oocyte nucleus in meiotic prophase of ....\"",
+            "crossReferences": [
+                {
+                    "id": "WB:WBPaper00000007",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "1979",
+            "pages": "425-428",
+            "primaryId": "WB:WBPaper00000007",
+            "resourceAbbreviation": "C R Seances Acad Sci D",
+            "tags": [
+                {
+                    "referenceId": "WB:WBPaper00000007",
+                    "tagName": "inCorpus",
+                    "tagSource": "WB"
+                }
+            ],
+            "title": "Changes in the synaptonemal complex in the oocyte nucleus in meiotic prophase of C. elegans.",
+            "volume": "288"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Journal_article",
+                    "source": "WB"
+                }
+            ],
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "name": "Ali MY",
+                    "referenceId": "WB:WBPaper00000010"
+                },
+                {
+                    "authorRank": 2,
+                    "name": "Wahab A",
+                    "referenceId": "WB:WBPaper00000010"
+                },
+                {
+                    "authorRank": 3,
+                    "name": "El-Kifel AH",
+                    "referenceId": "WB:WBPaper00000010"
+                }
+            ],
+            "citation": "Ali MY et al. (1973) Parasitologia Hungarica \"Nematodes associated with Coleoptera species in Egypt Part 2.\"",
+            "crossReferences": [
+                {
+                    "id": "WB:WBPaper00000010",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "1973",
+            "pages": "169-188",
+            "primaryId": "WB:WBPaper00000010",
+            "resourceAbbreviation": "Parasitologia Hungarica",
+            "tags": [
+                {
+                    "referenceId": "WB:WBPaper00000010",
+                    "tagName": "inCorpus",
+                    "tagSource": "WB"
+                }
+            ],
+            "title": "Nematodes associated with Coleoptera species in Egypt Part 2.",
+            "volume": "6"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Journal_article",
+                    "source": "WB"
+                }
+            ],
+            "abstract": "Larval forms of the free-living nematode Caenorhabditis elegans possess the ability to enter a developmental stage which is thought to be specialized for survival in harsh environmental conditions, i.e. the dauerlarval stage. In this study the responses of dauerlarvae to thermal stress and oxygen deprivation are investigated. Oxygen consumption of dauerlarvae is less sensitive to temperature change than that of adults, with Q10 values of 1.7 and 2.6 respectively. The upper thermal tolerance limit of dauerlarvae is also different from that of adults; dauerlarvae survive approximately three times longer than adults when exposed to 37C. In addition to differences in thermal tolerance, dauerlarvae surrvive longer under anaerobic conditions than adults, 7 days and 2 days respectively. On recovery from anaerobic stress dauerlarvae exhibit behavior changes which are suggestive of emergence from the dauerlarval stage. The responses of dauerlarvae to thermal stress and oxygen deprivation appear to be important aspects of the specialization for survival",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "name": "Anderson GL",
+                    "referenceId": "WB:WBPaper00000011"
+                }
+            ],
+            "citation": "Anderson GL (1978) Canadian Journal of Zoology \"Responses of dauerlarvae of C. elegans (Nematoda: Rhabditidae) to thermal ....\"",
+            "crossReferences": [
+                {
+                    "id": "DOI:10.1139/z78-244"
+                },
+                {
+                    "id": "WB:WBPaper00000011",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "1978",
+            "pages": "1786-1791",
+            "primaryId": "WB:WBPaper00000011",
+            "resourceAbbreviation": "Canadian Journal of Zoology",
+            "tags": [
+                {
+                    "referenceId": "WB:WBPaper00000011",
+                    "tagName": "inCorpus",
+                    "tagSource": "WB"
+                }
+            ],
+            "title": "Responses of dauerlarvae of C. elegans (Nematoda: Rhabditidae) to thermal stress and oxygen deprivation.",
+            "volume": "56"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "News",
+                    "source": "WB"
+                }
+            ],
+            "abstract": "The precision of neuronal development is programmed genetically. The genes involved must be expressed in an orderly sequence so that their products appear in the right cell at the right time. By studying mutants in which this sequence is altered, it should be possible to dissect the development and recognize the steps controlled by individual genes.",
+            "allianceCategory": "Unknown",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "name": "Ward S",
+                    "referenceId": "WB:WBPaper00000015"
+                }
+            ],
+            "citation": "Ward S (1975) Experimental Neurology \"Genetic studies of chemotaxis mutants in nematodes.\"",
+            "crossReferences": [
+                {
+                    "id": "WB:WBPaper00000015",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "1975",
+            "pages": "58-59",
+            "primaryId": "WB:WBPaper00000015",
+            "resourceAbbreviation": "Experimental Neurology",
+            "tags": [
+                {
+                    "referenceId": "WB:WBPaper00000015",
+                    "tagName": "inCorpus",
+                    "tagSource": "WB"
+                }
+            ],
+            "title": "Genetic studies of chemotaxis mutants in nematodes.",
+            "volume": "48"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Journal_article",
+                    "source": "WB"
+                }
+            ],
+            "abstract": "A new method of isolating mutants of the free-living nematode Caenorhabditis elegans is described. This method utilizes the fluorescence of the nematode as the phenotype. 15 mutants belonging to four genes obtained using this technique have been characterised. Mutants in two of these genes are shown to have blocks in tryptophan catabolism. It is suggested that this method could be used to obtain mutants corresponding to blocks in other metabolic pathways with fluorescent end products.",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "name": "Babu P",
+                    "referenceId": "WB:WBPaper00000016"
+                }
+            ],
+            "citation": "Babu P (1974) Mol Gen Genet \"Biochemical genetics of C. elegans.\"",
+            "crossReferences": [
+                {
+                    "id": "DOI:10.1007/BF00433899"
+                },
+                {
+                    "id": "WB:WBPaper00000016",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "1974",
+            "pages": "39-44",
+            "primaryId": "WB:WBPaper00000016",
+            "resourceAbbreviation": "Mol Gen Genet",
+            "tags": [
+                {
+                    "referenceId": "WB:WBPaper00000016",
+                    "tagName": "inCorpus",
+                    "tagSource": "WB"
+                }
+            ],
+            "title": "Biochemical genetics of C. elegans.",
+            "volume": "135"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Book_chapter",
+                    "source": "WB"
+                }
+            ],
+            "allianceCategory": "Book",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "name": "Waterston RH",
+                    "referenceId": "PMID:21413225"
+                },
+                {
+                    "authorRank": 2,
+                    "name": "Sulston JE",
+                    "referenceId": "PMID:21413225"
+                },
+                {
+                    "authorRank": 3,
+                    "name": "Coulson AR",
+                    "referenceId": "PMID:21413225"
+                }
+            ],
+            "citation": "Waterston RH et al. (1997) \"The Genome.\"",
+            "crossReferences": [
+                {
+                    "id": "PMID:21413225"
+                },
+                {
+                    "id": "WB:WBPaper00002666",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "1997",
+            "primaryId": "PMID:21413225",
+            "tags": [
+                {
+                    "referenceId": "PMID:21413225",
+                    "tagName": "inCorpus",
+                    "tagSource": "WB"
+                }
+            ],
+            "title": "The Genome."
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Journal_article",
+                    "source": "WB"
+                }
+            ],
+            "abstract": "This book is part of an on-going series presenting collections of original research papers and literature reviews on diverse topics in molecular and cellular biology. This volume houses 34 literature reviews and research summaries on various aspects of the biology of Caenorhabditis elegans, a nematode of extraordinary usefulness as a research model. Topics include: the genome, mutation, transcription and its regulation, sex determination, male development, nervous system patterning, feeding and defecation, neural plasticity, and evolution. Appendices house a list of characterized genes, on-line resources, and other information. The text is illustrated, indexed, and includes a common bibliography of over 2000 literature citations.",
+            "allianceCategory": "Book",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "name": "Riddle DL",
+                    "referenceId": "PMID:21413221"
+                },
+                {
+                    "authorRank": 2,
+                    "name": "Blumenthal TE",
+                    "referenceId": "PMID:21413221"
+                },
+                {
+                    "authorRank": 3,
+                    "name": "Meyer BJ",
+                    "referenceId": "PMID:21413221"
+                },
+                {
+                    "authorRank": 4,
+                    "name": "Priess JR",
+                    "referenceId": "PMID:21413221"
+                }
+            ],
+            "citation": "Riddle DL et al. (1997) \"C. elegans II\"",
+            "crossReferences": [
+                {
+                    "id": "PMID:21413221"
+                },
+                {
+                    "id": "WB:WBPaper00004071",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "1997",
+            "pages": "1-1222",
+            "primaryId": "PMID:21413221",
+            "publisher": "Cold Spring Harbor Laboratory Press, Cold Spring Harbor (NY)",
+            "tags": [
+                {
+                    "referenceId": "PMID:21413221",
+                    "tagName": "inCorpus",
+                    "tagSource": "WB"
+                }
+            ],
+            "title": "C. elegans II"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Book_chapter",
+                    "source": "WB"
+                }
+            ],
+            "abstract": "Mechanotransduction is the conversion of a mechanical stimulus into a biological                response and constitutes the basis for a plethora of fundamental biological                processes such as the senses of touch, balance and hearing and contributes                critically to development and homeostasis in all organisms. Recent, genetic and                electrophysiological studies have shown that specialized macromolecular complexes,                encompassing mechanically gated ion channels, play a central role in the                transformation of mechanical forces into a cellular signal, which takes place in                mechanosensory organs of diverse organisms. These complexes are highly efficient                sensors, closely entangled with their surrounding environment. Such association                appears essential for proper channel gating, and provides proximity of the                mechanosensory apparatus to the source of triggering mechanical energy. Genetic and                molecular evidence collected in model organisms such as the nematode worm                    Caenorhabditis elegans, the fruit fly Drosophila                    melanogaster and the mouse highlight distinct classes of mechanically                gated ion channels and interacting molecules, which are likely parts of the                mechanotransducing apparatus. In this article, we review the progress towards                deciphering mechanotransduction in C. elegans. The exceptional                amenability of this simple worm to genetic and molecular manipulations has                facilitated the dissection of a metazoan mechanotransducer complex to unprecedented                detail.",
+            "allianceCategory": "Book",
+            "authors": [
+                {
+                    "authorRank": 3,
+                    "name": "Voglis G",
+                    "referenceId": "PMID:21290765"
+                },
+                {
+                    "authorRank": 4,
+                    "name": "Tavernarakis N",
+                    "referenceId": "PMID:21290765"
+                }
+            ],
+            "citation": " (2005) \"Mechanotransduction in the Nematode Caenorhabditis elegans.\"",
+            "crossReferences": [
+                {
+                    "id": "PMID:21290765"
+                },
+                {
+                    "id": "WB:WBPaper00040000",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "2005",
+            "primaryId": "PMID:21290765",
+            "tags": [
+                {
+                    "referenceId": "PMID:21290765",
+                    "tagName": "inCorpus",
+                    "tagSource": "WB"
+                }
+            ],
+            "title": "Mechanotransduction in the Nematode Caenorhabditis elegans."
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Journal_article",
+                    "source": "WB"
+                }
+            ],
+            "abstract": "The goal of the Gene Ontology (GO) project is to provide a uniform way to describe the functions of gene products from organisms across all kingdoms of life and thereby enable analysis of genomic data. Protein annotations are either based on experiments or predicted from protein sequences. Since most sequences have not been experimentally characterized, most available annotations need to be based on predictions. To make as accurate inferences as possible, the GO Consortium's Reference Genome Project is using an explicit evolutionary framework to infer annotations of proteins from a broad set of genomes from experimental annotations in a semi-automated manner. Most components in the pipeline, such as selection of sequences, building multiple sequence alignments and phylogenetic trees, retrieving experimental annotations and depositing inferred annotations, are fully automated. However, the most crucial step in our pipeline relies on software-assisted curation by an expert biologist. This curation tool, Phylogenetic Annotation and INference Tool (PAINT) helps curators to infer annotations among members of a protein family. PAINT allows curators to make precise assertions as to when functions were gained and lost during evolution and record the evidence (e.g. experimentally supported GO annotations and phylogenetic information including orthology) for those assertions. In this article, we describe how we use PAINT to infer protein function in a phylogenetic context with emphasis on its strengths, limitations and guidelines. We also discuss specific examples showing how PAINT annotations compare with those generated by other highly used homology-based methods.",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "name": "Gaudet P",
+                    "referenceId": "PMID:21873635"
+                },
+                {
+                    "authorRank": 2,
+                    "name": "Livstone MS",
+                    "referenceId": "PMID:21873635"
+                },
+                {
+                    "authorRank": 3,
+                    "name": "Lewis SE",
+                    "referenceId": "PMID:21873635"
+                },
+                {
+                    "authorRank": 4,
+                    "name": "Thomas PD",
+                    "referenceId": "PMID:21873635"
+                }
+            ],
+            "citation": "Gaudet P et al. (2011) Brief Bioinform \"Phylogenetic-based propagation of functional annotations within the Gene ....\"",
+            "crossReferences": [
+                {
+                    "id": "DOI:10.1093/bib/bbr042"
+                },
+                {
+                    "id": "PMID:21873635"
+                },
+                {
+                    "id": "WB:WBPaper00046480",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "2011-09",
+            "pages": "449-62",
+            "primaryId": "PMID:21873635",
+            "resourceAbbreviation": "Brief Bioinform",
+            "tags": [
+                {
+                    "referenceId": "PMID:21873635",
+                    "tagName": "inCorpus",
+                    "tagSource": "WB"
+                }
+            ],
+            "title": "Phylogenetic-based propagation of functional annotations within the Gene Ontology consortium.",
+            "volume": "12"
+        }
+    ],
+    "metaData": {
+        "dataProvider": {
+            "crossReference": {
+                "id": "WB",
+                "pages": [
+                    "homepage"
+                ]
+            },
+            "type": "curated"
+        },
+        "dateProduced": "2021-11-03T08:49:12.796-07:00"
+    }
+}

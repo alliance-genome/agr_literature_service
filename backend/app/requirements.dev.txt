@@ -7,3 +7,11 @@ flake8-bugbear==20.11.1
 sphinx
 livereload
 myst-parser
+mypy==0.910
+types-PyYAML
+types-aiofiles
+types-orjson
+types-pytz
+types-requests
+types-ujson
+types-docutils

@@ -1,7 +1,7 @@
-import io
 from botocore.exceptions import ClientError
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
+
 
 def download_file_from_bucket(s3_client, bucket, folder, object_name=None):
     """Upload a file to an S3 bucket

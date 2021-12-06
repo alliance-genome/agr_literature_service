@@ -5,16 +5,16 @@ from fastapi import HTTPException
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
-from literature.schemas import AuthorSchemaCreate
+from literature.schemas import AuthorSchemaPost, AuthorSchemaCreate
 
 from literature.models import ReferenceModel
 from literature.models import CrossReferenceModel
 from literature.models import ResourceModel
 from literature.models import AuthorModel
-from literature.crud.lookup import add_reference_resource
+from literature.crud.reference_resource import add, stripout, create_obj
 
 
-def create(db: Session, author: AuthorSchemaCreate):
+def create(db: Session, author: AuthorSchemaPost):
     author_data = jsonable_encoder(author)
 
     orcid = None
@@ -22,21 +22,19 @@ def create(db: Session, author: AuthorSchemaCreate):
         orcid = author_data['orcid']
         del author_data['orcid']
 
-    db_obj = AuthorModel(**author_data)
-    add_reference_resource(db, author_data, db_obj)
-
+    author_model = create_obj(db, AuthorModel, author_data)  # type: AuthorModel
     if orcid:
         cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
         if not cross_reference_obj:
             cross_reference_obj = CrossReferenceModel(curie=orcid)
             db.add(cross_reference_obj)
-        db_obj.orcid_cross_reference = cross_reference_obj
+        author_model.orcid_cross_reference = cross_reference_obj
 
-    db.add(db_obj)
+    db.add(author_model)
     db.commit()
-    db.refresh(db_obj)
+    db.refresh(author_model)
 
-    return db_obj.author_id
+    return author_model.author_id
 
 
 def destroy(db: Session, author_id: int):
@@ -61,7 +59,8 @@ def patch(db: Session, author_id: int, author_patch: AuthorSchemaCreate) -> dict
     if not author_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Author with author_id {author_id} not found")
-    add_reference_resource(db, author_data, author_db_obj)
+    res_ref = stripout(db, author_data, non_fatal=True)
+    add(res_ref, author_db_obj)
 
     for field, value in author_data.items():
         if field == 'orcid' and value:

@@ -1,0 +1,169 @@
+{
+  "comments": [
+    "21290765 has BookDocument and ArticleTitle",
+    "33054145 21413221 BookTitle",
+    "28304499 28308877 VernacularTitle",
+    "27899353 30979869 CollectiveName",
+    "30003105 <Identifier Source=\"ORCID\">0000-0002-9948-4783</Identifier>",
+    "30002370 <Identifier Source=\"ORCID\">http://orcid.org/0000-0003-0416-374X</Identifier>",
+    "30003105 30002370 <AffiliationInfo>",
+    "20301347, 21413225 do not have the PMID itself in the ArticleIdList, so must be appended to the cross_references",
+    "some xml has keywords spanning multiple lines e.g. 30110134 ; others get captured inside other keywords e.g. 31188077"
+  ],
+  "data": [
+    {
+      "pmid": "PMID:31193955",
+      "modId": ["ZFIN:ZDB-PUB-190614-11"],
+      "doi": "DOI:10.1016/j.gene.2019.100011",
+      "update_check": {
+        "DOI": "DOI:10.1016/j.gene.2019.100011",
+        "doi_conflict": "DOI:10.1016/j.gene.2019.100011"
+      }
+    }, {
+      "pmid": "PMID:34530988",
+      "modId": ["ZFIN:ZDB-PUB-210918-21"],
+      "doi": "DOI:10.1016/j.gene.2019.100011",
+      "update_check": {
+        "doi_conflict": "DOI:10.1016/j.gene.2019.100011"
+      }
+    }, {
+      "pmid": "PMID:21413221",
+      "modId": ["WB:WBPaper00004071"],
+      "update_check": {
+         "MODReferenceTypes": [
+           {
+             "reference_type": "Journal_article",
+             "source": "WB"
+           }
+         ]
+      },
+      "update_replace": {
+         "MODReferenceTypes": [
+           {
+             "referenceType": "Journal_article",
+             "source": "WB"
+           }
+         ]
+      }
+    }, {
+      "modId": ["WB:WBPaper00000003"],
+      "update_check": {
+        "title": "A new title",
+        "authors": [
+          {
+            "order": 1,
+            "name": "BOB",
+            "first_name": "Bobbie",
+            "last_name": "Robertson",
+            "referenceId": "WB:WBPaper00000003"
+          },
+          {
+            "order": 2,
+            "name": "RON",
+            "first_name": "Ronnie",
+            "last_name": "Smith",
+            "referenceId": "WB:WBPaper00000003"
+          }
+        ]
+      },
+      "update_replace": {
+        "title": "A new title",
+        "authors": [
+          {
+            "authorRank": 1,
+            "name": "BOB",
+            "firstName": "Bobbie",
+            "lastName": "Robertson",
+            "referenceId": "WB:WBPaper00000003"
+          },
+          {
+            "authorRank": 2,
+            "name": "RON",
+            "firstName": "Ronnie",
+            "lastName": "Smith",
+            "referenceId": "WB:WBPaper00000003"
+          }
+        ]
+      }
+    }, {
+      "modId": ["WB:WBPaper00000005"]
+    }, {
+      "modId": ["WB:WBPaper00000006"]
+    }, {
+      "modId": ["WB:WBPaper00000007"]
+    }, {
+      "modId": ["WB:WBPaper00000010"]
+    }, {
+      "modId": ["WB:WBPaper00000011"]
+    }, {
+      "modId": ["WB:WBPaper00000015"]
+    }, {
+      "modId": ["WB:WBPaper00000016"]
+    }, {
+      "pmid": "PMID:21290765",
+      "modId": ["WB:WBPaper00040000"]
+    }, {
+      "pmid": "PMID:33054145",
+      "modId": ["SGD:S000298041"]
+    }, {
+      "pmid": "PMID:28308877",
+      "modId": ["FB:FBrf0020888"]
+    }, {
+      "pmid": "PMID:28304499",
+      "modId": ["FB:FBrf0019024"]
+    }, {
+      "pmid": "PMID:27899353",
+      "modId": ["RGD:11570444"]
+    }, {
+      "pmid": "PMID:30979869",
+      "modId": ["MGI:6305446"]
+    }, {
+      "pmid": "PMID:30003105",
+      "modId": ["ZFIN:ZDB-PUB-180714-6"]
+    }, {
+      "pmid": "PMID:30002370",
+      "modId": ["SGD:S000217483"]
+    }, {
+      "pmid": "PMID:20301347",
+      "modId": ["RGD:11352983"]
+    }, {
+      "pmid": "PMID:21413225",
+      "modId": ["WB:WBPaper00002666"]
+    }, {
+      "pmid": "PMID:30110134",
+      "modId": ["ZFIN:ZDB-PUB-180816-15"]
+    }, {
+      "pmid": "PMID:31188077",
+      "modId": ["ZFIN:ZDB-PUB-190613-8"]
+    }, {
+      "pmid": "PMID:21873635",
+      "modId": ["FB:FBrf0239784", "MGI:6201960", "RGD:13792537", "SGD:S000246339", "WB:WBPaper00046480", "ZFIN:ZDB-PUB-110330-1"]
+    }, {
+      "pmid": "PMID:10206683",
+      "modId": ["RGD:11526447"]
+    }, {
+      "modId": ["ZFIN:ZDB-PUB-040528-2"]
+    }, {
+      "modId": ["ZFIN:ZDB-PUB-050216-15"]
+    }, {
+      "modId": ["SGD:S000182237"]
+    }, {
+      "modId": ["SGD:S000128229"]
+    }, {
+      "modId": ["FB:FBrf0035013"]
+    }, {
+      "modId": ["FB:FBrf0035013"]
+    }, {
+      "modId": ["RGD:10002756"]
+    }, {
+      "modId": ["RGD:10002786"]
+    }, {
+      "modId": ["MGI:48543"]
+    }, {
+      "modId": ["MGI:48554"]
+    }, {
+      "pmid": "PMID:2",
+      "modId": ["RGD:1303381"]
+    }
+  ]
+}
