@@ -56,3 +56,7 @@ def setup_resource_descriptor():
     """
 
     update_resource_descriptor()
+
+
+if __name__ == '__main__':
+    setup_resource_descriptor()

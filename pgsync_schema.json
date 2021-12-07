@@ -1,0 +1,12 @@
+[
+    {
+        "database": "literature",
+        "index": "references_index",
+        "nodes": {
+            "table": "references",
+            "columns": [
+                "title"
+            ]
+        }
+    }
+]
