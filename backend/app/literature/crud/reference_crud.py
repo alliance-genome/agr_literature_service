@@ -124,14 +124,15 @@ def destroy(db: Session, curie: str):
     return None
 
 
-def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate):
+def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate) -> dict:
+    reference_data = jsonable_encoder(reference_update)
     reference_db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
 
     if not reference_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie {curie} not found")
 
-    for field, value in reference_update.dict().items():
+    for field, value in reference_data.items():
         if field == "resource" and value:
             resource_curie = value
             resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
