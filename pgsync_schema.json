@@ -5,8 +5,40 @@
         "nodes": {
             "table": "references",
             "columns": [
-                "title"
-            ]
+                "curie", "title", "resource_id", "volume", "date_published", "pages", "abstract", "citation", "keywords", "publisher"
+                , "pubmed_type", "issue_name", "issue_date"
+            ],
+            "children":[
+                {
+                    "table": "authors",
+                    "columns": [
+                        "orcid", "first_author", "corresponding_author", "affiliation", "first_name", "middle_names", "last_name"
+                    ],
+                    "relationship": {
+                        "variant": "object",
+                        "type": "one_to_many",
+                        "foreign_key": {
+                            "child": ["reference_id"],
+                            "parent": ["reference_id"]
+                        }
+                    }
+                },
+                {
+                    "table": "resources",
+                    "columns":[
+                       "title", "title_synonyms", "iso_abbreviation", "medline_abbreviation", "publisher", "volumes"
+                       ,"abstract", "summary"
+                    ],
+                    "relationship":{
+                        "variant": "object",
+                        "type": "one_to_many",
+                        "foreign_key":{
+                            "child": ["resource_id"],
+                            "parent": ["resource_id"]
+                        }
+                    }
+                }
+            ] 
         }
     }
 ]
