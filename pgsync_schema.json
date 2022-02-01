@@ -37,6 +37,20 @@
                             "parent": ["resource_id"]
                         }
                     }
+                },
+                {
+                    "table": "cross_references",
+                    "columns":[
+                       "curie", "is_obsolete"
+                    ],
+                    "relationship":{
+                        "variant": "object",
+                        "type": "one_to_many",
+                        "foreign_key":{
+                            "child": ["reference_id"],
+                            "parent": ["reference_id"]
+                        }
+                    }
                 }
             ] 
         }
