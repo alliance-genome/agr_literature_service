@@ -50,6 +50,13 @@
                             "child": ["reference_id"],
                             "parent": ["reference_id"]
                         }
+                    },
+                    "transform": {
+                        "mapping": {
+                            "curie": {
+                                "type": "wildcard"
+                            }
+                        }
                     }
                 }
             ] 
