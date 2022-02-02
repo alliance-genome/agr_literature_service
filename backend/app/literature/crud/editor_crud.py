@@ -50,7 +50,7 @@ def destroy(db: Session, editor_id: int) -> None:
 
 
 def patch(db: Session, editor_id: int, editor_update: EditorSchemaCreate) -> dict:
-
+    editor_data = jsonable_encoder(editor_update)
     editor_db_obj = db.query(EditorModel).filter(EditorModel.editor_id == editor_id).first()
     if not editor_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -58,7 +58,7 @@ def patch(db: Session, editor_id: int, editor_update: EditorSchemaCreate) -> dic
     res_ref = stripout(db, editor_update, non_fatal=True)
     add(res_ref, editor_db_obj)
 
-    for field, value in editor_update.dict().items():
+    for field, value in editor_data.items():
         if field == 'orcid' and value:
             orcid = value
             cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
