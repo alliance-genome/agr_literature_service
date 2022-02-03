@@ -8,6 +8,13 @@
                 "curie", "title", "resource_id", "volume", "date_published", "pages", "abstract", "citation", "keywords", "publisher"
                 , "pubmed_type", "issue_name", "issue_date"
             ],
+            "transform": {
+                "mapping": {
+                    "curie": {
+                        "type": "keyword"
+                    }
+                }
+            },
             "children":[
                 {
                     "table": "authors",
@@ -54,7 +61,7 @@
                     "transform": {
                         "mapping": {
                             "curie": {
-                                "type": "wildcard"
+                                "type": "keyword"
                             }
                         }
                     }
