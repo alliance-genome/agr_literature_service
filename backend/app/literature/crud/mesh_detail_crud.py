@@ -43,12 +43,13 @@ def destroy(db: Session, mesh_detail_id: int) -> None:
 
 
 def patch(db: Session, mesh_detail_id: int, mesh_detail_update: MeshDetailSchemaUpdate) -> dict:
+    mesh_detail_data = jsonable_encoder(mesh_detail_update)
     mesh_detail_db_obj = db.query(MeshDetailModel).filter(MeshDetailModel.mesh_detail_id == mesh_detail_id).first()
     if not mesh_detail_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"MeshDetail with mesh_detail_id {mesh_detail_id} not found")
 
-    for field, value in mesh_detail_update.dict().items():
+    for field, value in mesh_detail_data.items():
         if field == 'reference_curie' and value:
             reference_curie = value
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
