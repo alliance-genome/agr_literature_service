@@ -12,6 +12,9 @@
                 "mapping": {
                     "curie": {
                         "type": "keyword"
+                    },
+                    "date_published": {
+                        "type": "text"
                     }
                 }
             },
