@@ -1,5 +1,5 @@
-import glob
 import datetime
+import glob
 
 # test using a list of pmids and removing from them.  it's much slower than using a set.
 # this is not really useful anymore, but keeping it for later.

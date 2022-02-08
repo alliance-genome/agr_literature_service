@@ -1,6 +1,14 @@
 # 22 minutes on dev.wormbase for 646727 documents from filesystem. 12G of xml to 6.0G of jso1
 # import json
+import argparse
+import logging
+import logging.config
 import urllib
+from os import environ, listdir, makedirs, path
+from shutil import copyfile
+
+from dotenv import load_dotenv
+
 # import xmltodict
 
 
@@ -14,16 +22,10 @@ import urllib
 # between 1k and 10k files.
 
 
-import argparse
 # import re
 
-from os import environ, path, makedirs, listdir
-import logging
-import logging.config
 
-from shutil import copyfile
 
-from dotenv import load_dotenv
 
 load_dotenv()
 

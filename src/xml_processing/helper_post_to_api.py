@@ -1,6 +1,6 @@
+from json import dumps, loads
 from os import environ, path
 
-from json import dumps, loads
 import requests
 
 base_path = environ.get('XML_PATH')

@@ -3,10 +3,9 @@
 # benchmark using python to open xml files, copy to temp_benchmark_copy/
 
 import argparse
-
-from os import environ, path
 import logging
 import logging.config
+from os import environ, path
 
 from dotenv import load_dotenv
 

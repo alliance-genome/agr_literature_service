@@ -7,14 +7,15 @@ module that converts XMLs to JSON files
 """
 
 
+import hashlib
 import json
-import urllib.request
+import logging
 # import xmltodict
 import re
-from os import environ, path, makedirs
 import sys
-import logging
-import hashlib
+import urllib.request
+from os import environ, makedirs, path
+
 import click
 import coloredlogs
 

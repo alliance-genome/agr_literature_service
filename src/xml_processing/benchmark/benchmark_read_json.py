@@ -1,12 +1,10 @@
 
 import argparse
-
-from os import environ, path
 import logging.config
+import time
+from os import environ, path
 
 from dotenv import load_dotenv
-
-import time
 
 load_dotenv()
 

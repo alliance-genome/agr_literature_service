@@ -1,14 +1,13 @@
 
-import json
 import itertools
-
-from helper_file_processing import split_identifier
-
-from os import environ, path, makedirs
-import sys
+import json
 import logging
+import sys
+from os import environ, makedirs, path
 
 from dotenv import load_dotenv
+
+from helper_file_processing import split_identifier
 
 load_dotenv()
 

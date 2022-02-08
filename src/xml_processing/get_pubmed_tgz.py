@@ -1,12 +1,11 @@
-import time
-import urllib
-import requests		# noqa flake8 will complain about this, but without it urllib.request will not work
 import argparse
-
-from os import environ, path, makedirs
 import logging
 import logging.config
+import time
+import urllib
+from os import environ, makedirs, path
 
+import requests  # noqa flake8 will complain about this, but without it urllib.request will not work
 from dotenv import load_dotenv
 
 load_dotenv()

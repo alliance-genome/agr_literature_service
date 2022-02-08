@@ -5,12 +5,13 @@ manage.py
 =========
 """
 
+import logging
 import os
 import sys
+
 import click
-import logging
-from lib import (get_dqm_data, get_pubmed_xml, xml_to_json)
 import coloredlogs
+from lib import get_dqm_data, get_pubmed_xml, xml_to_json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

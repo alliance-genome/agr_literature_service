@@ -1,18 +1,16 @@
-import time
-import urllib
 import argparse
-
-import re
-import requests
-
-# import os
-from os import environ, path, makedirs
 import logging
 import logging.config
+import re
+import time
+import urllib
 # import glob
 # import hashlib
 from datetime import datetime
+# import os
+from os import environ, makedirs, path
 
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()

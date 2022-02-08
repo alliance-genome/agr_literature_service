@@ -1,12 +1,14 @@
-import time
-from os import environ, path, makedirs
 import argparse
-import sys
 import logging
-# import logging.config
+import sys
+import time
+from os import environ, makedirs, path
 
 from get_pubmed_xml import download_pubmed_xml
 from xml_to_json import generate_json
+
+# import logging.config
+
 
 
 # pipenv run python process_many_pmids_to_json.py -f inputs/alliance_pmids

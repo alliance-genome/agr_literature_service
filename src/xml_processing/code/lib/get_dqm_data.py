@@ -8,14 +8,15 @@ compares md5sum to current file to prevent downloading if it's the same
 
 """
 
-import urllib.request
-import json
-import io
 import gzip
 import hashlib
-import os
-from os import environ, path, makedirs
+import io
+import json
 import logging.config
+import os
+import urllib.request
+from os import environ, makedirs, path
+
 import coloredlogs
 from dotenv import load_dotenv
 

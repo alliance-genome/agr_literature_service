@@ -1,10 +1,11 @@
-from os import path
 # from os import environ
 import argparse
 import logging
 import logging.config
+from os import path
 
 from sanitize_pubmed_json import sanitize_pubmed_json_list
+
 # from post_reference_to_api import post_references
 
 # pipenv run python parse_pubmed_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/pubmed_only_pmids

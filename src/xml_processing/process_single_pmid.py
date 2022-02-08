@@ -1,18 +1,16 @@
-from os import environ
-from os import path
-
-import json
-import requests
 import argparse
+import json
 import logging
 import logging.config
+from os import environ, path
 
+import requests
 from get_pubmed_xml import download_pubmed_xml
 from xml_to_json import generate_json
-from sanitize_pubmed_json import sanitize_pubmed_json_list
+
 # from parse_dqm_json_reference import write_json
 from post_reference_to_api import post_references
-
+from sanitize_pubmed_json import sanitize_pubmed_json_list
 
 # pipenv run python process_single_pmid.py -c 12345678
 # enter a single pmid as an argument, download xml, convert to json, sanitize, post to api

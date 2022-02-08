@@ -1,13 +1,14 @@
-from os import path
-from os import environ
-import json
 # import requests
 import argparse
+import json
 import logging
 import logging.config
+from os import environ, path
 
-from helper_post_to_api import generate_headers, get_authentication_token, process_api_request
-from helper_file_processing import generate_cross_references_file, load_ref_xref
+from helper_file_processing import (generate_cross_references_file,
+                                    load_ref_xref)
+from helper_post_to_api import (generate_headers, get_authentication_token,
+                                process_api_request)
 
 # from sanitize_pubmed_json import sanitize_pubmed_json_list
 # from post_reference_to_api import post_references
