@@ -1,12 +1,7 @@
-from sqlalchemy import Enum
-from sqlalchemy import Column
-from sqlalchemy import ForeignKey
-from sqlalchemy import Integer
-
+from sqlalchemy import Column, Enum, ForeignKey, Integer
 from sqlalchemy.orm import relationship
 
 from literature.database.base import Base
-
 from literature.schemas import ReferenceCommentAndCorrectionType
 
 

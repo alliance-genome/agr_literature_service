@@ -1,21 +1,13 @@
 from datetime import datetime
+
 import pytz
-
-from sqlalchemy import Column
-from sqlalchemy import ForeignKey
-from sqlalchemy import Integer
-from sqlalchemy import String
-from sqlalchemy import DateTime
-from sqlalchemy import ARRAY
-from sqlalchemy import Enum
-
+from sqlalchemy import (ARRAY, Column, DateTime, Enum, ForeignKey, Integer,
+                        String)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
 
 from literature.database.base import Base
-
-from literature.schemas import ReferenceCategory
-from literature.schemas import PubMedPublicationStatus
+from literature.schemas import PubMedPublicationStatus, ReferenceCategory
 
 
 class ReferenceModel(Base):

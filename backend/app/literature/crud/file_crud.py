@@ -1,25 +1,17 @@
+import hashlib
 import io
 import os
-import hashlib
 
 from botocore.client import BaseClient
-
+from fastapi import HTTPException, status
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
-from fastapi import HTTPException
-from fastapi import status
-
-from fastapi.encoders import jsonable_encoder
-
-from literature.models import ReferenceModel
-
-from literature.s3.upload import upload_file_to_bucket
+from literature.config import config
+from literature.models import FileModel, ReferenceModel
 from literature.s3.delete import delete_file_in_bucket
 from literature.s3.download import download_file_from_bucket
-
-from literature.config import config
-
-from literature.models import FileModel
+from literature.s3.upload import upload_file_to_bucket
 
 
 def create(db: Session, s3: BaseClient, parent_entity_type : str, curie: str, file_contents: str, display_name: str, content_type: str) -> str:

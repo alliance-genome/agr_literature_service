@@ -1,11 +1,8 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+from sqlalchemy import engine_from_config, pool
 
 from alembic import context
-
-
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -17,12 +14,13 @@ fileConfig(config.config_file_name)
 
 
 
-### Needed for alembic magic
-# from literature.continuum_plugins import UserPlugin
-from sqlalchemy_continuum.plugins import PropertyModTrackerPlugin
 #user_plugin = UserPlugin()
 #
 from sqlalchemy_continuum import make_versioned
+### Needed for alembic magic
+# from literature.continuum_plugins import UserPlugin
+from sqlalchemy_continuum.plugins import PropertyModTrackerPlugin
+
 make_versioned(user_cls=None,
                plugins=[PropertyModTrackerPlugin()])
 # End of magic
@@ -34,6 +32,7 @@ make_versioned(user_cls=None,
 # target_metadata = mymodel.Base.metadata
 ## target_metadata = None
 from literature.database.base import Base
+
 target_metadata = Base.metadata
 
 

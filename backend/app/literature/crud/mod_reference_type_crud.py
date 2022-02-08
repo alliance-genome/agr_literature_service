@@ -1,15 +1,12 @@
-from sqlalchemy.orm import Session
 from datetime import datetime
 
-from fastapi import HTTPException
-from fastapi import status
+from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy.orm import Session
 
-from literature.schemas import ModReferenceTypeSchemaPost
-from literature.schemas import ModReferenceTypeSchemaUpdate
-
-from literature.models import ReferenceModel
-from literature.models import ModReferenceTypeModel
+from literature.models import ModReferenceTypeModel, ReferenceModel
+from literature.schemas import (ModReferenceTypeSchemaPost,
+                                ModReferenceTypeSchemaUpdate)
 
 
 def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost) -> int:

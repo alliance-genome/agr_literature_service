@@ -1,12 +1,9 @@
 from fastapi import APIRouter
-
 from fastapi.responses import StreamingResponse
 
 from literature import database
 from literature.config import config
-
 from literature.crud import db_schema_crud
-
 
 router = APIRouter(
     prefix="/database",

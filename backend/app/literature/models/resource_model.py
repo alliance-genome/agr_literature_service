@@ -1,12 +1,7 @@
 from datetime import datetime
+
 import pytz
-
-from sqlalchemy import Column
-from sqlalchemy import Integer
-from sqlalchemy import String
-from sqlalchemy import DateTime
-from sqlalchemy import ARRAY
-
+from sqlalchemy import ARRAY, Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
 

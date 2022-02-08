@@ -1,18 +1,14 @@
-from sqlalchemy.orm import Session
 from datetime import datetime
 
-from fastapi import HTTPException
-from fastapi import status
+from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy.orm import Session
 
-from literature.schemas import CrossReferenceSchema
-from literature.schemas import CrossReferenceSchemaUpdate
-
-from literature.models import CrossReferenceModel
-from literature.models import ReferenceModel
-from literature.models import ResourceModel
-from literature.models import ResourceDescriptorModel
-from literature.crud.reference_resource import create_obj, add_reference_resource
+from literature.crud.reference_resource import (add_reference_resource,
+                                                create_obj)
+from literature.models import (CrossReferenceModel, ReferenceModel,
+                               ResourceDescriptorModel, ResourceModel)
+from literature.schemas import CrossReferenceSchema, CrossReferenceSchemaUpdate
 
 
 def create(db: Session, cross_reference: CrossReferenceSchema) -> str:

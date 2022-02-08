@@ -1,13 +1,9 @@
-from typing import List
-from typing import Optional
-
 from datetime import datetime
+from typing import List, Optional
 
-from pydantic import BaseModel
-from pydantic import validator
+from pydantic import BaseModel, validator
 
-from literature.schemas import FileCategories
-from literature.schemas import ReferenceSchemaShow
+from literature.schemas import FileCategories, ReferenceSchemaShow
 
 
 class FileSchemaUpdate(BaseModel):

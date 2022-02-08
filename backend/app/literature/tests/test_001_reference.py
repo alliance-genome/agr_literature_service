@@ -1,18 +1,15 @@
 import pytest
-from literature.crud.reference_crud import create, show, patch, destroy
-from sqlalchemy import create_engine
-from sqlalchemy import MetaData
-
-# from literature import models
-from literature.models import (
-    Base, AuthorModel, CrossReferenceModel
-)
-
-from literature.database.config import SQLALCHEMY_DATABASE_URL
-from literature.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
-from sqlalchemy.orm import sessionmaker
 from fastapi import HTTPException
 from pydantic import ValidationError
+from sqlalchemy import MetaData, create_engine
+from sqlalchemy.orm import sessionmaker
+
+from literature.crud.reference_crud import create, destroy, patch, show
+from literature.database.config import SQLALCHEMY_DATABASE_URL
+# from literature import models
+from literature.models import AuthorModel, Base, CrossReferenceModel
+from literature.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
+
 metadata = MetaData()
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})

@@ -1,24 +1,17 @@
 from typing import List, Optional
 
-from pydantic import BaseModel
-from pydantic import validator
+from pydantic import BaseModel, validator
 
-from literature.schemas import BaseModelShow
-from literature.schemas import AuthorSchemaPost
-from literature.schemas import AuthorSchemaShow
-from literature.schemas import EditorSchemaPost
-from literature.schemas import EditorSchemaShow
-from literature.schemas import ReferenceCategory
-from literature.schemas import PubMedPublicationStatus
-from literature.schemas import ModReferenceTypeSchemaCreate
-from literature.schemas import ModReferenceTypeSchemaRelated
-from literature.schemas import ReferenceTag
-from literature.schemas import ReferenceTagShow
-from literature.schemas import MeshDetailSchemaCreate
-from literature.schemas import MeshDetailSchemaRelated
-from literature.schemas import CrossReferenceSchemaRelated
-from literature.schemas import CrossReferenceSchemaShow
-from literature.schemas import ReferenceCommentAndCorrectionSchemaRelated
+from literature.schemas import (AuthorSchemaPost, AuthorSchemaShow,
+                                BaseModelShow, CrossReferenceSchemaRelated,
+                                CrossReferenceSchemaShow, EditorSchemaPost,
+                                EditorSchemaShow, MeshDetailSchemaCreate,
+                                MeshDetailSchemaRelated,
+                                ModReferenceTypeSchemaCreate,
+                                ModReferenceTypeSchemaRelated,
+                                PubMedPublicationStatus, ReferenceCategory,
+                                ReferenceCommentAndCorrectionSchemaRelated,
+                                ReferenceTag, ReferenceTagShow)
 
 
 class ReferenceSchemaPost(BaseModel):

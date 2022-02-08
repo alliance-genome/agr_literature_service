@@ -1,76 +1,55 @@
+from literature.schemas.author_schemas import (AuthorSchemaCreate,
+                                               AuthorSchemaPost,
+                                               AuthorSchemaShow)
 from literature.schemas.base_schemas import BaseModelShow
-
+from literature.schemas.cross_reference_schemas import (
+    CrossReferenceSchema, CrossReferenceSchemaPost,
+    CrossReferenceSchemaRelated, CrossReferenceSchemaShow,
+    CrossReferenceSchemaUpdate)
+from literature.schemas.editor_schemas import (EditorSchemaCreate,
+                                               EditorSchemaPost,
+                                               EditorSchemaShow)
 from literature.schemas.env_state_schemas import EnvStateSchema
-
-from literature.schemas.cross_reference_schemas import CrossReferenceSchemaRelated
-from literature.schemas.cross_reference_schemas import CrossReferenceSchemaUpdate
-from literature.schemas.cross_reference_schemas import CrossReferenceSchemaShow
-from literature.schemas.cross_reference_schemas import CrossReferenceSchema
-from literature.schemas.cross_reference_schemas import CrossReferenceSchemaPost
-
-from literature.schemas.author_schemas import AuthorSchemaPost
-from literature.schemas.author_schemas import AuthorSchemaShow
-from literature.schemas.author_schemas import AuthorSchemaCreate
-
-from literature.schemas.editor_schemas import EditorSchemaPost
-from literature.schemas.editor_schemas import EditorSchemaShow
-from literature.schemas.editor_schemas import EditorSchemaCreate
-
-from literature.schemas.person_schemas import PersonSchemaPost
-from literature.schemas.person_schemas import PersonSchemaShow
-from literature.schemas.person_schemas import PersonSchemaCreate
-
-
-from literature.schemas.resource_schemas import ResourceSchemaPost
-from literature.schemas.resource_schemas import ResourceSchemaShow
-from literature.schemas.resource_schemas import ResourceSchemaUpdate
-
+from literature.schemas.file_category_schemas import FileCategories
+from literature.schemas.file_schemas import FileSchemaShow, FileSchemaUpdate
+from literature.schemas.mesh_detail_schemas import (MeshDetailSchemaCreate,
+                                                    MeshDetailSchemaPost,
+                                                    MeshDetailSchemaRelated,
+                                                    MeshDetailSchemaShow,
+                                                    MeshDetailSchemaUpdate)
+from literature.schemas.mod_reference_type_schemas import (
+    ModReferenceTypeSchemaCreate, ModReferenceTypeSchemaPost,
+    ModReferenceTypeSchemaRelated, ModReferenceTypeSchemaShow,
+    ModReferenceTypeSchemaUpdate)
+from literature.schemas.note_schemas import (NoteSchemaPost, NoteSchemaShow,
+                                             NoteSchemaUpdate)
+from literature.schemas.person_schemas import (PersonSchemaCreate,
+                                               PersonSchemaPost,
+                                               PersonSchemaShow)
+from literature.schemas.pubmed_publication_status_enum import \
+    PubMedPublicationStatus
+from literature.schemas.reference_automated_term_tag_schemas import (
+    ReferenceAutomatedTermTagSchemaPatch, ReferenceAutomatedTermTagSchemaPost,
+    ReferenceAutomatedTermTagSchemaShow)
+from literature.schemas.reference_category_schemas import ReferenceCategory
+from literature.schemas.reference_comment_and_correction_schemas import (
+    ReferenceCommentAndCorrectionSchemaPatch,
+    ReferenceCommentAndCorrectionSchemaPost,
+    ReferenceCommentAndCorrectionSchemaRelated,
+    ReferenceCommentAndCorrectionSchemaShow)
+from literature.schemas.reference_comment_and_correction_type import \
+    ReferenceCommentAndCorrectionType
+from literature.schemas.reference_manual_term_tag_schemas import (
+    ReferenceManualTermTagSchemaPatch, ReferenceManualTermTagSchemaPost,
+    ReferenceManualTermTagSchemaShow)
+from literature.schemas.reference_schemas import (ReferenceSchemaPost,
+                                                  ReferenceSchemaShow,
+                                                  ReferenceSchemaUpdate)
+from literature.schemas.reference_tag_enum import (ReferenceTag,
+                                                   ReferenceTagShow)
+from literature.schemas.resource_schemas import (ResourceSchemaPost,
+                                                 ResourceSchemaShow,
+                                                 ResourceSchemaUpdate)
 from literature.schemas.response_message_schemas import ResponseMessageSchema
-
-
-from literature.schemas.pubmed_publication_status_enum import PubMedPublicationStatus
-
 from literature.schemas.tag_name_enum import TagName
 from literature.schemas.tag_source_enum import TagSource
-from literature.schemas.reference_tag_enum import ReferenceTag
-from literature.schemas.reference_tag_enum import ReferenceTagShow
-
-from literature.schemas.reference_category_schemas import ReferenceCategory
-
-from literature.schemas.file_category_schemas import FileCategories
-
-from literature.schemas.mesh_detail_schemas import MeshDetailSchemaShow
-from literature.schemas.mesh_detail_schemas import MeshDetailSchemaUpdate
-from literature.schemas.mesh_detail_schemas import MeshDetailSchemaCreate
-from literature.schemas.mesh_detail_schemas import MeshDetailSchemaPost
-from literature.schemas.mesh_detail_schemas import MeshDetailSchemaRelated
-
-from literature.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaShow
-from literature.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaUpdate
-from literature.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaCreate
-from literature.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaPost
-from literature.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaRelated
-
-from literature.schemas.reference_comment_and_correction_type import ReferenceCommentAndCorrectionType
-from literature.schemas.reference_comment_and_correction_schemas import ReferenceCommentAndCorrectionSchemaShow
-from literature.schemas.reference_comment_and_correction_schemas import ReferenceCommentAndCorrectionSchemaPost
-from literature.schemas.reference_comment_and_correction_schemas import ReferenceCommentAndCorrectionSchemaPatch
-from literature.schemas.reference_comment_and_correction_schemas import ReferenceCommentAndCorrectionSchemaRelated
-
-from literature.schemas.reference_schemas import ReferenceSchemaPost
-from literature.schemas.reference_schemas import ReferenceSchemaUpdate
-from literature.schemas.reference_schemas import ReferenceSchemaShow
-
-from literature.schemas.file_schemas import FileSchemaUpdate
-from literature.schemas.file_schemas import FileSchemaShow
-
-from literature.schemas.note_schemas import NoteSchemaPost
-from literature.schemas.note_schemas import NoteSchemaShow
-from literature.schemas.note_schemas import NoteSchemaUpdate
-
-from literature.schemas.reference_automated_term_tag_schemas import ReferenceAutomatedTermTagSchemaShow
-from literature.schemas.reference_automated_term_tag_schemas import ReferenceAutomatedTermTagSchemaPost
-from literature.schemas.reference_automated_term_tag_schemas import ReferenceAutomatedTermTagSchemaPatch
-from literature.schemas.reference_manual_term_tag_schemas import ReferenceManualTermTagSchemaShow
-from literature.schemas.reference_manual_term_tag_schemas import ReferenceManualTermTagSchemaPost
-from literature.schemas.reference_manual_term_tag_schemas import ReferenceManualTermTagSchemaPatch

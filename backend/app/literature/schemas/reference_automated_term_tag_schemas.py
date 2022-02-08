@@ -1,7 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel
-from pydantic import validator
+from pydantic import BaseModel, validator
 
 
 class ReferenceAutomatedTermTagSchemaPost(BaseModel):

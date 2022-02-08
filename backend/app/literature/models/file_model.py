@@ -1,18 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import Column
-from sqlalchemy import ForeignKey
-from sqlalchemy import Integer
-from sqlalchemy import String
-from sqlalchemy import Boolean
-from sqlalchemy import DateTime
-from sqlalchemy import ARRAY
-from sqlalchemy import Enum
-
+from sqlalchemy import (ARRAY, Boolean, Column, DateTime, Enum, ForeignKey,
+                        Integer, String)
 from sqlalchemy.orm import relationship
 
 from literature.database.base import Base
-
 from literature.schemas import FileCategories
 
 
