@@ -2,6 +2,59 @@
     {
         "database": "literature",
         "index": "references_index",
+        "setting": {
+            "number_of_shards": "1",
+            "number_of_replicas": "0",
+            "max_ngram_diff": "20",
+            "max_result_window": 500000,
+            "analysis": {
+                "filter": {
+                    "ngram_filter": {
+                        "type": "edge_ngram",
+                        "min_gram": "1",
+                        "max_gram": "20"
+                    }
+                },
+                "normalizer": {
+                    "sortNormalizer": {
+                        "filter": [
+                            "asciifolding",
+                            "lowercase"
+                        ],
+                        "type": "custom"
+                    }
+                },
+                "analyzer": {
+                    "autocompleteAnalyzer": {
+                        "filter": [
+                            "asciifolding",
+                            "lowercase"
+                        ],
+                        "type": "custom",
+                        "tokenizer": "ngram_tokenizer"
+                    },
+                    "autocompleteSearchAnalyzer": {
+                        "filter": [
+                            "asciifolding",
+                            "lowercase"
+                        ],
+                        "type": "custom",
+                        "tokenizer": "ngram_tokenizer"
+                    }
+                },
+                "tokenizer": {
+                    "ngram_tokenizer": {
+                        "token_chars": [
+                            "letter",
+                            "digit"
+                        ],
+                        "min_gram": "1",
+                        "type": "edge_ngram",
+                        "max_gram": "20"
+                    }
+                }
+            }
+        },
         "nodes": {
             "table": "references",
             "columns": [
@@ -11,7 +64,14 @@
             "transform": {
                 "mapping": {
                     "curie": {
-                        "type": "keyword"
+                        "type": "text",
+                        "analyzer": "autocompleteAnalyzer",
+                        "search_analyzer": "autocompleteSearchAnalyzer",
+                        "copy_to": "curie_keyword"
+                    },
+                    "curie_keyword": {
+                        "type": "keyword",
+                        "normalizer": "sortNormalizer"
                     },
                     "date_published": {
                         "type": "text"
@@ -64,7 +124,14 @@
                     "transform": {
                         "mapping": {
                             "curie": {
-                                "type": "keyword"
+                                "type": "text",
+                                "analyzer": "autocompleteAnalyzer",
+                                "search_analyzer": "autocompleteSearchAnalyzer",
+                                "copy_to": "cross_references.curie_keyword"
+                            },
+                            "curie_keyword": {
+                                "type": "keyword",
+                                "normalizer": "sortNormalizer"
                             }
                         }
                     }
