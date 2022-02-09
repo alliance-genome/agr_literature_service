@@ -1,14 +1,11 @@
+from fastapi import HTTPException, status
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
-from fastapi import HTTPException
-from fastapi import status
-from fastapi.encoders import jsonable_encoder
-
-from literature.schemas import ReferenceCommentAndCorrectionSchemaPost
-from literature.schemas import ReferenceCommentAndCorrectionSchemaPatch
-
-from literature.models import ReferenceCommentAndCorrectionModel
-from literature.models import ReferenceModel
+from literature.models import (ReferenceCommentAndCorrectionModel,
+                               ReferenceModel)
+from literature.schemas import (ReferenceCommentAndCorrectionSchemaPatch,
+                                ReferenceCommentAndCorrectionSchemaPost)
 
 
 def create(db: Session, reference_comment_and_correction: ReferenceCommentAndCorrectionSchemaPost):

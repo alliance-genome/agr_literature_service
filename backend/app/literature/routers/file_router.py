@@ -1,33 +1,18 @@
 from typing import List
 
+from botocore.client import BaseClient
+from fastapi import APIRouter, Depends, Response, Security, status
+from fastapi.responses import StreamingResponse
+from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
-from fastapi import APIRouter
-from fastapi import Depends
-from fastapi import status
-from fastapi import Response
-from fastapi import Security
-
-from fastapi.responses import StreamingResponse
-
-from botocore.client import BaseClient
-
-from fastapi_okta import OktaUser
-
 from literature import database
-
-from literature.user import set_global_user_id
-
-from literature.schemas import FileSchemaShow
-from literature.schemas import FileSchemaUpdate
-from literature.schemas import ResponseMessageSchema
-
-from literature.deps import s3_auth
-
 from literature.crud import file_crud
-
+from literature.deps import s3_auth
 from literature.routers.authentication import auth
-
+from literature.schemas import (FileSchemaShow, FileSchemaUpdate,
+                                ResponseMessageSchema)
+from literature.user import set_global_user_id
 
 router = APIRouter(
     prefix="/file",

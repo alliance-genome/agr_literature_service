@@ -1,15 +1,13 @@
 
-import urllib.request
-import json
-
-import io
 import gzip
 import hashlib
-
-import os
-from os import environ, path, makedirs
+import io
+import json
 import logging
 import logging.config
+import os
+import urllib.request
+from os import environ, makedirs, path
 
 from dotenv import load_dotenv
 

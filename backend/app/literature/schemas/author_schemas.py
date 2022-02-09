@@ -1,12 +1,8 @@
-from typing import List
-from typing import Optional
+from typing import List, Optional
 
-from pydantic import BaseModel
-from pydantic import validator
+from pydantic import BaseModel, validator
 
-
-from literature.schemas import BaseModelShow
-from literature.schemas import CrossReferenceSchemaShow
+from literature.schemas import BaseModelShow, CrossReferenceSchemaShow
 
 
 class AuthorSchemaPost(BaseModel):

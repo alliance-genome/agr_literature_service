@@ -15,10 +15,11 @@ recurse, output list of pubmed-based (as opposed to MOD-DQM-based) pmids to  inp
 """
 
 
-import time
-import os
-import click
 import logging
+import os
+import time
+
+import click
 import coloredlogs
 
 from get_pubmed_xml import download_pubmed_xml

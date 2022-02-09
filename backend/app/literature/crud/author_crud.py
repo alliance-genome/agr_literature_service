@@ -1,17 +1,13 @@
-from sqlalchemy.orm import Session
 from datetime import datetime
 
-from fastapi import HTTPException
-from fastapi import status
+from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy.orm import Session
 
-from literature.schemas import AuthorSchemaPost, AuthorSchemaCreate
-
-from literature.models import ReferenceModel
-from literature.models import CrossReferenceModel
-from literature.models import ResourceModel
-from literature.models import AuthorModel
-from literature.crud.reference_resource import add, stripout, create_obj
+from literature.crud.reference_resource import add, create_obj, stripout
+from literature.models import (AuthorModel, CrossReferenceModel,
+                               ReferenceModel, ResourceModel)
+from literature.schemas import AuthorSchemaCreate, AuthorSchemaPost
 
 
 def create(db: Session, author: AuthorSchemaPost):

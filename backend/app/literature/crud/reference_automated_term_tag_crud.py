@@ -1,14 +1,10 @@
+from fastapi import HTTPException, status
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
-from fastapi import HTTPException
-from fastapi import status
-from fastapi.encoders import jsonable_encoder
-
-from literature.schemas import ReferenceAutomatedTermTagSchemaPost
-from literature.schemas import ReferenceAutomatedTermTagSchemaPatch
-
-from literature.models import ReferenceAutomatedTermTagModel
-from literature.models import ReferenceModel
+from literature.models import ReferenceAutomatedTermTagModel, ReferenceModel
+from literature.schemas import (ReferenceAutomatedTermTagSchemaPatch,
+                                ReferenceAutomatedTermTagSchemaPost)
 
 
 def create(db: Session, reference_automated_term_tag: ReferenceAutomatedTermTagSchemaPost):

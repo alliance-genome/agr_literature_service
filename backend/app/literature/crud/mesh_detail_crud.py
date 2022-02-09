@@ -1,15 +1,12 @@
-from sqlalchemy.orm import Session
 from datetime import datetime
-
-from fastapi import HTTPException
-from fastapi import status
-from fastapi.encoders import jsonable_encoder
 from typing import List
-from literature.schemas import MeshDetailSchemaPost
-from literature.schemas import MeshDetailSchemaUpdate
 
-from literature.models import ReferenceModel
-from literature.models import MeshDetailModel
+from fastapi import HTTPException, status
+from fastapi.encoders import jsonable_encoder
+from sqlalchemy.orm import Session
+
+from literature.models import MeshDetailModel, ReferenceModel
+from literature.schemas import MeshDetailSchemaPost, MeshDetailSchemaUpdate
 
 
 def create(db: Session, mesh_detail: MeshDetailSchemaPost) -> int:

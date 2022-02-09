@@ -1,7 +1,6 @@
 from typing import Dict
 
-from sqlalchemy import Column
-from sqlalchemy import String
+from sqlalchemy import Column, String
 
 from literature.database.base import Base
 

@@ -1,19 +1,12 @@
-from sqlalchemy import create_engine
-from sqlalchemy import MetaData
-
 from fastapi import Depends
-
-from literature.database.base import Base
-from literature.database.config import SQLALCHEMY_DATABASE_URL
-
-from literature.continuum_plugins import UserPlugin
-
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm import Session
-
+from sqlalchemy import MetaData, create_engine
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy_continuum import make_versioned
 from sqlalchemy_continuum.plugins import PropertyModTrackerPlugin
 
+from literature.continuum_plugins import UserPlugin
+from literature.database.base import Base
+from literature.database.config import SQLALCHEMY_DATABASE_URL
 
 metadata = MetaData()
 

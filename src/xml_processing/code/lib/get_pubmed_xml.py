@@ -38,15 +38,15 @@ get_pubmed_xml
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=1,10,100,1000487,1000584&retmode=xml
 
 
-import time
-import re
-import requests
-import os
-import logging
 import glob
 import hashlib
-import coloredlogs
+import logging
+import os
+import re
+import time
 
+import coloredlogs
+import requests
 
 # from dotenv import load_dotenv
 # load_dotenv()

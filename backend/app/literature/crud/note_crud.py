@@ -1,16 +1,10 @@
+from fastapi import HTTPException, status
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
-from fastapi import HTTPException
-from fastapi import status
-from fastapi.encoders import jsonable_encoder
-
-from literature.schemas import NoteSchemaPost
-from literature.schemas import NoteSchemaUpdate
-
-from literature.models import ReferenceModel
-from literature.models import ResourceModel
-from literature.models import NoteModel
 from literature.crud.reference_resource import create_obj
+from literature.models import NoteModel, ReferenceModel, ResourceModel
+from literature.schemas import NoteSchemaPost, NoteSchemaUpdate
 
 
 def create(db: Session, note: NoteSchemaPost) -> int:

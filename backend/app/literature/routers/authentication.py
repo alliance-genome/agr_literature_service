@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from fastapi_okta import Okta
+
 from literature.config import config
 
 router = APIRouter(tags=['Authentication'])

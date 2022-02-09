@@ -1,21 +1,19 @@
-import time
-import urllib
 import argparse
-
-import re
-import requests
-
-import os
-from os import environ, path, makedirs
-import sys
 # import logging
 # import logging.config
 import glob
 import hashlib
+import logging
+import os
+import re
+import sys
+import time
+import urllib
+from os import environ, makedirs, path
 
+import requests
 from dotenv import load_dotenv
 
-import logging
 logging.basicConfig(level=logging.INFO,
                     stream=sys.stdout,
                     format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251

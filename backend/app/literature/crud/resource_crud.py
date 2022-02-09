@@ -1,30 +1,18 @@
-import sqlalchemy
 from datetime import datetime
 from typing import Dict, Union
 
-from fastapi import HTTPException
-from fastapi import status
+import sqlalchemy
+from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-
+from sqlalchemy import ARRAY, Boolean, String, func
 from sqlalchemy.orm import Session
-
-from literature.schemas import ResourceSchemaPost
-from literature.schemas import ResourceSchemaUpdate
+from sqlalchemy.sql.expression import cast
 
 from literature.crud import cross_reference_crud
-
-from literature.models import ResourceModel
-from literature.models import AuthorModel
-from literature.models import EditorModel
-from literature.models import CrossReferenceModel
-from literature.models import MeshDetailModel
 from literature.crud.reference_resource import create_obj
-
-from sqlalchemy import ARRAY
-from sqlalchemy import Boolean
-from sqlalchemy import String
-from sqlalchemy import func
-from sqlalchemy.sql.expression import cast
+from literature.models import (AuthorModel, CrossReferenceModel, EditorModel,
+                               MeshDetailModel, ResourceModel)
+from literature.schemas import ResourceSchemaPost, ResourceSchemaUpdate
 
 
 def create_next_curie(curie):

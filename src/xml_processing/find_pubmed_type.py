@@ -1,15 +1,13 @@
 # import json
-import urllib.request
-# import xmltodict
-
 import argparse
-import re
-
-from os import environ, path, makedirs
 import logging
 import logging.config
+import re
+import urllib.request
+from os import environ, makedirs, path
+from typing import List, Set
 
-from typing import Set, List
+# import xmltodict
 # import hashlib
 
 # from dotenv import load_dotenv
