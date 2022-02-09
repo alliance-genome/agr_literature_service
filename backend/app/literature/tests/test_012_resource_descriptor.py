@@ -1,14 +1,12 @@
 # NOTE: updtae here not patch?
-from literature.crud.resource_descriptor_crud import show, update
-from sqlalchemy import create_engine
-from sqlalchemy import MetaData
-
-from literature.models import (
-    Base, ResourceDescriptorModel
-)
-from literature.database.config import SQLALCHEMY_DATABASE_URL
-from sqlalchemy.orm import sessionmaker
 from fastapi import HTTPException
+from sqlalchemy import MetaData, create_engine
+from sqlalchemy.orm import sessionmaker
+
+from literature.crud.resource_descriptor_crud import show, update
+from literature.database.config import SQLALCHEMY_DATABASE_URL
+from literature.models import Base, ResourceDescriptorModel
+
 metadata = MetaData()
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})

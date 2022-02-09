@@ -1,7 +1,6 @@
 from pydantic import BaseModel
 
-from literature.schemas import TagName
-from literature.schemas import TagSource
+from literature.schemas import TagName, TagSource
 
 
 class ReferenceTag(BaseModel):

@@ -1,14 +1,12 @@
 import urllib.request
-import yaml
 
+import yaml
 from sqlalchemy.orm import Session
 
-from literature.config import config
 from literature import database
-
-from literature.models.resource_descriptor_models import ResourceDescriptorModel
-from literature.models.resource_descriptor_models import ResourceDescriptorPageModel
-
+from literature.config import config
+from literature.models.resource_descriptor_models import (
+    ResourceDescriptorModel, ResourceDescriptorPageModel)
 
 get_db = database.get_db
 db_session = next(get_db(), None)

@@ -1,11 +1,9 @@
-from sqlalchemy.orm import Session
-from literature.models import (
-    ReferenceModel, ResourceModel
-)
-from fastapi import (
-    HTTPException, status
-)
 from typing import Any
+
+from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
+
+from literature.models import ReferenceModel, ResourceModel
 
 
 def stripout(db: Session, file_update: dict, non_fatal: bool = False) -> dict:
