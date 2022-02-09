@@ -28,22 +28,26 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
+log_file_path = path.join(path.dirname(path.abspath(__file__)), "../logging.conf")
 logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+logger = logging.getLogger("literature logger")
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-l', '--input-localfile', action='store_true', help='take input from local file')
-parser.add_argument('-u', '--input-url', action='store_true', help='take input from url')
-parser.add_argument('-s', '--upload-s3', action='store_true', help='upload json to s3')
+parser.add_argument(
+    "-l", "--input-localfile", action="store_true", help="take input from local file"
+)
+parser.add_argument(
+    "-u", "--input-url", action="store_true", help="take input from url"
+)
+parser.add_argument("-s", "--upload-s3", action="store_true", help="upload json to s3")
 args = vars(parser.parse_args())
 
 
 # todo: save this in an env variable
 # root_path = '/home/azurebrd/git/agr_literature_service_demo/'
 # base_path = root_path + 'src/xml_processing/'
-base_path = environ.get('XML_PATH', "")
-storage_path = base_path + 'pubmed_resource_json/'
+base_path = environ.get("XML_PATH", "")
+storage_path = base_path + "pubmed_resource_json/"
 
 
 def populate_nlm_info(file_data):
@@ -55,14 +59,16 @@ def populate_nlm_info(file_data):
 
     nlm_info = []
     logger.info("Generating NLM data from file")
-    entries = file_data.split('\n--------------------------------------------------------\n')
+    entries = file_data.split(
+        "\n--------------------------------------------------------\n"
+    )
 
-#     counter = 0
+    #     counter = 0
     for entry in entries:
         # counter = counter + 1
         # if counter > 5:
         #     continue
-        nlm = ''
+        nlm = ""
         if re.search("NlmId: (.+)", entry):
             nlm_group = re.search("NlmId: (.+)", entry)
             nlm = nlm_group.group(1)
@@ -70,34 +76,34 @@ def populate_nlm_info(file_data):
             # print "skip"
             continue
         data_dict = {}
-        data_dict['primaryId'] = 'NLM:' + nlm
-        data_dict['nlm'] = nlm
-        data_dict['crossReferences'] = [{'id': 'NLM:' + nlm}]
+        data_dict["primaryId"] = "NLM:" + nlm
+        data_dict["nlm"] = nlm
+        data_dict["crossReferences"] = [{"id": "NLM:" + nlm}]
         if re.search("JournalTitle: (.+)", entry):
             title_group = re.search("JournalTitle: (.+)", entry)
             title = title_group.group(1)
-            data_dict['title'] = title
+            data_dict["title"] = title
         if re.search("IsoAbbr: (.+)", entry):
             iso_abbreviation_group = re.search("IsoAbbr: (.+)", entry)
             iso_abbreviation = iso_abbreviation_group.group(1)
-            data_dict['isoAbbreviation'] = iso_abbreviation
+            data_dict["isoAbbreviation"] = iso_abbreviation
         if re.search("MedAbbr: (.+)", entry):
             medline_abbreviation_group = re.search("MedAbbr: (.+)", entry)
             medline_abbreviation = medline_abbreviation_group.group(1)
-            data_dict['medlineAbbreviation'] = medline_abbreviation
+            data_dict["medlineAbbreviation"] = medline_abbreviation
         if re.search(r"ISSN \(Print\): (.+)", entry):
             print_issn_group = re.search(r"ISSN \(Print\): (.+)", entry)
             print_issn = print_issn_group.group(1)
-            data_dict['printISSN'] = print_issn
+            data_dict["printISSN"] = print_issn
         if re.search(r"ISSN \(Online\): (.+)", entry):
             online_issn_group = re.search(r"ISSN \(Online\): (.+)", entry)
             online_issn = online_issn_group.group(1)
-            data_dict['onlineISSN'] = online_issn
+            data_dict["onlineISSN"] = online_issn
 
-#             print nlm
-#             data_dict['nlm'] = nlm
+        #             print nlm
+        #             data_dict['nlm'] = nlm
         nlm_info.append(data_dict)
-#         print entry
+    #         print entry
     return nlm_info
 
 
@@ -116,7 +122,7 @@ def upload_file_to_s3(file_name, bucket, object_name=None):
         object_name = file_name
 
     # Upload the file
-    s3_client = boto3.client('s3')
+    s3_client = boto3.client("s3")
     try:
         response = s3_client.upload_file(file_name, bucket, object_name)
         if response is not None:
@@ -136,19 +142,20 @@ def generate_json(nlm_info, upload_to_s3):
     if not path.exists(storage_path):
         makedirs(storage_path)
 
-# Write the json data to output json file
-# UNCOMMENT TO write to json directory
-    filename = 'resource_pubmed_all.json'
+    # Write the json data to output json file
+    # UNCOMMENT TO write to json directory
+    filename = "resource_pubmed_all.json"
     output_json_file = storage_path + filename
     with open(output_json_file, "w") as json_file:
         json_file.write(json_data)
         json_file.close()
 
     if upload_to_s3:
-        s3_bucket = 'agr-literature'
-        s3_filename = 'develop/resource/metadata/' + filename
-# UNCOMMENT TO upload to aws bucket
+        s3_bucket = "agr-literature"
+        s3_filename = "develop/resource/metadata/" + filename
+        # UNCOMMENT TO upload to aws bucket
         upload_file_to_s3(output_json_file, s3_bucket, s3_filename)
+
 
 # to remove an uploaded file
 # aws s3 rm s3://agr-literature/develop/resource/metadata/resource_pubmed_all.json
@@ -163,7 +170,7 @@ def populate_from_url():
     url_medline = "https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt"
     print(url_medline)
     with urllib.request.urlopen(url_medline) as url:
-        file_data = url.read().decode('utf-8')
+        file_data = url.read().decode("utf-8")
         return file_data
 
 
@@ -173,7 +180,7 @@ def populate_from_local_file():
     :return:
     """
 
-    filename = base_path + 'J_Medline.txt'
+    filename = base_path + "J_Medline.txt"
     with open(filename) as txt_file:
         if not path.exists(filename):
             return "journal info file not found"
@@ -187,19 +194,19 @@ if __name__ == "__main__":
     call main start function
     """
 
-    file_data = ''
+    file_data = ""
     upload_to_s3 = False
-    if args['input_url']:
+    if args["input_url"]:
         file_data = populate_from_url()
         logger.info("Processing input from url")
-    elif args['input_localfile']:
+    elif args["input_localfile"]:
         file_data = populate_from_local_file()
         logger.info("Processing input from local file")
     else:
         file_data = populate_from_url()
         logger.info("Processing input from url")
 
-    if args['upload_s3']:
+    if args["upload_s3"]:
         upload_to_s3 = True
         logger.info("Upload file to s3")
 
