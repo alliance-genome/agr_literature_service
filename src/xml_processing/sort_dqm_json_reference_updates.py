@@ -20,7 +20,7 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
-
+api_server = environ.get('API_SERVER', 'localhost')
 # pipenv run python sort_dqm_json_reference_updates.py -f dqm_data -m WB
 
 # pipenv run python sort_dqm_json_reference_updates.py -f dqm_data -m all > asdf_sanitized
@@ -416,7 +416,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                             new_entry["pages"] = xref_to_pages[xref_id]
                         if live_changes:
                             logger.info("add validated dqm xref %s s to agr %s", xref_id, agr)
-                            url = 'http://localhost:' + api_port + '/cross_reference/'
+                            url = 'http://' + api_server + ':' + api_port + '/cross_reference/'
                             headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
 
         # these take hours for each mod, process about 200 references per minute
@@ -483,8 +483,8 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
             break
 
         agr_url = url_ref_curie_prefix + agr    # noqa: F841
-
-        url = 'http://localhost:' + api_port + '/reference/' + agr
+        api_server = environ.get('API_SERVER', 'localhost')
+        url = 'http://' + api_server + ':' + api_port + '/reference/' + agr
         logger.info("get AGR reference info from database %s", url)
         get_return = requests.get(url)
         db_entry = json.loads(get_return.text)
@@ -498,7 +498,7 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
             # db_entry_text = json.dumps(db_entry, indent=4)
             # print('db ')
             # print(db_entry_text)
-            # print('dqm ')
+            # print('dqm2 ')
             # print(dqm_entry_text)
 
             update_json = dict()
@@ -528,12 +528,12 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
                     patch_dict = patch_data['patch_dict']
                     patch_dict['reference_curie'] = agr
                     logger.info("patch %s author_id %s patch_dict %s", agr, patch_data['author_id'], patch_dict)
-                    author_patch_url = 'http://localhost:' + api_port + '/author/' + str(patch_data['author_id'])
+                    author_patch_url = 'http://' + api_server + ':' + api_port + '/author/' + str(patch_data['author_id'])
                     headers = generic_api_patch(live_changes, author_patch_url, headers, patch_dict, str(patch_data['author_id']), None, None)
                 for create_dict in authors_changed[2]:
                     create_dict['reference_curie'] = agr
                     logger.info("add to %s create_dict %s", agr, create_dict)
-                    author_post_url = 'http://localhost:' + api_port + '/author/'
+                    author_post_url = 'http://' + api_server + ':' + api_port + '/author/'
                     headers = generic_api_post(live_changes, author_post_url, headers, create_dict, agr, None, None)
 
             # if curators want to get reports of how resource change, put this back, but we're comparing resource titles with dqm resource abbreviations, so they often differ even if they would match if we had a resource lookup by names and synonyms.
@@ -630,7 +630,7 @@ def update_mod_reference_types(live_changes, headers, agr, dqm_entry, db_entry):
                         create_it = False
             if create_it:
                 logger.info("add %s %s to %s", mod, dqm_mrt, agr)
-                url = 'http://localhost:' + api_port + '/reference/mod_reference_type/'
+                url = 'http://' + api_server + ':' + api_port + '/reference/mod_reference_type/'
                 new_entry = dict()
                 new_entry["reference_type"] = dqm_mrt
                 new_entry["source"] = mod
@@ -648,7 +648,7 @@ def update_mod_reference_types(live_changes, headers, agr, dqm_entry, db_entry):
                 if delete_it:
                     mod_reference_type_id = str(db_mrt_data[mod][db_mrt])
                     logger.info("remove %s %s from %s via %s", mod, db_mrt, agr, mod_reference_type_id)
-                    url = 'http://localhost:' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
+                    url = 'http://' + api_server + ':' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
                     headers = generic_api_delete(live_changes, url, headers, None, agr, None, None)
                     # process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
     return headers
