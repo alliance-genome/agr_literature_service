@@ -1,20 +1,19 @@
 
-import json
-import urllib.request
-
 import argparse
-import re
-
-from os import environ, path, makedirs
+import json
 import logging
 import logging.config
-
-from helper_file_processing import split_identifier, write_json, clean_up_keywords
-
-from dotenv import load_dotenv
+import re
+import urllib.request
+import warnings
+from os import environ, makedirs, path
 
 import bs4
-import warnings
+from dotenv import load_dotenv
+
+from helper_file_processing import (clean_up_keywords, split_identifier,
+                                    write_json)
+
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()

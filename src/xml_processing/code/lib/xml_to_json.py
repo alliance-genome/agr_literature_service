@@ -7,15 +7,16 @@ module that converts XMLs to JSON files
 """
 
 
-import json
-import urllib.request
-import re
-import os
-import logging
 import hashlib
+import json
+import logging
+import os
+import re
+import sys
+import urllib.request
+
 import click
 import coloredlogs
-import sys
 
 # from dotenv import load_dotenv
 #

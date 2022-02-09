@@ -15,3 +15,5 @@ src/xml_processing/auth0_token
 src/xml_processing/okta_token
 src/xml_processing/pmids_by_mods
 src/xml_processing/pmids_not_found
+
+src/xml_processing/code/venv/

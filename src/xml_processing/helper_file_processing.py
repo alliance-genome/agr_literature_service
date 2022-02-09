@@ -1,12 +1,13 @@
+import json
+import warnings
 from os import environ, path
 
-import json
+import bs4
 import requests
 
-from helper_post_to_api import generate_headers, update_token, get_authentication_token
+from helper_post_to_api import (generate_headers, get_authentication_token,
+                                update_token)
 
-import bs4
-import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 base_path = environ.get('XML_PATH')

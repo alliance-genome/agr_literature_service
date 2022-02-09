@@ -1,4 +1,14 @@
+import argparse
 import json
+import logging
+import logging.config
+import re
+import urllib
+from os import environ, makedirs, path
+
+import boto3
+from botocore.exceptions import ClientError
+from dotenv import load_dotenv
 
 # generate from local file and do not upload to s3
 # pipenv run python generate_pubmed_nlm_resource.py -l
@@ -12,18 +22,9 @@ import json
 # https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt
 
 
-import re
-import urllib
 
-from os import environ, path, makedirs
-import logging
-import logging.config
 
-import argparse
-import boto3
-from botocore.exceptions import ClientError
 
-from dotenv import load_dotenv
 
 load_dotenv()
 

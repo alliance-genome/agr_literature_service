@@ -1,13 +1,13 @@
 
 import json
-from os import environ, path, listdir
 import logging.config
-
-from helper_file_processing import split_identifier
+import warnings
+from os import environ, listdir, path
 
 from dotenv import load_dotenv
 
-import warnings
+from helper_file_processing import split_identifier
+
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()

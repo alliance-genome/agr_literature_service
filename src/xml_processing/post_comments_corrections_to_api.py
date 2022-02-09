@@ -1,12 +1,13 @@
-from os import path
-from os import environ
-import json
 import argparse
+import json
 import logging
 import logging.config
+from os import environ, path
 
-from helper_post_to_api import generate_headers, get_authentication_token, process_api_request
-from helper_file_processing import generate_cross_references_file, load_ref_xref
+from helper_file_processing import (generate_cross_references_file,
+                                    load_ref_xref)
+from helper_post_to_api import (generate_headers, get_authentication_token,
+                                process_api_request)
 
 # pipenv run python post_comments_corrections_to_api.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/all_pmids > log_post_comments_corrections_to_api
 # enter a file of pmids as an argument, sanitize, post to api

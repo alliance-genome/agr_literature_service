@@ -1,22 +1,27 @@
-import json
-# import urllib.request
-import requests
-
 import argparse
-# import re
-
-from os import environ, path, listdir, makedirs
+import json
 import logging
 import logging.config
-
-from helper_post_to_api import generate_headers, get_authentication_token, process_api_request
-
-from helper_file_processing import load_ref_xref, split_identifier, write_json, clean_up_keywords, compare_authors_or_editors
-
-from dotenv import load_dotenv
-
 # import bs4
 import warnings
+from os import environ, listdir, makedirs, path
+
+# import urllib.request
+import requests
+from dotenv import load_dotenv
+
+from helper_file_processing import (clean_up_keywords,
+                                    compare_authors_or_editors, load_ref_xref,
+                                    split_identifier, write_json)
+from helper_post_to_api import (generate_headers, get_authentication_token,
+                                process_api_request)
+
+# import re
+
+
+
+
+
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()

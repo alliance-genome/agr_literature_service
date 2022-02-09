@@ -17,14 +17,15 @@ generate_pubmed_nlm_resources.py
 
 
 import json
+import logging
+import os
 import re
 import urllib
-import os
-import logging
-import click
+
 import boto3
-from botocore.exceptions import ClientError
+import click
 import coloredlogs
+from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
 load_dotenv()

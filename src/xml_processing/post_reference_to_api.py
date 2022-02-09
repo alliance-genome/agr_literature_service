@@ -1,14 +1,16 @@
 
-import json
 # import requests
 import argparse
-import re
-from os import environ, path, listdir
+import json
 import logging
 import logging.config
+import re
+from os import environ, listdir, path
 
-from helper_post_to_api import generate_headers, update_token, get_authentication_token, process_api_request
-from helper_file_processing import generate_cross_references_file, load_ref_xref, split_identifier
+from helper_file_processing import (generate_cross_references_file,
+                                    load_ref_xref, split_identifier)
+from helper_post_to_api import (generate_headers, get_authentication_token,
+                                process_api_request, update_token)
 
 # post to api data from sanitized_reference_json/
 # python post_reference_to_api.py

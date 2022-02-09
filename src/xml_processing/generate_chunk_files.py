@@ -5,11 +5,11 @@
 # python generate_chunk_files.py
 
 
-from os import environ, path, makedirs
 import logging
 import logging.config
 import re
 from datetime import datetime
+from os import environ, makedirs, path
 
 from dotenv import load_dotenv
 

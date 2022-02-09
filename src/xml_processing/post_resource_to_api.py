@@ -1,15 +1,20 @@
-import json
 # import requests
 import argparse
-from os import environ, path
+import json
 import logging
 import logging.config
-# from datetime import datetime
-
-from helper_post_to_api import generate_headers, get_authentication_token, process_api_request
-from helper_file_processing import generate_cross_references_file, load_ref_xref, split_identifier
+from os import environ, path
 
 from dotenv import load_dotenv
+
+from helper_file_processing import (generate_cross_references_file,
+                                    load_ref_xref, split_identifier)
+from helper_post_to_api import (generate_headers, get_authentication_token,
+                                process_api_request)
+
+# from datetime import datetime
+
+
 
 load_dotenv()
 
