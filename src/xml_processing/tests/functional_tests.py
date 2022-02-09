@@ -43,7 +43,7 @@ def resolve_dqm_to_agr(entry, xref_ref):
     :param xref_ref:
     :return:
     """
-
+    print(entry)
     agr_found = False
     agr = ''
     if 'pmid' in entry:
@@ -91,10 +91,11 @@ def test_update_references():
                 logger.info("check %s", check)
                 agr_wanted[agr][check] = entry['update_check'][check]
     api_port = environ.get('API_PORT')
+    api_server = environ.get('API_SERVER', 'localhost')
     for agr in sorted(agr_wanted):
         db_entry = dict()
         if agr_wanted[agr]:
-            url = 'http://localhost:' + api_port + '/reference/' + agr
+            url = 'http://' + api_server + ':' + api_port + '/reference/' + agr
             logger.info("get AGR reference info from database %s", url)
             get_return = requests.get(url)
             db_entry = json.loads(get_return.text)
@@ -130,6 +131,7 @@ def test_load_references():
                 # logger.info(json_data)
                 agr_wanted[agr][check] = entry['load_check'][check]
     api_port = environ.get('API_PORT')
+    api_server = environ.get('API_SERVER', 'localhost')
     # counter = 0
     for agr in sorted(agr_wanted):
         # for debugging
@@ -140,7 +142,7 @@ def test_load_references():
         # counter = counter + 1
         # if counter > 3:
         #     break
-        url = 'http://localhost:' + api_port + '/reference/' + agr
+        url = 'http://' + api_server + ':' + api_port + '/reference/' + agr
         logger.info("get AGR reference info from database %s", url)
         get_return = requests.get(url)
         db_entry = json.loads(get_return.text)

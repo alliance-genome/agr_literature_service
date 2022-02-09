@@ -17,6 +17,8 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
 
+api_server = environ.get('API_SERVER', 'localhost')
+
 # pipenv run python sort_dqm_json_resource_updates.py
 
 # first run  get_datatypes_cross_references.py  to generate mappings from references to xrefs and resources to xrefs
@@ -182,7 +184,7 @@ def update_resources(live_changes, headers, resources_to_update):
         # logger.info("%s", dqm_entry)
 #         live_changes = True
 
-        url = 'http://localhost:' + api_port + '/resource/' + agr
+        url = 'http://' + api_server + ':' + api_port + '/resource/' + agr
         logger.info("get AGR resource info from database %s", url)
         get_return = requests.get(url)
         db_entry = json.loads(get_return.text)
@@ -293,7 +295,7 @@ def compare_xref(agr, dqm_entry, xref_ref, ref_xref_valid, ref_xref_obsolete, he
     """
 
     api_port = environ.get('API_PORT')
-    url = 'http://localhost:' + api_port + '/cross_reference/'
+    url = 'http://' + api_server + ':' + api_port + '/cross_reference/'
 
     for xref in dqm_entry['crossReferences']:
         curie = xref['id']
