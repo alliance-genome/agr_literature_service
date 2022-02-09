@@ -20,6 +20,16 @@ build-dev:
 build-app:
 	docker build . --build-arg REG=${REG} -t ${REG}/agr_literature_app:${TAG} -f ./docker/Dockerfile.app.env
 
+build-app-test:
+		docker build . --build-arg aws_secret_access_key=${AWS_SECRET_ACCESS_KEY} \
+		--build-arg aws_access_key_id=${AWS_ACCESS_KEY_ID} \
+		--build-arg okta_client_id=${OKTA_CLIENT_ID} \
+		--build-arg okta_client_secret=${OKTA_CLIENT_SECRET} \
+		--build-arg REG=${REG} \
+		-t ${REG}/agr_literature_app_test:${TAG} \
+		-f ./docker/Dockerfile.app-test.env
+
+
 run-flake8:
 	docker run --rm -v ${PWD}:/workdir -i ${REG}/agr_literature_dev:${TAG} /bin/bash -c "python3 -m flake8 ."
 
@@ -64,3 +74,32 @@ run-test-bash: build-env build-dev
 	docker-compose -f docker-compose-test.yml down
     #doing here after shutdown of database 
 	python3 check_tests.py
+
+run-functest: build-env build-dev build-app-test
+	# Minus at start means ignore exit code for that line
+
+	# remove the postgres and app data. app data isd just the logs.
+	-docker volume rm agr_literature_service_agr-literature-test-pg-data agr_literature_service_agr-logs
+
+	# start up the app and postgres db
+	docker-compose -f docker-compose-functest.yml up -d
+	# be safe and give things a chance to spin up
+	sleep 5
+
+	# load the data
+	docker exec -it `docker ps --no-trunc -aqf name=agr-literature-app-test` \
+	   /bin/bash /usr/local/bin/src/literature/src/xml_processing/sample_reference_populate_load.sh > load.out
+
+	# load the update
+	docker exec -it `docker ps --no-trunc -aqf name=agr-literature-app-test` \
+	   /bin/bash /usr/local/bin/src/literature/src/xml_processing/sample_reference_populate_update.sh > update.out
+
+	docker exec -it `docker ps --no-trunc -aqf name=agr-literature-app-test` \
+		python3 ./src/xml_processing/tests/functional_tests.py > pyfunctest.out
+	docker-compose -f docker-compose-functest.yml down
+
+	# doing here after shutdown of database
+	# output SHOULD be checked REALLY
+	# we need to test wether a bad test is flagged.
+	more pyfunctest.out
+    
