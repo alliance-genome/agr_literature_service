@@ -35,6 +35,7 @@ args = vars(parser.parse_args())
 def load_sample_json(input_file):
     base_path = environ.get('XML_PATH')
     sample_file = base_path + input_file
+    print("LOADING file {}".format(sample_file))
     sample_json = dict()
     try:
         with open(sample_file, 'r') as f:
