@@ -62,6 +62,7 @@ def load_ref_xref(datatype):
     xref_ref = dict()
     base_path = environ.get('XML_PATH')
     datatype_primary_id_to_curie_file = base_path + datatype + '_curie_to_xref'
+    print("load_ref_xref: Loading {}".format(datatype_primary_id_to_curie_file))
     if path.isfile(datatype_primary_id_to_curie_file):
         with open(datatype_primary_id_to_curie_file, 'r') as read_fh:
             for line in read_fh:
@@ -206,7 +207,8 @@ def generate_cross_references_file(datatype):
     token = get_authentication_token()
     headers = generate_headers(token)
 
-    url = 'http://localhost:' + api_port + '/bulk_download/' + datatype + 's/external_ids/'
+    api_server = environ.get('API_SERVER', 'localhost')
+    url = 'http://' + api_server + ':' + api_port + '/bulk_download/' + datatype + 's/external_ids/'
     post_return = requests.get(url, headers=headers)
 
     if post_return.status_code == 401:
