@@ -78,7 +78,8 @@ def post_resources(input_path):      # noqa: C901
     remap_cross_references_keys['id'] = 'curie'
     keys_found = set()
 
-    url = 'http://localhost:' + api_port + '/resource/'
+    api_server = environ.get('API_SERVER', 'localhost')
+    url = 'http://' + api_server + ':' + api_port + '/resource/'
 #     headers = {
 #         'Authorization': 'Bearer <token_goes_here>',
 #         'Content-Type': 'application/json',
