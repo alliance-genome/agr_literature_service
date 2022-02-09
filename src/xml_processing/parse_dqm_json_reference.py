@@ -557,7 +557,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
     sanitized_pubmed_multi_mod_data = []
     unmerged_pubmed_data = dict()			# pubmed data by pmid and mod that needs some fields merged
     for mod in mods:
-        filename = input_path + '/REFERENCE_' + mod + '.json'
+        filename = base_path + input_path + '/REFERENCE_' + mod + '.json'
         logger.info("Processing %s", filename)
         unexpected_mod_properties = set()
         dqm_data = dict()
