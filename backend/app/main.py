@@ -4,14 +4,11 @@ from typing import Any, Dict
 import logging
 import uvicorn
 
-# from uvicorn.config import LOGGING_CONFIG
-
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi_health import health
-from uvicorn.config import LOGGING_CONFIG
+# from uvicorn.config import LOGGING_CONFIG
 
 from initialize import setup_resource_descriptor
 from literature import models
