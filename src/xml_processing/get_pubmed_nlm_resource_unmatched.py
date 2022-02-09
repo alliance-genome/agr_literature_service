@@ -14,8 +14,6 @@ from dotenv import load_dotenv
 # import argparse
 
 
-
-
 load_dotenv()
 
 

@@ -18,10 +18,6 @@ from helper_post_to_api import (generate_headers, get_authentication_token,
 
 # import re
 
-
-
-
-
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()

@@ -14,8 +14,6 @@ from helper_post_to_api import (generate_headers, get_authentication_token,
 
 # from datetime import datetime
 
-
-
 load_dotenv()
 
 # pipenv run python3 post_resource_to_api.py > log_post_resource_to_api

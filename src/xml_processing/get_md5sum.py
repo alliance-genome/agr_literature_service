@@ -20,10 +20,6 @@ from dotenv import load_dotenv
 
 # import re
 
-
-
-
-
 load_dotenv()
 
 pmids = []      # type: List

@@ -21,11 +21,6 @@ from dotenv import load_dotenv
 
 # https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt
 
-
-
-
-
-
 load_dotenv()
 
 

@@ -9,8 +9,6 @@ from xml_to_json import generate_json
 
 # import logging.config
 
-
-
 # pipenv run python process_many_pmids_to_json.py -f inputs/alliance_pmids
 #
 # to force skip of downloading xml
