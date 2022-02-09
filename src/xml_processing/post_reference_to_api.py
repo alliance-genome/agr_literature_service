@@ -152,8 +152,8 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     #     token = update_token()
     token = get_authentication_token()
     headers = generate_headers(token)
-
-    url = 'http://localhost:' + api_port + '/reference/'
+    api_server = environ.get('API_SERVER', 'localhost')
+    url = 'http://' + api_server + ':' + api_port + '/reference/'
 
     reference_primary_id_to_curie_file = base_path + 'reference_primary_id_to_curie'
     errors_in_posting_reference_file = base_path + 'errors_in_posting_reference'
@@ -251,6 +251,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                                     new_sub_element[subkey] = sub_element[subkey]
                             new_list.append(new_sub_element)
                         new_entry[key] = new_list
+
 
                 # can only enter agr resource curie, if resource does not map to one, enter nothing
                 if 'resource' in new_entry:
