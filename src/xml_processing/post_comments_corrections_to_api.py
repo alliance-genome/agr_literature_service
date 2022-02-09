@@ -97,7 +97,8 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
         except IOError:
             print(pubmed_json_filepath + ' not found in filesystem')
 
-    url = 'http://localhost:' + api_port + '/reference_comment_and_correction/'
+    api_server = environ.get('API_SERVER', 'localhost')
+    url = 'http://' + api_server + ':' + api_port + '/reference_comment_and_correction/'
     mappings = sorted(mappings_set)
     # counter = 0
     for mapping in mappings:

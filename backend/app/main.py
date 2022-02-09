@@ -1,7 +1,12 @@
+from os import environ
 import argparse
 from typing import Any, Dict
 
 import uvicorn
+
+# from uvicorn.config import LOGGING_CONFIG
+
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
@@ -10,6 +15,7 @@ from uvicorn.config import LOGGING_CONFIG
 
 from initialize import setup_resource_descriptor
 from literature import models
+
 # from literature.config import config
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 from literature.database.main import engine, is_database_online
@@ -105,14 +111,25 @@ def run():
     :return:
     """
 
-    LOGGING_CONFIG["formatters"]["default"]["fmt"] = "%(asctime)s [%(name)s] %(levelprefix)s %(message)s"
-    LOGGING_CONFIG["formatters"]["access"]["fmt"] = '%(asctime)s [%(name)s] %(levelprefix)s %(client_addr)s - ' \
-                                                    '"%(request_line)s" %(status_code)s'
+    # May put back but for now do not see way to have multiple formats
+    #  using the logging.basicConfig
+    # LOGGING_CONFIG["formatters"]["default"]["fmt"] = "%(asctime)s [%(name)s] %(levelprefix)s %(message)s"
+    # LOGGING_CONFIG["formatters"]["access"]["fmt"] = '%(asctime)s [%(name)s] %(levelprefix)s %(client_addr)s - ' \
+    #                                                 '"%(request_line)s" %(status_code)s'
     print(SQLALCHEMY_DATABASE_URL)
+    state = environ.get('ENV_STATE')
+    log_filename = './Lit_FastAPI.log'
+    if state == 'test':
+        log_filename = '/logs/Lit_FastAPI.log'
     uvicorn.run("main:app",
                 port=args['port'],
                 host=args['ip_address'],
-                timeout_keep_alive=5001)
+                timeout_keep_alive=5001,
+                log_config=logging.basicConfig(
+                    filename=log_filename,
+                    filemode='w',
+                    level=logging.DEBUG,
+                    format='%(asctime)s %(levelname)s %(message)s'))
 
 
 if __name__ == '__main__':

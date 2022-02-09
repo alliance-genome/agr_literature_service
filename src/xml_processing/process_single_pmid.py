@@ -33,7 +33,8 @@ def check_pmid_cross_reference(pmid):
     """
 
     api_port = environ.get('API_PORT')
-    url = 'http://localhost:' + api_port + '/cross_reference/PMID:' + pmid
+    api_server = environ.get('API_SERVER', 'localhost')
+    url = 'http://' + api_server + ':' + api_port + '/cross_reference/PMID:' + pmid
     #     'Authorization': 'Bearer <token_goes_here>',
     headers = {
         'Content-Type': 'application/json',

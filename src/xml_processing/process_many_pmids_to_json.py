@@ -113,8 +113,9 @@ if __name__ == "__main__":
             pmids_wanted.append(pmid)
 
     elif args['file']:
+        base_path = environ.get('XML_PATH')
         logger.info("Processing file input from %s", args['file'])
-        with open(args['file'], 'r') as fp:
+        with open(base_path + args['file'], 'r') as fp:
             pmid = fp.readline()
             while pmid:
                 pmids_wanted.append(pmid.rstrip())
