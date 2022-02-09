@@ -33,6 +33,7 @@ pytz = "^2021.3"
 databases = "^0.5.5"
 fastapi-auth0 = "^0.3.0"
 isort = "^5.10.1"
+Sphinx = "^4.4.0"
 
 [tool.poetry.dev-dependencies]
 
