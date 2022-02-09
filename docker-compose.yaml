@@ -16,7 +16,7 @@ services:
     networks:
       - agr-literature
     ports:
-      - "5432:5432"
+      - "${PSQL_PORT}:${PSQL_PORT}"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${PSQL_USERNAME}"]
       interval: 10s
@@ -85,6 +85,7 @@ services:
       - agr-literature
     volumes:
       - "./pgsync_schema.json:/src/app/pgsync_schema.json"
+      - "./.env:/usr/local/lib/.env"
     depends_on:
       - initdb
       - elasticsearch

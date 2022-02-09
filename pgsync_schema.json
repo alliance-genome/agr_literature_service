@@ -2,11 +2,141 @@
     {
         "database": "literature",
         "index": "references_index",
+        "setting": {
+            "number_of_shards": "1",
+            "number_of_replicas": "0",
+            "max_ngram_diff": "20",
+            "max_result_window": 500000,
+            "analysis": {
+                "filter": {
+                    "ngram_filter": {
+                        "type": "edge_ngram",
+                        "min_gram": "1",
+                        "max_gram": "20"
+                    }
+                },
+                "normalizer": {
+                    "sortNormalizer": {
+                        "filter": [
+                            "asciifolding",
+                            "lowercase"
+                        ],
+                        "type": "custom"
+                    }
+                },
+                "analyzer": {
+                    "autocompleteAnalyzer": {
+                        "filter": [
+                            "asciifolding",
+                            "lowercase"
+                        ],
+                        "type": "custom",
+                        "tokenizer": "ngram_tokenizer"
+                    },
+                    "autocompleteSearchAnalyzer": {
+                        "filter": [
+                            "asciifolding",
+                            "lowercase"
+                        ],
+                        "type": "custom",
+                        "tokenizer": "ngram_tokenizer"
+                    }
+                },
+                "tokenizer": {
+                    "ngram_tokenizer": {
+                        "token_chars": [
+                            "letter",
+                            "digit"
+                        ],
+                        "min_gram": "1",
+                        "type": "edge_ngram",
+                        "max_gram": "20"
+                    }
+                }
+            }
+        },
         "nodes": {
             "table": "references",
             "columns": [
-                "title"
-            ]
+                "curie", "title", "resource_id", "volume", "date_published", "pages", "abstract", "citation", "keywords", "publisher"
+                , "pubmed_type", "issue_name", "issue_date"
+            ],
+            "transform": {
+                "mapping": {
+                    "curie": {
+                        "type": "text",
+                        "analyzer": "autocompleteAnalyzer",
+                        "search_analyzer": "autocompleteSearchAnalyzer",
+                        "copy_to": "curie_keyword"
+                    },
+                    "curie_keyword": {
+                        "type": "keyword",
+                        "normalizer": "sortNormalizer"
+                    },
+                    "date_published": {
+                        "type": "text"
+                    }
+                }
+            },
+            "children":[
+                {
+                    "table": "authors",
+                    "columns": [
+                        "orcid", "first_author", "corresponding_author", "affiliation", "first_name", "middle_names", "last_name"
+                    ],
+                    "relationship": {
+                        "variant": "object",
+                        "type": "one_to_many",
+                        "foreign_key": {
+                            "child": ["reference_id"],
+                            "parent": ["reference_id"]
+                        }
+                    }
+                },
+                {
+                    "table": "resources",
+                    "columns":[
+                       "title", "title_synonyms", "iso_abbreviation", "medline_abbreviation", "publisher", "volumes"
+                       ,"abstract", "summary"
+                    ],
+                    "relationship":{
+                        "variant": "object",
+                        "type": "one_to_many",
+                        "foreign_key":{
+                            "child": ["resource_id"],
+                            "parent": ["resource_id"]
+                        }
+                    }
+                },
+                {
+                    "table": "cross_references",
+                    "columns":[
+                       "curie", "is_obsolete"
+                    ],
+                    "relationship":{
+                        "variant": "object",
+                        "type": "one_to_many",
+                        "foreign_key":{
+                            "child": ["reference_id"],
+                            "parent": ["reference_id"]
+                        }
+                    },
+                    "transform": {
+                        "mapping": {
+                            "curie": {
+                                "type": "text",
+                                "analyzer": "autocompleteAnalyzer",
+                                "search_analyzer": "autocompleteSearchAnalyzer",
+                                "copy_to": "cross_references.curie_keyword"
+                            },
+                            "curie_keyword": {
+                                "type": "keyword",
+                                "normalizer": "sortNormalizer"
+                            }
+                        }
+                    }
+                }
+            ] 
         }
     }
 ]
