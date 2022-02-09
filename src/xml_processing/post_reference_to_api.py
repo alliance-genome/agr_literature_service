@@ -252,7 +252,6 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                             new_list.append(new_sub_element)
                         new_entry[key] = new_list
 
-
                 # can only enter agr resource curie, if resource does not map to one, enter nothing
                 if 'resource' in new_entry:
                     if new_entry['resource'] in resource_to_curie:
