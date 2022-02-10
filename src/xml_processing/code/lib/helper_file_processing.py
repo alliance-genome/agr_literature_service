@@ -294,11 +294,11 @@ def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
     if db_has_change:
         return False, None, None
 
-    dqm_ordered = dict()
+    dqm_ordered = {}
     for author_dict in dqm_authors:
         if 'authorRank' in author_dict:
             order = int(author_dict['authorRank'])
-            sanitized_dict = dict()
+            sanitized_dict = {}
             sanitized_dict['order'] = order
             if 'name' in author_dict:
                 sanitized_dict['name'] = author_dict['name']

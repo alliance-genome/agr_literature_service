@@ -272,7 +272,7 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
             # </CommentsCorrections></CommentsCorrectionsList>
             comments_corrections_group = re.findall('<CommentsCorrections (.+?)</CommentsCorrections>', xml, re.DOTALL)
             if len(comments_corrections_group) > 0:
-                data_dict['commentsCorrections'] = dict()
+                data_dict['commentsCorrections'] = {}
                 for comcor_xml in comments_corrections_group:
                     ref_type = ''
                     other_pmid = ''

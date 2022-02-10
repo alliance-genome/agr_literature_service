@@ -1,12 +1,12 @@
-import logging
+# import logging
 import json
 from os import environ, makedirs, path
 
 from helper_file_processing import write_json
 
 # log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('spam_application.aux')
+# logging.config.fileConfig(log_file_path)
+# logger = logging.getLogger('spam_application.aux')
 
 
 def sanitize_pubmed_json_list(pmids):
@@ -38,7 +38,7 @@ def sanitize_pubmed_json_list(pmids):
             with open(pubmed_json_filepath, 'r') as f:
                 pubmed_data = json.load(f)
                 f.close()
-            entry = dict()
+            entry = {}
             entry['primaryId'] = 'PMID:' + pmid
             if 'nlm' in pubmed_data:
                 entry['resource'] = 'NLM:' + pubmed_data['nlm']
@@ -58,7 +58,8 @@ def sanitize_pubmed_json_list(pmids):
                         entry[pmid_field] = pubmed_data[pmid_field]
             sanitized_data.append(entry)
         except IOError:
-            logger.error(pubmed_json_filepath + ' not found in filesystem')
+            # logger.error(pubmed_json_filepath + ' not found in filesystem')
+            pass
     # json_filename = sanitized_reference_json_path + 'REFERENCE_PUBMED_' + pmid + '.json'
     json_filename = sanitized_reference_json_path + 'REFERENCE_PUBMED_PMID.json'
 

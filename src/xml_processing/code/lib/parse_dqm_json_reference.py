@@ -93,7 +93,7 @@ def generate_pmid_data(input_path, output_directory):
     for mod in mods:
         filename = base_path + input_path + '/REFERENCE_' + mod + '.json'
         logger.info('Loading %s data from %s', mod, filename)
-        dqm_data = dict()
+        dqm_data = {}
         try:
             with open(filename, 'r') as f:
                 dqm_data = json.load(f)
@@ -103,8 +103,8 @@ def generate_pmid_data(input_path, output_directory):
         if not dqm_data:
             continue
 
-        primary_id_unique = dict()
-        pmid_unique = dict()
+        primary_id_unique = {}
+        pmid_unique = {}
 
         for entry in dqm_data['data']:
 
@@ -367,7 +367,7 @@ def load_pubmed_resource():
     """
 
     # logger.info('Starting load_pubmed_resource')
-    resource_data = dict()
+    resource_data = {}
     filename = base_path + 'pubmed_resource_json/resource_pubmed_all.json'
     try:
         f = open(filename)
@@ -483,12 +483,12 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):
     resource_to_nlm, resource_to_nlm_highest, resource_nlm_to_title = load_pubmed_resource()
     resource_to_mod, resource_to_mod_issn_nlm = load_mod_resource(mods, resource_to_nlm)
     # use these six lines to more quickly test other things that don't need resource data
-    # resource_to_nlm = dict()
-    # resource_to_nlm_highest = dict()
-    # resource_nlm_to_title = dict()
-    # resource_to_mod = dict()
+    # resource_to_nlm = {}
+    # resource_to_nlm_highest = {}
+    # resource_nlm_to_title = {}
+    # resource_to_mod = {}
     # for mod in mods:
-    #     resource_to_mod[mod] = dict()
+    #     resource_to_mod[mod] = {}
 
     expected_cross_reference_type, exclude_cross_reference_type, pubmed_not_dqm_cross_reference_type = populate_expected_cross_reference_type()
 
@@ -511,9 +511,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):
     fh_mod_report_reference_no_resource = {}
 
     for mod in mods:
-        resource_not_found[mod] = dict()
+        resource_not_found[mod] = {}
         # cross_reference_types[mod] = set()
-        cross_reference_types[mod] = dict()
+        cross_reference_types[mod] = {}
         filename = report_file_path + mod + '_main'
         filename_title = report_file_path + mod + '_dqm_pubmed_differ_title'
         filename_differ = report_file_path + mod + '_dqm_pubmed_differ_other'
@@ -545,10 +545,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):
     # this has been obsoleted by generating from parse_dqm_json_resource.py but leaving in here until a full run works
     # fb have fb ids for resources, but from the resourceAbbreviation and pubmed xml's nlm, we can update
     # fb resource data to primary key off of nlm
-    # fb_resource_abbreviation_to_nlm = dict()
+    # fb_resource_abbreviation_to_nlm = {}
 
     sanitized_pubmed_multi_mod_data = []
-    unmerged_pubmed_data = dict()			# pubmed data by pmid and mod that needs some fields merged
+    unmerged_pubmed_data = {}			# pubmed data by pmid and mod that needs some fields merged
     for mod in mods:
         filename = base_path + input_path + '/REFERENCE_' + mod + '.json'
         logger.info('Processing %s', filename)
@@ -587,7 +587,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):
             # then again later to clean up crossReferences that get data from pubmed xml (once the PMID is known)
             if 'crossReferences' in entry:
                 expected_cross_references = []
-                dqm_xrefs = dict()
+                dqm_xrefs = {}
                 for cross_reference in entry['crossReferences']:
                     prefix, identifier, separator = split_identifier(cross_reference["id"])
                     if prefix not in dqm_xrefs:
@@ -932,7 +932,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):
 
         for cross_ref_id in cross_references_dict:
             pages = cross_references_dict[cross_ref_id]
-            sanitized_cross_ref_dict = dict()
+            sanitized_cross_ref_dict = {}
             sanitized_cross_ref_dict["id"] = cross_ref_id
             if len(pages) > 0:
                 sanitized_cross_ref_dict["pages"] = pages
