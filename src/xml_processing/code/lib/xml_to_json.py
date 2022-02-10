@@ -4,6 +4,41 @@ xml_to_json
 
 module that converts XMLs to JSON files
 
+
+pipenv run python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
+
+22 minutes on dev.wormbase for 646727 documents from filesystem. 12G of xml to 6.0G of json
+1 hour 55 minutes on agr-literature-dev for 649074 documents from filesystem.  15G of xml to 8.0G of json
+
+pipenv run python xml_to_json.py -u "http://tazendra.caltech.edu/~azurebrd/cgi-bin/forms/generic.cgi?action=ListPmids"
+
+
+not using author firstinit, nlm, issn
+
+update sample
+cp pubmed_json/32542232.json pubmed_sample
+cp pubmed_json/32644453.json pubmed_sample
+cp pubmed_json/33408224.json pubmed_sample
+cp pubmed_json/33002525.json pubmed_sample
+cp pubmed_json/33440160.json pubmed_sample
+cp pubmed_json/33410237.json pubmed_sample
+git add pubmed_sample/32542232.json
+git add pubmed_sample/32644453.json
+git add pubmed_sample/33408224.json
+git add pubmed_sample/33002525.json
+git add pubmed_sample/33440160.json
+git add pubmed_sample/33410237.json
+
+https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt
+
+Processing CommentIn/CommentOn from commentsCorrections results in 12-deep recursive chain of PMID comments, e.g. 32919857, but also many others fairly deep.
+Removing CommentIn/CommentOn from allowed RefType values the deepest set is 4 deep, Recursive example 26757732 -> 26868856 -> 26582243 -> 26865040 -> 27032729
+
+Need to set up a queue that queries postgres to get a list of pubmed id that don't have a pubmed final flag
+Need to set up flags to take in pmids from postgres queue, file in filesystem, file in URL, list from command line
+
+to get set of pmids with search term 'elegans'
+https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000
 """
 
 
@@ -18,46 +53,13 @@ import urllib.request
 import click
 import coloredlogs
 
+import calendar
+
 # from dotenv import load_dotenv
 #
 # load_dotenv()
 
 
-# pipenv run python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
-#
-# 22 minutes on dev.wormbase for 646727 documents from filesystem. 12G of xml to 6.0G of json
-# 1 hour 55 minutes on agr-literature-dev for 649074 documents from filesystem.  15G of xml to 8.0G of json
-
-# pipenv run python xml_to_json.py -u "http://tazendra.caltech.edu/~azurebrd/cgi-bin/forms/generic.cgi?action=ListPmids"
-
-
-# not using author firstinit, nlm, issn
-
-# update sample
-# cp pubmed_json/32542232.json pubmed_sample
-# cp pubmed_json/32644453.json pubmed_sample
-# cp pubmed_json/33408224.json pubmed_sample
-# cp pubmed_json/33002525.json pubmed_sample
-# cp pubmed_json/33440160.json pubmed_sample
-# cp pubmed_json/33410237.json pubmed_sample
-# git add pubmed_sample/32542232.json
-# git add pubmed_sample/32644453.json
-# git add pubmed_sample/33408224.json
-# git add pubmed_sample/33002525.json
-# git add pubmed_sample/33440160.json
-# git add pubmed_sample/33410237.json
-
-
-# https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt
-
-# Processing CommentIn/CommentOn from commentsCorrections results in 12-deep recursive chain of PMID comments, e.g. 32919857, but also many others fairly deep.
-# Removing CommentIn/CommentOn from allowed RefType values the deepest set is 4 deep, Recursive example 26757732 -> 26868856 -> 26582243 -> 26865040 -> 27032729
-
-# Need to set up a queue that queries postgres to get a list of pubmed id that don't have a pubmed final flag
-# Need to set up flags to take in pmids from postgres queue, file in filesystem, file in URL, list from command line
-
-# to get set of pmids with search term 'elegans'
-# https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000
 
 
 logging.basicConfig(level=logging.INFO)
@@ -76,47 +78,47 @@ ignore_article_id_types = {'bookaccession', 'mid', 'pii', 'pmcid'}
 unknown_article_id_types = set([])
 
 
-def represents_int(s):
-    """
+# def represents_int(s):
+#     """
+#
+#     :param s:
+#     :return:
+#     """
+#
+#     try:
+#         int(s)
+#         return True
+#     except ValueError:
+#         return False
 
-    :param s:
-    :return:
-    """
 
-    try:
-        int(s)
-        return True
-    except ValueError:
-        return False
-
-
-def month_name_to_number_string(string):
-    """
-
-    :param string:
-    :return:
-    """
-
-    m = {
-        'jan': '01',
-        'feb': '02',
-        'mar': '03',
-        'apr': '04',
-        'may': '05',
-        'jun': '06',
-        'jul': '07',
-        'aug': '08',
-        'sep': '09',
-        'oct': '10',
-        'nov': '11',
-        'dec': '12'}
-    s = string.strip()[:3].lower()
-
-    try:
-        out = m[s]
-        return out
-    except ValueError:
-        raise ValueError(string + ' is not a month')
+# def month_name_to_number_string(string):
+#     """
+#
+#     :param string:
+#     :return:
+#     """
+#
+#     m = {
+#         'jan': '01',
+#         'feb': '02',
+#         'mar': '03',
+#         'apr': '04',
+#         'may': '05',
+#         'jun': '06',
+#         'jul': '07',
+#         'aug': '08',
+#         'sep': '09',
+#         'oct': '10',
+#         'nov': '11',
+#         'dec': '12'}
+#     s = string.strip()[:3].lower()
+#
+#     try:
+#         out = m[s]
+#         return out
+#     except ValueError:
+#         raise ValueError(string + ' is not a month')
 
 
 def get_year_month_day_from_xml_date(pub_date):
@@ -136,16 +138,17 @@ def get_year_month_day_from_xml_date(pub_date):
     month_re_output = re.search("<Month>(.+?)</Month>", pub_date)
     if month_re_output is not None:
         month_text = month_re_output.group(1)
-        if represents_int(month_text):
+        if type(month_text) == int:
             month = month_text
         else:
-            month = month_name_to_number_string(month_text)
-    day_re_output = re.search("<Day>(.+?)</Day>", pub_date)
+            month = list(calendar.month_abbr).index(month_text)
+    day_re_output = re.search('<Day>(.+?)</Day>', pub_date)
     if day_re_output is not None:
         day = day_re_output.group(1)
     date_list.append(year)
     date_list.append(month)
     date_list.append(day)
+
     return date_list
 
 
@@ -175,10 +178,12 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
     # json_storage_path = base_path + 'pubmed_json_20210322/'
     storage_path = base_path + 'pubmed_xml/'
     json_storage_path = base_path + 'pubmed_json/'
+
     if not os.path.exists(storage_path):
         os.makedirs(storage_path)
     if not os.path.exists(json_storage_path):
         os.makedirs(json_storage_path)
+
     # new_pmids = []
     # ref_types = []
     new_pmids_set = set([])
@@ -211,7 +216,6 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
 
             title_re_output = re.search('<ArticleTitle[^>]*?>(.+?)</ArticleTitle>', xml, re.DOTALL)
             if title_re_output is not None:
-                # print title
                 title = title_re_output.group(1).rstrip()
                 title = re.sub(r'\s+', ' ', title)
                 data_dict['title'] = title
@@ -221,7 +225,6 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
                 # e.g. 33054145 21413221
                 book_title_re_output = re.search('<BookTitle[^>]*?>(.+?)</BookTitle>', xml, re.DOTALL)
                 if book_title_re_output is not None:
-                    # print title
                     title = book_title_re_output.group(1).rstrip()
                     title = re.sub(r'\s+', ' ', title)
                     data_dict['title'] = title
@@ -230,13 +233,12 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
                     # e.g. 28304499 28308877
                     vernacular_title_re_output = re.search('<VernacularTitle[^>]*?>(.+?)</VernacularTitle>', xml, re.DOTALL)
                     if vernacular_title_re_output is not None:
-                        # print title
                         title = vernacular_title_re_output.group(1).rstrip()
                         title = re.sub(r'\s+', ' ', title)
                         data_dict['title'] = title
                         data_dict['is_vernacular'] = 'vernacular'
                     else:
-                        logger.info("%s has no title", pmid)
+                        logger.info('%s has no title', pmid)
 
             journal_re_output = re.search('<MedlineTA>(.+?)</MedlineTA>', xml)
             if journal_re_output is not None:
@@ -276,10 +278,10 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
                 for comcor_xml in comments_corrections_group:
                     ref_type = ''
                     other_pmid = ''
-                    ref_type_re_output = re.search("RefType=\"(.*?)\"", comcor_xml)
+                    ref_type_re_output = re.search('RefType="(.*?)"', comcor_xml)
                     if ref_type_re_output is not None:
                         ref_type = ref_type_re_output.group(1)
-                    other_pmid_re_output = re.search("<PMID[^>]*?>(.+?)</PMID>", comcor_xml)
+                    other_pmid_re_output = re.search('<PMID[^>]*?>(.+?)</PMID>', comcor_xml)
                     if other_pmid_re_output is not None:
                         other_pmid = other_pmid_re_output.group(1)
                     if (other_pmid != '') and (ref_type != '') and (ref_type != 'CommentIn') \
@@ -288,8 +290,7 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
                             if other_pmid not in data_dict['commentsCorrections'][ref_type]:
                                 data_dict['commentsCorrections'][ref_type].append(other_pmid)
                         else:
-                            data_dict['commentsCorrections'][ref_type] = []
-                            data_dict['commentsCorrections'][ref_type].append(other_pmid)
+                            data_dict['commentsCorrections'][ref_type] = [other_pmid]
                         # print(pmid + " COMCOR " + ref_type + " " + other_pmid)
                         ref_types_set.add(ref_type)
                         if other_pmid not in pmids and other_pmid not in previous_pmids:
@@ -393,8 +394,7 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
                 pub_date = pub_date_re_output.group(1)
                 date_list = get_year_month_day_from_xml_date(pub_date)
                 if date_list[0]:
-                    date_string = "-".join(date_list)
-                    # print date_string
+                    date_string = '-'.join(date_list)
                     date_dict = {'date_string': date_string, 'year': date_list[0], 'month': date_list[1],
                                  'day': date_list[2]}
                     # datePublished is a string, not a date-time
@@ -461,7 +461,7 @@ def generate_json(pmids, previous_pmids, base_path):      # noqa: C901
             medline_journal_info_re_output = re.search('<MedlineJournalInfo>(.*?)</MedlineJournalInfo>', xml, re.DOTALL)
             if medline_journal_info_re_output is not None:
                 medline_journal_info = medline_journal_info_re_output.group(1)
-                # print pmid + " medline_journal_info " + medline_journal_info
+                # print(pmid + " medline_journal_info " + medline_journal_info)
                 nlm = ''
                 issn = ''
                 journal_abbrev = ''
@@ -682,7 +682,8 @@ def process_tasks(cli, db, ffile, api, sample, url):
         # python xml_to_json.py -r
         logger.info('Processing rest api entries')
     elif ffile:
-        # python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/pmid_file.txt
+        # python xml_to_json.py -f /home/azurebrd/git/agr_literature_
+        # service_demo/src/xml_processing/inputs/pmid_file.txt
         logger.info('Processing file input from ' + ffile)
         # this requires a well structured input
         pmids = open(ffile).read().splitlines()

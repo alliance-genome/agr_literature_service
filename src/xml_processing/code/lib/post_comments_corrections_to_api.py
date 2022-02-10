@@ -1,3 +1,11 @@
+"""
+pipenv run python post_comments_corrections_to_api.py -f /home/azurebrd/git/agr_
+literature_service_demo/src/xml_processing/inputs/all_pmids > log_post_comments_corrections_to_api
+enter a file of pmids as an argument, sanitize, post to api
+1 hour 19 minutes for 669998 pmids and 6268 rows created
+"""
+
+
 import argparse
 import json
 import logging
@@ -8,12 +16,6 @@ from helper_file_processing import (generate_cross_references_file,
                                     load_ref_xref)
 from helper_post_to_api import (generate_headers, get_authentication_token,
                                 process_api_request)
-
-# pipenv run python post_comments_corrections_to_api.py -f /home/azurebrd/git/agr_
-# literature_service_demo/src/xml_processing/inputs/all_pmids > log_post_comments_corrections_to_api
-# enter a file of pmids as an argument, sanitize, post to api
-# 1 hour 19 minutes for 669998 pmids and 6268 rows created
-
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)

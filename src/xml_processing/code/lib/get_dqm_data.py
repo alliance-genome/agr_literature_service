@@ -85,10 +85,10 @@ def download_dqm_json():
 
     mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
     datatypes = ['REFERENCE', 'REF-EXCHANGE', 'RESOURCE']
-#     mods = ['WB']
-#     datatypes = ['RESOURCE']
-#     mods = ['WB', 'FB']
-#     datatypes = ['REFERENCE']
+    # mods = ['WB']
+    # datatypes = ['RESOURCE']
+    # mods = ['WB', 'FB']
+    # datatypes = ['REFERENCE']
     release = '4.1.1'
     for datatype in datatypes:
         for mod in mods:
@@ -111,7 +111,7 @@ def download_dqm_json():
             logger.debug(outfile_path_decompressed + ' has md5sum ' + md5sum_local)
 
             if md5sum_local != md5sum_fms:
-                logger.info("downloading %s to %s", file_url, outfile_path_decompressed)
+                logger.info('downloading %s to %s', file_url, outfile_path_decompressed)
                 response = urllib.request.urlopen(file_url)
                 compressed_file = io.BytesIO(response.read())
                 decompressed_file = gzip.GzipFile(fileobj=compressed_file)

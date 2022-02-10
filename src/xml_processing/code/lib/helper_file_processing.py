@@ -68,7 +68,7 @@ def load_ref_xref(datatype):
     if path.isfile(datatype_primary_id_to_curie_file):
         with open(datatype_primary_id_to_curie_file, 'r') as read_fh:
             for line in read_fh:
-                line_data = line.rstrip().split("\t")
+                line_data = line.rstrip().split('\t')
                 agr = line_data[0]
                 xref = line_data[1]
                 status = line_data[2]

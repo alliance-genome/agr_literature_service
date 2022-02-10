@@ -23,7 +23,7 @@ parser.add_argument('-c', '--commandline', nargs='*', action='store', help='plac
 args = vars(parser.parse_args())
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     """
     call main start function
     """
@@ -32,21 +32,16 @@ if __name__ == "__main__":
 
     # python parse_pubmed_json_reference.py -c 1234 4576 1828
     if args['commandline']:
-        logger.info("Processing commandline input")
+        logger.info('Processing commandline input')
         for pmid in args['commandline']:
             pmids_wanted.append(pmid)
 
     elif args['file']:
-        logger.info("Processing file input from %s", args['file'])
+        logger.info('Processing file input from %s', args['file'])
         base_path = environ.get('XML_PATH')
         filename = base_path + args['file']
         try:
-            with open(filename, 'r') as fp:
-                pmid = fp.readline()
-                while pmid:
-                    pmids_wanted.append(pmid.rstrip())
-                    pmid = fp.readline()
-                fp.close()
+            pmids_wanted = open(filename, 'r').read().splitlines()
         except IOError:
             logger.info('No input file at %s', filename)
 

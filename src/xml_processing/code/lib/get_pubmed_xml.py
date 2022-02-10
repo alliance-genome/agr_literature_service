@@ -147,7 +147,7 @@ def download_pubmed_xml(pmids_wanted, storage_path, base_path):
                     if len(xml_split) > 0:
                         this_xml = this_xml + footer
                     clean_xml = os.linesep.join([s for s in this_xml.splitlines() if s])
-                    clean_xml = clean_xml.replace('\n', ' ')
+                    clean_xml = clean_xml.rstrip()
                     # logger.info(clean_xml)
                     if re.search(r'<PMID[^>]*?>(\d+)</PMID>', clean_xml):
                         pmid_group = re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml)

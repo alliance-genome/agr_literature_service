@@ -59,38 +59,34 @@ def populate_nlm_info(file_data):
         # if counter > 5:
         #     continue
         nlm = ''
-        if re.search("NlmId: (.+)", entry):
-            nlm_group = re.search("NlmId: (.+)", entry)
+        if re.search('NlmId: (.+)', entry):
+            nlm_group = re.search('NlmId: (.+)', entry)
             nlm = nlm_group.group(1)
-        if not nlm:
-            # print "skip"
-            continue
-        data_dict = {'primaryId': 'NLM:' + nlm, 'nlm': nlm, 'crossReferences': [{'id': 'NLM:' + nlm}]}
-        if re.search('JournalTitle: (.+)', entry):
-            title_group = re.search('JournalTitle: (.+)', entry)
-            title = title_group.group(1)
-            data_dict['title'] = title
-        if re.search('IsoAbbr: (.+)', entry):
-            iso_abbreviation_group = re.search('IsoAbbr: (.+)', entry)
-            iso_abbreviation = iso_abbreviation_group.group(1)
-            data_dict['isoAbbreviation'] = iso_abbreviation
-        if re.search('MedAbbr: (.+)', entry):
-            medline_abbreviation_group = re.search('MedAbbr: (.+)', entry)
-            medline_abbreviation = medline_abbreviation_group.group(1)
-            data_dict['medlineAbbreviation'] = medline_abbreviation
-        if re.search(r'ISSN \(Print\): (.+)', entry):
-            print_issn_group = re.search(r'ISSN \(Print\): (.+)', entry)
-            print_issn = print_issn_group.group(1)
-            data_dict['printISSN'] = print_issn
-        if re.search(r'ISSN \(Online\): (.+)', entry):
-            online_issn_group = re.search(r'ISSN \(Online\): (.+)', entry)
-            online_issn = online_issn_group.group(1)
-            data_dict['onlineISSN'] = online_issn
+        if nlm:
+            data_dict = {'primaryId': 'NLM:' + nlm, 'nlm': nlm, 'crossReferences': [{'id': 'NLM:' + nlm}]}
+            if re.search('JournalTitle: (.+)', entry):
+                title_group = re.search('JournalTitle: (.+)', entry)
+                title = title_group.group(1)
+                data_dict['title'] = title
+            if re.search('IsoAbbr: (.+)', entry):
+                iso_abbreviation_group = re.search('IsoAbbr: (.+)', entry)
+                iso_abbreviation = iso_abbreviation_group.group(1)
+                data_dict['isoAbbreviation'] = iso_abbreviation
+            if re.search('MedAbbr: (.+)', entry):
+                medline_abbreviation_group = re.search('MedAbbr: (.+)', entry)
+                medline_abbreviation = medline_abbreviation_group.group(1)
+                data_dict['medlineAbbreviation'] = medline_abbreviation
+            if re.search(r'ISSN \(Print\): (.+)', entry):
+                print_issn_group = re.search(r'ISSN \(Print\): (.+)', entry)
+                print_issn = print_issn_group.group(1)
+                data_dict['printISSN'] = print_issn
+            if re.search(r'ISSN \(Online\): (.+)', entry):
+                online_issn_group = re.search(r'ISSN \(Online\): (.+)', entry)
+                online_issn = online_issn_group.group(1)
+                data_dict['onlineISSN'] = online_issn
 
-#             print nlm
-#             data_dict['nlm'] = nlm
-        nlm_info.append(data_dict)
-#         print entry
+            nlm_info.append(data_dict)
+
     return nlm_info
 
 
@@ -113,16 +109,27 @@ def upload_file_to_s3(file_name, bucket, object_name=None):
     try:
         response = s3_client.upload_file(file_name, bucket, object_name)
         if response is not None:
-            logger.info("boto 3 uploaded response: %s", response)
+            logger.info('boto 3 uploaded response: %s', response)
         else:
             logger.info('uploaded to s3 %s %s', bucket, file_name)
     except ClientError as e:
         logging.error(e)
         return False
+
     return True
 
 
 def generate_json(nlm_info, upload_to_s3):
+    """
+
+    to remove an uploaded file
+    aws s3 rm s3://agr-literature/develop/resource/metadata/resource_pubmed_all.json
+
+    :param nlm_info:
+    :param upload_to_s3:
+    :return:
+    """
+
     logger.info("Generating JSON from NLM data and saving to outfile")
     json_data = json.dumps(nlm_info, indent=4, sort_keys=True)
 
@@ -142,9 +149,6 @@ def generate_json(nlm_info, upload_to_s3):
         s3_filename = 'develop/resource/metadata/' + filename
         # UNCOMMENT TO upload to aws bucket
         upload_file_to_s3(output_json_file, s3_bucket, s3_filename)
-
-    # to remove an uploaded file
-    # aws s3 rm s3://agr-literature/develop/resource/metadata/resource_pubmed_all.json
 
 
 def populate_from_url():
@@ -167,12 +171,11 @@ def populate_from_local_file():
     """
 
     filename = base_path + 'J_Medline.txt'
-    with open(filename) as txt_file:
-        if not os.path.exists(filename):
-            return 'journal info file not found'
-        file_data = txt_file.read()
-        txt_file.close()
-        return file_data
+    if not os.path.exists(filename):
+        return 'journal info file not found'
+    else:
+        return open(filename).read()
+
 
 
 @click.command()
