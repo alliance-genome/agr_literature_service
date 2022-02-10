@@ -1,3 +1,10 @@
+"""
+post to api data from sanitized_reference_json/
+python post_reference_to_api.py
+
+update okta_token only
+python post_reference_to_api.py -a
+"""
 
 # import requests
 import argparse
@@ -11,13 +18,6 @@ from helper_file_processing import (generate_cross_references_file,
                                     load_ref_xref, split_identifier)
 from helper_post_to_api import (generate_headers, get_authentication_token,
                                 process_api_request, update_token)
-
-# post to api data from sanitized_reference_json/
-# python post_reference_to_api.py
-#
-# update okta_token only
-# python post_reference_to_api.py -a
-
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
@@ -63,8 +63,6 @@ def camel_to_snake(name):
     :return:
     """
 
-    name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
 
 
@@ -85,29 +83,21 @@ def post_references(input_file, check_file_flag):      # noqa: C901
         json_storage_path = base_path + 'sanitized_reference_json/'
         dir_list = listdir(json_storage_path)
         for filename in dir_list:
-            # logger.info("%s", filename)
+            # logger.info(filename)
             if 'REFERENCE_' in filename and '.REFERENCE_' not in filename:
-                # logger.info("%s", filename)
+                # logger.info(filename)
                 files_to_process.append(json_storage_path + filename)
     else:
         files_to_process.append(input_file)
 
     keys_to_remove = {'nlm', 'primaryId', 'modResources', 'resourceAbbreviation'}
-    remap_keys = {}
-    remap_keys['datePublished'] = 'date_published'
-    remap_keys['dateArrivedInPubmed'] = 'date_arrived_in_pubmed'
-    remap_keys['dateLastModified'] = 'date_last_modified'
-    remap_keys['crossReferences'] = 'cross_references'
-    remap_keys['issueName'] = 'issue_name'
-    remap_keys['issueDate'] = 'issue_date'
-    remap_keys['pubMedType'] = 'pubmed_type'
-    remap_keys['meshTerms'] = 'mesh_terms'
-    remap_keys['allianceCategory'] = 'category'
-    remap_keys['MODReferenceType'] = 'mod_reference_types'
-    remap_keys['MODReferenceTypes'] = 'mod_reference_types'
-    remap_keys['plainLanguageAbstract'] = 'plain_language_abstract'
-    remap_keys['pubmedAbstractLanguages'] = 'pubmed_abstract_languages'
-    remap_keys['publicationStatus'] = 'pubmed_publication_status'
+    remap_keys = {'datePublished': 'date_published', 'dateArrivedInPubmed': 'date_arrived_in_pubmed',
+                  'dateLastModified': 'date_last_modified', 'crossReferences': 'cross_references',
+                  'issueName': 'issue_name', 'issueDate': 'issue_date', 'pubMedType': 'pubmed_type',
+                  'meshTerms': 'mesh_terms', 'allianceCategory': 'category', 'MODReferenceType': 'mod_reference_types',
+                  'MODReferenceTypes': 'mod_reference_types', 'plainLanguageAbstract': 'plain_language_abstract',
+                  'pubmedAbstractLanguages': 'pubmed_abstract_languages',
+                  'publicationStatus': 'pubmed_publication_status'}
 
     subkeys_to_remove = {}
     remap_subkeys = {}
@@ -148,7 +138,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     # okta_file = base_path + 'okta_token'
     # if path.isfile(okta_file):
     #     with open(okta_file, 'r') as okta_fh:
-    #         token = okta_fh.read().replace("\n", "")
+    #         token = okta_fh.read().replace('\n', '')
     #         okta_fh.close
     # else:
     #     token = update_token()
@@ -217,7 +207,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                 prefix, identifier, separator = split_identifier(primary_id)
                 if prefix in xref_ref:
                     if identifier in xref_ref[prefix]:
-                        logger.info("%s\talready in", primary_id)
+                        logger.info('%s\talready in', primary_id)
                         continue
                 # previously loading from reference_primary_id_to_curie from past run of this script
                 # if primary_id in already_processed_primary_id:
@@ -249,7 +239,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                             for subkey in sub_element:
                                 if subkey in remap_subkeys[key]:
                                     new_sub_element[remap_subkeys[key][subkey]] = sub_element[subkey]
-                                    # logger.info("remap subkey\t%s\t%s", subkey, remap_subkeys[key][subkey])
+                                    # logger.info('remap subkey\t%s\t%s', subkey, remap_subkeys[key][subkey])
                                 elif key not in subkeys_to_remove or subkey not in subkeys_to_remove[key]:
                                     new_sub_element[subkey] = sub_element[subkey]
                             new_list.append(new_sub_element)
@@ -262,7 +252,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                     else:
                         del new_entry['resource']
                 if 'category' in new_entry:
-                    new_entry['category'] = new_entry['category'].lower().replace(" ", "_")
+                    new_entry['category'] = new_entry['category'].lower().replace(' ', '_')
                 if 'tags' in new_entry:
                     for sub_element in new_entry['tags']:
                         if 'tag_name' in sub_element:
@@ -373,7 +363,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
 #     return headers, process_text, process_status_code
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     """
     call main start function
     """
