@@ -36,6 +36,7 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
+
 def create_storage_path(json_storage_path):
     """
 
@@ -144,8 +145,8 @@ def load_mod_resource(json_storage_path, pubmed_by_nlm, nlm_by_issn, mod):      
     """
 
     resource_fields_not_in_pubmed = ['titleSynonyms', 'abbreviationSynonyms', 'copyrightDate',
-                                    'publisher', 'editorsOrAuthors', 'volumes', 'pages',
-                                    'abstractOrSummary']
+                                     'publisher', 'editorsOrAuthors', 'volumes', 'pages',
+                                     'abstractOrSummary']
     base_path = environ.get('XML_PATH')
 
     # leaving this here in case comment at generate_resource_abbreviation_to_nlm_from_dqm_references helps

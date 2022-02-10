@@ -177,7 +177,6 @@ def populate_from_local_file():
         return open(filename).read()
 
 
-
 @click.command()
 @click.option('-L', '--input-localfile', 'local', help='take input from local file', required=False, default=False)
 @click.option('-u', '--input-url', 'url', help='take input from url', required=False, default=False)

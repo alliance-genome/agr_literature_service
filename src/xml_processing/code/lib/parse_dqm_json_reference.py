@@ -179,7 +179,7 @@ def generate_pmid_data(input_path, output_directory):
     with open(output_pmid_file, 'w') as pmid_file:
         # for pmid in sorted(pmid_stats.iterkeys(), key=int):	# python 2
         for pmid in sorted(pmid_stats, key=int):
-            pmid_file.write(str(pmid) + '\n' )
+            pmid_file.write(str(pmid) + '\n')
         pmid_file.close()
 
     # output pmids and the mods that have them
@@ -355,7 +355,7 @@ def load_mod_resource(mods, resource_to_nlm):
                                             # if entry['primaryId'] == 'FB:FBmultipub_1740':
                                             #     logger.info("id %s xref id %s issn %s nlm %s value %s nlm %s mod %s", entry['primaryId'], xref_entry['id'], issn, resource_to_nlm[issn], value,  resource_to_nlm[issn][0], mod)
         except IOError as e:
-            logger.warning(str(e))	# most mods don't have a resource file
+            logger.warning(str(e))  	# most mods don't have a resource file
 
     return resource_to_mod, resource_to_mod_issn_nlm
 
@@ -456,9 +456,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):
 
     cross_ref_no_pages_ok_fields = ['DOI', 'PMID', 'PMC', 'PMCID', 'ISBN']
     pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate',
-                  'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract',
-                  'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract',
-                  'pubmedAbstractLanguages', 'publicationStatus']
+                   'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract',
+                   'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract',
+                   'pubmedAbstractLanguages', 'publicationStatus']
     # single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher']
     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
     replace_value_fields = ['authors', 'pubMedType', 'meshTerms']
