@@ -35,20 +35,20 @@ def generate_chunk_files():
     chunk_to_pmid_to_ftp = {}
     current_chunk = 1
     chunk_to_pmid_to_ftp[current_chunk] = {}
-        count = 0
+    count = 0
 
     main_split = open(main_chunk_file).read().splitlines()
-        # tot_count = 0
+    # tot_count = 0
     for line in main_split:
         pmid_re_output = re.search(r'INFO - Download (\d+) (ftp.+?tar.gz)', line)
         if pmid_re_output is not None:
             pmid = pmid_re_output.group(1)
             ftp = pmid_re_output.group(2)
             count += 1
-                # tot_count += 1
-                # if tot_count > 10:
-                #     continue
-                # if count > 3:
+            # tot_count += 1
+            # if tot_count > 10:
+            #     continue
+            # if count > 3:
             if count > 10000:
                 current_chunk = current_chunk + 1
                 chunk_to_pmid_to_ftp[current_chunk] = {}

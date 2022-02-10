@@ -120,7 +120,7 @@ def find_doi_duplicates():
                 sorted_ids = sorted(xrefs[ident])
                 duplicate_list = []
                 for primary_id in sorted_ids:
-                    files = '", ".'join(primary_id_in_file[primary_id])
+                    files = ', '.join(primary_id_in_file[primary_id])
                     duplicate_text = primary_id + ' (' + files + ')'
                     duplicate_list.append(duplicate_text)
                 primary_ids = '; '.join(duplicate_list)

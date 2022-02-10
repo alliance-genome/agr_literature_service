@@ -109,6 +109,6 @@ if __name__ == "__main__":
 #     python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/pmid_file.txt
     elif args['file']:
         logger.info("Processing file input from %s", args['file'])
-        pmids_wanted = pen(args['file']).read().splitlines()
+        pmids_wanted = open(args['file']).read().splitlines()
 
     download_pubmed_tgz(pmids_wanted)

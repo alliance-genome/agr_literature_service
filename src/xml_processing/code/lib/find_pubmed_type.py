@@ -5,7 +5,6 @@ import logging.config
 import re
 import urllib.request
 from os import environ, makedirs, path
-from typing import List, Set
 
 # import xmltodict
 # import hashlib

@@ -45,7 +45,7 @@ def load_sample_json(input_file):
     if not sample_json:
         return
     if 'data' not in sample_json:
-        logger.info('No 'data' in sample.json file at %s', sample_file)
+        logger.info('No "data" in sample.json file at %s', sample_file)
         return
     return sample_json
 
@@ -99,7 +99,7 @@ def generate_dqm_json_test_set_from_sample_json(input_file, output_directory):  
             except IOError:
                 logger.info('No %s file at %s', mod, input_filename)
             if 'data' not in dqm_data:
-                logger.info('No 'data' in %s file at %s', mod, input_filename)
+                logger.info('No "data" in %s file at %s', mod, input_filename)
                 continue
             dqm_wanted = []
             for entry in dqm_data['data']:

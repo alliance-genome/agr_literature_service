@@ -61,7 +61,7 @@ args = vars(parser.parse_args())
 base_path = environ.get('XML_PATH')
 
 
-def generate_pmid_data(input_path, output_directory):
+def generate_pmid_data(input_path, output_directory):    # noqa: C901
     """
 
     output set of PMID identifiers that will need XML downloaded
@@ -439,7 +439,7 @@ def load_pmid_multi_mods():
     return pmid_multi_mods
 
 
-def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):
+def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # noqa: C901
     """
     noqa: C901
     reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
