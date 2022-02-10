@@ -58,12 +58,13 @@ def load_ref_xref(datatype):
     """
 
     # 7 seconds to populate file with 2476879 rows
-    ref_xref_valid = dict()
-    ref_xref_obsolete = dict()
-    xref_ref = dict()
+    ref_xref_valid = {}
+    ref_xref_obsolete = {}
+    xref_ref = {}
     base_path = environ.get('XML_PATH')
     datatype_primary_id_to_curie_file = base_path + datatype + '_curie_to_xref'
-    print("load_ref_xref: Loading {}".format(datatype_primary_id_to_curie_file))
+    print('load_ref_xref: Loading {}'.format(datatype_primary_id_to_curie_file))
+
     if path.isfile(datatype_primary_id_to_curie_file):
         with open(datatype_primary_id_to_curie_file, 'r') as read_fh:
             for line in read_fh:
@@ -74,7 +75,7 @@ def load_ref_xref(datatype):
                 prefix, identifier, separator = split_identifier(xref)
                 if status == 'valid':
                     if agr not in ref_xref_valid:
-                        ref_xref_valid[agr] = dict()
+                        ref_xref_valid[agr] = {}
                     ref_xref_valid[agr][prefix] = identifier
                     # previously a reference and prefix could have multiple values
                     # if prefix not in ref_xref_valid[agr]:
@@ -82,12 +83,12 @@ def load_ref_xref(datatype):
                     # if identifier not in ref_xref_valid[agr][prefix]:
                     #     ref_xref_valid[agr][prefix].add(identifier)
                     if prefix not in xref_ref:
-                        xref_ref[prefix] = dict()
+                        xref_ref[prefix] = {}
                     if identifier not in xref_ref[prefix]:
                         xref_ref[prefix][identifier] = agr
                 elif status == 'obsolete':
                     if agr not in ref_xref_obsolete:
-                        ref_xref_obsolete[agr] = dict()
+                        ref_xref_obsolete[agr] = {}
                     # a reference and prefix can still have multiple obsolete values
                     if prefix not in ref_xref_obsolete[agr]:
                         ref_xref_obsolete[agr][prefix] = set()
@@ -106,8 +107,8 @@ def load_pubmed_resource_basic():
     filename = base_path + 'pubmed_resource_json/resource_pubmed_all.json'
     f = open(filename)
     resource_data = json.load(f)
-    pubmed_by_nlm = dict()
-    nlm_by_issn = dict()
+    pubmed_by_nlm = {}
+    nlm_by_issn = {}
     for entry in resource_data:
         # primary_id = entry['primaryId']
         nlm = entry['nlm']
@@ -137,7 +138,7 @@ def save_resource_file(json_storage_path, pubmed_by_nlm, datatype):
     :return:
     """
 
-    pubmed_data = dict()
+    pubmed_data = {}
     pubmed_data['data'] = []
     for nlm in pubmed_by_nlm:
         pubmed_data['data'].append(pubmed_by_nlm[nlm])
@@ -153,7 +154,7 @@ def write_json(json_filename, dict_to_output):
     :return:
     """
 
-    with open(json_filename, "w") as json_file:
+    with open(json_filename, 'w') as json_file:
         # not sure how to logger from imported function without breaking logger in main function
         # logger.info("Generating JSON for %s", json_filename)
         json_data = json.dumps(dict_to_output, indent=4, sort_keys=True)
@@ -170,23 +171,23 @@ def clean_up_keywords(mod, entry):
             else:
                 # zfin has all keywords in the first array element, they cannot fix it
                 zfin_value = entry['keywords'][0]
-                zfin_value = str(bs4.BeautifulSoup(zfin_value, "html.parser"))
+                zfin_value = str(bs4.BeautifulSoup(zfin_value, 'html.parser'))
                 comma_count = 0
                 semicolon_count = 0
-                if ", " in zfin_value:
+                if ', ' in zfin_value:
                     comma_count = zfin_value.count(',')
-                if "; " in zfin_value:
+                if '; ' in zfin_value:
                     semicolon_count = zfin_value.count(';')
                 if (comma_count == 0) and (semicolon_count == 0):
                     entry['keywords'] = [zfin_value]
                 elif comma_count >= semicolon_count:
-                    entry['keywords'] = zfin_value.split(", ")
+                    entry['keywords'] = zfin_value.split(', ')
                 else:
-                    entry['keywords'] = zfin_value.split("; ")
+                    entry['keywords'] = zfin_value.split('; ')
     else:
         keywords = []
         for mod_keyword in entry['keywords']:
-            mod_keyword = str(bs4.BeautifulSoup(mod_keyword, "html.parser"))
+            mod_keyword = str(bs4.BeautifulSoup(mod_keyword, 'html.parser'))
             keywords.append(mod_keyword)
         entry['keywords'] = keywords
     return entry
@@ -235,13 +236,17 @@ def generate_cross_references_file(datatype):
                 mapping_output += curie + '\t' + xref_id + '\t' + flag + '\n'
 
     ref_xref_file = base_path + datatype + '_curie_to_xref'
-    with open(ref_xref_file, "w") as ref_xref_file_fh:
+    with open(ref_xref_file, 'w') as ref_xref_file_fh:
         ref_xref_file_fh.write(mapping_output)
 
 
 def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
     """
-    Authors and Editors are in a hash with order of 'order' from db and 'authorRank' from dqm.  They have to be sorted by the order, and for updates the db 'author_id' is used to patch.  Currently we don't want to remove any authors, so we patch None to the values.  We're only getting from dqms the 'name', 'first_name', 'last_name', and 'order', although the ingest schema allows other data.
+    Authors and Editors are in a hash with order of 'order' from db and 'authorRank' from dqm.
+    They have to be sorted by the order, and for updates the db 'author_id' is used to patch.
+    Currently we don't want to remove any authors, so we patch None to the values.
+    We're only getting from dqms the 'name', 'first_name', 'last_name', and 'order',
+    although the ingest schema allows other data.
 
     Sample db data, unchanged dqm entry, changed dqm entry
     db_entry = { "authors": [ { "date_created": "2021-10-08T17:03:27.036468", "date_updated": "2021-10-10T11:04:39.548530", "author_id": 4582613, "order": 1, "name": "Abdul Kader N", "first_name": None, "middle_names": None, "last_name": None, "first_author": False, "orcid": None, "affiliation": None, "corresponding_author": None }, { "date_created": "2021-10-08T17:03:27.036468", "date_updated": "2021-10-10T11:04:39.548947", "author_id": 4582614, "order": 2, "name": "Brun J", "first_name": None, "middle_names": None, "last_name": None, "first_author": False, "orcid": None, "affiliation": None, "corresponding_author": None } ] }
@@ -273,7 +278,7 @@ def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
         if dqm_entry[dqm_key] is not None:
             dqm_authors = dqm_entry[dqm_key]
     db_has_change = False
-    db_ordered = dict()
+    db_ordered = {}
     for author_dict in db_authors:
         if datatype == 'authors':
             if author_dict['corresponding_author']:
@@ -313,7 +318,7 @@ def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
     for order in sorted(db_ordered.keys()):
         author_changed = False
         patch_dict = {'order': order}
-        dqm_dict = dict()
+        dqm_dict = {}
         if order in dqm_ordered:
             dqm_dict = dqm_ordered[order]
             # print("dqm %s %s" % (order, dqm_dict['name']))

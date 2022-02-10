@@ -48,10 +48,10 @@ if __name__ == "__main__":
                     pmid = fp.readline()
                 fp.close()
         except IOError:
-            logger.info("No input file at %s", filename)
+            logger.info('No input file at %s', filename)
 
     else:
-        logger.info("Must enter a PMID through command line")
+        logger.info('Must enter a PMID through command line')
 
     sanitize_pubmed_json_list(pmids_wanted)
 
@@ -60,4 +60,4 @@ if __name__ == "__main__":
     # json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_PMID.json'
     # process_results = post_references(json_filepath)
 
-    logger.info("Done Processing")
+    logger.info('Done processing')

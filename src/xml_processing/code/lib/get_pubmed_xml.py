@@ -1,42 +1,43 @@
 """
 get_pubmed_xml
 ==============
+
+pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
+pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
+pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/wormbase_pmids
+
+PubMed randomly has ("Connection broken: InvalidChunkLength(got length b'', 0 bytes read)" that
+crashes this script.  Keep running it again until it gets all the entries, then generate the md5sum file by running
+pipenv run python get_md5sum.py -x -f /home/azurebrd/git/agr_literature_service_demo/src/xml_
+processing/inputs/alliance_pmids
+
+
+pipenv run python get_pubmed_xml.py -u "http://tazendra.caltech.edu/~azurebrd/cgi-bin/forms/generic.cgi?action=ListPmids"
+
+1 hour 42 minutes to copy 646721 xml files / 12 G / 12466408 to s3 with
+ aws s3 cp pubmed_xml/ s3://agr-literature/develop/reference/metadata/pubmed/xml/ --recursive
+
+1 hour 0 minutes 26 seconds to skip through files already in filesystem in agr-lit-dev, vs 2 minutes at dev.wormbase
+
+webenv
+https://www.ncbi.nlm.nih.gov/books/NBK25498/#chapter3.Application_3_Retrieving_large
+
+try using post like (works with 5000 in perl)
+https://www.ncbi.nlm.nih.gov/books/NBK25498/#chapter3.Application_4_Finding_unique_se
+
+TODO:
+- Need to set up a queue that queries postgres to get a list of pubmed id that don't have a pubmed final flag
+= Need to set up an S3 bucket to store xml
+= Need to set up flags to take in pmids from postgres queue, file in filesystem, file in URL, list from command line
+
+to get set of pmids with search term 'elegans'
+https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000
+
+to get a batch of pmids by pmids
+https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=1,10,100,1000487,1000584&retmode=xml
+
+
 """
-
-# pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
-# pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
-# pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/wormbase_pmids
-
-# PubMed randomly has ("Connection broken: InvalidChunkLength(got length b'', 0 bytes read)" that
-# crashes this script.  Keep running it again until it gets all the entries, then generate the md5sum file by running
-# pipenv run python get_md5sum.py -x -f /home/azurebrd/git/agr_literature_service_demo/src/xml_
-# processing/inputs/alliance_pmids
-
-
-# pipenv run python get_pubmed_xml.py -u "http://tazendra.caltech.edu/~azurebrd/cgi-bin/forms/generic.cgi?action=ListPmids"
-
-# 1 hour 42 minutes to copy 646721 xml files / 12 G / 12466408 to s3 with
-#  aws s3 cp pubmed_xml/ s3://agr-literature/develop/reference/metadata/pubmed/xml/ --recursive
-
-# 1 hour 0 minutes 26 seconds to skip through files already in filesystem in agr-lit-dev, vs 2 minutes at dev.wormbase
-
-# webenv
-# https://www.ncbi.nlm.nih.gov/books/NBK25498/#chapter3.Application_3_Retrieving_large
-
-# try using post like (works with 5000 in perl)
-# https://www.ncbi.nlm.nih.gov/books/NBK25498/#chapter3.Application_4_Finding_unique_se
-
-# TODO:
-# - Need to set up a queue that queries postgres to get a list of pubmed id that don't have a pubmed final flag
-# = Need to set up an S3 bucket to store xml
-# = Need to set up flags to take in pmids from postgres queue, file in filesystem, file in URL, list from command line
-
-# to get set of pmids with search term 'elegans'
-# https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000
-
-# to get a batch of pmids by pmids
-# https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=1,10,100,1000487,1000584&retmode=xml
-
 
 import glob
 import hashlib
@@ -148,12 +149,12 @@ def download_pubmed_xml(pmids_wanted, storage_path, base_path):
                     clean_xml = os.linesep.join([s for s in this_xml.splitlines() if s])
                     clean_xml = clean_xml.replace('\n', ' ')
                     # logger.info(clean_xml)
-                    if re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml):
+                    if re.search(r'<PMID[^>]*?>(\d+)</PMID>', clean_xml):
                         pmid_group = re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml)
                         pmid = pmid_group.group(1)
                         pmids_found.add(pmid)
                         filename = storage_path + pmid + '.xml'
-                        f = open(filename, "w")
+                        f = open(filename, 'w')
                         f.write(clean_xml)
                         f.close()
                         md5sum = hashlib.md5(clean_xml.encode('utf-8')).hexdigest()
@@ -162,7 +163,7 @@ def download_pubmed_xml(pmids_wanted, storage_path, base_path):
                     logger.info('Waiting to process more pmids')
                     time.sleep(5)
         except requests.exceptions.RequestException as e:
-            logger.info("requests failure with input %s %s", pmids_joined, e)
+            logger.info('requests failure with input %s %s', pmids_joined, e)
             logger.error(str(e))
             raise SystemExit(e)
 
@@ -175,10 +176,10 @@ def download_pubmed_xml(pmids_wanted, storage_path, base_path):
 
     logger.info('Writing log of pmids_not_found')
     output_pmids_not_found_file = base_path + ' pmids_not_found'
-    with open(output_pmids_not_found_file, "a") as pmids_not_found_file:
+    with open(output_pmids_not_found_file, 'a') as pmids_not_found_file:
         for pmid in pmids_wanted:
             if pmid not in pmids_found:
-                pmids_not_found_file.write("%s\n" % (pmid))
+                pmids_not_found_file.write('%s\n' % (pmid))
                 logger.info('PMID %s not found in pubmed query', pmid)
         pmids_not_found_file.close()
 

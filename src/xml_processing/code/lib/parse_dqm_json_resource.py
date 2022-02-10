@@ -55,7 +55,7 @@ def load_mod_resource_to_nlm(mod):
 
     base_path = environ.get('XML_PATH')
     filename = base_path + mod + '_resourceAbbreviation_to_NLM.json'
-    mod_to_nlm = dict()
+    mod_to_nlm = {}
     try:
         with open(filename, 'r') as f:
             mod_to_nlm = json.load(f)
@@ -83,8 +83,7 @@ def generate_resource_abbreviation_to_nlm_from_dqm_references(input_path, mod): 
     mod_resource_abbreviation_to_nlm = {}
     filename = input_path + 'REFERENCE_' + mod + '.json'
     logger.info('Processing %s', filename)
-    dqm_data = dict()
-
+    dqm_data = {}
 
     with open(filename, 'r') as f:
         dqm_data = json.load(f)
@@ -98,7 +97,7 @@ def generate_resource_abbreviation_to_nlm_from_dqm_references(input_path, mod): 
         orig_primary_id = entry['primaryId']
         # print("primaryId %s" % (entry['primaryId']))
 
-        pmid_group = re.search(r"^PMID:([0-9]+)", primary_id)
+        pmid_group = re.search(r'^PMID:([0-9]+)', primary_id)
         if pmid_group is not None:
             pmid = pmid_group[1]
             # print(pmid)
@@ -237,7 +236,7 @@ if __name__ == "__main__":
 
     logger.info("Starting parse_dqm_json_resource.py")
 
-    base_path = environ.get('XML_PATH', "")
+    base_path = environ.get('XML_PATH', '')
     json_storage_path = base_path + 'sanitized_resource_json/'
     create_storage_path(json_storage_path)
 
