@@ -48,4 +48,4 @@ src_paths = ["src/xml_processing", "backend/app"]
 py_version=39
 skip = [".gitignore", ".dockerignore"]
 skip_glob = ["docs/*"]
-
+multi_line_output = 3
