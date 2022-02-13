@@ -1,3 +1,8 @@
+"""
+note_crud.py
+============
+"""
+
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
@@ -8,6 +13,13 @@ from literature.schemas import NoteSchemaPost, NoteSchemaUpdate
 
 
 def create(db: Session, note: NoteSchemaPost) -> int:
+    """
+    Create a new note.
+    :param db:
+    :param note:
+    :return:
+    """
+
     note_data = jsonable_encoder(note)
 
     db_obj = create_obj(db, NoteModel, note_data)
@@ -20,6 +32,13 @@ def create(db: Session, note: NoteSchemaPost) -> int:
 
 
 def destroy(db: Session, note_id: int):
+    """
+
+    :param db:
+    :param note_id:
+    :return:
+    """
+
     note = db.query(NoteModel).filter(NoteModel.note_id == note_id).first()
     if not note:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -31,6 +50,14 @@ def destroy(db: Session, note_id: int):
 
 
 def patch(db: Session, note_id: int, note_update: NoteSchemaUpdate):
+    """
+
+    :param db:
+    :param note_id:
+    :param note_update:
+    :return:
+    """
+
     note_db_obj = db.query(NoteModel).filter(NoteModel.note_id == note_id).first()
     if not note_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -48,6 +75,13 @@ def patch(db: Session, note_id: int, note_update: NoteSchemaUpdate):
 
 
 def show(db: Session, note_id: int):
+    """
+
+    :param db:
+    :param note_id:
+    :return:
+    """
+
     note = db.query(NoteModel).filter(NoteModel.note_id == note_id).first()
     note_data = jsonable_encoder(note)
 
@@ -67,6 +101,13 @@ def show(db: Session, note_id: int):
 
 
 def show_changesets(db: Session, note_id: int):
+    """
+
+    :param db:
+    :param note_id:
+    :return:
+    """
+
     note = db.query(NoteModel).filter(NoteModel.note_id == note_id).first()
     if not note:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

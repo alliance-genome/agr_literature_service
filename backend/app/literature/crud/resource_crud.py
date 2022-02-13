@@ -1,3 +1,8 @@
+"""
+resource_crud.py
+================
+"""
+
 from datetime import datetime
 from typing import Dict, Union
 
@@ -16,6 +21,12 @@ from literature.schemas import ResourceSchemaPost, ResourceSchemaUpdate
 
 
 def create_next_curie(curie):
+    """
+    Creates the next curie in the sequence.
+    :param curie:
+    :return:
+    """
+
     curie_parts = curie.rsplit('-', 1)
     number_part = curie_parts[1]
     number = int(number_part) + 1
@@ -23,6 +34,13 @@ def create_next_curie(curie):
 
 
 def create(db: Session, resource: ResourceSchemaPost):
+    """
+    Creates a new resource.
+    :param db:
+    :param resource:
+    :return:
+    """
+
     resource_data = {}
 
     if resource.cross_references is not None:
@@ -80,6 +98,12 @@ def create(db: Session, resource: ResourceSchemaPost):
 
 
 def show_all_resources_external_ids(db: Session):
+    """
+    Returns all resources with external ids.
+    :param db:
+    :return:
+    """
+
     resources_query = db.query(ResourceModel.curie,
                                cast(func.array_agg(CrossReferenceModel.curie),
                                     ARRAY(String)),
@@ -96,6 +120,13 @@ def show_all_resources_external_ids(db: Session):
 
 
 def destroy(db: Session, curie: str):
+    """
+
+    :param db:
+    :param curie:
+    :return:
+    """
+
     resource = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
 
     if not resource:
@@ -108,6 +139,14 @@ def destroy(db: Session, curie: str):
 
 
 def patch(db: Session, curie: str, resource_update: Union[ResourceSchemaUpdate, Dict]) -> dict:
+    """
+
+    :param db:
+    :param curie:
+    :param resource_update:
+    :return:
+    """
+
     resource_db_obj = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
     if resource_db_obj is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -139,6 +178,13 @@ def patch(db: Session, curie: str, resource_update: Union[ResourceSchemaUpdate, 
 
 
 def show(db: Session, curie: str):
+    """
+
+    :param db:
+    :param curie:
+    :return:
+    """
+
     resource = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -175,6 +221,13 @@ def show(db: Session, curie: str):
 
 
 def show_notes(db: Session, curie: str):
+    """
+
+    :param db:
+    :param curie:
+    :return:
+    """
+
     resource = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
 
     notes_data = []
@@ -189,6 +242,13 @@ def show_notes(db: Session, curie: str):
 
 
 def show_changesets(db: Session, curie: str):
+    """
+
+    :param db:
+    :param curie:
+    :return:
+    """
+
     resource = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

@@ -1,3 +1,8 @@
+"""
+person_crud.py
+==============
+"""
+
 from datetime import datetime
 
 from fastapi import HTTPException, status
@@ -10,6 +15,13 @@ from literature.schemas import PersonSchemaPost
 
 
 def create(db: Session, person: PersonSchemaPost):
+    """
+
+    :param db:
+    :param person:
+    :return:
+    """
+
     person_data = jsonable_encoder(person)
 
     db_obj = create_obj(db, PersonModel, person_data)
@@ -22,6 +34,13 @@ def create(db: Session, person: PersonSchemaPost):
 
 
 def destroy(db: Session, person_id: int):
+    """
+
+    :param db:
+    :param person_id:
+    :return:
+    """
+
     person = db.query(PersonModel).filter(PersonModel.person_id == person_id).first()
     if not person:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -33,6 +52,13 @@ def destroy(db: Session, person_id: int):
 
 
 def patch(db: Session, person_id: int, person_update: PersonSchemaPost):
+    """
+
+    :param db:
+    :param person_id:
+    :param person_update:
+    :return:
+    """
 
     person_db_obj = db.query(PersonModel).filter(PersonModel.person_id == person_id).first()
     if not person_db_obj:
@@ -50,6 +76,12 @@ def patch(db: Session, person_id: int, person_update: PersonSchemaPost):
 
 
 def show(db: Session, person_id: int):
+    """
+
+    :param db:
+    :param person_id:
+    :return:
+    """
     person = db.query(PersonModel).filter(PersonModel.person_id == person_id).first()
     person_data = jsonable_encoder(person)
 
@@ -65,6 +97,13 @@ def show(db: Session, person_id: int):
 
 
 def show_changesets(db: Session, person_id: int):
+    """
+
+    :param db:
+    :param person_id:
+    :return:
+    """
+
     person = db.query(PersonModel).filter(PersonModel.person_id == person_id).first()
     if not person:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

@@ -1,3 +1,8 @@
+"""
+reference_resource.py
+=====================
+"""
+
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -7,6 +12,14 @@ from literature.models import ReferenceModel, ResourceModel
 
 
 def stripout(db: Session, file_update: dict, non_fatal: bool = False) -> dict:
+    """
+    Lookup reference or resource and add to data_object.
+    :param db:
+    :param file_update:
+    :param non_fatal:
+    :return:
+    """
+
     data_object = {'resource': None,
                    'reference': None}
 
@@ -41,9 +54,14 @@ def stripout(db: Session, file_update: dict, non_fatal: bool = False) -> dict:
 
 
 def add(ref_res_obj: dict, data_object: Any) -> None:
-    """Lookup reference or resource and add to data_object.
+    """
+    Lookup reference or resource and add to data_object.
 
     NOTE: The keys for these will be removed from file_update.
+
+    :param ref_res_obj:
+    :param data_object:
+    :return:
     """
 
     if ref_res_obj['resource']:
@@ -53,6 +71,15 @@ def add(ref_res_obj: dict, data_object: Any) -> None:
 
 
 def create_obj(db: Session, obj_type: Any, obj_data, non_fatal=False):
+    """
+    Create a new object of type obj_type.
+    :param db:
+    :param obj_type:
+    :param obj_data:
+    :param non_fatal:
+    :return:
+    """
+
     res_ref = stripout(db, obj_data, non_fatal)
     db_obj = obj_type(**obj_data)
     add(res_ref, db_obj)
@@ -60,5 +87,14 @@ def create_obj(db: Session, obj_type: Any, obj_data, non_fatal=False):
 
 
 def add_reference_resource(db: Session, db_obj: Any, obj_data: dict, non_fatal: bool = False) -> None:
+    """
+    Add a reference or resource to a literature object.
+    :param db:
+    :param db_obj:
+    :param obj_data:
+    :param non_fatal:
+    :return:
+    """
+
     res_ref = stripout(db, obj_data, non_fatal)
     add(res_ref, db_obj)
