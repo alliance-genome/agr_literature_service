@@ -1,3 +1,8 @@
+"""
+reference_manual_term_tag_crud.py
+=================================
+"""
+
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
@@ -8,15 +13,22 @@ from literature.schemas import (ReferenceManualTermTagSchemaPatch,
 
 
 def create(db: Session, reference_manual_term_tag: ReferenceManualTermTagSchemaPost):
+    """
+
+    :param db:
+    :param reference_manual_term_tag:
+    :return:
+    """
+
     reference_manual_term_tag_data = jsonable_encoder(reference_manual_term_tag)
 
-    reference_curie = reference_manual_term_tag_data['reference_curie']
+    reference_curie = reference_manual_term_tag_data["reference_curie"]
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Reference_curie {reference_curie} does not exist")
 
-    del reference_manual_term_tag_data['reference_curie']
+    del reference_manual_term_tag_data["reference_curie"]
 
     db_obj = ReferenceManualTermTagModel(**reference_manual_term_tag_data)
     db_obj.reference = reference
@@ -29,6 +41,13 @@ def create(db: Session, reference_manual_term_tag: ReferenceManualTermTagSchemaP
 
 
 def destroy(db: Session, reference_manual_term_tag_id: int):
+    """
+
+    :param db:
+    :param reference_manual_term_tag_id:
+    :return:
+    """
+
     db_obj = db.query(ReferenceManualTermTagModel).filter(ReferenceManualTermTagModel.reference_manual_term_tag_id == reference_manual_term_tag_id).first()
     if not db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -41,6 +60,14 @@ def destroy(db: Session, reference_manual_term_tag_id: int):
 
 
 def patch(db: Session, reference_manual_term_tag_id: int, reference_manual_term_tag_update: ReferenceManualTermTagSchemaPatch):
+    """
+
+    :param db:
+    :param reference_manual_term_tag_id:
+    :param reference_manual_term_tag_update:
+    :return:
+    """
+
     db_obj = db.query(ReferenceManualTermTagModel).filter(ReferenceManualTermTagModel.reference_manual_term_tag_id == reference_manual_term_tag_id).first()
     if not db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -63,6 +90,13 @@ def patch(db: Session, reference_manual_term_tag_id: int, reference_manual_term_
 
 
 def show(db: Session, reference_manual_term_tag_id: int):
+    """
+
+    :param db:
+    :param reference_manual_term_tag_id:
+    :return:
+    """
+
     db_obj = db.query(ReferenceManualTermTagModel).filter(ReferenceManualTermTagModel.reference_manual_term_tag_id == reference_manual_term_tag_id).first()
     data = jsonable_encoder(db_obj)
 
@@ -70,13 +104,20 @@ def show(db: Session, reference_manual_term_tag_id: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference Manual Tag Term ID with the reference_manual_term_tag_id {reference_manual_term_tag_id} is not available")
 
-    data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == data['reference_id']).first()[0]
-    del data['reference_id']
+    data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == data["reference_id"]).first()[0]
+    del data["reference_id"]
 
     return data
 
 
 def show_changesets(db: Session, reference_manual_term_tag_id: int):
+    """
+
+    :param db:
+    :param reference_manual_term_tag_id:
+    :return:
+    """
+
     db_obj = db.query(ReferenceManualTermTagModel).filter(ReferenceManualTermTagModel.reference_manual_term_tag_id == reference_manual_term_tag_id).first()
     if not db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -85,9 +126,9 @@ def show_changesets(db: Session, reference_manual_term_tag_id: int):
     history = []
     for version in db_obj.versions:
         tx = version.transaction
-        history.append({'transaction': {'id': tx.id,
-                                        'issued_at': tx.issued_at,
-                                        'user_id': tx.user_id},
-                        'changeset': version.changeset})
+        history.append({"transaction": {"id": tx.id,
+                                        "issued_at": tx.issued_at,
+                                        "user_id": tx.user_id},
+                        "changeset": version.changeset})
 
     return history
