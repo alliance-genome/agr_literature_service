@@ -22,13 +22,13 @@ def create(db: Session, reference_automated_term_tag: ReferenceAutomatedTermTagS
 
     reference_automated_term_tag_data = jsonable_encoder(reference_automated_term_tag)
 
-    reference_curie = reference_automated_term_tag_data['reference_curie']
+    reference_curie = reference_automated_term_tag_data["reference_curie"]
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Reference_curie {reference_curie} does not exist")
 
-    del reference_automated_term_tag_data['reference_curie']
+    del reference_automated_term_tag_data["reference_curie"]
 
     db_obj = ReferenceAutomatedTermTagModel(**reference_automated_term_tag_data)
     db_obj.reference = reference
@@ -104,8 +104,8 @@ def show(db: Session, reference_automated_term_tag_id: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference Tag Term ID with the reference_automated_term_tag_id {reference_automated_term_tag_id} is not available")
 
-    data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == data['reference_id']).first()[0]
-    del data['reference_id']
+    data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == data["reference_id"]).first()[0]
+    del data["reference_id"]
 
     return data
 
@@ -126,9 +126,9 @@ def show_changesets(db: Session, reference_automated_term_tag_id: int):
     history = []
     for version in db_obj.versions:
         tx = version.transaction
-        history.append({'transaction': {'id': tx.id,
-                                        'issued_at': tx.issued_at,
-                                        'user_id': tx.user_id},
-                        'changeset': version.changeset})
+        history.append({"transaction": {"id": tx.id,
+                                        "issued_at": tx.issued_at,
+                                        "user_id": tx.user_id},
+                        "changeset": version.changeset})
 
     return history

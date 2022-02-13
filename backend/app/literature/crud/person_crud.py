@@ -89,9 +89,9 @@ def show(db: Session, person_id: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Person with the person_id {person_id} is not available")
 
-    if person_data['reference_id']:
-        person_data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == person_data['reference_id']).first()[0]
-    del person_data['reference_id']
+    if person_data["reference_id"]:
+        person_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == person_data["reference_id"]).first()[0]
+    del person_data["reference_id"]
 
     return person_data
 
@@ -112,9 +112,9 @@ def show_changesets(db: Session, person_id: int):
     history = []
     for version in person.versions:
         tx = version.transaction
-        history.append({'transaction': {'id': tx.id,
-                                        'issued_at': tx.issued_at,
-                                        'user_id': tx.user_id},
-                        'changeset': version.changeset})
+        history.append({"transaction": {"id": tx.id,
+                                        "issued_at": tx.issued_at,
+                                        "user_id": tx.user_id},
+                        "changeset": version.changeset})
 
     return history
