@@ -27,9 +27,9 @@ def create(db: Session, editor: EditorSchemaCreate) -> int:
     editor_data = jsonable_encoder(editor)
 
     orcid = None
-    if 'orcid' in editor_data:
-        orcid = editor_data['orcid']
-        del editor_data['orcid']
+    if "orcid" in editor_data:
+        orcid = editor_data["orcid"]
+        del editor_data["orcid"]
 
     db_obj = create_obj(db, EditorModel, editor_data)
 
@@ -83,7 +83,7 @@ def patch(db: Session, editor_id: int, editor_update: EditorSchemaCreate) -> dic
     add(res_ref, editor_db_obj)
 
     for field, value in editor_data.items():
-        if field == 'orcid' and value:
+        if field == "orcid" and value:
             orcid = value
             cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
             if not cross_reference_obj:
@@ -114,13 +114,13 @@ def show(db: Session, editor_id: int) -> dict:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Editor with the editor_id {editor_id} is not available")
 
-    if editor_data['resource_id']:
-        editor_data['resource_curie'] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == editor_data['resource_id']).first()
-    del editor_data['resource_id']
+    if editor_data["resource_id"]:
+        editor_data["resource_curie"] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == editor_data["resource_id"]).first()
+    del editor_data["resource_id"]
 
-    if editor_data['reference_id']:
-        editor_data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == editor_data['reference_id']).first()
-    del editor_data['reference_id']
+    if editor_data["reference_id"]:
+        editor_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == editor_data["reference_id"]).first()
+    del editor_data["reference_id"]
 
     return editor_data
 
@@ -141,9 +141,9 @@ def show_changesets(db: Session, editor_id: int):
     history = []
     for version in editor.versions:
         tx = version.transaction
-        history.append({'transaction': {'id': tx.id,
-                                        'issued_at': tx.issued_at,
-                                        'user_id': tx.user_id},
-                        'changeset': version.changeset})
+        history.append({"transaction": {"id": tx.id,
+                                        "issued_at": tx.issued_at,
+                                        "user_id": tx.user_id},
+                        "changeset": version.changeset})
 
     return history

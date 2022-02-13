@@ -1,6 +1,6 @@
 """
-file_cru.py
-=
+file_crud.py
+===========
 """
 
 import hashlib
@@ -34,24 +34,24 @@ def create(db: Session, s3: BaseClient, parent_entity_type : str, curie: str, fi
     """
 
     _, file_extension = os.path.splitext(display_name)
-    bucket_name = 'agr-literature'
+    bucket_name = "agr-literature"
     md5sum = hashlib.md5(file_contents).hexdigest()
-    s3_filename = curie + '-File-' + md5sum + file_extension
-    folder = config.ENV_STATE + '/agr/' + curie
+    s3_filename = curie + "-File-" + md5sum + file_extension
+    folder = config.ENV_STATE + "/agr/" + curie
 
-    file_data = {'s3_filename': s3_filename,
-                 'size': len(file_contents),
-                 'content_type': content_type,
-                 'md5sum': md5sum,
-                 'folder': folder,
-                 'display_name': display_name,
-                 'extension': file_extension,
-                 'public': False
+    file_data = {"s3_filename": s3_filename,
+                 "size": len(file_contents),
+                 "content_type": content_type,
+                 "md5sum": md5sum,
+                 "folder": folder,
+                 "display_name": display_name,
+                 "extension": file_extension,
+                 "public": False
                  }
 
     if parent_entity_type == 'reference':
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
-        file_data['reference'] = reference
+        file_data["reference"] = reference
         if not reference:
             HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                           detail=f"Reference with the curie {curie} is not available")
@@ -82,12 +82,20 @@ def create(db: Session, s3: BaseClient, parent_entity_type : str, curie: str, fi
 
 
 def destroy(db: Session, s3: BaseClient, filename: str):
+    """
+
+    :param db:
+    :param s3:
+    :param filename:
+    :return:
+    """
+
     file_obj = db.query(FileModel).filter(FileModel.s3_filename == filename).first()
     if not file_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"file with name {filename} not found")
 
-    bucket_name = 'agr-literature'
+    bucket_name = "agr-literature"
     delete_file_in_bucket(s3_client=s3,
                           bucket=bucket_name,
                           folder=file_obj.folder,
@@ -100,6 +108,14 @@ def destroy(db: Session, s3: BaseClient, filename: str):
 
 
 def patch(db: Session, filename: str, file_update) -> dict:  #: FileSchemaUpdate):
+    """
+
+    :param db:
+    :param filename:
+    :param file_update:
+    :return:
+    """
+
     file_db_obj = db.query(FileModel).filter(FileModel.s3_filename == filename).first()
     if not file_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -122,6 +138,13 @@ def patch(db: Session, filename: str, file_update) -> dict:  #: FileSchemaUpdate
 
 
 def show(db: Session, filename: str):
+    """
+
+    :param db:
+    :param filename:
+    :return:
+    """
+
     file_obj = db.query(FileModel).filter(FileModel.s3_filename == filename).first()
 
     if not file_obj:
@@ -129,12 +152,19 @@ def show(db: Session, filename: str):
                             detail=f"File with the filename {filename} is not available")
 
     file_data = jsonable_encoder(file_obj)
-    del file_data['reference_id']
+    del file_data["reference_id"]
 
     return file_data
 
 
 def show_by_md5sum(db: Session, md5sum: str):
+    """
+
+    :param db:
+    :param md5sum:
+    :return:
+    """
+
     files_obj = db.query(FileModel).filter(FileModel.md5sum == md5sum).all()
 
     if not files_obj:
@@ -144,13 +174,21 @@ def show_by_md5sum(db: Session, md5sum: str):
     files_data = []
     for file_obj in files_obj:
         file_data = jsonable_encoder(file_obj)
-        del file_data['reference_id']
+        del file_data["reference_id"]
         files_data.append(file_data)
 
     return files_data
 
 
 def download(db: Session, s3: BaseClient, filename: str):
+    """
+
+    :param db:
+    :param s3:
+    :param filename:
+    :return:
+    """
+
     file_obj = db.query(FileModel).filter(FileModel.s3_filename == filename).first()
 
     if not file_obj:
@@ -167,6 +205,13 @@ def download(db: Session, s3: BaseClient, filename: str):
 
 
 def show_changesets(db: Session, filename: str):
+    """
+
+    :param db:
+    :param filename:
+    :return:
+    """
+
     file_obj = db.query(FileModel).filter(FileModel.s3_filename == filename).first()
     if not file_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -175,9 +220,9 @@ def show_changesets(db: Session, filename: str):
     history = []
     for version in file_obj.versions:
         tx = version.transaction
-        history.append({'transaction': {'id': tx.id,
-                                        'issued_at': tx.issued_at,
-                                        'user_id': tx.user_id},
-                        'changeset': version.changeset})
+        history.append({"transaction": {"id": tx.id,
+                                        "issued_at": tx.issued_at,
+                                        "user_id": tx.user_id},
+                        "changeset": version.changeset})
 
     return history
