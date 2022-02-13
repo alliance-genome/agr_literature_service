@@ -1,3 +1,9 @@
+"""
+resource_model.py
+=================
+"""
+
+
 from datetime import datetime
 from typing import Dict
 
@@ -11,7 +17,7 @@ from literature.database.base import Base
 
 class ResourceModel(Base):
     __versioned__: Dict = {}
-    __tablename__ = 'resources'
+    __tablename__ = "resources"
 
     resource_id = Column(
         Integer,
@@ -27,9 +33,9 @@ class ResourceModel(Base):
     )
 
     cross_references = relationship(
-        'CrossReferenceModel',
-        lazy='joined',
-        back_populates='resource',
+        "CrossReferenceModel",
+        lazy="joined",
+        back_populates="resource",
         cascade="all, delete, delete-orphan",
         passive_deletes=True
     )
@@ -45,9 +51,9 @@ class ResourceModel(Base):
     )
 
     notes = relationship(
-        'NoteModel',
-        lazy='joined',
-        back_populates='resource',
+        "NoteModel",
+        lazy="joined",
+        back_populates="resource",
     )
 
     title_synonyms = Column(
@@ -91,16 +97,16 @@ class ResourceModel(Base):
     )
 
     authors = relationship(
-        'AuthorModel',
-        lazy='joined',
-        back_populates='resource',
+        "AuthorModel",
+        lazy="joined",
+        back_populates="resource",
         cascade="all, delete, delete-orphan"
     )
 
     editors = relationship(
-        'EditorModel',
-        lazy='joined',
-        back_populates='resource',
+        "EditorModel",
+        lazy="joined",
+        back_populates="resource",
         cascade="all, delete, delete-orphan"
     )
 
@@ -141,7 +147,7 @@ class ResourceModel(Base):
     date_created = Column(
         DateTime,
         nullable=False,
-        default=datetime.now(tz=pytz.timezone('UTC'))
+        default=datetime.now(tz=pytz.timezone("UTC"))
     )
 
     open_access = Column(
@@ -152,5 +158,5 @@ class ResourceModel(Base):
 
     def __str__(self):
         """Over write the default output."""
-        return "Resource id = {} created {} updated {}: curie='{}' title='{}...'".\
+        return "Resource id = {} created {} updated {}: curie="{}" title="{}..."".\
             format(self.resource_id, self.date_created, self.date_updated, self.curie, self.title[:10])

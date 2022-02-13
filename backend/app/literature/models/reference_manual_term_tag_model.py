@@ -1,3 +1,9 @@
+"""
+reference_manual_term_tag_model.py
+==================================
+"""
+
+
 from typing import Dict
 
 from sqlalchemy import Column, ForeignKey, Integer, String
@@ -7,7 +13,7 @@ from literature.database.base import Base
 
 
 class ReferenceManualTermTagModel(Base):
-    __tablename__ = 'reference_manual_term_tags'
+    __tablename__ = "reference_manual_term_tags"
     __versioned__: Dict = {}
 
     reference_manual_term_tag_id = Column(
@@ -18,13 +24,13 @@ class ReferenceManualTermTagModel(Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey('references.reference_id'),
+        ForeignKey("references.reference_id"),
         index=True,
         nullable=False
     )
 
     reference = relationship(
-        'ReferenceModel',
+        "ReferenceModel",
         back_populates="manual_term_tags"
     )
 

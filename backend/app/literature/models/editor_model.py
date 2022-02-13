@@ -1,3 +1,9 @@
+"""
+editor_model.py
+===============
+"""
+
+
 from datetime import datetime
 from typing import Dict
 
@@ -9,7 +15,7 @@ from literature.database.base import Base
 
 
 class EditorModel(Base):
-    __tablename__ = 'editors'
+    __tablename__ = "editors"
     __versioned__: Dict = {}
 
     editor_id = Column(
@@ -20,47 +26,47 @@ class EditorModel(Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey('references.reference_id',
-                   ondelete='CASCADE'),
+        ForeignKey("references.reference_id",
+                   ondelete="CASCADE"),
         index=True
     )
 
     reference = relationship(
-        'ReferenceModel',
+        "ReferenceModel",
         back_populates="editors"
     )
 
     resource_id = Column(
         Integer,
-        ForeignKey('resources.resource_id',
-                   ondelete='CASCADE'),
+        ForeignKey("resources.resource_id",
+                   ondelete="CASCADE"),
         index=True
     )
 
     resource = relationship(
-        'ResourceModel',
+        "ResourceModel",
         back_populates="editors"
     )
 
     orcid = Column(
         String,
-        ForeignKey('cross_references.curie')
+        ForeignKey("cross_references.curie")
     )
 
     orcid_cross_reference = relationship(
-        'CrossReferenceModel',
+        "CrossReferenceModel",
         lazy="joined",
         back_populates="editors"
     )
 
     person_id = Column(
         Integer,
-        ForeignKey('people.person_id'),
+        ForeignKey("people.person_id"),
         nullable=True
     )
 
     person = relationship(
-        'PersonModel',
+        "PersonModel",
         back_populates="editors",
         single_parent=True,
     )
@@ -102,5 +108,5 @@ class EditorModel(Base):
     date_created = Column(
         DateTime,
         nullable=False,
-        default=datetime.now(tz=pytz.timezone('UTC'))
+        default=datetime.now(tz=pytz.timezone("UTC"))
     )
