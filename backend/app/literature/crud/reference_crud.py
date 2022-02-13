@@ -1,3 +1,9 @@
+"""
+reference_crud.py
+=================
+"""
+
+
 from datetime import datetime
 from typing import Any, Dict, List
 
@@ -19,6 +25,12 @@ from literature.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
 
 
 def create_next_curie(curie) -> str:
+    """
+
+    :param curie:
+    :return:
+    """
+
     curie_parts = curie.rsplit('-', 1)
     number_part = curie_parts[1]
     number = int(number_part) + 1
@@ -27,6 +39,13 @@ def create_next_curie(curie) -> str:
 
 
 def create(db: Session, reference: ReferenceSchemaPost): # noqa
+    """
+
+    :param db:
+    :param reference:
+    :return:
+    """
+
     reference_data = {}  # type: Dict[str, Any]
 
     if reference.cross_references:
@@ -101,6 +120,13 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
 
 
 def destroy(db: Session, curie: str):
+    """
+
+    :param db:
+    :param curie:
+    :return:
+    """
+
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -112,6 +138,14 @@ def destroy(db: Session, curie: str):
 
 
 def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate) -> dict:
+    """
+
+    :param db:
+    :param curie:
+    :param reference_update:
+    :return:
+    """
+
     reference_data = jsonable_encoder(reference_update)
     reference_db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
 
@@ -145,6 +179,12 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate) -> d
 
 
 def show_all_references_external_ids(db: Session):
+    """
+
+    :param db:
+    :return:
+    """
+
     references_query = db.query(ReferenceModel.curie,
                                 cast(func.array_agg(CrossReferenceModel.curie),
                                      ARRAY(String)),
@@ -161,6 +201,13 @@ def show_all_references_external_ids(db: Session):
 
 
 def show_files(db: Session, curie: str):
+    """
+
+    :param db:
+    :param curie:
+    :return:
+    """
+
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
     files_data = []
     for reference_file in reference.files:
@@ -172,6 +219,13 @@ def show_files(db: Session, curie: str):
 
 
 def show_notes(db: Session, curie: str):
+    """
+
+    :param db:
+    :param curie:
+    :return:
+    """
+
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
 
     notes_data = []
@@ -186,6 +240,14 @@ def show_notes(db: Session, curie: str):
 
 
 def show(db: Session, curie: str, http_request=True):  # noqa
+    """
+
+    :param db:
+    :param curie:
+    :param http_request:
+    :return:
+    """
+
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one_or_none()
     if not reference:
         if http_request:
@@ -259,6 +321,13 @@ def show(db: Session, curie: str, http_request=True):  # noqa
 
 
 def show_changesets(db: Session, curie: str):
+    """
+
+    :param db:
+    :param curie:
+    :return:
+    """
+
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

@@ -1,3 +1,8 @@
+"""
+cross_reference_crud.py
+=======================
+"""
+
 from datetime import datetime
 
 from fastapi import HTTPException, status
@@ -12,6 +17,13 @@ from literature.schemas import CrossReferenceSchema, CrossReferenceSchemaUpdate
 
 
 def create(db: Session, cross_reference: CrossReferenceSchema) -> str:
+    """
+
+    :param db:
+    :param cross_reference:
+    :return:
+    """
+
     cross_reference_data = jsonable_encoder(cross_reference)
 
     if db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == cross_reference_data['curie']).first():
@@ -27,6 +39,13 @@ def create(db: Session, cross_reference: CrossReferenceSchema) -> str:
 
 
 def destroy(db: Session, curie: str) -> None:
+    """
+    Delete a CrossReference.
+    :param db:
+    :param curie:
+    :return:
+    """
+
     cross_reference = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == curie).first()
     if not cross_reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -38,6 +57,14 @@ def destroy(db: Session, curie: str) -> None:
 
 
 def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaUpdate) -> dict:
+    """
+    Update a CrossReference.
+    :param db:
+    :param curie:
+    :param cross_reference_update:
+    :return:
+    """
+
     cross_reference_data = jsonable_encoder(cross_reference_update)
     cross_reference_db_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == curie).first()
     if not cross_reference_db_obj:
@@ -55,6 +82,14 @@ def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaU
 
 
 def show(db: Session, curie: str, indirect=True) -> dict:
+    """
+    Show a cross reference
+    :param db:
+    :param curie:
+    :param indirect:
+    :return:
+    """
+
     cross_reference = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == curie).first()
     if not cross_reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -107,6 +142,13 @@ def show(db: Session, curie: str, indirect=True) -> dict:
 
 
 def show_changesets(db: Session, curie: str):
+    """
+
+    :param db:
+    :param curie:
+    :return:
+    """
+
     cross_reference = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == curie).first()
     if not cross_reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

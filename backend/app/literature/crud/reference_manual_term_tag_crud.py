@@ -1,3 +1,8 @@
+"""
+reference_manual_term_tag_crud.py
+=================================
+"""
+
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
@@ -8,6 +13,13 @@ from literature.schemas import (ReferenceManualTermTagSchemaPatch,
 
 
 def create(db: Session, reference_manual_term_tag: ReferenceManualTermTagSchemaPost):
+    """
+
+    :param db:
+    :param reference_manual_term_tag:
+    :return:
+    """
+
     reference_manual_term_tag_data = jsonable_encoder(reference_manual_term_tag)
 
     reference_curie = reference_manual_term_tag_data['reference_curie']
@@ -29,6 +41,13 @@ def create(db: Session, reference_manual_term_tag: ReferenceManualTermTagSchemaP
 
 
 def destroy(db: Session, reference_manual_term_tag_id: int):
+    """
+
+    :param db:
+    :param reference_manual_term_tag_id:
+    :return:
+    """
+
     db_obj = db.query(ReferenceManualTermTagModel).filter(ReferenceManualTermTagModel.reference_manual_term_tag_id == reference_manual_term_tag_id).first()
     if not db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -41,6 +60,14 @@ def destroy(db: Session, reference_manual_term_tag_id: int):
 
 
 def patch(db: Session, reference_manual_term_tag_id: int, reference_manual_term_tag_update: ReferenceManualTermTagSchemaPatch):
+    """
+
+    :param db:
+    :param reference_manual_term_tag_id:
+    :param reference_manual_term_tag_update:
+    :return:
+    """
+
     db_obj = db.query(ReferenceManualTermTagModel).filter(ReferenceManualTermTagModel.reference_manual_term_tag_id == reference_manual_term_tag_id).first()
     if not db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -63,6 +90,13 @@ def patch(db: Session, reference_manual_term_tag_id: int, reference_manual_term_
 
 
 def show(db: Session, reference_manual_term_tag_id: int):
+    """
+
+    :param db:
+    :param reference_manual_term_tag_id:
+    :return:
+    """
+
     db_obj = db.query(ReferenceManualTermTagModel).filter(ReferenceManualTermTagModel.reference_manual_term_tag_id == reference_manual_term_tag_id).first()
     data = jsonable_encoder(db_obj)
 
@@ -77,6 +111,13 @@ def show(db: Session, reference_manual_term_tag_id: int):
 
 
 def show_changesets(db: Session, reference_manual_term_tag_id: int):
+    """
+
+    :param db:
+    :param reference_manual_term_tag_id:
+    :return:
+    """
+
     db_obj = db.query(ReferenceManualTermTagModel).filter(ReferenceManualTermTagModel.reference_manual_term_tag_id == reference_manual_term_tag_id).first()
     if not db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

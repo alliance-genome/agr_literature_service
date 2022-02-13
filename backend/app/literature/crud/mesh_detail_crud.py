@@ -1,3 +1,9 @@
+"""
+mesh_detail_crud.py
+===================
+"""
+
+
 from datetime import datetime
 from typing import List
 
@@ -10,6 +16,13 @@ from literature.schemas import MeshDetailSchemaPost, MeshDetailSchemaUpdate
 
 
 def create(db: Session, mesh_detail: MeshDetailSchemaPost) -> int:
+    """
+    Create a new mesh detail
+    :param db:
+    :param mesh_detail:
+    :return:
+    """
+
     mesh_detail_data = jsonable_encoder(mesh_detail)
 
     reference_curie = mesh_detail_data['reference_curie']
@@ -29,6 +42,13 @@ def create(db: Session, mesh_detail: MeshDetailSchemaPost) -> int:
 
 
 def destroy(db: Session, mesh_detail_id: int) -> None:
+    """
+
+    :param db:
+    :param mesh_detail_id:
+    :return:
+    """
+
     mesh_detail = db.query(MeshDetailModel).filter(MeshDetailModel.mesh_detail_id == mesh_detail_id).first()
     if not mesh_detail:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -40,6 +60,14 @@ def destroy(db: Session, mesh_detail_id: int) -> None:
 
 
 def patch(db: Session, mesh_detail_id: int, mesh_detail_update: MeshDetailSchemaUpdate) -> dict:
+    """
+
+    :param db:
+    :param mesh_detail_id:
+    :param mesh_detail_update:
+    :return:
+    """
+
     mesh_detail_data = jsonable_encoder(mesh_detail_update)
     mesh_detail_db_obj = db.query(MeshDetailModel).filter(MeshDetailModel.mesh_detail_id == mesh_detail_id).first()
     if not mesh_detail_db_obj:
@@ -64,6 +92,13 @@ def patch(db: Session, mesh_detail_id: int, mesh_detail_update: MeshDetailSchema
 
 
 def show(db: Session, mesh_detail_id: int) -> dict:
+    """
+
+    :param db:
+    :param mesh_detail_id:
+    :return:
+    """
+
     mesh_detail = db.query(MeshDetailModel).filter(MeshDetailModel.mesh_detail_id == mesh_detail_id).first()
     mesh_detail_data = jsonable_encoder(mesh_detail)
 
@@ -79,6 +114,13 @@ def show(db: Session, mesh_detail_id: int) -> dict:
 
 
 def show_changesets(db: Session, mesh_detail_id: int) -> List:
+    """
+
+    :param db:
+    :param mesh_detail_id:
+    :return:
+    """
+
     mesh_detail = db.query(MeshDetailModel).filter(MeshDetailModel.mesh_detail_id == mesh_detail_id).first()
     if not mesh_detail:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

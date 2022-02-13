@@ -1,3 +1,8 @@
+"""
+mod_reference_type_crud.py
+===========================
+"""
+
 from datetime import datetime
 
 from fastapi import HTTPException, status
@@ -10,6 +15,13 @@ from literature.schemas import (ModReferenceTypeSchemaPost,
 
 
 def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost) -> int:
+    """
+    Create a new mod_reference_type
+    :param db:
+    :param mod_reference_type:
+    :return:
+    """
+
     mod_reference_type_data = jsonable_encoder(mod_reference_type)
 
     reference_curie = mod_reference_type_data['reference_curie']
@@ -29,6 +41,13 @@ def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost) -> int:
 
 
 def destroy(db: Session, mod_reference_type_id: int) -> None:
+    """
+
+    :param db:
+    :param mod_reference_type_id:
+    :return:
+    """
+
     mod_reference_type = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
     if not mod_reference_type:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -40,6 +59,13 @@ def destroy(db: Session, mod_reference_type_id: int) -> None:
 
 
 def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update: ModReferenceTypeSchemaUpdate):
+    """
+    Update a mod_reference_type
+    :param db:
+    :param mod_reference_type_id:
+    :param mod_reference_type_update:
+    :return:
+    """
 
     mod_reference_type_db_obj = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
     if not mod_reference_type_db_obj:
@@ -65,6 +91,13 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update: Mo
 
 
 def show(db: Session, mod_reference_type_id: int):
+    """
+
+    :param db:
+    :param mod_reference_type_id:
+    :return:
+    """
+
     mod_reference_type = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
     mod_reference_type_data = jsonable_encoder(mod_reference_type)
 
@@ -80,6 +113,13 @@ def show(db: Session, mod_reference_type_id: int):
 
 
 def show_changesets(db: Session, mod_reference_type_id: int):
+    """
+
+    :param db:
+    :param mod_reference_type_id:
+    :return:
+    """
+
     mod_reference_type = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
     if not mod_reference_type:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

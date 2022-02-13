@@ -1,3 +1,8 @@
+"""
+author_crud.py
+==============
+"""
+
 from datetime import datetime
 
 from fastapi import HTTPException, status
@@ -11,6 +16,13 @@ from literature.schemas import AuthorSchemaCreate, AuthorSchemaPost
 
 
 def create(db: Session, author: AuthorSchemaPost):
+    """
+    Create a new author
+    :param db:
+    :param author:
+    :return:
+    """
+
     author_data = jsonable_encoder(author)
 
     orcid = None
@@ -34,6 +46,13 @@ def create(db: Session, author: AuthorSchemaPost):
 
 
 def destroy(db: Session, author_id: int):
+    """
+
+    :param db:
+    :param author_id:
+    :return:
+    """
+
     author = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
     if not author:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -45,9 +64,18 @@ def destroy(db: Session, author_id: int):
 
 
 def patch(db: Session, author_id: int, author_patch: AuthorSchemaCreate) -> dict:
+    """
+    Update an author
+    :param db:
+    :param author_id:
+    :param author_patch:
+    :return:
+    """
+
     author_data = jsonable_encoder(author_patch)
 
-    if 'resource_curie' in author_data and author_data['resource_curie'] and 'reference_curie' in author_data and author_data['reference_curie']:
+    if 'resource_curie' in author_data and author_data['resource_curie'] and \
+            'reference_curie' in author_data and author_data['reference_curie']:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="Only supply either resource_curie or reference_curie")
 
@@ -76,6 +104,13 @@ def patch(db: Session, author_id: int, author_patch: AuthorSchemaCreate) -> dict
 
 
 def show(db: Session, author_id: int):
+    """
+
+    :param db:
+    :param author_id:
+    :return:
+    """
+
     author = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
     author_data = jsonable_encoder(author)
 

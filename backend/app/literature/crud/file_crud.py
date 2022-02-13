@@ -1,3 +1,8 @@
+"""
+file_cru.py
+=
+"""
+
 import hashlib
 import io
 import os
@@ -14,7 +19,20 @@ from literature.s3.download import download_file_from_bucket
 from literature.s3.upload import upload_file_to_bucket
 
 
-def create(db: Session, s3: BaseClient, parent_entity_type : str, curie: str, file_contents: bytes, display_name: str, content_type: str) -> str:
+def create(db: Session, s3: BaseClient, parent_entity_type : str, curie: str, file_contents: bytes, display_name: str,
+           content_type: str) -> str:
+    """
+    Create a new file in the database and upload it to S3.
+    :param db:
+    :param s3:
+    :param parent_entity_type:
+    :param curie:
+    :param file_contents:
+    :param display_name:
+    :param content_type:
+    :return:
+    """
+
     _, file_extension = os.path.splitext(display_name)
     bucket_name = 'agr-literature'
     md5sum = hashlib.md5(file_contents).hexdigest()

@@ -1,3 +1,9 @@
+"""
+reference_comment_and_correction_crud.py
+=========================================
+"""
+
+
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
@@ -9,6 +15,13 @@ from literature.schemas import (ReferenceCommentAndCorrectionSchemaPatch,
 
 
 def create(db: Session, reference_comment_and_correction: ReferenceCommentAndCorrectionSchemaPost):
+    """
+
+    :param db:
+    :param reference_comment_and_correction:
+    :return:
+    """
+
     reference_comment_and_correction_data = jsonable_encoder(reference_comment_and_correction)
     reference_curie_from = reference_comment_and_correction_data['reference_curie_from']
     reference_curie_to = reference_comment_and_correction_data['reference_curie_to']
@@ -43,6 +56,13 @@ def create(db: Session, reference_comment_and_correction: ReferenceCommentAndCor
 
 
 def destroy(db: Session, reference_comment_and_correction_id: int):
+    """
+
+    :param db:
+    :param reference_comment_and_correction_id:
+    :return:
+    """
+
     db_obj = db.query(ReferenceCommentAndCorrectionModel).filter(ReferenceCommentAndCorrectionModel.reference_comment_and_correction_id == reference_comment_and_correction_id).first()
     if not db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -55,10 +75,19 @@ def destroy(db: Session, reference_comment_and_correction_id: int):
 
 
 def patch(db: Session, reference_comment_and_correction_id: int, reference_comment_and_correction_update: ReferenceCommentAndCorrectionSchemaPatch):
+    """
+
+    :param db:
+    :param reference_comment_and_correction_id:
+    :param reference_comment_and_correction_update:
+    :return:
+    """
+
     db_obj = db.query(ReferenceCommentAndCorrectionModel).filter(ReferenceCommentAndCorrectionModel.reference_comment_and_correction_id == reference_comment_and_correction_id).first()
     if not db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Reference Comment And Correction with reference_comment_and_correction_id {reference_comment_and_correction_id} not found")
+                            detail=f"Reference Comment And Correction with reference_comment_and_correction_id "
+                                   f"{reference_comment_and_correction_id} not found")
 
     for field, value in reference_comment_and_correction_update.dict().items():
         if field == "reference_curie_to" and value:
@@ -84,12 +113,20 @@ def patch(db: Session, reference_comment_and_correction_id: int, reference_comme
 
 
 def show(db: Session, reference_comment_and_correction_id: int):
+    """
+
+    :param db:
+    :param reference_comment_and_correction_id:
+    :return:
+    """
+
     db_obj = db.query(ReferenceCommentAndCorrectionModel).filter(ReferenceCommentAndCorrectionModel.reference_comment_and_correction_id == reference_comment_and_correction_id).first()
     data = jsonable_encoder(db_obj)
 
     if not db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Reference Comment and Correction with the reference_comment_and_correction_id {reference_comment_and_correction_id} is not available")
+                            detail=f"Reference Comment and Correction with the reference_comment_and_correction_id "
+                                   f"{reference_comment_and_correction_id} is not available")
 
     data['reference_curie_from'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == data['reference_id_from']).first()[0]
     data['reference_curie_to'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == data['reference_id_to']).first()[0]
@@ -101,10 +138,18 @@ def show(db: Session, reference_comment_and_correction_id: int):
 
 
 def show_changesets(db: Session, reference_comment_and_correction_id: int):
+    """
+
+    :param db:
+    :param reference_comment_and_correction_id:
+    :return:
+    """
+
     db_obj = db.query(ReferenceCommentAndCorrectionModel).filter(ReferenceCommentAndCorrectionModel.reference_comment_and_correction_id == reference_comment_and_correction_id).first()
     if not db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Reference Comment and Correction with the reference_comment_and_correction_id {reference_comment_and_correction_id} is not available")
+                            detail=f"Reference Comment and Correction with the reference_comment_and_correction_id "
+                                   f"{reference_comment_and_correction_id} is not available")
 
     history = []
     for version in db_obj.versions:
