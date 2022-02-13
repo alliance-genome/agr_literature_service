@@ -119,6 +119,6 @@ def show_changesets(db: Session, note_id: int):
         history.append({"transaction": {"id": tx.id,
                                         "issued_at": tx.issued_at,
                                         "user_id": tx.user_id},
-                        "changeset': version.changeset})
+                        "changeset": version.changeset})
 
     return history
