@@ -1,3 +1,8 @@
+"""
+author_crud.py
+==============
+"""
+
 from datetime import datetime
 
 from fastapi import HTTPException, status
@@ -5,18 +10,29 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from literature.crud.reference_resource import add, create_obj, stripout
-from literature.models import (AuthorModel, CrossReferenceModel,
-                               ReferenceModel, ResourceModel)
+from literature.models import (
+    AuthorModel,
+    CrossReferenceModel,
+    ReferenceModel,
+    ResourceModel,
+)
 from literature.schemas import AuthorSchemaCreate, AuthorSchemaPost
 
 
 def create(db: Session, author: AuthorSchemaPost):
+    """
+    Create a new author
+    :param db:
+    :param author:
+    :return:
+    """
+
     author_data = jsonable_encoder(author)
 
     orcid = None
-    if 'orcid' in author_data:
-        orcid = author_data['orcid']
-        del author_data['orcid']
+    if "orcid" in author_data:
+        orcid = author_data["orcid"]
+        del author_data["orcid"]
 
     author_model = create_obj(db, AuthorModel, author_data)  # type: AuthorModel
     if orcid:
@@ -34,6 +50,13 @@ def create(db: Session, author: AuthorSchemaPost):
 
 
 def destroy(db: Session, author_id: int):
+    """
+
+    :param db:
+    :param author_id:
+    :return:
+    """
+
     author = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
     if not author:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -45,9 +68,18 @@ def destroy(db: Session, author_id: int):
 
 
 def patch(db: Session, author_id: int, author_patch: AuthorSchemaCreate) -> dict:
+    """
+    Update an author
+    :param db:
+    :param author_id:
+    :param author_patch:
+    :return:
+    """
+
     author_data = jsonable_encoder(author_patch)
 
-    if 'resource_curie' in author_data and author_data['resource_curie'] and 'reference_curie' in author_data and author_data['reference_curie']:
+    if "resource_curie" in author_data and author_data["resource_curie"] and \
+            "reference_curie" in author_data and author_data["reference_curie"]:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="Only supply either resource_curie or reference_curie")
 
@@ -59,7 +91,7 @@ def patch(db: Session, author_id: int, author_patch: AuthorSchemaCreate) -> dict
     add(res_ref, author_db_obj)
 
     for field, value in author_data.items():
-        if field == 'orcid' and value:
+        if field == "orcid" and value:
             orcid = value
             cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
             if not cross_reference_obj:
@@ -76,6 +108,13 @@ def patch(db: Session, author_id: int, author_patch: AuthorSchemaCreate) -> dict
 
 
 def show(db: Session, author_id: int):
+    """
+
+    :param db:
+    :param author_id:
+    :return:
+    """
+
     author = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
     author_data = jsonable_encoder(author)
 
@@ -83,13 +122,13 @@ def show(db: Session, author_id: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Author with the author_id {author_id} is not available")
 
-    if author_data['resource_id']:
-        author_data['resource_curie'] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == author_data['resource_id']).first()
-    del author_data['resource_id']
+    if author_data["resource_id"]:
+        author_data["resource_curie"] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == author_data["resource_id"]).first()
+    del author_data["resource_id"]
 
-    if author_data['reference_id']:
-        author_data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == author_data['reference_id']).first()
-    del author_data['reference_id']
+    if author_data["reference_id"]:
+        author_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == author_data["reference_id"]).first()
+    del author_data["reference_id"]
 
     return author_data
 
@@ -103,9 +142,9 @@ def show_changesets(db: Session, author_id: int):
     history = []
     for version in author.versions:
         tx = version.transaction
-        history.append({'transaction': {'id': tx.id,
-                                        'issued_at': tx.issued_at,
-                                        'user_id': tx.user_id},
-                        'changeset': version.changeset})
+        history.append({"transaction": {"id": tx.id,
+                                        "issued_at": tx.issued_at,
+                                        "user_id": tx.user_id},
+                        "changeset": version.changeset})
 
     return history
