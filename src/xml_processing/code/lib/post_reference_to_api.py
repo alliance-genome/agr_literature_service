@@ -99,20 +99,20 @@ def post_references(input_file, check_file_flag):  # noqa: C901
         files_to_process.append(input_file)
 
     keys_to_remove = {"nlm", "primaryId", "modResources", "resourceAbbreviation"}
-    remap_keys = { "datePublished": "date_published", "dateArrivedInPubmed": "date_arrived_in_pubmed",
-                   "dateLastModified": "date_last_modified", "crossReferences": "cross_references",
-                   "issueName": "issue_name", "issueDate": "issue_date", "pubMedType": "pubmed_type",
-                   "meshTerms": "mesh_terms", "allianceCategory": "category",
-                   "MODReferenceType": "mod_reference_types", "MODReferenceTypes": "mod_reference_types",
-                   "plainLanguageAbstract": "plain_language_abstract",
-                   "pubmedAbstractLanguages": "pubmed_abstract_languages", "publicationStatus": "pubmed_publication_status"}
+    remap_keys = {"datePublished": "date_published", "dateArrivedInPubmed": "date_arrived_in_pubmed",
+                  "dateLastModified": "date_last_modified", "crossReferences": "cross_references",
+                  "issueName": "issue_name", "issueDate": "issue_date", "pubMedType": "pubmed_type",
+                  "meshTerms": "mesh_terms", "allianceCategory": "category",
+                  "MODReferenceType": "mod_reference_types", "MODReferenceTypes": "mod_reference_types",
+                  "plainLanguageAbstract": "plain_language_abstract",
+                  "pubmedAbstractLanguages": "pubmed_abstract_languages", "publicationStatus": "pubmed_publication_status"}
 
     subkeys_to_remove = {}
     remap_subkeys = {}
 
     subkeys_to_remove["mesh_terms"] = {"referenceId"}
     subkeys_to_remove["tags"] = {"referenceId"}
-    subkeys_to_remove["authors"] = {"referenceId", "firstinit", "firstInit", "crossReferences", "collectivename",}
+    subkeys_to_remove["authors"] = {"referenceId", "firstinit", "firstInit", "crossReferences", "collectivename"}
 
     remap_subkeys["mesh_terms"] = {}
     remap_subkeys["mesh_terms"]["meshHeadingTerm"] = "heading_term"

@@ -157,7 +157,7 @@ def post_comments_corrections(pmids_wanted):  # noqa: C901
                             response_status_code)
             else:
                 logger.info("api error %s primary pmid %s message %s",
-                             str(response_status_code), primary_pmid, response_dict["detail"])
+                            str(response_status_code), primary_pmid, response_dict["detail"])
 
 
 if __name__ == "__main__":

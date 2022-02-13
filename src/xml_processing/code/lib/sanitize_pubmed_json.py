@@ -16,42 +16,40 @@ def sanitize_pubmed_json_list(pmids):
     :return:
     """
 
-    base_path = environ.get('XML_PATH')
-    sanitized_reference_json_path = base_path + 'sanitized_reference_json/'
+    base_path = environ.get("XML_PATH")
+    sanitized_reference_json_path = base_path + "sanitized_reference_json/"
     if not path.exists(sanitized_reference_json_path):
         makedirs(sanitized_reference_json_path)
 
-    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished',
-                   'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher',
-                   'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReferences']
-    single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished',
-                           'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher',
-                           'plainLanguageAbstract', 'pubmedAbstractLanguages']
-    replace_value_fields = ['authors', 'pubMedType', 'meshTerms', 'crossReferences']
-    date_fields = ['issueDate', 'dateArrivedInPubmed', 'dateLastModified']
+    pmid_fields = ["authors", "volume", "title", "pages", "issueName", "issueDate", "datePublished",
+                   "dateArrivedInPubmed", "dateLastModified", "abstract", "pubMedType",
+                   "publisher", "meshTerms", "plainLanguageAbstract", "pubmedAbstractLanguages", "crossReferences"]
+    single_value_fields = ["volume", "title", "pages", "issueName", "issueDate", "datePublished",
+                           "dateArrivedInPubmed", "dateLastModified", "abstract", "publisher",
+                           "plainLanguageAbstract", "pubmedAbstractLanguages"]
+    replace_value_fields = ["authors", "pubMedType", "meshTerms", "crossReferences"]
+    date_fields = ["issueDate", "dateArrivedInPubmed", "dateLastModified"]
 
     sanitized_data = []
     for pmid in pmids:
-        pubmed_json_filepath = base_path + 'pubmed_json/' + pmid + '.json'
+        pubmed_json_filepath = base_path + "pubmed_json/" + pmid + ".json"
         try:
             pubmed_data = {}
-            with open(pubmed_json_filepath, 'r') as f:
+            with open(pubmed_json_filepath) as f:
                 pubmed_data = json.load(f)
-                f.close()
-            entry = {}
-            entry['primaryId'] = 'PMID:' + pmid
-            if 'nlm' in pubmed_data:
-                entry['resource'] = 'NLM:' + pubmed_data['nlm']
-            entry['category'] = 'unknown'
+            entry = {"primaryId": "PMID:" + pmid}
+            if "nlm" in pubmed_data:
+                entry["resource"] = "NLM:" + pubmed_data["nlm"]
+            entry["category"] = "unknown"
             for pmid_field in pmid_fields:
                 if pmid_field in single_value_fields:
-                    pmid_data = ''
+                    pmid_data = ""
                     if pmid_field in pubmed_data:
                         if pmid_field in date_fields:
-                            pmid_data = pubmed_data[pmid_field]['date_string']
+                            pmid_data = pubmed_data[pmid_field]["date_string"]
                         else:
                             pmid_data = pubmed_data[pmid_field]
-                    if pmid_data != '':
+                    if pmid_data != "":
                         entry[pmid_field] = pmid_data
                 elif pmid_field in replace_value_fields:
                     if pmid_field in pubmed_data:
@@ -61,6 +59,6 @@ def sanitize_pubmed_json_list(pmids):
             # logger.error(pubmed_json_filepath + ' not found in filesystem')
             pass
     # json_filename = sanitized_reference_json_path + 'REFERENCE_PUBMED_' + pmid + '.json'
-    json_filename = sanitized_reference_json_path + 'REFERENCE_PUBMED_PMID.json'
+    json_filename = sanitized_reference_json_path + "REFERENCE_PUBMED_PMID.json"
 
     write_json(json_filename, sanitized_data)
