@@ -275,5 +275,5 @@ class ReferenceModel(Base):
         """
         Overwrite the default output.
         """
-        return "Reference id = {} created {} updated {}: curie="{}" resource_id="{}" title="{}..."".\
+        return "Reference id = {} created {} updated {}: curie='{}' resource_id='{}' title='{}...'".\
             format(self.reference_id, self.date_created, self.date_updated, self.curie, self.resource_id, self.title[:10])

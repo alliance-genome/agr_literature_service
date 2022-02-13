@@ -73,5 +73,5 @@ class CrossReferenceModel(Base):
         """
         Overwrite the default output.
         """
-        return "CrossReference: curie="{}" is_obsolete="{}" reference_id="{}", resource_id="{}" pages={}".\
+        return "CrossReference: curie='{}' is_obsolete='{}' reference_id='{}', resource_id='{}' pages={}".\
             format(self.curie, self.is_obsolete, self.reference_id, self.resource_id, self.pages)

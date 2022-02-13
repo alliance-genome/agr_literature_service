@@ -157,6 +157,8 @@ class ResourceModel(Base):
     )
 
     def __str__(self):
-        """Over write the default output."""
-        return "Resource id = {} created {} updated {}: curie="{}" title="{}..."".\
-            format(self.resource_id, self.date_created, self.date_updated, self.curie, self.title[:10])
+        """
+        Overwrite the default output.
+        """
+        return "Resource id = {} created {} updated {}: curie='{}' title='{}...'".\
+            format(self.resource_id, self.date_created, self.date_updated, self.curie, self.title[:10]
