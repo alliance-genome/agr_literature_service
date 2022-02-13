@@ -467,7 +467,7 @@ def generate_json(pmids, previous_pmids, base_path):  # noqa: C901
                         value = type_value[1]
                         # convert the only html entities found in DOIs  &lt; &gt; &amp;#60; &amp;#62;
                         # e.g. PMID:8824556 PMID:10092111
-                        value =  value.replace("&lt;", "<") .replace("&gt;", ">") .replace("&amp;#60;", "<") .replace("&amp;#62;", ">")
+                        value = value.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;#60;", "<").replace("&amp;#62;", ">")
                         # print pmid + " type " + type + " value " + value
                         if type in known_article_id_types:
                             if value == pmid:
@@ -485,16 +485,14 @@ def generate_json(pmids, previous_pmids, base_path):  # noqa: C901
             if not has_self_pmid:
                 cross_references.append({"id": "PMID:" + pmid})
 
-            medline_journal_info_re_output = re.search("<MedlineJournalInfo>(.*?)</MedlineJournalInfo>", xml, re.DOTALL}
+            medline_journal_info_re_output = re.search("<MedlineJournalInfo>(.*?)</MedlineJournalInfo>", xml, re.DOTALL)
             if medline_journal_info_re_output is not None:
                 medline_journal_info = medline_journal_info_re_output.group(1)
                 # print(pmid + " medline_journal_info " + medline_journal_info)
                 nlm = ""
                 issn = ""
                 journal_abbrev = ""
-                nlm_re_output = re.search(
-                    "<NlmUniqueID>(.+?)</NlmUniqueID>", medline_journal_info
-                )
+                nlm_re_output = re.search("<NlmUniqueID>(.+?)</NlmUniqueID>", medline_journal_info)
                 if nlm_re_output is not None:
                     nlm = nlm_re_output.group(1)
                     cross_references.append({"id": "NLM:" + nlm})
@@ -673,9 +671,9 @@ def generate_json(pmids, previous_pmids, base_path):  # noqa: C901
 
 
 @click.command()
-@click.option("-c","--commandline","cli",multiple=True,help="take input from command line flag",required=False,)
+@click.option("-c", "--commandline", "cli", multiple=True, help="take input from command line flag", required=False)
 @click.option("-d", "--database", "db", help="take input from database query", required=False)
-@click.option("-f","--file","ffile",help="take input from entries in file with full path",required=False,)
+@click.option("-f", "--file", "ffile", help="take input from entries in file with full path", required=False)
 @click.option("-r", "--restapi", "api", help="take input from rest api", required=False)
 @click.option("-s", "--sample", "sample", help="test sample input from hardcoded entries", required=False, default=False, is_flag=True)
 @click.option("-u", "--url", "url", help="take input from entries in file at url", required=False)

@@ -290,7 +290,6 @@ def generic_api_patch(live_changes, url, headers, update_json, agr, mapping_fh, 
     :return:
     """
 
-
     if live_changes:
         api_response_tuple = process_api_request("PATCH", url, headers, update_json, agr, mapping_fh, error_fh)
         headers = api_response_tuple[0]
