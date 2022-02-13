@@ -64,8 +64,8 @@ def patch(db: Session, note_id: int, note_update: NoteSchemaUpdate):
                             detail=f"Note with note_id {note_id} not found")
 
     for field, value in note_update.dict().items():
-        if field == 'reference_curie':
-            field = 'reference'
+        if field == "reference_curie":
+            field = "reference"
             value = db.query(ReferenceModel).filter(ReferenceModel.curie == value).first()
         setattr(note_db_obj, field, value)
 
@@ -89,13 +89,13 @@ def show(db: Session, note_id: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Note with the note_id {note_id} is not available")
 
-    if note_data['resource_id']:
-        note_data['resource_curie'] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == note_data['resource_id']).first()
-    del note_data['resource_id']
+    if note_data["resource_id"]:
+        note_data["resource_curie"] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == note_data["resource_id"]).first()
+    del note_data["resource_id"]
 
-    if note_data['reference_id']:
-        note_data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == note_data['reference_id']).first()[0]
-    del note_data['reference_id']
+    if note_data["reference_id"]:
+        note_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == note_data["reference_id"]).first()[0]
+    del note_data["reference_id"]
 
     return note_data
 
@@ -116,9 +116,9 @@ def show_changesets(db: Session, note_id: int):
     history = []
     for version in note.versions:
         tx = version.transaction
-        history.append({'transaction': {'id': tx.id,
-                                        'issued_at': tx.issued_at,
-                                        'user_id': tx.user_id},
-                        'changeset': version.changeset})
+        history.append({"transaction": {"id": tx.id,
+                                        "issued_at": tx.issued_at,
+                                        "user_id": tx.user_id},
+                        "changeset': version.changeset})
 
     return history

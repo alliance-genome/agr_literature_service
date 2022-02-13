@@ -23,9 +23,9 @@ def create(db: Session, reference_comment_and_correction: ReferenceCommentAndCor
     """
 
     reference_comment_and_correction_data = jsonable_encoder(reference_comment_and_correction)
-    reference_curie_from = reference_comment_and_correction_data['reference_curie_from']
-    reference_curie_to = reference_comment_and_correction_data['reference_curie_to']
-    reference_comment_and_correction_type = reference_comment_and_correction_data['reference_comment_and_correction_type']
+    reference_curie_from = reference_comment_and_correction_data["reference_curie_from"]
+    reference_curie_to = reference_comment_and_correction_data["reference_curie_to"]
+    reference_comment_and_correction_type = reference_comment_and_correction_data["reference_comment_and_correction_type"]
 
     reference_from = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_from).first()
     if not reference_from:
@@ -97,7 +97,7 @@ def patch(db: Session, reference_comment_and_correction_id: int, reference_comme
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Reference with curie {reference_curie_to} does not exist")
             db_obj.reference_to = reference
-        elif field == 'reference_curie_from' and value:
+        elif field == "reference_curie_from" and value:
             reference_curie_from = value
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_from).first()
             if not reference:
@@ -128,11 +128,11 @@ def show(db: Session, reference_comment_and_correction_id: int):
                             detail=f"Reference Comment and Correction with the reference_comment_and_correction_id "
                                    f"{reference_comment_and_correction_id} is not available")
 
-    data['reference_curie_from'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == data['reference_id_from']).first()[0]
-    data['reference_curie_to'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == data['reference_id_to']).first()[0]
+    data["reference_curie_from"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == data["reference_id_from"]).first()[0]
+    data["reference_curie_to"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == data["reference_id_to"]).first()[0]
 
-    del data['reference_id_from']
-    del data['reference_id_to']
+    del data["reference_id_from"]
+    del data["reference_id_to"]
 
     return data
 
@@ -154,9 +154,9 @@ def show_changesets(db: Session, reference_comment_and_correction_id: int):
     history = []
     for version in db_obj.versions:
         tx = version.transaction
-        history.append({'transaction': {'id': tx.id,
-                                        'issued_at': tx.issued_at,
-                                        'user_id': tx.user_id},
-                        'changeset': version.changeset})
+        history.append({"transaction": {"id": tx.id,
+                                        "issued_at": tx.issued_at,
+                                        "user_id": tx.user_id},
+                        "changeset": version.changeset})
 
     return history
