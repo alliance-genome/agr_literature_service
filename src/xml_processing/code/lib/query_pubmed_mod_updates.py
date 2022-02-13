@@ -498,7 +498,7 @@ if __name__ == "__main__":
     call main start function
     """
 
-    pmids_wanted = []
+    # pmids_wanted = []
 
     base_path = environ.get("XML_PATH", "")
     search_path = base_path + "pubmed_searches/"

@@ -18,7 +18,6 @@ import calendar
 # from dotenv import load_dotenv
 # load_dotenv()
 
-pmids = []
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), "../logging.conf")
 logging.config.fileConfig(log_file_path)
@@ -143,7 +142,7 @@ def get_medline_date_from_xml_date(pub_date):
         return medline_re_output.group(1)
 
 
-def generate_json():
+def generate_json(pmids):
     """
 
     open input xml file and read data in form of python dictionary using xmltodict module
@@ -249,7 +248,7 @@ if __name__ == "__main__":
     else:
         logger.info("Processing database entries")
 
-    generate_json()
+    generate_json(pmids)
     logger.info("Done converting XML to JSON")
 
 # capture ISSN / NLM
