@@ -212,7 +212,7 @@ def generate_cross_references_file(datatype):
     headers = generate_headers(token)
 
     api_server = environ.get('API_SERVER', 'localhost')
-    url = "http://" + api_server + ":" + api_port + "/bulk_download/" + datatype + '"s/external_ids/'"
+    url = "http://" + api_server + ":" + api_port + "/bulk_download/" + datatype + "s/external_ids/"
     post_return = requests.get(url, headers=headers)
 
     if post_return.status_code == 401:

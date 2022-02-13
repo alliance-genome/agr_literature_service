@@ -4,6 +4,33 @@ python post_reference_to_api.py
 
 update okta_token only
 python post_reference_to_api.py -a
+
+keys that exist in data
+2021-05-25 21:16:53,372 - literature logger - INFO - key abstract
+2021-05-25 21:16:53,372 - literature logger - INFO - key citation
+2021-05-25 21:16:53,372 - literature logger - INFO - key datePublished
+2021-05-25 21:16:53,373 - literature logger - INFO - key dateArrivedInPubmed
+2021-05-25 21:16:53,373 - literature logger - INFO - key dateLastModified
+2021-05-25 21:16:53,373 - literature logger - INFO - key keywords
+2021-05-25 21:16:53,373 - literature logger - INFO - key crossReferences
+2021-05-25 21:16:53,373 - literature logger - INFO - key title
+2021-05-25 21:16:53,373 - literature logger - INFO - key tags
+2021-05-25 21:16:53,373 - literature logger - INFO - key issueName
+2021-05-25 21:16:53,373 - literature logger - INFO - key issueDate
+2021-05-25 21:16:53,373 - literature logger - INFO - key MODReferenceType
+2021-05-25 21:16:53,373 - literature logger - INFO - key pubMedType
+2021-05-25 21:16:53,373 - literature logger - INFO - key meshTerms
+2021-05-25 21:16:53,373 - literature logger - INFO - key allianceCategory
+2021-05-25 21:16:53,373 - literature logger - INFO - key volume
+2021-05-25 21:16:53,373 - literature logger - INFO - key authors
+2021-05-25 21:16:53,373 - literature logger - INFO - key pages
+2021-05-25 21:16:53,373 - literature logger - INFO - key publisher
+2021-05-25 21:16:53,373 - literature logger - INFO - key resource
+2021-05-25 21:16:53,373 - literature logger - INFO - key language
+2021-05-25 21:16:53,373 - literature logger - INFO - key modResources
+2021-05-25 21:16:53,373 - literature logger - INFO - key MODReferenceTypes
+2021-05-25 21:16:53,373 - literature logger - INFO - key resourceAbbreviation
+
 """
 
 # import requests
@@ -14,46 +41,27 @@ import logging.config
 import re
 from os import environ, listdir, path
 
-from helper_file_processing import (generate_cross_references_file,
-                                    load_ref_xref, split_identifier)
-from helper_post_to_api import (generate_headers, get_authentication_token,
-                                process_api_request, update_token)
+from helper_file_processing import (
+    generate_cross_references_file,
+    load_ref_xref,
+    split_identifier,
+)
+from helper_post_to_api import (
+    generate_headers,
+    get_authentication_token,
+    process_api_request,
+    update_token,
+)
 
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
+log_file_path = path.join(path.dirname(path.abspath(__file__)), "../logging.conf")
 logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+logger = logging.getLogger("literature logger")
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-a', '--authorization', action='store_true', help='update authorization token')
-parser.add_argument('-f', '--file', action='store', help='take input from input file in full path')
-parser.add_argument('-c', '--commandline', nargs='*', action='store', help='placeholder for process_single_pmid.py')
+parser.add_argument("-a", "--authorization", action="store_true", help="update authorization token")
+parser.add_argument("-f", "--file", action="store", help="take input from input file in full path")
+parser.add_argument("-c", "--commandline", nargs="*", action="store", help="placeholder for process_single_pmid.py")
 args = vars(parser.parse_args())
-
-# keys that exist in data
-# 2021-05-25 21:16:53,372 - literature logger - INFO - key abstract
-# 2021-05-25 21:16:53,372 - literature logger - INFO - key citation
-# 2021-05-25 21:16:53,372 - literature logger - INFO - key datePublished
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key dateArrivedInPubmed
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key dateLastModified
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key keywords
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key crossReferences
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key title
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key tags
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key issueName
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key issueDate
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key MODReferenceType
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key pubMedType
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key meshTerms
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key allianceCategory
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key volume
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key authors
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key pages
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key publisher
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key resource
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key language
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key modResources
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key MODReferenceTypes
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key resourceAbbreviation
 
 
 def camel_to_snake(name):
@@ -63,10 +71,10 @@ def camel_to_snake(name):
     :return:
     """
 
-    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
+    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
 
 
-def post_references(input_file, check_file_flag):      # noqa: C901
+def post_references(input_file, check_file_flag):  # noqa: C901
     """
 
     :param input_file:
@@ -74,63 +82,63 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     :return:
     """
 
-    api_port = environ.get('API_PORT')
+    api_port = environ.get("API_PORT")
     # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
-    base_path = environ.get('XML_PATH')
+    base_path = environ.get("XML_PATH")
 
     files_to_process = []
-    if input_file == 'sanitized':
-        json_storage_path = base_path + 'sanitized_reference_json/'
+    if input_file == "sanitized":
+        json_storage_path = base_path + "sanitized_reference_json/"
         dir_list = listdir(json_storage_path)
         for filename in dir_list:
             # logger.info(filename)
-            if 'REFERENCE_' in filename and '.REFERENCE_' not in filename:
+            if "REFERENCE_" in filename and ".REFERENCE_" not in filename:
                 # logger.info(filename)
                 files_to_process.append(json_storage_path + filename)
     else:
         files_to_process.append(input_file)
 
-    keys_to_remove = {'nlm', 'primaryId', 'modResources', 'resourceAbbreviation'}
-    remap_keys = {'datePublished': 'date_published', 'dateArrivedInPubmed': 'date_arrived_in_pubmed',
-                  'dateLastModified': 'date_last_modified', 'crossReferences': 'cross_references',
-                  'issueName': 'issue_name', 'issueDate': 'issue_date', 'pubMedType': 'pubmed_type',
-                  'meshTerms': 'mesh_terms', 'allianceCategory': 'category', 'MODReferenceType': 'mod_reference_types',
-                  'MODReferenceTypes': 'mod_reference_types', 'plainLanguageAbstract': 'plain_language_abstract',
-                  'pubmedAbstractLanguages': 'pubmed_abstract_languages',
-                  'publicationStatus': 'pubmed_publication_status'}
+    keys_to_remove = {"nlm", "primaryId", "modResources", "resourceAbbreviation"}
+    remap_keys = { "datePublished": "date_published", "dateArrivedInPubmed": "date_arrived_in_pubmed",
+                   "dateLastModified": "date_last_modified", "crossReferences": "cross_references",
+                   "issueName": "issue_name", "issueDate": "issue_date", "pubMedType": "pubmed_type",
+                   "meshTerms": "mesh_terms", "allianceCategory": "category",
+                   "MODReferenceType": "mod_reference_types", "MODReferenceTypes": "mod_reference_types",
+                   "plainLanguageAbstract": "plain_language_abstract",
+                   "pubmedAbstractLanguages": "pubmed_abstract_languages", "publicationStatus": "pubmed_publication_status"}
 
     subkeys_to_remove = {}
     remap_subkeys = {}
 
-    subkeys_to_remove['mesh_terms'] = {'referenceId'}
-    subkeys_to_remove['tags'] = {'referenceId'}
-    subkeys_to_remove['authors'] = {'referenceId', 'firstinit', 'firstInit', 'crossReferences', 'collectivename'}
+    subkeys_to_remove["mesh_terms"] = {"referenceId"}
+    subkeys_to_remove["tags"] = {"referenceId"}
+    subkeys_to_remove["authors"] = {"referenceId", "firstinit", "firstInit", "crossReferences", "collectivename",}
 
-    remap_subkeys['mesh_terms'] = {}
-    remap_subkeys['mesh_terms']['meshHeadingTerm'] = 'heading_term'
-    remap_subkeys['mesh_terms']['meshQualfierTerm'] = 'qualifier_term'
-    remap_subkeys['mesh_terms']['meshQualifierTerm'] = 'qualifier_term'
+    remap_subkeys["mesh_terms"] = {}
+    remap_subkeys["mesh_terms"]["meshHeadingTerm"] = "heading_term"
+    remap_subkeys["mesh_terms"]["meshQualfierTerm"] = "qualifier_term"
+    remap_subkeys["mesh_terms"]["meshQualifierTerm"] = "qualifier_term"
 
-    remap_subkeys['mod_reference_types'] = {}
-    remap_subkeys['mod_reference_types']['referenceType'] = 'reference_type'
+    remap_subkeys["mod_reference_types"] = {}
+    remap_subkeys["mod_reference_types"]["referenceType"] = "reference_type"
 
-    remap_subkeys['tags'] = {}
-    remap_subkeys['tags']['tagName'] = 'tag_name'
-    remap_subkeys['tags']['tagSource'] = 'tag_source'
+    remap_subkeys["tags"] = {}
+    remap_subkeys["tags"]["tagName"] = "tag_name"
+    remap_subkeys["tags"]["tagSource"] = "tag_source"
 
-    remap_subkeys['cross_references'] = {}
-    remap_subkeys['cross_references']['id'] = 'curie'
+    remap_subkeys["cross_references"] = {}
+    remap_subkeys["cross_references"]["id"] = "curie"
 
-    remap_subkeys['authors'] = {}
-    remap_subkeys['authors']['authorRank'] = 'order'
-    remap_subkeys['authors']['firstName'] = 'first_name'
-    remap_subkeys['authors']['lastName'] = 'last_name'
-    remap_subkeys['authors']['middleNames'] = 'middle_names'
-    remap_subkeys['authors']['firstname'] = 'first_name'
-    remap_subkeys['authors']['lastname'] = 'last_name'
-    remap_subkeys['authors']['middlenames'] = 'middle_names'
-    remap_subkeys['authors']['correspondingAuthor'] = 'corresponding_author'
-    remap_subkeys['authors']['firstAuthor'] = 'first_author'
+    remap_subkeys["authors"] = {}
+    remap_subkeys["authors"]["authorRank"] = "order"
+    remap_subkeys["authors"]["firstName"] = "first_name"
+    remap_subkeys["authors"]["lastName"] = "last_name"
+    remap_subkeys["authors"]["middleNames"] = "middle_names"
+    remap_subkeys["authors"]["firstname"] = "first_name"
+    remap_subkeys["authors"]["lastname"] = "last_name"
+    remap_subkeys["authors"]["middlenames"] = "middle_names"
+    remap_subkeys["authors"]["correspondingAuthor"] = "corresponding_author"
+    remap_subkeys["authors"]["firstAuthor"] = "first_author"
 
     keys_found = set([])
 
@@ -144,11 +152,11 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     #     token = update_token()
     token = get_authentication_token()
     headers = generate_headers(token)
-    api_server = environ.get('API_SERVER', 'localhost')
-    url = 'http://' + api_server + ':' + api_port + '/reference/'
+    api_server = environ.get("API_SERVER", "localhost")
+    url = "http://" + api_server + ":" + api_port + "/reference/"
 
-    reference_primary_id_to_curie_file = base_path + 'reference_primary_id_to_curie'
-    errors_in_posting_reference_file = base_path + 'errors_in_posting_reference'
+    reference_primary_id_to_curie_file = base_path + "reference_primary_id_to_curie"
+    errors_in_posting_reference_file = base_path + "errors_in_posting_reference"
 
     # previously loading from reference_primary_id_to_curie from past run of this script
     # already_processed_primary_id = set()
@@ -161,14 +169,16 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     #                     already_processed_primary_id.add(line_data[0].rstrip())
     #             read_fh.close
 
-    generate_cross_references_file('resource')   # this updates from resources in the database, and takes 4 seconds. if updating this script, comment it out after running it once
-    generate_cross_references_file('reference')   # this updates from references in the database, and takes 88 seconds. if updating this script, comment it out after running it once
+    # this updates from resources in the database, and takes 4 seconds. if updating this script, comment it out after running it once
+    generate_cross_references_file("resource")
+    # this updates from references in the database, and takes 88 seconds. if updating this script, comment it out after running it once
+    generate_cross_references_file("reference")
 
-    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('resource')
+    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref("resource")
     resource_to_curie = {}
     for prefix in xref_ref:
         for identifier in xref_ref[prefix]:
-            xref_curie = prefix + ':' + identifier
+            xref_curie = prefix + ":" + identifier
             resource_to_curie[xref_curie] = xref_ref[prefix][identifier]
     # previously loading from resource_primary_id_to_curie from past run of post_resource_to_api
     # resource_primary_id_to_curie_file = base_path + 'resource_primary_id_to_curie'
@@ -180,10 +190,10 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     #                 resource_to_curie[line_data[0]] = line_data[1]
     #         read_fh.close
 
-    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref("reference")
 
     process_results = []
-    with open(reference_primary_id_to_curie_file, 'a') as mapping_fh, open(errors_in_posting_reference_file, 'a') as error_fh:
+    with open(reference_primary_id_to_curie_file, "a") as mapping_fh, open(errors_in_posting_reference_file, "a") as error_fh:
         for filepath in sorted(files_to_process):
             # only test one file for run
             # if filepath != json_storage_path + 'REFERENCE_PUBMED_WB_1.json':
@@ -203,11 +213,11 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                 # json_object = json.dumps(entry, indent=4)
                 # print(json_object)
 
-                primary_id = entry['primaryId']
+                primary_id = entry["primaryId"]
                 prefix, identifier, separator = split_identifier(primary_id)
                 if prefix in xref_ref:
                     if identifier in xref_ref[prefix]:
-                        logger.info('%s\talready in', primary_id)
+                        logger.info("%s\talready in", primary_id)
                         continue
                 # previously loading from reference_primary_id_to_curie from past run of this script
                 # if primary_id in already_processed_primary_id:
@@ -246,25 +256,25 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                         new_entry[key] = new_list
 
                 # can only enter agr resource curie, if resource does not map to one, enter nothing
-                if 'resource' in new_entry:
-                    if new_entry['resource'] in resource_to_curie:
-                        new_entry['resource'] = resource_to_curie[new_entry['resource']]
+                if "resource" in new_entry:
+                    if new_entry["resource"] in resource_to_curie:
+                        new_entry["resource"] = resource_to_curie[new_entry["resource"]]
                     else:
-                        del new_entry['resource']
-                if 'category' in new_entry:
-                    new_entry['category'] = new_entry['category'].lower().replace(' ', '_')
-                if 'tags' in new_entry:
-                    for sub_element in new_entry['tags']:
-                        if 'tag_name' in sub_element:
-                            sub_element['tag_name'] = camel_to_snake(sub_element['tag_name'])
-                if 'authors' in new_entry:
-                    for author in new_entry['authors']:
-                        if 'orcid' in author:
+                        del new_entry["resource"]
+                if "category" in new_entry:
+                    new_entry["category"] = (new_entry["category"].lower().replace(" ", "_"))
+                if "tags" in new_entry:
+                    for sub_element in new_entry["tags"]:
+                        if "tag_name" in sub_element:
+                            sub_element["tag_name"] = camel_to_snake(sub_element["tag_name"])
+                if "authors" in new_entry:
+                    for author in new_entry["authors"]:
+                        if "orcid" in author:
                             # orcid field in json has just the identifier, need to add the prefix
                             if 'ORCID:' not in author['orcid']:
                                 author['orcid'] = 'ORCID:' + author['orcid']
                 if 'cross_references' in new_entry:
-                    new_entry['cross_references'] = list(filter(lambda x: 'curie' in x and 'NLM:' not in x['curie'] and 'ISSN:' not in x['curie'], new_entry['cross_references']))
+                    new_entry['cross_references'] = list(filter(lambda x: "curie" in x and "NLM:" not in x['curie'] and "ISSN:" not in x["curie"], new_entry["cross_references"]))
 
                 # output what is sent to API after converting file data
                 # json_object = json.dumps(new_entry, indent=4)
@@ -280,7 +290,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                 # process_result['status_code'] = process_status_code
                 # process_results.append(process_result)
 
-                api_response_tuple = process_api_request('POST', url, headers, new_entry, primary_id, None, None)
+                api_response_tuple = process_api_request("POST", url, headers, new_entry, primary_id, None, None)
                 headers = api_response_tuple[0]
                 response_text = api_response_tuple[1]
                 response_status_code = api_response_tuple[2]
@@ -290,8 +300,8 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                 if log_info:
                     logger.info(log_info)
 
-                if (response_status_code == 201):
-                    response_dict = response_dict.replace('"', '')
+                if response_status_code == 201:
+                    response_dict = response_dict.replace('"', "")
                     logger.info("%s\t%s", primary_id, response_dict)
                     mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
                 else:
@@ -363,24 +373,21 @@ def post_references(input_file, check_file_flag):      # noqa: C901
 #     return headers, process_text, process_status_code
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     """
     call main start function
     """
 
     logger.info("Starting post_reference_to_api.py")
 
-    if args['authorization']:
+    if args["authorization"]:
         update_token()
-
-    elif args['commandline']:
+    elif args["commandline"]:
         logger.info("placeholder for process_single_pmid.py")
-
-    elif args['file']:
+    elif args["file"]:
         logger.info("placeholder for parse_pubmed_json_reference.py")
-
     else:
-        post_references('sanitized', 'yes_file_check')
+        post_references("sanitized", "yes_file_check")
 
     logger.info("ending post_reference_to_api.py")
 

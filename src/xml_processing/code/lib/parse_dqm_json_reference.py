@@ -1,23 +1,23 @@
 """
-# TODO  -p  should also be able to take directory so that dqm updates can run on dqm_data_updates_new/
+TODO  -p  should also be able to take directory so that dqm updates can run on dqm_data_updates_new/
 
-# pipenv run python parse_dqm_json_reference.py -f dqm_data/ -p  takes about 90 seconds to run
-# pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 3.5 minutes without looking at pubmed json
-# pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 13.5 minutes with comparing to pubmed json into output chunks without comparing fields for differences
-# pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 19 minutes with comparing to pubmed json into output chunks and comparing fields for differences
-# pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 17 minutes with comparing to pubmed json into output chunks, without comparing fields for differences, splitting into unmerged_pubmed_data for multi_mod pmids.
-# pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 20.5 minutes with comparing to pubmed json into output chunks and comparing fields for differences, and processing keywords, without using bs4 on dqm inputs
-# pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 33 minutes with comparing to pubmed json into output chunks and comparing fields for differences, and processing keywords, while using bs4 on dqm inputs
+pipenv run python parse_dqm_json_reference.py -f dqm_data/ -p  takes about 90 seconds to run
+pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 3.5 minutes without looking at pubmed json
+pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 13.5 minutes with comparing to pubmed json into output chunks without comparing fields for differences
+pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 19 minutes with comparing to pubmed json into output chunks and comparing fields for differences
+pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 17 minutes with comparing to pubmed json into output chunks, without comparing fields for differences, splitting into unmerged_pubmed_data for multi_mod pmids.
+pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 20.5 minutes with comparing to pubmed json into output chunks and comparing fields for differences, and processing keywords, without using bs4 on dqm inputs
+pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 33 minutes with comparing to pubmed json into output chunks and comparing fields for differences, and processing keywords, while using bs4 on dqm inputs
 
-# pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 1 hour 32 minutes on agr-literature-dev
+pipenv run python parse_dqm_json_reference.py -f dqm_data/ -m all   takes 1 hour 32 minutes on agr-literature-dev
 
-#  pipenv run python parse_dqm_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_data/ -m MGI > log_mgi
-# Loading .env environment variables...
-# Killed
-# in 4.5 minutes, logs show it read the last pmid
-# rewrote to split into chunks of 100000 entries by pubmed vs pubmod, MGI now runs in 3.5 minutes (without doing data comparison)
+ pipenv run python parse_dqm_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/dqm_data/ -m MGI > log_mgi
+Loading .env environment variables...
+Killed
+in 4.5 minutes, logs show it read the last pmid
+rewrote to split into chunks of 100000 entries by pubmed vs pubmod, MGI now runs in 3.5 minutes (without doing data comparison)
 
-# TODO when creating authors, make sure that  first_author: false, corresponding_author: false  otherwise they get a null, which looks different than false when toggling on/off the flags in the UI
+TODO when creating authors, make sure that  first_author: false, corresponding_author: false  otherwise they get a null, which looks different than false when toggling on/off the flags in the UI
 """
 
 
@@ -33,23 +33,22 @@ from os import environ, makedirs, path
 import bs4
 from dotenv import load_dotenv
 
-from helper_file_processing import (clean_up_keywords, split_identifier,
-                                    write_json)
+from helper_file_processing import clean_up_keywords, split_identifier, write_json
 
-warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
+warnings.filterwarnings("ignore", category=UserWarning, module="bs4")
 
 load_dotenv()
 
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
+log_file_path = path.join(path.dirname(path.abspath(__file__)), "../logging.conf")
 logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+logger = logging.getLogger("literature logger")
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-p', '--generate-pmid-data', action='store_true', help='generate pmid outputs, requires -f')
-parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
-parser.add_argument('-m', '--mod', action='store', help='which mod, use all for all, requires -f')
-parser.add_argument('-d', '--directory', action='store', help='output directory to generate into, requires -f')
-parser.add_argument('-c', '--commandline', nargs='*', action='store', help='placeholder for process_single_pmid.py')
+parser.add_argument("-p", "--generate-pmid-data", action="store_true", help="generate pmid outputs, requires -f")
+parser.add_argument("-f", "--file", action="store", help="take input from REFERENCE files in full path")
+parser.add_argument("-m", "--mod", action="store", help="which mod, use all for all, requires -f")
+parser.add_argument("-d", "--directory", action="store", help="output directory to generate into, requires -f")
+parser.add_argument("-c", "--commandline", nargs="*", action="store", help="placeholder for process_single_pmid.py")
 # parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
 # parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
 # parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
@@ -57,11 +56,11 @@ parser.add_argument('-c', '--commandline', nargs='*', action='store', help='plac
 
 args = vars(parser.parse_args())
 
-# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
-base_path = environ.get('XML_PATH')
+# move this to parameter between the functions
+base_path = environ.get("XML_PATH")
 
 
-def generate_pmid_data(input_path, output_directory):    # noqa: C901
+def generate_pmid_data(input_path, output_directory):  # noqa: C901
     """
 
     output set of PMID identifiers that will need XML downloaded
@@ -72,10 +71,10 @@ def generate_pmid_data(input_path, output_directory):    # noqa: C901
     :return:
     """
 
-    logger.info('Generating pmid sets from dqm data')
+    logger.info("Generating pmid sets from dqm data")
 
-    # RGD should be first in mods list.  if conflicting allianceCategories the later mod gets priority
-    mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB']
+    # RGD should be first in mods list. if conflicting allianceCategories the later mod gets priority
+    mods = ["RGD", "MGI", "SGD", "FB", "ZFIN", "WB"]
     # mods = ['SGD']
 
     pmid_stats = {}
@@ -91,43 +90,43 @@ def generate_pmid_data(input_path, output_directory):    # noqa: C901
     check_pmid_is_unique = True
 
     for mod in mods:
-        filename = base_path + input_path + '/REFERENCE_' + mod + '.json'
-        logger.info('Loading %s data from %s', mod, filename)
+        filename = base_path + input_path + "/REFERENCE_" + mod + ".json"
+        logger.info("Loading %s data from %s", mod, filename)
         dqm_data = {}
         try:
-            with open(filename, 'r') as f:
+            with open(filename) as f:
                 dqm_data = json.load(f)
-                f.close()
         except IOError:
-            logger.info('No reference data to update from MOD %s', mod)
+            logger.info("No reference data to update from MOD %s", mod)
         if not dqm_data:
             continue
 
         primary_id_unique = {}
         pmid_unique = {}
 
-        for entry in dqm_data['data']:
-
+        for entry in dqm_data["data"]:
             if check_primary_id_is_unique:
                 try:
-                    primary_id_unique[entry['primaryId']] = primary_id_unique[entry['primaryId']] + 1
+                    primary_id_unique[entry["primaryId"]] = (primary_id_unique[entry["primaryId"]] + 1)
                 except KeyError:
-                    primary_id_unique[entry['primaryId']] = 1
+                    primary_id_unique[entry["primaryId"]] = 1
 
-            pmid = '0'
-            prefix, identifier, separator = split_identifier(entry['primaryId'])
-            if prefix == 'PMID':
+            pmid = "0"
+            prefix, identifier, separator = split_identifier(entry["primaryId"])
+            if prefix == "PMID":
                 pmid = identifier
             elif prefix in mods:
-                if 'crossReferences' in entry:
-                    for cross_reference in entry['crossReferences']:
-                        prefix_xref, identifier_xref, separator_xref = split_identifier(cross_reference['id'])
-                        if prefix_xref == 'PMID':
+                if "crossReferences" in entry:
+                    for cross_reference in entry["crossReferences"]:
+                        prefix_xref, identifier_xref, separator_xref = split_identifier(
+                            cross_reference["id"]
+                        )
+                        if prefix_xref == "PMID":
                             pmid = identifier_xref
             else:
                 unknown_prefix.add(prefix)
 
-            if pmid != '0':
+            if pmid != "0":
                 try:
                     pmid_stats[pmid].append(mod)
                 except KeyError:
@@ -139,29 +138,30 @@ def generate_pmid_data(input_path, output_directory):    # noqa: C901
                         pmid_unique[pmid] = 1
                 pmid_references[mod].append(pmid)
             else:
-                non_pmid_references[mod].append(entry['primaryId'])
+                non_pmid_references[mod].append(entry["primaryId"])
 
         # output check of a mod's non-unique primaryIds
         if check_primary_id_is_unique:
             for primary_id in primary_id_unique:
                 if primary_id_unique[primary_id] > 1:
                     print("%s primary_id %s has %s mentions" % (mod, primary_id, primary_id_unique[primary_id]))
+
         # output check of a mod's non-unique pmids (different from above because could be crossReferences
         if check_pmid_is_unique:
             for pmid in pmid_unique:
                 if pmid_unique[pmid] > 1:
-                    print('%s pmid %s has %s mentions' % (mod, pmid, pmid_unique[pmid]))
+                    print("%s pmid %s has %s mentions" % (mod, pmid, pmid_unique[pmid]))
 
     # output each mod's count of pmid references
     for mod in pmid_references:
         count = len(pmid_references[mod])
-        print('%s has %s pmid references' % (mod, count))
+        print("%s has %s pmid references" % (mod, count))
         # logger.info("%s has %s pmid references", mod, count)
 
     # output each mod's count of non-pmid references
     for mod in non_pmid_references:
         count = len(non_pmid_references[mod])
-        print('%s has %s non-pmid references' % (mod, count))
+        print("%s has %s non-pmid references" % (mod, count))
         # logger.info("%s has %s non-pmid references", mod, count)
 
     # output actual reference identifiers that are not pmid
@@ -175,21 +175,21 @@ def generate_pmid_data(input_path, output_directory):    # noqa: C901
         logger.info("WARNING: unknown prefix %s", prefix)
 
     # output set of identifiers that will need XML downloaded
-    output_pmid_file = base_path + output_directory + 'inputs/alliance_pmids'
-    with open(output_pmid_file, 'w') as pmid_file:
+    output_pmid_file = base_path + output_directory + "inputs/alliance_pmids"
+    with open(output_pmid_file, "w") as pmid_file:
         # for pmid in sorted(pmid_stats.iterkeys(), key=int):	# python 2
         for pmid in sorted(pmid_stats, key=int):
-            pmid_file.write(str(pmid) + '\n')
+            pmid_file.write(str(pmid) + "\n")
         pmid_file.close()
 
     # output pmids and the mods that have them
-    output_pmid_mods_file = base_path + output_directory + 'pmids_by_mods'
-    with open(output_pmid_mods_file, 'w') as pmid_mods_file:
+    output_pmid_mods_file = base_path + output_directory + "pmids_by_mods"
+    with open(output_pmid_mods_file, "w") as pmid_mods_file:
         for identifier in pmid_stats:
             ref_mods_list = pmid_stats[identifier]
             count = len(ref_mods_list)
-            ref_mods_str = ', '.join(ref_mods_list)
-            pmid_mods_file.write('%s\t%s\t%s\n' % (identifier, count, ref_mods_str))
+            ref_mods_str = ", ".join(ref_mods_list)
+            pmid_mods_file.write("%s\t%s\t%s\n" % (identifier, count, ref_mods_str))
             # logger.info('pmid %s\t%s\t%s', identifier, count, ref_mods_str)
         pmid_mods_file.close()
 
@@ -204,8 +204,8 @@ def simplify_text_keep_digits(text):
     :return:
     """
 
-    no_html = re.sub('<[^<]+?>', '', str(text))
-    stripped = re.sub(r'[^a-zA-Z0-9]+', '', str(no_html))
+    no_html = re.sub("<[^<]+?>", "", str(text))
+    stripped = re.sub(r"[^a-zA-Z0-9]+", "", str(no_html))
     clean = stripped.lower()
     return clean
 
@@ -217,8 +217,8 @@ def simplify_text(text):
     :return:
     """
 
-    no_html = re.sub('<[^<]+?>', '', str(text))
-    stripped = re.sub(r'[^a-zA-Z]+', '', str(no_html))
+    no_html = re.sub("<[^<]+?>", "", str(text))
+    stripped = re.sub(r"[^a-zA-Z]+", "", str(no_html))
     clean = stripped.lower()
     return clean
 
@@ -234,19 +234,19 @@ def compare_dqm_pubmed(fh, pmid, field, dqm_data, pubmed_data):
     :return:
     """
 
-    # to_return = ''
+    # to_return = ""
     # logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_data, pubmed_data)
     dqm_clean = simplify_text(dqm_data)
     pubmed_clean = simplify_text(pubmed_data)
     if dqm_clean != pubmed_clean:
-        fh.write('dqm and pubmed differ\t%s\t%s\t%s\t%s\n' % (field, pmid, dqm_data, pubmed_data))
+        fh.write("dqm and pubmed differ\t%s\t%s\t%s\t%s\n" % (field, pmid, dqm_data, pubmed_data))
         # logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_clean, pubmed_clean)
         # logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_data, pubmed_data)
     # else:
     #     logger.info("%s\t%s\t%s", field, pmid, 'GOOD')
 
 
-def chunks(list, size):
+def chunks(my_list, size):
     """
 
     :param list:
@@ -254,8 +254,8 @@ def chunks(list, size):
     :return:
     """
 
-    for i in range(0, len(list), size):
-        yield list[i:i + size]
+    for i in range(0, len(my_list), size):
+        yield my_list[i: i + size]
 
 
 def populate_expected_cross_reference_type():
@@ -266,18 +266,18 @@ def populate_expected_cross_reference_type():
     """
 
     expected_cross_reference_type = set([])
-    expected_cross_reference_type.add('PMID:'.lower())
-    expected_cross_reference_type.add('PMCID:PMC'.lower())
-    expected_cross_reference_type.add('DOI:'.lower())
-    expected_cross_reference_type.add('DOI:/S'.lower())
-    expected_cross_reference_type.add('DOI:IJIv'.lower())
-    expected_cross_reference_type.add('WB:WBPaper'.lower())
-    expected_cross_reference_type.add('SGD:S'.lower())
-    expected_cross_reference_type.add('RGD:'.lower())
-    expected_cross_reference_type.add('MGI:'.lower())
-    expected_cross_reference_type.add('ISBN:'.lower())
-    expected_cross_reference_type.add('FB:FBrf'.lower())
-    expected_cross_reference_type.add('ZFIN:ZDB-PUB-'.lower())
+    expected_cross_reference_type.add("PMID:".lower())
+    expected_cross_reference_type.add("PMCID:PMC".lower())
+    expected_cross_reference_type.add("DOI:".lower())
+    expected_cross_reference_type.add("DOI:/S".lower())
+    expected_cross_reference_type.add("DOI:IJIv".lower())
+    expected_cross_reference_type.add("WB:WBPaper".lower())
+    expected_cross_reference_type.add("SGD:S".lower())
+    expected_cross_reference_type.add("RGD:".lower())
+    expected_cross_reference_type.add("MGI:".lower())
+    expected_cross_reference_type.add("ISBN:".lower())
+    expected_cross_reference_type.add("FB:FBrf".lower())
+    expected_cross_reference_type.add("ZFIN:ZDB-PUB-".lower())
 
     # when getting pubmed data and merging mod cross references, was excluding these types, but
     # now merging so long as the type does not already exist from pubmed (mods have DOIs not in PubMed)
@@ -289,11 +289,11 @@ def populate_expected_cross_reference_type():
     # pubmed_not_dqm_cross_reference_type.add('DOI:IJIv'.lower())
 
     exclude_cross_reference_type = set([])
-    exclude_cross_reference_type.add('WB:WBTransgene'.lower())
-    exclude_cross_reference_type.add('WB:WBGene'.lower())
-    exclude_cross_reference_type.add('WB:WBVar'.lower())
+    exclude_cross_reference_type.add("WB:WBTransgene".lower())
+    exclude_cross_reference_type.add("WB:WBGene".lower())
+    exclude_cross_reference_type.add("WB:WBVar".lower())
 
-    return expected_cross_reference_type, exclude_cross_reference_type, pubmed_not_dqm_cross_reference_type
+    return expected_cross_reference_type, exclude_cross_reference_type, pubmed_not_dqm_cross_reference_type,
 
 
 def load_mod_resource(mods, resource_to_nlm):
@@ -304,7 +304,14 @@ def load_mod_resource(mods, resource_to_nlm):
     :return:
     """
 
-    resource_fields = ['primaryId', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
+    resource_fields = [
+        "primaryId",
+        "title",
+        "isoAbbreviation",
+        "medlineAbbreviation",
+        "printISSN",
+        "onlineISSN",
+    ]
     resource_to_mod = {}
     resource_to_mod_issn_nlm = {}
     # test_issn = '0193-4511'
@@ -314,19 +321,19 @@ def load_mod_resource(mods, resource_to_nlm):
     for mod in mods:
         resource_to_mod[mod] = {}
         resource_to_mod_issn_nlm[mod] = {}
-        filename = base_path + 'dqm_data/RESOURCE_' + mod + '.json'
+        filename = base_path + "dqm_data/RESOURCE_" + mod + ".json"
         try:
-            with open(filename, 'r') as f:
+            with open(filename) as f:
                 dqm_data = json.load(f)
-                for entry in dqm_data['data']:
-                    primary_id = entry['primaryId']
+                for entry in dqm_data["data"]:
+                    primary_id = entry["primaryId"]
                     values_to_add = []
                     for field in resource_fields:
                         if field in entry:
                             value = simplify_text_keep_digits(entry[field])
                             values_to_add.append(value)
-                    if 'abbreviationSynonyms' in entry:
-                        for synonym in entry['abbreviationSynonyms']:
+                    if "abbreviationSynonyms" in entry:
+                        for synonym in entry["abbreviationSynonyms"]:
                             value = simplify_text_keep_digits(synonym)
                             values_to_add.append(value)
                     for value in values_to_add:
@@ -335,27 +342,25 @@ def load_mod_resource(mods, resource_to_nlm):
                                 resource_to_mod[mod][value].append(primary_id)
                         else:
                             resource_to_mod[mod][value] = [primary_id]
-                    if 'crossReferences' in entry:
-                        for xref_entry in entry['crossReferences']:
+                    if "crossReferences" in entry:
+                        for xref_entry in entry["crossReferences"]:
                             # if re.match(r"^ISSN:[0-9]+", xref_id):
                             # if entry['primaryId'] == 'FB:FBmultipub_1740':
                             #     logger.info("id %s xref id %s ", entry['primaryId'], xref_entry['id'])
-                            issn_group = re.search(r'^ISSN:(.+)$', xref_entry['id'])
+                            issn_group = re.search(r"^ISSN:(.+)$", xref_entry["id"])
                             if issn_group is not None:
-                                issn = issn_group[1]
-                                issn = simplify_text_keep_digits(issn)
+                                issn = simplify_text_keep_digits(issn_group[1])
                                 # if entry['primaryId'] == 'FB:FBmultipub_1740':
                                 #     logger.info('id %s xref id %s issn %s', entry['primaryId'], xref_entry['id'], issn)
-                                if issn in resource_to_nlm:
+                                if issn in resource_to_nlm and len(resource_to_nlm[issn]) == 1:
                                     # if entry['primaryId'] == 'FB:FBmultipub_1740':
                                     #     logger.info("id %s xref id %s issn %s nlm %s", entry['primaryId'], xref_entry['id'], issn, resource_to_nlm[issn])
-                                    if len(resource_to_nlm[issn]) == 1:
-                                        for value in values_to_add:
-                                            resource_to_mod_issn_nlm[mod][value] = resource_to_nlm[issn][0]
-                                            # if entry['primaryId'] == 'FB:FBmultipub_1740':
-                                            #     logger.info("id %s xref id %s issn %s nlm %s value %s nlm %s mod %s", entry['primaryId'], xref_entry['id'], issn, resource_to_nlm[issn], value,  resource_to_nlm[issn][0], mod)
+                                    for value in values_to_add:
+                                        resource_to_mod_issn_nlm[mod][value] = resource_to_nlm[issn][0]
+                                        # if entry['primaryId'] == 'FB:FBmultipub_1740':
+                                        #     logger.info("id %s xref id %s issn %s nlm %s value %s nlm %s mod %s", entry['primaryId'], xref_entry['id'], issn, resource_to_nlm[issn], value,  resource_to_nlm[issn][0], mod)
         except IOError as e:
-            logger.warning(str(e))  	# most mods don't have a resource file
+            logger.warning(str(e))  # most mods don't have a resource file
 
     return resource_to_mod, resource_to_mod_issn_nlm
 
@@ -368,22 +373,23 @@ def load_pubmed_resource():
 
     # logger.info('Starting load_pubmed_resource')
     resource_data = {}
-    filename = base_path + 'pubmed_resource_json/resource_pubmed_all.json'
+    filename = base_path + "pubmed_resource_json/resource_pubmed_all.json"
     try:
         f = open(filename)
         resource_data = json.load(f)
         f.close()
     except IOError:
-        logger.info('No resource_pubmed_all.json file at %s', filename)
+        logger.info("No resource_pubmed_all.json file at %s", filename)
     resource_to_nlm = {}
     resource_to_nlm_highest = {}
     resource_nlm_to_title = {}
-    resource_fields = ['primaryId', 'nlm', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
+    resource_fields = ["primaryId", "nlm", "title", "isoAbbreviation", "medlineAbbreviation", "printISSN", "onlineISSN"]
+
     # ZFIN does not have ISSN in crossReferences, and may have already fixed them for 4.1.0
     for entry in resource_data:
-        primary_id = entry['primaryId']
-        nlm = entry['nlm']
-        title = entry['title']
+        primary_id = entry["primaryId"]
+        nlm = entry["nlm"]
+        title = entry["title"]
         resource_nlm_to_title[nlm] = title
         for field in resource_fields:
             if field in entry:
@@ -419,7 +425,7 @@ def strip_string_to_integer(string):
     :return:
     """
 
-    return int(''.join(filter(lambda x: x.isdigit(), string)))
+    return int("".join(filter(lambda x: x.isdigit(), string)))
 
 
 def load_pmid_multi_mods():
@@ -429,17 +435,17 @@ def load_pmid_multi_mods():
     """
 
     pmid_multi_mods = {}
-    pmid_multi_mods_file = base_path + 'pmids_by_mods'
+    pmid_multi_mods_file = base_path + "pmids_by_mods"
     pmid_file = open(pmid_multi_mods_file).read().splitlines()
     for line in pmid_file:
-        cols = line.split('\t')
+        cols = line.split("\t")
         if int(cols[1]) > 1:
             pmid_multi_mods[cols[0]] = cols[1]
 
     return pmid_multi_mods
 
 
-def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # noqa: C901
+def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):  # noqa: C901
     """
     noqa: C901
     reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
@@ -454,24 +460,25 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
     :return:
     """
 
-    cross_ref_no_pages_ok_fields = ['DOI', 'PMID', 'PMC', 'PMCID', 'ISBN']
-    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate',
-                   'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract',
-                   'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract',
-                   'pubmedAbstractLanguages', 'publicationStatus']
+    cross_ref_no_pages_ok_fields = ["DOI", "PMID", "PMC", "PMCID", "ISBN"]
+    pmid_fields = ["authors", "volume", "title", "pages", "issueName", "issueDate", "datePublished",
+                   "dateArrivedInPubmed", "dateLastModified", "abstract", "pubMedType", "publisher",
+                   "meshTerms", "plainLanguageAbstract", "pubmedAbstractLanguages", "publicationStatus"]
     # single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher']
-    single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
-    replace_value_fields = ['authors', 'pubMedType', 'meshTerms']
+    single_value_fields = ["volume", "title", "pages", "issueName", "issueDate", "datePublished",
+                           "dateArrivedInPubmed", "dateLastModified", "abstract", "publisher",
+                           "plainLanguageAbstract", "pubmedAbstractLanguages", "publicationStatus"]
+    replace_value_fields = ["authors", "pubMedType", "meshTerms"]
     # date_fields = ['issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified']
     # datePublished is a string, not a proper date field
-    date_fields = ['issueDate', 'dateArrivedInPubmed', 'dateLastModified']
+    date_fields = ["issueDate", "dateArrivedInPubmed", "dateLastModified"]
 
-    compare_if_dqm_empty = False		# do dqm vs pmid comparison even if dqm has no data, by default skip
+    compare_if_dqm_empty = False  # do dqm vs pmid comparison even if dqm has no data, by default skip
 
     # mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
     # RGD should be first in mods list.  if conflicting allianceCategories the later mod gets priority
     # mods = ['RGD', 'SGD', 'FB', 'MGI', 'ZFIN', 'WB']
-    mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB']
+    mods = ["RGD", "MGI", "SGD", "FB", "ZFIN", "WB"]
     if input_mod in mods:
         mods = [input_mod]
 
@@ -495,11 +502,11 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
     resource_not_found = {}
     cross_reference_types = {}
 
-    json_storage_path = base_path + output_directory + 'sanitized_reference_json/'
+    json_storage_path = base_path + output_directory + "sanitized_reference_json/"
     if not path.exists(json_storage_path):
         makedirs(json_storage_path)
 
-    report_file_path = base_path + output_directory + 'report_files/'
+    report_file_path = base_path + output_directory + "report_files/"
     if not path.exists(report_file_path):
         makedirs(report_file_path)
 
@@ -514,21 +521,21 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
         resource_not_found[mod] = {}
         # cross_reference_types[mod] = set()
         cross_reference_types[mod] = {}
-        filename = report_file_path + mod + '_main'
-        filename_title = report_file_path + mod + '_dqm_pubmed_differ_title'
-        filename_differ = report_file_path + mod + '_dqm_pubmed_differ_other'
+        filename = report_file_path + mod + "_main"
+        filename_title = report_file_path + mod + "_dqm_pubmed_differ_title"
+        filename_differ = report_file_path + mod + "_dqm_pubmed_differ_other"
         # filename_xrefs = report_file_path + mod + '_dqm_pubmed_differ_xrefs'
-        filename_resource_unmatched = report_file_path + mod + '_resource_unmatched'
-        filename_reference_no_resource = report_file_path + mod + '_reference_no_resource'
-        fh_mod_report.setdefault(mod, open(filename, 'w'))
-        fh_mod_report_title.setdefault(mod, open(filename_title, 'w'))
-        fh_mod_report_differ.setdefault(mod, open(filename_differ, 'w'))
+        filename_resource_unmatched = report_file_path + mod + "_resource_unmatched"
+        filename_reference_no_resource = report_file_path + mod + "_reference_no_resource"
+        fh_mod_report.setdefault(mod, open(filename, "w"))
+        fh_mod_report_title.setdefault(mod, open(filename_title, "w"))
+        fh_mod_report_differ.setdefault(mod, open(filename_differ, "w"))
         # fh_mod_report_xrefs.setdefault(mod, open(filename_xrefs, 'w'))
-        fh_mod_report_resource_unmatched.setdefault(mod, open(filename_resource_unmatched, 'w'))
-        fh_mod_report_reference_no_resource.setdefault(mod, open(filename_reference_no_resource, 'w'))
+        fh_mod_report_resource_unmatched.setdefault(mod, open(filename_resource_unmatched, "w"))
+        fh_mod_report_reference_no_resource.setdefault(mod, open(filename_reference_no_resource, "w"))
 
-    multi_report_filename = base_path + output_directory + 'report_files/multi_mod'
-    fh_mod_report.setdefault('multi', open(multi_report_filename, 'w'))
+    multi_report_filename = base_path + output_directory + "report_files/multi_mod"
+    fh_mod_report.setdefault("multi", open(multi_report_filename, "w"))
     # these are not needed, there are no dqm vs pubmed comparisons for multiple mods
     # multi_report_filename_title = base_path + 'report_files/multi_mod_dqm_pubmed_title_differ'
     # multi_report_filename_differ = base_path + 'report_files/multi_mod_dqm_pubmed_differ'
@@ -536,7 +543,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
     # fh_mod_report_differ.setdefault('multi', open(multi_report_filename_differ, 'w'))
 
     logger.info("Aggregating DQM and PubMed data from %s using mods %s", input_path, mods)
-    agr_schemas_reference_json_url = 'https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/ingest/resourcesAndReferences/reference.json'
+    agr_schemas_reference_json_url = "https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/ingest/resourcesAndReferences/reference.json"
     schema_data = {}
     with urllib.request.urlopen(agr_schemas_reference_json_url) as url:
         schema_data = json.loads(url.read().decode())
@@ -548,32 +555,31 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
     # fb_resource_abbreviation_to_nlm = {}
 
     sanitized_pubmed_multi_mod_data = []
-    unmerged_pubmed_data = {}			# pubmed data by pmid and mod that needs some fields merged
+    unmerged_pubmed_data = {}  # pubmed data by pmid and mod that needs some fields merged
     for mod in mods:
-        filename = base_path + input_path + '/REFERENCE_' + mod + '.json'
-        logger.info('Processing %s', filename)
+        filename = base_path + input_path + "/REFERENCE_" + mod + ".json"
+        logger.info("Processing %s", filename)
         unexpected_mod_properties = set()
         dqm_data = {}
         try:
-            with open(filename, 'r') as f:
+            with open(filename) as f:
                 dqm_data = json.load(f)
-                f.close()
         except IOError:
             logger.info("No file found for mod %s %s", mod, filename)
             continue
-        entries = dqm_data['data']
+        entries = dqm_data["data"]
         sanitized_pubmod_data = []
         sanitized_pubmed_single_mod_data = []
         for entry in entries:
             is_pubmod = True
             pmid = None
             update_primary_id = False
-            primary_id = entry['primaryId']
-            orig_primary_id = entry['primaryId']
-#             print("primaryId %s" % (entry['primaryId']))
+            primary_id = entry["primaryId"]
+            orig_primary_id = entry["primaryId"]
+            # print("primaryId %s" % (entry['primaryId']))
             blank_fields = set()
             for entry_property in entry:
-                if entry_property not in schema_data['properties']:
+                if entry_property not in schema_data["properties"]:
                     unexpected_mod_properties.add(entry_property)
                 if entry_property in single_value_fields:
                     if entry[entry_property] == "":
@@ -585,32 +591,38 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
             # need to process crossReferences once to reassign primaryId if PMID and filter out
             # unexpected crossReferences,
             # then again later to clean up crossReferences that get data from pubmed xml (once the PMID is known)
-            if 'crossReferences' in entry:
+            if "crossReferences" in entry:
                 expected_cross_references = []
                 dqm_xrefs = {}
-                for cross_reference in entry['crossReferences']:
-                    prefix, identifier, separator = split_identifier(cross_reference["id"])
+                for cross_reference in entry["crossReferences"]:
+                    prefix, identifier, separator = split_identifier(
+                        cross_reference["id"]
+                    )
                     if prefix not in dqm_xrefs:
                         dqm_xrefs[prefix] = set()
                     dqm_xrefs[prefix].add(identifier)
-                    if 'pages' in cross_reference:
-                        if len(cross_reference['pages']) > 1:
-                            fh_mod_report[mod].write('mod %s primaryId %s has cross reference identifier %s with multiple web pages %s\n' % (mod, primary_id, cross_reference["id"], cross_reference["pages"]))
+                    if "pages" in cross_reference:
+                        if len(cross_reference["pages"]) > 1:
+                            fh_mod_report[mod].write("mod %s primaryId %s has cross reference identifier %s with multiple web pages %s\n"
+                                                     % (mod, primary_id, cross_reference["id"], cross_reference["pages"]))
                             # logger.info("mod %s primaryId %s has cross reference identifier %s with web pages %s", mod, primary_id, cross_reference["id"], cross_reference["pages"])
                         else:
-                            if not re.match(r'^PMID:[0-9]+', orig_primary_id):
-                                if cross_reference['pages'][0] == 'PubMed':
-                                    xref_id = cross_reference['id']
-                                    if re.match(r'^PMID:[0-9]+', xref_id):
+                            if not re.match(r"^PMID:[0-9]+", orig_primary_id):
+                                if cross_reference["pages"][0] == "PubMed":
+                                    xref_id = cross_reference["id"]
+                                    if re.match(r"^PMID:[0-9]+", xref_id):
                                         update_primary_id = True
                                         primary_id = xref_id
-                                        entry['primaryId'] = xref_id
+                                        entry["primaryId"] = xref_id
                     else:
                         if prefix not in cross_ref_no_pages_ok_fields:
-                            fh_mod_report[mod].write("mod %s primaryId %s has cross reference identifier %s without web pages\n" % (mod, primary_id, cross_reference["id"]))
+                            fh_mod_report[mod].write(
+                                "mod %s primaryId %s has cross reference identifier %s without web pages\n"
+                                % (mod, primary_id, cross_reference["id"])
+                            )
                             # logger.debug("mod %s primaryId %s has cross reference %s without pages", mod, primary_id, cross_reference["id"])
 
-                    id = cross_reference['id']
+                    id = cross_reference["id"]
                     cross_ref_type_group = re.search(r"^([^0-9]+)[0-9]", id)
                     if cross_ref_type_group is not None:
                         if cross_ref_type_group[1].lower() not in expected_cross_reference_type:
@@ -621,11 +633,12 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
                             # cross_reference_types[mod].add(cross_ref_type_group[1])
                         if cross_ref_type_group[1].lower() not in exclude_cross_reference_type:
                             expected_cross_references.append(cross_reference)
-                entry['crossReferences'] = expected_cross_references
+                entry["crossReferences"] = expected_cross_references
                 for prefix in dqm_xrefs:
                     if len(dqm_xrefs[prefix]) > 1:
                         too_many_xref_per_type_failure = True
-                        fh_mod_report[mod].write("mod %s primaryId %s has too many identifiers for %s %s\n" % (mod, primary_id, prefix, ', '.join(sorted(dqm_xrefs[prefix]))))
+                        fh_mod_report[mod].write("mod %s primaryId %s has too many identifiers for %s %s\n"
+                                                 % (mod, primary_id, prefix, ", ".join(sorted(dqm_xrefs[prefix]))))
 
             else:
                 fh_mod_report[mod].write("mod %s primaryId %s has no cross references\n" % (mod, primary_id))
@@ -638,61 +651,61 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
             if pmid_group is not None:
                 pmid = pmid_group[1]
                 # print(pmid)
-                filename = base_path + 'pubmed_json/' + pmid + '.json'
+                filename = base_path + "pubmed_json/" + pmid + ".json"
                 # print("primary_id %s reading %s" % (primary_id, filename))
                 pubmed_data = {}
                 try:
-                    with open(filename, 'r') as f:
+                    with open(filename) as f:
                         pubmed_data = json.load(f)
-                        f.close()
                         is_pubmod = False
                 except IOError:
-                    fh_mod_report[mod].write("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s\n" % (pmid, mod, orig_primary_id))
+                    fh_mod_report[mod].write("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s\n"
+                                             % (pmid, mod, orig_primary_id))
                     # logger.info("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s", pmid, mod, orig_primary_id)
 
             if is_pubmod:
                 # print("primaryKey %s is None" % (primary_id))
-                if 'authors' in entry:
+                if "authors" in entry:
                     all_authors_have_rank = True
-                    for author in entry['authors']:
-                        author['correspondingAuthor'] = False
-                        author['firstAuthor'] = False
-                        if 'authorRank' not in author:
+                    for author in entry["authors"]:
+                        author["correspondingAuthor"] = False
+                        author["firstAuthor"] = False
+                        if "authorRank" not in author:
                             all_authors_have_rank = False
                     if all_authors_have_rank is False:
                         authors_with_rank = []
-                        for i in range(len(entry['authors'])):
-                            author = entry['authors'][i]
-                            author['authorRank'] = i + 1
+                        for i in range(len(entry["authors"])):
+                            author = entry["authors"][i]
+                            author["authorRank"] = i + 1
                             authors_with_rank.append(author)
-                        entry['authors'] = authors_with_rank
+                        entry["authors"] = authors_with_rank
                     if update_primary_id:
                         authors_updated = []
-                        for author in entry['authors']:
-                            author['referenceId'] = primary_id
+                        for author in entry["authors"]:
+                            author["referenceId"] = primary_id
                             authors_updated.append(author)
-                        entry['authors'] = authors_updated
-                if 'crossReferences' in entry:
+                        entry["authors"] = authors_updated
+                if "crossReferences" in entry:
                     sanitized_cross_references = []
-                    for cross_reference in entry['crossReferences']:
-                        id = cross_reference['id']
+                    for cross_reference in entry["crossReferences"]:
+                        id = cross_reference["id"]
                         prefix, identifier, separator = split_identifier(id)
                         # cross references came from the mod, but some had a pmid (e.g. 24270275) that is no longer at PubMed, so do not add to cross_references
-                        if prefix.lower() != 'pmid':
+                        if prefix.lower() != "pmid":
                             sanitized_cross_references.append(cross_reference)
-                    entry['crossReferences'] = sanitized_cross_references
-                if 'keywords' in entry:
+                    entry["crossReferences"] = sanitized_cross_references
+                if "keywords" in entry:
                     entry = clean_up_keywords(mod, entry)
-                if 'resourceAbbreviation' in entry:
+                if "resourceAbbreviation" in entry:
                     # journal = entry['resourceAbbreviation'].lower()
                     # if journal not in resource_to_nlm:
-                    journal_simplified = simplify_text_keep_digits(entry['resourceAbbreviation'])
+                    journal_simplified = simplify_text_keep_digits(entry["resourceAbbreviation"])
                     if journal_simplified != '':
                         # logger.info("CHECK mod %s journal_simplified %s", mod, journal_simplified)
                         # highest priority to mod resources from dqm resource file with an issn in crossReferences that maps to a single nlm
                         if journal_simplified in resource_to_mod_issn_nlm[mod]:
-                            entry['nlm'] = [resource_to_mod_issn_nlm[mod][journal_simplified]]
-                            entry['resource'] = resource_to_mod_issn_nlm[mod][journal_simplified]
+                            entry["nlm"] = [resource_to_mod_issn_nlm[mod][journal_simplified]]
+                            entry["resource"] = resource_to_mod_issn_nlm[mod][journal_simplified]
                         # next highest priority to resource names that map to an nlm
                         elif journal_simplified in resource_to_nlm:
                             nlm_list = resource_to_nlm[journal_simplified]
@@ -701,48 +714,52 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
                             entry['resource'] = 'NLM:' + resource_to_nlm_highest[journal_simplified]
                             if len(nlm_list) > 1:		# e.g. ZFIN:ZDB-PUB-020604-2  FB:FBrf0009739  WB:WBPaper00000557
                                 multiple_nlms = ", ".join(nlm_list)
-                                fh_mod_report[mod].write("primaryId %s has resourceAbbreviation %s mapping to multiple NLMs %s.\n" % (primary_id, entry['resourceAbbreviation'], multiple_nlms))
+                                fh_mod_report[mod].write("primaryId %s has resourceAbbreviation %s mapping to multiple NLMs %s.\n"
+                                                         % (primary_id, entry['resourceAbbreviation'], multiple_nlms))
                         # next highest priority to resource names that are in the dqm resource submission
                         elif journal_simplified in resource_to_mod[mod]:
-                            entry['modResources'] = resource_to_mod[mod][journal_simplified]
+                            entry["modResources"] = resource_to_mod[mod][journal_simplified]
                             if len(resource_to_mod[mod][journal_simplified]) > 1:
                                 multiple_mod_resources = ", ".join(resource_to_mod[mod][journal_simplified])
-                                fh_mod_report[mod].write("primaryId %s has resourceAbbreviation %s mapping to multiple MOD resources %s.\n" % (primary_id, entry['resourceAbbreviation'], multiple_mod_resources))
+                                fh_mod_report[mod].write("primaryId %s has resourceAbbreviation %s mapping to multiple MOD resources %s.\n"
+                                                         % (primary_id, entry['resourceAbbreviation'], multiple_mod_resources))
                             else:
                                 entry['resource'] = resource_to_mod[mod][journal_simplified][0]
                         else:
-                            fh_mod_report_resource_unmatched[mod].write("primaryId %s has resourceAbbreviation %s not in NLM nor DQM resource file.\n" % (primary_id, entry['resourceAbbreviation']))
+                            fh_mod_report_resource_unmatched[mod].write("primaryId %s has resourceAbbreviation %s not in NLM nor DQM resource file.\n"
+                                                                        % (primary_id, entry['resourceAbbreviation']))
                             if entry['resourceAbbreviation'] in resource_not_found[mod]:
-                                resource_not_found[mod][entry['resourceAbbreviation']] += 1
+                                resource_not_found[mod][entry["resourceAbbreviation"]] += 1
                             else:
-                                resource_not_found[mod][entry['resourceAbbreviation']] = 1
+                                resource_not_found[mod][entry["resourceAbbreviation"]] = 1
                 else:
-                    fh_mod_report_reference_no_resource[mod].write("primaryId %s does not have a resourceAbbreviation.\n" % (primary_id))
+                    fh_mod_report_reference_no_resource[mod].write("primaryId %s does not have a resourceAbbreviation.\n"
+                                                                   % (primary_id))
             else:
                 # pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms']
                 for pmid_field in pmid_fields:
                     if pmid_field in single_value_fields:
-                        pmid_data = ''
-                        dqm_data = ''
+                        pmid_data = ""
+                        dqm_data = ""
                         if pmid_field in pubmed_data:
                             if pmid_field in date_fields:
-                                pmid_data = pubmed_data[pmid_field]['date_string']
+                                pmid_data = pubmed_data[pmid_field]["date_string"]
                             else:
                                 pmid_data = pubmed_data[pmid_field]
                         if pmid_field in entry:
                             dqm_data = entry[pmid_field]
-                        if dqm_data != '':
+                        if dqm_data != "":
                             dqm_data = bs4.BeautifulSoup(dqm_data, "html.parser")
                         # UNCOMMENT to output log of data comparison between dqm and pubmed
-                        if (dqm_data != '') or (compare_if_dqm_empty):
+                        if dqm_data != "" or compare_if_dqm_empty:
                             if pmid_field == 'title':
                                 compare_dqm_pubmed(fh_mod_report_title[mod], pmid, pmid_field, dqm_data, pmid_data)
                             else:
                                 compare_dqm_pubmed(fh_mod_report_differ[mod], pmid, pmid_field, dqm_data, pmid_data)
-                        if pmid_data != '':
+                        if pmid_data != "":
                             entry[pmid_field] = pmid_data
-                        if pmid_field == 'datePublished':
-                            if (pmid_data == '') and (dqm_data != ''):
+                        if pmid_field == "datePublished":
+                            if pmid_data == "" and dqm_data != "":
                                 entry[pmid_field] = dqm_data
                     elif pmid_field in replace_value_fields:
                         entry[pmid_field] = []
@@ -750,51 +767,58 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
                             # logger.info("PMID %s pmid_field %s data %s", pmid, pmid_field, pubmed_data[pmid_field])
                             entry[pmid_field] = pubmed_data[pmid_field]
 
-                if 'authors' in entry:
-                    for author in entry['authors']:
-                        author['correspondingAuthor'] = False
-                        author['firstAuthor'] = False
+                if "authors" in entry:
+                    for author in entry["authors"]:
+                        author["correspondingAuthor"] = False
+                        author["firstAuthor"] = False
 
                 sanitized_cross_references = []
                 pubmed_xrefs = {}
-                if 'crossReferences' in pubmed_data:
-                    sanitized_cross_references = pubmed_data['crossReferences']
-                    for cross_reference in pubmed_data['crossReferences']:
-                        id = cross_reference['id']
+                if "crossReferences" in pubmed_data:
+                    sanitized_cross_references = pubmed_data["crossReferences"]
+                    for cross_reference in pubmed_data["crossReferences"]:
+                        id = cross_reference["id"]
                         prefix, identifier, separator = split_identifier(id)
                         pubmed_xrefs[prefix] = identifier
-                if 'crossReferences' in entry:
-                    for cross_reference in entry['crossReferences']:
-                        id = cross_reference['id']
+                if "crossReferences" in entry:
+                    for cross_reference in entry["crossReferences"]:
+                        id = cross_reference["id"]
                         prefix, identifier, separator = split_identifier(id)
                         if prefix in pubmed_xrefs:
                             if pubmed_xrefs[prefix].lower() != identifier.lower():
-                                # fh_mod_report_xrefs[mod].write("primaryId %s has xref %s PubMed has %s%s%s\n" % (primary_id, id, prefix, separator, pubmed_xrefs[prefix]))	# maybe split that out later, but probably not
-                                fh_mod_report[mod].write("primaryId %s has xref %s PubMed has %s%s%s\n" % (primary_id, id, prefix, separator, pubmed_xrefs[prefix]))
+                                # fh_mod_report_xrefs[mod].write("primaryId %s has xref %s PubMed has %s%s%s\n" % (primary_id,
+                                # id, prefix, separator, pubmed_xrefs[prefix]))	# maybe split that out later, but probably not
+                                fh_mod_report[mod].write("primaryId%shas xef %s Pubed has %s%s%s\n"
+                                                         % (primary_id, id, prefix, separator, pubmed_xrefs[prefix]))
                         else:
                             sanitized_cross_references.append(cross_reference)
-                entry['crossReferences'] = sanitized_cross_references
+                entry["crossReferences"] = sanitized_cross_references
 
-                if 'nlm' in pubmed_data:
-                    nlm = pubmed_data['nlm']
-                    entry['nlm'] = ['NLM:' + nlm]
-                    entry['resource'] = 'NLM:' + nlm
+                if "nlm" in pubmed_data:
+                    nlm = pubmed_data["nlm"]
+                    entry["nlm"] = ["NLM:" + nlm]
+                    entry["resource"] = "NLM:" + nlm
                     # this has been obsoleted by generating from parse_dqm_json_resource.py but leaving in here until a full run works
                     # if mod == 'FB':
                     #     if 'resourceAbbreviation' in entry:
                     #         fb_resource_abbreviation_to_nlm[entry['resourceAbbreviation']] = nlm
                     if nlm in resource_nlm_to_title:
                         # logger.info("PMID %s has NLM %s setting to title %s", pmid, nlm, resource_nlm_to_title[nlm])
-                        entry['resourceAbbreviation'] = resource_nlm_to_title[nlm]
-                    nlm_simplified = simplify_text_keep_digits(pubmed_data['nlm'])
+                        entry["resourceAbbreviation"] = resource_nlm_to_title[nlm]
+                    nlm_simplified = simplify_text_keep_digits(pubmed_data["nlm"])
                     if nlm_simplified not in resource_to_nlm:
-                        fh_mod_report[mod].write("NLM value %s from PMID %s XML does not map to a proper resource.\n" % (pubmed_data['nlm'], pmid))
+                        fh_mod_report[mod].write(
+                            "NLM value %s from PMID %s XML does not map to a proper resource.\n"
+                            % (pubmed_data["nlm"], pmid)
+                        )
                 else:
-                    if 'is_journal' in pubmed_data:
-                        fh_mod_report[mod].write("PMID %s does not have an NLM resource.\n" % (pmid))
+                    if "is_journal" in pubmed_data:
+                        fh_mod_report[mod].write(
+                            "PMID %s does not have an NLM resource.\n" % (pmid)
+                        )
 
-                if 'keywords' not in entry:
-                    entry['keywords'] = []
+                if "keywords" not in entry:
+                    entry["keywords"] = []
                 else:
                     # e.g. 9882485 25544291 24201188 31188077
                     entry = clean_up_keywords(mod, entry)
@@ -825,21 +849,21 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
                     #         keywords.append(mod_keyword)
                     #     entry['keywords'] = keywords
 
-                if 'keywords' in pubmed_data:
+                if "keywords" in pubmed_data:
                     # aggregate for all MODs except ZFIN, which has misformed data and can't fix it.
                     # 19308247 aggregates keywords for WB
-                    for mod_keyword in pubmed_data['keywords']:
-                        if mod_keyword.upper() not in map(str.upper, entry['keywords']):
-                            entry['keywords'].append(mod_keyword)
+                    for mod_keyword in pubmed_data["keywords"]:
+                        if mod_keyword.upper() not in map(str.upper, entry["keywords"]):
+                            entry["keywords"].append(mod_keyword)
 
-# # datePublished, keywords, and crossReferences, MODReferenceTypes, tags, allianceCategory, resourceAbbreviation
-# # datePublished - pubmed value, if no value use mod's, if multiple mod's different, error
-# # resourceAbbreviation - if pmid always use NLM's name
-# # keywords - aggregate
-# # tags - aggregate
-# # MODReferenceTypes - aggregate
-# # crossReferences - aggregate and clean up pages
-# # allianceCategory - single value, error if there's more than 1 unique value because of different MODs
+            # # datePublished, keywords, and crossReferences, MODReferenceTypes, tags, allianceCategory, resourceAbbreviation
+            # # datePublished - pubmed value, if no value use mod's, if multiple mod's different, error
+            # # resourceAbbreviation - if pmid always use NLM's name
+            # # keywords - aggregate
+            # # tags - aggregate
+            # # MODReferenceTypes - aggregate
+            # # crossReferences - aggregate and clean up pages
+            # # allianceCategory - single value, error if there's more than 1 unique value because of different MODs
 
             if is_pubmod:
                 sanitized_pubmod_data.append(entry)
@@ -860,13 +884,13 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
         sanitized_pubmod_list = list(chunks(sanitized_pubmod_data, entries_size))
         for i in range(len(sanitized_pubmod_list)):
             dict_to_output = sanitized_pubmod_list[i]
-            json_filename = json_storage_path + 'REFERENCE_PUBMOD_' + mod + '_' + str(i + 1) + '.json'
+            json_filename = json_storage_path + "REFERENCE_PUBMOD_" + mod + '_' + str(i + 1) + ".json"
             write_json(json_filename, dict_to_output)
 
         sanitized_pubmed_list = list(chunks(sanitized_pubmed_single_mod_data, entries_size))
         for i in range(len(sanitized_pubmed_list)):
             dict_to_output = sanitized_pubmed_list[i]
-            json_filename = json_storage_path + 'REFERENCE_PUBMED_' + mod + '_' + str(i + 1) + '.json'
+            json_filename = json_storage_path + "REFERENCE_PUBMED_" + mod + '_' + str(i + 1) + ".json"
             write_json(json_filename, dict_to_output)
 
         for unexpected_mod_property in unexpected_mod_properties:
@@ -874,8 +898,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
 
     logger.info("processing unmerged pubmed_data")
 
-    aggregate_fields = ['keywords', 'MODReferenceTypes', 'tags']
-    additional_fields = ['nlm', 'resource']
+    aggregate_fields = ["keywords", "MODReferenceTypes", "tags"]
+    additional_fields = ["nlm", "resource"]
 
     for pmid in unmerged_pubmed_data:
         # this was when trying to send all mod-pubmed data to a hash, and sort those with muliple mods, but script crashed out of memory
@@ -893,7 +917,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
         for mod in unmerged_pubmed_data[pmid]:
             entry = unmerged_pubmed_data[pmid][mod]
 
-            sanitized_entry['primaryId'] = entry['primaryId']
+            sanitized_entry["primaryId"] = entry["primaryId"]
 
             for pmid_field in pmid_fields:
                 if pmid_field in entry:
@@ -905,14 +929,14 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
                     if additional_field not in sanitized_entry:
                         sanitized_entry[additional_field] = entry[additional_field]
 
-            if 'datePublished' in entry:
-                date_published_set.add(entry['datePublished'])
+            if "datePublished" in entry:
+                date_published_set.add(entry["datePublished"])
 
-            if 'allianceCategory' in entry:
-                sanitized_entry['allianceCategory'] = entry['allianceCategory']
-                if not entry['allianceCategory'] in alliance_category_dict:
-                    alliance_category_dict[entry['allianceCategory']] = set()
-                alliance_category_dict[entry['allianceCategory']].add(mod)
+            if "allianceCategory" in entry:
+                sanitized_entry["allianceCategory"] = entry["allianceCategory"]
+                if not entry["allianceCategory"] in alliance_category_dict:
+                    alliance_category_dict[entry["allianceCategory"]] = set()
+                alliance_category_dict[entry["allianceCategory"]].add(mod)
 
             for aggregate_field in aggregate_fields:
                 if aggregate_field in entry:
@@ -922,12 +946,12 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
                         else:
                             sanitized_entry[aggregate_field] = [value]
 
-            if 'crossReferences' in entry:
-                for cross_ref in entry['crossReferences']:
-                    id = cross_ref['id']
+            if "crossReferences" in entry:
+                for cross_ref in entry["crossReferences"]:
+                    id = cross_ref["id"]
                     pages = []
-                    if 'pages' in cross_ref:
-                        pages = cross_ref['pages']
+                    if "pages" in cross_ref:
+                        pages = cross_ref["pages"]
                     cross_references_dict[id] = pages
 
         for cross_ref_id in cross_references_dict:
@@ -936,20 +960,21 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
             sanitized_cross_ref_dict["id"] = cross_ref_id
             if len(pages) > 0:
                 sanitized_cross_ref_dict["pages"] = pages
-            if 'crossReferences' in sanitized_entry:
-                sanitized_entry['crossReferences'].append(sanitized_cross_ref_dict)
+            if "crossReferences" in sanitized_entry:
+                sanitized_entry["crossReferences"].append(sanitized_cross_ref_dict)
             else:
-                sanitized_entry['crossReferences'] = [sanitized_cross_ref_dict]
+                sanitized_entry["crossReferences"] = [sanitized_cross_ref_dict]
 
-        if 'allianceCategory' in sanitized_entry:
+        if "allianceCategory" in sanitized_entry:
             if len(alliance_category_dict) > 1:
                 multiple_list = []
                 for alliance_category in alliance_category_dict:
                     mods = ", ".join(alliance_category_dict[alliance_category])
-                    multiple_list.append(alliance_category + ': ' + mods)
+                    multiple_list.append(alliance_category + ": " + mods)
                 multiple_alliance_categories = "\t".join(multiple_list)
                 # logger.info("MULTIPLE ALLIANCE CATEGORY pmid %s alliance categories %s", pmid, multiple_alliance_categories)
-                fh_mod_report['multi'].write("Multiple allianceCategory pmid %s alliance categories %s\n" % (pmid, multiple_alliance_categories))
+                fh_mod_report['multi'].write("Multiple allianceCategory pmid %s alliance categories %s\n"
+                                             % (pmid, multiple_alliance_categories))
         if len(date_published_set) > 1:
             dates_published = "\t".join(date_published_set)
             # logger.info("MULTIPLE DATES PUBLISHED pmid %s dates published %s", pmid, dates_published)
@@ -957,20 +982,21 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
 
         sanitized_pubmed_multi_mod_data.append(sanitized_entry)
 
-    logger.info('outputting sanitized pubmed_data')
+    logger.info("outputting sanitized pubmed_data")
 
     entries_size = 100000
     sanitized_pubmed_list = list(chunks(sanitized_pubmed_multi_mod_data, entries_size))
     for i in range(len(sanitized_pubmed_list)):
         dict_to_output = sanitized_pubmed_list[i]
-        json_filename = json_storage_path + 'REFERENCE_PUBMED_MULTI_' + str(i + 1) + '.json'
+        json_filename = json_storage_path + "REFERENCE_PUBMED_MULTI_" + str(i + 1) + '.json'
         write_json(json_filename, dict_to_output)
 
     resource_abbreviations_not_found = set()
     for mod in resource_not_found:
         for resource_abbrev in resource_not_found[mod]:
             resource_abbreviations_not_found.add(resource_abbrev)
-            fh_mod_report[mod].write("Summary: resourceAbbreviation %s not found %s times.\n" % (resource_abbrev, resource_not_found[mod][resource_abbrev]))
+            fh_mod_report[mod].write("Summary: resourceAbbreviation %s not found %s times.\n"
+                                     % (resource_abbrev, resource_not_found[mod][resource_abbrev]))
 
     for mod in cross_reference_types:
         # for cross_reference_type in cross_reference_types[mod]:
@@ -988,16 +1014,16 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
     # output resourceAbbreviations not matched to NLMs or resource MOD IDs to a file for attempt to
     # download from other source
     # with get_pubmed_nlm_resource_unmatched.py
-    resource_xml_path = base_path + 'resource_xml/'
+    resource_xml_path = base_path + "resource_xml/"
     if not path.exists(resource_xml_path):
         makedirs(resource_xml_path)
-    resource_abbreviation_not_found_filename = resource_xml_path + 'resource_abbreviation_not_matched'
+    resource_abbreviation_not_found_filename = resource_xml_path + "resource_abbreviation_not_matched"
     with open(resource_abbreviation_not_found_filename, "w") as resource_abbreviation_not_found_fh:
         for resource_abbrev in resource_abbreviations_not_found:
             resource_abbreviation_not_found_fh.write(resource_abbrev + "\n")
         resource_abbreviation_not_found_fh.close()
 
-    fh_mod_report['multi'].close()
+    fh_mod_report["multi"].close()
     # these are not needed, there are no dqm vs pubmed comparisons for multiple mods
     # fh_mod_report_title['multi'].close()
     # fh_mod_report_differ['multi'].close()
@@ -1007,8 +1033,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):     # no
         fh_mod_report_title[mod].close()
     for mod in fh_mod_report_differ:
         fh_mod_report_differ[mod].close()
-#     for mod in fh_mod_report_xrefs:
-#         fh_mod_report_xrefs[mod].close()
+    #     for mod in fh_mod_report_xrefs:
+    #         fh_mod_report_xrefs[mod].close()
     for mod in fh_mod_report_resource_unmatched:
         fh_mod_report_resource_unmatched[mod].close()
     for mod in fh_mod_report_reference_no_resource:
@@ -1038,25 +1064,27 @@ if __name__ == "__main__":
 
     logger.info("starting parse_dqm_json_reference.py")
 
-    if args['file']:
-        output_directory = ''
-        if args['directory']:
-            output_directory = args['directory']
+    if args["file"]:
+        output_directory = ""
+        if args["directory"]:
+            output_directory = args["directory"]
 
         # pipenv run python parse_dqm_json_reference.py -p
-        if args['generate_pmid_data']:
+        if args["generate_pmid_data"]:
             logger.info("Generating PMID files from DQM data")
-            generate_pmid_data(args['file'], output_directory)
+            generate_pmid_data(args["file"], output_directory)
 
         # pipenv run python parse_dqm_json_reference.py -f dqm_sample/ -m WB
         # pipenv run python parse_dqm_json_reference.py -f dqm_data_updates_new/ -m all
-        elif args['mod']:
-            aggregate_dqm_with_pubmed(args['file'], args['mod'], output_directory)
+        elif args["mod"]:
+            aggregate_dqm_with_pubmed(args["file"], args["mod"], output_directory)
 
         else:
-            logger.info("No valid processing for directory passed in.  Use -h for help.")
+            logger.info(
+                "No valid processing for directory passed in.  Use -h for help."
+            )
 
-    elif args['commandline']:
+    elif args["commandline"]:
         logger.info("placeholder for process_single_pmid.py")
 
     else:
