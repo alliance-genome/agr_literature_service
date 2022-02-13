@@ -35,8 +35,6 @@ https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegan
 
 to get a batch of pmids by pmids
 https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=1,10,100,1000487,1000584&retmode=xml
-
-
 """
 
 import glob
@@ -54,7 +52,7 @@ import requests
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG')
+coloredlogs.install(level="DEBUG")
 
 
 def download_pubmed_xml(pmids_wanted, storage_path, base_path):
@@ -80,7 +78,7 @@ def download_pubmed_xml(pmids_wanted, storage_path, base_path):
 
     pmids_slice_size = 5000
 
-    logger.info('There are ' + str(len(pmids_wanted)) + ' files in the queue')
+    logger.info("There are " + str(len(pmids_wanted)) + " files in the queue")
 
     if not os.path.exists(storage_path):
         os.makedirs(storage_path)
@@ -101,21 +99,21 @@ def download_pubmed_xml(pmids_wanted, storage_path, base_path):
     logger.info("Starting download of new PubMed XML")
 
     md5dict = {}
-    md5file = storage_path + 'md5sum'
+    md5file = storage_path + "md5sum"
     if os.path.exists(md5file):
-        logger.info('Reading previous md5sum mappings from %s', md5file)
+        logger.info("Reading previous md5sum mappings from %s", md5file)
         with open(md5file) as md5file_fh:
             for line in md5file_fh:
-                line_data = line.split('\t')
+                line_data = line.split("\t")
                 if line_data[0]:
                     md5dict[line_data[0]] = line_data[1].rstrip()
     else:
-        logger.info('No MD5SUM information found')
+        logger.info("No MD5SUM information found")
 
     for index in range(0, len(pmids_wanted), pmids_slice_size):
-        pmids_slice = pmids_wanted[index:index + pmids_slice_size]
-        pmids_joined = ', '.join(pmids_slice)
-        logger.debug('Processing PMIDs %s', pmids_joined)
+        pmids_slice = pmids_wanted[index : index + pmids_slice_size]
+        pmids_joined = ", ".join(pmids_slice)
+        logger.debug("Processing PMIDs %s", pmids_joined)
 
         # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=1,10,100,1000487,1000584&retmode=xml
         # default way without a library, using get
@@ -127,7 +125,7 @@ def download_pubmed_xml(pmids_wanted, storage_path, base_path):
 
         # using post with requests library, works well for 10000 pmids
         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
-        parameters = {'db': 'pubmed', 'retmode': 'xml', 'id': pmids_joined}
+        parameters = {"db": "pubmed", "retmode": "xml", "id": pmids_joined}
 
         # PubMed randomly has ("Connection broken: InvalidChunkLength(got length b'', 0 bytes read)"
         # that crashes this script.
@@ -149,41 +147,41 @@ def download_pubmed_xml(pmids_wanted, storage_path, base_path):
                     clean_xml = os.linesep.join([s for s in this_xml.splitlines() if s])
                     clean_xml = clean_xml.rstrip()
                     # logger.info(clean_xml)
-                    if re.search(r'<PMID[^>]*?>(\d+)</PMID>', clean_xml):
+                    if re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml):
                         pmid_group = re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml)
                         pmid = pmid_group.group(1)
                         pmids_found.add(pmid)
-                        filename = storage_path + pmid + '.xml'
-                        f = open(filename, 'w')
+                        filename = storage_path + pmid + ".xml"
+                        f = open(filename, "w")
                         f.write(clean_xml)
                         f.close()
-                        md5sum = hashlib.md5(clean_xml.encode('utf-8')).hexdigest()
+                        md5sum = hashlib.md5(clean_xml.encode("utf-8")).hexdigest()
                         md5dict[pmid] = md5sum
                 if len(pmids_slice) == pmids_slice_size:
-                    logger.info('Waiting to process more pmids')
+                    logger.info("Waiting to process more pmids")
                     time.sleep(5)
         except requests.exceptions.RequestException as e:
-            logger.info('requests failure with input %s %s', pmids_joined, e)
+            logger.info("requests failure with input %s %s", pmids_joined, e)
             logger.error(str(e))
             raise SystemExit(e)
 
     # md5file = storage_path + 'md5sum'
-    logger.info('Writing md5sum mappings to %s', md5file)
-    with open(md5file, 'w') as md5file_fh:
+    logger.info("Writing md5sum mappings to %s", md5file)
+    with open(md5file, "w") as md5file_fh:
         # md5file_fh.write(md5data)
         for key in sorted(md5dict.keys(), key=int):
             md5file_fh.write("%s\t%s\n" % (key, md5dict[key]))
 
-    logger.info('Writing log of pmids_not_found')
-    output_pmids_not_found_file = base_path + ' pmids_not_found'
-    with open(output_pmids_not_found_file, 'a') as pmids_not_found_file:
+    logger.info("Writing log of pmids_not_found")
+    output_pmids_not_found_file = base_path + " pmids_not_found"
+    with open(output_pmids_not_found_file, "a") as pmids_not_found_file:
         for pmid in pmids_wanted:
             if pmid not in pmids_found:
-                pmids_not_found_file.write('%s\n' % (pmid))
-                logger.info('PMID %s not found in pubmed query', pmid)
+                pmids_not_found_file.write("%s\n" % (pmid))
+                logger.info("PMID %s not found in pubmed query", pmid)
         pmids_not_found_file.close()
 
-    logger.info('Getting PubMed XML complete')
+    logger.info("Getting PubMed XML complete")
 
 
 # to process one by one

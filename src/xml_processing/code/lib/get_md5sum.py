@@ -1,16 +1,4 @@
-# import json
-import argparse
-import hashlib
-# from os import makedirs, listdir
-import logging
-import logging.config
-import urllib
-from os import environ, path
-# from shutil import copyfile
-from typing import List
-
-from dotenv import load_dotenv
-
+"""
 # pipenv run python get_md5sum.py -x -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
 # pipenv run python get_md5sum.py -j -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
 
@@ -18,16 +6,22 @@ from dotenv import load_dotenv
 
 # 5 minutes 5 seconds for 649073 xml
 
-# import re
+"""
+
+import argparse
+import hashlib
+import logging
+import logging.config
+import urllib
+from os import environ, path
+from dotenv import load_dotenv
 
 load_dotenv()
 
-pmids = []      # type: List
 
-
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
+log_file_path = path.join(path.dirname(path.abspath(__file__)), "../logging.conf")
 logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+logger = logging.getLogger("literature logger")
 
 
 parser = argparse.ArgumentParser()
@@ -42,23 +36,20 @@ parser.add_argument('-u', '--url', action='store', help='take input from entries
 
 args = vars(parser.parse_args())
 
-# todo: save this in an env variable
-# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
-base_path = environ.get('XML_PATH', "")
 
-
-def generate_md5sums(file_type):
+def generate_md5sums(file_type, pmids):
     """
 
     :param file_type:
     :return:
     """
 
+    base_path = environ.get("XML_PATH", "")
     # storage_path = base_path + 'pubmed_' + file_type + '_20210322/'
-    storage_path = base_path + 'pubmed_' + file_type + '/'
-    md5data = ''
+    storage_path = base_path + "pubmed_" + file_type + "/"
+    md5data = ""
     for pmid in pmids:
-        filename = storage_path + pmid + '.' + file_type
+        filename = storage_path + pmid + "." + file_type
         if not path.exists(filename):
             continue
         md5_hash = hashlib.md5()
@@ -67,65 +58,63 @@ def generate_md5sums(file_type):
             for byte_block in iter(lambda: f.read(4096), b""):
                 md5_hash.update(byte_block)
         # logger.info("Found %s %s %s", file_type, md5_hash.hexdigest(), filename)
-        md5data += pmid + '\t' + md5_hash.hexdigest() + '\n'
-    md5file = storage_path + 'md5sum'
-    with open(md5file, 'w') as md5file_fh:
+        md5data += pmid + "\t" + md5_hash.hexdigest() + "\n"
+    md5file = storage_path + "md5sum"
+    with open(md5file, "w") as md5file_fh:
         md5file_fh.write(md5data)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     """
     call main start function
     """
 
-    file_type = 'xml'
+    file_type = "xml"
+    pmids = []
 
-    if args['xml']:
-        file_type = 'xml'
-        logger.info('generating md5sums of xml directory')
+    if args["xml"]:
+        file_type = "xml"
+        logger.info("generating md5sums of xml directory")
+    elif args["json"]:
+        file_type = "json"
+        logger.info("generating md5sums of json directory")
 
-    elif args['json']:
-        file_type = 'json'
-        logger.info('generating md5sums of json directory')
-
-#    python get_md5sum.py -d
-    if args['database']:
-        logger.info('Processing database entries')
-
-    elif args['restapi']:
+    # python get_md5sum.py -d
+    if args["database"]:
+        logger.info("Processing database entries")
+    elif args["restapi"]:
         logger.info("Processing rest api entries")
-
-#     python get_md5sum.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
-    elif args['file']:
-        logger.info('Processing file input from %s', args['file'])
-        pmids = open(args['file']).read().splitlines()
-#     python get_md5sum.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
-    elif args['url']:
-        logger.info("Processing url input from %s", args['url'])
-        with urllib.request.urlopen(args['url']) as req:
+    # python get_md5sum.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
+    elif args["file"]:
+        logger.info("Processing file input from %s", args["file"])
+        pmids = open(args["file"]).read().splitlines()
+    # python get_md5sum.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
+    elif args["url"]:
+        logger.info("Processing url input from %s", args["url"])
+        with urllib.request.urlopen(args["url"]) as req:
             data = req.read()
             lines = data.splitlines()
             for pmid in lines:
                 pmids.append(pmid)
 
-#    python get_md5sum.py -c 1234 4576 1828
-    elif args['commandline']:
+    # python get_md5sum.py -c 1234 4576 1828
+    elif args["commandline"]:
         logger.info("Processing commandline input")
-        for pmid in args['commandline']:
+        for pmid in args["commandline"]:
             pmids.append(pmid)
 
-#    python get_md5sum.py -s
-    elif args['sample']:
-        logger.info('Processing hardcoded sample input')
-        pmid = '12345678'
+    # python get_md5sum.py -s
+    elif args["sample"]:
+        logger.info("Processing hardcoded sample input")
+        pmid = "12345678"
         pmids.append(pmid)
-        pmid = '12345679'
+        pmid = "12345679"
         pmids.append(pmid)
-        pmid = '12345680'
+        pmid = "12345680"
         pmids.append(pmid)
 
     else:
-        logger.info('Processing database entries')
+        logger.info("Processing database entries")
 
-    generate_md5sums(file_type)
-    logger.info('Done generating md5sum of %s files', file_type)
+    generate_md5sums(file_type, pmids)
+    logger.info("Done generating md5sum of %s files", file_type)

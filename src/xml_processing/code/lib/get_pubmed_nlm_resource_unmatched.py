@@ -1,38 +1,25 @@
+"""
+# pipenv run python get_pubmed_nlm_resource_unmatched.py
+
+# for cleanup, see which dqm resourceAbbreviations don't match NLM data from J_Medline.txt
+# and query pubmed from Kimberly's query to try to find info.
+"""
+
 
 import logging
 import logging.config
 import re
 import time
-# import os
 from os import environ, path
 
 import requests
 from dotenv import load_dotenv
 
-# import urllib
-# import argparse
-
-
 load_dotenv()
 
-
-# pipenv run python get_pubmed_nlm_resource_unmatched.py
-
-# for cleanup, see which dqm resourceAbbreviations don't match NLM data from J_Medline.txt
-# and query pubmed from Kimberly's query to try to find info.
-
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
+log_file_path = path.join(path.dirname(path.abspath(__file__)), "../logging.conf")
 logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
-
-
-# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
-base_path = environ.get('XML_PATH', "")
-storage_path = base_path + 'resource_xml/'
-
-
-pmids = []
-pmids_found = set()
+logger = logging.getLogger("literature logger")
 
 
 def download_pubmed_unmatched_resource_xml():
@@ -41,10 +28,19 @@ def download_pubmed_unmatched_resource_xml():
     :return:
     """
 
-    resource_abbreviation_not_found_filename = storage_path + 'resource_abbreviation_not_matched'
+    base_path = environ.get("XML_PATH", "")
+    storage_path = base_path + "resource_xml/"
+
+    resource_abbreviation_not_found_filename = (
+        storage_path + "resource_abbreviation_not_matched"
+    )
     resource_abbreviations = []
-    logger.info('Processing file input from %s', resource_abbreviation_not_found_filename)
-    resource_abbreviations = open(resource_abbreviation_not_found_filename).read().splitlines()
+    logger.info(
+        "Processing file input from %s", resource_abbreviation_not_found_filename
+    )
+    resource_abbreviations = (
+        open(resource_abbreviation_not_found_filename).read().splitlines()
+    )
 
     counter = 0
     max_count = 3000
@@ -59,8 +55,8 @@ def download_pubmed_unmatched_resource_xml():
         r = requests.post(url)
         xml_all = r.text
         print(xml_all)
-        filename = storage_path + simplify_text(resource_abbreviation) + '.xml'
-        f = open(filename, 'w')
+        filename = storage_path + simplify_text(resource_abbreviation) + ".xml"
+        f = open(filename, "w")
         f.write(xml_all)
         f.close()
         time.sleep(5)
@@ -73,14 +69,14 @@ def simplify_text(text):
     :return:
     """
 
-    no_html = re.sub('<[^<]+?>', '', text)
-    stripped = re.sub('[^a-zA-Z]+', '', no_html)
+    no_html = re.sub("<[^<]+?>", "", text)
+    stripped = re.sub("[^a-zA-Z]+", "", no_html)
     clean = stripped.lower()
 
     return clean
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     """
     call main start function
     """
