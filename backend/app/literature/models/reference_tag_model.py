@@ -1,3 +1,9 @@
+"""
+reference_tag_model.py
+======================
+"""
+
+
 from typing import Dict
 
 from sqlalchemy import Column, Enum, ForeignKey, Integer
@@ -8,7 +14,7 @@ from literature.schemas import TagName, TagSource
 
 
 class ReferenceTagModel(Base):
-    __tablename__ = 'reference_tags'
+    __tablename__ = "reference_tags"
     __versioned__: Dict = {}
 
     reference_tag_id = Column(
@@ -19,13 +25,13 @@ class ReferenceTagModel(Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey('references.reference_id',
-                   ondelete='CASCADE'),
+        ForeignKey("references.reference_id",
+                   ondelete="CASCADE"),
         index=True
     )
 
     reference = relationship(
-        'ReferenceModel',
+        "ReferenceModel",
         back_populates="tags"
     )
 

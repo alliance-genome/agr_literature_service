@@ -1,3 +1,9 @@
+"""
+resource_descriptor_models.py
+==============================
+"""
+
+
 from sqlalchemy import ARRAY, Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
@@ -5,7 +11,7 @@ from literature.database.base import Base
 
 
 class ResourceDescriptorPageModel(Base):
-    __tablename__ = 'resource_descriptor_pages'
+    __tablename__ = "resource_descriptor_pages"
 
     resource_descriptor_pages_id = Column(
         Integer,
@@ -27,19 +33,19 @@ class ResourceDescriptorPageModel(Base):
 
     resource_descriptor_id = Column(
         Integer,
-        ForeignKey('resource_descriptors.resource_descriptor_id',
-                   ondelete='CASCADE'),
+        ForeignKey("resource_descriptors.resource_descriptor_id",
+                   ondelete="CASCADE"),
         index=True
     )
 
     resource_descriptor = relationship(
-        'ResourceDescriptorModel',
+        "ResourceDescriptorModel",
         back_populates="pages"
     )
 
 
 class ResourceDescriptorModel(Base):
-    __tablename__ = 'resource_descriptors'
+    __tablename__ = "resource_descriptors"
 
     resource_descriptor_id = Column(
         Integer,
@@ -48,9 +54,9 @@ class ResourceDescriptorModel(Base):
     )
 
     pages = relationship(
-        'ResourceDescriptorPageModel',
-        lazy='joined',
-        back_populates='resource_descriptor',
+        "ResourceDescriptorPageModel",
+        lazy="joined",
+        back_populates="resource_descriptor",
         cascade="all, delete, delete-orphan"
     )
 

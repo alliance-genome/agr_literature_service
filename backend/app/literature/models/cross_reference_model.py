@@ -1,3 +1,9 @@
+"""
+cross_reference_model.py
+========================
+"""
+
+
 from typing import Dict
 
 from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String
@@ -7,7 +13,7 @@ from literature.database.base import Base
 
 
 class CrossReferenceModel(Base):
-    __tablename__ = 'cross_references'
+    __tablename__ = "cross_references"
     __versioned__: Dict = {}
 
     curie = Column(
@@ -23,39 +29,39 @@ class CrossReferenceModel(Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey('references.reference_id'),
+        ForeignKey("references.reference_id"),
         index=True
     )
 
     reference = relationship(
-        'ReferenceModel',
+        "ReferenceModel",
         back_populates="cross_references"
     )
 
     resource_id = Column(
         Integer,
-        ForeignKey('resources.resource_id'),
+        ForeignKey("resources.resource_id"),
         index=True
     )
 
     resource = relationship(
-        'ResourceModel',
-        back_populates='cross_references'
+        "ResourceModel",
+        back_populates="cross_references"
     )
 
     authors = relationship(
-        'AuthorModel',
-        back_populates='orcid_cross_reference'
+        "AuthorModel",
+        back_populates="orcid_cross_reference"
     )
 
     editors = relationship(
-        'EditorModel',
-        back_populates='orcid_cross_reference'
+        "EditorModel",
+        back_populates="orcid_cross_reference"
     )
 
     people = relationship(
-        'PersonModel',
-        secondary='person_orcid_cross_reference_link'
+        "PersonModel",
+        secondary="person_orcid_cross_reference_link"
     )
 
     pages = Column(
@@ -64,6 +70,8 @@ class CrossReferenceModel(Base):
     )
 
     def __str__(self):
-        """Over write the default output."""
+        """
+        Overwrite the default output.
+        """
         return "CrossReference: curie='{}' is_obsolete='{}' reference_id='{}', resource_id='{}' pages={}".\
             format(self.curie, self.is_obsolete, self.reference_id, self.resource_id, self.pages)
