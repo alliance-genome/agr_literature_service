@@ -28,9 +28,9 @@ logger = logging.getLogger("literature logger")
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
-parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
-parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
+parser.add_argument("-d", "--database", action="store_true", help="take input from database query")
+parser.add_argument("-f", "--file", action="store", help="take input from entries in file with full path")
+parser.add_argument("-r", "--restapi", action="store", help="take input from rest api")
 
 args = vars(parser.parse_args())
 

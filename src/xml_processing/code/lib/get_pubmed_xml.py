@@ -88,14 +88,14 @@ def download_pubmed_xml(pmids_wanted, storage_path, base_path):
 
     # this section reads pubmed xml files already acquired to skip downloading them.
     # to get full set, clear out storage_path, or comment out this section
-    logger.info('Reading PubMed XML previously acquired')
-    pmid_xml = set([os.path.basename(x).replace('.xml', '') for x in glob.glob(storage_path + '*.xml')])
-    logger.info('Found ' + str(len(pmid_xml)) + ' XMLs')
+    logger.info("Reading PubMed XML previously acquired")
+    pmid_xml = set([os.path.basename(x).replace(".xml", "") for x in glob.glob(storage_path + "*.xml")])
+    logger.info("Found " + str(len(pmid_xml)) + " XMLs")
 
     pmids_to_get = set(pmids_wanted).difference(set(pmid_xml))
     pmids_to_get = sorted(list(pmids_to_get))
 
-    logger.info('After processing, ' + str(len(pmids_to_get)) + ' files will be downloaded')
+    logger.info("After processing, " + str(len(pmids_to_get)) + " files will be downloaded")
     logger.info("Starting download of new PubMed XML")
 
     md5dict = {}
