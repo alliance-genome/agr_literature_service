@@ -1,3 +1,9 @@
+"""
+reference_model.py
+==================
+"""
+
+
 from datetime import datetime
 from typing import Dict
 
@@ -12,7 +18,7 @@ from literature.schemas import PubMedPublicationStatus, ReferenceCategory
 
 
 class ReferenceModel(Base):
-    __tablename__ = 'references'
+    __tablename__ = "references"
     __versioned__: Dict = {}
 
     reference_id = Column(
@@ -29,35 +35,35 @@ class ReferenceModel(Base):
     )
 
     cross_references = relationship(
-        'CrossReferenceModel',
-        lazy='joined',
-        back_populates='reference',
+        "CrossReferenceModel",
+        lazy="joined",
+        back_populates="reference",
         cascade="all, delete, delete-orphan",
         passive_deletes=True
     )
 
     files = relationship(
-        'FileModel',
-        lazy='joined',
-        back_populates='reference'
+        "FileModel",
+        lazy="joined",
+        back_populates="reference"
     )
 
     comment_and_corrections_out = relationship(
-        'ReferenceCommentAndCorrectionModel',
+        "ReferenceCommentAndCorrectionModel",
         foreign_keys="ReferenceCommentAndCorrectionModel.reference_id_from",
-        back_populates='reference_from'
+        back_populates="reference_from"
     )
 
     comment_and_corrections_in = relationship(
-        'ReferenceCommentAndCorrectionModel',
+        "ReferenceCommentAndCorrectionModel",
         foreign_keys="ReferenceCommentAndCorrectionModel.reference_id_to",
 
-        back_populates='reference_to'
+        back_populates="reference_to"
     )
 
     merged_into_id = Column(
         Integer,
-        ForeignKey('references.reference_id')
+        ForeignKey("references.reference_id")
     )
 
     merged_into_reference = relationship(
@@ -70,38 +76,38 @@ class ReferenceModel(Base):
     )
 
     automated_term_tags = relationship(
-        'ReferenceAutomatedTermTagModel',
-        back_populates='reference'
+        "ReferenceAutomatedTermTagModel",
+        back_populates="reference"
     )
 
     manual_term_tags = relationship(
-        'ReferenceManualTermTagModel',
-        back_populates='reference'
+        "ReferenceManualTermTagModel",
+        back_populates="reference"
     )
 
     notes = relationship(
-        'NoteModel',
-        lazy='joined',
-        back_populates='reference'
+        "NoteModel",
+        lazy="joined",
+        back_populates="reference"
     )
 
     resource_id = Column(
         Integer,
-        ForeignKey('resources.resource_id'),
+        ForeignKey("resources.resource_id"),
         index=True,
         nullable=True
     )
 
     resource = relationship(
-        'ResourceModel',
+        "ResourceModel",
         back_populates="references",
         single_parent=True,
     )
 
     verified_people = relationship(
-        'PersonModel',
-        lazy='joined',
-        secondary='person_reference_link'
+        "PersonModel",
+        lazy="joined",
+        secondary="person_reference_link"
     )
 
     title = Column(
@@ -117,23 +123,23 @@ class ReferenceModel(Base):
     )
 
     mod_reference_types = relationship(
-        'ModReferenceTypeModel',
-        lazy='joined',
-        back_populates='reference',
+        "ModReferenceTypeModel",
+        lazy="joined",
+        back_populates="reference",
         cascade="all, delete, delete-orphan"
     )
 
     authors = relationship(
-        'AuthorModel',
-        lazy='joined',
-        back_populates='reference',
+        "AuthorModel",
+        lazy="joined",
+        back_populates="reference",
         cascade="all, delete, delete-orphan"
     )
 
     editors = relationship(
-        'EditorModel',
-        lazy='joined',
-        back_populates='reference',
+        "EditorModel",
+        lazy="joined",
+        back_populates="reference",
         cascade="all, delete, delete-orphan"
     )
 
@@ -234,16 +240,16 @@ class ReferenceModel(Base):
     )
 
     tags = relationship(
-        'ReferenceTagModel',
-        lazy='joined',
-        back_populates='reference',
+        "ReferenceTagModel",
+        lazy="joined",
+        back_populates="reference",
         cascade="all, delete, delete-orphan"
     )
 
     mesh_terms = relationship(
-        'MeshDetailModel',
-        lazy='joined',
-        back_populates='reference',
+        "MeshDetailModel",
+        lazy="joined",
+        back_populates="reference",
         cascade="all, delete, delete-orphan"
     )
 
@@ -256,7 +262,7 @@ class ReferenceModel(Base):
     date_created = Column(
         DateTime,
         nullable=False,
-        default=datetime.now(tz=pytz.timezone('UTC'))
+        default=datetime.now(tz=pytz.timezone("UTC"))
     )
 
     open_access = Column(
@@ -266,6 +272,8 @@ class ReferenceModel(Base):
     )
 
     def __str__(self):
-        """Over write the default output."""
+        """
+        Overwrite the default output.
+        """
         return "Reference id = {} created {} updated {}: curie='{}' resource_id='{}' title='{}...'".\
             format(self.reference_id, self.date_created, self.date_updated, self.curie, self.resource_id, self.title[:10])

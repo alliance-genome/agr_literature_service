@@ -1,3 +1,8 @@
+"""
+mesh_detail_model.py
+====================
+"""
+
 from typing import Dict
 
 from sqlalchemy import Column, ForeignKey, Integer, String
@@ -7,7 +12,7 @@ from literature.database.base import Base
 
 
 class MeshDetailModel(Base):
-    __tablename__ = 'mesh_details'
+    __tablename__ = "mesh_details"
     __versioned__: Dict = {}
 
     mesh_detail_id = Column(
@@ -18,13 +23,13 @@ class MeshDetailModel(Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey('references.reference_id',
-                   ondelete='CASCADE'),
+        ForeignKey("references.reference_id",
+                   ondelete="CASCADE"),
         index=True
     )
 
     reference = relationship(
-        'ReferenceModel',
+        "ReferenceModel",
         back_populates="mesh_terms"
     )
 

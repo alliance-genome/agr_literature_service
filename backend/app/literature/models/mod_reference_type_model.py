@@ -1,3 +1,9 @@
+"""
+mod_reference_type_model.py
+===========================
+"""
+
+
 from typing import Dict
 
 from sqlalchemy import Column, ForeignKey, Integer, String
@@ -7,7 +13,7 @@ from literature.database.base import Base
 
 
 class ModReferenceTypeModel(Base):
-    __tablename__ = 'mod_reference_types'
+    __tablename__ = "mod_reference_types"
     __versioned__: Dict = {}
 
     mod_reference_type_id = Column(
@@ -18,13 +24,13 @@ class ModReferenceTypeModel(Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey('references.reference_id',
-                   ondelete='CASCADE'),
+        ForeignKey("references.reference_id",
+                   ondelete="CASCADE"),
         index=True
     )
 
     reference = relationship(
-        'ReferenceModel',
+        "ReferenceModel",
         back_populates="mod_reference_types"
     )
 

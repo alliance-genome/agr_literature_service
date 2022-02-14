@@ -1,3 +1,8 @@
+"""
+file_model.py
+============
+"""
+
 from datetime import datetime
 from typing import Dict
 
@@ -10,7 +15,7 @@ from literature.schemas import FileCategories
 
 
 class FileModel(Base):
-    __tablename__ = 'files'
+    __tablename__ = "files"
     __versioned__: Dict = {}
 
     file_id = Column(
@@ -27,13 +32,13 @@ class FileModel(Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey('references.reference_id',
-                   ondelete='CASCADE'),
+        ForeignKey("references.reference_id",
+                   ondelete="CASCADE"),
         index=True
     )
 
     reference = relationship(
-        'ReferenceModel',
+        "ReferenceModel",
         back_populates="files"
     )
 
