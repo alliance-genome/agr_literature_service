@@ -1,3 +1,8 @@
+"""
+author_model.py
+===============
+"""
+
 from datetime import datetime
 from typing import Dict
 
@@ -10,7 +15,7 @@ from literature.database.base import Base
 
 
 class AuthorModel(Base):
-    __tablename__ = 'authors'
+    __tablename__ = "authors"
     __versioned__: Dict = {}
 
     author_id = Column(
@@ -21,47 +26,47 @@ class AuthorModel(Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey('references.reference_id'),
+        ForeignKey("references.reference_id"),
         index=True
     )
 
     reference = relationship(
-        'ReferenceModel',
+        "ReferenceModel",
         back_populates="authors"
     )
 
     resource_id = Column(
         Integer,
-        ForeignKey('resources.resource_id'),
+        ForeignKey("resources.resource_id"),
         index=True,
     )
 
     resource = relationship(
-        'ResourceModel',
+        "ResourceModel",
         back_populates="authors"
     )
 
     orcid = Column(
         String,
-        ForeignKey('cross_references.curie'),
+        ForeignKey("cross_references.curie"),
         index=True
     )
 
     orcid_cross_reference = relationship(
-        'CrossReferenceModel',
+        "CrossReferenceModel",
         lazy="joined",
         back_populates="authors"
     )
 
     person_id = Column(
         Integer,
-        ForeignKey('people.person_id'),
+        ForeignKey("people.person_id"),
         nullable=True,
         index=True
     )
 
     person = relationship(
-        'PersonModel',
+        "PersonModel",
         back_populates="authors",
         single_parent=True,
     )
@@ -120,5 +125,5 @@ class AuthorModel(Base):
     date_created = Column(
         DateTime,
         nullable=False,
-        default=datetime.now(tz=pytz.timezone('UTC'))
+        default=datetime.now(tz=pytz.timezone("UTC"))
     )

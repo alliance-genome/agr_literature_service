@@ -1,3 +1,9 @@
+"""
+user_model.py
+=============
+"""
+
+
 from typing import Dict
 
 from sqlalchemy import Column, String
@@ -6,7 +12,7 @@ from literature.database.base import Base
 
 
 class UserModel(Base):
-    __tablename__ = 'users'
+    __tablename__ = "users"
     __versioned__: Dict = {}
 
     id = Column(

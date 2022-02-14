@@ -1,3 +1,9 @@
+"""
+note_model.py
+============
+"""
+
+
 from datetime import datetime
 from typing import Dict
 
@@ -9,7 +15,7 @@ from literature.database.base import Base
 
 
 class NoteModel(Base):
-    __tablename__ = 'notes'
+    __tablename__ = "notes"
     __versioned__: Dict = {}
 
     note_id = Column(
@@ -20,23 +26,23 @@ class NoteModel(Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey('references.reference_id'),
+        ForeignKey("references.reference_id"),
         index=True
     )
 
     reference = relationship(
-        'ReferenceModel',
+        "ReferenceModel",
         back_populates="notes"
     )
 
     resource_id = Column(
         Integer,
-        ForeignKey('resources.resource_id'),
+        ForeignKey("resources.resource_id"),
         index=True,
     )
 
     resource = relationship(
-        'ResourceModel',
+        "ResourceModel",
         back_populates="notes"
     )
 
@@ -55,5 +61,5 @@ class NoteModel(Base):
     date_created = Column(
         DateTime,
         nullable=False,
-        default=datetime.now(tz=pytz.timezone('UTC'))
+        default=datetime.now(tz=pytz.timezone("UTC"))
     )

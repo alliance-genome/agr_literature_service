@@ -1,3 +1,9 @@
+"""
+person_model.py
+===============
+"""
+
+
 from datetime import datetime
 from typing import Dict
 
@@ -9,7 +15,7 @@ from literature.database.base import Base
 
 
 class PersonModel(Base):
-    __tablename__ = 'people'
+    __tablename__ = "people"
     __versioned__: Dict = {}
 
     person_id = Column(
@@ -19,8 +25,8 @@ class PersonModel(Base):
     )
 
     references = relationship(
-        'ReferenceModel',
-        secondary='person_reference_link'
+        "ReferenceModel",
+        secondary="person_reference_link"
     )
 
     editors = relationship(
@@ -34,9 +40,9 @@ class PersonModel(Base):
     )
 
     orcids = relationship(
-        'CrossReferenceModel',
-        lazy='joined',
-        secondary='person_orcid_cross_reference_link'
+        "CrossReferenceModel",
+        lazy="joined",
+        secondary="person_orcid_cross_reference_link"
     )
 
     order = Column(
@@ -82,5 +88,5 @@ class PersonModel(Base):
     date_created = Column(
         DateTime,
         nullable=False,
-        default=datetime.now(tz=pytz.timezone('UTC'))
+        default=datetime.now(tz=pytz.timezone("UTC"))
     )
