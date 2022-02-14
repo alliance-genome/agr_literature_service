@@ -1,8 +1,7 @@
+from initialize import update_resource_descriptor
 from sqlalchemy.orm import Session
 
 from literature.models import ResourceDescriptorModel
-
-from initialize import update_resource_descriptor
 
 
 def update(db: Session):

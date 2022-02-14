@@ -1,19 +1,17 @@
 import pytest
-from literature.crud.reference_comment_and_correction_crud import create, show, patch, destroy, show_changesets
-from sqlalchemy import create_engine
-from sqlalchemy import MetaData
-
-from literature.models import (
-    Base, ReferenceCommentAndCorrectionModel, ReferenceModel
-)
-from literature.schemas import (
-    ReferenceCommentAndCorrectionSchemaPost,
-    ReferenceCommentAndCorrectionSchemaPatch
-)
-from literature.database.config import SQLALCHEMY_DATABASE_URL
-from sqlalchemy.orm import sessionmaker
 from fastapi import HTTPException
 from pydantic import ValidationError
+from sqlalchemy import MetaData, create_engine
+from sqlalchemy.orm import sessionmaker
+
+from literature.crud.reference_comment_and_correction_crud import (
+    create, destroy, patch, show, show_changesets)
+from literature.database.config import SQLALCHEMY_DATABASE_URL
+from literature.models import (Base, ReferenceCommentAndCorrectionModel,
+                               ReferenceModel)
+from literature.schemas import (ReferenceCommentAndCorrectionSchemaPatch,
+                                ReferenceCommentAndCorrectionSchemaPost)
+
 metadata = MetaData()
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})

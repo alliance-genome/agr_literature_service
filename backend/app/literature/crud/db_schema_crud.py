@@ -1,7 +1,7 @@
 import io
 
-from sqlalchemy_schemadisplay import create_schema_graph
 from sqlalchemy import MetaData
+from sqlalchemy_schemadisplay import create_schema_graph
 
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 

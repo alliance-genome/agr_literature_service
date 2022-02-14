@@ -1,14 +1,12 @@
-from literature.crud.reference_crud import create, show, patch, show_notes
-from sqlalchemy import create_engine
-from sqlalchemy import MetaData
-
-# from literature import models
-from literature.models import (
-    Base
-)
-from literature.database.config import SQLALCHEMY_DATABASE_URL
-from literature.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
+from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import sessionmaker
+
+from literature.crud.reference_crud import create, patch, show, show_notes
+from literature.database.config import SQLALCHEMY_DATABASE_URL
+# from literature import models
+from literature.models import Base
+from literature.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
+
 metadata = MetaData()
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})

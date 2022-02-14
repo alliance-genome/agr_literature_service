@@ -15,10 +15,11 @@ recurse, output list of pubmed-based (as opposed to MOD-DQM-based) pmids to  inp
 """
 
 
-import time
-import os
-import click
 import logging
+import os
+import time
+
+import click
 import coloredlogs
 
 from get_pubmed_xml import download_pubmed_xml
@@ -26,7 +27,7 @@ from xml_to_json import generate_json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG')
+coloredlogs.install(level="DEBUG")
 
 
 def download_and_convert_pmids(pmids_wanted, skip_download_flag):
@@ -41,28 +42,30 @@ def download_and_convert_pmids(pmids_wanted, skip_download_flag):
     pmids_new_list = pmids_wanted
     pmids_additional = recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list, skip_download_flag)
 
-    base_path = os.environ.get('XML_PATH')
-    inputs_path = base_path + 'inputs/'
+    base_path = os.environ.get("XML_PATH")
+    inputs_path = base_path + "inputs/"
     if not os.path.exists(inputs_path):
         os.makedirs(inputs_path)
-    pubmed_only_filepath = base_path + 'inputs/pubmed_only_pmids'
+    pubmed_only_filepath = base_path + "inputs/pubmed_only_pmids"
     pmids_additional.sort(key=int)
     # for pmid in pmids_additional:
     #     logger.info("new_pmid %s", pmid)
     #     print("pubmed additional %s" % (pmid))
-    pmids_additional_string = ("\n".join(pmids_additional))
+    pmids_additional_string = "\n".join(pmids_additional)
     with open(pubmed_only_filepath, "w") as pubmed_only_fh:
         pubmed_only_fh.write(pmids_additional_string)
 
-    pubmed_all_filepath = base_path + 'inputs/all_pmids'
+    pubmed_all_filepath = base_path + "inputs/all_pmids"
     pmids_all_list = pmids_wanted + pmids_additional
     pmids_all_list.sort(key=int)
-    pmids_all_string = ("\n".join(pmids_all_list))
+    pmids_all_string = "\n".join(pmids_all_list)
     with open(pubmed_all_filepath, "w") as pubmed_all_fh:
         pubmed_all_fh.write(pmids_all_string)
 
 
-def recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list, skip_download_flag):
+def recursively_process_pmids(
+    pmids_original, pmids_additional, pmids_new_list, skip_download_flag
+):
     """
 
     :param pmids_original:
@@ -88,9 +91,9 @@ def recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list, 
 
 
 @click.command()
-@click.option('-c', '--commandline', 'cli', multiple=True, help='take input from command line flag', required=False)
-@click.option('-f', '--file', 'ffile', help='take input from entries in file with full path', required=False)
-@click.option('-s', '--skip-download', 'skip', help='do not download PubMed XML in testing mode', required=False, default=False)
+@click.option("-c", "--commandline", "cli", multiple=True, help="take input from command line flag", required=False)
+@click.option("-f", "--file", "ffile", help="take input from entries in file with full path", required=False)
+@click.option("-s", "--skip-download", "skip", help="do not download PubMed XML in testing mode", required=False, default=False,)
 def run_tasks(cli, ffile, skip):
     """
     skip download flag is to avoid downloading new pubmed_xml/ when running tests,
@@ -106,18 +109,18 @@ def run_tasks(cli, ffile, skip):
 
     # python process_single_pmid.py -c 1234 4576 1828
     if cli:
-        logger.info('Processing commandline input')
+        logger.info("Processing commandline input")
         for pmid in cli:
             pmids_wanted.append(pmid)
     elif ffile:
-        logger.info('Processing file input from ' + ffile)
+        logger.info("Processing file input from " + ffile)
         pmids_wanted = open(ffile).read().splitlines()
     else:
-        logger.info('Must enter a PMID through command line')
+        logger.info("Must enter a PMID through command line")
 
     download_and_convert_pmids(pmids_wanted, skip)
 
-    logger.info('Done Processing')
+    logger.info("Done Processing")
 
 
 if __name__ == "__main__":

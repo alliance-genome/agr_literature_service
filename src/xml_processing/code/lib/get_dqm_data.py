@@ -8,14 +8,15 @@ compares md5sum to current file to prevent downloading if it's the same
 
 """
 
-import urllib.request
-import json
-import io
 import gzip
 import hashlib
-import os
-from os import environ, path, makedirs
+import io
+import json
 import logging.config
+import os
+import urllib.request
+from os import environ, makedirs, path
+
 import coloredlogs
 from dotenv import load_dotenv
 
@@ -23,12 +24,12 @@ load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG')
+coloredlogs.install(level="DEBUG")
 
 # contants that need to be modified on new MODs or new release
-MODS = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
-RELEASE = '4.1.0'
-DATATYPES = ['REFERENCE', 'REF-EXCHANGE', 'RESOURCE']
+MODS = ["SGD", "RGD", "FB", "WB", "MGI", "ZFIN"]
+RELEASE = "4.1.0"
+DATATYPES = ["REFERENCE", "REF-EXCHANGE", "RESOURCE"]
 
 
 def get_md5_sum_from_path(filename):
@@ -41,7 +42,7 @@ def get_md5_sum_from_path(filename):
     if os.path.exists(filename):
         return md5_update_from_file(filename, hashlib.md5()).hexdigest()
     else:
-        return 'no file found'
+        return "no file found"
 
 
 def md5_update_from_file(filename, hash):
@@ -55,6 +56,7 @@ def md5_update_from_file(filename, hash):
     with open(str(filename), "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             hash.update(chunk)
+
     return hash
 
 
@@ -67,8 +69,8 @@ def download_dqm_json():
     # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
     # base_path = '/home/core/git/azurebrd/agr_literature_service_demo/src/xml_processing/'
     # base_path = '/workdir/src/xml_processing/'
-    base_path = environ.get('XML_PATH')
-    storage_path = base_path + 'dqm_data/'
+    base_path = environ.get("XML_PATH")
+    storage_path = base_path + "dqm_data/"
     if not path.exists(storage_path):
         makedirs(storage_path)
 
@@ -82,13 +84,13 @@ def download_dqm_json():
         for mod in MODS:
             url = 'https://fms.alliancegenome.org/api/datafile/by/' + RELEASE + '/' + datatype + '/' + mod + '?latest=true'
 
-    mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
-    datatypes = ['REFERENCE', 'REF-EXCHANGE', 'RESOURCE']
-#     mods = ['WB']
-#     datatypes = ['RESOURCE']
-#     mods = ['WB', 'FB']
-#     datatypes = ['REFERENCE']
-    release = '4.1.1'
+    mods = ["SGD", "RGD", "FB", "WB", "MGI", "ZFIN"]
+    datatypes = ["REFERENCE", "REF-EXCHANGE", "RESOURCE"]
+    # mods = ['WB']
+    # datatypes = ['RESOURCE']
+    # mods = ['WB', 'FB']
+    # datatypes = ['REFERENCE']
+    release = "4.1.1"
     for datatype in datatypes:
         for mod in mods:
             url = 'https://fms.alliancegenome.org/api/datafile/by/' + release + '/' + datatype + '/' + mod + '?latest=true'
@@ -100,14 +102,14 @@ def download_dqm_json():
             #     data = json.loads(file_data)
             if len(data) < 1:
                 continue
-            if 's3Url' not in data[0]:
+            if "s3Url" not in data[0]:
                 continue
-            file_url = data[0]['s3Url']
-            md5sum_fms = data[0]['md5Sum']
-            outfile_path_decompressed = storage_path + datatype + '_' + mod + '.json'
+            file_url = data[0]["s3Url"]
+            md5sum_fms = data[0]["md5Sum"]
+            outfile_path_decompressed = storage_path + datatype + "_" + mod + ".json"
 
             md5sum_local = get_md5_sum_from_path(outfile_path_decompressed)
-            logger.debug(outfile_path_decompressed + ' has md5sum ' + md5sum_local)
+            logger.debug(outfile_path_decompressed + " has md5sum " + md5sum_local)
 
             if md5sum_local != md5sum_fms:
                 logger.info("downloading %s to %s", file_url, outfile_path_decompressed)
@@ -115,7 +117,7 @@ def download_dqm_json():
                 compressed_file = io.BytesIO(response.read())
                 decompressed_file = gzip.GzipFile(fileobj=compressed_file)
 
-                with open(outfile_path_decompressed, 'wb') as outfile:
+                with open(outfile_path_decompressed, "wb") as outfile:
                     outfile.write(decompressed_file.read())
 
     # if wanting to keep copies of compressed files to save space (md5sum check wouldn't work against fms)

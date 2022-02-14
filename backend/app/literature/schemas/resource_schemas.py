@@ -1,17 +1,13 @@
-from typing import List, Optional
 from datetime import datetime
+from typing import List, Optional
 
-from pydantic import BaseModel
 # from pydantic import ValidationError
-from pydantic import validator
+from pydantic import BaseModel, validator
 
-from literature.schemas import BaseModelShow
-from literature.schemas import AuthorSchemaPost
-from literature.schemas import AuthorSchemaShow
-from literature.schemas import EditorSchemaPost
-from literature.schemas import EditorSchemaShow
-from literature.schemas import CrossReferenceSchemaRelated
-from literature.schemas import CrossReferenceSchema
+from literature.schemas import (AuthorSchemaPost, AuthorSchemaShow,
+                                BaseModelShow, CrossReferenceSchema,
+                                CrossReferenceSchemaRelated, EditorSchemaPost,
+                                EditorSchemaShow)
 
 
 class ResourceSchemaPost(BaseModel):

@@ -1,10 +1,10 @@
-from os import path
 # from os import environ
 # import json
 # import requests
 import argparse
 import logging
 import logging.config
+from os import path
 
 from helper_file_processing import generate_cross_references_file
 

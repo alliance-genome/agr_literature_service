@@ -1,18 +1,16 @@
 import pytest
-from literature.crud.reference_automated_term_tag_crud import create, show, patch, destroy, show_changesets
-from sqlalchemy import create_engine
-from sqlalchemy import MetaData
-
-from literature.models import (
-    Base, ReferenceAutomatedTermTagModel
-)
-from literature.schemas import (
-    ReferenceAutomatedTermTagSchemaPost,
-    ReferenceAutomatedTermTagSchemaPatch
-)
-from literature.database.config import SQLALCHEMY_DATABASE_URL
-from sqlalchemy.orm import sessionmaker
 from fastapi import HTTPException
+from sqlalchemy import MetaData, create_engine
+from sqlalchemy.orm import sessionmaker
+
+from literature.crud.reference_automated_term_tag_crud import (create, destroy,
+                                                               patch, show,
+                                                               show_changesets)
+from literature.database.config import SQLALCHEMY_DATABASE_URL
+from literature.models import Base, ReferenceAutomatedTermTagModel
+from literature.schemas import (ReferenceAutomatedTermTagSchemaPatch,
+                                ReferenceAutomatedTermTagSchemaPost)
+
 metadata = MetaData()
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})

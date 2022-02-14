@@ -1,6 +1,7 @@
 # import logging
-from os import environ, path, makedirs
 import json
+from os import environ, makedirs, path
+
 from helper_file_processing import write_json
 
 # log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')

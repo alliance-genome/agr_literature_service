@@ -1,6 +1,15 @@
 # import json
+import argparse
+import hashlib
+# from os import makedirs, listdir
+import logging
+import logging.config
 import urllib
+from os import environ, path
+# from shutil import copyfile
+from typing import List
 
+from dotenv import load_dotenv
 
 # pipenv run python get_md5sum.py -x -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
 # pipenv run python get_md5sum.py -j -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
@@ -9,20 +18,7 @@ import urllib
 
 # 5 minutes 5 seconds for 649073 xml
 
-import argparse
 # import re
-
-from os import environ, path
-# from os import makedirs, listdir
-import logging
-import logging.config
-
-import hashlib
-
-# from shutil import copyfile
-from typing import List
-
-from dotenv import load_dotenv
 
 load_dotenv()
 

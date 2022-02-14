@@ -1,26 +1,35 @@
-from sqlalchemy.orm import Session
+"""
+editor_crud.py
+=============
+"""
+
 from datetime import datetime
 
-from fastapi import HTTPException
-from fastapi import status
+
+from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy.orm import Session
 
+from literature.crud.reference_resource import add, create_obj, stripout
+from literature.models import (CrossReferenceModel, EditorModel,
+                               ReferenceModel, ResourceModel)
 from literature.schemas import EditorSchemaCreate
-
-from literature.models import ReferenceModel
-from literature.models import ResourceModel
-from literature.models import EditorModel
-from literature.models import CrossReferenceModel
-from literature.crud.reference_resource import add, stripout, create_obj
 
 
 def create(db: Session, editor: EditorSchemaCreate) -> int:
+    """
+
+    :param db:
+    :param editor:
+    :return:
+    """
+
     editor_data = jsonable_encoder(editor)
 
     orcid = None
-    if 'orcid' in editor_data:
-        orcid = editor_data['orcid']
-        del editor_data['orcid']
+    if "orcid" in editor_data:
+        orcid = editor_data["orcid"]
+        del editor_data["orcid"]
 
     db_obj = create_obj(db, EditorModel, editor_data)
 
@@ -39,6 +48,13 @@ def create(db: Session, editor: EditorSchemaCreate) -> int:
 
 
 def destroy(db: Session, editor_id: int) -> None:
+    """
+
+    :param db:
+    :param editor_id:
+    :return:
+    """
+
     editor = db.query(EditorModel).filter(EditorModel.editor_id == editor_id).first()
     if not editor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -50,6 +66,14 @@ def destroy(db: Session, editor_id: int) -> None:
 
 
 def patch(db: Session, editor_id: int, editor_update: EditorSchemaCreate) -> dict:
+    """
+
+    :param db:
+    :param editor_id:
+    :param editor_update:
+    :return:
+    """
+
     editor_data = jsonable_encoder(editor_update)
     editor_db_obj = db.query(EditorModel).filter(EditorModel.editor_id == editor_id).first()
     if not editor_db_obj:
@@ -59,7 +83,7 @@ def patch(db: Session, editor_id: int, editor_update: EditorSchemaCreate) -> dic
     add(res_ref, editor_db_obj)
 
     for field, value in editor_data.items():
-        if field == 'orcid' and value:
+        if field == "orcid" and value:
             orcid = value
             cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
             if not cross_reference_obj:
@@ -76,6 +100,13 @@ def patch(db: Session, editor_id: int, editor_update: EditorSchemaCreate) -> dic
 
 
 def show(db: Session, editor_id: int) -> dict:
+    """
+
+    :param db:
+    :param editor_id:
+    :return:
+    """
+
     editor = db.query(EditorModel).filter(EditorModel.editor_id == editor_id).first()
     editor_data = jsonable_encoder(editor)
 
@@ -83,18 +114,25 @@ def show(db: Session, editor_id: int) -> dict:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Editor with the editor_id {editor_id} is not available")
 
-    if editor_data['resource_id']:
-        editor_data['resource_curie'] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == editor_data['resource_id']).first()
-    del editor_data['resource_id']
+    if editor_data["resource_id"]:
+        editor_data["resource_curie"] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == editor_data["resource_id"]).first()
+    del editor_data["resource_id"]
 
-    if editor_data['reference_id']:
-        editor_data['reference_curie'] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == editor_data['reference_id']).first()
-    del editor_data['reference_id']
+    if editor_data["reference_id"]:
+        editor_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == editor_data["reference_id"]).first()
+    del editor_data["reference_id"]
 
     return editor_data
 
 
 def show_changesets(db: Session, editor_id: int):
+    """
+
+    :param db:
+    :param editor_id:
+    :return:
+    """
+
     editor = db.query(EditorModel).filter(EditorModel.editor_id == editor_id).first()
     if not editor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -103,9 +141,9 @@ def show_changesets(db: Session, editor_id: int):
     history = []
     for version in editor.versions:
         tx = version.transaction
-        history.append({'transaction': {'id': tx.id,
-                                        'issued_at': tx.issued_at,
-                                        'user_id': tx.user_id},
-                        'changeset': version.changeset})
+        history.append({"transaction": {"id": tx.id,
+                                        "issued_at": tx.issued_at,
+                                        "user_id": tx.user_id},
+                        "changeset": version.changeset})
 
     return history

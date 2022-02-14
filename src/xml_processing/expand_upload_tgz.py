@@ -10,18 +10,20 @@
 # output log of all uploaded files and md5sums to  chunking_pmids/md5sum_20210426_01
 
 
-from os import environ, path, makedirs, listdir, rename, walk
-from shutil import copy2
+import hashlib
 import logging
 import logging.config
 # import re
 import tarfile
-import hashlib
+from os import environ, listdir, makedirs, path, rename, walk
+from shutil import copy2
+
 import boto3
 from botocore.exceptions import ClientError
+from dotenv import load_dotenv
+
 # from datetime import datetime
 
-from dotenv import load_dotenv
 
 load_dotenv()
 

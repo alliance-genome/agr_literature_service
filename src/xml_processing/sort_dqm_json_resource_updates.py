@@ -1,18 +1,18 @@
-import json
-import requests
 import argparse
-
-from os import environ, path, makedirs
+import json
 import logging
 import logging.config
+import warnings
+from os import environ, makedirs, path
 
-from helper_post_to_api import generate_headers, get_authentication_token, process_api_request
-
-from helper_file_processing import load_ref_xref, save_resource_file, split_identifier, compare_authors_or_editors
-
+import requests
 from dotenv import load_dotenv
 
-import warnings
+from helper_file_processing import (compare_authors_or_editors, load_ref_xref,
+                                    save_resource_file, split_identifier)
+from helper_post_to_api import (generate_headers, get_authentication_token,
+                                process_api_request)
+
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()

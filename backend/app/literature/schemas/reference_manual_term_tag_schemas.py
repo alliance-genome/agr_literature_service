@@ -1,5 +1,4 @@
-from pydantic import BaseModel
-from pydantic import validator
+from pydantic import BaseModel, validator
 
 
 class ReferenceManualTermTagSchemaPost(BaseModel):

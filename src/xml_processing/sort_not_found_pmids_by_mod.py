@@ -5,8 +5,8 @@
 # pipenv run python sort_not_found_pmids_by_mod.py
 
 
-from os import environ, path
 import logging.config
+from os import environ, path
 
 from dotenv import load_dotenv
 
