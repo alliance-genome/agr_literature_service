@@ -87,19 +87,15 @@ run-functest: build-env build-dev build-app-test
 	sleep 5
 
 	# load the data
-	docker exec -it `docker ps --no-trunc -aqf name=agr-literature-app-test` \
-	   /bin/bash /usr/local/bin/src/literature/src/xml_processing/sample_reference_populate_load.sh > load.out
+	docker exec  `docker ps --no-trunc -aqf name=agr-literature-app-test` \
+	   /bin/bash  /usr/local/bin/src/literature/src/xml_processing/sample_reference_populate_load.sh
 
 	# load the update
-	docker exec -it `docker ps --no-trunc -aqf name=agr-literature-app-test` \
-	   /bin/bash /usr/local/bin/src/literature/src/xml_processing/sample_reference_populate_update.sh > update.out
+	docker exec `docker ps --no-trunc -aqf name=agr-literature-app-test` \
+	   /bin/bash /usr/local/bin/src/literature/src/xml_processing/sample_reference_populate_update.sh
 
-	docker exec -it `docker ps --no-trunc -aqf name=agr-literature-app-test` \
-		python3 ./src/xml_processing/tests/functional_tests.py > pyfunctest.out
+	docker exec `docker ps --no-trunc -aqf name=agr-literature-app-test` \
+		python3 ./src/xml_processing/tests/functional_tests.py
 	docker-compose -f docker-compose-functest.yml down
 
-	# doing here after shutdown of database
-	# output SHOULD be checked REALLY
-	# we need to test wether a bad test is flagged.
-	more pyfunctest.out
     
