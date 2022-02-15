@@ -35,7 +35,6 @@ jobs:
           PSQL_PORT: 5432
           PSQL_DATABASE: literature-test
           PYTHONPATH: src/xml_processing/
-          BOB: $okta_client_secret
           JANE: ${{ okta_client_secret }}
         with:
           OKTA_CLIENT_ID: ${{ okta_client_id }}
