@@ -1,7 +1,7 @@
 name: functest
 on: [push]
 jobs:
-  run-unittests:
+  run-functests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
