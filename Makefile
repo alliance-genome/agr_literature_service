@@ -12,7 +12,6 @@ build-env:
 		--build-arg okta_client_id=${OKTA_CLIENT_ID} \
 		--build-arg okta_client_secret=${OKTA_CLIENT_SECRET} \
 		-t ${REG}/agr_literature_env:${TAG} \
-		--no-cache \
 		-f ./docker/Dockerfile.env
 
 build-dev:
