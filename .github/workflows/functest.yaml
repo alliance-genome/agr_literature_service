@@ -37,8 +37,8 @@ jobs:
           PYTHONPATH: src/xml_processing/
           JANE: ${{ secrets.okta_client_secret }}
         with:
-          OKTA_CLIENT_ID: ${{ okta_client_id }}
+          OKTA_CLIENT_ID: ${{ secrets.okta_client_id }}
           OKTA_CLIENT_SECRET: ${{ secrets.okta_client_secret }}
-          okta_client_id: ${{ secrets.okta_client_id }}
-          okta_client_secret: ${{ secrets.okta_client_secret }}
+          # okta_client_id: ${{ secrets.okta_client_id }}
+          # okta_client_secret: ${{ secrets.okta_client_secret }}
         run: make run-functest
