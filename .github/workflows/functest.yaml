@@ -35,9 +35,5 @@ jobs:
           PSQL_PORT: 5432
           PSQL_DATABASE: literature-test
           PYTHONPATH: src/xml_processing/
-          JANE: ${{ secrets.okta_client_secret }}
-          BOB: $okta_client_id
           ANOTH: ${OKTA_CLIENT_ID} 
-          OKTA_CLIENT_ID: ${{ secrets.okta_client_id }}
-          OKTA_CLIENT_SECRET: ${{ secrets.okta_client_secret }}
         run: make run-functest
