@@ -86,6 +86,9 @@ run-functest: build-env build-dev build-app-test
 	# be safe and give things a chance to spin up
 	sleep 5
 
+    # check envs?
+	docker exec  `docker ps --no-trunc -aqf name=agr-literature-app-test` env
+
 	# load the data
 	docker exec  `docker ps --no-trunc -aqf name=agr-literature-app-test` \
 	   /bin/bash  /usr/local/bin/src/literature/src/xml_processing/sample_reference_populate_load.sh
