@@ -230,8 +230,9 @@ if __name__ == "__main__":
 
 #     python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/pmid_file.txt
     elif args['file']:
-        logger.info("Processing file input from %s", args['file'])
-        with open(args['file'], 'r') as fp:
+        file = base_path + args['file']
+        logger.info("Processing file input from %s", file)
+        with open(file, 'r') as fp:
             pmid = fp.readline()
             while pmid:
                 pmids_wanted.append(pmid.rstrip())

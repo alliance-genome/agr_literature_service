@@ -686,8 +686,9 @@ if __name__ == "__main__":
 
     # python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
     elif args['file']:
-        logger.info("Processing file input from %s", args['file'])
-        with open(args['file'], 'r') as fp:
+        file = base_path + args['file']
+        logger.info("Processing file input from %s", file)
+        with open(file, 'r') as fp:
             pmid = fp.readline()
             while pmid:
                 pmids.append(pmid.rstrip())
