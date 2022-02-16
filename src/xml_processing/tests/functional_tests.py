@@ -43,7 +43,6 @@ def resolve_dqm_to_agr(entry, xref_ref):
     :param xref_ref:
     :return:
     """
-    print(entry)
     agr_found = False
     agr = ''
     if 'pmid' in entry:
