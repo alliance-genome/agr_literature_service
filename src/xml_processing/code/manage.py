@@ -93,6 +93,7 @@ def run_pipeline(cli, db, ffile, api, sample, url, dqm, xml):
     if len(pmids) > 0:
         logger.info("Starting XML download for %d PMIDs", len(pmids))
         get_pubmed_xml.download_pubmed_xml(pmids, storage_path, base_path)
+        xml_to_json.generate_json(pmids, base_path)
     else:
         logger.error("No PMIDs to be downloaded")
 
