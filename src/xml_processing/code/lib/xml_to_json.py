@@ -162,16 +162,24 @@ def get_medline_date_from_xml_date(pub_date):
     if medline_re_output is not None:
         return medline_re_output.group(1)
 
-#    if is_book:
-#         title = re.search("<BookTitle[^>]*?>(.+?)</BookTitle>", xml_data, re.DOTALL).group(1).rstrip()
-#     elif is_vernacular:
-#         title = re.search("<VernacularTitle[^>]*?>(.+?)</VernacularTitle>", xml_data, re.DOTALL).group(1).rstrip()
-#     else:
-#         title = re.search("<ArticleTitle[^>]*?>(.+?)</ArticleTitle>", xml_data, re.DOTALL).group(1).rstrip()
 
-    # return title
+def get_title(xml_data, is_book, is_vernacular):
+    """
 
+    :param xml_data: 
+    :param is_book: 
+    :param is_vernacular: 
+    :return: 
+    """
 
+    if is_book:
+        title = re.search("<BookTitle[^>]*?>(.+?)</BookTitle>", xml_data, re.DOTALL).group(1).rstrip()
+    elif is_vernacular:
+        title = re.search("<VernacularTitle[^>]*?>(.+?)</VernacularTitle>", xml_data, re.DOTALL).group(1).rstrip()
+    else:
+        title = re.search("<ArticleTitle[^>]*?>(.+?)</ArticleTitle>", xml_data, re.DOTALL).group(1).rstrip()
+
+    return title
 
 
 def generate_json(pmids, base_path, previous_pmids=[]):  # noqa: C901
@@ -194,63 +202,42 @@ def generate_json(pmids, base_path, previous_pmids=[]):  # noqa: C901
     else:
         logger.info(f"Directory {json_storage_path} already exists")
 
-    # 2022-02-16 19:50:39 imacblack.local lib.xml_to_json[28477] INFO Pocessing /Volumes/Juggernaut/src/agr_literature_service/src/xml_processing/code/pubmed_xml/12345678.xml
-
     new_pmids_set = set([])
     ref_types_set = set([])
     for pmid in pmids:
+
+        is_book = False
+        is_vernacular = False
+
         filename = os.path.join(xml_storage_path, f"{pmid}.xml")
         logger.info(f"Pocessing {filename}")
 
-    #     with open(filename) as xml_file:
-    #
-    #         xml = xml_file.read()
-    #         # print (xml)
-    #
-    #         # xmltodict is treating html markup like <i>text</i> as xml,
-    #         # which is creating mistaken structure in the conversion.
-    #         # may be better to parse full xml instead.
-    #         # data_dict = xmltodict.parse(xml_file.read())
-    #         xml_file.close()
-    #
-    #         # print (pmid)
-    #         data_dict = {}
-    #
+        with open(filename) as xml_file:
+            xml = xml_file.read()
+
+            data_dict = {}
+
     #         # e.g. 21290765 has BookDocument and ArticleTitle
-    #         book_re_output = re.search("<BookDocument>", xml)
-    #         if book_re_output is not None:
-    #             data_dict["is_book"] = "book"
-    #
-    #         title_re_output = re.search(
-    #             "<ArticleTitle[^>]*?>(.+?)</ArticleTitle>", xml, re.DOTALL
-    #         )
-    #         if title_re_output is not None:
-    #             title = title_re_output.group(1).rstrip()
-    #             title = re.sub(r"\s+", " ", title)
-    #             data_dict["title"] = title
-    #             if "is_book" not in data_dict:
-    #                 data_dict["is_journal"] = "journal"
-    #         else:
-    #             # e.g. 33054145 21413221
-    #             book_title_re_output = re.search(
-    #                 "<BookTitle[^>]*?>(.+?)</BookTitle>", xml, re.DOTALL
-    #             )
-    #             if book_title_re_output is not None:
-    #                 title = book_title_re_output.group(1).rstrip()
-    #                 title = re.sub(r"\s+", " ", title)
-    #                 data_dict["title"] = title
-    #                 data_dict["is_book"] = "book"
-    #             else:
-    #                 # e.g. 28304499 28308877
-    #                 vernacular_title_re_output = re.search(
-    #                     "<VernacularTitle[^>]*?>(.+?)</VernacularTitle>", xml, re.DOTALL
-    #                 )
-    #                 if vernacular_title_re_output is not None:
-    #                     title = vernacular_title_re_output.group(1).rstrip()
-    #                     title = re.sub(r"\s+", " ", title)
-    #                     data_dict["title"] = title
-    #                     data_dict["is_vernacular"] = "vernacular"
-    #                 else:
+
+            if re.search("<BookDocument>", xml):
+                # e.g. 33054145 21413221
+                is_book = True
+                data_dict["is_book"] = "book"
+            elif re.search("<VernacularTitle>", xml):
+                # e.g. 28304499 28308877
+                is_vernacular = True
+                data_dict["is_vernacular"] = "vernacular"
+            else:
+                data_dict["is_article"] = "article"
+                data_dict["is_journal"] = "journal"
+
+            data_dict["title"] = get_title(xml, is_book, is_vernacular)
+
+            print(data_dict)
+
+
+
+
     #                     logger.info("%s has no title", pmid)
     #
     #         journal_re_output = re.search("<MedlineTA>(.+?)</MedlineTA>", xml)
