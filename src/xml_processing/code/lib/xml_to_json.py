@@ -253,120 +253,92 @@ def get_publication_type(xml_data):
     return types_group
 
 
-def get_authors(xmldata):
+def get_authors(xml_data):
     """
 
-    :param xmldata:
+    :param xml_data:
     :return:
     """
 
     # this will need to be restructured to match schema
     authors_group = re.findall("<Author.*?>(.+?)</Author>", xml_data, re.DOTALL)
-    authors = defaultdict(dict)
+    authors_list = []
+    author_cross_references = []
+    author_rank = 0
+    if len(authors_group) > 0:
+        for author_xml in authors_group:
+            author = {}
+            author_rank += 1
 
-    print(authors_group)
+            try:
+                 author["lastname"] = re.search("<LastName>(.+?)</LastName>", author_xml).group(1)
+            except AttributeError:
+                author["lastname"] = ""
 
-    authors_rank = 0
-    # if len(authors_group) > 0:
-    #     for author_xml in authors_group:
-    #         authors_rank += 1
-    #         lastname = ""
-    #         firstname = ""
-    #         firstinit = ""
-    #         collective_name = ""
-    #         fullname = ""
-    #         orcid = ""
-    #         affiliation = []
-    #         author_cross_references = []
-    #         lastname_re_output = re.search(
-    #             "<LastName>(.+?)</LastName>", author_xml
-    #         )
-    #         if lastname_re_output is not None:
-    #             lastname = lastname_re_output.group(1)
-    #         firstname_re_output = re.search(
-    #             "<ForeName>(.+?)</ForeName>", author_xml
-    #         )
-    #         if firstname_re_output is not None:
-    #             firstname = firstname_re_output.group(1)
-    #         firstinit_re_output = re.search(
-    #             "<Initials>(.+?)</Initials>", author_xml
-    #         )
-    #         if firstinit_re_output is not None:
-    #             firstinit = firstinit_re_output.group(1)
-    #         if firstinit and not firstname:
-    #             firstname = firstinit
-    #
-    #         # e.g. 27899353 30979869
-    #         collective_re_output = re.search(
-    #             "<CollectiveName>(.+?)</CollectiveName>", author_xml, re.DOTALL
-    #         )
-    #         if collective_re_output is not None:
-    #             collective_name = collective_re_output.group(1).replace("\n", " ").replace("\r", "")
-    #             collective_name = re.sub(r"\s+", " ", collective_name)
-    #
-    #         # e.g. 30003105   <Identifier Source="ORCID">0000-0002-9948-4783</Identifier>
-    #         # e.g. 30002370   <Identifier Source="ORCID">http://orcid.org/0000-0003-0416-374X</Identifier>
-    #         # orcid_re_output = re.search("<Identifier Source=\"ORCID\">(.+?)</Identifier>", author_xml)
-    #         orcid_re_output = re.search(
-    #             '<Identifier Source="ORCID">.*?([0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]).*?</Identifier>',
-    #             author_xml,
-    #         )
-    #         if orcid_re_output is not None:
-    #             orcid = orcid_re_output.group(1)
-    #             orcid_dict = {"id": "ORCID:" + orcid_re_output.group(1), "pages": ["person/orcid"]}
-    #             author_cross_references.append(orcid_dict)
-    #
-    #         # e.g. 30003105 30002370
-    #         # <AffiliationInfo>
-    #         #     <Affiliation>Department of Animal Medical Sciences, Faculty of Life Sciences, Kyoto Sangyo University , Kyoto , Japan.</Affiliation>
-    #         # </AffiliationInfo>
-    #         affiliation_list = []
-    #         affiliation_info_group = re.findall("<AffiliationInfo>(.*?)</AffiliationInfo>", author_xml, re.DOTALL)
-    #         for affiliation_info in affiliation_info_group:
-    #             # print(pmid + " AIDL " + affiliation_info)
-    #             affiliation_group = re.findall("<Affiliation>(.+?)</Affiliation>", affiliation_info, re.DOTALL)
-    #             for affiliation in affiliation_group:
-    #                 # print(pmid + " subset " + affiliation)
-    #                 if affiliation not in affiliation_list:
-    #                     affiliation_list.append(affiliation)
-    #
-    #         author_dict = {}
-    #         # if (firstname and firstinit):
-    #         #     print "GOOD\t" + pmid
-    #         # elif firstname:
-    #         #     print "FN\t" + pmid + "\t" + firstname
-    #         # elif firstinit:
-    #         #     print "FI\t" + pmid + "\t" + firstinit
-    #         # else:
-    #         #     print "NO\t" + pmid
-    #         if firstname != "":
-    #             author_dict["firstname"] = firstname
-    #         if firstinit != "":
-    #             author_dict["firstinit"] = firstinit
-    #         if lastname != "":
-    #             author_dict["lastname"] = lastname
-    #         if collective_name != "":
-    #             author_dict["collectivename"] = collective_name
-    #         if (firstname != "") and (lastname != ""):
-    #             fullname = firstname + " " + lastname
-    #         elif collective_name != "":
-    #             fullname = collective_name
-    #         elif lastname != "":
-    #             fullname = lastname
-    #         else:
-    #             logger.info("%s has no name match %s", pmid, author_xml)
-    #         if orcid != "":
-    #             author_dict["orcid"] = orcid
-    #         author_dict["name"] = fullname
-    #         author_dict["authorRank"] = authors_rank
-    #         if len(affiliation_list) > 0:
-    #             author_dict["affiliation"] = affiliation_list
-    #         if len(author_cross_references) > 0:
-    #             author_dict["crossReferences"] = author_cross_references
-    #         # print fullname
-    #         authors_list.append(author_dict)
-    #     data_dict["authors"] = authors_list
+            try:
+                author["firstname"] = re.search("<ForeName>(.+?)</ForeName>", author_xml).group(1)
+            except AttributeError:
+                author["firstname"] = ""
 
+            try:
+                author["firstinit"] = re.search("<Initials>(.+?)</Initials>", author_xml).group(1)
+            except AttributeError:
+                author["firstinit"] = ""
+
+            if len(author["firstname"]) == 0:
+                author["firstname"] = author["firstinit"]
+
+            # e.g. 27899353 30979869
+            try:
+                collective_name = re.search("<CollectiveName>(.+?)</CollectiveName>", author_xml).group(1).replace("\n", " ").replace("\r", "")
+                author["collective_name"] = re.sub(r"\s+", " ", collective_name)
+            except AttributeError:
+                author["collective_name"] = ""
+
+            # e.g. 30003105   <Identifier Source="ORCID">0000-0002-9948-4783</Identifier>
+            # e.g. 30002370   <Identifier Source="ORCID">http://orcid.org/0000-0003-0416-374X</Identifier>
+            try:
+                orcid_one = re.search("<Identifier Source=\"ORCID\">(.+?)</Identifier>", author_xml).group(1)
+                orcid_two = re.search('<Identifier Source="ORCID">.*?([0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]).*?</Identifier>',author_xml).group(1)
+                orcid_dict = {"id": "ORCID:" + orcid_two, "pages": ["person/orcid"]}
+                author_cross_references.append(orcid_dict)
+                author["orcid"] = orcid_dict
+            except AttributeError:
+                logger.info("No ORCID found for author")
+
+            # e.g. 30003105 30002370
+            # <AffiliationInfo>
+            # <Affiliation>Department of Animal Medical Sciences, Faculty of Life Sciences, Kyoto Sangyo University , Kyoto , Japan.</Affiliation>
+            # </AffiliationInfo>
+            affiliation_list = []
+            try:
+                affiliation_info_group = re.findall("<AffiliationInfo>(.*?)</AffiliationInfo>", author_xml, re.DOTALL)
+                for affiliation_info in affiliation_info_group:
+                    affiliation_group = re.findall("<Affiliation>(.+?)</Affiliation>", affiliation_info, re.DOTALL)
+                    for affiliation in affiliation_group:
+                        if affiliation not in affiliation_list:
+                            affiliation_list.append(affiliation)
+            except AttributeError:
+                logger.info("No affiliation found for author")
+
+            fullname = ""
+            if author["firstname"] != "" and author["lastname"] != "":
+                fullname = author["firstname"] + " " + author["lastname"]
+            elif author["collective_name"] != "":
+                fullname = collective_name
+            elif author["lastname"] != "":
+                fullname = author["lastname"]
+            else:
+                logger.warning(f"No name match {author_xml}")
+
+            author["name"] = fullname
+            author["authos_rank"] = author_rank
+            author["affiliation"] = affiliation_list
+            if len(author_cross_references) > 0:
+                author["crossReferences"] = author_cross_references
+            authors_list.append(author)
+
+    return authors_list
 
 def generate_json(pmids, base_path, previous_pmids=[]):  # noqa: C901
     """
@@ -427,6 +399,7 @@ def generate_json(pmids, base_path, previous_pmids=[]):  # noqa: C901
             data_dict["pubMedType"] = get_publication_type(xml)
             comments, new_ref_types, new_pmids = get_comments_corrections(xml, pmids)
             data_dict["commentsCorrections"] = comments
+            data_dict["authors"] = get_authors(xml)
 
             print(data_dict)
 
