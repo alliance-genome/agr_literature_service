@@ -135,7 +135,7 @@ def download_pubmed_xml(pmids_wanted, storage_path, base_path):
                         if re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml):
                             pmid = re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml).group(1)
                             pmids_found.add(pmid)
-                            filename = storage_path + '/' + pmid + ".xml"
+                            filename = os.path.join(storage_path, f"{pmid}.xml")
                             f = open(filename, "w")
                             f.write(clean_xml)
                             f.close()
@@ -172,7 +172,7 @@ if __name__ == '__main__':
     call main processing function
     """
 
-    pmids = ["12345678", "12345679", "12345680"]
+    pmids = ["12345678", "12345679", "12345680", "21290765", "33054145", "21413221", "28304499", "28308877"]
     base_path = os.getcwd()
     storage_path = os.path.join(base_path, 'pubmed_xml')
     download_pubmed_xml(pmids_wanted, storage_path, base_path)

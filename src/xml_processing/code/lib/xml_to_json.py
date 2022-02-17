@@ -182,6 +182,20 @@ def get_title(xml_data, is_book, is_vernacular):
     return title
 
 
+def get_section(xml_data, section):
+    """
+
+    :param xml_data:
+    :return:
+    """
+
+    try:
+        section = re.search(f"<{section}>(.+?)</{section}>", xml_data).group(1)
+        return section
+    except AttributeError:
+        return ""
+
+
 def generate_json(pmids, base_path, previous_pmids=[]):  # noqa: C901
     """
 
@@ -233,29 +247,16 @@ def generate_json(pmids, base_path, previous_pmids=[]):  # noqa: C901
 
             data_dict["title"] = get_title(xml, is_book, is_vernacular)
 
+            if len(data_dict["title"]) == 0:
+                logger.warning(f"{pmid} has no title")
+
+            data_dict["journal"] = get_section(xml, "MedlineTA")
+            data_dict["pages"] = get_section(xml, "MedlinePgn")
+            data_dict["volume"] = get_section(xml, "Volume")
+            data_dict["issueName"] = get_section(xml, "Issue")
+
             print(data_dict)
 
-
-
-
-    #                     logger.info("%s has no title", pmid)
-    #
-    #         journal_re_output = re.search("<MedlineTA>(.+?)</MedlineTA>", xml)
-    #         if journal_re_output is not None:
-    #             data_dict["journal"] = journal_re_output.group(1)
-    #
-    #         pages_re_output = re.search("<MedlinePgn>(.+?)</MedlinePgn>", xml)
-    #         if pages_re_output is not None:
-    #             data_dict["pages"] = pages_re_output.group(1)
-    #
-    #         volume_re_output = re.search("<Volume>(.+?)</Volume>", xml)
-    #         if volume_re_output is not None:
-    #             data_dict["volume"] = volume_re_output.group(1)
-    #
-    #         issue_re_output = re.search("<Issue>(.+?)</Issue>", xml)
-    #         if issue_re_output is not None:
-    #             data_dict["issueName"] = issue_re_output.group(1)
-    #
     #         pubstatus_re_output = re.search(
     #             "<PublicationStatus>(.+?)</PublicationStatus>", xml
     #         )
