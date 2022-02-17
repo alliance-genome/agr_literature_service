@@ -17,3 +17,17 @@ src/xml_processing/pmids_by_mods
 src/xml_processing/pmids_not_found
 
 src/xml_processing/code/venv/
+
+backend/app/venv/
+
+docs/venv/
+
+venv/
+
+docs/.DS_Store
+
+src/xml_processing/code/.DS_Store
+
+src/.DS_Store
+
+src/xml_processing/.DS_Store

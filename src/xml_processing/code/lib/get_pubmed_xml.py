@@ -154,17 +154,17 @@ def download_pubmed_xml(pmids_wanted, storage_path, base_path):
             with open(md5file, "w") as md5file_fh:
                 for key in sorted(md5dict.keys(), key=int):
                     md5file_fh.write("%s\t%s\n" % (key, md5dict[key]))
-    #
-    # logger.info("Writing log of pmids_not_found")
-    # output_pmids_not_found_file = base_path + " pmids_not_found"
-    # with open(output_pmids_not_found_file, "a") as pmids_not_found_file:
-    #     for pmid in pmids_wanted:
-    #         if pmid not in pmids_found:
-    #             pmids_not_found_file.write("%s\n" % (pmid))
-    #             logger.info("PMID %s not found in pubmed query", pmid)
-    #     pmids_not_found_file.close()
-    #
-    # logger.info("Getting PubMed XML complete")
+
+    logger.info("Writing log of pmids_not_found")
+    output_pmids_not_found_file = base_path + "/pmids_not_found"
+    with open(output_pmids_not_found_file, "a") as pmids_not_found_file:
+        for pmid in pmids_wanted:
+            if pmid not in pmids_found:
+                pmids_not_found_file.write("%s\n" % (pmid))
+                logger.info("PMID %s not found in pubmed query", pmid)
+        pmids_not_found_file.close()
+
+    logger.info("Getting PubMed XML complete")
 
 
 if __name__ == '__main__':
