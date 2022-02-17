@@ -41,7 +41,7 @@ to get set of pmids with search term 'elegans'
 https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=elegans&retmax=100000000
 """
 
-
+from collections import defaultdict
 import hashlib
 import json
 import logging
@@ -196,6 +196,178 @@ def get_section(xml_data, section):
         return ""
 
 
+def get_comments_corrections(xml_data, pmids, previous_pmids = []):
+    """
+
+    :param xml_data:
+    :return:
+    """
+
+
+    # <CommentsCorrectionsList><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler.
+    # 1999 Dec;5(6):378</RefSource><PMID Version="1">10644162</PMID></CommentsCorrections><CommentsCorrections
+    # RefType="CommentIn"><RefSource>Mult Scler. 2000 Aug;6(4):291-2</RefSource><PMID Version="1">10962551</PMID>
+    # </CommentsCorrections></CommentsCorrectionsList>
+
+    ref_types_set = set([])
+    new_pmids_set = set([])
+
+    comments_corrections_group = re.findall("<CommentsCorrections (.+?)</CommentsCorrections>", xml_data, re.DOTALL)
+    comments_dict = {}
+    if len(comments_corrections_group) > 0:
+        for comcor_xml in comments_corrections_group:
+            ref_type = ""
+            other_pmid = ""
+            ref_type_re_output = re.search('RefType="(.*?)"', comcor_xml)
+            if ref_type_re_output is not None:
+                ref_type = ref_type_re_output.group(1)
+            other_pmid_re_output = re.search("<PMID[^>]*?>(.+?)</PMID>", comcor_xml)
+            if other_pmid_re_output is not None:
+                other_pmid = other_pmid_re_output.group(1)
+            if (other_pmid != "") and (ref_type != "") and (ref_type != "CommentIn") \
+                    and (ref_type != "CommentOn"):
+                if ref_type in comments_dict:
+                    if other_pmid not in comments_dict[ref_type]:
+                        comments_dict[ref_type].append(other_pmid)
+                else:
+                    comments_dict[ref_type] = [other_pmid]
+                ref_types_set.add(ref_type)
+                if other_pmid not in pmids and other_pmid not in previous_pmids:
+                    new_pmids_set.add(other_pmid)
+
+    return comments_dict, ref_types_set, new_pmids_set
+
+
+def get_publication_type(xml_data):
+    """
+
+    :param xml_data:
+    :return:
+    """
+
+    try:
+        types_group = re.findall('<PublicationType UI=".*?">(.+?)</PublicationType>', xml_data)
+    except:
+        types_group = re.findall("<PublicationType>(.+?)</PublicationType>", xml)
+
+    return types_group
+
+
+def get_authors(xmldata):
+    """
+
+    :param xmldata:
+    :return:
+    """
+
+    # this will need to be restructured to match schema
+    authors_group = re.findall("<Author.*?>(.+?)</Author>", xml_data, re.DOTALL)
+    authors = defaultdict(dict)
+
+    print(authors_group)
+
+    authors_rank = 0
+    # if len(authors_group) > 0:
+    #     for author_xml in authors_group:
+    #         authors_rank += 1
+    #         lastname = ""
+    #         firstname = ""
+    #         firstinit = ""
+    #         collective_name = ""
+    #         fullname = ""
+    #         orcid = ""
+    #         affiliation = []
+    #         author_cross_references = []
+    #         lastname_re_output = re.search(
+    #             "<LastName>(.+?)</LastName>", author_xml
+    #         )
+    #         if lastname_re_output is not None:
+    #             lastname = lastname_re_output.group(1)
+    #         firstname_re_output = re.search(
+    #             "<ForeName>(.+?)</ForeName>", author_xml
+    #         )
+    #         if firstname_re_output is not None:
+    #             firstname = firstname_re_output.group(1)
+    #         firstinit_re_output = re.search(
+    #             "<Initials>(.+?)</Initials>", author_xml
+    #         )
+    #         if firstinit_re_output is not None:
+    #             firstinit = firstinit_re_output.group(1)
+    #         if firstinit and not firstname:
+    #             firstname = firstinit
+    #
+    #         # e.g. 27899353 30979869
+    #         collective_re_output = re.search(
+    #             "<CollectiveName>(.+?)</CollectiveName>", author_xml, re.DOTALL
+    #         )
+    #         if collective_re_output is not None:
+    #             collective_name = collective_re_output.group(1).replace("\n", " ").replace("\r", "")
+    #             collective_name = re.sub(r"\s+", " ", collective_name)
+    #
+    #         # e.g. 30003105   <Identifier Source="ORCID">0000-0002-9948-4783</Identifier>
+    #         # e.g. 30002370   <Identifier Source="ORCID">http://orcid.org/0000-0003-0416-374X</Identifier>
+    #         # orcid_re_output = re.search("<Identifier Source=\"ORCID\">(.+?)</Identifier>", author_xml)
+    #         orcid_re_output = re.search(
+    #             '<Identifier Source="ORCID">.*?([0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]).*?</Identifier>',
+    #             author_xml,
+    #         )
+    #         if orcid_re_output is not None:
+    #             orcid = orcid_re_output.group(1)
+    #             orcid_dict = {"id": "ORCID:" + orcid_re_output.group(1), "pages": ["person/orcid"]}
+    #             author_cross_references.append(orcid_dict)
+    #
+    #         # e.g. 30003105 30002370
+    #         # <AffiliationInfo>
+    #         #     <Affiliation>Department of Animal Medical Sciences, Faculty of Life Sciences, Kyoto Sangyo University , Kyoto , Japan.</Affiliation>
+    #         # </AffiliationInfo>
+    #         affiliation_list = []
+    #         affiliation_info_group = re.findall("<AffiliationInfo>(.*?)</AffiliationInfo>", author_xml, re.DOTALL)
+    #         for affiliation_info in affiliation_info_group:
+    #             # print(pmid + " AIDL " + affiliation_info)
+    #             affiliation_group = re.findall("<Affiliation>(.+?)</Affiliation>", affiliation_info, re.DOTALL)
+    #             for affiliation in affiliation_group:
+    #                 # print(pmid + " subset " + affiliation)
+    #                 if affiliation not in affiliation_list:
+    #                     affiliation_list.append(affiliation)
+    #
+    #         author_dict = {}
+    #         # if (firstname and firstinit):
+    #         #     print "GOOD\t" + pmid
+    #         # elif firstname:
+    #         #     print "FN\t" + pmid + "\t" + firstname
+    #         # elif firstinit:
+    #         #     print "FI\t" + pmid + "\t" + firstinit
+    #         # else:
+    #         #     print "NO\t" + pmid
+    #         if firstname != "":
+    #             author_dict["firstname"] = firstname
+    #         if firstinit != "":
+    #             author_dict["firstinit"] = firstinit
+    #         if lastname != "":
+    #             author_dict["lastname"] = lastname
+    #         if collective_name != "":
+    #             author_dict["collectivename"] = collective_name
+    #         if (firstname != "") and (lastname != ""):
+    #             fullname = firstname + " " + lastname
+    #         elif collective_name != "":
+    #             fullname = collective_name
+    #         elif lastname != "":
+    #             fullname = lastname
+    #         else:
+    #             logger.info("%s has no name match %s", pmid, author_xml)
+    #         if orcid != "":
+    #             author_dict["orcid"] = orcid
+    #         author_dict["name"] = fullname
+    #         author_dict["authorRank"] = authors_rank
+    #         if len(affiliation_list) > 0:
+    #             author_dict["affiliation"] = affiliation_list
+    #         if len(author_cross_references) > 0:
+    #             author_dict["crossReferences"] = author_cross_references
+    #         # print fullname
+    #         authors_list.append(author_dict)
+    #     data_dict["authors"] = authors_list
+
+
 def generate_json(pmids, base_path, previous_pmids=[]):  # noqa: C901
     """
 
@@ -216,8 +388,6 @@ def generate_json(pmids, base_path, previous_pmids=[]):  # noqa: C901
     else:
         logger.info(f"Directory {json_storage_path} already exists")
 
-    new_pmids_set = set([])
-    ref_types_set = set([])
     for pmid in pmids:
 
         is_book = False
@@ -231,8 +401,7 @@ def generate_json(pmids, base_path, previous_pmids=[]):  # noqa: C901
 
             data_dict = {}
 
-    #         # e.g. 21290765 has BookDocument and ArticleTitle
-
+            # e.g. 21290765 has BookDocument and ArticleTitle
             if re.search("<BookDocument>", xml):
                 # e.g. 33054145 21413221
                 is_book = True
@@ -254,162 +423,14 @@ def generate_json(pmids, base_path, previous_pmids=[]):  # noqa: C901
             data_dict["pages"] = get_section(xml, "MedlinePgn")
             data_dict["volume"] = get_section(xml, "Volume")
             data_dict["issueName"] = get_section(xml, "Issue")
+            data_dict["publicationStatus"] = get_section(xml, "PublicationStatus")
+            data_dict["pubMedType"] = get_publication_type(xml)
+            comments, new_ref_types, new_pmids = get_comments_corrections(xml, pmids)
+            data_dict["commentsCorrections"] = comments
 
             print(data_dict)
 
-    #         pubstatus_re_output = re.search(
-    #             "<PublicationStatus>(.+?)</PublicationStatus>", xml
-    #         )
-    #         if pubstatus_re_output is not None:
-    #             # print pubstatus
-    #             data_dict["publicationStatus"] = pubstatus_re_output.group(1)
-    #
-    #         if re.findall("<PublicationType>(.+?)</PublicationType>", xml):
-    #             types_group = re.findall(
-    #                 "<PublicationType>(.+?)</PublicationType>", xml
-    #             )
-    #             data_dict["pubMedType"] = types_group
-    #         elif re.findall('<PublicationType UI=".*?">(.+?)</PublicationType>', xml):
-    #             types_group = re.findall(
-    #                 '<PublicationType UI=".*?">(.+?)</PublicationType>', xml
-    #             )
-    #             data_dict["pubMedType"] = types_group
-    #
-    #         # <CommentsCorrectionsList><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler.
-    #         # 1999 Dec;5(6):378</RefSource><PMID Version="1">10644162</PMID></CommentsCorrections><CommentsCorrections
-    #         # RefType="CommentIn"><RefSource>Mult Scler. 2000 Aug;6(4):291-2</RefSource><PMID Version="1">10962551</PMID>
-    #         # </CommentsCorrections></CommentsCorrectionsList>
-    #         comments_corrections_group = re.findall(
-    #             "<CommentsCorrections (.+?)</CommentsCorrections>", xml, re.DOTALL
-    #         )
-    #         if len(comments_corrections_group) > 0:
-    #             data_dict["commentsCorrections"] = {}
-    #             for comcor_xml in comments_corrections_group:
-    #                 ref_type = ""
-    #                 other_pmid = ""
-    #                 ref_type_re_output = re.search('RefType="(.*?)"', comcor_xml)
-    #                 if ref_type_re_output is not None:
-    #                     ref_type = ref_type_re_output.group(1)
-    #                 other_pmid_re_output = re.search(
-    #                     "<PMID[^>]*?>(.+?)</PMID>", comcor_xml
-    #                 )
-    #                 if other_pmid_re_output is not None:
-    #                     other_pmid = other_pmid_re_output.group(1)
-    #                 if (other_pmid != "") and (ref_type != "") and (ref_type != "CommentIn") \
-    #                         and (ref_type != "CommentOn"):
-    #                     if ref_type in data_dict["commentsCorrections"]:
-    #                         if other_pmid not in data_dict["commentsCorrections"][ref_type]:
-    #                             data_dict["commentsCorrections"][ref_type].append(other_pmid)
-    #                     else:
-    #                         data_dict["commentsCorrections"][ref_type] = [other_pmid]
-    #                     # print(pmid + " COMCOR " + ref_type + " " + other_pmid)
-    #                     ref_types_set.add(ref_type)
-    #                     if other_pmid not in pmids and other_pmid not in previous_pmids:
-    #                         new_pmids_set.add(other_pmid)
-    #
-    #         # this will need to be restructured to match schema
-    #         authors_group = re.findall("<Author.*?>(.+?)</Author>", xml, re.DOTALL)
-    #         if len(authors_group) > 0:
-    #             authors_list = []
-    #             authors_rank = 0
-    #             for author_xml in authors_group:
-    #                 authors_rank = authors_rank + 1
-    #                 lastname = ""
-    #                 firstname = ""
-    #                 firstinit = ""
-    #                 collective_name = ""
-    #                 fullname = ""
-    #                 orcid = ""
-    #                 affiliation = []
-    #                 author_cross_references = []
-    #                 lastname_re_output = re.search(
-    #                     "<LastName>(.+?)</LastName>", author_xml
-    #                 )
-    #                 if lastname_re_output is not None:
-    #                     lastname = lastname_re_output.group(1)
-    #                 firstname_re_output = re.search(
-    #                     "<ForeName>(.+?)</ForeName>", author_xml
-    #                 )
-    #                 if firstname_re_output is not None:
-    #                     firstname = firstname_re_output.group(1)
-    #                 firstinit_re_output = re.search(
-    #                     "<Initials>(.+?)</Initials>", author_xml
-    #                 )
-    #                 if firstinit_re_output is not None:
-    #                     firstinit = firstinit_re_output.group(1)
-    #                 if firstinit and not firstname:
-    #                     firstname = firstinit
-    #
-    #                 # e.g. 27899353 30979869
-    #                 collective_re_output = re.search(
-    #                     "<CollectiveName>(.+?)</CollectiveName>", author_xml, re.DOTALL
-    #                 )
-    #                 if collective_re_output is not None:
-    #                     collective_name = collective_re_output.group(1).replace("\n", " ").replace("\r", "")
-    #                     collective_name = re.sub(r"\s+", " ", collective_name)
-    #
-    #                 # e.g. 30003105   <Identifier Source="ORCID">0000-0002-9948-4783</Identifier>
-    #                 # e.g. 30002370   <Identifier Source="ORCID">http://orcid.org/0000-0003-0416-374X</Identifier>
-    #                 # orcid_re_output = re.search("<Identifier Source=\"ORCID\">(.+?)</Identifier>", author_xml)
-    #                 orcid_re_output = re.search(
-    #                     '<Identifier Source="ORCID">.*?([0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]).*?</Identifier>',
-    #                     author_xml,
-    #                 )
-    #                 if orcid_re_output is not None:
-    #                     orcid = orcid_re_output.group(1)
-    #                     orcid_dict = {"id": "ORCID:" + orcid_re_output.group(1), "pages": ["person/orcid"]}
-    #                     author_cross_references.append(orcid_dict)
-    #
-    #                 # e.g. 30003105 30002370
-    #                 # <AffiliationInfo>
-    #                 #     <Affiliation>Department of Animal Medical Sciences, Faculty of Life Sciences, Kyoto Sangyo University , Kyoto , Japan.</Affiliation>
-    #                 # </AffiliationInfo>
-    #                 affiliation_list = []
-    #                 affiliation_info_group = re.findall("<AffiliationInfo>(.*?)</AffiliationInfo>", author_xml, re.DOTALL)
-    #                 for affiliation_info in affiliation_info_group:
-    #                     # print(pmid + " AIDL " + affiliation_info)
-    #                     affiliation_group = re.findall("<Affiliation>(.+?)</Affiliation>", affiliation_info, re.DOTALL)
-    #                     for affiliation in affiliation_group:
-    #                         # print(pmid + " subset " + affiliation)
-    #                         if affiliation not in affiliation_list:
-    #                             affiliation_list.append(affiliation)
-    #
-    #                 author_dict = {}
-    #                 # if (firstname and firstinit):
-    #                 #     print "GOOD\t" + pmid
-    #                 # elif firstname:
-    #                 #     print "FN\t" + pmid + "\t" + firstname
-    #                 # elif firstinit:
-    #                 #     print "FI\t" + pmid + "\t" + firstinit
-    #                 # else:
-    #                 #     print "NO\t" + pmid
-    #                 if firstname != "":
-    #                     author_dict["firstname"] = firstname
-    #                 if firstinit != "":
-    #                     author_dict["firstinit"] = firstinit
-    #                 if lastname != "":
-    #                     author_dict["lastname"] = lastname
-    #                 if collective_name != "":
-    #                     author_dict["collectivename"] = collective_name
-    #                 if (firstname != "") and (lastname != ""):
-    #                     fullname = firstname + " " + lastname
-    #                 elif collective_name != "":
-    #                     fullname = collective_name
-    #                 elif lastname != "":
-    #                     fullname = lastname
-    #                 else:
-    #                     logger.info("%s has no name match %s", pmid, author_xml)
-    #                 if orcid != "":
-    #                     author_dict["orcid"] = orcid
-    #                 author_dict["name"] = fullname
-    #                 author_dict["authorRank"] = authors_rank
-    #                 if len(affiliation_list) > 0:
-    #                     author_dict["affiliation"] = affiliation_list
-    #                 if len(author_cross_references) > 0:
-    #                     author_dict["crossReferences"] = author_cross_references
-    #                 # print fullname
-    #                 authors_list.append(author_dict)
-    #             data_dict["authors"] = authors_list
+            get_authors(xml)
     #
     #         pub_date_re_output = re.search("<PubDate>(.+?)</PubDate>", xml, re.DOTALL)
     #         if pub_date_re_output is not None:

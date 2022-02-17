@@ -80,7 +80,8 @@ def run_pipeline(cli, db, ffile, api, sample, url, dqm, xml):
     elif sample:
         # python get_pubmed_xml.py -s
         logger.info("Processing hardcoded sample input")
-        pmids = ["12345678", "12345679", "12345680"]
+        pmids = ["12345678", "12345679", "12345680", "21290765", "33054145",
+                 "21413221", "28304499", "28308877", "9684897"]
     elif dqm:
         logger.info("Getting DQM data")
         get_dqm_data.download_dqm_json()
@@ -101,9 +102,3 @@ def run_pipeline(cli, db, ffile, api, sample, url, dqm, xml):
 if __name__ == "__main__":
 
     run_pipeline()
-
-
-
-# 2022-02-16 19:50:39 imacblack.local lib.xml_to_json[28477] INFO /Volumes/Juggernaut/src/agr_literature_service/src/xml_processing/code/pubmed_json/ exists
-# 2022-02-16 19:50:39 imacblack.local lib.xml_to_json[28477] INFO Pocessing /Volumes/Juggernaut/src/agr_literature_service/src/xml_processing/code/pubmed_xml/12345678.xml
-# 2022-02-16 19:50:39 imacblack.local lib.xml_to_json[28477] WARNING Volume not found
