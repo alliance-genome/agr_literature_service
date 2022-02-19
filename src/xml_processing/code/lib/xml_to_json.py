@@ -77,49 +77,6 @@ ignore_article_id_types = {"bookaccession", "mid", "pii", "pmcid"}
 unknown_article_id_types = set([])
 
 
-# def represents_int(s):
-#     """
-#
-#     :param s:
-#     :return:
-#     """
-#
-#     try:
-#         int(s)
-#         return True
-#     except ValueError:
-#         return False
-
-
-# def month_name_to_number_string(string):
-#     """
-#
-#     :param string:
-#     :return:
-#     """
-#
-#     m = {
-#         'jan': '01',
-#         'feb': '02',
-#         'mar': '03',
-#         'apr': '04',
-#         'may': '05',
-#         'jun': '06',
-#         'jul': '07',
-#         'aug': '08',
-#         'sep': '09',
-#         'oct': '10',
-#         'nov': '11',
-#         'dec': '12'}
-#     s = string.strip()[:3].lower()
-#
-#     try:
-#         out = m[s]
-#         return out
-#     except ValueError:
-#         raise ValueError(string + ' is not a month')
-
-
 def get_year_month_day_from_xml_date(pub_date):
     """
 
@@ -128,27 +85,27 @@ def get_year_month_day_from_xml_date(pub_date):
     """
 
     date_list = []
-    year = ""
     month = "01"
     day = "01"
-    year_re_output = re.search("<Year>(.+?)</Year>", pub_date)
-    if year_re_output is not None:
-        year = year_re_output.group(1)
-    month_re_output = re.search("<Month>(.+?)</Month>", pub_date)
-    if month_re_output is not None:
-        month_text = month_re_output.group(1)
-        if type(month_text) == int:
-            month = month_text
-        else:
-            month = list(calendar.month_abbr).index(month_text)
-    day_re_output = re.search("<Day>(.+?)</Day>", pub_date)
-    if day_re_output is not None:
-        day = day_re_output.group(1)
-    date_list.append(year)
-    date_list.append(month)
-    date_list.append(day)
 
-    return date_list
+    try:
+        year = re.search("<Year>(.+?)</Year>", pub_date).group(1)
+    except AttributeError:
+        year = ""
+
+    try:
+        month = re.search("<Month>(.+?)</Month>", pub_date).group(1)
+        if not month.isdigit():
+            month = f"{list(calendar.month_abbr).index(month):02d}"
+    except Exception as e:
+        month = "01"
+
+    try:
+        day = re.search("<Day>(.+?)</Day>", pub_date).group(1)
+    except Exception as e:
+        day = "01"
+
+    return year, month, day
 
 
 def get_medline_date_from_xml_date(pub_date):
@@ -304,7 +261,8 @@ def get_authors(xml_data):
                 author_cross_references.append(orcid_dict)
                 author["orcid"] = orcid_dict
             except AttributeError:
-                logger.info("No ORCID found for author")
+                pass
+                # logger.info("No ORCID found for author")
 
             # e.g. 30003105 30002370
             # <AffiliationInfo>
@@ -339,6 +297,40 @@ def get_authors(xml_data):
             authors_list.append(author)
 
     return authors_list
+
+
+def get_dates(xml_data):
+
+
+
+    try:
+        pub_date_re_output = re.search("<PubDate>(.+?)</PubDate>", xml_data, re.DOTALL)
+        pub_date = pub_date_re_output.group(1)
+        print(pub_date)
+
+
+        year, month, day = get_year_month_day_from_xml_date(pub_date)
+
+        date_dict = {"date_string": f"{year}-{month}-{day}",
+                     "year": year, "month": month, "day": day}
+
+    except AttributeError:
+        pass
+
+
+    return date_string, date_dict
+
+        #     # datePublished is a string, not a date-time
+
+        # else:
+        #     # 1524678 2993907 have MedlineDate instead of Year Month Day
+        #     medline_date = get_medline_date_from_xml_date(pub_date)
+        #     if medline_date:
+        #         data_dict["date_string"] = medline_date
+        #         data_dict["datePublished"] = medline_date
+
+
+
 
 def generate_json(pmids, base_path, previous_pmids=[]):  # noqa: C901
     """
@@ -400,28 +392,12 @@ def generate_json(pmids, base_path, previous_pmids=[]):  # noqa: C901
             comments, new_ref_types, new_pmids = get_comments_corrections(xml, pmids)
             data_dict["commentsCorrections"] = comments
             data_dict["authors"] = get_authors(xml)
+            data_dict["datePublished"], data_dict["issueDate"] = get_dates(xml)
 
             print(data_dict)
 
             get_authors(xml)
-    #
-    #         pub_date_re_output = re.search("<PubDate>(.+?)</PubDate>", xml, re.DOTALL)
-    #         if pub_date_re_output is not None:
-    #             pub_date = pub_date_re_output.group(1)
-    #             date_list = get_year_month_day_from_xml_date(pub_date)
-    #             if date_list[0]:
-    #                 date_string = '-'.join(date_list)
-    #                 date_dict = {"date_string": date_string, "year": date_list[0], "month": date_list[1],
-    #                              "day": date_list[2]}
-    #                 # datePublished is a string, not a date-time
-    #                 data_dict["datePublished"] = date_string
-    #                 data_dict["issueDate"] = date_dict
-    #             else:
-    #                 # 1524678 2993907 have MedlineDate instead of Year Month Day
-    #                 medline_date = get_medline_date_from_xml_date(pub_date)
-    #                 if medline_date:
-    #                     data_dict["date_string"] = medline_date
-    #                     data_dict["datePublished"] = medline_date
+
     #
     #         date_revised_re_output = re.search(
     #             "<DateRevised>(.+?)</DateRevised>", xml, re.DOTALL

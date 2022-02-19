@@ -81,7 +81,8 @@ def run_pipeline(cli, db, ffile, api, sample, url, dqm, xml):
         # python get_pubmed_xml.py -s
         logger.info("Processing hardcoded sample input")
         pmids = ["12345678", "12345679", "12345680", "21290765", "33054145",
-                 "21413221", "28304499", "28308877", "9684897"]
+                 "21413221", "28304499", "28308877", "9684897", "27899353",
+                 "30979869", "30003105", "30002370", "2993907"]
     elif dqm:
         logger.info("Getting DQM data")
         get_dqm_data.download_dqm_json()
