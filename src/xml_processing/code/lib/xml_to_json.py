@@ -108,14 +108,14 @@ def get_year_month_day_from_xml_date(pub_date):
     return year, month, day
 
 
-def get_medline_date_from_xml_date(pub_date):
+def get_medline_date_from_xml_date(xml_data):
     """
 
     :param pub_date:
     :return:
     """
 
-    medline_re_output = re.search("<MedlineDate>(.+?)</MedlineDate>", pub_date)
+    medline_re_output = re.search("<MedlineDate>(.+?)</MedlineDate>", xml_data)
     if medline_re_output is not None:
         return medline_re_output.group(1)
 
@@ -299,38 +299,41 @@ def get_authors(xml_data):
     return authors_list
 
 
-def get_dates(xml_data):
+def get_dates(xml_data, date_type):
+    """
 
+    1524678 2993907 have MedlineDate instead of Year Month Day
+    datePublished is a string, not a date-time
 
+    :param xml_data:
+    :param date_type:
+    :return:
+    """
 
+    date_string = ""
+    date_dict = {}
+    print(date_type)
     try:
-        pub_date_re_output = re.search("<PubDate>(.+?)</PubDate>", xml_data, re.DOTALL)
-        pub_date = pub_date_re_output.group(1)
-        print(pub_date)
-
-
+        if date_type == "PubMedPubDate":
+            pub_date = re.search("<PubMedPubDate PubStatus=\"received\">(.+?)</PubMedPubDate>", xml, re.DOTALL).group(1)
+        else:
+            pub_date = re.search(f"<{date_type}>(.+?)</{date_type}>", xml_data, re.DOTALL).group(1)
         year, month, day = get_year_month_day_from_xml_date(pub_date)
-
-        date_dict = {"date_string": f"{year}-{month}-{day}",
+        date_string = f"{year}-{month}-{day}"
+        date_dict = {"date_string": date_string,
                      "year": year, "month": month, "day": day}
 
-    except AttributeError:
-        pass
+        return date_dict
+    except Exception as e:
+        logger.error(str(e))
+        medline_date = get_medline_date_from_xml_date(xml_data)
+        print(medline_date)
+        if medline_date:
+            date_string = medline_date
+            date_dict = medline_date
+        return date_dict
 
-
-    return date_string, date_dict
-
-        #     # datePublished is a string, not a date-time
-
-        # else:
-        #     # 1524678 2993907 have MedlineDate instead of Year Month Day
-        #     medline_date = get_medline_date_from_xml_date(pub_date)
-        #     if medline_date:
-        #         data_dict["date_string"] = medline_date
-        #         data_dict["datePublished"] = medline_date
-
-
-
+    return date_dict
 
 def generate_json(pmids, base_path, previous_pmids=[]):  # noqa: C901
     """
@@ -392,33 +395,15 @@ def generate_json(pmids, base_path, previous_pmids=[]):  # noqa: C901
             comments, new_ref_types, new_pmids = get_comments_corrections(xml, pmids)
             data_dict["commentsCorrections"] = comments
             data_dict["authors"] = get_authors(xml)
-            data_dict["datePublished"], data_dict["issueDate"] = get_dates(xml)
-
+            data_dict["datePublished"] = get_dates(xml, "PubDate")
+            data_dict["issueDate"] = data_dict['datePublished']['date_string']
+            data_dict['date_string'] = data_dict['datePublished']['date_string']
+            data_dict["dateLastModified"]  = get_dates(xml, "DateRevised")
+            # temp, data_dict["dateArrivedInPubmed"] = get_section(xml, "PubMedPubDate")
             print(data_dict)
 
             get_authors(xml)
 
-    #
-    #         date_revised_re_output = re.search(
-    #             "<DateRevised>(.+?)</DateRevised>", xml, re.DOTALL
-    #         )
-    #         if date_revised_re_output is not None:
-    #             date_revised = date_revised_re_output.group(1)
-    #             date_list = get_year_month_day_from_xml_date(date_revised)
-    #             if date_list[0]:
-    #                 date_string = "-".join(date_list)
-    #                 date_dict = {"date_string": date_string, "year": date_list[0],
-    #                              "month": date_list[1], "day": date_list[2]}
-    #                 data_dict["dateLastModified"] = date_dict
-    #
-    #         date_received_re_output = re.search("<PubMedPubDate PubStatus=\"received\">(.+?)</PubMedPubDate>", xml, re.DOTALL)
-    #         if date_received_re_output is not None:
-    #             date_received = date_received_re_output.group(1)
-    #             date_list = get_year_month_day_from_xml_date(date_received)
-    #             if date_list[0]:
-    #                 date_string = "-".join(date_list)
-    #                 date_dict = {"date_string": date_string, "year": date_list[0], "month": date_list[1], "day": date_list[2]}
-    #                 data_dict["dateArrivedInPubmed"] = date_dict
     #
     #         cross_references = []
     #         has_self_pmid = False  # e.g. 20301347, 21413225 do not have the PMID itself in the ArticleIdList, so must be appended to the cross_references
