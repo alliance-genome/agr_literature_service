@@ -172,7 +172,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     base_path = environ.get('XML_PATH')
     api_port = environ.get('API_PORT')    # noqa: F841
     # url_ref_curie_prefix = 'https://dev' + api_port + '-literature-rest.alliancegenome.org/reference/'
-    # url_ref_curie_prefix = make_url_ref_curie_prefix()
+    url_ref_curie_prefix = make_url_ref_curie_prefix()
 
     token = get_authentication_token()
     headers = generate_headers(token)

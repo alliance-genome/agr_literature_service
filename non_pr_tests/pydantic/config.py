@@ -34,7 +34,6 @@ class Settings(BaseSettings):
     class Config:
         # env_prefix = 'my_prefix_'  # defaults to no prefix, i.e. ""
         # env_file = ".env"
-        print( __loader__.name)
         env_file = environ.get('env_file', '.env')
         print(env_file)
 
