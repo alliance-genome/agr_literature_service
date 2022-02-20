@@ -6,6 +6,7 @@ from literature.schemas import EnvStateSchema
 from os import path, environ
 import sys
 
+
 class GlobalConfig(BaseSettings):
     """Global configurations."""
 
@@ -38,11 +39,12 @@ class GlobalConfig(BaseSettings):
 
     class Config:
         """Loads the dotenv file."""
-        env_state = environ.get('ENV_STATE', 'prod') 
+        env_state = environ.get('ENV_STATE', 'prod')
         print("State is {}".format(env_state))
         if env_state == "prod":
             env_file = path.dirname((sys.modules[__name__].__file__)) + "/.env"
         elif env_state == "test":
             env_file = path.dirname((sys.modules[__name__].__file__)) + "/.test_env"
+
 
 config = GlobalConfig()

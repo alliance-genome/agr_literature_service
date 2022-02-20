@@ -4,19 +4,16 @@ import inspect
 from pydantic import (
     BaseModel,
     BaseSettings,
-    PyObject,
-    RedisDsn,
-    PostgresDsn,
-    # AmqpDsn,
-    Field,
+    Field
 )
-from os import environ, path
+from os import environ
 from literature.schemas import EnvStateSchema
-import sys
+
 
 class SubModel(BaseModel):
     foo = 'bar'
     apple = 1
+
 
 class Settings(BaseSettings):
     api_key: str = Field(..., env='my_api_key')
@@ -37,7 +34,6 @@ class Settings(BaseSettings):
         env_file = environ.get('env_file', '.env')
         print(env_file)
 
+
 print(inspect.getfile(EnvStateSchema))
 print(Settings().dict())
-print( __loader__.name)
-print(path.dirname((sys.modules[__name__].__file__)))

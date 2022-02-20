@@ -7,40 +7,29 @@
 # Generate a sample of curies to use:-
 #    psql -d literature -U postgres -d literature < curie_sample_gen.sql \
 #        > sample_curies.txt
-#    Edit the sample_curies.txt and remove the header and footers to leave just 
+#    Edit the sample_curies.txt and remove the header and footers to leave just
 #    the list of curies.
 #
 # Also try loading the whole set into memory - sql and pydantic
 #
 ################################################################################
 import datetime
-from sqlalchemy import create_engine, inspect
-from sqlalchemy.orm import sessionmaker, aliased
+from sqlalchemy import create_engine, func
+from sqlalchemy.orm import sessionmaker
 from os import environ, path
 import requests
 import json
 from literature.models import ReferenceModel
-
-#from literature.config import config
-#from initialize import setup_resource_descriptor
 from literature.crud import reference_crud
-from fastapi import Depends, Security
-from literature.routers.authentication import auth
 
 api_port = environ.get('API_PORT', '8080') 
 api_server = environ.get('API_SERVER', 'localhost')
 file_name = "./sample_curies.txt"
 
-#setup_resource_descriptor()
-
 # increase each test run else the references may be cached which wiil
 # skew results.
 caching_avoid = 300
 
-
-from literature import database
-from sqlalchemy import create_engine, func
-from sqlalchemy.orm import sessionmaker
 
 def create_postgres_session():
     """Connect to database."""
@@ -67,7 +56,6 @@ def create_postgres_session():
     return session
 
 
-
 def load_agr_curies():
     curies = []
     count = 0
@@ -82,12 +70,7 @@ def load_agr_curies():
     return curies
 
 
-
-
-
-
 def use_alchemy(session, curies, max_number):
-    
     count = 0
     while(count <= max_number):
         reference = session.query(ReferenceModel).filter(ReferenceModel.curie == curies[count + caching_avoid]).one_or_none()
@@ -95,6 +78,7 @@ def use_alchemy(session, curies, max_number):
         if count <= 5:
             print(reference.curie)
         count += 1
+
 
 def use_method(session, curies, max_number):
     count = 0
@@ -116,12 +100,11 @@ def use_curl(curies, max_number, translate=True):
         # logger.info("get AGR reference info from database %s", url)
         get_return = requests.get(url)
         if translate:
-            db_entry = json.loads(get_return.text)
+            json.loads(get_return.text)
         if count < 5:
             print(url)
             # print(db_entry)
         count += 1
-
 
 
 # change the MAX_SAMPLE_SIZE based on timings, we need a sensible amout but not too many
@@ -133,7 +116,7 @@ start_time = datetime.datetime.now()
 use_curl(curies, MAX_SAMPLE_SIZE, translate=False)
 end_time = datetime.datetime.now()
 diff = end_time - start_time
-print("Time to curl {} entries was  {}".format(MAX_SAMPLE_SIZE, diff)) 
+print("Time to curl {} entries was  {}".format(MAX_SAMPLE_SIZE, diff))
 
 # use curl
 caching_avoid += MAX_SAMPLE_SIZE + 10
@@ -141,7 +124,7 @@ start_time = datetime.datetime.now()
 use_curl(curies, MAX_SAMPLE_SIZE, translate=True)
 end_time = datetime.datetime.now()
 diff = end_time - start_time
-print("Time to curl {} entries was  {}".format(MAX_SAMPLE_SIZE, diff)) 
+print("Time to curl {} entries was  {}".format(MAX_SAMPLE_SIZE, diff))
 
 caching_avoid += MAX_SAMPLE_SIZE + 500
 session = create_postgres_session()
@@ -149,11 +132,11 @@ start_time = datetime.datetime.now()
 use_alchemy(session, curies, MAX_SAMPLE_SIZE)
 end_time = datetime.datetime.now()
 diff = end_time - start_time
-print("Time to sqlalchemy {} entries was  {}".format(MAX_SAMPLE_SIZE, diff)) 
+print("Time to sqlalchemy {} entries was  {}".format(MAX_SAMPLE_SIZE, diff))
 
 caching_avoid += MAX_SAMPLE_SIZE + 500
 start_time = datetime.datetime.now()
 use_method(session, curies, MAX_SAMPLE_SIZE)
 end_time = datetime.datetime.now()
 diff = end_time - start_time
-print("Time to reference_crud.show {} entries was  {}".format(MAX_SAMPLE_SIZE, diff)) 
+print("Time to reference_crud.show {} entries was  {}".format(MAX_SAMPLE_SIZE, diff))
