@@ -14,7 +14,7 @@ class GlobalConfig(BaseSettings):
     # shell environment variable having the same name, that will take precedence.
 
     # the class Field is necessary while defining the global variables
-    ENV_STATE: Optional[EnvStateSchema] = Field(..., env="ENV_STATE")
+    ENV_STATE: EnvStateSchema = Field(..., env="ENV_STATE")
     HOST: Optional[str] = Field(..., env="HOST")
     PROD_HOST: Optional[str] = Field(..., env="HOST")
 
@@ -29,11 +29,11 @@ class GlobalConfig(BaseSettings):
     OKTA_DOMAIN: Optional[str] = Field(..., env="OKTA_DOMAIN")
     OKTA_API_AUDIENCE: Optional[str] = Field(..., env="OKTA_API_AUDIENCE")
 
-    PSQL_USERNAME: Optional[str] = Field(..., env="PSQL_USERNAME")
-    PSQL_PASSWORD: Optional[str] = Field(..., env="PSQL_PASSWORD")
-    PSQL_HOST: Optional[str] = Field(..., env="PSQL_HOST")
-    PSQL_PORT: Optional[str] = Field(..., env="PSQL_PORT")
-    PSQL_DATABASE: Optional[str] = Field(..., env="PSQL_DATABASE")
+    PSQL_USERNAME: str = Field(..., env="PSQL_USERNAME")
+    PSQL_PASSWORD: str = Field(..., env="PSQL_PASSWORD")
+    PSQL_HOST: str = Field(..., env="PSQL_HOST")
+    PSQL_PORT: str = Field(..., env="PSQL_PORT")
+    PSQL_DATABASE: str = Field(..., env="PSQL_DATABASE")
 
     RESOURCE_DESCRIPTOR_URL: str = Field(..., env="RESOURCE_DESCRIPTOR_URL")
 
