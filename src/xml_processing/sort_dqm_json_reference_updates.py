@@ -472,7 +472,7 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     # there's no API to update tags
 
     api_port = environ.get('API_PORT')
-    url_ref_curie_prefix = make_url_ref_curie_prefix()
+    # url_ref_curie_prefix = make_url_ref_curie_prefix()
 
     counter = 0
     max_counter = 10000000

@@ -14,7 +14,7 @@
 #
 ################################################################################
 import datetime
-from sqlalchemy import create_engine, func
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from os import environ, path
 import requests
@@ -22,7 +22,7 @@ import json
 from literature.models import ReferenceModel
 from literature.crud import reference_crud
 
-api_port = environ.get('API_PORT', '8080') 
+api_port = environ.get('API_PORT', '8080')
 api_server = environ.get('API_SERVER', 'localhost')
 file_name = "./sample_curies.txt"
 
