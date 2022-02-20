@@ -172,7 +172,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     base_path = environ.get('XML_PATH')
     api_port = environ.get('API_PORT')    # noqa: F841
     # url_ref_curie_prefix = 'https://dev' + api_port + '-literature-rest.alliancegenome.org/reference/'
-    url_ref_curie_prefix = make_url_ref_curie_prefix()
+    # url_ref_curie_prefix = make_url_ref_curie_prefix()
 
     token = get_authentication_token()
     headers = generate_headers(token)
@@ -483,7 +483,7 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
         if counter > max_counter:
             break
 
-        agr_url = url_ref_curie_prefix + agr    # noqa: F841
+        # agr_url = url_ref_curie_prefix + agr    # noqa: F841
         api_server = environ.get('API_SERVER', 'localhost')
         url = 'http://' + api_server + ':' + api_port + '/reference/' + agr
         logger.info("get AGR reference info from database %s", url)
