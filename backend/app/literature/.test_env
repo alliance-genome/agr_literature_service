@@ -11,7 +11,7 @@ HOST=0.0.0.0
 
 PSQL_USERNAME=postgres
 PSQL_PASSWORD=postgres
-PSQL_HOST=localhost
+PSQL_HOST=postgres
 PSQL_PORT=5432
 PSQL_DATABASE=literature
 
