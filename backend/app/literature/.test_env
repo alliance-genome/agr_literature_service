@@ -6,19 +6,14 @@ OKTA_DOMAIN='dev-30456587.okta.com/oauth2/default'
 OKTA_API_AUDIENCE='api://default'
 
 # Envstate should either be build or prod
-ENV_STATE=build
-HOST=0.0.0.0
+ENV_STATE=test
+HOST=agr-test-app
 
 PSQL_USERNAME=postgres
 PSQL_PASSWORD=postgres
-PSQL_HOST=postgres
+PSQL_HOST=agr-test-postgres
 PSQL_PORT=5432
-PSQL_DATABASE=literature
-
-PG_USER=postgres
-PG_PASSWORD=postgres
-PG_HOST=postgres
-PG_PORT=5432
+PSQL_DATABASE=literature-test
 
 PGADMIN_DEFAULT_EMAIL=your@email.com
 PGADMIN_DEFAULT_PASSWORD=password

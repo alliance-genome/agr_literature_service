@@ -472,7 +472,7 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     # there's no API to update tags
 
     api_port = environ.get('API_PORT')
-    url_ref_curie_prefix = make_url_ref_curie_prefix()
+    # url_ref_curie_prefix = make_url_ref_curie_prefix()
 
     counter = 0
     max_counter = 10000000
@@ -483,7 +483,7 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
         if counter > max_counter:
             break
 
-        agr_url = url_ref_curie_prefix + agr    # noqa: F841
+        # agr_url = url_ref_curie_prefix + agr    # noqa: F841
         api_server = environ.get('API_SERVER', 'localhost')
         url = 'http://' + api_server + ':' + api_port + '/reference/' + agr
         logger.info("get AGR reference info from database %s", url)
