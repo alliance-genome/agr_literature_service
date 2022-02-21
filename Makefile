@@ -61,6 +61,7 @@ docker-compose-down:
 
 run-test-bash: build-env build-dev
 	-docker volume rm agr_literature_service_agr-literature-test-pg-data    
+	export REG=${REG}
 	docker-compose -f docker-compose-test.yml up -d
 	sleep 5
 	# Minus at start means ignore exit code for that line
@@ -80,7 +81,7 @@ run-functest: build-env build-dev build-app-test
 
 	# remove the postgres and app data. app data isd just the logs.
 	-docker volume rm agr_literature_service_agr-literature-test-pg-data agr_literature_service_agr-logs
-
+	export REG=${REG}
 	# start up the app and postgres db
 	docker-compose -f docker-compose-functest.yml up -d
 	# be safe and give things a chance to spin up
