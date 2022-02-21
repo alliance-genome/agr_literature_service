@@ -11,8 +11,8 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: literature-test
       POSTGRES_PORT: 5432
-    ports:
-     - "5432:5432"
+    #ports:
+    # - "5432:5432"
     volumes:
       - "agr-literature-test-pg-data:/var/lib/postgresql/data"
       - "./postgresql.conf:/etc/postgresql.conf"
