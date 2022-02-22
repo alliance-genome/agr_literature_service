@@ -1,6 +1,5 @@
 __pycache__/
 Pipfile.lock
-.env
 junk
 htmlcov
 src/xml_processing/pubmed_json

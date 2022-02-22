@@ -36,7 +36,7 @@ services:
     container_name: agr-literature-app-test
     hostname: agr-test-app
     restart: always
-    image: 100225593120.dkr.ecr.us-east-1.amazonaws.com/agr_literature_app_test:latest
+    image: ${REG}/agr_literature_app_test:latest
     environment:
       API_PORT: 8080
       PYTHONPATH: "/usr/local/bin/src/literature/src/xml_processing"
