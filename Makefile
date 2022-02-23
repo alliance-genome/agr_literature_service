@@ -1,7 +1,8 @@
+REG=100225593120.dkr.ecr.us-east-1.amazonaws.com
+TAG=latest
+
 ifdef ENV_FILE
 	include ${ENV_FILE}
-else
-    include .env
 endif
 
 login-ecr:
