@@ -79,35 +79,31 @@ def download_dqm_json(base_path):
         logger.info(f"DQM data {storage_path} already exists")
 
     for datatype in DATATYPES:
+        datatype_path = os.path.join(storage_path, datatype)
+        if not os.path.isdir(datatype_path):
+            makedirs(datatype_path)
         for mod in MODS:
             url = 'https://fms.alliancegenome.org/api/datafile/by/' + RELEASE + '/' + datatype + '/' + mod + '?latest=true'
             logger.info(f"Processing {url}")
             response = urllib.request.urlopen(url)
             try:
                 data = json.loads(response.read())
-                file_url = data[0]["s3Url"]
-                md5sum_fms = data[0]["md5Sum"]
-                outfile_path_decompressed = storage_path + datatype + "_" + mod + ".json"
+                outfile_path_decompressed = os.path.join(datatype_path, mod + ".json")
+
+                md5sum_local = get_md5_sum_from_path(outfile_path_decompressed)
+                logger.debug(outfile_path_decompressed + " has md5sum " + md5sum_local)
+
+                if md5sum_local != data[0]["md5Sum"]:
+                    logger.info(f"Downloading {data[0]['s3Url']} to {outfile_path_decompressed}")
+                    response = urllib.request.urlopen(data[0]["s3Url"])
+                    compressed_file = io.BytesIO(response.read())
+                    decompressed_file = gzip.GzipFile(fileobj=compressed_file)
+
+                    with open(outfile_path_decompressed, "wb") as outfile:
+                        outfile.write(decompressed_file.read())
             except Exception as e:
                 logger.error(f"Error processing {url}")
                 logger.error(e)
-
-            # md5sum_local = get_md5_sum_from_path(outfile_path_decompressed)
-            # logger.debug(outfile_path_decompressed + " has md5sum " + md5sum_local)
-            #
-            # if md5sum_local != md5sum_fms:
-            #     logger.info("downloading %s to %s", file_url, outfile_path_decompressed)
-            #     response = urllib.request.urlopen(file_url)
-            #     compressed_file = io.BytesIO(response.read())
-            #     decompressed_file = gzip.GzipFile(fileobj=compressed_file)
-            #
-            #     with open(outfile_path_decompressed, "wb") as outfile:
-            #         outfile.write(decompressed_file.read())
-
-    # if wanting to keep copies of compressed files to save space (md5sum check wouldn't work against fms)
-    #           outfile_path_compressed = storage_path + datatype + '_' + mod + '.json.gz'
-    #           with open(outfile_path_compressed, 'wb') as outfile:
-    #               outfile.write(compressed_file.read())
 
 
 if __name__ == "__main__":
@@ -115,4 +111,5 @@ if __name__ == "__main__":
     redirects to download_dqm_json
     """
 
-    download_dqm_json()
+    base_path = os.getcwd()
+    download_dqm_json(base_path)

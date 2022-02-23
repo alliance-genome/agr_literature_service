@@ -20,13 +20,14 @@ coloredlogs.install(level="DEBUG")
 
 
 @click.command()
-@click.option("-c","--commandline","cli",multiple=True,help="take input from command line flag",required=False)
+@click.option("-c","--commandline", "cli", multiple=True, help="take input from command line flag", required=False)
 @click.option("-d", "--database", "db", help="take input from database query", required=False)
 @click.option("-f", "--file", "ffile", help="take input from entries in file with full path", required=False)
 @click.option("-r", "--restapi", "api", help="take input from rest api", required=False)
-@click.option("-s", "--sample", "sample", help="test sample input from hardcoded entries", required=False, default=False, is_flag=True)
+@click.option("-s", "--sample", "sample", help="test sample input from hardcoded entries", required=False,
+              default=False, is_flag=True)
 @click.option("-u", "--url", "url", help="take input from entries in file at url", required=False)
-@click.option("-D", "--dqm", "dqm", help="get the DQM data", required=False)
+@click.option("-D", "--dqm", "dqm", help="get the DQM data", required=False, is_flag=True)
 @click.option("-x", "--xml", "xml", help="convert XML files to JSON", required=False)
 def run_pipeline(cli, db, ffile, api, sample, url, dqm, xml):
     """
@@ -85,8 +86,7 @@ def run_pipeline(cli, db, ffile, api, sample, url, dqm, xml):
                  "30979869", "30003105", "30002370", "2993907"]
     elif dqm:
         logger.info("Getting DQM data")
-        get_dqm_data.download_dqm_json()
-        sys.exit()
+        get_dqm_data.download_dqm_json(base_path)
     elif xml:
         logger.info("Converting XML to JSON")
         xml_to_json.process_tasks(ffile)
@@ -94,8 +94,8 @@ def run_pipeline(cli, db, ffile, api, sample, url, dqm, xml):
 
     if len(pmids) > 0:
         logger.info("Starting XML download for %d PMIDs", len(pmids))
-        get_pubmed_xml.download_pubmed_xml(pmids, storage_path, base_path)
-        xml_to_json.generate_json(pmids, base_path)
+        # get_pubmed_xml.download_pubmed_xml(pmids, storage_path, base_path)
+        # xml_to_json.generate_json(pmids, base_path)
     else:
         logger.error("No PMIDs to be downloaded")
 
