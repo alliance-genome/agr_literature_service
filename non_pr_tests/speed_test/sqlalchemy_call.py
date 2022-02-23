@@ -48,7 +48,7 @@ def batch_alchemy(curies, batch_size, count_start=0, verbose=False):
     refs = session.query(ReferenceModel).\
         filter(ReferenceModel.curie.in_(batch_list)).all()
     session.close()
-    # Make sure we have all the data, Store in a dict similare to 
+    # Make sure we have all the data, Store in a dict similare to
     # what would be used in the code.
     new_dict = {item.curie: item for item in refs}
     # print("dict type is {}".format(type(new_dict)))
