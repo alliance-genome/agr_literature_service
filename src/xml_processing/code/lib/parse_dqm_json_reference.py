@@ -55,6 +55,7 @@ parser.add_argument("-c", "--commandline", nargs="*", action="store", help="plac
 
 args = vars(parser.parse_args())
 
+
 def generate_pmid_data(base_path, output_directory):  # noqa: C901
     """
 
@@ -79,6 +80,7 @@ def generate_pmid_data(base_path, output_directory):  # noqa: C901
     # RGD should be first in mods list. if conflicting allianceCategories the later mod gets priority
     mods = ["RGD", "MGI", "SGD", "FB", "ZFIN", "WB"]
 
+    mods = ['WB']
     pmid_references = defaultdict(list)
     non_pmid_references = defaultdict(list)
     unknown_prefix = set([])
@@ -90,27 +92,25 @@ def generate_pmid_data(base_path, output_directory):  # noqa: C901
     for mod in mods:
         filename = os.path.join(dqm_path, f"REFERENCE/{mod}.json")
         logger.info(f"Loading {mod} data from {filename}")
-    #     dqm_data = {}
-    #     try:
-    #         with open(filename) as f:
-    #             dqm_data = json.load(f)
-    #     except IOError:
-    #         logger.info("No reference data to update from MOD %s", mod)
-    #     if not dqm_data:
-    #         continue
-    #
-    #     primary_id_unique = {}
-    #     pmid_unique = {}
-    #
-    #     for entry in dqm_data["data"]:
-    #         if check_primary_id_is_unique:
-    #             try:
-    #                 primary_id_unique[entry["primaryId"]] = (primary_id_unique[entry["primaryId"]] + 1)
-    #             except KeyError:
-    #                 primary_id_unique[entry["primaryId"]] = 1
-    #
+        try:
+            dqm_data = json.load(open(filename))
+        except FileNotFoundError:
+            logger.error(f"File not found: {filename}")
+
+
+        primary_id_unique = {}
+        pmid_unique = {}
+
+        for entry in dqm_data["data"]:
+            if check_primary_id_is_unique:
+                try:
+                    primary_id_unique[entry["primaryId"]] += 1
+                except KeyError:
+                    primary_id_unique[entry["primaryId"]] = 1
+
+
     #         pmid = "0"
-    #         prefix, identifier, separator = split_identifier(entry["primaryId"])
+            prefix, identifier, separator = split_identifier(entry["primaryId"])
     #         if prefix == "PMID":
     #             pmid = identifier
     #         elif prefix in mods:
