@@ -28,7 +28,7 @@ jobs:
           PSQL_PASSWORD: postgres
           PSQL_HOST: postgres
           PSQL_PORT: 5432
-          PSQL_DATABASE: literature
+          PSQL_DATABASE: literature-test
           PYTHONPATH: src/xml_processing/
           XML_PATH: /usr/local/bin/src/literature/src/xml_processing/tests/
           OKTA_CLIENT_ID: ${{ secrets.okta_client_id }}
