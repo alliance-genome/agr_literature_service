@@ -84,7 +84,7 @@ run-functest: build-env build-dev build-app-test
 	# remove the postgres and app data. app data isd just the logs.
 	-docker volume rm -f agr-literature-test_agr-literature-pg-data agr-literature-test_agr-logs
 	# start up the app and postgres db
-	docker-compose --env-file .env.test up -d agr_literature
+	docker-compose --env-file .env.test up agr_literature
 	# be safe and give things a chance to spin up
 	sleep 5
 
