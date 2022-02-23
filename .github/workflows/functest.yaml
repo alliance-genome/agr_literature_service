@@ -26,7 +26,7 @@ jobs:
           HOST: 0.0.0.0
           PSQL_USERNAME: postgres
           PSQL_PASSWORD: postgres
-          PSQL_HOST: agr-test-postgres
+          PSQL_HOST: postgres
           PSQL_PORT: 5432
           PSQL_DATABASE: literature-test
           PYTHONPATH: src/xml_processing/
