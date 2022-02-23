@@ -4,6 +4,13 @@
 # add python path to fins literature stuff.
 # PYTHONPATH=~/alliance/agr_literature_service/backend/app
 #
+#
+# create database if it does not exist or to remove postgres caching.
+# pg_restore --clean --if-exists -d literature -h postgres -U postgres -p 5432 < literature-4003.pg.dump.20211118
+#
+# start the app so we can curl:-
+# python3 backend/app/main.py
+#
 # Generate a sample of curies to use:-
 #    psql -d literature -U postgres -d literature < curie_sample_gen.sql \
 #        > sample_curies.txt
@@ -14,46 +21,23 @@
 #
 ################################################################################
 import datetime
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from os import environ, path
-import requests
-import json
-from literature.models import ReferenceModel
-from literature.crud import reference_crud
 
+from os import environ, path
+
+from curl_call import use_curl
+from direct_method_call import use_method
+from sqlalchemy_call import use_alchemy, batch_alchemy
+from direct_sql_call import sql_direct, batch_sql_direct
+
+verbose = False
 api_port = environ.get('API_PORT', '8080')
 api_server = environ.get('API_SERVER', 'localhost')
 file_name = "./sample_curies.txt"
 
 # increase each test run else the references may be cached which wiil
 # skew results.
-caching_avoid = 300
-
-
-def create_postgres_session():
-    """Connect to database."""
-    USER = environ.get('PSQL_USERNAME', 'postgres')
-    PASSWORD = environ.get('PSQL_PASSWORD', 'postgres')
-    SERVER = environ.get('HOST', 'localhost')
-    PORT = environ.get('PSQL_PORT', '5432')
-
-    DB = environ.get('PSQL_DATABASE', 'literature')
-
-    print('Using server: {}'.format(SERVER))
-    print('Using database: {}'.format(DB))
-    print(USER)
-    print(PASSWORD)
-    print(PORT)
-    print(DB)
-    # Create our SQL Alchemy engine from our environmental variables.
-    engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
-    engine = create_engine(engine_var)
-
-    Session = sessionmaker(bind=engine)
-    session = Session()
-
-    return session
+start_index = 350
+MAX_SAMPLE_SIZE = 100
 
 
 def load_agr_curies():
@@ -66,77 +50,56 @@ def load_agr_curies():
                 count += 1
     else:
         print("Could not load file {}".format(file_name))
-    print("Read {} curies form file.".format(count))
+    print("Read {} curies from file.".format(count))
     return curies
 
 
-def use_alchemy(session, curies, max_number):
-    count = 0
-    while(count <= max_number):
-        reference = session.query(ReferenceModel).filter(ReferenceModel.curie == curies[count + caching_avoid]).one_or_none()
-        # reference_crud.show(curies[count], Depends(get_db))
-        if count <= 5:
-            print(reference.curie)
-        count += 1
-
-
-def use_method(session, curies, max_number):
-    count = 0
-    while(count <= max_number):
-        ref = reference_crud.show(session, curies[count + caching_avoid])
-        # print(dir(ref))
-        if count <= 5:
-            # print(ref)
-            print(ref["curie"])
-        count += 1
-
-
-#### methods that do the work
-def use_curl(curies, max_number, translate=True):
-
-    count = 0
-    while(count <= max_number):
-        url = 'http://' + api_server + ':' + api_port + '/reference/' + curies[count + caching_avoid]
-        # logger.info("get AGR reference info from database %s", url)
-        get_return = requests.get(url)
-        if translate:
-            json.loads(get_return.text)
-        if count < 5:
-            print(url)
-            # print(db_entry)
-        count += 1
-
-
-# change the MAX_SAMPLE_SIZE based on timings, we need a sensible amout but not too many
-MAX_SAMPLE_SIZE = 10
 curies = load_agr_curies()
 
 # Use the url to curl no conversion of json
 start_time = datetime.datetime.now()
-use_curl(curies, MAX_SAMPLE_SIZE, translate=False)
+start_index = use_curl(curies, MAX_SAMPLE_SIZE, translate=False, count_start=start_index, verbose=verbose)
 end_time = datetime.datetime.now()
 diff = end_time - start_time
-print("Time to curl {} entries was  {}".format(MAX_SAMPLE_SIZE, diff))
+print("Time to curl (Translate=F) {} entries was  {}".format(MAX_SAMPLE_SIZE, diff))
 
 # use curl
-caching_avoid += MAX_SAMPLE_SIZE + 10
 start_time = datetime.datetime.now()
-use_curl(curies, MAX_SAMPLE_SIZE, translate=True)
+start_index = use_curl(curies, MAX_SAMPLE_SIZE, translate=True, count_start=start_index, verbose=verbose)
 end_time = datetime.datetime.now()
 diff = end_time - start_time
-print("Time to curl {} entries was  {}".format(MAX_SAMPLE_SIZE, diff))
+print("Time to (Translate=T) curl {} entries was  {}".format(MAX_SAMPLE_SIZE, diff))
 
-caching_avoid += MAX_SAMPLE_SIZE + 500
-session = create_postgres_session()
+
 start_time = datetime.datetime.now()
-use_alchemy(session, curies, MAX_SAMPLE_SIZE)
+start_index = use_alchemy(curies, MAX_SAMPLE_SIZE, count_start=start_index, verbose=verbose)
 end_time = datetime.datetime.now()
 diff = end_time - start_time
 print("Time to sqlalchemy {} entries was  {}".format(MAX_SAMPLE_SIZE, diff))
 
-caching_avoid += MAX_SAMPLE_SIZE + 500
 start_time = datetime.datetime.now()
-use_method(session, curies, MAX_SAMPLE_SIZE)
+start_index = use_method(curies, MAX_SAMPLE_SIZE, count_start=start_index, verbose=verbose)
 end_time = datetime.datetime.now()
 diff = end_time - start_time
 print("Time to reference_crud.show {} entries was  {}".format(MAX_SAMPLE_SIZE, diff))
+
+start_time = datetime.datetime.now()
+start_index = sql_direct(curies, MAX_SAMPLE_SIZE, count_start=start_index, verbose=verbose)
+end_time = datetime.datetime.now()
+diff = end_time - start_time
+print("Time to direct sql {} entries was  {}".format(MAX_SAMPLE_SIZE, diff))
+
+# curl and direct method call have no batch so lets just do sqlalchemy and direct sql.
+
+for batch_size in [10, 100, 500, 1000, 10000, 100000]:
+    start_time = datetime.datetime.now()
+    start_index = batch_alchemy(curies, batch_size, count_start=start_index, verbose=verbose)
+    end_time = datetime.datetime.now()
+    diff = end_time - start_time
+    print("Time for BATCH alchemy with {} entries was  {}".format(batch_size, diff))
+
+    start_time = datetime.datetime.now()
+    start_index = batch_sql_direct(curies, batch_size, count_start=start_index, verbose=verbose)
+    end_time = datetime.datetime.now()
+    diff = end_time - start_time
+    print("Time for BATCH direct sql with {} entries was  {}".format(batch_size, diff))
