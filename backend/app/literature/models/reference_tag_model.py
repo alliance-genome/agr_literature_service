@@ -46,3 +46,9 @@ class ReferenceTagModel(Base):
         unique=False,
         nullable=False
     )
+
+    def __str__(self):
+        """
+        Overwrite the default output.
+        """
+        return "name={}, source={}".format(self.tag_name, self.tag_source)

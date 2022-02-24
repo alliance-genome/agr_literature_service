@@ -44,3 +44,9 @@ class MeshDetailModel(Base):
         unique=False,
         nullable=True
     )
+
+    def __str__(self):
+        """
+        Overwrite the default output.
+        """
+        return "ht={}, qt={}".format(self.heading_term, self.qualifier_term)
