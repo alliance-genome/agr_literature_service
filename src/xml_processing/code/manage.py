@@ -12,7 +12,7 @@ import urllib
 
 import click
 import coloredlogs
-from lib import get_dqm_data, get_pubmed_xml, xml_to_json
+from lib import get_dqm_data, get_pubmed_xml, xml_to_json, parse_dqm_json_reference
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -87,6 +87,8 @@ def run_pipeline(cli, db, ffile, api, sample, url, dqm, xml):
     elif dqm:
         logger.info("Getting DQM data")
         get_dqm_data.download_dqm_json(base_path)
+        logger.info("Getting the PMIDs")
+        parse_dqm_json_reference.generate_pmid_data(base_path, os.path.join(base_path, "dqm_data/REFERENCE/output"))
     elif xml:
         logger.info("Converting XML to JSON")
         xml_to_json.process_tasks(ffile)

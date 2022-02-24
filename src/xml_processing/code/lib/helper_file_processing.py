@@ -1,17 +1,23 @@
 import json
+import logging
 import warnings
 from os import environ, path
 
 import bs4
+import coloredlogs
 import requests
 
-from helper_post_to_api import generate_headers, get_authentication_token, update_token
+from .helper_post_to_api import generate_headers, get_authentication_token, update_token
 
 warnings.filterwarnings("ignore", category=UserWarning, module="bs4")
 
 
 # move tp argument between functions
 base_path = environ.get("XML_PATH")
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+coloredlogs.install(level="DEBUG")
 
 
 def split_identifier(identifier, ignore_error=False):
@@ -42,9 +48,9 @@ def split_identifier(identifier, ignore_error=False):
             # logger.critical('Identifier does not contain \':\' or \'-\' characters.')
             # logger.critical('Splitting identifier is not possible.')
             # logger.critical('Identifier: %s', identifier)
-            print("Identifier does not contain : or - characters.")
-            print("Splitting identifier is not possible.")
-            print("Identifier: %s" % identifier)
+            logger.warning("Identifier does not contain : or - characters.")
+            logger.warning("Splitting identifier is not possible.")
+            logger.warning("Identifier: %s" % identifier)
         prefix = identifier_processed = separator = None
 
     return prefix, identifier_processed, separator

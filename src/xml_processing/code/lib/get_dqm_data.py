@@ -90,17 +90,20 @@ def download_dqm_json(base_path):
                 data = json.loads(response.read())
                 outfile_path_decompressed = os.path.join(datatype_path, mod + ".json")
 
-                md5sum_local = get_md5_sum_from_path(outfile_path_decompressed)
-                logger.debug(outfile_path_decompressed + " has md5sum " + md5sum_local)
+                if not os.path.exists(outfile_path_decompressed):
+                    md5sum_local = get_md5_sum_from_path(outfile_path_decompressed)
+                    logger.debug(outfile_path_decompressed + " has md5sum " + md5sum_local)
 
-                if md5sum_local != data[0]["md5Sum"]:
-                    logger.info(f"Downloading {data[0]['s3Url']} to {outfile_path_decompressed}")
-                    response = urllib.request.urlopen(data[0]["s3Url"])
-                    compressed_file = io.BytesIO(response.read())
-                    decompressed_file = gzip.GzipFile(fileobj=compressed_file)
+                    if md5sum_local != data[0]["md5Sum"]:
+                        logger.info(f"Downloading {data[0]['s3Url']} to {outfile_path_decompressed}")
+                        response = urllib.request.urlopen(data[0]["s3Url"])
+                        compressed_file = io.BytesIO(response.read())
+                        decompressed_file = gzip.GzipFile(fileobj=compressed_file)
 
-                    with open(outfile_path_decompressed, "wb") as outfile:
-                        outfile.write(decompressed_file.read())
+                        with open(outfile_path_decompressed, "wb") as outfile:
+                            outfile.write(decompressed_file.read())
+                else:
+                    logger.info(f"{outfile_path_decompressed} already exists")
             except Exception as e:
                 logger.error(f"Error processing {url}")
                 logger.error(e)

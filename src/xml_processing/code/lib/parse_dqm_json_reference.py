@@ -24,39 +24,25 @@ TODO when creating authors, make sure that  first_author: false, corresponding_a
 import argparse
 import json
 import logging
-import logging.config
-import os.path
 import re
 import urllib.request
 import warnings
-from collections import defaultdict
-from os import environ, makedirs, path
+from collections import defaultdict, Counter
+import os
 
 import bs4
 import coloredlogs
-from dotenv import load_dotenv
 
-from helper_file_processing import clean_up_keywords, split_identifier, write_json
+from .helper_file_processing import clean_up_keywords, split_identifier, write_json
 
 warnings.filterwarnings("ignore", category=UserWarning, module="bs4")
-
-load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 coloredlogs.install(level="DEBUG")
 
-parser = argparse.ArgumentParser()
-parser.add_argument("-p", "--generate-pmid-data", action="store_true", help="generate pmid outputs, requires -f")
-parser.add_argument("-f", "--file", action="store", help="take input from REFERENCE files in full path")
-parser.add_argument("-m", "--mod", action="store", help="which mod, use all for all, requires -f")
-parser.add_argument("-d", "--directory", action="store", help="output directory to generate into, requires -f")
-parser.add_argument("-c", "--commandline", nargs="*", action="store", help="placeholder for process_single_pmid.py")
 
-args = vars(parser.parse_args())
-
-
-def generate_pmid_data(base_path, output_directory):  # noqa: C901
+def generate_pmid_data(base_path, output_directory):
     """
 
     output set of PMID identifiers that will need XML downloaded
@@ -75,11 +61,10 @@ def generate_pmid_data(base_path, output_directory):  # noqa: C901
         logger.info(f"Output directory exists: {output_directory}")
     else:
         logger.info(f"Output directory does not exist, creating: {output_directory}")
-        makedirs(output_directory)
+        os.makedirs(output_directory)
 
     # RGD should be first in mods list. if conflicting allianceCategories the later mod gets priority
     mods = ["RGD", "MGI", "SGD", "FB", "ZFIN", "WB"]
-
     mods = ['WB']
     pmid_references = defaultdict(list)
     non_pmid_references = defaultdict(list)
@@ -88,7 +73,9 @@ def generate_pmid_data(base_path, output_directory):  # noqa: C901
 
     check_primary_id_is_unique = True
     check_pmid_is_unique = True
+    pmid_unique = []
 
+    primary_id_unique = []
     for mod in mods:
         filename = os.path.join(dqm_path, f"REFERENCE/{mod}.json")
         logger.info(f"Loading {mod} data from {filename}")
@@ -97,81 +84,62 @@ def generate_pmid_data(base_path, output_directory):  # noqa: C901
         except FileNotFoundError:
             logger.error(f"File not found: {filename}")
 
-
-        primary_id_unique = {}
-        pmid_unique = {}
+        primary_id_unique = [entry["primaryId"] for entry in dqm_data["data"]]
 
         for entry in dqm_data["data"]:
-            if check_primary_id_is_unique:
-                try:
-                    primary_id_unique[entry["primaryId"]] += 1
-                except KeyError:
-                    primary_id_unique[entry["primaryId"]] = 1
-
-
-    #         pmid = "0"
+            pmid = "0"
             prefix, identifier, separator = split_identifier(entry["primaryId"])
-    #         if prefix == "PMID":
-    #             pmid = identifier
-    #         elif prefix in mods:
-    #             if "crossReferences" in entry:
-    #                 for cross_reference in entry["crossReferences"]:
-    #                     prefix_xref, identifier_xref, separator_xref = split_identifier(
-    #                         cross_reference["id"]
-    #                     )
-    #                     if prefix_xref == "PMID":
-    #                         pmid = identifier_xref
-    #         else:
-    #             unknown_prefix.add(prefix)
-    #
-    #         if pmid != "0":
-    #             try:
-    #                 pmid_stats[pmid].append(mod)
-    #             except KeyError:
-    #                 pmid_stats[pmid] = [mod]
-    #             if check_pmid_is_unique:
-    #                 try:
-    #                     pmid_unique[pmid] = pmid_unique[pmid] + 1
-    #                 except KeyError:
-    #                     pmid_unique[pmid] = 1
-    #             pmid_references[mod].append(pmid)
-    #         else:
-    #             non_pmid_references[mod].append(entry["primaryId"])
-    #
-    #     # output check of a mod's non-unique primaryIds
-    #     if check_primary_id_is_unique:
-    #         for primary_id in primary_id_unique:
-    #             if primary_id_unique[primary_id] > 1:
-    #                 print("%s primary_id %s has %s mentions" % (mod, primary_id, primary_id_unique[primary_id]))
-    #
-    #     # output check of a mod's non-unique pmids (different from above because could be crossReferences
-    #     if check_pmid_is_unique:
-    #         for pmid in pmid_unique:
-    #             if pmid_unique[pmid] > 1:
-    #                 print("%s pmid %s has %s mentions" % (mod, pmid, pmid_unique[pmid]))
-    #
-    # # output each mod's count of pmid references
-    # for mod in pmid_references:
-    #     count = len(pmid_references[mod])
-    #     print("%s has %s pmid references" % (mod, count))
-    #     # logger.info("%s has %s pmid references", mod, count)
-    #
-    # # output each mod's count of non-pmid references
+            if prefix == "PMID":
+                pmid = identifier
+            elif prefix in mods:
+                if "crossReferences" in entry:
+                    for cross_reference in entry["crossReferences"]:
+                        prefix_xref, identifier_xref, separator_xref = split_identifier(cross_reference["id"])
+                        if prefix_xref == "PMID":
+                            pmid = identifier_xref
+            else:
+                unknown_prefix.add(prefix)
+
+            if pmid != "0":
+                try:
+                    pmid_stats[pmid].append(mod)
+                except KeyError:
+                    pmid_stats[pmid] = [mod]
+                if check_pmid_is_unique:
+                    pmid_unique.append(pmid)
+                pmid_references[mod].append(pmid)
+            else:
+                non_pmid_references[mod].append(entry["primaryId"])
+
+        # output check of a mod's non-unique primaryIds
+
+        z = Counter(primary_id_unique)
+        non_unique = [x for x in z if z[x] > 1]
+
+        z = Counter(pmid_unique)
+        non_unique = [x for x in z if z[x] > 1]
+
+        # print("%s primary_id %s has %s mentions" % (mod, primary_id, primary_id_unique[primary_id]))
+        # print("%s pmid %s has %s mentions" % (mod, pmid, pmid_unique[pmid]))
+
+    # output each mod's count of pmid references
+    for mod in pmid_references:
+        logger.info(f"{mod}: {len(pmid_references[mod])} references")
+
+    # output each mod's count of non-pmid references
+    for mod in non_pmid_references:
+        logger.info(f"{mod}: {len(non_pmid_references[mod])} non-PMID references")
+
+    # output actual reference identifiers that are not pmid
     # for mod in non_pmid_references:
-    #     count = len(non_pmid_references[mod])
-    #     print("%s has %s non-pmid references" % (mod, count))
-    #     # logger.info("%s has %s non-pmid references", mod, count)
-    #
-    # # output actual reference identifiers that are not pmid
-    # # for mod in non_pmid_references:
-    # #     for primary_id in non_pmid_references[mod]:
-    # #         print("%s non-pmid %s" % (mod, primary_id))
-    # #         # logger.info("%s non-pmid %s", mod, primary_id)
-    #
-    # # if a reference has an unexpected prefix, give a warning
-    # for prefix in unknown_prefix:
-    #     logger.info("WARNING: unknown prefix %s", prefix)
-    #
+    #     for primary_id in non_pmid_references[mod]:
+    #         print("%s non-pmid %s" % (mod, primary_id))
+    #         # logger.info("%s non-pmid %s", mod, primary_id)
+
+    # if a reference has an unexpected prefix, give a warning
+    for prefix in unknown_prefix:
+        logger.info("WARNING: unknown prefix %s", prefix)
+
     # # output set of identifiers that will need XML downloaded
     # output_pmid_file = base_path + output_directory + "inputs/alliance_pmids"
     # with open(output_pmid_file, "w") as pmid_file:
@@ -501,12 +469,12 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):  # noqa:
     cross_reference_types = {}
 
     json_storage_path = base_path + output_directory + "sanitized_reference_json/"
-    if not path.exists(json_storage_path):
-        makedirs(json_storage_path)
+    if not os.path.exists(json_storage_path):
+        os.makedirs(json_storage_path)
 
     report_file_path = base_path + output_directory + "report_files/"
-    if not path.exists(report_file_path):
-        makedirs(report_file_path)
+    if not os.path.exists(report_file_path):
+        os.makedirs(report_file_path)
 
     fh_mod_report = {}
     fh_mod_report_title = {}
@@ -1013,8 +981,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):  # noqa:
     # download from other source
     # with get_pubmed_nlm_resource_unmatched.py
     resource_xml_path = base_path + "resource_xml/"
-    if not path.exists(resource_xml_path):
-        makedirs(resource_xml_path)
+    if not os.path.exists(resource_xml_path):
+        os.makedirs(resource_xml_path)
     resource_abbreviation_not_found_filename = resource_xml_path + "resource_abbreviation_not_matched"
     with open(resource_abbreviation_not_found_filename, "w") as resource_abbreviation_not_found_fh:
         for resource_abbrev in resource_abbreviations_not_found:
@@ -1064,7 +1032,6 @@ if __name__ == "__main__":
     out_dir = os.path.join(base_path, "dqm_data/REFERENCE/output")
     generate_pmid_data(base_path, out_dir)
     # aggregate_dqm_with_pubmed(args["file"], args["mod"], output_directory)
-
 
     # logger.info("Starting parse_dqm_json_reference.py")
     #
