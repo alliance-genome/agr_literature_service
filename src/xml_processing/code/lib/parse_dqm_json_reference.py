@@ -140,24 +140,22 @@ def generate_pmid_data(base_path, output_directory):
     for prefix in unknown_prefix:
         logger.info("WARNING: unknown prefix %s", prefix)
 
-    # # output set of identifiers that will need XML downloaded
-    # output_pmid_file = base_path + output_directory + "inputs/alliance_pmids"
-    # with open(output_pmid_file, "w") as pmid_file:
-    #     # for pmid in sorted(pmid_stats.iterkeys(), key=int):	# python 2
-    #     for pmid in sorted(pmid_stats, key=int):
-    #         pmid_file.write(str(pmid) + "\n")
-    #     pmid_file.close()
-    #
-    # # output pmids and the mods that have them
-    # output_pmid_mods_file = base_path + output_directory + "pmids_by_mods"
-    # with open(output_pmid_mods_file, "w") as pmid_mods_file:
-    #     for identifier in pmid_stats:
-    #         ref_mods_list = pmid_stats[identifier]
-    #         count = len(ref_mods_list)
-    #         ref_mods_str = ", ".join(ref_mods_list)
-    #         pmid_mods_file.write("%s\t%s\t%s\n" % (identifier, count, ref_mods_str))
-    #         # logger.info('pmid %s\t%s\t%s', identifier, count, ref_mods_str)
-    #     pmid_mods_file.close()
+    # output set of identifiers that will need XML downloaded
+    output_pmid_file = os.path.join(output_directory + 'alliance_pmids.txt')
+    logger.info(f"Writing pmid set to {output_pmid_file}")
+    with open(output_pmid_file, "w") as pmid_file:
+        for pmid in sorted(pmid_stats, key=int):
+            pmid_file.write(f"{pmid}\n")
+        pmid_file.close()
+
+    # output pmids and the mods that have them
+    output_pmid_mods_file = os.path.join(output_directory + "pmids_by_mods")
+    logger.info(f"Writing pmid-mods to {output_pmid_mods_file}")
+    with open(output_pmid_mods_file, "w") as pmid_mods_file:
+        for identifier in pmid_stats:
+            ref_mods_str = ", ".join(pmid_stats[identifier])
+            pmid_mods_file.write(f"{identifier}\t{len(pmid_stats[identifier])}\t{ref_mods_str}\n")
+        pmid_mods_file.close()
 
     # for primary_id in primary_ids:
     #     logger.info("primary_id %s", primary_id)
