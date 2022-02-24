@@ -26,10 +26,11 @@ jobs:
           HOST: 0.0.0.0
           PSQL_USERNAME: postgres
           PSQL_PASSWORD: postgres
-          PSQL_HOST: agr-test-postgres
+          PSQL_HOST: postgres
           PSQL_PORT: 5432
           PSQL_DATABASE: literature-test
           PYTHONPATH: src/xml_processing/
+          XML_PATH: /usr/local/bin/src/literature/src/xml_processing/tests/
           OKTA_CLIENT_ID: ${{ secrets.okta_client_id }}
           OKTA_CLIENT_SECRET: ${{ secrets.okta_client_secret }}
         run: make run-functest
