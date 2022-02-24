@@ -127,3 +127,9 @@ class AuthorModel(Base):
         nullable=False,
         default=datetime.now(tz=pytz.timezone("UTC"))
     )
+
+    def __str__(self):
+        """
+        Overwrite the default output.
+        """
+        return "{} 1st({})".format(self.name, self.first_author)

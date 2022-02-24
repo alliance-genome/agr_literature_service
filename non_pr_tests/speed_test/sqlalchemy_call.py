@@ -9,7 +9,7 @@ def create_postgres_session(verbose):
     """Connect to database."""
     USER = environ.get('PSQL_USERNAME', 'postgres')
     PASSWORD = environ.get('PSQL_PASSWORD', 'postgres')
-    SERVER = environ.get('HOST', 'localhost')
+    SERVER = environ.get('PSQL_HOST', 'localhost')
     PORT = environ.get('PSQL_PORT', '5432')
 
     DB = environ.get('PSQL_DATABASE', 'literature')
@@ -36,7 +36,7 @@ def use_alchemy(curies, max_number, count_start=0, verbose=False):
             filter(ReferenceModel.curie == curies[count + count_start]).one_or_none()
         if verbose:
             if count <= 5:
-                print(reference.curie)
+                print(reference)
         count += 1
     session.close()
     return count + count_start
