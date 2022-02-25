@@ -398,8 +398,6 @@ def load_pmid_multi_mods(result_path):
     :return:
     """
 
-    print(result_path)
-
     pmid_multi_mods = {}
     pmid_multi_mods_file = os.path.join(result_path, "pmids_by_mods")
     pmid_file = open(pmid_multi_mods_file).read().splitlines()
@@ -449,88 +447,83 @@ def aggregate_dqm_with_pubmed(json_path, output_directory):  # noqa: C901
     # multiple mods, there's an out-of-memory crash
     pmid_multi_mods = load_pmid_multi_mods(output_directory)
 
-    # # use these two lines to properly load resource data, but it takes a bit of time
-    resource_to_nlm, resource_to_nlm_highest, resource_nlm_to_title = load_pubmed_resource()
-    resource_to_mod, resource_to_mod_issn_nlm = load_mod_resource(mods, resource_to_nlm)
-    # # use these six lines to more quickly test other things that don't need resource data
-    # # resource_to_nlm = {}
-    # # resource_to_nlm_highest = {}
-    # # resource_nlm_to_title = {}
-    # # resource_to_mod = {}
-    # # for mod in mods:
-    # #     resource_to_mod[mod] = {}
-    #
-    # expected_cross_reference_type, exclude_cross_reference_type, pubmed_not_dqm_cross_reference_type = populate_expected_cross_reference_type()
-    #
-    # resource_not_found = {}
-    # cross_reference_types = {}
-    #
-    # json_storage_path = base_path + output_directory + "sanitized_reference_json/"
-    # if not os.path.exists(json_storage_path):
-    #     os.makedirs(json_storage_path)
-    #
-    # report_file_path = base_path + output_directory + "report_files/"
-    # if not os.path.exists(report_file_path):
-    #     os.makedirs(report_file_path)
-    #
-    # fh_mod_report = {}
-    # fh_mod_report_title = {}
-    # fh_mod_report_differ = {}
-    # # fh_mod_report_xrefs = {
-    # fh_mod_report_resource_unmatched = {}
-    # fh_mod_report_reference_no_resource = {}
-    #
-    # for mod in mods:
-    #     resource_not_found[mod] = {}
-    #     # cross_reference_types[mod] = set()
-    #     cross_reference_types[mod] = {}
-    #     filename = report_file_path + mod + "_main"
-    #     filename_title = report_file_path + mod + "_dqm_pubmed_differ_title"
-    #     filename_differ = report_file_path + mod + "_dqm_pubmed_differ_other"
-    #     # filename_xrefs = report_file_path + mod + '_dqm_pubmed_differ_xrefs'
-    #     filename_resource_unmatched = report_file_path + mod + "_resource_unmatched"
-    #     filename_reference_no_resource = report_file_path + mod + "_reference_no_resource"
-    #     fh_mod_report.setdefault(mod, open(filename, "w"))
-    #     fh_mod_report_title.setdefault(mod, open(filename_title, "w"))
-    #     fh_mod_report_differ.setdefault(mod, open(filename_differ, "w"))
-    #     # fh_mod_report_xrefs.setdefault(mod, open(filename_xrefs, 'w'))
-    #     fh_mod_report_resource_unmatched.setdefault(mod, open(filename_resource_unmatched, "w"))
-    #     fh_mod_report_reference_no_resource.setdefault(mod, open(filename_reference_no_resource, "w"))
-    #
-    # multi_report_filename = base_path + output_directory + "report_files/multi_mod"
-    # fh_mod_report.setdefault("multi", open(multi_report_filename, "w"))
-    # # these are not needed, there are no dqm vs pubmed comparisons for multiple mods
-    # # multi_report_filename_title = base_path + 'report_files/multi_mod_dqm_pubmed_title_differ'
-    # # multi_report_filename_differ = base_path + 'report_files/multi_mod_dqm_pubmed_differ'
-    # # fh_mod_report_title.setdefault('multi', open(multi_report_filename_title, 'w'))
-    # # fh_mod_report_differ.setdefault('multi', open(multi_report_filename_differ, 'w'))
-    #
-    # logger.info("Aggregating DQM and PubMed data from %s using mods %s", input_path, mods)
-    # agr_schemas_reference_json_url = "https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/ingest/resourcesAndReferences/reference.json"
-    # schema_data = {}
-    # with urllib.request.urlopen(agr_schemas_reference_json_url) as url:
-    #     schema_data = json.loads(url.read().decode())
-    #     # print(schema_data)
-    #
-    # # this has been obsoleted by generating from parse_dqm_json_resource.py but leaving in here until a full run works
-    # # fb have fb ids for resources, but from the resourceAbbreviation and pubmed xml's nlm, we can update
-    # # fb resource data to primary key off of nlm
-    # # fb_resource_abbreviation_to_nlm = {}
-    #
-    # sanitized_pubmed_multi_mod_data = []
-    # unmerged_pubmed_data = {}  # pubmed data by pmid and mod that needs some fields merged
-    # for mod in mods:
-    #     filename = base_path + input_path + "/REFERENCE_" + mod + ".json"
-    #     logger.info("Processing %s", filename)
-    #     unexpected_mod_properties = set()
-    #     dqm_data = {}
-    #     try:
-    #         with open(filename) as f:
-    #             dqm_data = json.load(f)
-    #     except IOError:
-    #         logger.info("No file found for mod %s %s", mod, filename)
-    #         continue
-    #     entries = dqm_data["data"]
+    # # # use these two lines to properly load resource data, but it takes a bit of time
+    # resource_to_nlm, resource_to_nlm_highest, resource_nlm_to_title = load_pubmed_resource()
+    # resource_to_mod, resource_to_mod_issn_nlm = load_mod_resource(mods, resource_to_nlm)
+    # use these six lines to more quickly test other things that don't need resource data
+    resource_to_nlm = {}
+    resource_to_nlm_highest = {}
+    resource_nlm_to_title = {}
+    resource_to_mod = defaultdict(dict)
+
+    # expected_cross_reference_type, exclude_cross_reference_type,
+    # pubmed_not_dqm_cross_reference_type = populate_expected_cross_reference_type()
+
+    resource_not_found = defaultdict(dict)
+    cross_reference_types = defaultdict(dict)
+
+    print(output_directory)
+    print(os.path.join(output_directory, "sanitized_reference_json"))
+    json_storage_path = os.path.join(output_directory, "sanitized_reference_json")
+    logger.info("json_storage_path: %s" % json_storage_path)
+    if not os.path.exists(json_storage_path):
+        os.makedirs(json_storage_path)
+        logger.info(f"Created {json_storage_path}")
+    else:
+        logger.info(f"{json_storage_path} exists")
+
+    report_file_path = os.path.join(output_directory, "report_files/")
+    if not os.path.exists(report_file_path):
+        os.makedirs(report_file_path)
+        logger.info(f"Created {report_file_path}")
+    else:
+        logger.info(f"{report_file_path} exists")
+
+    fh_mod_report = {}
+    fh_mod_report_title = {}
+    fh_mod_report_differ = {}
+    # fh_mod_report_xrefs = {}
+    fh_mod_report_resource_unmatched = {}
+    fh_mod_report_reference_no_resource = {}
+
+    for mod in mods:
+        # resource_not_found[mod] = {}
+        # # cross_reference_types[mod] = set()
+        # cross_reference_types[mod] = {}
+
+        fh_mod_report.setdefault(mod, open(os.path.join(report_file_path,  f"{mod}_main"), "w"))
+        fh_mod_report_title.setdefault(mod, open(os.path.join(report_file_path, f"{mod}_dqm_pubmed_differ_title"), "w"))
+        fh_mod_report_differ.setdefault(mod, open(os.path.join(report_file_path, f"{mod}_dqm_pubmed_differ_other"), "w"))
+        fh_mod_report_resource_unmatched.setdefault(mod, open(os.path.join(report_file_path, f"{mod}_resource_unmatched"), "w"))
+        fh_mod_report_reference_no_resource.setdefault(mod, open(os.path.join(report_file_path, f"{mod}_reference_no_resource"), "w"))
+        # filename_xrefs = report_file_path + mod + '_dqm_pubmed_differ_xrefs'
+        # fh_mod_report_xrefs.setdefault(mod, open(filename_xrefs, 'w'))
+
+    fh_mod_report.setdefault("multi", open(os.path.join(report_file_path, "multi_mod"), "w"))
+    logger.info(f"Aggregating DQM and PubMed data from {json_path} using mods {', '.join(mods)}")
+    agr_schemas_reference_json_url = "https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/ingest/resourcesAndReferences/reference.json"
+
+    schema_data = {}
+    with urllib.request.urlopen(agr_schemas_reference_json_url) as url:
+        schema_data = json.loads(url.read().decode())
+        print(schema_data)
+
+    sanitized_pubmed_multi_mod_data = []
+    # pubmed data by pmid and mod that needs some fields merged
+    unmerged_pubmed_data = {}
+    for mod in mods:
+        filename = json_path + mod + ".json"
+        logger.info("Processing %s", filename)
+        unexpected_mod_properties = set()
+        dqm_data = {}
+        try:
+            with open(filename) as f:
+                entries = json.load(f)["data"]
+        except IOError:
+            logger.info("No file found for mod %s %s", mod, filename)
+
+        print(entries)
+
     #     sanitized_pubmod_data = []
     #     sanitized_pubmed_single_mod_data = []
     #     for entry in entries:
