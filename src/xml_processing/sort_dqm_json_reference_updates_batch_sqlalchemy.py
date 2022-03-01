@@ -25,7 +25,7 @@ from helper_post_to_api import (generate_headers, get_authentication_token,
 # import re
 
 
-# TODO for https://agr-jira.atlassian.net/browse/SCRUM-1110  
+# TODO for https://agr-jira.atlassian.net/browse/SCRUM-1110
 # update   batch_alchemy   to return the python dict for each reference
 # and use those to update instead of  the one-by-one api query.
 #
@@ -495,11 +495,11 @@ def batch_alchemy(curies, batch_size, count_start=0, verbose=False):
         # print(batch_list[:5])
         # for agr in batch_list[:5]:
         for agr in batch_list:
-            reference_data = jsonable_encoder(new_dict[agr])	# convert to json
-            # TODO for https://agr-jira.atlassian.net/browse/SCRUM-1110  
+            reference_data = jsonable_encoder(new_dict[agr])                    # convert to json
+            # TODO for https://agr-jira.atlassian.net/browse/SCRUM-1110
             # return these reference python dicts and use them instead of api query at line 579
 
-            db_text = json.dumps(reference_data, indent=4, sort_keys=True)	# convert to text
+            db_text = json.dumps(reference_data, indent=4, sort_keys=True)      # convert to text  # noqa:F841
             # print(db_text)
 
             # junk for testing one could make an api_format in backend/app/literature/models/reference_model.py
@@ -516,7 +516,6 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     :param processing_flag:
     :return:
     """
-
 
     logger.info("processing %s entries for %s", len(entries.keys()), processing_flag)
 
@@ -560,7 +559,6 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     while start_index < curies_count:
         for batch_size in [size_per_batch]:
             start_index = batch_alchemy(curies, batch_size, count_start=start_index, verbose=verbose)
-
 
     # TODO update from here down to use batch sql alchemy queries instead
     # don't do any api queries for now
