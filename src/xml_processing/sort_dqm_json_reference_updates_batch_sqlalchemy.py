@@ -789,21 +789,6 @@ def generic_api_delete(live_changes, url, headers, json_data, agr, mapping_fh, e
     return headers
 
 
-def load_agr_curies():
-    file_name = 'sample_curies.txt'
-    curies = []
-    count = 0
-    if path.isfile(file_name):
-        with open(file_name, 'r') as read_fh:
-            for line in read_fh:
-                curies.append(line.strip())
-                count += 1
-    else:
-        print("Could not load file {}".format(file_name))
-    print("Read {} curies from file.".format(count))
-    return curies
-
-
 if __name__ == "__main__":
     """
     call main start function
