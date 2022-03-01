@@ -181,7 +181,7 @@ def process_api_request(method, url, headers, json_data, primary_id, mapping_fh,
         #     detail = response_dict['detail']
         detail = dumps(response_dict)
         # logger.info("ERROR %s primaryId %s message %s", request_return.status_code, primary_id, detail)
-        log_info += "api error unexpected response " + str(request_return.status_code) + " primaryId " + primary_id + " message " + detail
+        log_info += "api error unexpected response " + str(request_return.status_code) + " primaryId " + primary_id + " message " + detail + " method " + method + " url " + url
         # if error_fh is not None:
         #     error_fh.write("ERROR %s primaryId %s message %s\n" % (str(request_return.status_code), primary_id, detail))
     return headers, process_text, process_status_code, log_info
