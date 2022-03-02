@@ -9,7 +9,6 @@ services:
       POSTGRES_USER: ${PSQL_USERNAME}
       POSTGRES_PASSWORD: ${PSQL_PASSWORD}
       POSTGRES_DB: ${PSQL_DATABASE}
-      POSTGRES_PORT: ${PSQL_PORT}
     volumes:
       - "agr-literature-pg-data:/var/lib/postgresql/data"
       - "./postgresql.conf:/etc/postgresql.conf"
@@ -23,7 +22,7 @@ services:
       timeout: 5s
       retries: 5
     command:
-      postgres -c config_file=/etc/postgresql.conf
+      postgres -c config_file=/etc/postgresql.conf -p ${PSQL_PORT}
 
 
   pgadmin:
@@ -115,10 +114,10 @@ services:
         REG: ${REG}
         TAG: ${TAG}
         ALLIANCE_RELEASE: ${ALLIANCE_RELEASE}
-        AWS_SECRET_ACCESS_KEY: "$aws_secret_access_key"
-        AWS_ACCESS_KEY_ID: "$aws_access_key_id"
-        OKTA_CLIENT_ID: "$okta_client_id"
-        OKTA_CLIENT_SECRET: "$okta_client_secret"
+        AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+        AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+        OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
+        OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
     hostname: literature_api
     ports:
       - "${API_PORT}:8080"
@@ -140,10 +139,10 @@ services:
       API_PORT: "${API_PORT}"
       PYTHONPATH: "/usr/local/bin/src/literature/src/xml_processing"
       XML_PATH: "${XML_PATH}"
-      AWS_SECRET_ACCESS_KEY: "$AWS_SECRET_ACCESS_KEY"
-      AWS_ACCESS_KEY_ID: "$AWS_ACCESS_KEY_ID"
-      OKTA_CLIENT_ID: "$OKTA_CLIENT_ID"
-      OKTA_CLIENT_SECRET: "$OKTA_CLIENT_SECRET"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
+      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
       ENV_STATE: "${ENV_STATE}"
       REG: "${REG}"
     networks:
@@ -153,22 +152,22 @@ services:
     depends_on:
       - api
 
-  tests:
+  test_runner:
     build:
       context: .
-      dockerfile: docker/tests.dockerfile
+      dockerfile: docker/test_runner.dockerfile
       args:
         REG: ${REG}
         ALLIANCE_RELEASE: ${ALLIANCE_RELEASE}
-    hostname: tests
+    hostname: test_runner
     environment:
       API_PORT: "${API_PORT}"
       PYTHONPATH: "/usr/local/bin/src/literature/src/xml_processing"
-      XML_PATH: "${XML_PATH}"
-      AWS_SECRET_ACCESS_KEY: "$AWS_SECRET_ACCESS_KEY"
-      AWS_ACCESS_KEY_ID: "$AWS_ACCESS_KEY_ID"
-      OKTA_CLIENT_ID: "$OKTA_CLIENT_ID"
-      OKTA_CLIENT_SECRET: "$OKTA_CLIENT_SECRET"
+      XML_PATH: "/usr/local/bin/src/literature/src/xml_processing/tests/"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
+      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
       ENV_STATE: "${ENV_STATE}"
       REG: "${REG}"
     networks:
@@ -178,19 +177,19 @@ services:
     restart: always
     build:
       context: .
-      dockerfile: docker/dev-image.dockerfile
+      dockerfile: docker/dev-app.dockerfile
       args:
         REG: ${REG}
-        TAG: ${TAG}
+        ALLIANCE_RELEASE: ${ALLIANCE_RELEASE}
     hostname: dev_app
     environment:
       API_PORT: "${API_PORT}"
       PYTHONPATH: "/usr/local/bin/src/literature/src/xml_processing"
       XML_PATH: "${XML_PATH}"
-      AWS_SECRET_ACCESS_KEY: "$aws_secret_access_key"
-      AWS_ACCESS_KEY_ID: "$aws_access_key_id"
-      OKTA_CLIENT_ID: "$okta_client_id"
-      OKTA_CLIENT_SECRET: "$okta_client_secret"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
+      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
       ENV_STATE: "${ENV_STATE}"
       REG: "${REG}"
     networks:

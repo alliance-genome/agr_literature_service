@@ -9,27 +9,22 @@ login-ecr:
 	docker run -v ~/.aws/credentials:/root/.aws/credentials --rm -it amazon/aws-cli ecr get-login-password | docker login --username AWS --password-stdin ${REG}
 
 run-flake8:
-	docker-compose run -v ${PWD}:/workdir tests /bin/bash -c "python3 -m flake8 ."
+	docker-compose run --rm -v ${PWD}:/workdir test_runner /bin/bash -c "python3 -m flake8 ."
 
 run-local-flake8:
 	python3 -m flake8 .
 
 run-mypy:
-	docker run --rm -v ${PWD}:/workdir -i ${REG}/agr_literature_dev:${TAG} /bin/bash -c "mypy --config-file mypy.config ."
+	docker-compose run --rm -v ${PWD}:/workdir test_runner /bin/bash -c "mypy --config-file mypy.config ."
 
 run-local-mypy:
 	mypy --config-file mypy.config .
 
 run-dev-bash:
-	docker run --rm \
-	    --network=main-app_agr-literature \
-	    -p ${API_PORT}:8080 \
-	    -v ${PWD}:/workdir \
-		-t -i ${REG}/agr_literature_dev:${TAG} \
-		/bin/bash
+	docker-compose run --rm dev_app /bin/bash
 
 run-dev-zsh:
-	docker run --rm -v "${HOME}/.vimrc:/root/.vimrc:rw" -v "${HOME}/.zshrc:/root/.zshrc:rw" -v ${PWD}:/workdir -t -i ${REG}/agr_literature_dev:${TAG} /bin/zsh
+	docker-compose run --rm -v "${HOME}/.vimrc:/root/.vimrc:rw" -v "${HOME}/.zshrc:/root/.zshrc:rw" -v ${PWD}:/workdir dev_app /bin/zsh
 
 docker-compose-up:
 	docker run -itd --env-file=.env -v /var/run/docker.sock:/var/run/docker.sock -v /home/core/.docker:/root/.docker -v ${PWD}:/var/tmp/ docker/compose:1.24.1  -f /var/tmp/docker-compose.yaml up -d
@@ -37,18 +32,13 @@ docker-compose-up:
 docker-compose-down:
 	docker run -itd --env-file=.env -v /var/run/docker.sock:/var/run/docker.sock -v /home/core/.docker:/root/.docker -v ${PWD}:/var/tmp/ docker/compose:1.24.1  -f /var/tmp/docker-compose.yaml down 
 
-run-test-bash: build-env build-dev
+run-test-bash:
 	-docker volume rm -f agr-literature-test_agr-literature-pg-data
 	docker-compose --env-file .env.test up -d postgres
 	sleep 5
 	# Minus at start means ignore exit code for that line
-	-docker run -i --rm \
-		--network=agr-literature-test_agr-literature \
-	    -p 8080:8080 \
-		-e PYTHONPATH:/workdir/src/xml_processing/ \
-	    -v ${PWD}:/workdir \
-		${REG}/agr_literature_dev:${TAG} \
-		./run_tests.sh > pytest.out
+	-docker-compose --env-file .env.test run --rm -e API_PORT=8080 -e PYTHONPATH:/workdir/src/xml_processing/ -v ${PWD}:/workdir \
+	test_runner ./run_tests.sh > pytest.out
 	docker-compose --env-file .env.test down
     #doing here after shutdown of database 
 	python3 check_tests.py
