@@ -14,15 +14,15 @@ build:
 run-flake8:
 	docker-compose --env-file .env.test down -v
 	docker-compose --env-file .env.test run -v ${PWD}:/workdir test_runner /bin/bash -c "python3 -m flake8 ."
-	docker-compose --env-file down -v
+	docker-compose --env-file .env.test down -v
 
 run-local-flake8:
 	python3 -m flake8 .
 
 run-mypy:
-	docker-compose --env-file down -v
+	docker-compose --env-file .env.test down -v
 	docker-compose --env-file .env.test run -v ${PWD}:/workdir test_runner /bin/bash -c "mypy --config-file mypy.config ."
-	docker-compose --env-file down -v
+	docker-compose --env-file .env.test down -v
 
 run-local-mypy:
 	mypy --config-file mypy.config .
@@ -40,16 +40,14 @@ docker-compose-down:
 	docker run -itd --env-file=.env -v /var/run/docker.sock:/var/run/docker.sock -v /home/core/.docker:/root/.docker -v ${PWD}:/var/tmp/ docker/compose:1.24.1  -f /var/tmp/docker-compose.yaml down 
 
 run-test-bash:
-	docker-compose --env-file down -v
+	docker-compose --env-file .env.test down -v
 	-docker-compose --env-file .env.test run -v ${PWD}:/workdir test_runner ./run_tests.sh > pytest.out
     #doing here after shutdown of database
 	python3 check_tests.py
-	docker-compose --env-file down -v
+	docker-compose --env-file .env.test down -v
 
 run-functest: build-env build-dev build-app-test
 	# Minus at start means ignore exit code for that line
-
-	# remove the postgres and app data. app data isd just the logs.
 	-docker volume rm -f agr-literature-test_agr-literature-pg-data agr-literature-test_agr-logs
 
 	# load the data

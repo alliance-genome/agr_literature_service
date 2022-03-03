@@ -112,17 +112,25 @@ services:
       dockerfile: docker/api.dockerfile
       args:
         REG: ${REG}
-        TAG: ${TAG}
         ALLIANCE_RELEASE: ${ALLIANCE_RELEASE}
-        AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
-        AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
-        OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
-        OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
+    environment:
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
+      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
+      ENV_STATE: "${ENV_STATE}"
+      PSQL_USERNAME: "${PSQL_USERNAME}"
+      PSQL_PASSWORD: "${PSQL_PASSWORD}"
+      PSQL_HOST: "${PSQL_HOST}"
+      PSQL_PORT: "${PSQL_PORT}"
+      PSQL_DATABASE: "${PSQL_DATABASE}"
     hostname: literature_api
     ports:
       - "${API_PORT}:8080"
     networks:
       - agr-literature
+    volumes:
+      - agr-logs:/logs
     depends_on:
       - postgres
 
