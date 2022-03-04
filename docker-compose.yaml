@@ -124,8 +124,6 @@ services:
       PSQL_PORT: "${PSQL_PORT}"
       PSQL_DATABASE: "${PSQL_DATABASE}"
     hostname: literature_api
-    ports:
-      - "${API_PORT}:8080"
     networks:
       - agr-literature
     volumes:

@@ -10,5 +10,5 @@ ADD . .
 RUN pip3 install -r backend/app/requirements.dev.txt
 RUN pip3 install -r backend/app/requirements.txt
 
-CMD ["bash"]
+CMD ["python3", "backend/app/main.py", "--port=8080"]
 
