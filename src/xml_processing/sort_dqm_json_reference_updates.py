@@ -10,6 +10,12 @@ from os import environ, listdir, makedirs, path
 import requests
 from dotenv import load_dotenv
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from fastapi.encoders import jsonable_encoder
+
+from literature.models import ReferenceModel
+
 from helper_file_processing import (clean_up_keywords,
                                     compare_authors_or_editors, load_ref_xref,
                                     split_identifier, write_json)
@@ -18,13 +24,21 @@ from helper_post_to_api import (generate_headers, get_authentication_token,
 
 # import re
 
+
+# For WB needing 57578 references checked for updating,
+# It would take 48 hours to query the database through the API one by one.
+# It takes 24 minutes to query in batches of 1000 through batch alchemy.
+
+
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
 api_server = environ.get('API_SERVER', 'localhost')
-# pipenv run python sort_dqm_json_reference_updates.py -f dqm_data -m WB
+# pipenv run python sort_dqm_json_reference_updates_batch_sqlalchemy.py -f dqm_data -m WB
 
-# pipenv run python sort_dqm_json_reference_updates.py -f dqm_data -m all > asdf_sanitized
+# pipenv run python sort_dqm_json_reference_updates_batch_sqlalchemy.py -f tests/dqm_update_sample -m WB
+
+# pipenv run python sort_dqm_json_reference_updates_batch_sqlalchemy.py -f dqm_data -m all > asdf_sanitized
 
 # first run  get_datatypes_cross_references.py  to generate mappings from references to xrefs and resources to xrefs
 
@@ -136,6 +150,30 @@ parser.add_argument('-f', '--file', action='store', help='take input from REFERE
 parser.add_argument('-m', '--mod', action='store', help='which mod, use all or leave blank for all')
 
 args = vars(parser.parse_args())
+
+
+def create_postgres_session(verbose):
+    """Connect to database."""
+    USER = environ.get('PSQL_USERNAME', 'postgres')
+    PASSWORD = environ.get('PSQL_PASSWORD', 'postgres')
+    SERVER = environ.get('PSQL_HOST', 'localhost')
+    PORT = environ.get('PSQL_PORT', '5432')
+
+    DB = environ.get('PSQL_DATABASE', 'literature-4005')
+
+    # Create our SQL Alchemy engine from our environmental variables.
+    engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
+    engine = create_engine(engine_var)
+
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    if verbose:
+        print('Using server: {}'.format(SERVER))
+        print('Using database: {}'.format(DB))
+        print(engine_var)
+
+    return session
 
 
 def load_pmids_not_found():
@@ -440,6 +478,18 @@ def save_new_references_to_file(references_to_create, mod):
     write_json(json_filename, dqm_data)
 
 
+def batch_alchemy(curies, db_dict, batch_size, count_start=0, verbose=False):
+    session = create_postgres_session(verbose)
+    batch_list = curies[count_start:(count_start + batch_size)]
+    refs = session.query(ReferenceModel).\
+        filter(ReferenceModel.curie.in_(batch_list)).all()
+    session.close()
+    for item in refs:
+        item_dict = jsonable_encoder(item)
+        db_dict[item.curie] = item_dict
+    return count_start + batch_size, db_dict
+
+
 def update_db_entries(headers, entries, live_changes, report_fh, processing_flag):      # noqa: C901
     """
     Take a dict of Alliance Reference curies and DQM MODReferenceTypes to compare against data stored in DB and update to match DQM data.
@@ -448,6 +498,8 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     :param processing_flag:
     :return:
     """
+
+    logger.info("processing %s entries for %s", len(entries.keys()), processing_flag)
 
     remap_keys = dict()
     remap_keys['datePublished'] = 'date_published'
@@ -474,24 +526,49 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     api_port = environ.get('API_PORT')
     # url_ref_curie_prefix = make_url_ref_curie_prefix()
 
-    counter = 0
-    max_counter = 10000000
-    # max_counter = 3
+    # retrieve_method can be fast directly through sqlalchemy in batch mode, or slow one by one through the api
+    retrieve_method = 'batch_alchemy'
+    # retrieve_method = 'api_one_by_one'
+
+    db_dict = dict()
+    if retrieve_method == 'batch_alchemy':
+        curies = list(entries.keys())
+        curies_count = len(curies)
+        start_index = 0
+        # verbose = True
+        verbose = False
+        api_server = environ.get('API_SERVER', 'localhost')
+        # 10000 freezes the server, 1000 works
+        size_per_batch = 1000
+        # size_per_batch = 3
+        while start_index < curies_count:
+            for batch_size in [size_per_batch]:
+                start_index, db_dict = batch_alchemy(curies, db_dict, batch_size, count_start=start_index, verbose=verbose)
+        # print('curies')
+        # for agr in db_dict:
+        #     print(agr)
 
     for agr in entries:
-        counter = counter + 1
-        if counter > max_counter:
-            break
-
-        # agr_url = url_ref_curie_prefix + agr    # noqa: F841
-        api_server = environ.get('API_SERVER', 'localhost')
-        url = 'http://' + api_server + ':' + api_port + '/reference/' + agr
-        logger.info("get AGR reference info from database %s", url)
-        get_return = requests.get(url)
-        db_entry = json.loads(get_return.text)
-        # logger.info("title %s", response_dict['title'])   # for debugging which reference was found
-
         dqm_entry = entries[agr]
+
+        if retrieve_method == 'api_one_by_one':
+            # agr_url = url_ref_curie_prefix + agr    # noqa: F841
+            api_server = environ.get('API_SERVER', 'localhost')
+            url = 'http://' + api_server + ':' + api_port + '/reference/' + agr
+            logger.info("get AGR reference info from database %s", url)
+            get_return = requests.get(url)
+            db_entry = json.loads(get_return.text)
+            # logger.info("title %s", response_dict['title'])   # for debugging which reference was found
+        elif retrieve_method == 'batch_alchemy':
+            db_entry = db_dict[agr]
+        else:
+            continue
+
+        api_server = environ.get('API_SERVER', 'localhost')
+        reference_patch_url = 'http://' + api_server + ':' + api_port + '/reference/' + agr
+
+        # always update mod reference types, whether 'mod_reference_types_only' or 'mod_biblio_all'
+        headers = update_mod_reference_types(live_changes, headers, agr, dqm_entry, db_entry)
 
         if processing_flag == 'mod_biblio_all':
             # for debugging changes
@@ -547,10 +624,7 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
                 # for debugging changes
                 # update_text = json.dumps(update_json, indent=4)
                 # print('update ' + update_text)
-                headers = generic_api_patch(live_changes, url, headers, update_json, agr, None, None)
-
-        # always update mod reference types, whether 'mod_reference_types_only' or 'mod_biblio_all'
-        headers = update_mod_reference_types(live_changes, headers, agr, dqm_entry, db_entry)
+                headers = generic_api_patch(live_changes, reference_patch_url, headers, update_json, agr, None, None)
 
     return headers
 
