@@ -25,10 +25,6 @@ from helper_post_to_api import (generate_headers, get_authentication_token,
 # import re
 
 
-# TODO for https://agr-jira.atlassian.net/browse/SCRUM-1110
-# update   batch_alchemy   to return the python dict for each reference
-# and use those to update instead of  the one-by-one api query.
-#
 # For WB needing 57578 references checked for updating,
 # It would take 48 hours to query the database through the API one by one.
 # It takes 24 minutes to query in batches of 1000 through batch alchemy.
@@ -39,6 +35,8 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 load_dotenv()
 api_server = environ.get('API_SERVER', 'localhost')
 # pipenv run python sort_dqm_json_reference_updates_batch_sqlalchemy.py -f dqm_data -m WB
+
+# pipenv run python sort_dqm_json_reference_updates_batch_sqlalchemy.py -f tests/dqm_update_sample -m WB
 
 # pipenv run python sort_dqm_json_reference_updates_batch_sqlalchemy.py -f dqm_data -m all > asdf_sanitized
 
@@ -163,17 +161,17 @@ def create_postgres_session(verbose):
 
     DB = environ.get('PSQL_DATABASE', 'literature-4005')
 
-    if verbose:
-        print('Using server: {}'.format(SERVER))
-        print('Using database: {}'.format(DB))
-
     # Create our SQL Alchemy engine from our environmental variables.
     engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
-    print(engine_var)
     engine = create_engine(engine_var)
 
     Session = sessionmaker(bind=engine)
     session = Session()
+
+    if verbose:
+        print('Using server: {}'.format(SERVER))
+        print('Using database: {}'.format(DB))
+        print(engine_var)
 
     return session
 
@@ -226,8 +224,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     pmids_not_found = load_pmids_not_found()
 
     # make this True for live changes
-    live_changes = False
-    # live_changes = True
+    # live_changes = False
+    live_changes = True
 
     # test data structure content
     # for prefix in xref_ref:
@@ -401,12 +399,12 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                                     # logger.info("Action : Add dqm xref %s %s to agr %s", prefix, ident, agr)  # dealt with below, not needed
 
                     if flag_aggregate_mod:
-                        logger.info("Action : aggregate PMID mod data %s", agr)
+                        # logger.info("Action : aggregate PMID mod data %s", agr)
                         aggregate_mod_reference_types_only[agr] = entry
                     elif flag_aggregate_biblio:
                         if 'keywords' in entry:
                             entry = clean_up_keywords(mod, entry)
-                        logger.info("Action : aggregate MOD biblio data %s", agr)
+                        # logger.info("Action : aggregate MOD biblio data %s", agr)
                         aggregate_mod_biblio_all[agr] = entry
                         pass
                     # check if dqm has no pmid/doi, but pmid/doi in DB
@@ -480,32 +478,16 @@ def save_new_references_to_file(references_to_create, mod):
     write_json(json_filename, dqm_data)
 
 
-def batch_alchemy(curies, batch_size, count_start=0, verbose=False):
+def batch_alchemy(curies, db_dict, batch_size, count_start=0, verbose=False):
     session = create_postgres_session(verbose)
     batch_list = curies[count_start:(count_start + batch_size)]
     refs = session.query(ReferenceModel).\
         filter(ReferenceModel.curie.in_(batch_list)).all()
     session.close()
-    # Make sure we have all the data, Store in a dict similare to
-    # what would be used in the code.
-    new_dict = {item.curie: item for item in refs}
-    # print("dict type is {}".format(type(new_dict)))
-    # del refs
-    if verbose:
-        # print(batch_list[:5])
-        # for agr in batch_list[:5]:
-        for agr in batch_list:
-            reference_data = jsonable_encoder(new_dict[agr])                    # convert to json
-            # TODO for https://agr-jira.atlassian.net/browse/SCRUM-1110
-            # return these reference python dicts and use them instead of api query at line 579
-
-            db_text = json.dumps(reference_data, indent=4, sort_keys=True)      # convert to text  # noqa:F841
-            # print(db_text)
-
-            # junk for testing one could make an api_format in backend/app/literature/models/reference_model.py
-            # print(new_dict[agr].get_api_format())
-
-    return count_start + batch_size
+    for item in refs:
+        item_dict = jsonable_encoder(item)
+        db_dict[item.curie] = item_dict
+    return count_start + batch_size, db_dict
 
 
 def update_db_entries(headers, entries, live_changes, report_fh, processing_flag):      # noqa: C901
@@ -544,40 +526,49 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     api_port = environ.get('API_PORT')
     # url_ref_curie_prefix = make_url_ref_curie_prefix()
 
-    counter = 0
-    max_counter = 10000000
-    # max_counter = 3
+    # retrieve_method can be fast directly through sqlalchemy in batch mode, or slow one by one through the api
+    retrieve_method = 'batch_alchemy'
+    # retrieve_method = 'api_one_by_one'
 
-    curies = list(entries.keys())
-    curies_count = len(curies)
-    start_index = 1
-    verbose = True
-#     api_server = environ.get('API_SERVER', 'postgres')
-    api_server = environ.get('API_SERVER', 'localhost')
-    # 10000 freezes the server, 1000 works
-    size_per_batch = 1000
-    while start_index < curies_count:
-        for batch_size in [size_per_batch]:
-            start_index = batch_alchemy(curies, batch_size, count_start=start_index, verbose=verbose)
-
-    # TODO update from here down to use batch sql alchemy queries instead
-    # don't do any api queries for now
-    return headers
+    db_dict = dict()
+    if retrieve_method == 'batch_alchemy':
+        curies = list(entries.keys())
+        curies_count = len(curies)
+        start_index = 0
+        # verbose = True
+        verbose = False
+        api_server = environ.get('API_SERVER', 'localhost')
+        # 10000 freezes the server, 1000 works
+        size_per_batch = 1000
+        # size_per_batch = 3
+        while start_index < curies_count:
+            for batch_size in [size_per_batch]:
+                start_index, db_dict = batch_alchemy(curies, db_dict, batch_size, count_start=start_index, verbose=verbose)
+        # print('curies')
+        # for agr in db_dict:
+        #     print(agr)
 
     for agr in entries:
-        counter = counter + 1
-        if counter > max_counter:
-            break
-
-        # agr_url = url_ref_curie_prefix + agr    # noqa: F841
-        api_server = environ.get('API_SERVER', 'localhost')
-        url = 'http://' + api_server + ':' + api_port + '/reference/' + agr
-        logger.info("get AGR reference info from database %s", url)
-        get_return = requests.get(url)
-        db_entry = json.loads(get_return.text)
-        # logger.info("title %s", response_dict['title'])   # for debugging which reference was found
-
         dqm_entry = entries[agr]
+
+        if retrieve_method == 'api_one_by_one':
+            # agr_url = url_ref_curie_prefix + agr    # noqa: F841
+            api_server = environ.get('API_SERVER', 'localhost')
+            url = 'http://' + api_server + ':' + api_port + '/reference/' + agr
+            logger.info("get AGR reference info from database %s", url)
+            get_return = requests.get(url)
+            db_entry = json.loads(get_return.text)
+            # logger.info("title %s", response_dict['title'])   # for debugging which reference was found
+        elif retrieve_method == 'batch_alchemy':
+            db_entry = db_dict[agr]
+        else:
+            continue
+
+        api_server = environ.get('API_SERVER', 'localhost')
+        reference_patch_url = 'http://' + api_server + ':' + api_port + '/reference/' + agr
+
+        # always update mod reference types, whether 'mod_reference_types_only' or 'mod_biblio_all'
+        headers = update_mod_reference_types(live_changes, headers, agr, dqm_entry, db_entry)
 
         if processing_flag == 'mod_biblio_all':
             # for debugging changes
@@ -633,10 +624,7 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
                 # for debugging changes
                 # update_text = json.dumps(update_json, indent=4)
                 # print('update ' + update_text)
-                headers = generic_api_patch(live_changes, url, headers, update_json, agr, None, None)
-
-        # always update mod reference types, whether 'mod_reference_types_only' or 'mod_biblio_all'
-        headers = update_mod_reference_types(live_changes, headers, agr, dqm_entry, db_entry)
+                headers = generic_api_patch(live_changes, reference_patch_url, headers, update_json, agr, None, None)
 
     return headers
 
