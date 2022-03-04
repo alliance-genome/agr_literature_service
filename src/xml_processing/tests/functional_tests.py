@@ -225,6 +225,8 @@ def mod_reference_types_check(agr_data, values):
         if dqm_string not in db_values:
             mrt_string = json.dumps(mrt_dqm, indent=4, sort_keys=True)
             failure_string = failure_string + mrt_string + " not in database. "
+            print(failure_string)
+            print(db_values)
     result = 'Failure'
     if failure_string != '':
         failure_string = 'Failure: ' + failure_string
