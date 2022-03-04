@@ -48,7 +48,7 @@ run-test-bash:
 
 run-functest:
 	docker-compose --env-file .env.test down
-	docker-compose --env-file .env.test up -d api
+	docker-compose --env-file .env.test up api
 	sleep 5
 
 	# load the data
