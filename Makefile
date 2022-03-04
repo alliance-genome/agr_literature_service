@@ -28,10 +28,10 @@ run-local-mypy:
 	mypy --config-file mypy.config .
 
 run-dev-bash:
-	docker-compose run --service-ports --rm dev_app /bin/bash
+	docker-compose --env-file .env.test run --service-ports --rm dev_app /bin/bash
 
 run-dev-zsh:
-	docker-compose run --service-ports --rm -v "${HOME}/.vimrc:/root/.vimrc:rw" -v "${HOME}/.zshrc:/root/.zshrc:rw" -v ${PWD}:/workdir dev_app /bin/zsh
+	docker-compose --env-file .env.test run --service-ports --rm -v "${HOME}/.vimrc:/root/.vimrc:rw" -v "${HOME}/.zshrc:/root/.zshrc:rw" -v ${PWD}:/workdir dev_app /bin/zsh
 
 docker-compose-up:
 	docker run -itd --env-file=.env -v /var/run/docker.sock:/var/run/docker.sock -v /home/core/.docker:/root/.docker -v ${PWD}:/var/tmp/ docker/compose:1.24.1  -f /var/tmp/docker-compose.yaml up -d
