@@ -112,7 +112,7 @@ services:
     hostname: agr_literature
     environment:
       API_PORT: "${API_PORT}"
-      PYTHONPATH: "/usr/local/bin/src/literature/src/xml_processing:/usr/local/bin/src/literature/backend/app"
+      PYTHONPATH: "/usr/local/bin/src/literature/src/xml_processing"
       XML_PATH: "${XML_PATH}"
     ports:
       - "8080:8080"
