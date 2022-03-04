@@ -48,8 +48,8 @@ run-test-bash:
 
 run-functest:
 	docker-compose --env-file .env.test down
-	docker-compose --env-file .env.test up api
-	sleep 10
+	docker-compose --env-file .env.test up -d api
+	sleep 5
 
 	# load the data
 	docker-compose --env-file .env.test run test_runner /bin/bash src/xml_processing/sample_reference_populate_load.sh
