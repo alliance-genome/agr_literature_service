@@ -78,9 +78,8 @@ def test_update_references():
     for entry in sample_json['data']:
         agr, agr_found = resolve_dqm_to_agr(entry, xref_ref)
         if not agr_found:
-            if 'update_check' in entry:
-                assert 'doi_conflict' in entry['update_check']
-                continue
+            assert 'doi_conflict' in entry['update_check']
+            continue
         if agr not in agr_wanted:
             agr_wanted[agr] = dict()
         if 'update_check' in entry:
@@ -225,14 +224,9 @@ def mod_reference_types_check(agr_data, values):
         if dqm_string not in db_values:
             mrt_string = json.dumps(mrt_dqm, indent=4, sort_keys=True)
             failure_string = failure_string + mrt_string + " not in database. "
-            print(failure_string)
-            agr_data_json = json.dumps(agr_data, indent=4, sort_keys=True)
-            print(db_values)
-            print(agr_data_json)
     result = 'Failure'
     if failure_string != '':
         failure_string = 'Failure: ' + failure_string
-        print(failure_string)
         result = failure_string
     else:
         result = 'Success'
