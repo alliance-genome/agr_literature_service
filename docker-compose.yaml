@@ -123,6 +123,10 @@ services:
       PSQL_HOST: "${PSQL_HOST}"
       PSQL_PORT: "${PSQL_PORT}"
       PSQL_DATABASE: "${PSQL_DATABASE}"
+      RESOURCE_DESCRIPTOR_URL: "${RESOURCE_DESCRIPTOR_URL}"
+      HOST: "${HOST}"
+      OKTA_DOMAIN: "${OKTA_DOMAIN}"
+      OKTA_API_AUDIENCE: "${OKTA_API_AUDIENCE}"
     hostname: literature_api
     networks:
       - agr-literature

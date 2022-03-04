@@ -33,4 +33,7 @@ jobs:
           XML_PATH: /usr/local/bin/src/literature/src/xml_processing/tests/
           OKTA_CLIENT_ID: ${{ secrets.okta_client_id }}
           OKTA_CLIENT_SECRET: ${{ secrets.okta_client_secret }}
+          RESOURCE_DESCRIPTOR_URL: 'https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/resourceDescriptors.yaml'
+          OKTA_DOMAIN: 'dev-30456587.okta.com/oauth2/default'
+          OKTA_API_AUDIENCE: 'api://default'
         run: make run-functest
