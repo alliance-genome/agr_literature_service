@@ -544,11 +544,12 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
         while start_index < curies_count:
             for batch_size in [size_per_batch]:
                 start_index, db_dict = batch_alchemy(curies, db_dict, batch_size, count_start=start_index, verbose=verbose)
-        print('curies')
-        for agr in db_dict:
-            print(agr)
-            db_entry_json = json.dumps(db_dict[agr], indent=4)
-            print(db_entry_json)
+        # for debugging what came from the database
+        # print('curies')
+        # for agr in db_dict:
+        #     print(agr)
+        #     db_entry_json = json.dumps(db_dict[agr], indent=4)
+        #     print(db_entry_json)
 
     for agr in entries:
         dqm_entry = entries[agr]
