@@ -205,7 +205,18 @@ services:
       OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
       OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
       ENV_STATE: "${ENV_STATE}"
+      PSQL_USERNAME: "${PSQL_USERNAME}"
+      PSQL_PASSWORD: "${PSQL_PASSWORD}"
+      PSQL_HOST: "${PSQL_HOST}"
+      PSQL_PORT: "${PSQL_PORT}"
+      PSQL_DATABASE: "${PSQL_DATABASE}"
+      RESOURCE_DESCRIPTOR_URL: "${RESOURCE_DESCRIPTOR_URL}"
+      HOST: "${HOST}"
+      OKTA_DOMAIN: "${OKTA_DOMAIN}"
+      OKTA_API_AUDIENCE: "${OKTA_API_AUDIENCE}"
       REG: "${REG}"
+    ports:
+      - "8080:8080"
     networks:
       - agr-literature
     volumes:
