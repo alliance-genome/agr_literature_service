@@ -78,10 +78,9 @@ def test_update_references():
     for entry in sample_json['data']:
         agr, agr_found = resolve_dqm_to_agr(entry, xref_ref)
         if not agr_found:
-            json_data = json.dumps(entry, indent=4, sort_keys=True)
-            print(json_data)
-            assert 'doi_conflict' in entry['update_check']
-            continue
+            if 'update_check' in entry:
+                assert 'doi_conflict' in entry['update_check']
+                continue
         if agr not in agr_wanted:
             agr_wanted[agr] = dict()
         if 'update_check' in entry:
