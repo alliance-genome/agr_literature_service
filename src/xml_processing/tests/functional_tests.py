@@ -228,6 +228,7 @@ def mod_reference_types_check(agr_data, values):
     result = 'Failure'
     if failure_string != '':
         failure_string = 'Failure: ' + failure_string
+        print(failure_string)
         result = failure_string
     else:
         result = 'Success'

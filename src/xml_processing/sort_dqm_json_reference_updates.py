@@ -159,7 +159,7 @@ def create_postgres_session(verbose):
     SERVER = environ.get('PSQL_HOST', 'localhost')
     PORT = environ.get('PSQL_PORT', '5432')
 
-    DB = environ.get('PSQL_DATABASE', 'literature-4005')
+    DB = environ.get('PSQL_DATABASE', 'literature')
 
     # Create our SQL Alchemy engine from our environmental variables.
     engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
