@@ -14,8 +14,9 @@ services:
       - "./postgresql.conf:/etc/postgresql.conf"
     networks:
       - agr-literature
-    ports:
-      - "${PSQL_PORT}:${PSQL_PORT}"
+    # uncomment ports if connection from host is needed
+    # ports:
+    #   - "${PSQL_PORT}:${PSQL_PORT}"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${PSQL_USERNAME}"]
       interval: 10s
@@ -96,8 +97,6 @@ services:
     hostname: redis
     restart: always
     command: redis-server --requirepass "${REDIS_AUTH}"
-    ports:
-     - "${REDIS_PORT}:${REDIS_PORT}"
     volumes:
       - "./redis.conf:/usr/local/etc/redis/redis.conf"
     environment:
@@ -125,8 +124,6 @@ services:
       PSQL_PORT: "${PSQL_PORT}"
       PSQL_DATABASE: "${PSQL_DATABASE}"
     hostname: literature_api
-    ports:
-      - "${API_PORT}:8080"
     networks:
       - agr-literature
     volumes:
