@@ -46,18 +46,15 @@ run-test-bash:
 	python3 check_tests.py
 	docker-compose --env-file .env.test down -v
 
-run-functest: build-env build-dev build-app-test
-	# Minus at start means ignore exit code for that line
-	-docker volume rm -f agr-literature-test_agr-literature-pg-data agr-literature-test_agr-logs
+run-functest:
+	docker-compose --env-file .env.test down
 
 	# load the data
-	docker-compose --env-file .env.test run test_runner /bin/bash /workdir/sample_reference_populate_load.sh
+	docker-compose --env-file .env.test run test_runner /bin/bash src/xml_processing/sample_reference_populate_load.sh
 
 	# load the update
-	docker exec `docker ps --no-trunc -aqf name=agr-literature-test_agr_literature` \
-	   /bin/bash /usr/local/bin/src/literature/src/xml_processing/sample_reference_populate_update.sh
+	docker-compose --env-file .env.test run test_runner /bin/bash src/xml_processing/sample_reference_populate_update.sh
 
-	docker exec `docker ps --no-trunc -aqf name=agr-literature-test_agr_literature` \
-		python3 ./src/xml_processing/tests/functional_tests.py
+	docker-compose --env-file .env.test run test_runner python3 src/xml_processing/tests/functional_tests.py
 	docker-compose --env-file .env.test down
 
