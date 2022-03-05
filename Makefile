@@ -41,6 +41,8 @@ docker-compose-down:
 
 run-test-bash:
 	docker-compose --env-file .env.test down -v
+	docker-compose --env-file .env.test up -d postgres
+	sleep 5
 	-docker-compose --env-file .env.test run -v ${PWD}:/workdir test_runner ./run_tests.sh > pytest.out
     #doing here after shutdown of database
 	python3 check_tests.py
