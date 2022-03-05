@@ -9,14 +9,14 @@ services:
       POSTGRES_USER: ${PSQL_USERNAME}
       POSTGRES_PASSWORD: ${PSQL_PASSWORD}
       POSTGRES_DB: ${PSQL_DATABASE}
-      POSTGRES_PORT: ${PSQL_PORT}
     volumes:
       - "agr-literature-pg-data:/var/lib/postgresql/data"
       - "./postgresql.conf:/etc/postgresql.conf"
     networks:
       - agr-literature
-#     ports:
-#       - "${PSQL_PORT}:${PSQL_PORT}"
+    # uncomment ports if connection from host is needed
+    # ports:
+    #   - "${PSQL_PORT}:${PSQL_PORT}"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${PSQL_USERNAME}"]
       interval: 10s
@@ -68,7 +68,7 @@ services:
   initdb:
     build:
       context: .
-      dockerfile: docker/Dockerfile.initdb.env
+      dockerfile: docker/initdb.dockerfile
     hostname: initdb
     networks:
       - agr-literature
@@ -79,13 +79,24 @@ services:
   pgsync:
     build:
       context: .
-      dockerfile: docker/Dockerfile.pgsync.env
+      dockerfile: docker/pgsync.dockerfile
     hostname: pgsync
     networks:
       - agr-literature
     volumes:
       - "./pgsync_schema.json:/src/app/pgsync_schema.json"
       - "./.env:/usr/local/lib/.env"
+    environment:
+      PG_USER: "${PG_USER}"
+      PG_PASSWORD: "${PG_PASSWORD}"
+      PG_HOST: "${PG_HOST}"
+      PG_PORT: "${PG_PORT}"
+      ELASTICSEARCH_HOST: "${ELASTICSEARCH_HOST}"
+      ELASTICSEARCH_PORT: "${ELASTICSEARCH_PORT}"
+      REDIS_HOST: "${REDIS_HOST}"
+      REDIS_PORT: "${REDIS_PORT}"
+      REDIS_DB: "${REDIS_DB}"
+      REDIS_AUTH: "${REDIS_AUTH}"
     depends_on:
       - initdb
       - elasticsearch
@@ -97,8 +108,6 @@ services:
     hostname: redis
     restart: always
     command: redis-server --requirepass "${REDIS_AUTH}"
-    ports:
-     - "${REDIS_PORT}:${REDIS_PORT}"
     volumes:
       - "./redis.conf:/usr/local/etc/redis/redis.conf"
     environment:
@@ -106,19 +115,135 @@ services:
     networks:
       - agr-literature
 
-  agr_literature:
+  api:
     restart: always
-    image: ${REG}/agr_literature_app_test:${TAG}
-    hostname: agr_literature
+    build:
+      context: .
+      dockerfile: docker/api.dockerfile
+      args:
+        REG: ${REG}
+        ALLIANCE_RELEASE: ${ALLIANCE_RELEASE}
+    environment:
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
+      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
+      ENV_STATE: "${ENV_STATE}"
+      PSQL_USERNAME: "${PSQL_USERNAME}"
+      PSQL_PASSWORD: "${PSQL_PASSWORD}"
+      PSQL_HOST: "${PSQL_HOST}"
+      PSQL_PORT: "${PSQL_PORT}"
+      PSQL_DATABASE: "${PSQL_DATABASE}"
+      RESOURCE_DESCRIPTOR_URL: "${RESOURCE_DESCRIPTOR_URL}"
+      HOST: "${HOST}"
+      OKTA_DOMAIN: "${OKTA_DOMAIN}"
+      OKTA_API_AUDIENCE: "${OKTA_API_AUDIENCE}"
+    hostname: literature_api
+    networks:
+      - agr-literature
+    volumes:
+      - agr-logs:/logs
+    depends_on:
+      - postgres
+
+  xml_processing:
+    restart: always
+    build:
+      context: .
+      dockerfile: docker/xml_processing.dockerfile
+      args:
+        REG: ${REG}
+        ALLIANCE_RELEASE: ${ALLIANCE_RELEASE}
+    hostname: literature_xml_processing
     environment:
       API_PORT: "${API_PORT}"
       PYTHONPATH: "/usr/local/bin/src/literature/src/xml_processing:/usr/local/bin/src/literature/backend/app"
-      XML_PATH: "${XML_PATH}"
-      PSQL_DATABASE: "${PSQL_DATABASE}"
+      XML_PATH: "/usr/local/bin/src/literature/src/xml_processing"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
+      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
+      ENV_STATE: "${ENV_STATE}"
+      HOST: "${HOST}"
+      OKTA_DOMAIN: "${OKTA_DOMAIN}"
+      OKTA_API_AUDIENCE: "${OKTA_API_AUDIENCE}"
+      PSQL_USERNAME: "${PSQL_USERNAME}"
+      PSQL_PASSWORD: "${PSQL_PASSWORD}"
       PSQL_HOST: "${PSQL_HOST}"
       PSQL_PORT: "${PSQL_PORT}"
-      PSQL_PASSWORD: "${PSQL_PASSWORD}"
+      PSQL_DATABASE: "${PSQL_DATABASE}"
+      RESOURCE_DESCRIPTOR_URL: "${RESOURCE_DESCRIPTOR_URL}"
+      REG: "${REG}"
+    networks:
+      - agr-literature
+    volumes:
+      - agr-logs:/logs
+    depends_on:
+      - api
+
+  test_runner:
+    build:
+      context: .
+      dockerfile: docker/test_runner.dockerfile
+      args:
+        REG: ${REG}
+        ALLIANCE_RELEASE: ${ALLIANCE_RELEASE}
+    hostname: test_runner
+    environment:
+      API_PORT: "${API_PORT}"
+      API_SERVER: "${API_SERVER}"
+      PYTHONPATH: "/usr/local/bin/src/literature/src/xml_processing:/usr/local/bin/src/literature/backend/app"
+      XML_PATH: "/usr/local/bin/src/literature/src/xml_processing/tests/"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
+      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
+      ENV_STATE: "${ENV_STATE}"
+      HOST: "${HOST}"
+      OKTA_DOMAIN: "${OKTA_DOMAIN}"
+      OKTA_API_AUDIENCE: "${OKTA_API_AUDIENCE}"
       PSQL_USERNAME: "${PSQL_USERNAME}"
+      PSQL_PASSWORD: "${PSQL_PASSWORD}"
+      PSQL_HOST: "${PSQL_HOST}"
+      PSQL_PORT: "${PSQL_PORT}"
+      PSQL_DATABASE: "${PSQL_DATABASE}"
+      RESOURCE_DESCRIPTOR_URL: "${RESOURCE_DESCRIPTOR_URL}"
+      REG: "${REG}"
+    volumes:
+      - agr-logs:/logs
+    networks:
+      - agr-literature
+    depends_on:
+      - api
+
+  dev_app:
+    restart: always
+    build:
+      context: .
+      dockerfile: docker/dev-app.dockerfile
+      args:
+        REG: ${REG}
+        ALLIANCE_RELEASE: ${ALLIANCE_RELEASE}
+    hostname: dev_app
+    environment:
+      API_PORT: "${API_PORT}"
+      PYTHONPATH: "/usr/local/bin/src/literature/src/xml_processing:/usr/local/bin/src/literature/backend/app"
+      XML_PATH: "/usr/local/bin/src/literature/src/xml_processing"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
+      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
+      ENV_STATE: "${ENV_STATE}"
+      PSQL_USERNAME: "${PSQL_USERNAME}"
+      PSQL_PASSWORD: "${PSQL_PASSWORD}"
+      PSQL_HOST: "${PSQL_HOST}"
+      PSQL_PORT: "${PSQL_PORT}"
+      PSQL_DATABASE: "${PSQL_DATABASE}"
+      RESOURCE_DESCRIPTOR_URL: "${RESOURCE_DESCRIPTOR_URL}"
+      HOST: "${HOST}"
+      OKTA_DOMAIN: "${OKTA_DOMAIN}"
+      OKTA_API_AUDIENCE: "${OKTA_API_AUDIENCE}"
+      REG: "${REG}"
     ports:
       - "8080:8080"
     networks:
@@ -126,7 +251,7 @@ services:
     volumes:
       - agr-logs:/logs
     depends_on:
-      - postgres
+      - api
 
 volumes:
   agr-literature-pg-data:

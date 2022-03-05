@@ -3,8 +3,6 @@ from typing import Optional
 from pydantic import BaseSettings, Field
 
 from literature.schemas import EnvStateSchema
-from os import path, environ
-import sys
 
 
 class GlobalConfig(BaseSettings):
@@ -36,15 +34,6 @@ class GlobalConfig(BaseSettings):
     PSQL_DATABASE: str = Field(..., env="PSQL_DATABASE")
 
     RESOURCE_DESCRIPTOR_URL: str = Field(..., env="RESOURCE_DESCRIPTOR_URL")
-
-    class Config:
-        """Loads the dotenv file."""
-        env_state = environ.get('ENV_STATE', 'prod')
-        print("State is {}".format(env_state))
-        if env_state == "prod":
-            env_file = path.dirname((sys.modules[__name__].__file__)) + "/../../../.env"
-        elif env_state == "test":
-            env_file = path.dirname((sys.modules[__name__].__file__)) + "/../../../.env.test"
 
 
 config = GlobalConfig()
