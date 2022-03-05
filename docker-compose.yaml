@@ -86,6 +86,17 @@ services:
     volumes:
       - "./pgsync_schema.json:/src/app/pgsync_schema.json"
       - "./.env:/usr/local/lib/.env"
+    environment:
+      PG_USER: "${PG_USER}"
+      PG_PASSWORD: "${PG_PASSWORD}"
+      PG_HOST: "${PG_HOST}"
+      PG_PORT: "${PG_PORT}"
+      ELASTICSEARCH_HOST: "${ELASTICSEARCH_HOST}"
+      ELASTICSEARCH_PORT: "${ELASTICSEARCH_PORT}"
+      REDIS_HOST: "${REDIS_HOST}"
+      REDIS_PORT: "${REDIS_PORT}"
+      REDIS_DB: "${REDIS_DB}"
+      REDIS_AUTH: "${REDIS_AUTH}"
     depends_on:
       - initdb
       - elasticsearch
