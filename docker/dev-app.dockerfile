@@ -1,9 +1,16 @@
-ARG ALLIANCE_RELEASE=latest
 ARG REG=agrdocker
-FROM ${REG}/agr_literature_env:${ALLIANCE_RELEASE}
+ARG ALLIANCE_RELEASE=latest
 
+FROM ${REG}/agr_base_linux_env:${ALLIANCE_RELEASE}
+
+WORKDIR /usr/local/bin/src/literature
+
+ADD backend/app/requirements.txt .
 ADD backend/app/requirements.dev.txt .
 
+ADD . .
+
+RUN pip3 install -r requirements.txt
 RUN pip3 install -r requirements.dev.txt
 
 RUN apt-get -y install zsh
@@ -21,5 +28,4 @@ RUN echo "deb http://apt.postgresql.org/pub/repos/apt/ bionic-pgdg main" | tee /
 RUN apt-get update
 RUN apt-get -y install postgresql-client-13
 
-
-CMD ["python3" "-m pip3" "list"]
+CMD ["bash"]

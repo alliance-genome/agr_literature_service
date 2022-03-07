@@ -275,5 +275,15 @@ class ReferenceModel(Base):
         """
         Overwrite the default output.
         """
-        return "Reference id = {} created {} updated {}: curie='{}' resource_id='{}' title='{}...'".\
-            format(self.reference_id, self.date_created, self.date_updated, self.curie, self.resource_id, self.title[:10])
+        ids = "Reference id = {} curie='{}' resource_id='{}'\n".\
+            format(self.reference_id, self.curie, self.resource_id)
+        dates = "\tDates: updated='{}', created='{}', published='{}', arrived_p='{}', last_mod='{}'\n".\
+            format(self.date_updated, self.date_created, self.date_published,
+                   self.date_arrived_in_pubmed, self.date_last_modified)
+        long = "\ttitle10='{}...'\n\tabstract10='{}...'\n".format(self.title[:10], self.abstract[:10])
+        auths = [str(x) for x in self.authors]
+        mesh = [str(x) for x in self.mesh_terms]
+        tags = [str(x) for x in self.tags]
+        peps = "\tauthors='{}'\n\teditors='{}'\n".format(auths, str(self.editors))
+        arrs = "\ttags='{}'\n\tmesh='{}'\n\tkeywords='{}'\n".format(str(tags), str(mesh), self.keywords)
+        return "{}{}{}{}{}".format(ids, dates, long, peps, arrs)
