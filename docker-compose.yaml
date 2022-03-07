@@ -14,9 +14,9 @@ services:
       - "./postgresql.conf:/etc/postgresql.conf"
     networks:
       - agr-literature
-    # uncomment ports if connection from host is needed
-    # ports:
-    #   - "${PSQL_PORT}:${PSQL_PORT}"
+    # ports needed by pgadmin to connect through host.docker.internal
+    ports:
+      - "${PSQL_PORT}:${PSQL_PORT}"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${PSQL_USERNAME}"]
       interval: 10s
@@ -36,13 +36,16 @@ services:
       PGADMIN_ACCESS_CONTROL_ALLOW_ORIGIN: "*"
       PGADMIN_LISTEN_PORT: 81
     ports:
-      - "8882:81"
+      - "${PGADMIN_PORT}:81"
     volumes:
       - "agr-literature-pgadmin-data:/var/lib/pgadmin"
     networks:
       - agr-literature
     depends_on:
       - postgres
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.10.1
@@ -145,6 +148,8 @@ services:
       - agr-logs:/logs
     depends_on:
       - postgres
+    ports:
+      - "${API_PORT}:8080"
 
   xml_processing:
     restart: always
@@ -251,7 +256,7 @@ services:
     volumes:
       - agr-logs:/logs
     depends_on:
-      - api
+      - postgres
 
 volumes:
   agr-literature-pg-data:
