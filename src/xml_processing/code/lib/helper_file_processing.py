@@ -7,7 +7,7 @@ import bs4
 import coloredlogs
 import requests
 
-from helper_post_to_api import generate_headers, get_authentication_token, update_token
+from .helper_post_to_api import generate_headers, get_authentication_token, update_token
 
 warnings.filterwarnings("ignore", category=UserWarning, module="bs4")
 
