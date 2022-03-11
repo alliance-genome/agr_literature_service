@@ -123,10 +123,10 @@ def get_medline_date_from_xml_date(xml_data):
 def get_title(xml_data, is_book, is_vernacular):
     """
 
-    :param xml_data: 
-    :param is_book: 
-    :param is_vernacular: 
-    :return: 
+    :param xml_data:
+    :param is_book:
+    :param is_vernacular:
+    :return:
     """
 
     if is_book:
@@ -153,13 +153,12 @@ def get_section(xml_data, section):
         return ""
 
 
-def get_comments_corrections(xml_data, pmids, previous_pmids = []):
+def get_comments_corrections(xml_data, pmids, previous_pmids=[]):
     """
 
     :param xml_data:
     :return:
     """
-
 
     # <CommentsCorrectionsList><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler.
     # 1999 Dec;5(6):378</RefSource><PMID Version="1">10644162</PMID></CommentsCorrections><CommentsCorrections
@@ -204,8 +203,8 @@ def get_publication_type(xml_data):
 
     try:
         types_group = re.findall('<PublicationType UI=".*?">(.+?)</PublicationType>', xml_data)
-    except:
-        types_group = re.findall("<PublicationType>(.+?)</PublicationType>", xml)
+    except Exception as e:
+        types_group = re.findall("<PublicationType>(.+?)</PublicationType>", xml_data)
 
     return types_group
 
@@ -228,7 +227,7 @@ def get_authors(xml_data):
             author_rank += 1
 
             try:
-                 author["lastname"] = re.search("<LastName>(.+?)</LastName>", author_xml).group(1)
+                author["lastname"] = re.search("<LastName>(.+?)</LastName>", author_xml).group(1)
             except AttributeError:
                 author["lastname"] = ""
 
@@ -256,7 +255,7 @@ def get_authors(xml_data):
             # e.g. 30002370   <Identifier Source="ORCID">http://orcid.org/0000-0003-0416-374X</Identifier>
             try:
                 orcid_one = re.search("<Identifier Source=\"ORCID\">(.+?)</Identifier>", author_xml).group(1)
-                orcid_two = re.search('<Identifier Source="ORCID">.*?([0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]).*?</Identifier>',author_xml).group(1)
+                orcid_two = re.search('<Identifier Source="ORCID">.*?([0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]).*?</Identifier>', author_xml).group(1)
                 orcid_dict = {"id": "ORCID:" + orcid_two, "pages": ["person/orcid"]}
                 author_cross_references.append(orcid_dict)
                 author["orcid"] = orcid_dict
@@ -315,7 +314,7 @@ def get_dates(xml_data, date_type):
     print(date_type)
     try:
         if date_type == "PubMedPubDate":
-            pub_date = re.search("<PubMedPubDate PubStatus=\"received\">(.+?)</PubMedPubDate>", xml, re.DOTALL).group(1)
+            pub_date = re.search("<PubMedPubDate PubStatus=\"received\">(.+?)</PubMedPubDate>", xml_data, re.DOTALL).group(1)
         else:
             pub_date = re.search(f"<{date_type}>(.+?)</{date_type}>", xml_data, re.DOTALL).group(1)
         year, month, day = get_year_month_day_from_xml_date(pub_date)
@@ -334,6 +333,7 @@ def get_dates(xml_data, date_type):
         return date_dict
 
     return date_dict
+
 
 def generate_json(pmids, base_path, previous_pmids=[]):  # noqa: C901
     """
@@ -398,7 +398,7 @@ def generate_json(pmids, base_path, previous_pmids=[]):  # noqa: C901
             data_dict["datePublished"] = get_dates(xml, "PubDate")
             data_dict["issueDate"] = data_dict['datePublished']['date_string']
             data_dict['date_string'] = data_dict['datePublished']['date_string']
-            data_dict["dateLastModified"]  = get_dates(xml, "DateRevised")
+            data_dict["dateLastModified"] = get_dates(xml, "DateRevised")
             # temp, data_dict["dateArrivedInPubmed"] = get_section(xml, "PubMedPubDate")
             print(data_dict)
 

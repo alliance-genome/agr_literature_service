@@ -175,5 +175,4 @@ if __name__ == '__main__':
     pmids = ["12345678", "12345679", "12345680", "21290765", "33054145", "21413221", "28304499", "28308877"]
     base_path = os.getcwd()
     storage_path = os.path.join(base_path, 'pubmed_xml')
-    download_pubmed_xml(pmids_wanted, storage_path, base_path)
-
+    download_pubmed_xml(pmids, storage_path, base_path)

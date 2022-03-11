@@ -20,18 +20,14 @@ rewrote to split into chunks of 100000 entries by pubmed vs pubmod, MGI now runs
 TODO when creating authors, make sure that  first_author: false, corresponding_author: false  otherwise they get a null, which looks different than false when toggling on/off the flags in the UI
 """
 
-
-import argparse
 import json
 import logging
 import re
-import sys
 import urllib.request
 import warnings
 from collections import defaultdict, Counter
 import os
 
-import bs4
 import coloredlogs
 
 from .helper_file_processing import clean_up_keywords, split_identifier, write_json
@@ -413,11 +409,11 @@ def load_pmid_multi_mods(result_path):
 def process_cross_references(entry, schema_data, mod, fh_mod_report):
     """
 
-    :param entry: 
-    :param schema_data: 
-    :param mod: 
-    :param fh_mod_report: 
-    :return: 
+    :param entry:
+    :param schema_data:
+    :param mod:
+    :param fh_mod_report:
+    :return:
     """
 
     expected_cross_reference_type, exclude_cross_reference_type, pubmed_not_dqm_cross_reference_type = populate_expected_cross_reference_type()
@@ -436,10 +432,10 @@ def process_cross_references(entry, schema_data, mod, fh_mod_report):
 
         if "pages" in cross_reference:
             if len(cross_reference["pages"]) > 1:
-                fh_mod_report[mod].write(f"{mod} primaryId {primary_id} has cross reference identifier {cross_reference['id']} " \
-                                                                           "with multiple web pages {cross_reference['pages']} \n")
-                logger.info(f"{mod} primaryId {primary_id} has cross reference identifier {cross_reference['id']} " \
-                                                                             "with web pages {cross_reference['pages']}")
+                fh_mod_report[mod].write(f"{mod} primaryId {entry['primaryId']} has cross reference identifier {cross_reference['id']} "
+                                         "with multiple web pages {cross_reference['pages']} \n")
+                logger.info(f"{mod} primaryId {entry['primaryId']} has cross reference identifier {cross_reference['id']} "
+                            "with web pages {cross_reference['pages']}")
             else:
                 if not re.match(r"^PMID:[0-9]+", orig_primary_id):
                     if cross_reference["pages"][0] == "PubMed":
@@ -447,8 +443,8 @@ def process_cross_references(entry, schema_data, mod, fh_mod_report):
                             entry["primaryId"] = cross_reference["id"]
         else:
             if prefix not in cross_ref_no_pages_ok_fields:
-                fh_mod_report[mod].write(f"{mod} primaryId {primary_id} has cross reference identifier {cross_reference['id']} without web pages\n")
-                logger.debug(f"{mod} primaryId {primary_id} has cross reference identifier {cross_reference['id']} without web pages\n")
+                fh_mod_report[mod].write(f"{mod} primaryId {entry['primaryId']} has cross reference identifier {cross_reference['id']} without web pages\n")
+                logger.debug(f"{mod} primaryId {entry['primaryId']} has cross reference identifier {cross_reference['id']} without web pages\n")
 
         id = cross_reference["id"]
         cross_ref_type_group = re.search(r"^([^0-9]+)[0-9]", id)
@@ -912,6 +908,7 @@ def process_dqm_entries(entries, schema_data, mod, fh_mod_report):
     # # json_filename = base_path + 'FB_resourceAbbreviation_to_NLM.json'
     # # write_json(json_filename, fb_resource_abbreviation_to_nlm)
 
+
 def aggregate_dqm_with_pubmed(json_path, output_directory):  # noqa: C901
     """
     noqa: C901
@@ -960,7 +957,6 @@ def aggregate_dqm_with_pubmed(json_path, output_directory):  # noqa: C901
     # pubmed_not_dqm_cross_reference_type = populate_expected_cross_reference_type()
 
     resource_not_found = defaultdict(dict)
-
 
     print(output_directory)
     print(os.path.join(output_directory, "sanitized_reference_json"))
@@ -1074,4 +1070,3 @@ if __name__ == "__main__":
     #     logger.info("No valid processing flag passed in.  Use -h for help.")
     #
     # logger.info("ending parse_dqm_json_reference.py")
-

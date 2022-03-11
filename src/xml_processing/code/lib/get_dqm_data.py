@@ -15,7 +15,7 @@ import json
 import logging.config
 import os
 import urllib.request
-from os import environ, makedirs, path
+from os import makedirs, path
 
 import coloredlogs
 from dotenv import load_dotenv
