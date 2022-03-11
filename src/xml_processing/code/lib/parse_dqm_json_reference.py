@@ -25,6 +25,7 @@ import argparse
 import json
 import logging
 import re
+import sys
 import urllib.request
 import warnings
 from collections import defaultdict, Counter
@@ -409,7 +410,64 @@ def load_pmid_multi_mods(result_path):
     return pmid_multi_mods
 
 
-def process_dqm_entries(entries, schema_data, mod):
+def process_cross_references(entry, schema_data, mod, fh_mod_report):
+    """
+
+    :param entry: 
+    :param schema_data: 
+    :param mod: 
+    :param fh_mod_report: 
+    :return: 
+    """
+
+    expected_cross_reference_type, exclude_cross_reference_type, pubmed_not_dqm_cross_reference_type = populate_expected_cross_reference_type()
+
+    cross_ref_no_pages_ok_fields = ["DOI", "PMID", "PMC", "PMCID", "ISBN"]
+    cross_reference_types = defaultdict(dict)
+
+    expected_cross_references = []
+    dqm_xrefs = defaultdict(list)
+    orig_primary_id = entry["primaryId"]
+    for cross_reference in entry["crossReferences"]:
+        print(cross_reference)
+        prefix, identifier, separator = split_identifier(cross_reference["id"])
+        # print(prefix, identifier, separator)
+        dqm_xrefs[prefix].append(identifier)
+
+        if "pages" in cross_reference:
+            if len(cross_reference["pages"]) > 1:
+                fh_mod_report[mod].write(f"{mod} primaryId {primary_id} has cross reference identifier {cross_reference['id']} " \
+                                                                           "with multiple web pages {cross_reference['pages']} \n")
+                logger.info(f"{mod} primaryId {primary_id} has cross reference identifier {cross_reference['id']} " \
+                                                                             "with web pages {cross_reference['pages']}")
+            else:
+                if not re.match(r"^PMID:[0-9]+", orig_primary_id):
+                    if cross_reference["pages"][0] == "PubMed":
+                        if re.match(r"^PMID:[0-9]+", cross_reference["id"]):
+                            entry["primaryId"] = cross_reference["id"]
+        else:
+            if prefix not in cross_ref_no_pages_ok_fields:
+                fh_mod_report[mod].write(f"{mod} primaryId {primary_id} has cross reference identifier {cross_reference['id']} without web pages\n")
+                logger.debug(f"{mod} primaryId {primary_id} has cross reference identifier {cross_reference['id']} without web pages\n")
+
+        id = cross_reference["id"]
+        cross_ref_type_group = re.search(r"^([^0-9]+)[0-9]", id)
+        if cross_ref_type_group is not None:
+            if cross_ref_type_group[1].lower() not in expected_cross_reference_type:
+                if cross_ref_type_group[1] in cross_reference_types[mod]:
+                    cross_reference_types[mod][cross_ref_type_group[1]].append(primary_id + ' ' + id)
+                else:
+                    cross_reference_types[mod][cross_ref_type_group[1]] = [primary_id + ' ' + id]
+            if cross_ref_type_group[1].lower() not in exclude_cross_reference_type:
+                expected_cross_references.append(cross_reference)
+        entry["crossReferences"] = expected_cross_references
+        for prefix in dqm_xrefs:
+            if len(dqm_xrefs[prefix]) > 1:
+                too_many_xref_per_type_failure = True
+                fh_mod_report[mod].write(f"{mod} primaryId {entry['primaryId']} has too many identifiers for {','.join(sorted(dqm_xrefs[prefix]))}\n")
+
+
+def process_dqm_entries(entries, schema_data, mod, fh_mod_report):
     """
 
     :param entries:
@@ -441,70 +499,18 @@ def process_dqm_entries(entries, schema_data, mod):
         [entry.pop(k, None) for k in empty_keys]
 
         unexpected_mod_properties = [p for p in entry if p not in schema_data["properties"]]
-        logger.info(f"Warning: Unexpected Mod {mod} Property {','.join(unexpected_mod_properties)}")
+        if len(unexpected_mod_properties) > 0:
+            logger.info(f"Warning: Unexpected {mod} Property {','.join(unexpected_mod_properties)}")
 
         # need to process crossReferences once to reassign primaryId if PMID and filter out
         # unexpected crossReferences, then again later to clean up crossReferences
         # that get data from pubmed xml (once the PMID is known)
 
         if "crossReferences" in entry:
-            expected_cross_references = []
-            dqm_xrefs = {}
-            for cross_reference in entry["crossReferences"]:
-                prefix, identifier, separator = split_identifier(cross_reference["id"])
-
-
-
-
-
-
-
-
-    #                 if prefix not in dqm_xrefs:
-    #                     dqm_xrefs[prefix] = set()
-    #                 dqm_xrefs[prefix].add(identifier)
-    #                 if "pages" in cross_reference:
-    #                     if len(cross_reference["pages"]) > 1:
-    #                         fh_mod_report[mod].write("mod %s primaryId %s has cross reference identifier %s with multiple web pages %s\n"
-    #                                                  % (mod, primary_id, cross_reference["id"], cross_reference["pages"]))
-    #                         # logger.info("mod %s primaryId %s has cross reference identifier %s with web pages %s", mod, primary_id, cross_reference["id"], cross_reference["pages"])
-    #                     else:
-    #                         if not re.match(r"^PMID:[0-9]+", orig_primary_id):
-    #                             if cross_reference["pages"][0] == "PubMed":
-    #                                 xref_id = cross_reference["id"]
-    #                                 if re.match(r"^PMID:[0-9]+", xref_id):
-    #                                     update_primary_id = True
-    #                                     primary_id = xref_id
-    #                                     entry["primaryId"] = xref_id
-    #                 else:
-    #                     if prefix not in cross_ref_no_pages_ok_fields:
-    #                         fh_mod_report[mod].write(
-    #                             "mod %s primaryId %s has cross reference identifier %s without web pages\n"
-    #                             % (mod, primary_id, cross_reference["id"])
-    #                         )
-    #                         # logger.debug("mod %s primaryId %s has cross reference %s without pages", mod, primary_id, cross_reference["id"])
-    #
-    #                 id = cross_reference["id"]
-    #                 cross_ref_type_group = re.search(r"^([^0-9]+)[0-9]", id)
-    #                 if cross_ref_type_group is not None:
-    #                     if cross_ref_type_group[1].lower() not in expected_cross_reference_type:
-    #                         if cross_ref_type_group[1] in cross_reference_types[mod]:
-    #                             cross_reference_types[mod][cross_ref_type_group[1]].append(primary_id + ' ' + id)
-    #                         else:
-    #                             cross_reference_types[mod][cross_ref_type_group[1]] = [primary_id + ' ' + id]
-    #                         # cross_reference_types[mod].add(cross_ref_type_group[1])
-    #                     if cross_ref_type_group[1].lower() not in exclude_cross_reference_type:
-    #                         expected_cross_references.append(cross_reference)
-    #             entry["crossReferences"] = expected_cross_references
-    #             for prefix in dqm_xrefs:
-    #                 if len(dqm_xrefs[prefix]) > 1:
-    #                     too_many_xref_per_type_failure = True
-    #                     fh_mod_report[mod].write("mod %s primaryId %s has too many identifiers for %s %s\n"
-    #                                              % (mod, primary_id, prefix, ", ".join(sorted(dqm_xrefs[prefix]))))
-    #
-    #         else:
-    #             fh_mod_report[mod].write("mod %s primaryId %s has no cross references\n" % (mod, primary_id))
-    #             # logger.info("mod %s primaryId %s has no cross references", mod, primary_id)
+            process_cross_references(entry, schema_data, mod, fh_mod_report)
+        else:
+            fh_mod_report[mod].write(f"{mod} {primary_id} has no cross references\n")
+            logger.info(f"{mod} {primary_id} has no cross references")
     #
     #         if too_many_xref_per_type_failure:
     #             continue
@@ -906,9 +912,6 @@ def process_dqm_entries(entries, schema_data, mod):
     # # json_filename = base_path + 'FB_resourceAbbreviation_to_NLM.json'
     # # write_json(json_filename, fb_resource_abbreviation_to_nlm)
 
-
-
-
 def aggregate_dqm_with_pubmed(json_path, output_directory):  # noqa: C901
     """
     noqa: C901
@@ -924,7 +927,6 @@ def aggregate_dqm_with_pubmed(json_path, output_directory):  # noqa: C901
     :return:
     """
 
-    cross_ref_no_pages_ok_fields = ["DOI", "PMID", "PMC", "PMCID", "ISBN"]
     pmid_fields = ["authors", "volume", "title", "pages", "issueName", "issueDate", "datePublished",
                    "dateArrivedInPubmed", "dateLastModified", "abstract", "pubMedType", "publisher",
                    "meshTerms", "plainLanguageAbstract", "pubmedAbstractLanguages", "publicationStatus"]
@@ -958,7 +960,7 @@ def aggregate_dqm_with_pubmed(json_path, output_directory):  # noqa: C901
     # pubmed_not_dqm_cross_reference_type = populate_expected_cross_reference_type()
 
     resource_not_found = defaultdict(dict)
-    cross_reference_types = defaultdict(dict)
+
 
     print(output_directory)
     print(os.path.join(output_directory, "sanitized_reference_json"))
@@ -989,7 +991,7 @@ def aggregate_dqm_with_pubmed(json_path, output_directory):  # noqa: C901
         # # cross_reference_types[mod] = set()
         # cross_reference_types[mod] = {}
 
-        fh_mod_report.setdefault(mod, open(os.path.join(report_file_path,  f"{mod}_main"), "w"))
+        fh_mod_report.setdefault(mod, open(os.path.join(report_file_path, f"{mod}_main"), "w"))
         fh_mod_report_title.setdefault(mod, open(os.path.join(report_file_path, f"{mod}_dqm_pubmed_differ_title"), "w"))
         fh_mod_report_differ.setdefault(mod, open(os.path.join(report_file_path, f"{mod}_dqm_pubmed_differ_other"), "w"))
         fh_mod_report_resource_unmatched.setdefault(mod, open(os.path.join(report_file_path, f"{mod}_resource_unmatched"), "w"))
@@ -1019,8 +1021,7 @@ def aggregate_dqm_with_pubmed(json_path, output_directory):  # noqa: C901
         except IOError:
             logger.info("No file found for mod %s %s", mod, filename)
 
-
-        process_dqm_entries(entries, schema_data, mod)
+        process_dqm_entries(entries, schema_data, mod, fh_mod_report)
 
 
 # check merging with these pmids and mod with data in dqm_merge/ manually generated files, based on pmids_by_mods
