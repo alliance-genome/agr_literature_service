@@ -45,7 +45,7 @@ def generate_pmid_data(base_path, output_directory):
     output set of PMID identifiers that will need XML downloaded
     output pmids and the mods that have them
 
-    :param input_path:
+    :param base_path:
     :param output_directory:
     :return:
     """
@@ -425,9 +425,7 @@ def process_cross_references(entry, schema_data, mod, fh_mod_report):
     dqm_xrefs = defaultdict(list)
     orig_primary_id = entry["primaryId"]
     for cross_reference in entry["crossReferences"]:
-        print(cross_reference)
         prefix, identifier, separator = split_identifier(cross_reference["id"])
-        # print(prefix, identifier, separator)
         dqm_xrefs[prefix].append(identifier)
 
         if "pages" in cross_reference:
@@ -462,8 +460,10 @@ def process_cross_references(entry, schema_data, mod, fh_mod_report):
                 too_many_xref_per_type_failure = True
                 fh_mod_report[mod].write(f"{mod} primaryId {entry['primaryId']} has too many identifiers for {','.join(sorted(dqm_xrefs[prefix]))}\n")
 
+    return dqm_xrefs
 
-def process_dqm_entries(entries, schema_data, mod, fh_mod_report):
+
+def process_dqm_entries(entries, schema_data, mod, fh_mod_report, json_path):
     """
 
     :param entries:
@@ -507,25 +507,24 @@ def process_dqm_entries(entries, schema_data, mod, fh_mod_report):
         else:
             fh_mod_report[mod].write(f"{mod} {primary_id} has no cross references\n")
             logger.info(f"{mod} {primary_id} has no cross references")
-    #
-    #         if too_many_xref_per_type_failure:
-    #             continue
-    #
-    #         pmid_group = re.search(r"^PMID:([0-9]+)", primary_id)
-    #         if pmid_group is not None:
-    #             pmid = pmid_group[1]
-    #             # print(pmid)
-    #             filename = base_path + "pubmed_json/" + pmid + ".json"
-    #             # print("primary_id %s reading %s" % (primary_id, filename))
-    #             pubmed_data = {}
-    #             try:
-    #                 with open(filename) as f:
-    #                     pubmed_data = json.load(f)
-    #                     is_pubmod = False
-    #             except IOError:
-    #                 fh_mod_report[mod].write("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s\n"
-    #                                          % (pmid, mod, orig_primary_id))
-    #                 # logger.info("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s", pmid, mod, orig_primary_id)
+
+        pmid_group = re.search(r"^PMID:([0-9]+)", primary_id)
+        print(pmid_group)
+        if pmid_group is not None:
+            pmid = pmid_group[1]
+            # print(pmid)
+            filename = f"{json_path}/{pmid}.json"
+            print(filename)
+            # print("primary_id %s reading %s" % (primary_id, filename))
+            pubmed_data = {}
+            # try:
+            #     with open(filename) as f:
+            #         pubmed_data = json.load(f)
+            #         is_pubmod = False
+            # except IOError:
+            #     fh_mod_report[mod].write("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s\n"
+            #                              % (pmid, mod, orig_primary_id))
+                # logger.info("Warning: PMID %s does not have PubMed xml, from Mod %s primary_id %s", pmid, mod, orig_primary_id)
     #
     #         if is_pubmod:
     #             # print("primaryKey %s is None" % (primary_id))
@@ -909,9 +908,8 @@ def process_dqm_entries(entries, schema_data, mod, fh_mod_report):
     # # write_json(json_filename, fb_resource_abbreviation_to_nlm)
 
 
-def aggregate_dqm_with_pubmed(json_path, output_directory):  # noqa: C901
+def aggregate_dqm_with_pubmed(dqm_json_path, output_directory, json_path):
     """
-    noqa: C901
     reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
     outputs sanitized json to sanitized_reference_json/
     does checks on dqm crossReferences.  if primaryId is not PMID, and a crossReference is PubMed,
@@ -958,10 +956,10 @@ def aggregate_dqm_with_pubmed(json_path, output_directory):  # noqa: C901
 
     resource_not_found = defaultdict(dict)
 
-    print(output_directory)
-    print(os.path.join(output_directory, "sanitized_reference_json"))
+    logger.info(output_directory)
+    logger.info(os.path.join(output_directory, "sanitized_reference_json"))
     json_storage_path = os.path.join(output_directory, "sanitized_reference_json")
-    logger.info("json_storage_path: %s" % json_storage_path)
+    logger.info(f"json_storage_path: {json_storage_path}")
     if not os.path.exists(json_storage_path):
         os.makedirs(json_storage_path)
         logger.info(f"Created {json_storage_path}")
@@ -996,7 +994,7 @@ def aggregate_dqm_with_pubmed(json_path, output_directory):  # noqa: C901
         # fh_mod_report_xrefs.setdefault(mod, open(filename_xrefs, 'w'))
 
     fh_mod_report.setdefault("multi", open(os.path.join(report_file_path, "multi_mod"), "w"))
-    logger.info(f"Aggregating DQM and PubMed data from {json_path} using mods {', '.join(mods)}")
+    logger.info(f"Aggregating DQM and PubMed data from {dqm_json_path} using mods {', '.join(mods)}")
     agr_schemas_reference_json_url = "https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/ingest/resourcesAndReferences/reference.json"
 
     schema_data = {}
@@ -1007,7 +1005,7 @@ def aggregate_dqm_with_pubmed(json_path, output_directory):  # noqa: C901
     # pubmed data by pmid and mod that needs some fields merged
     unmerged_pubmed_data = {}
     for mod in mods:
-        filename = json_path + mod + ".json"
+        filename = dqm_json_path + mod + ".json"
         logger.info("Processing %s", filename)
 
         dqm_data = {}
@@ -1017,7 +1015,7 @@ def aggregate_dqm_with_pubmed(json_path, output_directory):  # noqa: C901
         except IOError:
             logger.info("No file found for mod %s %s", mod, filename)
 
-        process_dqm_entries(entries, schema_data, mod, fh_mod_report)
+        process_dqm_entries(entries, schema_data, mod, fh_mod_report, json_path)
 
 
 # check merging with these pmids and mod with data in dqm_merge/ manually generated files, based on pmids_by_mods

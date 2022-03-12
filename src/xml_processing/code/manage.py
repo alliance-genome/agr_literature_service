@@ -86,11 +86,12 @@ def run_pipeline(cli, db, ffile, api, sample, url, dqm, xml):
                  "30979869", "30003105", "30002370", "2993907"]
     elif dqm:
         logger.info("Getting DQM data")
-        get_dqm_data.download_dqm_json(base_path)
+        # get_dqm_data.download_dqm_json(base_path)
         logger.info("Getting the PMIDs")
         parse_dqm_json_reference.generate_pmid_data(base_path, os.path.join(base_path, "dqm_data/REFERENCE/output"))
         parse_dqm_json_reference.aggregate_dqm_with_pubmed(os.path.join(base_path, "dqm_data/REFERENCE/"),
-                                                           os.path.join(base_path, "dqm_data/REFERENCE/output"))
+                                                           os.path.join(base_path, "dqm_data/REFERENCE/output"),
+                                                           os.path.join(base_path, "pubmed_json/"))
     elif xml:
         logger.info("Converting XML to JSON")
         xml_to_json.process_tasks(ffile)
