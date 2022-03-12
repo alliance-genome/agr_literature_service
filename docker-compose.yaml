@@ -101,8 +101,6 @@ services:
       REDIS_DB: "${REDIS_DB}"
       REDIS_AUTH: "${REDIS_AUTH}"
     depends_on:
-      - initdb
-      - elasticsearch
       - redis
     restart: on-failure
 
