@@ -62,3 +62,14 @@ run-functest:
 	docker-compose --env-file .env.test run test_runner python3 src/xml_processing/tests/functional_tests.py
 	docker-compose --env-file .env.test down
 
+start-pgsync-aws:
+	# postgres and elasticsearch are not needed in this case as they are on RDS and OpenSearch respectively
+	docker-compose up -d pgsync
+
+start-pgsync-local:
+	docker-compose up -d postgres
+	sleep 5
+	docker-compose up -d elasticsearch
+	sleep 5
+	docker-compose up -d pgsync
+
