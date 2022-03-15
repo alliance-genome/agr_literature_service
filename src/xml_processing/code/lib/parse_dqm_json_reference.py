@@ -27,7 +27,7 @@ import urllib.request
 import warnings
 from collections import defaultdict, Counter
 import os
-
+import sys
 import coloredlogs
 
 from .helper_file_processing import clean_up_keywords, split_identifier, write_json
@@ -168,6 +168,7 @@ def simplify_text_keep_digits(text):
     no_html = re.sub("<[^<]+?>", "", str(text))
     stripped = re.sub(r"[^a-zA-Z0-9]+", "", str(no_html))
     clean = stripped.lower()
+
     return clean
 
 
@@ -257,7 +258,7 @@ def populate_expected_cross_reference_type():
     return expected_cross_reference_type, exclude_cross_reference_type, pubmed_not_dqm_cross_reference_type,
 
 
-def load_mod_resource(mods, resource_to_nlm):
+def load_mod_resource(mods, resource_to_nlm, dqm_json_path):
     """
 
     :param mods:
@@ -275,14 +276,17 @@ def load_mod_resource(mods, resource_to_nlm):
     ]
     resource_to_mod = {}
     resource_to_mod_issn_nlm = {}
+
     # test_issn = '0193-4511'
     # if test_issn in resource_to_nlm:
     # logger.info("BEFORE %s has count %s vals %s", test_issn, len(resource_to_nlm[test_issn]),
     # resource_to_nlm[test_issn])
+
     for mod in mods:
         resource_to_mod[mod] = {}
         resource_to_mod_issn_nlm[mod] = {}
-        filename = base_path + "dqm_data/RESOURCE_" + mod + ".json"
+        filename = os.path.join(dqm_json_path.replace("REFERENCE", "RESOURCE"), f"{mod}.json")
+        logger.info(f"loading {filename}")
         try:
             with open(filename) as f:
                 dqm_data = json.load(f)
@@ -478,20 +482,14 @@ def process_pubmod_entry(entry, mod, fh_mod_report, resource_not_found):
     if 'authors' in entry:
         print(entry['authors'])
         all_authors_have_rank = all([True if 'authorRank' in author else False for author in entry['authors']])
+        if not all_authors_have_rank:
+            authors_with_rank = []
+            for index, author in enumerate(entry['authors']):
+                author['authorRank'] = index + 1
+                authors_with_rank.append(author)
+        entry['authors'] = authors_with_rank
 
-
-        # for author in entry['authors']:
-        #     author['correspondingAuthor'] = False
-        #     author['firstAuthor'] = False
-        #     if 'authorRank' not in author:
-        #         all_authors_have_rank = False
-        # if all_authors_have_rank is False:
-        #     authors_with_rank = []
-        #     for i in range(len(entry['authors'])):
-        #         author = entry['authors'][i]
-        #         author['authorRank'] = i + 1
-        #         authors_with_rank.append(author)
-        #     entry['authors'] = authors_with_rank
+        #TODO: later
         # if update_primary_id:
         #     authors_updated = []
         #     for author in entry['authors']:
@@ -499,40 +497,28 @@ def process_pubmod_entry(entry, mod, fh_mod_report, resource_not_found):
         #         authors_updated.append(author)
         #     entry['authors'] = authors_updated
 
+    if 'crossReferences' in entry:
+        sanitized_cross_references = []
+        for cross_reference in entry['crossReferences']:
+            prefix, identifier, separator = split_identifier(cross_reference['id'])
+            # cross references came from the mod, but some had a pmid (e.g. 24270275)
+            # that is no longer at PubMed, so do not add to cross_references
+            if prefix.lower() != 'pmid':
+                sanitized_cross_references.append(cross_reference)
+        entry['crossReferences'] = sanitized_cross_references
+
+    if 'keywords' in entry:
+        entry = clean_up_keywords(mod, entry)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # if 'crossReferences' in entry:
-    #     sanitized_cross_references = []
-    #     for cross_reference in entry['crossReferences']:
-    #         id = cross_reference['id']
-    #         prefix, identifier, separator = split_identifier(id)
-    #         # cross references came from the mod, but some had a pmid (e.g. 24270275) that is no longer at PubMed, so do not add to cross_references
-    #         if prefix.lower() != 'pmid':
-    #             sanitized_cross_references.append(cross_reference)
-    #     entry['crossReferences'] = sanitized_cross_references
-    # if 'keywords' in entry:
-    #     entry = clean_up_keywords(mod, entry)
-    # if 'resourceAbbreviation' in entry:
-    #     # journal = entry['resourceAbbreviation'].lower()
-    #     # if journal not in resource_to_nlm:
-    #     journal_simplified = simplify_text_keep_digits(entry['resourceAbbreviation'])
-    #     if journal_simplified != '':
-    #         # logger.info("CHECK mod %s journal_simplified %s", mod, journal_simplified)
-    #         # highest priority to mod resources from dqm resource file with an issn in crossReferences that maps to a single nlm
-    #         if journal_simplified in resource_to_mod_issn_nlm[mod]:
+    if 'resourceAbbreviation' in entry:
+        # journal = entry['resourceAbbreviation'].lower()
+        # if journal not in resource_to_nlm:
+        journal_simplified = simplify_text_keep_digits(entry['resourceAbbreviation'])
+        # if journal_simplified != '':
+            # logger.info("CHECK mod %s journal_simplified %s", mod, journal_simplified)
+            # highest priority to mod resources from dqm resource file with an issn in crossReferences that maps to a single nlm
+            # if journal_simplified in resource_to_mod_issn_nlm[mod]:
     #             entry['nlm'] = [resource_to_mod_issn_nlm[mod][journal_simplified]]
     #             entry['resource'] = resource_to_mod_issn_nlm[mod][journal_simplified]
     #         # next highest priority to resource names that map to an nlm
@@ -566,6 +552,8 @@ def process_pubmod_entry(entry, mod, fh_mod_report, resource_not_found):
     # else:
     #     fh_mod_report_reference_no_resource[mod].write(
     #         "primaryId %s does not have a resourceAbbreviation.\n" % (primary_id))
+
+    return entry, #  sanitized_cross_references
 
 
 def process_dqm_entries(entries, schema_data, mod, fh_mod_report, json_path, resource_not_found):
@@ -978,13 +966,16 @@ def aggregate_dqm_with_pubmed(dqm_json_path, output_directory, json_path):
     pmid_multi_mods = load_pmid_multi_mods(output_directory)
 
     # # # use these two lines to properly load resource data, but it takes a bit of time
-    # resource_to_nlm, resource_to_nlm_highest, resource_nlm_to_title = load_pubmed_resource()
-    # resource_to_mod, resource_to_mod_issn_nlm = load_mod_resource(mods, resource_to_nlm)
+    resource_to_nlm, resource_to_nlm_highest, resource_nlm_to_title = load_pubmed_resource()
+    resource_to_mod, resource_to_mod_issn_nlm = load_mod_resource(mods, resource_to_nlm, dqm_json_path)
     # use these six lines to more quickly test other things that don't need resource data
     resource_to_nlm = {}
     resource_to_nlm_highest = {}
     resource_nlm_to_title = {}
     resource_to_mod = defaultdict(dict)
+
+    print(dqm_json_path)
+    sys.exit()
 
     # expected_cross_reference_type, exclude_cross_reference_type,
     # pubmed_not_dqm_cross_reference_type = populate_expected_cross_reference_type()

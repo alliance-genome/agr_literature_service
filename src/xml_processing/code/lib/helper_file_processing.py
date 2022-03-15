@@ -171,6 +171,13 @@ def write_json(json_filename, dict_to_output):
 
 
 def clean_up_keywords(mod, entry):
+    """
+
+    :param mod:
+    :param entry:
+    :return:
+    """
+
     # e.g. 9882485 25544291 24201188 31188077
     if mod == "ZFIN":
         if "keywords" in entry:
@@ -198,6 +205,7 @@ def clean_up_keywords(mod, entry):
             mod_keyword = str(bs4.BeautifulSoup(mod_keyword, "html.parser"))
             keywords.append(mod_keyword)
         entry["keywords"] = keywords
+
     return entry
 
 
