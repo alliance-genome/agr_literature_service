@@ -35,13 +35,6 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(level="DEBUG")
 
 
-# todo: save this in an env variable
-# root_path = '/home/azurebrd/git/agr_literature_service_demo/'
-# base_path = root_path + 'src/xml_processing/'
-base_path = os.environ.get("XML_PATH", "")
-storage_path = base_path + "pubmed_resource_json/"
-
-
 def populate_nlm_info(file_data):
     """
 
@@ -55,39 +48,25 @@ def populate_nlm_info(file_data):
         "\n--------------------------------------------------------\n"
     )
 
-    #     counter = 0
     for entry in entries:
-        # counter = counter + 1
-        # if counter > 5:
-        #     continue
         nlm = ""
-        if re.search("NlmId: (.+)", entry):
-            nlm_group = re.search("NlmId: (.+)", entry)
-            nlm = nlm_group.group(1)
-        if nlm:
-            data_dict = {"primaryId": "NLM:" + nlm, "nlm": nlm, "crossReferences": [{"id": "NLM:" + nlm}]}
+        try:
+            nlm = re.search("NlmId: (.+)", entry).group(1)
+            data_dict = {"primaryId": "NLM:" + nlm, "nlm": nlm, "crossReferences": [{"id": f"NLM: + {nlm}"}]}
             if re.search("JournalTitle: (.+)", entry):
-                title_group = re.search("JournalTitle: (.+)", entry)
-                title = title_group.group(1)
-                data_dict["title"] = title
+                data_dict["title"] = re.search("JournalTitle: (.+)", entry).group(1)
             if re.search("IsoAbbr: (.+)", entry):
-                iso_abbreviation_group = re.search("IsoAbbr: (.+)", entry)
-                iso_abbreviation = iso_abbreviation_group.group(1)
-                data_dict["isoAbbreviation"] = iso_abbreviation
+                data_dict["isoAbbreviation"] = re.search("IsoAbbr: (.+)", entry).group(1)
             if re.search("MedAbbr: (.+)", entry):
-                medline_abbreviation_group = re.search("MedAbbr: (.+)", entry)
-                medline_abbreviation = medline_abbreviation_group.group(1)
-                data_dict["medlineAbbreviation"] = medline_abbreviation
+                data_dict["medlineAbbreviation"] = re.search("MedAbbr: (.+)", entry).group(1)
             if re.search(r"ISSN \(Print\): (.+)", entry):
-                print_issn_group = re.search(r"ISSN \(Print\): (.+)", entry)
-                print_issn = print_issn_group.group(1)
-                data_dict["printISSN"] = print_issn
+                data_dict["printISSN"] = re.search(r"ISSN \(Print\): (.+)", entry).group(1)
             if re.search(r"ISSN \(Online\): (.+)", entry):
-                online_issn_group = re.search(r"ISSN \(Online\): (.+)", entry)
-                online_issn = online_issn_group.group(1)
-                data_dict["onlineISSN"] = online_issn
+                data_dict["onlineISSN"] = re.search(r"ISSN \(Online\): (.+)", entry).group(1)
 
             nlm_info.append(data_dict)
+        except AttributeError:
+            logger.info("No NlmId found")
 
     return nlm_info
 
@@ -121,7 +100,7 @@ def upload_file_to_s3(file_name, bucket, object_name=None):
     return True
 
 
-def generate_json(nlm_info, upload_to_s3):
+def generate_json(base_path, nlm_info, upload_to_s3):
     """
 
     to remove an uploaded file
@@ -132,16 +111,17 @@ def generate_json(nlm_info, upload_to_s3):
     :return:
     """
 
+    storage_path = os.path.join(base_path + "/pubmed_resource_json/")
+
     logger.info("Generating JSON from NLM data and saving to outfile")
     json_data = json.dumps(nlm_info, indent=4, sort_keys=True)
 
     if not os.path.exists(storage_path):
         os.makedirs(storage_path)
 
-    # Write the json data to output json file
-    # UNCOMMENT TO write to json directory
     filename = "resource_pubmed_all.json"
-    output_json_file = storage_path + filename
+    output_json_file = os.path.join(storage_path, filename)
+    logger.info(f"Writing to {output_json_file}")
     with open(output_json_file, "w") as json_file:
         json_file.write(json_data)
         json_file.close()
@@ -149,7 +129,7 @@ def generate_json(nlm_info, upload_to_s3):
     if upload_to_s3:
         s3_bucket = "agr-literature"
         s3_filename = "develop/resource/metadata/" + filename
-        # UNCOMMENT TO upload to aws bucket
+        logger.info(f"Uploading {filename} to s3://{s3_bucket}/{s3_filename}")
         upload_file_to_s3(output_json_file, s3_bucket, s3_filename)
 
 
@@ -166,17 +146,22 @@ def populate_from_url():
         return file_data
 
 
-def populate_from_local_file():
+def populate_from_local_file(base_path):
     """
 
+    :param base_path:
     :return:
     """
 
-    filename = base_path + "J_Medline.txt"
+    logger.info(f"Reading NLM file from {base_path}/J_Medline.txt")
+    filename = os.path.join(base_path, "J_Medline.txt")
     if not os.path.exists(filename):
+        logger.info(f"Journal file {filename} does not exist")
         return "journal info file not found"
     else:
-        return open(filename).read()
+        nlm_info = populate_nlm_info(open(filename).read())
+        generate_json(base_path, nlm_info, False)
+        return "success"
 
 
 @click.command()
