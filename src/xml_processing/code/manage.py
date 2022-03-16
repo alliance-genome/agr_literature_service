@@ -12,7 +12,7 @@ import urllib
 
 import click
 import coloredlogs
-from lib import get_dqm_data, get_pubmed_xml, xml_to_json, parse_dqm_json_reference
+from lib import get_dqm_data, get_pubmed_xml, xml_to_json, parse_dqm_json_reference, generate_pubmed_nlm_resource
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -29,7 +29,10 @@ coloredlogs.install(level="DEBUG")
 @click.option("-u", "--url", "url", help="take input from entries in file at url", required=False)
 @click.option("-D", "--dqm", "dqm", help="get the DQM data", required=False, is_flag=True)
 @click.option("-x", "--xml", "xml", help="convert XML files to JSON", required=False)
-def run_pipeline(cli, db, ffile, api, sample, url, dqm, xml):
+@click.option("-L", "--input-localfile", "local", help="NLM take input from local file", required=False, default=False, is_flag=True)
+@click.option("-U", "--input-url", "nlm_url", help="NLM take input from url", required=False, default=False , is_flag=True)
+@click.option("-S3", "--upload-s3", "s3", help="NLM upload json to s3", required=False, default=False, is_flag=True)
+def run_pipeline(cli, db, ffile, api, sample, url, dqm, xml, local, nlm_url, s3):
     """
 
     :param cli:
@@ -40,6 +43,8 @@ def run_pipeline(cli, db, ffile, api, sample, url, dqm, xml):
     :param url:
     :return:
     """
+
+    nlm_url = "https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt"
 
     # set storage location
     if len(os.environ.get("XML_PATH")) == 0:
@@ -87,9 +92,17 @@ def run_pipeline(cli, db, ffile, api, sample, url, dqm, xml):
     elif dqm:
         logger.info("Getting DQM data")
         # get_dqm_data.download_dqm_json(base_path)
-        logger.info("Getting the PMIDs")
-        parse_dqm_json_reference.generate_pmid_data(base_path, os.path.join(base_path, "dqm_data/REFERENCE/output"))
-        parse_dqm_json_reference.aggregate_dqm_with_pubmed(os.path.join(base_path, "dqm_data/REFERENCE/"),
+        logger.info("Generating NLM files")
+        if local:
+            generate_pubmed_nlm_resource.populate_from_local_file(base_path)
+        elif nlm_url:
+            generate_pubmed_nlm_resource.populate_from_url(base_path, nlm_url)
+        logger.info("NLM files generated")
+        # logger.info("Getting the PMIDs")
+        # parse_dqm_json_reference.generate_pmid_data(base_path, os.path.join(base_path, "dqm_data/REFERENCE/output"))
+        # # TODO get XML from PubMed and convert JSON
+        parse_dqm_json_reference.aggregate_dqm_with_pubmed(base_path,
+                                                           os.path.join(base_path, "dqm_data/REFERENCE/"),
                                                            os.path.join(base_path, "dqm_data/REFERENCE/output"),
                                                            os.path.join(base_path, "pubmed_json/"))
     elif xml:

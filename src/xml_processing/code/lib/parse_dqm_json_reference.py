@@ -286,7 +286,7 @@ def load_mod_resource(mods, resource_to_nlm, dqm_json_path):
         resource_to_mod[mod] = {}
         resource_to_mod_issn_nlm[mod] = {}
         filename = os.path.join(dqm_json_path.replace("REFERENCE", "RESOURCE"), f"{mod}.json")
-        logger.info(f"loading {filename}")
+        logger.info(f"Loading {filename}")
         try:
             with open(filename) as f:
                 dqm_data = json.load(f)
@@ -330,7 +330,7 @@ def load_mod_resource(mods, resource_to_nlm, dqm_json_path):
     return resource_to_mod, resource_to_mod_issn_nlm
 
 
-def load_pubmed_resource():
+def load_pubmed_resource(base_path):
     """
 
     :return:
@@ -338,7 +338,7 @@ def load_pubmed_resource():
 
     # logger.info('Starting load_pubmed_resource')
     resource_data = {}
-    filename = base_path + "pubmed_resource_json/resource_pubmed_all.json"
+    filename = os.path.join(base_path, "pubmed_resource_json/resource_pubmed_all.json")
     try:
         f = open(filename)
         resource_data = json.load(f)
@@ -487,7 +487,7 @@ def process_pubmod_entry(entry, mod, fh_mod_report, resource_not_found):
             for index, author in enumerate(entry['authors']):
                 author['authorRank'] = index + 1
                 authors_with_rank.append(author)
-        entry['authors'] = authors_with_rank
+            entry['authors'] = authors_with_rank
 
         #TODO: later
         # if update_primary_id:
@@ -931,7 +931,7 @@ def process_dqm_entries(entries, schema_data, mod, fh_mod_report, json_path, res
     # # write_json(json_filename, fb_resource_abbreviation_to_nlm)
 
 
-def aggregate_dqm_with_pubmed(dqm_json_path, output_directory, json_path):
+def aggregate_dqm_with_pubmed(base_path, dqm_json_path, output_directory, json_path):
     """
     reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
     outputs sanitized json to sanitized_reference_json/
@@ -966,16 +966,13 @@ def aggregate_dqm_with_pubmed(dqm_json_path, output_directory, json_path):
     pmid_multi_mods = load_pmid_multi_mods(output_directory)
 
     # # # use these two lines to properly load resource data, but it takes a bit of time
-    resource_to_nlm, resource_to_nlm_highest, resource_nlm_to_title = load_pubmed_resource()
+    resource_to_nlm, resource_to_nlm_highest, resource_nlm_to_title = load_pubmed_resource(base_path)
     resource_to_mod, resource_to_mod_issn_nlm = load_mod_resource(mods, resource_to_nlm, dqm_json_path)
     # use these six lines to more quickly test other things that don't need resource data
     resource_to_nlm = {}
     resource_to_nlm_highest = {}
     resource_nlm_to_title = {}
     resource_to_mod = defaultdict(dict)
-
-    print(dqm_json_path)
-    sys.exit()
 
     # expected_cross_reference_type, exclude_cross_reference_type,
     # pubmed_not_dqm_cross_reference_type = populate_expected_cross_reference_type()
@@ -1043,17 +1040,6 @@ def aggregate_dqm_with_pubmed(dqm_json_path, output_directory, json_path):
             logger.info("No file found for mod %s %s", mod, filename)
 
         process_dqm_entries(entries, schema_data, mod, fh_mod_report, json_path, resource_not_found)
-
-
-# check merging with these pmids and mod with data in dqm_merge/ manually generated files, based on pmids_by_mods
-# 27639630        3       SGD, WB, ZFIN
-# 27656112        2       SGD, WB
-
-
-# allianceCategory - single value, check they aren't different for entries with same PMID
-# MODReferenceTypes - array of hashes, aggregate the hashes
-# tags - array of hashes, aggregate the hashes
-# resourceAbbreviation - single value, keep for mod data, try to resolve to journal from PMID
 
 
 if __name__ == "__main__":

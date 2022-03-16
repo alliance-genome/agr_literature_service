@@ -103,6 +103,8 @@ def upload_file_to_s3(file_name, bucket, object_name=None):
 def generate_json(base_path, nlm_info, upload_to_s3):
     """
 
+    TODO: needs testing
+
     to remove an uploaded file
     aws s3 rm s3://agr-literature/develop/resource/metadata/resource_pubmed_all.json
 
