@@ -17,4 +17,3 @@ db_user = Security(auth.get_user)
             status_code=200)
 def show(q: str):
     return search_crud.show(query=q)
-
