@@ -133,17 +133,18 @@ def generate_json(base_path, nlm_info, upload_to_s3):
         upload_file_to_s3(output_json_file, s3_bucket, s3_filename)
 
 
-def populate_from_url():
+def populate_from_url(base_path, url_medline):
     """
 
     :return:
     """
 
-    url_medline = "https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt"
-    print(url_medline)
+    logger.info(f"Retrieving {url_medline}")
     with urllib.request.urlopen(url_medline) as url:
         file_data = url.read().decode("utf-8")
-        return file_data
+        nlm_info = populate_nlm_info(file_data)
+        generate_json(base_path, nlm_info, False)
+        return "success"
 
 
 def populate_from_local_file(base_path):
