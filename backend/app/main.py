@@ -96,6 +96,8 @@ app.include_router(reference_comment_and_correction_router.router)
 app.include_router(reference_automated_term_tag_router.router)
 app.include_router(reference_manual_term_tag_router.router)
 app.include_router(bulk_downloads_router.router)
+app.include_router(mod_router.router)
+app.include_router(mod_corpus_association_router.router)
 
 app.add_api_route("/health", health([is_database_online]))
 

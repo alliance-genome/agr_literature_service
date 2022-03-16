@@ -67,7 +67,7 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
     for field, value in vars(reference).items():
         if value is None:
             continue
-        if field in ["authors", "editors", "mod_reference_types", "tags", "mesh_terms", "cross_references"]:
+        if field in ["authors", "editors", "mod_reference_types", "mod_corpus_associations", "tags", "mesh_terms", "cross_references"]:
             db_objs = []
             for obj in value:
                 obj_data = jsonable_encoder(obj)
@@ -87,6 +87,8 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
                         db_obj = create_obj(db, EditorModel, obj_data, non_fatal=True)
                 elif field == "mod_reference_types":
                     db_obj = ModReferenceTypeModel(**obj_data)
+                elif field == "mod_corpus_associations":
+                    db_obj = ModCorpusAssociationModel(**obj_data)
                 elif field == "tags":
                     db_obj = ReferenceTagModel(**obj_data)
                 elif field == "mesh_terms":
@@ -272,6 +274,10 @@ def show(db: Session, curie: str, http_request=True):  # noqa
     if reference.mod_reference_types:
         for mod_reference_type in reference_data["mod_reference_types"]:
             del mod_reference_type["reference_id"]
+
+    if reference.mod_corpus_associations:
+        for mod_corpus_association in reference_data["mod_corpus_associations"]:
+            del mod_corpus_associations["reference_id"]
 
     if reference.tags:
         for tag in reference_data["tags"]:
