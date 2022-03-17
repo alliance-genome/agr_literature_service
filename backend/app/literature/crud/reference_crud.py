@@ -13,8 +13,6 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import ARRAY, Boolean, String, func
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast
-from elasticsearch import Elasticsearch
-from literature.config import config
 
 from literature.crud import (cross_reference_crud,
                              reference_comment_and_correction_crud)
@@ -343,17 +341,3 @@ def show_changesets(db: Session, curie: str):
                         "changeset": version.changeset})
 
     return history
-
-
-def search(query):
-    es_host = config.ELASTICSEARCH_HOST
-    es = Elasticsearch(hosts=es_host + ':' + config.ELASTICSEARCH_PORT)
-    res = es.search(index="references_index",
-                    body={
-                        "query": {
-                            "match": {
-                                "title": query
-                            }
-                        }
-                    })
-    return [{'curie': ref['_source']['curie'], 'title': ref['_source']['title']} for ref in res['hits']['hits']]
