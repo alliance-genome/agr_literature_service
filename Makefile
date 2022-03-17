@@ -52,7 +52,7 @@ run-functest:
 	docker-compose --env-file .env.test down
 	docker-compose --env-file .env.test up -d postgres
 	sleep 5
-	docker-compose --env-file .env.test up api
+	docker-compose --env-file .env.test up -d api
 	sleep 5
 
 	# load the data

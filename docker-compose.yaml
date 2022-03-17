@@ -139,6 +139,8 @@ services:
       HOST: "${HOST}"
       OKTA_DOMAIN: "${OKTA_DOMAIN}"
       OKTA_API_AUDIENCE: "${OKTA_API_AUDIENCE}"
+      ELASTICSEARCH_HOST: "${ELASTICSEARCH_HOST}"
+      ELASTICSEARCH_PORT: "${ELASTICSEARCH_PORT}"
     hostname: literature_api
     networks:
       - agr-literature
