@@ -1,8 +1,4 @@
-import subprocess
-
 from fastapi import APIRouter
-from fastapi_okta import OktaUser
-from sqlalchemy.orm import Session
 
 from literature.crud import search_crud
 
