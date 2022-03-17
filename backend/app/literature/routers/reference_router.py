@@ -146,3 +146,9 @@ async def create_upload_file(curie: str,
 def show_versions(curie: str,
                   db: Session = db_session):
     return reference_crud.show_changesets(db, curie)
+
+
+@router.get('/search/{query}',
+            status_code=200)
+def search(query: str):
+    return reference_crud.search(query=query)
