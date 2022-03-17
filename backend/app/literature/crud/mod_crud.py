@@ -89,9 +89,8 @@ def show(db: Session, mod_id: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Mod with the mod_id {mod_id} is not available")
 
-    if mod_data["reference_id"]:
-        mod_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == mod_data["reference_id"]).first()[0]
-    del mod_data["reference_id"]
+    if mod_data["mod_corpus_association_id"]:
+        del mod_data["mod_corpus_association_id"]
 
     return mod_data
 

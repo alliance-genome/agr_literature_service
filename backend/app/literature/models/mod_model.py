@@ -26,7 +26,9 @@ class ModModel(Base):
 
     mod_corpus_associations = relationship(
         "ModCorpusAssociationModel",
-        back_populates="mods"
+        lazy="joined",
+        back_populates="mod",
+        cascade="all, delete, delete-orphan"
     )
 
     abbreviation = Column(

@@ -9,6 +9,8 @@ from literature.schemas import (AuthorSchemaPost, AuthorSchemaShow,
                                 MeshDetailSchemaRelated,
                                 ModReferenceTypeSchemaCreate,
                                 ModReferenceTypeSchemaRelated,
+                                ModCorpusAssociationSchemaCreate,
+                                ModCorpusAssociationSchemaRelated,
                                 PubMedPublicationStatus, ReferenceCategory,
                                 ReferenceCommentAndCorrectionSchemaRelated,
                                 ReferenceTag, ReferenceTagShow)

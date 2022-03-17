@@ -8,11 +8,12 @@ from datetime import datetime
 from typing import Dict
 
 import pytz
-from sqlalchemy import ARRAY, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import ARRAY, Column, DateTime, ForeignKey, Integer, String, Enum
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql.sqltypes import Boolean
 
 from literature.database.base import Base
-
+from literature.schemas import ModCorpusSortSourceType
 
 class ModCorpusAssociationModel(Base):
     __tablename__ = "mod_corpus_associations"
