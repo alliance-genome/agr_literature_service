@@ -2,30 +2,24 @@ from typing import List, Optional
 
 from pydantic import BaseModel, validator
 
-from literature.schemas import BaseModelShow, CrossReferenceSchemaShow
+from literature.schemas import BaseModelShow
 
 
 class ModSchemaPost(BaseModel):
-    abbreviation: Optional[str] = None
-    short_name: Optional[str] = None
-    full_name: Optional[str] = None
+    abbreviation: str
+    short_name: str
+    full_name: str
 
     class Config():
         orm_mode = True
         extra = "forbid"
 
 
-class ModSchemaShow(BaseModelShow):
+class ModSchemaShow(BaseModel):
     mod_id: int
-
-    abbreviation: Optional[str] = None
-    short_name: Optional[str] = None
-    full_name: Optional[str] = None
-
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    abbreviation: str
+    short_name: str
+    full_name: str
 
 
 class ModSchemaCreate(ModSchemaPost):

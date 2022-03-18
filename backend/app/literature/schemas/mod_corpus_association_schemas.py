@@ -40,8 +40,8 @@ class ModCorpusAssociationSchemaRelated(ModCorpusAssociationSchemaCreate):
 class ModCorpusAssociationSchemaUpdate(BaseModel):
     reference_curie: Optional[str]
     mod_corpus_sort_source: Optional[str]
-    mod_id: int
-    corpus: bool
+    mod_id: Optional[int] = None
+    corpus: Optional[bool] = None
 
     class Config():
         orm_mode = True

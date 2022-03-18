@@ -39,8 +39,7 @@ class ModCorpusAssociationModel(Base):
 
     mod_id = Column(
         Integer,
-        ForeignKey("mods.mod_id",
-                   ondelete="CASCADE"),
+        ForeignKey("mods.mod_id", ondelete="CASCADE"),
         index=True
     )
 

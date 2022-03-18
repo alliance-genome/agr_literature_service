@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from literature.crud.reference_resource import add, create_obj, stripout
 from literature.models import ModModel, ReferenceModel
 from literature.schemas import ModSchemaPost
-
+import logging
 
 def create(db: Session, mod: ModSchemaPost):
     """
@@ -82,12 +82,18 @@ def show(db: Session, mod_id: int):
     :param mod_id:
     :return:
     """
+    logging.basicConfig(level=logging.DEBUG)  
+    logging.debug("debug ModModel")
+    logging.debug(ModModel)
+    logging.debug(db.query(ModModel))
     mod = db.query(ModModel).filter(ModModel.mod_id == mod_id).first()
-    mod_data = jsonable_encoder(mod)
-
+    logging.debug("finish retrieve mod with mod_id:"+mod_id)
     if not mod:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Mod with the mod_id {mod_id} is not available")
+    mod_data = jsonable_encoder(mod)
+  
+    logging.debug(mod_data)
 
     if mod_data["mod_corpus_association_id"]:
         del mod_data["mod_corpus_association_id"]
