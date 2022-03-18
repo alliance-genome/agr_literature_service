@@ -276,8 +276,8 @@ def show(db: Session, curie: str, http_request=True):  # noqa
             del mod_reference_type["reference_id"]
 
     if reference.mod_corpus_associations:
-        for mod_corpus_association in reference_data["mod_corpus_associations"]:
-            del mod_corpus_associations["reference_id"]
+        for i, mod_corpus_association in enumerate(reference_data["mod_corpus_associations"]):
+            del reference_data["mod_corpus_associations"][i]["reference_id"]
 
     if reference.tags:
         for tag in reference_data["tags"]:
