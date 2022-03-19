@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 
 class ModCorpusAssociationSchemaCreate(BaseModel):
-    mod_id: int
+    mod_abbreviation: str
     mod_corpus_sort_source: Optional[str] = None
     corpus: bool
 
@@ -22,6 +22,8 @@ class ModCorpusAssociationSchemaPost(ModCorpusAssociationSchemaCreate):
 
 
 class ModCorpusAssociationSchemaShow(ModCorpusAssociationSchemaPost):
+    date_created: str
+    date_updated: str
     mod_corpus_association_id: int
 
     class Config():
@@ -33,7 +35,7 @@ class ModCorpusAssociationSchemaRelated(BaseModel):
     mod_corpus_association_id: int
     date_created: str
     mod_corpus_sort_source: str
-    mod_id: int
+    mod_abbreviation: str
     date_updated: str
     corpus: bool
 
@@ -45,8 +47,8 @@ class ModCorpusAssociationSchemaRelated(BaseModel):
 class ModCorpusAssociationSchemaUpdate(BaseModel):
     reference_curie: Optional[str]
     mod_corpus_sort_source: Optional[str]
-    mod_id: Optional[int] = None
-    corpus: Optional[bool] = None
+    mod_abbreviation: Optional[str]
+    corpus: Optional[bool]
 
     class Config():
         orm_mode = True
