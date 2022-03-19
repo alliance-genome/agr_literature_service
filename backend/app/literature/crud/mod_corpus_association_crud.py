@@ -79,7 +79,7 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModCorpusAssociation with mod_corpus_association_id {mod_corpus_association_id} not found")
 
-    for field, value in mod_corpus_association_update.items():
+    for field, value in mod_corpus_association_update.dict().items():
         if field == "reference_curie":
             if value is not None:
                 reference_curie = value
