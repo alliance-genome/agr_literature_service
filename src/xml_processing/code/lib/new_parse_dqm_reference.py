@@ -12,6 +12,9 @@ import os
 import sys
 import coloredlogs
 
+import pandas as pd
+
+
 from .helper_file_processing import clean_up_keywords, split_identifier, write_json
 
 warnings.filterwarnings("ignore", category=UserWarning, module="bs4")
@@ -141,6 +144,73 @@ def generate_pmid_data(base_path, output_directory):
     #     logger.info("primary_id %s", primary_id)
 
 
+def load_pmid_multi_mods(result_path):
+    """
+    Loads the pmid-mods file and returns a dictionary of pmid-mods
+    :param result_path:
+    :return:
+    """
+
+    pmid_multi_mods = {}
+    pmid_multi_mods_file = os.path.join(result_path, "pmids_by_mods")
+    pmid_file = open(pmid_multi_mods_file).read().splitlines()
+    for line in pmid_file:
+        cols = line.split("\t")
+        if int(cols[1]) > 1:
+            pmid_multi_mods[cols[0]] = cols[1]
+
+    logger.info(f"Loaded {len(pmid_multi_mods)} pmids with multiple mods")
+    return pmid_multi_mods
+
+
+def load_pubmed_resource(base_path):
+    """
+    Loads the pubmed resource file and returns a dictionary of pmid-mods
+    :param base_path:
+    :return:
+    """
+
+    logger.info('Starting load_pubmed_resource')
+    resource_data = {}
+    filename = os.path.join(base_path, "pubmed_resource_json/resource_pubmed_all.json")
+    logger.info(f"Loading {filename}")
+    try:
+        nlm_df = pd.read_json(filename)
+        logger.info(f"Loaded {len(resource_data)} pubmed resources")
+    except IOError:
+        logger.info(f"No resource_pubmed_all.json file at {filename}")
+
+    nlm_df['onlineISSN'].fillna("NA", inplace=True)
+    nlm_df['printISSN'].fillna("NA", inplace=True)
+    nlm_df['primaryId'] = nlm_df['primaryId'].str.strip("R")
+    print(nlm_pd)
+    nlm_pd.to_csv(os.path.join(base_path, "pubmed_resource_json/resource_pubmed_all.csv"), index=False)
+
+    return nlm_df
+
+def simplify_text_keep_digits(text):
+    """
+
+    :param text:
+    :return:
+    """
+
+    no_html = re.sub("<[^<]+?>", "", str(text))
+    stripped = re.sub(r"[^a-zA-Z0-9]+", "", str(no_html))
+    clean = stripped.lower()
+
+    return clean
+
+
+def strip_string_to_integer(string):
+    """
+
+    :param string:
+    :return:
+    """
+
+    return int("".join(filter(lambda x: x.isdigit(), string)))
+
 
 def aggregate_dqm_with_pubmed(base_path, dqm_json_path, output_directory, json_path):
     """
@@ -175,11 +245,12 @@ def aggregate_dqm_with_pubmed(base_path, dqm_json_path, output_directory, json_p
 
     # this has to be loaded, if the mod data is hashed by pmid+mod and sorted for those with
     # multiple mods, there's an out-of-memory crash
-    # pmid_multi_mods = load_pmid_multi_mods(output_directory)
+    pmid_multi_mods = load_pmid_multi_mods(output_directory)
 
     # # # use these two lines to properly load resource data, but it takes a bit of time
-    # resource_to_nlm, resource_to_nlm_highest, resource_nlm_to_title = load_pubmed_resource(base_path)
-    # resource_to_mod, resource_to_mod_issn_nlm = load_mod_resource(mods, resource_to_nlm, dqm_json_path)
+    nlm_df = load_pubmed_resource(base_path)
+
+    resource_to_mod, resource_to_mod_issn_nlm = load_mod_resource(mods, resource_to_nlm, dqm_json_path)
     # use these six lines to more quickly test other things that don't need resource data
     resource_to_nlm = {}
     resource_to_nlm_highest = {}
