@@ -73,13 +73,13 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
     :param mod_corpus_association_update:
     :return:
     """
-
+    mod_corpus_association_data = jsonable_encoder(mod_corpus_association_update)
     mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(ModCorpusAssociationModel.mod_corpus_association_id == mod_corpus_association_id).first()
     if not mod_corpus_association_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModCorpusAssociation with mod_corpus_association_id {mod_corpus_association_id} not found")
 
-    for field, value in mod_corpus_association_update.dict().items():
+    for field, value in mod_corpus_association_data.items():
         if field == "reference_curie":
             if value is not None:
                 reference_curie = value
@@ -94,7 +94,7 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                 new_mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
                 if not new_mod:
                     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                        detail=f"Mod with abbreviation {new_mod} does not exist")
+                                        detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
                 mod_corpus_association_db_obj.mod = new_mod
         else:
             setattr(mod_corpus_association_db_obj, field, value)
@@ -114,23 +114,17 @@ def show(db: Session, mod_corpus_association_id: int):
     """
 
     mod_corpus_association = db.query(ModCorpusAssociationModel).filter(ModCorpusAssociationModel.mod_corpus_association_id == mod_corpus_association_id).first()
-    reference_curie = mod_corpus_association.reference.curie
-    del mod_corpus_association.reference
-    mod_abbreviation = mod_corpus_association.mod.abbreviation
-    del mod_corpus_association.mod
-    mod_corpus_association_data = jsonable_encoder(mod_corpus_association)
-
     if not mod_corpus_association:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"ModCorpusAssociation with the mod_corpus_association_id {mod_corpus_association_id} is not available")
-
+                            detail=f"ModCorpusAssociation with the od_corpus_association_id {od_corpus_association_id} is not available")
+    
+    mod_corpus_association_data = jsonable_encoder(mod_corpus_association)
     if mod_corpus_association_data["reference_id"]:
-        mod_corpus_association_data["reference_curie"] = reference_curie
-        del mod_corpus_association_data["reference_id"]
-
+        mod_corpus_association_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == mod_corpus_association_data["reference_id"]).first()
+    del mod_corpus_association_data["reference_id"]
     if mod_corpus_association_data["mod_id"]:
-        mod_corpus_association_data["mod_abbreviation"] = mod_abbreviation
-        del mod_corpus_association_data["mod_id"]
+        mod_corpus_association_data["mod_abbreviation"] = db.query(ModModel.mod_id).filter(ModModel.mod_id == mod_corpus_association_data["mod_id"]).first()
+    del mod_corpus_association_data["mod_id"]
 
     return mod_corpus_association_data
 

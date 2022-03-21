@@ -8,10 +8,11 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
+from sqlalchemy import exc
 
 from literature.crud.reference_resource import add, create_obj, stripout
 from literature.models import ModModel, ReferenceModel
-from literature.schemas import ModSchemaPost
+from literature.schemas import ModSchemaPost, ModSchemaUpdate
 import logging
 
 def create(db: Session, mod: ModSchemaPost):
@@ -23,14 +24,13 @@ def create(db: Session, mod: ModSchemaPost):
     """
 
     mod_data = jsonable_encoder(mod)
-
-    db_obj = create_obj(db, ModModel, mod_data)
-
-    db.add(db_obj)
+    mod_db_obj = ModModel(**mod_data)
+    db.add(mod_db_obj)
     db.commit()
-    db.refresh(db_obj)
 
-    return db_obj
+    db.refresh(mod_db_obj)
+
+    return mod_db_obj.mod_id
 
 
 def destroy(db: Session, mod_id: int):
@@ -51,7 +51,7 @@ def destroy(db: Session, mod_id: int):
     return None
 
 
-def patch(db: Session, mod_id: int, mod_update: ModSchemaPost):
+def patch(db: Session, mod_id: int, mod_update: ModSchemaUpdate):
     """
 
     :param db:
@@ -59,14 +59,12 @@ def patch(db: Session, mod_id: int, mod_update: ModSchemaPost):
     :param mod_update:
     :return:
     """
-
+    mod_data = jsonable_encoder(mod_update)
     mod_db_obj = db.query(ModModel).filter(ModModel.mod_id == mod_id).first()
     if not mod_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Mod with mod_id {mod_id} not found")
-    res_ref = stripout(db, mod_update)
-    add(res_ref, mod_db_obj)
-    for field, value in mod_update.dict().items():
+    for field, value in mod_data.items():
         setattr(mod_db_obj, field, value)
 
     mod_db_obj.dateUpdated = datetime.utcnow()
@@ -75,28 +73,19 @@ def patch(db: Session, mod_id: int, mod_update: ModSchemaPost):
     return {"message": "updated"}
 
 
-def show(db: Session, mod_id: int):
+def show(db: Session, abbreviation: str):
     """
 
     :param db:
     :param mod_id:
     :return:
     """
-    logging.basicConfig(level=logging.DEBUG)  
-    logging.debug("debug ModModel")
-    logging.debug(ModModel)
-    logging.debug(db.query(ModModel))
-    mod = db.query(ModModel).filter(ModModel.mod_id == mod_id).first()
-    logging.debug("finish retrieve mod with mod_id:"+mod_id)
+    mod = db.query(ModModel).filter(ModModel.abbreviation == abbreviation).first()
     if not mod:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Mod with the mod_id {mod_id} is not available")
-    mod_data = jsonable_encoder(mod)
-  
-    logging.debug(mod_data)
-
-    if mod_data["mod_corpus_association_id"]:
-        del mod_data["mod_corpus_association_id"]
+                            detail=f"Mod with the abbreviation {abbreviation} is not available")
+    mod_data = jsonable_encoder(mod) 
+    
 
     return mod_data
 

@@ -1,11 +1,11 @@
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel
-
+from literature.schemas import ModCorpusSortSourceType, BaseModelShow
 
 class ModCorpusAssociationSchemaCreate(BaseModel):
     mod_abbreviation: str
-    mod_corpus_sort_source: Optional[str] = None
+    mod_corpus_sort_source: Optional[ModCorpusSortSourceType] = None
     corpus: bool
 
     class Config():
@@ -21,20 +21,19 @@ class ModCorpusAssociationSchemaPost(ModCorpusAssociationSchemaCreate):
         extra = "forbid"
 
 
-class ModCorpusAssociationSchemaShow(ModCorpusAssociationSchemaPost):
-    date_created: str
-    date_updated: str
+class ModCorpusAssociationSchemaShow(BaseModelShow):
     mod_corpus_association_id: int
+    mod_corpus_sort_source: Optional[ModCorpusSortSourceType] = None
+    mod_abbreviation: Optional[List[str]] = None
+    reference_curie: Optional[List[str]] = None
+    corpus: Optional[bool] = None
 
-    class Config():
-        orm_mode = True
-        extra = "forbid"
 
 
 class ModCorpusAssociationSchemaRelated(BaseModel):
     mod_corpus_association_id: int
     date_created: str
-    mod_corpus_sort_source: str
+    mod_corpus_sort_source: Optional[ModCorpusSortSourceType] = None
     mod_abbreviation: str
     date_updated: str
     corpus: bool
@@ -45,10 +44,10 @@ class ModCorpusAssociationSchemaRelated(BaseModel):
 
 
 class ModCorpusAssociationSchemaUpdate(BaseModel):
-    reference_curie: Optional[str]
-    mod_corpus_sort_source: Optional[str]
-    mod_abbreviation: Optional[str]
-    corpus: Optional[bool]
+    reference_curie: Optional[str] = None
+    mod_corpus_sort_source: Optional[ModCorpusSortSourceType] = None
+    mod_abbreviation: Optional[str] = None
+    corpus: Optional[bool] = None
 
     class Config():
         orm_mode = True
