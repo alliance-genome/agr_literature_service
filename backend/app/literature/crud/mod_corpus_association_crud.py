@@ -116,7 +116,7 @@ def show(db: Session, mod_corpus_association_id: int):
     mod_corpus_association = db.query(ModCorpusAssociationModel).filter(ModCorpusAssociationModel.mod_corpus_association_id == mod_corpus_association_id).first()
     if not mod_corpus_association:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"ModCorpusAssociation with the od_corpus_association_id {od_corpus_association_id} is not available")
+                            detail=f"ModCorpusAssociation with the mod_corpus_association_id {mod_corpus_association_id} is not available")
     
     mod_corpus_association_data = jsonable_encoder(mod_corpus_association)
     if mod_corpus_association_data["reference_id"]:
