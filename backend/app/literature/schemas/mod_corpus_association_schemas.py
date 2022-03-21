@@ -21,13 +21,10 @@ class ModCorpusAssociationSchemaPost(ModCorpusAssociationSchemaCreate):
         extra = "forbid"
 
 
-class ModCorpusAssociationSchemaShow(BaseModelShow):
+class ModCorpusAssociationSchemaShow(ModCorpusAssociationSchemaPost):
     mod_corpus_association_id: int
-    mod_corpus_sort_source: Optional[ModCorpusSortSourceType] = None
-    mod_abbreviation: Optional[List[str]] = None
-    reference_curie: Optional[List[str]] = None
-    corpus: Optional[bool] = None
-
+    date_created: str
+    date_updated: str
 
 
 class ModCorpusAssociationSchemaRelated(BaseModel):

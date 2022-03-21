@@ -120,10 +120,10 @@ def show(db: Session, mod_corpus_association_id: int):
     
     mod_corpus_association_data = jsonable_encoder(mod_corpus_association)
     if mod_corpus_association_data["reference_id"]:
-        mod_corpus_association_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == mod_corpus_association_data["reference_id"]).first()
+        mod_corpus_association_data["reference_curie"] = db.query(ReferenceModel).filter(ReferenceModel.reference_id == mod_corpus_association_data["reference_id"]).first().curie
     del mod_corpus_association_data["reference_id"]
     if mod_corpus_association_data["mod_id"]:
-        mod_corpus_association_data["mod_abbreviation"] = db.query(ModModel.abbreviation).filter(ModModel.mod_id == mod_corpus_association_data["mod_id"]).first()
+        mod_corpus_association_data["mod_abbreviation"] = db.query(ModModel).filter(ModModel.mod_id == mod_corpus_association_data["mod_id"]).first().abbreviation
     del mod_corpus_association_data["mod_id"]
 
     return mod_corpus_association_data
