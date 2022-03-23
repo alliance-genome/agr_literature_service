@@ -1,3 +1,9 @@
+"""
+# query database for xrefs, extra MODs, post to populate mod_corpus_association
+# python process_mod_corpus_association_to_api.py
+
+# TODO: API to create mod_corpus_association is not live, when it is make sure new_entry is defined properly
+"""
 
 import json
 import logging
@@ -7,11 +13,6 @@ from os import environ, path
 from helper_file_processing import (generate_cross_references_file, load_ref_xref)
 from helper_post_to_api import (generate_headers, get_authentication_token,
                                 process_api_request)
-
-# query database for xrefs, extra MODs, post to populate mod_corpus_association
-# python process_mod_corpus_association_to_api.py
-
-# TODO: API to create mod_corpus_association is not live, when it is make sure new_entry is defined properly
 
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
@@ -39,11 +40,7 @@ def do_everything():
 def post_mod_corpus_association(agr, prefix, headers, base_url):
     logger.info("%s %s", agr, prefix)
 
-    new_entry = dict()
-    new_entry['agr_curie'] = agr
-    new_entry['mod'] = prefix
-    new_entry['corpus'] = 'inside_corpus'
-    new_entry['source'] = 'dqm_files'
+    new_entry = {'agr_curie': agr, 'mod': prefix, 'corpus': 'inside_corpus', 'source': 'dqm_files'}
 
     url = base_url + agr
     api_response_tuple = process_api_request('POST', url, headers, new_entry, agr, None, None)
@@ -51,14 +48,15 @@ def post_mod_corpus_association(agr, prefix, headers, base_url):
     response_text = api_response_tuple[1]
     response_status_code = api_response_tuple[2]
     log_info = api_response_tuple[3]
+    
     response_dict = json.loads(response_text)
 
     if log_info:
         logger.info(log_info)
 
-    if (response_status_code == 201):
+    if response_status_code == 201:
         response_dict = response_dict.replace('"', '')
-        logger.info("%s\t%s", agr, response_dict)
+        logger.info(f"{agr}\t{response_dict}")
         # mapping_fh.write("%s\t%s\n" % (agr, response_dict))
     else:
         logger.info("api error %s primaryId %s message %s", str(response_status_code), agr, response_dict['detail'])
@@ -73,9 +71,7 @@ if __name__ == "__main__":
     """
 
     logger.info("Starting process_mod_corpus_association_to_api.py")
-
     do_everything()
-
-    logger.info("ending process_mod_corpus_association_to_api.py")
+    logger.info("Ending process_mod_corpus_association_to_api.py")
 
 # pipenv run python process_mod_corpus_association_to_api.py
