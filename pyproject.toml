@@ -46,7 +46,7 @@ build-backend = "poetry.core.masonry.api"
 profile = "hug"
 src_paths = ["src/xml_processing", "backend/app"]
 py_version=39
-skip = [".gitignore", ".dockerignore"]
+skip = [".gitignore", ".dockerignore", "__init__.py", "backend/app/literature/database/main.py"]
 skip_glob = ["docs/*"]
 multi_line_output = 3
 
