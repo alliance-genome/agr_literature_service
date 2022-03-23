@@ -48,7 +48,6 @@ def post_mod_corpus_association(agr, prefix, headers, base_url):
     response_text = api_response_tuple[1]
     response_status_code = api_response_tuple[2]
     log_info = api_response_tuple[3]
-    
     response_dict = json.loads(response_text)
 
     if log_info:
