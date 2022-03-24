@@ -32,19 +32,19 @@ class ModModel(Base):
     )
 
     abbreviation = Column(
-        String(),
+        String(10),
         unique=True,
         nullable=False
     )
 
     short_name = Column(
-        String(),
+        String(10),
         unique=True,
         nullable=False
     )
 
     full_name = Column(
-        String(),
+        String(100),
         unique=True,
         nullable=False
     )

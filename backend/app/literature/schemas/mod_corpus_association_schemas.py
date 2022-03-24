@@ -21,7 +21,7 @@ class ModCorpusAssociationSchemaPost(ModCorpusAssociationSchemaCreate):
         extra = "forbid"
 
 
-class ModCorpusAssociationSchemaShow(ModCorpusAssociationSchemaPost):
+class ModCorpusAssociationSchemaShow(BaseModelShow):
     mod_corpus_association_id: int
     mod_corpus_sort_source: Optional[ModCorpusSortSourceType] = None
     mod_abbreviation: Optional[str] = None
