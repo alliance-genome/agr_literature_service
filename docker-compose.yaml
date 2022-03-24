@@ -88,7 +88,6 @@ services:
       - agr-literature
     volumes:
       - "./pgsync_schema.json:/src/app/pgsync_schema.json"
-      - "./.env:/usr/local/lib/.env"
     environment:
       PG_USER: "${PG_USER}"
       PG_PASSWORD: "${PG_PASSWORD}"
@@ -96,6 +95,7 @@ services:
       PG_PORT: "${PG_PORT}"
       ELASTICSEARCH_HOST: "${ELASTICSEARCH_HOST}"
       ELASTICSEARCH_PORT: "${ELASTICSEARCH_PORT}"
+      ELASTICSEARCH_TIMEOUT: 100
       REDIS_HOST: "${REDIS_HOST}"
       REDIS_PORT: "${REDIS_PORT}"
       REDIS_DB: "${REDIS_DB}"
