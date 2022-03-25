@@ -124,15 +124,6 @@
                             }
                         }
                     },
-                    "abstract": {
-                        "type": "text",
-                        "fields": {
-                            "keyword": {
-                                "type": "keyword",
-                                "normalizer": "sortNormalizer"
-                            }
-                        }
-                    },
                     "citation": {
                         "type": "text",
                         "fields": {
@@ -310,15 +301,6 @@
                                 }
                             },
                             "volumes": {
-                                "type": "text",
-                                "fields": {
-                                    "keyword": {
-                                        "type": "keyword",
-                                        "normalizer": "sortNormalizer"
-                                    }
-                                }
-                            },
-                            "abstract": {
                                 "type": "text",
                                 "fields": {
                                     "keyword": {
