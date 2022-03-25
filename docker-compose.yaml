@@ -125,6 +125,10 @@ services:
         REG: ${REG}
         ALLIANCE_RELEASE: ${ALLIANCE_RELEASE}
     environment:
+      API_PORT: "${API_PORT}"
+      API_SERVER: "${API_SERVER}"
+      PYTHONPATH: "/usr/local/bin/src/literature/src/xml_processing:/usr/local/bin/src/literature/backend/app"
+      XML_PATH: "/usr/local/bin/src/literature/src/xml_processing"
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
       AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
       OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
@@ -162,6 +166,7 @@ services:
     hostname: literature_xml_processing
     environment:
       API_PORT: "${API_PORT}"
+      API_SERVER: "${API_SERVER}"
       PYTHONPATH: "/usr/local/bin/src/literature/src/xml_processing:/usr/local/bin/src/literature/backend/app"
       XML_PATH: "/usr/local/bin/src/literature/src/xml_processing"
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
