@@ -6,7 +6,7 @@
             "number_of_shards": "1",
             "number_of_replicas": "0",
             "max_ngram_diff": "20",
-            "max_result_window": 500000,
+            "max_result_window": 1000000,
             "analysis": {
                 "filter": {
                     "ngram_filter": {
@@ -40,6 +40,22 @@
                         ],
                         "type": "custom",
                         "tokenizer": "ngram_tokenizer"
+                    },
+                    "default": {
+                        "filter": [
+                            "asciifolding",
+                            "lowercase"
+                        ],
+                        "type": "custom",
+                        "tokenizer": "ngram_tokenizer"
+                    },
+                    "default_search": {
+                        "filter": [
+                            "asciifolding",
+                            "lowercase"
+                        ],
+                        "type": "custom",
+                        "tokenizer": "ngram_tokenizer"
                     }
                 },
                 "tokenizer": {
@@ -65,16 +81,102 @@
                 "mapping": {
                     "curie": {
                         "type": "text",
-                        "analyzer": "autocompleteAnalyzer",
-                        "search_analyzer": "autocompleteSearchAnalyzer",
-                        "copy_to": "curie_keyword"
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "normalizer": "sortNormalizer"
+                            }
+                        }
                     },
-                    "curie_keyword": {
-                        "type": "keyword",
-                        "normalizer": "sortNormalizer"
+                    "title": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "normalizer": "sortNormalizer"
+                            }
+                        }
+                    },
+                    "volume": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "normalizer": "sortNormalizer"
+                            }
+                        }
                     },
                     "date_published": {
-                        "type": "text"
+                        "type": "text",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "normalizer": "sortNormalizer"
+                            }
+                        }
+                    },
+                    "pages": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "normalizer": "sortNormalizer"
+                            }
+                        }
+                    },
+                    "abstract": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "normalizer": "sortNormalizer"
+                            }
+                        }
+                    },
+                    "citation": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "normalizer": "sortNormalizer"
+                            }
+                        }
+                    },
+                    "publisher": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "normalizer": "sortNormalizer"
+                            }
+                        }
+                    },
+                    "pubmed_type": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "normalizer": "sortNormalizer"
+                            }
+                        }
+                    },
+                    "issue_name": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "normalizer": "sortNormalizer"
+                            }
+                        }
+                    },
+                    "issue_date": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "normalizer": "sortNormalizer"
+                            }
+                        }
                     }
                 }
             },
@@ -91,6 +193,55 @@
                             "child": ["reference_id"],
                             "parent": ["reference_id"]
                         }
+                    },
+                    "transform": {
+                        "mapping": {
+                            "orcid": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {
+                                        "type": "keyword",
+                                        "normalizer": "sortNormalizer"
+                                    }
+                                }
+                            },
+                            "affiliation": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {
+                                        "type": "keyword",
+                                        "normalizer": "sortNormalizer"
+                                    }
+                                }
+                            },
+                            "first_name": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {
+                                        "type": "keyword",
+                                        "normalizer": "sortNormalizer"
+                                    }
+                                }
+                            },
+                            "middle_names": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {
+                                        "type": "keyword",
+                                        "normalizer": "sortNormalizer"
+                                    }
+                                }
+                            },
+                            "last_name": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {
+                                        "type": "keyword",
+                                        "normalizer": "sortNormalizer"
+                                    }
+                                }
+                            }
+                        }
                     }
                 },
                 {
@@ -99,12 +250,92 @@
                        "title", "title_synonyms", "iso_abbreviation", "medline_abbreviation", "publisher", "volumes"
                        ,"abstract", "summary"
                     ],
-                    "relationship":{
+                    "relationship": {
                         "variant": "object",
                         "type": "one_to_many",
-                        "foreign_key":{
-                            "child": ["resource_id"],
-                            "parent": ["resource_id"]
+                        "foreign_key": {
+                            "child": [
+                                "resource_id"
+                            ],
+                            "parent": [
+                                "resource_id"
+                            ]
+                        }
+                    },
+                    "transform": {
+                        "mapping": {
+                            "title": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {
+                                        "type": "keyword",
+                                        "normalizer": "sortNormalizer"
+                                    }
+                                }
+                            },
+                            "title_synonyms": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {
+                                        "type": "keyword",
+                                        "normalizer": "sortNormalizer"
+                                    }
+                                }
+                            },
+                            "iso_abbreviation": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {
+                                        "type": "keyword",
+                                        "normalizer": "sortNormalizer"
+                                    }
+                                }
+                            },
+                            "medline_abbreviation": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {
+                                        "type": "keyword",
+                                        "normalizer": "sortNormalizer"
+                                    }
+                                }
+                            },
+                            "publisher": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {
+                                        "type": "keyword",
+                                        "normalizer": "sortNormalizer"
+                                    }
+                                }
+                            },
+                            "volumes": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {
+                                        "type": "keyword",
+                                        "normalizer": "sortNormalizer"
+                                    }
+                                }
+                            },
+                            "abstract": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {
+                                        "type": "keyword",
+                                        "normalizer": "sortNormalizer"
+                                    }
+                                }
+                            },
+                            "summary": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {
+                                        "type": "keyword",
+                                        "normalizer": "sortNormalizer"
+                                    }
+                                }
+                            }
                         }
                     }
                 },
@@ -113,25 +344,28 @@
                     "columns":[
                        "curie", "is_obsolete"
                     ],
-                    "relationship":{
+                    "relationship": {
                         "variant": "object",
                         "type": "one_to_many",
-                        "foreign_key":{
-                            "child": ["reference_id"],
-                            "parent": ["reference_id"]
+                        "foreign_key": {
+                            "child": [
+                                "reference_id"
+                            ],
+                            "parent": [
+                                "reference_id"
+                            ]
                         }
                     },
                     "transform": {
                         "mapping": {
                             "curie": {
                                 "type": "text",
-                                "analyzer": "autocompleteAnalyzer",
-                                "search_analyzer": "autocompleteSearchAnalyzer",
-                                "copy_to": "cross_references.curie_keyword"
-                            },
-                            "curie_keyword": {
-                                "type": "keyword",
-                                "normalizer": "sortNormalizer"
+                                "fields": {
+                                    "keyword": {
+                                        "type": "keyword",
+                                        "normalizer": "sortNormalizer"
+                                    }
+                                }
                             }
                         }
                     }
