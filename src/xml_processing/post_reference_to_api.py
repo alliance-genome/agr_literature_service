@@ -156,7 +156,6 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     headers = generate_headers(token)
     api_server = environ.get('API_SERVER', 'localhost')
     url = 'http://' + api_server + ':' + api_port + '/reference/'
-
     reference_primary_id_to_curie_file = base_path + 'reference_primary_id_to_curie'
     errors_in_posting_reference_file = base_path + 'errors_in_posting_reference'
 
@@ -295,6 +294,10 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                 response_status_code = api_response_tuple[2]
                 log_info = api_response_tuple[3]
                 response_dict = json.loads(response_text)
+                process_result = dict()
+                process_result['text'] = response_text
+                process_result['status_code'] = response_status_code
+                process_results.append(process_result)
 
                 if log_info:
                     logger.info(log_info)
