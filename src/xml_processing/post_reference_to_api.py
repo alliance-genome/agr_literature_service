@@ -200,7 +200,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
             # only test one file for run
             # if filepath != json_storage_path + 'REFERENCE_PUBMED_WB_1.json':
             #     continue
-            # print("opening file\t%s", filepath)
+            # logger.info("opening file\t%s", filepath)
             f = open(filepath)
             reference_data = json.load(f)
             # counter = 0
@@ -232,7 +232,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
 
                 for key in entry:
                     keys_found.add(key)
-                    logger.info("key found\t%s\t%s", key, entry[key])
+                    # logger.info("key found\t%s\t%s", key, entry[key])
                     if key in remap_keys:
                         # logger.info("remap\t%s\t%s", key, remap_keys[key])
                         # this renames a key, but it can be accessed again in the for key loop, so sometimes a key is visited twice while another is skipped, so have to create a new dict to populate instead
