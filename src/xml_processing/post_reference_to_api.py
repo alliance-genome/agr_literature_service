@@ -217,6 +217,8 @@ def post_references(input_file, check_file_flag):      # noqa: C901
 
                 primary_id = entry['primaryId']
                 prefix, identifier, separator = split_identifier(primary_id)
+                # this is only populated if check_file_flag is not "no_file_check", meaning it came from bulk processing of dqm / pubmed
+                # if it is "no_file_check" it comes from processing a single pmid via lit curation ui, which validates this before coming here.
                 if prefix in xref_ref:
                     if identifier in xref_ref[prefix]:
                         logger.info("%s\talready in", primary_id)
