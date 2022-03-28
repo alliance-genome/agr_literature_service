@@ -20,7 +20,7 @@ from literature.crud.reference_resource import create_obj
 from literature.models import (AuthorModel, CrossReferenceModel, EditorModel,
                                MeshDetailModel, ModReferenceTypeModel,
                                ReferenceModel, ReferenceTagModel,
-                               ResourceModel)
+                               ResourceModel, ModCorpusAssociationModel)
 from literature.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
 
 
