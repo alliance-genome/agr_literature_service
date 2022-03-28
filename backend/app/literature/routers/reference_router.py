@@ -1,4 +1,3 @@
-import subprocess
 from typing import List, cast
 
 from botocore.client import BaseClient
