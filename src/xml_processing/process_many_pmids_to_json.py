@@ -26,13 +26,6 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
-parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
-parser.add_argument('-s', '--skip-download', action='store_true', help='do not download PubMed XML in testing mode')
-
-args = vars(parser.parse_args())
-
 
 def download_and_convert_pmids(pmids_wanted, skip_download_flag):
     """
@@ -99,6 +92,13 @@ if __name__ == "__main__":
     skip download flag is to avoid downloading new pubmed_xml/ when running tests,
     although if the files already exist there from the repo, they won't get downloaded anyway.
     """
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
+    parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
+    parser.add_argument('-s', '--skip-download', action='store_true', help='do not download PubMed XML in testing mode')
+
+    args = vars(parser.parse_args())
 
     pmids_wanted = []
 

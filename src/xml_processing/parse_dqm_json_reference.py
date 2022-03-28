@@ -43,18 +43,6 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-p', '--generate-pmid-data', action='store_true', help='generate pmid outputs, requires -f')
-parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
-parser.add_argument('-m', '--mod', action='store', help='which mod, use all for all, requires -f')
-parser.add_argument('-d', '--directory', action='store', help='output directory to generate into, requires -f')
-parser.add_argument('-c', '--commandline', nargs='*', action='store', help='placeholder for process_single_pmid.py')
-# parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
-# parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
-# parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
-# parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
-
-args = vars(parser.parse_args())
 
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
@@ -1040,6 +1028,19 @@ if __name__ == "__main__":
     """
     call main start function
     """
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p', '--generate-pmid-data', action='store_true', help='generate pmid outputs, requires -f')
+    parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
+    parser.add_argument('-m', '--mod', action='store', help='which mod, use all for all, requires -f')
+    parser.add_argument('-d', '--directory', action='store', help='output directory to generate into, requires -f')
+    parser.add_argument('-c', '--commandline', nargs='*', action='store', help='placeholder for process_single_pmid.py')
+    # parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
+    # parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
+    # parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
+    # parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
+
+    args = vars(parser.parse_args())
 
     logger.info("starting parse_dqm_json_reference.py")
 

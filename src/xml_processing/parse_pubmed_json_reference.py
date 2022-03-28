@@ -14,19 +14,20 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('parse_pubmed_json_reference')
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-p', '--generate-pmid-data', action='store_true', help='generate pmid outputs')
-parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
-parser.add_argument('-m', '--mod', action='store', help='which mod, use all or leave blank for all')
-parser.add_argument('-c', '--commandline', nargs='*', action='store', help='placeholder for parse_pubmed_json_reference.py')
-
-args = vars(parser.parse_args())
-
 
 if __name__ == "__main__":
     """
     call main start function
     """
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p', '--generate-pmid-data', action='store_true', help='generate pmid outputs')
+    parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
+    parser.add_argument('-m', '--mod', action='store', help='which mod, use all or leave blank for all')
+    parser.add_argument('-c', '--commandline', nargs='*', action='store',
+                        help='placeholder for parse_pubmed_json_reference.py')
+
+    args = vars(parser.parse_args())
 
     pmids_wanted = []
 
