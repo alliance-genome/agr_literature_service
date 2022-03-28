@@ -677,7 +677,7 @@ def generate_json(pmids, previous_pmids, base_path):  # noqa: C901
 @click.option("-r", "--restapi", "api", help="take input from rest api", required=False)
 @click.option("-s", "--sample", "sample", help="test sample input from hardcoded entries", required=False, default=False, is_flag=True)
 @click.option("-u", "--url", "url", help="take input from entries in file at url", required=False)
-def process_tasks(cli, db, ffile, api, sample, url):
+def process_tasks(cli=None, db=None, ffile=None, api=None, sample=None, url=None):
     """
 
     :param cli:
@@ -762,4 +762,4 @@ if __name__ == "__main__":
     call main start function
     """
 
-    process_tasks(null, null, null, null, null, null):
+    process_tasks()
