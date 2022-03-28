@@ -114,8 +114,7 @@ def output_message_json(process_results):
     else:
         process_result['text'] = 'Failure processing POST to API'
         process_result['status_code'] = 999
-    process_message_json = json.dumps(process_result)
-    print(process_message_json)
+    return json.dumps(process_result)
 
 
 def process_pmid(pmid):
@@ -135,8 +134,7 @@ def process_pmid(pmid):
         # json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_' + pmid + '.json'
         json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_PMID.json'
         process_results = post_references(json_filepath, 'no_file_check')
-    output_message_json(process_results)
-    # print('finished')
+    return output_message_json(process_results)
 
 
 if __name__ == "__main__":
