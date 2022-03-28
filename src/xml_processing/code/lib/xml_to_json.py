@@ -762,4 +762,4 @@ if __name__ == "__main__":
     call main start function
     """
 
-    process_tasks(None, None, None, None, None, None)
+    process_tasks()
