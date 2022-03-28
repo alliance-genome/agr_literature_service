@@ -21,11 +21,6 @@ logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
-
-args = vars(parser.parse_args())
-
 # todo: save this in an env variable
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
@@ -63,6 +58,10 @@ def generate_json():
 if __name__ == "__main__":
     """ call main start function """
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
+
+    args = vars(parser.parse_args())
 #     python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
     if args['file']:
         logger.info("Processing file input from %s", args['file'])

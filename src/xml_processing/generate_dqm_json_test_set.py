@@ -25,11 +25,6 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-i', '--input', action='store', help='input json file to use')
-parser.add_argument('-d', '--directory', action='store', help='output directory to generate into')
-args = vars(parser.parse_args())
-
 
 def load_sample_json(input_file):
     base_path = environ.get('XML_PATH')
@@ -162,6 +157,11 @@ if __name__ == "__main__":
     """
     call main start function
     """
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', '--input', action='store', help='input json file to use')
+    parser.add_argument('-d', '--directory', action='store', help='output directory to generate into')
+    args = vars(parser.parse_args())
 
     logger.info("starting generate_dqm_json_test_set.py")
 

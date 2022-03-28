@@ -23,12 +23,6 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-a', '--authorization', action='store_true', help='update authorization token')
-parser.add_argument('-f', '--file', action='store', help='take input from input file in full path')
-parser.add_argument('-c', '--commandline', nargs='*', action='store', help='placeholder for process_single_pmid.py')
-args = vars(parser.parse_args())
-
 # keys that exist in data
 # 2021-05-25 21:16:53,372 - literature logger - INFO - key abstract
 # 2021-05-25 21:16:53,372 - literature logger - INFO - key citation
@@ -398,6 +392,12 @@ if __name__ == "__main__":
     """
     call main start function
     """
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-a', '--authorization', action='store_true', help='update authorization token')
+    parser.add_argument('-f', '--file', action='store', help='take input from input file in full path')
+    parser.add_argument('-c', '--commandline', nargs='*', action='store', help='placeholder for process_single_pmid.py')
+    args = vars(parser.parse_args())
 
     logger.info("Starting post_reference_to_api.py")
 

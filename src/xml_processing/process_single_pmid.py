@@ -19,11 +19,6 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
-
-args = vars(parser.parse_args())
-
 
 def check_pmid_cross_reference(pmid):
     """
@@ -141,6 +136,11 @@ if __name__ == "__main__":
     """
     call main start function
     """
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
+
+    args = vars(parser.parse_args())
 
     pmids_wanted = []
 
