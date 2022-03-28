@@ -1,5 +1,5 @@
 
-# import requests
+import requests
 import argparse
 import json
 import logging
@@ -156,7 +156,6 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     headers = generate_headers(token)
     api_server = environ.get('API_SERVER', 'localhost')
     url = 'http://' + api_server + ':' + api_port + '/reference/'
-
     reference_primary_id_to_curie_file = base_path + 'reference_primary_id_to_curie'
     errors_in_posting_reference_file = base_path + 'errors_in_posting_reference'
 
@@ -171,26 +170,29 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     #                     already_processed_primary_id.add(line_data[0].rstrip())
     #             read_fh.close
 
-    generate_cross_references_file('resource')   # this updates from resources in the database, and takes 4 seconds. if updating this script, comment it out after running it once
-    generate_cross_references_file('reference')   # this updates from references in the database, and takes 88 seconds. if updating this script, comment it out after running it once
+    if check_file_flag == 'no_file_check':
+        xref_ref = dict()
+    else:
+        generate_cross_references_file('resource')   # this updates from resources in the database, and takes 4 seconds. if updating this script, comment it out after running it once
+        generate_cross_references_file('reference')   # this updates from references in the database, and takes 88 seconds. if updating this script, comment it out after running it once
 
-    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('resource')
-    resource_to_curie = dict()
-    for prefix in xref_ref:
-        for identifier in xref_ref[prefix]:
-            xref_curie = prefix + ':' + identifier
-            resource_to_curie[xref_curie] = xref_ref[prefix][identifier]
-    # previously loading from resource_primary_id_to_curie from past run of post_resource_to_api
-    # resource_primary_id_to_curie_file = base_path + 'resource_primary_id_to_curie'
-    # if path.isfile(resource_primary_id_to_curie_file):
-    #     with open(resource_primary_id_to_curie_file, 'r') as read_fh:
-    #         for line in read_fh:
-    #             line_data = line.rstrip().split("\t")
-    #             if line_data[0]:
-    #                 resource_to_curie[line_data[0]] = line_data[1]
-    #         read_fh.close
+        xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('resource')
+        resource_to_curie = dict()
+        for prefix in xref_ref:
+            for identifier in xref_ref[prefix]:
+                xref_curie = prefix + ':' + identifier
+                resource_to_curie[xref_curie] = xref_ref[prefix][identifier]
+        # previously loading from resource_primary_id_to_curie from past run of post_resource_to_api
+        # resource_primary_id_to_curie_file = base_path + 'resource_primary_id_to_curie'
+        # if path.isfile(resource_primary_id_to_curie_file):
+        #     with open(resource_primary_id_to_curie_file, 'r') as read_fh:
+        #         for line in read_fh:
+        #             line_data = line.rstrip().split("\t")
+        #             if line_data[0]:
+        #                 resource_to_curie[line_data[0]] = line_data[1]
+        #         read_fh.close
 
-    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+        xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
 
     process_results = []
     with open(reference_primary_id_to_curie_file, 'a') as mapping_fh, open(errors_in_posting_reference_file, 'a') as error_fh:
@@ -215,6 +217,8 @@ def post_references(input_file, check_file_flag):      # noqa: C901
 
                 primary_id = entry['primaryId']
                 prefix, identifier, separator = split_identifier(primary_id)
+                # this is only populated if check_file_flag is not "no_file_check", meaning it came from bulk processing of dqm / pubmed
+                # if it is "no_file_check" it comes from processing a single pmid via lit curation ui, which validates this before coming here.
                 if prefix in xref_ref:
                     if identifier in xref_ref[prefix]:
                         logger.info("%s\talready in", primary_id)
@@ -256,10 +260,24 @@ def post_references(input_file, check_file_flag):      # noqa: C901
 
                 # can only enter agr resource curie, if resource does not map to one, enter nothing
                 if 'resource' in new_entry:
-                    if new_entry['resource'] in resource_to_curie:
-                        new_entry['resource'] = resource_to_curie[new_entry['resource']]
+                    if check_file_flag == 'no_file_check':
+                        url_get_xref = 'http://' + api_server + ':' + api_port + '/cross_reference/' + new_entry['resource']
+                        logger.info("get AGR resource cross_reference info from database %s", url_get_xref)
+                        get_return = requests.get(url_get_xref)
+                        db_entry = json.loads(get_return.text)
+                        resource_found = False
+                        if 'is_obsolete' in db_entry:
+                            if db_entry['is_obsolete'] is False:
+                                if 'resource_curie' in db_entry:
+                                    new_entry['resource'] = db_entry['resource_curie']
+                                    resource_found = True
+                        if resource_found is False:
+                            del new_entry['resource']
                     else:
-                        del new_entry['resource']
+                        if new_entry['resource'] in resource_to_curie:
+                            new_entry['resource'] = resource_to_curie[new_entry['resource']]
+                        else:
+                            del new_entry['resource']
                 if 'category' in new_entry:
                     new_entry['category'] = new_entry['category'].lower().replace(" ", "_")
                 if 'tags' in new_entry:
@@ -295,6 +313,10 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                 response_status_code = api_response_tuple[2]
                 log_info = api_response_tuple[3]
                 response_dict = json.loads(response_text)
+                process_result = dict()
+                process_result['text'] = response_text
+                process_result['status_code'] = response_status_code
+                process_results.append(process_result)
 
                 if log_info:
                     logger.info(log_info)

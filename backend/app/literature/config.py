@@ -34,6 +34,8 @@ class GlobalConfig(BaseSettings):
     PSQL_DATABASE: str = Field(..., env="PSQL_DATABASE")
 
     RESOURCE_DESCRIPTOR_URL: str = Field(..., env="RESOURCE_DESCRIPTOR_URL")
+    ELASTICSEARCH_HOST: str = Field(..., env="ELASTICSEARCH_HOST")
+    ELASTICSEARCH_PORT: str = Field(..., env="ELASTICSEARCH_PORT")
 
 
 config = GlobalConfig()
