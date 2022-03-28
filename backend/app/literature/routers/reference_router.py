@@ -46,9 +46,10 @@ def add(pubmed_id: str,
     set_global_user_id(db, user.id)
 
     try:
-        process = subprocess.run('cd src/xml_processing && python3 process_single_pmid.py -c ' + pubmed_id,
+        process = subprocess.run('cd ../../src/xml_processing && python3 process_single_pmid.py -c ' + pubmed_id,
                                  shell=True,
                                  stdout=subprocess.PIPE)
+        print(process) # forward prints in the subprocess to the main stdout
     except subprocess.CalledProcessError as e:
         print(e.output)
 
