@@ -145,12 +145,6 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
-parser.add_argument('-m', '--mod', action='store', help='which mod, use all or leave blank for all')
-
-args = vars(parser.parse_args())
-
 
 def create_postgres_session(verbose):
     """Connect to database."""
@@ -782,6 +776,12 @@ if __name__ == "__main__":
     """
     call main start function
     """
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
+    parser.add_argument('-m', '--mod', action='store', help='which mod, use all or leave blank for all')
+
+    args = vars(parser.parse_args())
 
     logger.info("starting sort_dqm_json_reference_updates.py")
 

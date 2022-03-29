@@ -88,7 +88,6 @@ services:
       - agr-literature
     volumes:
       - "./pgsync_schema.json:/src/app/pgsync_schema.json"
-      - "./.env:/usr/local/lib/.env"
     environment:
       PG_USER: "${PG_USER}"
       PG_PASSWORD: "${PG_PASSWORD}"
@@ -96,6 +95,7 @@ services:
       PG_PORT: "${PG_PORT}"
       ELASTICSEARCH_HOST: "${ELASTICSEARCH_HOST}"
       ELASTICSEARCH_PORT: "${ELASTICSEARCH_PORT}"
+      ELASTICSEARCH_TIMEOUT: 100
       REDIS_HOST: "${REDIS_HOST}"
       REDIS_PORT: "${REDIS_PORT}"
       REDIS_DB: "${REDIS_DB}"
@@ -125,6 +125,10 @@ services:
         REG: ${REG}
         ALLIANCE_RELEASE: ${ALLIANCE_RELEASE}
     environment:
+      API_PORT: "${API_PORT}"
+      API_SERVER: "${API_SERVER}"
+      PYTHONPATH: "/usr/local/bin/src/literature/src/xml_processing:/usr/local/bin/src/literature/backend/app"
+      XML_PATH: "/usr/local/bin/src/literature/src/xml_processing"
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
       AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
       OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
@@ -139,6 +143,8 @@ services:
       HOST: "${HOST}"
       OKTA_DOMAIN: "${OKTA_DOMAIN}"
       OKTA_API_AUDIENCE: "${OKTA_API_AUDIENCE}"
+      ELASTICSEARCH_HOST: "${ELASTICSEARCH_HOST}"
+      ELASTICSEARCH_PORT: "${ELASTICSEARCH_PORT}"
     hostname: literature_api
     networks:
       - agr-literature
@@ -160,6 +166,7 @@ services:
     hostname: literature_xml_processing
     environment:
       API_PORT: "${API_PORT}"
+      API_SERVER: "${API_SERVER}"
       PYTHONPATH: "/usr/local/bin/src/literature/src/xml_processing:/usr/local/bin/src/literature/backend/app"
       XML_PATH: "/usr/local/bin/src/literature/src/xml_processing"
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
@@ -210,6 +217,8 @@ services:
       PSQL_HOST: "${PSQL_HOST}"
       PSQL_PORT: "${PSQL_PORT}"
       PSQL_DATABASE: "${PSQL_DATABASE}"
+      ELASTICSEARCH_HOST: "${ELASTICSEARCH_HOST}"
+      ELASTICSEARCH_PORT: "${ELASTICSEARCH_PORT}"
       RESOURCE_DESCRIPTOR_URL: "${RESOURCE_DESCRIPTOR_URL}"
       REG: "${REG}"
     volumes:
@@ -229,7 +238,8 @@ services:
         ALLIANCE_RELEASE: ${ALLIANCE_RELEASE}
     hostname: dev_app
     environment:
-      API_PORT: "${API_PORT}"
+      API_PORT: "8080"
+      API_SERVER: "localhost"
       PYTHONPATH: "/usr/local/bin/src/literature/src/xml_processing:/usr/local/bin/src/literature/backend/app"
       XML_PATH: "/usr/local/bin/src/literature/src/xml_processing"
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
@@ -242,6 +252,8 @@ services:
       PSQL_HOST: "${PSQL_HOST}"
       PSQL_PORT: "${PSQL_PORT}"
       PSQL_DATABASE: "${PSQL_DATABASE}"
+      ELASTICSEARCH_HOST: "${ELASTICSEARCH_HOST}"
+      ELASTICSEARCH_PORT: "${ELASTICSEARCH_PORT}"
       RESOURCE_DESCRIPTOR_URL: "${RESOURCE_DESCRIPTOR_URL}"
       HOST: "${HOST}"
       OKTA_DOMAIN: "${OKTA_DOMAIN}"

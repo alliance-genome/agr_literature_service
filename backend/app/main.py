@@ -25,7 +25,8 @@ from literature.routers import (author_router, bulk_downloads_router,
                                 reference_comment_and_correction_router,
                                 reference_manual_term_tag_router,
                                 reference_router, resource_descriptor_router,
-                                resource_router)
+                                resource_router, search_router)
+
 from initialize import setup_resource_descriptor
 
 parser = argparse.ArgumentParser()
@@ -99,6 +100,7 @@ app.include_router(reference_manual_term_tag_router.router)
 app.include_router(bulk_downloads_router.router)
 app.include_router(mod_router.router)
 app.include_router(mod_corpus_association_router.router)
+app.include_router(search_router.router)
 
 app.add_api_route("/health", health([is_database_online]))
 
@@ -133,4 +135,10 @@ def run():
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p', '--port', type=int, help='Port to run the server on', default=8080, nargs='?')
+    parser.add_argument('-i', '--ip-address', type=str, help='IP address of the host', default='0.0.0.0', nargs='?')
+    parser.add_argument('-v', dest='verbose', action='store_true')
+
+    args = vars(parser.parse_args())
     run()

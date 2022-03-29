@@ -21,12 +21,6 @@ logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('get_datatypes_cross_references')
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-d', '--datatype', action='store', help='take input from RESOURCE files in full path')
-
-args = vars(parser.parse_args())
-
-
 if __name__ == "__main__":
     """
     This script generates bulk cross_reference data from the API and database.
@@ -35,6 +29,11 @@ if __name__ == "__main__":
 
     call main start function
     """
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--datatype', action='store', help='take input from RESOURCE files in full path')
+
+    args = vars(parser.parse_args())
 
     logger.info("starting get_datatypes_cross_references.py")
 

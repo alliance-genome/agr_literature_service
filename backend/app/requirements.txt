@@ -27,3 +27,5 @@ git+https://github.com/alliance-genome/fastapi-okta#egg=fastapi_okta
 
 # xml_processing
 bs4==0.0.1
+
+elasticsearch==7.13.4

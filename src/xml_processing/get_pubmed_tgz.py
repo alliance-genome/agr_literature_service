@@ -24,13 +24,6 @@ logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
-parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
-parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
-
-args = vars(parser.parse_args())
-
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH', "")
 storage_path = base_path + 'pubmed_tgz/'
@@ -99,6 +92,13 @@ if __name__ == "__main__":
     """
     call main start function
     """
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
+    parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
+    parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
+
+    args = vars(parser.parse_args())
 
     pmids_wanted = []
 

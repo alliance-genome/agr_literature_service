@@ -1,4 +1,3 @@
-import argparse
 import json
 import logging
 import logging.config
@@ -36,10 +35,6 @@ api_server = environ.get('API_SERVER', 'localhost')
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
-
-parser = argparse.ArgumentParser()
-
-args = vars(parser.parse_args())
 
 
 def load_sanitized_resource(datatype):

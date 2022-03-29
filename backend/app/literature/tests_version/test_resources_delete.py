@@ -2,6 +2,8 @@ import pytest
 from literature.crud.reference_crud import create, show, patch, destroy, show_changesets
 from sqlalchemy import create_engine
 from sqlalchemy import MetaData
+from sqlalchemy import desc
+from sqlalchemy.orm import Session
 
 from literature.models import (
     Base, ReferenceModel
@@ -22,14 +24,14 @@ metadata = MetaData()
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
 SessionLocal = sessionmaker(bind=engine, autoflush=True)
 db = SessionLocal()
-session = create_session(bind=engine, autocommit=False, autoflush=True)
+session = create_session(bind=engine, autocommit=False, autoflush=True) # type: Session
 #session = sessionmaker(bind=engine, autoflush=True)
 # Add tables/schema if not already there.
 #Base.metadata.create_all(engine)sql
-#History = ReferenceModel.__versioned__['class']
+History = ReferenceModel.__versioned__['class']
 Histroy = transaction_class(ReferenceModel)
 
-history_obj = session.query(History).filter(History.operation_type == Operations.DELETE).filter(History.curie=='AGR:AGR-Reference-0000000010').order_by(sa.desc(History.transaction_id)).first()
+history_obj = session.query(History).filter(History.operation_type == Operation.DELETE).filter(History.curie=='AGR:AGR-Reference-0000000010').order_by(desc(History.transaction_id)).first()
 
 history_obj.previous.reify()
 exit
@@ -52,7 +54,7 @@ print ('reference name now:', reference3.title)
 reference = session.query(ReferenceModel).filter(ReferenceModel.curie==curie3).first()
 
 if not reference:
-    print ('unable to find record with this title:', title)
+    print ('unable to find record with this title:', title1)
 else:
     print(reference.versions[0].operation_type)
     for version in reference.versions[::-1]:

@@ -24,11 +24,6 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
-
-args = vars(parser.parse_args())
-
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
 
@@ -98,6 +93,10 @@ def get_path_from_pmid(pmid, file_type):
 
 if __name__ == "__main__":
     """ call main start function """
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
+
+    args = vars(parser.parse_args())
     logger.info("starting benchmark_read_json.py")
 
     if args['file']:
