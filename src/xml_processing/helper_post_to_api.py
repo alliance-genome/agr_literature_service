@@ -1,5 +1,7 @@
 from json import dumps, loads
 from os import environ, path
+import logging
+import logging.config
 
 import requests
 
@@ -71,7 +73,7 @@ def update_okta_token():
     data_dict['client_secret'] = environ.get('OKTA_CLIENT_SECRET')
     data_dict['scope'] = 'admin'
     post_return = requests.post(url, headers=headers, data=data_dict)
-    # logger.info("token %s", token)
+    logging.warning(post_return.text)
     response_dict = loads(post_return.text)
     token = response_dict['access_token']
     # logger.info("token %s", token)

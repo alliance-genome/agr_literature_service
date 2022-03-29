@@ -30,14 +30,7 @@ def create(request: ModSchemaPost,
     return mod_crud.create(db, request)
 
 
-@router.delete('/{mod_id}',
-               status_code=status.HTTP_204_NO_CONTENT)
-def destroy(mod_id: int,
-            user: OktaUser = db_user,
-            db: Session = db_session):
-    set_global_user_id(db, user.id)
-    mod_crud.destroy(db, mod_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
 
 
 @router.patch('/{mod_id}',
