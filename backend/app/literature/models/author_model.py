@@ -26,7 +26,7 @@ class AuthorModel(Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey("references.reference_id"),
+        ForeignKey("references.reference_id", ondelete="CASCADE"),
         index=True
     )
 
