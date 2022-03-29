@@ -135,4 +135,10 @@ def run():
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p', '--port', type=int, help='Port to run the server on', default=8080, nargs='?')
+    parser.add_argument('-i', '--ip-address', type=str, help='IP address of the host', default='0.0.0.0', nargs='?')
+    parser.add_argument('-v', dest='verbose', action='store_true')
+
+    args = vars(parser.parse_args())
     run()

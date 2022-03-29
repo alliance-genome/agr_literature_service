@@ -117,16 +117,6 @@ logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
-parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
-parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
-parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
-parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
-parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
-
-args = vars(parser.parse_args())
-
 base_path = environ.get('XML_PATH', "")
 search_path = base_path + 'pubmed_searches/'
 search_outfile_path = base_path + 'pubmed_searches/search_new_mods/'
@@ -470,6 +460,16 @@ if __name__ == "__main__":
     """
     call main start function
     """
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
+    parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
+    parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
+    parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
+    parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
+    parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
+
+    args = vars(parser.parse_args())
 
     pmids_wanted = []     # type: List
 
