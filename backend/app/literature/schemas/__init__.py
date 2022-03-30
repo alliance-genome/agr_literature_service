@@ -58,6 +58,7 @@ from literature.schemas.mod_corpus_association_schemas import ModCorpusAssociati
 from literature.schemas.mod_corpus_association_schemas import ModCorpusAssociationSchemaShow
 from literature.schemas.mod_corpus_association_schemas import ModCorpusAssociationSchemaUpdate
 from literature.schemas.mod_corpus_association_schemas import ModCorpusAssociationSchemaRelated
+from literature.schemas.mod_corpus_association_schemas import ModCorpusAssociationSchemaShowID
 
 
 from literature.schemas.mod_schemas import ModSchemaUpdate

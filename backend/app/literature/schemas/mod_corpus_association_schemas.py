@@ -12,6 +12,14 @@ class ModCorpusAssociationSchemaCreate(BaseModel):
         orm_mode = True
         extra = "forbid"
 
+class ModCorpusAssociationSchemaShowID(BaseModel):
+    mod_abbreviation: str
+    reference_curie: str
+
+    class Config():
+        orm_mode = True
+        extra = "forbid"
+
 
 class ModCorpusAssociationSchemaPost(ModCorpusAssociationSchemaCreate):
     reference_curie: str
