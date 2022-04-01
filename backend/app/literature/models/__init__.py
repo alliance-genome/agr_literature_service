@@ -1,6 +1,13 @@
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import configure_mappers, create_session
 
+from sqlalchemy_continuum import make_versioned
+from sqlalchemy_continuum.plugins import PropertyModTrackerPlugin
+from literature.continuum_plugins import UserPlugin
+
+user_plugin = UserPlugin()
+make_versioned(user_cls='UserModel', plugins=[user_plugin, PropertyModTrackerPlugin()])
+
 from literature.database.main import Base
 from literature.models.author_model import AuthorModel
 from literature.models.cross_reference_model import CrossReferenceModel
