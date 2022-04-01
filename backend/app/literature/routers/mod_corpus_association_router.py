@@ -68,7 +68,7 @@ def show(mod_corpus_association_id: int,
 @router.get('/reference/{curie}/mod_abbreviation/{mod_abbreviation}',
             response_model=int,
             status_code=200)
-def show(curie: str, mod_abbreviation: str,
+def show_id(curie: str, mod_abbreviation: str,
          db: Session = db_session):
     return mod_corpus_association_crud.show_by_reference_mod_abbreviation(db, curie, mod_abbreviation)
 

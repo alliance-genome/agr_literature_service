@@ -40,8 +40,9 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
     if not mod:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
-    mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(ModCorpusAssociationModel.reference_id == reference.reference_id
-        and ModCorpusAssociationModel.mod_id == mod.mod_id).first()
+    mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(
+        ModCorpusAssociationModel.reference_id == reference.reference_id).filter(
+        ModCorpusAssociationModel.mod_id == mod.mod_id).first()
     if mod_corpus_association_db_obj:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"ModCorpusAssociation with the reference_curie {reference_curie}  and mod_abbreviation {mod_abbreviation} already exist, with id:{mod_corpus_association_db_obj.mod_corpus_association_id} can not create duplicate record.")
@@ -158,8 +159,12 @@ def show_by_reference_mod_abbreviation(db: Session, reference_curie: str, mod_ab
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the curie {reference_curie} is not available")
     else:
-        mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(ModCorpusAssociationModel.reference_id == reference.reference_id
-        and ModCorpusAssociationModel.mod_id == mod.mod_id).first()
+        #mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(
+        #ModCorpusAssociationModel.reference_id == reference.reference_id
+        #and ModCorpusAssociationModel.mod_id == mod.mod_id).first()
+        mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(
+        ModCorpusAssociationModel.reference_id == reference.reference_id).filter(
+        ModCorpusAssociationModel.mod_id == mod.mod_id).first()
         if not mod_corpus_association_db_obj:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModCorpusAssociation with the reference_curie {reference_curie}  and mod_abbreviation {mod_abbreviation} is not available")
