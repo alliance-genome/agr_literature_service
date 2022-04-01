@@ -6,6 +6,10 @@ person_orcid_cross_reference_link_model.py
 from sqlalchemy import Column, ForeignKey, Integer, String
 
 from literature.database.base import Base
+from literature.database.versioning import enable_versioning
+
+
+enable_versioning()
 
 
 class PersonOrcidCrossReferenceLinkModel(Base):
