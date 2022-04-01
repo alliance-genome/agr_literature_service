@@ -1,15 +1,18 @@
-from typing import List, Optional
+# from typing import List
+from typing import Optional
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel
+# from pydantic import validator
 
-from literature.schemas import BaseModelShow, ModCorpusAssociationSchemaPost
+from literature.schemas import BaseModelShow
+# from literature.schemas import ModCorpusAssociationSchemaPost
 
 
 class ModSchemaPost(BaseModel):
     abbreviation: str
     short_name: str
     full_name: str
-    #mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaPost]] = None
+    # mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaPost]] = None
 
     class Config():
         orm_mode = True
@@ -21,6 +24,7 @@ class ModSchemaShow(BaseModelShow):
     abbreviation: str
     short_name: str
     full_name: str
+
 
 class ModSchemaUpdate(BaseModel):
     abbreviation: Optional[str] = None
