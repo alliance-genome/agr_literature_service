@@ -8,13 +8,13 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
-from literature.models import reference_model
 from literature.schemas.mod_corpus_association_schemas import ModCorpusAssociationSchemaShowID
 
 from literature.models import ModCorpusAssociationModel, ReferenceModel, ModModel
 from literature.schemas import ModCorpusAssociationSchemaPost, ModCorpusAssociationSchemaUpdate
 import logging
 import logging.config
+
 
 def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) -> int:
     """
@@ -40,12 +40,15 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
     if not mod:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
-    mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(ModCorpusAssociationModel.reference_id == reference.reference_id
+    mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(
+        ModCorpusAssociationModel.reference_id == reference.reference_id
         and ModCorpusAssociationModel.mod_id == mod.mod_id).first()
-        #logging.info("finished to retrieve mod_corpus_association obj")
+    # logging.info("finished to retrieve mod_corpus_association obj")
     if mod_corpus_association_db_obj:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"ModCorpusAssociation with the reference_curie {reference_curie}  and mod_abbreviation {mod_abbreviation} already exist, can not create duplicate record.")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"ModCorpusAssociation with the reference_curie {reference_curie} "
+                                   f"and mod_abbreviation {mod_abbreviation} already exist, can not create "
+                                   f"duplicate record.")
     db_obj = ModCorpusAssociationModel(**mod_corpus_association_data)
     db_obj.reference = reference
     db_obj.mod = mod
@@ -125,7 +128,7 @@ def show(db: Session, mod_corpus_association_id: int):
     if not mod_corpus_association:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModCorpusAssociation with the mod_corpus_association_id {mod_corpus_association_id} is not available")
-    
+
     mod_corpus_association_data = jsonable_encoder(mod_corpus_association)
     if mod_corpus_association_data["reference_id"]:
         mod_corpus_association_data["reference_curie"] = db.query(ReferenceModel).filter(ReferenceModel.reference_id == mod_corpus_association_data["reference_id"]).first().curie
@@ -136,6 +139,7 @@ def show(db: Session, mod_corpus_association_id: int):
 
     return mod_corpus_association_data
 
+
 def show_id(db: Session, mod_corpus_association: ModCorpusAssociationSchemaShowID) -> int:
     """
 
@@ -144,15 +148,15 @@ def show_id(db: Session, mod_corpus_association: ModCorpusAssociationSchemaShowI
     :return:
     """
     logging.basicConfig(level=logging.INFO)
-    #logging.info("start to encode data")
+    # logging.info("start to encode data")
     mod_corpus_association_data = jsonable_encoder(mod_corpus_association)
-    #logging.info("start to retrieve mod and reference obj")
+    # logging.info("start to retrieve mod and reference obj")
     reference_curie = mod_corpus_association_data["reference_curie"]
     mod_abbreviation = mod_corpus_association_data["mod_abbreviation"]
-    
+
     mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
-    #logging.info("reference id: %s", reference.reference_id)
+    # logging.info("reference id: %s", reference.reference_id)
     if not mod:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Mod with the abbreviation {mod_abbreviation} is not available")
@@ -160,18 +164,19 @@ def show_id(db: Session, mod_corpus_association: ModCorpusAssociationSchemaShowI
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the curie {reference_curie} is not available")
     else:
-        #logging.info("start to retrieve mod_corpus_associaton obj")
-        mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(ModCorpusAssociationModel.reference_id == reference.reference_id
-        and ModCorpusAssociationModel.mod_id == mod.mod_id).first()
-        #logging.info("finished to retrieve mod_corpus_association obj")
+        # logging.info("start to retrieve mod_corpus_associaton obj")
+        mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(
+            ModCorpusAssociationModel.reference_id == reference.reference_id
+            and ModCorpusAssociationModel.mod_id == mod.mod_id).first()
+        # logging.info("finished to retrieve mod_corpus_association obj")
         if not mod_corpus_association_db_obj:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"ModCorpusAssociation with the reference_curie {reference_curie}  and mod_abbreviation {mod_abbreviation} is not available")
+                                detail=f"ModCorpusAssociation with the reference_curie {reference_curie} "
+                                       f"and mod_abbreviation {mod_abbreviation} is not available")
         else:
-            #logging.info("start to final return: %s", mod_corpus_association_db_obj.mod_corpus_association_id)
+            # logging.info("start to final return: %s", mod_corpus_association_db_obj.mod_corpus_association_id)
             return mod_corpus_association_db_obj.mod_corpus_association_id
-
-    return 200  
+    return 200
 
 
 def show_changesets(db: Session, mod_corpus_association_id: int):

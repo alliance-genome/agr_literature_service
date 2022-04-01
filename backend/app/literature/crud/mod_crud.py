@@ -8,12 +8,10 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
-from sqlalchemy import exc
 
-from literature.crud.reference_resource import add, create_obj, stripout
-from literature.models import ModModel, ReferenceModel
+from literature.models import ModModel
 from literature.schemas import ModSchemaPost, ModSchemaUpdate
-import logging
+
 
 def create(db: Session, mod: ModSchemaPost):
     """
@@ -84,9 +82,7 @@ def show(db: Session, abbreviation: str):
     if not mod:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Mod with the abbreviation {abbreviation} is not available")
-    mod_data = jsonable_encoder(mod) 
-    
-
+    mod_data = jsonable_encoder(mod)
     return mod_data
 
 

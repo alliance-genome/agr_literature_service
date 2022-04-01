@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, Response, Security, status
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
-#from backend.app.literature.schemas.mod_corpus_association_schemas import ModCorpusAssociationSchemaShowID
 
 from literature import database
 from literature.crud import mod_corpus_association_crud
@@ -65,11 +64,11 @@ def show(mod_corpus_association_id: int,
          db: Session = db_session):
     return mod_corpus_association_crud.show(db, mod_corpus_association_id)
 
+
 @router.put('/',
-             status_code=200,
-             response_model=int)
-def showId(request: ModCorpusAssociationSchemaShowID,
-           db: Session = db_session):     
+            status_code=200,
+            response_model=int)
+def show_id(request: ModCorpusAssociationSchemaShowID, db: Session = db_session):
     return mod_corpus_association_crud.show_id(db, request)
 
 

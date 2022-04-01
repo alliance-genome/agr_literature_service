@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, Response, Security, status
+from fastapi import APIRouter, Depends, Security, status
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
 from literature import database
 from literature.crud import mod_crud
 from literature.routers.authentication import auth
-from literature.schemas import (ModSchemaPost, ModSchemaShow,ModSchemaUpdate, 
+from literature.schemas import (ModSchemaPost, ModSchemaShow, ModSchemaUpdate,
                                 ResponseMessageSchema)
 from literature.user import set_global_user_id
 
@@ -28,9 +28,6 @@ def create(request: ModSchemaPost,
            db: Session = db_session):
     set_global_user_id(db, user.id)
     return mod_crud.create(db, request)
-
-
-
 
 
 @router.patch('/{mod_id}',
