@@ -65,12 +65,12 @@ def show(mod_corpus_association_id: int,
          db: Session = db_session):
     return mod_corpus_association_crud.show(db, mod_corpus_association_id)
 
-@router.put('/',
-             status_code=200,
-             response_model=int)
-def showId(request: ModCorpusAssociationSchemaShowID,
-           db: Session = db_session):     
-    return mod_corpus_association_crud.show_id(db, request)
+@router.get('/reference/{curie}/mod_abbreviation/{mod_abbreviation}',
+            response_model=int,
+            status_code=200)
+def show(curie: str, mod_abbreviation: str,
+         db: Session = db_session):
+    return mod_corpus_association_crud.show_by_reference_mod_abbreviation(db, curie, mod_abbreviation)
 
 
 @router.get('/{mod_corpus_association_id}/versions',

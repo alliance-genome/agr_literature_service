@@ -44,7 +44,7 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
         and ModCorpusAssociationModel.mod_id == mod.mod_id).first()
     if mod_corpus_association_db_obj:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"ModCorpusAssociation with the reference_curie {reference_curie}  and mod_abbreviation {mod_abbreviation} already exist, can not create duplicate record.")
+                            detail=f"ModCorpusAssociation with the reference_curie {reference_curie}  and mod_abbreviation {mod_abbreviation} already exist, with id:{mod_corpus_association_db_obj.mod_corpus_association_id} can not create duplicate record.")
     db_obj = ModCorpusAssociationModel(**mod_corpus_association_data)
     db_obj.reference = reference
     db_obj.mod = mod
@@ -135,7 +135,8 @@ def show(db: Session, mod_corpus_association_id: int):
 
     return mod_corpus_association_data
 
-def show_id(db: Session, mod_corpus_association: ModCorpusAssociationSchemaShowID) -> int:
+#def show_id(db: Session, mod_corpus_association: ModCorpusAssociationSchemaShowID) -> int:
+def show_by_reference_mod_abbreviation(db: Session, reference_curie: str, mod_abbreviation: str) -> int:
     """
 
     :param db:
@@ -144,9 +145,9 @@ def show_id(db: Session, mod_corpus_association: ModCorpusAssociationSchemaShowI
     """
     #logging.basicConfig(level=logging.INFO)
     #logging.info("start to encode data")
-    mod_corpus_association_data = jsonable_encoder(mod_corpus_association)
-    reference_curie = mod_corpus_association_data["reference_curie"]
-    mod_abbreviation = mod_corpus_association_data["mod_abbreviation"]
+    #mod_corpus_association_data = jsonable_encoder(mod_corpus_association)
+    #reference_curie = mod_corpus_association_data["reference_curie"]
+    #mod_abbreviation = mod_corpus_association_data["mod_abbreviation"]
     
     mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
