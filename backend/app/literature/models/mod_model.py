@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Dict
 
 import pytz
-from sqlalchemy import ARRAY, Column, DateTime, Integer, String
+from sqlalchemy import Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship
 
 from literature.database.base import Base
@@ -49,7 +49,6 @@ class ModModel(Base):
         unique=True,
         nullable=False
     )
-   
 
     date_updated = Column(
         DateTime,
