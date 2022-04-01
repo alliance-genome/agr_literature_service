@@ -1,7 +1,9 @@
-from typing import Optional, List
+from typing import Optional
+# from typing import List
 
 from pydantic import BaseModel
 from literature.schemas import ModCorpusSortSourceType, BaseModelShow
+
 
 class ModCorpusAssociationSchemaCreate(BaseModel):
     mod_abbreviation: str
@@ -11,6 +13,7 @@ class ModCorpusAssociationSchemaCreate(BaseModel):
     class Config():
         orm_mode = True
         extra = "forbid"
+
 
 class ModCorpusAssociationSchemaShowID(BaseModel):
     mod_abbreviation: str
@@ -35,7 +38,6 @@ class ModCorpusAssociationSchemaShow(BaseModelShow):
     mod_abbreviation: Optional[str] = None
     reference_curie: Optional[str] = None
     corpus: Optional[bool] = None
-
 
 
 class ModCorpusAssociationSchemaRelated(BaseModel):
