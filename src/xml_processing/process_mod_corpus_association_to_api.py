@@ -5,12 +5,17 @@
 # TODO: API to create mod_corpus_association is not live, when it is make sure new_entry is defined properly
 """
 
+from curses import has_key
 import json
 import logging
 import logging.config
 from os import environ, path
 import requests
 import sys
+from tqdm import tqdm
+from literature.database.main import get_db
+from literature.models import ModCorpusAssociationModel, ReferenceModel, ModModel
+import time
 
 from helper_file_processing import (generate_cross_references_file, load_ref_xref)
 from helper_post_to_api import (generate_headers, get_authentication_token,
@@ -33,10 +38,24 @@ def do_everything():
     xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
 
     mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB', 'XB', 'GO']
+    db_session = next(get_db())
+    all_references_ids = db_session.query(ReferenceModel.curie, ReferenceModel.reference_id).all()
+    ref_curie_id_dict = {curie_id[0]: curie_id[1] for curie_id in all_references_ids}
+    all_mods = db_session.query(ModModel).all()
+    mod_abbreviation_id_dict = {mod.abbreviation: mod.mod_id for mod in all_mods}
+    start = time.time()
     for agr in ref_xref_valid:
         for prefix in ref_xref_valid[agr]:
             if prefix in mods:
-                post_mod_corpus_association(agr, prefix, headers, base_url)
+                #post_mod_corpus_association(agr, prefix, headers, base_url)
+                if agr in ref_curie_id_dict:
+                    mod_corpus_association = ModCorpusAssociationModel(reference_id=ref_curie_id_dict[agr],
+                                                                   mod_id=mod_abbreviation_id_dict[prefix],
+                                                                   corpus=True, mod_corpus_sort_source="dqm_files")
+                db_session.add(mod_corpus_association)
+                db_session.commit()
+    end = time.time()
+    logger.info("finished in " + str(end - start) + " seconds")
 
 
 def post_mod_corpus_association(agr, prefix, headers, base_url):
@@ -50,7 +69,6 @@ def post_mod_corpus_association(agr, prefix, headers, base_url):
     query_url = base_url + "reference/" + agr + "/mod_abbreviation/" + prefix
     get_return = requests.get(query_url)
     get_return.status_code
-    #logger.info("start to check GET return:%s", base_url)
     if (get_return.status_code ==200 ):
         logger.info("mod_corpus_association_id is: %s for reference_curie: %s and mod_abbreviation:%s", get_return.text, agr, prefix)
         return get_return.text
