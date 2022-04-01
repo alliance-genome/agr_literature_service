@@ -8,12 +8,9 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
-from literature.schemas.mod_corpus_association_schemas import ModCorpusAssociationSchemaShowID
 
 from literature.models import ModCorpusAssociationModel, ReferenceModel, ModModel
 from literature.schemas import ModCorpusAssociationSchemaPost, ModCorpusAssociationSchemaUpdate
-import logging
-import logging.config
 
 
 def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) -> int:
@@ -41,14 +38,14 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
     mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(
-        ModCorpusAssociationModel.reference_id == reference.reference_id
-        and ModCorpusAssociationModel.mod_id == mod.mod_id).first()
-    # logging.info("finished to retrieve mod_corpus_association obj")
+        ModCorpusAssociationModel.reference_id == reference.reference_id).filter(
+        ModCorpusAssociationModel.mod_id == mod.mod_id).first()
     if mod_corpus_association_db_obj:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"ModCorpusAssociation with the reference_curie {reference_curie} "
-                                   f"and mod_abbreviation {mod_abbreviation} already exist, can not create "
-                                   f"duplicate record.")
+                                   f"and mod_abbreviation {mod_abbreviation} already exist, "
+                                   f"with id:{mod_corpus_association_db_obj.mod_corpus_association_id} can not "
+                                   f"create duplicate record.")
     db_obj = ModCorpusAssociationModel(**mod_corpus_association_data)
     db_obj.reference = reference
     db_obj.mod = mod
@@ -140,23 +137,22 @@ def show(db: Session, mod_corpus_association_id: int):
     return mod_corpus_association_data
 
 
-def show_id(db: Session, mod_corpus_association: ModCorpusAssociationSchemaShowID) -> int:
+# def show_id(db: Session, mod_corpus_association: ModCorpusAssociationSchemaShowID) -> int:
+def show_by_reference_mod_abbreviation(db: Session, reference_curie: str, mod_abbreviation: str) -> int:
     """
 
     :param db:
     :param mod_corpus_association_id:
     :return:
     """
-    logging.basicConfig(level=logging.INFO)
+    # logging.basicConfig(level=logging.INFO)
     # logging.info("start to encode data")
-    mod_corpus_association_data = jsonable_encoder(mod_corpus_association)
-    # logging.info("start to retrieve mod and reference obj")
-    reference_curie = mod_corpus_association_data["reference_curie"]
-    mod_abbreviation = mod_corpus_association_data["mod_abbreviation"]
+    # mod_corpus_association_data = jsonable_encoder(mod_corpus_association)
+    # reference_curie = mod_corpus_association_data["reference_curie"]
+    # mod_abbreviation = mod_corpus_association_data["mod_abbreviation"]
 
     mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
-    # logging.info("reference id: %s", reference.reference_id)
     if not mod:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Mod with the abbreviation {mod_abbreviation} is not available")
@@ -164,17 +160,17 @@ def show_id(db: Session, mod_corpus_association: ModCorpusAssociationSchemaShowI
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the curie {reference_curie} is not available")
     else:
-        # logging.info("start to retrieve mod_corpus_associaton obj")
+        # mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(
+        # ModCorpusAssociationModel.reference_id == reference.reference_id
+        # and ModCorpusAssociationModel.mod_id == mod.mod_id).first()
         mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(
-            ModCorpusAssociationModel.reference_id == reference.reference_id
-            and ModCorpusAssociationModel.mod_id == mod.mod_id).first()
-        # logging.info("finished to retrieve mod_corpus_association obj")
+            ModCorpusAssociationModel.reference_id == reference.reference_id).filter(
+            ModCorpusAssociationModel.mod_id == mod.mod_id).first()
         if not mod_corpus_association_db_obj:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f"ModCorpusAssociation with the reference_curie {reference_curie} "
                                        f"and mod_abbreviation {mod_abbreviation} is not available")
         else:
-            # logging.info("start to final return: %s", mod_corpus_association_db_obj.mod_corpus_association_id)
             return mod_corpus_association_db_obj.mod_corpus_association_id
     return 200
 
