@@ -291,10 +291,10 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         for mod_reference_type in reference_data["mod_reference_types"]:
             del mod_reference_type["reference_id"]
 
-    if reference.mod_corpus_associations:
+    if reference.mod_corpus_association:
         for i in range(len(reference_data["mod_corpus_associations"])):
             del reference_data["mod_corpus_associations"][i]["reference_id"]
-            reference_data["mod_corpus_associations"][i]["mod_abbreviation"] = reference.mod_corpus_associations[i].mod\
+            reference_data["mod_corpus_associations"][i]["mod_abbreviation"] = reference.mod_corpus_association[i].mod\
                 .abbreviation
             del reference_data["mod_corpus_associations"][i]["mod_id"]
 
