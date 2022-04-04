@@ -17,7 +17,7 @@ from literature.schemas import ModCorpusSortSourceType
 
 
 class ModCorpusAssociationModel(Base):
-    __tablename__ = "mod_corpus_associations"
+    __tablename__ = "mod_corpus_association"
     __versioned__: Dict = {}
 
     mod_corpus_association_id = Column(
@@ -35,18 +35,18 @@ class ModCorpusAssociationModel(Base):
 
     reference = relationship(
         "ReferenceModel",
-        back_populates="mod_corpus_associations"
+        back_populates="mod_corpus_association"
     )
 
     mod_id = Column(
         Integer,
-        ForeignKey("mods.mod_id", ondelete="CASCADE"),
+        ForeignKey("mod.mod_id", ondelete="CASCADE"),
         index=True
     )
 
     mod = relationship(
         "ModModel",
-        back_populates="mod_corpus_associations"
+        back_populates="mod_corpus_association"
     )
 
     corpus = Column(

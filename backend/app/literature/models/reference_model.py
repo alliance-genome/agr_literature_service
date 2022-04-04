@@ -129,7 +129,7 @@ class ReferenceModel(Base):
         cascade="all, delete, delete-orphan"
     )
 
-    mod_corpus_associations = relationship(
+    mod_corpus_association = relationship(
         "ModCorpusAssociationModel",
         lazy="joined",
         back_populates="reference",

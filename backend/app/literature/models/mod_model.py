@@ -15,7 +15,7 @@ from literature.database.base import Base
 
 
 class ModModel(Base):
-    __tablename__ = "mods"
+    __tablename__ = "mod"
     __versioned__: Dict = {}
 
     mod_id = Column(
@@ -24,7 +24,7 @@ class ModModel(Base):
         autoincrement=True
     )
 
-    mod_corpus_associations = relationship(
+    mod_corpus_association = relationship(
         "ModCorpusAssociationModel",
         lazy="joined",
         primaryjoin="ModModel.mod_id==ModCorpusAssociationModel.mod_id",
