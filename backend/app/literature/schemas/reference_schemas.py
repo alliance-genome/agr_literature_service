@@ -13,7 +13,7 @@ from literature.schemas import (AuthorSchemaPost, AuthorSchemaShow,
                                 ModCorpusAssociationSchemaShow,
                                 PubMedPublicationStatus, ReferenceCategory,
                                 ReferenceCommentAndCorrectionSchemaRelated,
-                                ReferenceTag, ReferenceTagShow)
+                                ReferenceTag, ReferenceTagShow, ModCorpusAssociationSchemaRelated)
 
 
 class ReferenceSchemaPost(BaseModel):
@@ -133,7 +133,7 @@ class ReferenceSchemaShow(BaseModelShow):
     mergee_reference_curies: Optional[List[str]] = None
     pubmed_type: Optional[List[str]] = None
     mod_reference_types: Optional[List[ModReferenceTypeSchemaRelated]] = None
-    mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaShow]] = None
+    mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaRelated]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     issue_date: Optional[str] = None

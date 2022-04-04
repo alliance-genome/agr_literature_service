@@ -35,8 +35,8 @@ class ModCorpusAssociationSchemaPost(ModCorpusAssociationSchemaCreate):
 class ModCorpusAssociationSchemaShow(BaseModelShow):
     mod_corpus_association_id: int
     mod_corpus_sort_source: Optional[ModCorpusSortSourceType] = None
-    mod_abbreviation: Optional[str] = None
-    reference_curie: Optional[str] = None
+    mod_abbreviation: str
+    reference_curie: str
     corpus: Optional[bool] = None
 
 
