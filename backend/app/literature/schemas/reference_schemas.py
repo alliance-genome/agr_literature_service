@@ -9,8 +9,8 @@ from literature.schemas import (AuthorSchemaPost, AuthorSchemaShow,
                                 MeshDetailSchemaRelated,
                                 ModReferenceTypeSchemaCreate,
                                 ModReferenceTypeSchemaRelated,
-                                ModCorpusAssociationSchemaCreate,
-                                ModCorpusAssociationSchemaRelated,
+                                ModCorpusAssociationSchemaPost,
+                                ModCorpusAssociationSchemaShow,
                                 PubMedPublicationStatus, ReferenceCategory,
                                 ReferenceCommentAndCorrectionSchemaRelated,
                                 ReferenceTag, ReferenceTagShow)
@@ -35,7 +35,7 @@ class ReferenceSchemaPost(BaseModel):
     merged_into_reference_curie: Optional[str] = None
     pubmed_type: Optional[List[str]] = None
     mod_reference_types: Optional[List[ModReferenceTypeSchemaCreate]] = None
-    mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaCreate]] = None
+    mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaPost]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     issue_date: Optional[str] = None
@@ -133,7 +133,7 @@ class ReferenceSchemaShow(BaseModelShow):
     mergee_reference_curies: Optional[List[str]] = None
     pubmed_type: Optional[List[str]] = None
     mod_reference_types: Optional[List[ModReferenceTypeSchemaRelated]] = None
-    mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaRelated]] = None
+    mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaShow]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     issue_date: Optional[str] = None

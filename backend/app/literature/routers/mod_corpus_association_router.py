@@ -10,13 +10,14 @@ from literature.schemas import (ModCorpusAssociationSchemaPost,
                                 ModCorpusAssociationSchemaUpdate,
                                 ResponseMessageSchema)
 from literature.user import set_global_user_id
-
+import logging
+import logging.config
 router = APIRouter(
     prefix="/reference/mod_corpus_association",
     tags=['Reference']
 )
 
-
+logging.basicConfig(level=logging.INFO)
 get_db = database.get_db
 db_session: Session = Depends(get_db)
 db_user = Security(auth.get_user)
@@ -61,6 +62,14 @@ async def patch(mod_corpus_association_id: int,
 def show(mod_corpus_association_id: int,
          db: Session = db_session):
     return mod_corpus_association_crud.show(db, mod_corpus_association_id)
+
+
+@router.get('/reference/{curie}/mod_abbreviation/{mod_abbreviation}',
+            response_model=int,
+            status_code=200)
+def show_id(curie: str, mod_abbreviation: str,
+            db: Session = db_session):
+    return mod_corpus_association_crud.show_by_reference_mod_abbreviation(db, curie, mod_abbreviation)
 
 
 @router.get('/{mod_corpus_association_id}/versions',

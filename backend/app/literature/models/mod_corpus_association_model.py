@@ -8,12 +8,13 @@ from datetime import datetime
 from typing import Dict
 
 import pytz
-from sqlalchemy import ARRAY, Column, DateTime, ForeignKey, Integer, String, Enum
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, Enum, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
 
 from literature.database.base import Base
 from literature.schemas import ModCorpusSortSourceType
+
 
 class ModCorpusAssociationModel(Base):
     __tablename__ = "mod_corpus_associations"
@@ -48,7 +49,6 @@ class ModCorpusAssociationModel(Base):
         back_populates="mod_corpus_associations"
     )
 
-    
     corpus = Column(
         Boolean,
         nullable=True,
@@ -72,3 +72,5 @@ class ModCorpusAssociationModel(Base):
         nullable=False,
         default=datetime.now(tz=pytz.timezone("UTC"))
     )
+
+    __table_args__ = (UniqueConstraint('reference_id', 'mod_id', name='_mod_corpus_association_unique'),)

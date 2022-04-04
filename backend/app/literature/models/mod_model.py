@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Dict
 
 import pytz
-from sqlalchemy import ARRAY, Column, DateTime, Integer, String
+from sqlalchemy import Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship
 
 from literature.database.base import Base
@@ -27,28 +27,28 @@ class ModModel(Base):
     mod_corpus_associations = relationship(
         "ModCorpusAssociationModel",
         lazy="joined",
+        primaryjoin="ModModel.mod_id==ModCorpusAssociationModel.mod_id",
         back_populates="mod",
         cascade="all, delete, delete-orphan"
     )
 
     abbreviation = Column(
-        String(),
+        String(10),
         unique=True,
         nullable=False
     )
 
     short_name = Column(
-        String(),
+        String(10),
         unique=True,
         nullable=False
     )
 
     full_name = Column(
-        String(),
+        String(100),
         unique=True,
         nullable=False
     )
-   
 
     date_updated = Column(
         DateTime,
