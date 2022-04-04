@@ -9,7 +9,7 @@ from literature.schemas import (AuthorSchemaPost, AuthorSchemaShow,
                                 MeshDetailSchemaRelated,
                                 ModReferenceTypeSchemaCreate,
                                 ModReferenceTypeSchemaRelated,
-                                ModCorpusAssociationSchemaPost,
+                                ModCorpusAssociationSchemaCreate,
                                 ModCorpusAssociationSchemaShow,
                                 PubMedPublicationStatus, ReferenceCategory,
                                 ReferenceCommentAndCorrectionSchemaRelated,
@@ -35,7 +35,7 @@ class ReferenceSchemaPost(BaseModel):
     merged_into_reference_curie: Optional[str] = None
     pubmed_type: Optional[List[str]] = None
     mod_reference_types: Optional[List[ModReferenceTypeSchemaCreate]] = None
-    mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaPost]] = None
+    mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaCreate]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     issue_date: Optional[str] = None
