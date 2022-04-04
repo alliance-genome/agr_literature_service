@@ -52,7 +52,7 @@ class ModCorpusAssociationModel(Base):
     corpus = Column(
         Boolean,
         nullable=True,
-        default=False
+        default=None
     )
 
     mod_corpus_sort_source = Column(
