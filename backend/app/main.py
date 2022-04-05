@@ -11,11 +11,11 @@ from fastapi_health import health
 # from uvicorn.config import LOGGING_CONFIG
 
 from initialize import setup_resource_descriptor
-from literature import models
+from literature.models import initialize
 
 # from literature.config import config
 from literature.database.config import SQLALCHEMY_DATABASE_URL
-from literature.database.main import engine, is_database_online
+from literature.database.main import is_database_online
 from literature.routers import (author_router, bulk_downloads_router,
                                 cross_reference_router, database_router,
                                 editor_router, file_router, mesh_detail_router,
@@ -61,16 +61,13 @@ def custom_openapi() -> Dict[str, Any]:
     return app.openapi_schema
 
 
-models.Base.metadata.create_all(engine)
-
-
 @app.on_event('startup')
 def setup_database():
     """
 
     :return:
     """
-
+    initialize()
     setup_resource_descriptor()
 
 

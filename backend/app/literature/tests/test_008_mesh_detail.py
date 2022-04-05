@@ -6,7 +6,8 @@ from sqlalchemy.orm import sessionmaker
 from literature.crud.mesh_detail_crud import (create, destroy, patch, show,
                                               show_changesets)
 from literature.database.config import SQLALCHEMY_DATABASE_URL
-from literature.models import Base, MeshDetailModel
+from literature.database.base import Base
+from literature.models import MeshDetailModel
 from literature.schemas import MeshDetailSchemaPost, MeshDetailSchemaUpdate
 
 metadata = MetaData()

@@ -7,18 +7,17 @@ from fastapi import Depends
 from literature.database.base import Base
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 
-
-
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
 
 metadata = MetaData()
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
-print(SQLALCHEMY_DATABASE_URL)
-Base.metadata.create_all(engine)
-
 SessionLocal = sessionmaker(bind=engine, autoflush=True)
+
+
+def create_all_tables():
+    Base.metadata.create_all(engine)
 
 
 def get_db():

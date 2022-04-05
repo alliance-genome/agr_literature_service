@@ -8,7 +8,8 @@ from literature.crud.reference_crud import (create, destroy, patch, show,
                                             show_changesets)
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 # from literature import models
-from literature.models import AuthorModel, Base, CrossReferenceModel
+from literature.database.base import Base
+from literature.models import AuthorModel, CrossReferenceModel
 from literature.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
 
 metadata = MetaData()

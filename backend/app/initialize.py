@@ -4,7 +4,7 @@ import yaml
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from literature import database
+from literature.database.main import get_db
 from literature.config import config
 from literature.models.resource_descriptor_models import (
     ResourceDescriptorModel, ResourceDescriptorPageModel)
@@ -14,7 +14,6 @@ db_session: Optional[Session] = None
 
 
 def initialize_database():
-    get_db = database.get_db
     global db_session
     db_session = next(get_db(), None)
 

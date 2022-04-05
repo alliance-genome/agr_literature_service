@@ -13,6 +13,10 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
 
 from literature.database.base import Base
+from literature.database.versioning import enable_versioning
+
+
+enable_versioning()
 
 
 class ResourceModel(Base):

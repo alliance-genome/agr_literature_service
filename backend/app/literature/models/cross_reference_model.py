@@ -10,6 +10,10 @@ from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from literature.database.base import Base
+from literature.database.versioning import enable_versioning
+
+
+enable_versioning()
 
 
 class CrossReferenceModel(Base):
