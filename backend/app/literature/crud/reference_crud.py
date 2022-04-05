@@ -19,7 +19,7 @@ from literature.crud.reference_resource import create_obj
 from literature.models import (AuthorModel, CrossReferenceModel, EditorModel,
                                MeshDetailModel, ModReferenceTypeModel,
                                ReferenceModel, ReferenceTagModel,
-                               ResourceModel, ModCorpusAssociationModel)
+                               ResourceModel)
 from literature.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
 from literature.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 

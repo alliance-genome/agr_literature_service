@@ -10,7 +10,6 @@ from literature.schemas import (AuthorSchemaPost, AuthorSchemaShow,
                                 ModReferenceTypeSchemaCreate,
                                 ModReferenceTypeSchemaRelated,
                                 ModCorpusAssociationSchemaCreate,
-                                ModCorpusAssociationSchemaShow,
                                 PubMedPublicationStatus, ReferenceCategory,
                                 ReferenceCommentAndCorrectionSchemaRelated,
                                 ReferenceTag, ReferenceTagShow, ModCorpusAssociationSchemaRelated)
