@@ -125,14 +125,15 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
 
     for field, value in vars(reference).items():
         if field == "mod_corpus_associations":
-            for obj in value:
-                obj_data = jsonable_encoder(obj)
-                obj_data["reference_curie"] = curie
-                try:
-                    create_mod_corpus_association(db, obj_data)
-                except HTTPException:
-                    logger.warning("skipping mod corpus association to a mod that is already associated to "
-                                   "the reference")
+            if value is not None:
+                for obj in value:
+                    obj_data = jsonable_encoder(obj)
+                    obj_data["reference_curie"] = curie
+                    try:
+                        create_mod_corpus_association(db, obj_data)
+                    except HTTPException:
+                        logger.warning("skipping mod corpus association to a mod that is already associated to "
+                                       "the reference")
 
     return curie
 
