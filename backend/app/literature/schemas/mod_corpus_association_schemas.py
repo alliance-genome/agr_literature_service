@@ -46,7 +46,7 @@ class ModCorpusAssociationSchemaRelated(BaseModel):
     mod_corpus_sort_source: Optional[ModCorpusSortSourceType] = None
     mod_abbreviation: str
     date_updated: str
-    corpus: bool
+    corpus: Optional[bool] = None
 
     class Config():
         orm_mode = True
