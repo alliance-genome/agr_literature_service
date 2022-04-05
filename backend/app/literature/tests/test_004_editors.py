@@ -7,7 +7,8 @@ from literature.crud.editor_crud import (create, destroy, patch, show,
                                          show_changesets)
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 # from literature import models
-from literature.models import Base, EditorModel
+from literature.database.base import Base
+from literature.models import EditorModel
 from literature.schemas import EditorSchemaPost
 
 metadata = MetaData()
