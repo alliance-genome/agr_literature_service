@@ -575,6 +575,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
             too_many_xref_per_type_failure = False
             for entry_field in blank_fields:
                 del entry[entry_field]
+            mod_corpus_associations = [{"mod_abbreviation": mod, "mod_corpus_sort_source": "dqm_files", "corpus": True}]
+            entry['mod_corpus_associations'] = mod_corpus_associations
 
             # need to process crossReferences once to reassign primaryId if PMID and filter out
             # unexpected crossReferences,
@@ -1049,7 +1051,7 @@ if __name__ == "__main__":
         if args['directory']:
             output_directory = args['directory']
 
-        # pipenv run python parse_dqm_json_reference.py -p
+        # pipenv run python parse_dqm_json_reference.py -f dqm_sample/ -p
         if args['generate_pmid_data']:
             logger.info("Generating PMID files from DQM data")
             generate_pmid_data(args['file'], output_directory)
