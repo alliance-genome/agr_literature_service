@@ -27,8 +27,6 @@ from literature.routers import (author_router, bulk_downloads_router,
                                 reference_router, resource_descriptor_router,
                                 resource_router, search_router)
 
-from initialize import setup_resource_descriptor
-
 parser = argparse.ArgumentParser()
 parser.add_argument('-p', '--port', type=int, help='Port to run the server on', default=8080, nargs='?')
 parser.add_argument('-i', '--ip-address', type=str, help='IP address of the host', default='0.0.0.0', nargs='?')
