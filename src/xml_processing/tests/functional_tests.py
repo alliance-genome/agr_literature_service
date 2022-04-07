@@ -250,13 +250,13 @@ def authors_exact_check(agr_data, values):
     if 'authors' in agr_data:
         for aut_db in agr_data['authors']:
             db_string = ''
-            if 'order' in aut_db:
+            if 'order' in aut_db and aut_db['order'] is not None:
                 db_string = db_string + str(aut_db['order'])
-            if 'name' in aut_db:
+            if 'name' in aut_db and aut_db['name'] is not None:
                 db_string = db_string + aut_db['name']
-            if 'first_name' in aut_db:
+            if 'first_name' in aut_db and aut_db['first_name'] is not None:
                 db_string = db_string + aut_db['first_name']
-            if 'last_name' in aut_db:
+            if 'last_name' in aut_db and aut_db['last_name'] is not None:
                 db_string = db_string + aut_db['last_name']
             db_values.add(db_string)
     for aut_dqm in values:
