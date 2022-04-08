@@ -24,13 +24,6 @@ class ModModel(Base):
         autoincrement=True
     )
 
-    mod_corpus_association = relationship(
-        "ModCorpusAssociationModel",
-        primaryjoin="ModModel.mod_id==ModCorpusAssociationModel.mod_id",
-        back_populates="mod",
-        cascade="all, delete, delete-orphan"
-    )
-
     abbreviation = Column(
         String(10),
         unique=True,
