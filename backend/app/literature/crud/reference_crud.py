@@ -295,8 +295,9 @@ def show(db: Session, curie: str, http_request=True):  # noqa
     if reference.mod_corpus_association:
         for i in range(len(reference_data["mod_corpus_association"])):
             del reference_data["mod_corpus_association"][i]["reference_id"]
-            reference_data["mod_corpus_association"][i]["mod_abbreviation"] = reference.mod_corpus_association[i].mod\
-                .abbreviation
+            reference_data["mod_corpus_association"][i]["mod_abbreviation"] = reference_data[
+                "mod_corpus_association"][i]["mod"]["abbreviation"]
+            del reference_data["mod_corpus_association"][i]["mod"]
             del reference_data["mod_corpus_association"][i]["mod_id"]
         reference_data["mod_corpus_associations"] = reference_data["mod_corpus_association"]
         del reference_data["mod_corpus_association"]
