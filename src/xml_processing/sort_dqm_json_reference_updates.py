@@ -218,8 +218,9 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     pmids_not_found = load_pmids_not_found()
 
     # make this True for live changes
-    # live_changes = False
-    live_changes = True
+# PUT THIS BACK
+    live_changes = False
+    # live_changes = True
 
     # test data structure content
     # for prefix in xref_ref:
@@ -552,8 +553,9 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     for agr in entries:
         dqm_entry = entries[agr]
         # to test a particular reference curie
-        # if agr != 'AGR:AGR-Reference-0000000026':
-        #     continue
+# PUT THIS BACK
+        if agr != 'AGR:AGR-Reference-0000000013':
+            continue
 
         if retrieve_method == 'api_one_by_one':
             # agr_url = url_ref_curie_prefix + agr    # noqa: F841
@@ -673,6 +675,51 @@ def compare_keywords(db_entry, dqm_entry):
 # always update mod_reference_types and mod_corpus_associations, whether 'mod_specific_fields_only' or 'mod_biblio_all'
 def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):
     api_port = environ.get('API_PORT')
+
+    db_mod_corpus_association = set()
+#     logger.info(db_entry)
+    db_entry_text = json.dumps(db_entry, indent=4, sort_keys=True)
+    print('db ')
+    print(db_entry_text)
+# db_entry has 
+#     "mod_corpus_association": [
+#         {
+#             "corpus": true,
+#             "date_created": "2022-04-07T23:34:51.918373",
+#             "date_updated": "2022-04-08T04:22:16.961535",
+#             "mod_corpus_association_id": 299,
+#             "mod_corpus_sort_source": "dqm_files",
+#             "mod_id": 91,
+#             "reference_id": 366
+#         }
+#     ],
+# while api has
+#   {
+#     "mod_corpus_association_id": 299
+#     "date_created": "2022-04-07T23:34:51.918373"
+#     "mod_corpus_sort_source": "dqm_files"
+#     "mod_abbreviation": "WB"
+#     "date_updated": "2022-04-08T04:22:16.961535"
+#     "corpus": true
+#   }
+# meaning
+# from literature.models import ReferenceModel
+# is not getting what the API shows
+
+    if 'mod_corpus_associations' in db_entry:
+        for db_mca_entry in db_entry['mod_corpus_associations']:
+            if 'mod_abbreviation' in db_mca_entry:
+                db_mod_corpus_association.add(db_mca_entry['mod_abbreviation'])
+    logger.info(agr)
+    logger.info(db_mod_corpus_association)
+    if 'modCorpusAssociations' in dqm_entry:
+        for dqm_mca_entry in dqm_entry['modCorpusAssociations']:
+            if 'modAbbreviation' in dqm_mca_entry and dqm_mca_entry['modAbbreviation'] is not None:
+                if dqm_mca_entry['modAbbreviation'] not in db_mod_corpus_association:
+                    logger.info("Action : add %s to %s", dqm_mca_entry['modAbbreviation'], agr)
+                    logger.info(dqm_mca_entry)
+    
+
     dqm_mod_ref_types = []
     if 'MODReferenceTypes' in dqm_entry:
         dqm_mod_ref_types = dqm_entry['MODReferenceTypes']
