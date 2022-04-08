@@ -263,7 +263,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     # filename = input_path + '/REFERENCE_' + mod + '.json'
 
     xrefs_to_add = dict()
-    aggregate_mod_reference_types_only = dict()
+    aggregate_mod_specific_fields_only = dict()
     aggregate_mod_biblio_all = dict()
 
     fh_mod_report = dict()
@@ -296,6 +296,10 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                 counter = counter + 1
                 if counter > max_counter:
                     break
+
+                # inject the mod corpus association data because if it came from that mod dqm file it should have this entry
+                mod_corpus_associations = [{"modAbbreviation": mod, "modCorpusSortSource": "dqm_files", "corpus": True}]
+                entry['modCorpusAssociations'] = mod_corpus_associations
 
                 # for debugging changes
                 # dqm_entry_text = json.dumps(entry, indent=4)
@@ -347,7 +351,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     agr = agrs_found.pop()
                     agr_url = url_ref_curie_prefix + agr
                     flag_aggregate_biblio = False
-                    flag_aggregate_mod = False
+                    flag_aggregate_mod_specific = False
                     for prefix in dqm_xrefs:
                         for ident in dqm_xrefs[prefix]:
                             # logger.info("looking for %s %s", prefix, ident)
@@ -365,7 +369,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                                         # logger.info("agr prefix ident found %s %s %s", agr, prefix, ident)
                                         dqm_xref_valid_found = True
                                         if prefix == 'PMID':
-                                            flag_aggregate_mod = True
+                                            flag_aggregate_mod_specific = True
                                             # logger.info("valid PMID xref %s %s to update agr %s", prefix, ident, agr)
                                         if prefix in mods:
                                             flag_aggregate_biblio = True
@@ -392,9 +396,9 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                                     xrefs_to_add[agr][prefix][ident].add(filename)
                                     # logger.info("Action : Add dqm xref %s %s to agr %s", prefix, ident, agr)  # dealt with below, not needed
 
-                    if flag_aggregate_mod:
+                    if flag_aggregate_mod_specific:
                         # logger.info("Action : aggregate PMID mod data %s", agr)
-                        aggregate_mod_reference_types_only[agr] = entry
+                        aggregate_mod_specific_fields_only[agr] = entry
                     elif flag_aggregate_biblio:
                         if 'keywords' in entry:
                             entry = clean_up_keywords(mod, entry)
@@ -453,7 +457,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                             headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
 
         # these take hours for each mod, process about 200 references per minute
-        headers = update_db_entries(headers, aggregate_mod_reference_types_only, live_changes, fh_mod_report[mod], 'mod_reference_types_only')
+        headers = update_db_entries(headers, aggregate_mod_specific_fields_only, live_changes, fh_mod_report[mod], 'mod_specific_fields_only')
         headers = update_db_entries(headers, aggregate_mod_biblio_all, live_changes, fh_mod_report[mod], 'mod_biblio_all')
 
     for mod in fh_mod_report:
@@ -531,7 +535,7 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
         start_index = 0
         # verbose = True
         verbose = False
-        api_server = environ.get('API_SERVER', 'localhost')
+        # api_server = environ.get('API_SERVER', 'localhost')
         # 10000 freezes the server, 1000 works
         size_per_batch = 1000
         # size_per_batch = 3
@@ -547,6 +551,9 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
 
     for agr in entries:
         dqm_entry = entries[agr]
+        # to test a particular reference curie
+        # if agr != 'AGR:AGR-Reference-0000000026':
+        #     continue
 
         if retrieve_method == 'api_one_by_one':
             # agr_url = url_ref_curie_prefix + agr    # noqa: F841
@@ -561,16 +568,20 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
         else:
             continue
 
+        # db_entry_text = json.dumps(db_entry, indent=4, sort_keys=True)
+        # print('db ')
+        # print(db_entry_text)
+
         api_server = environ.get('API_SERVER', 'localhost')
         reference_patch_url = 'http://' + api_server + ':' + api_port + '/reference/' + agr
 
-        # always update mod reference types, whether 'mod_reference_types_only' or 'mod_biblio_all'
-        headers = update_mod_reference_types(live_changes, headers, agr, dqm_entry, db_entry)
+        # always update mod_reference_types and mod_corpus_associations, whether 'mod_specific_fields_only' or 'mod_biblio_all'
+        headers = update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry)
 
         if processing_flag == 'mod_biblio_all':
             # for debugging changes
-            # dqm_entry_text = json.dumps(dqm_entry, indent=4)
-            # db_entry_text = json.dumps(db_entry, indent=4)
+            # dqm_entry_text = json.dumps(dqm_entry, indent=4, sort_keys=True)
+            # db_entry_text = json.dumps(db_entry, indent=4, sort_keys=True)
             # print('db ')
             # print(db_entry_text)
             # print('dqm2 ')
@@ -659,7 +670,8 @@ def compare_keywords(db_entry, dqm_entry):
         return True, dqm_keywords, db_keywords
 
 
-def update_mod_reference_types(live_changes, headers, agr, dqm_entry, db_entry):
+# always update mod_reference_types and mod_corpus_associations, whether 'mod_specific_fields_only' or 'mod_biblio_all'
+def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):
     api_port = environ.get('API_PORT')
     dqm_mod_ref_types = []
     if 'MODReferenceTypes' in dqm_entry:

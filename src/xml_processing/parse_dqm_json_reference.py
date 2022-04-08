@@ -575,6 +575,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
             too_many_xref_per_type_failure = False
             for entry_field in blank_fields:
                 del entry[entry_field]
+
+            # inject the mod corpus association data because if it came from that mod dqm file it should have this entry
             mod_corpus_associations = [{"modAbbreviation": mod, "modCorpusSortSource": "dqm_files", "corpus": True}]
             entry['modCorpusAssociations'] = mod_corpus_associations
 
