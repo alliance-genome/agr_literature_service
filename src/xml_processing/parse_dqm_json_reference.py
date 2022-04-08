@@ -924,7 +924,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                 for mod_corpus_association in entry['modCorpusAssociations']:
                     id = mod_corpus_association['modAbbreviation']
                     mod_corpus_association_dict[id] = mod_corpus_association
-                    logger.info("cross_ref %s", mod_corpus_association)
+                    # logger.info("mod_corpus_association %s", mod_corpus_association)
 
             if 'crossReferences' in entry:
                 for cross_ref in entry['crossReferences']:
