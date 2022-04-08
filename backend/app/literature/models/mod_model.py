@@ -9,7 +9,6 @@ from typing import Dict
 
 import pytz
 from sqlalchemy import Column, DateTime, Integer, String
-from sqlalchemy.orm import relationship
 
 from literature.database.base import Base
 
