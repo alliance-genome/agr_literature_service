@@ -575,8 +575,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
             too_many_xref_per_type_failure = False
             for entry_field in blank_fields:
                 del entry[entry_field]
-            mod_corpus_associations = [{"mod_abbreviation": mod, "mod_corpus_sort_source": "dqm_files", "corpus": True}]
-            entry['mod_corpus_associations'] = mod_corpus_associations
+            mod_corpus_associations = [{"modAbbreviation": mod, "modCorpusSortSource": "dqm_files", "corpus": True}]
+            entry['modCorpusAssociations'] = mod_corpus_associations
 
             # need to process crossReferences once to reassign primaryId if PMID and filter out
             # unexpected crossReferences,
@@ -918,9 +918,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                         else:
                             sanitized_entry[aggregate_field] = [value]
 
-            if 'mod_corpus_associations' in entry:
-                for mod_corpus_association in entry['mod_corpus_associations']:
-                    id = mod_corpus_association['mod_abbreviation']
+            if 'modCorpusAssociations' in entry:
+                for mod_corpus_association in entry['modCorpusAssociations']:
+                    id = mod_corpus_association['modAbbreviation']
                     mod_corpus_association_dict[id] = mod_corpus_association
                     logger.info("cross_ref %s", mod_corpus_association)
 
@@ -933,10 +933,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                     cross_references_dict[id] = pages
 
         for mod_corpus_association_id in mod_corpus_association_dict:
-            if 'mod_corpus_associations' in sanitized_entry:
-                sanitized_entry['mod_corpus_associations'].append(mod_corpus_association_dict[mod_corpus_association_id])
+            if 'modCorpusAssociations' in sanitized_entry:
+                sanitized_entry['modCorpusAssociations'].append(mod_corpus_association_dict[mod_corpus_association_id])
             else:
-                sanitized_entry['mod_corpus_associations'] = [mod_corpus_association_dict[mod_corpus_association_id]]
+                sanitized_entry['modCorpusAssociations'] = [mod_corpus_association_dict[mod_corpus_association_id]]
 
         for cross_ref_id in cross_references_dict:
             pages = cross_references_dict[cross_ref_id]
