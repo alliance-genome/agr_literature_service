@@ -885,6 +885,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
         alliance_category_dict = dict()
         sanitized_entry = dict()
         cross_references_dict = dict()
+        mod_corpus_association_dict = dict()
         for mod in unmerged_pubmed_data[pmid]:
             entry = unmerged_pubmed_data[pmid][mod]
 
@@ -917,6 +918,12 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                         else:
                             sanitized_entry[aggregate_field] = [value]
 
+            if 'mod_corpus_associations' in entry:
+                for mod_corpus_association in entry['mod_corpus_associations']:
+                    id = mod_corpus_association['mod_abbreviation']
+                    mod_corpus_association_dict[id] = mod_corpus_association
+                    logger.info("cross_ref %s", mod_corpus_association)
+
             if 'crossReferences' in entry:
                 for cross_ref in entry['crossReferences']:
                     id = cross_ref['id']
@@ -924,6 +931,12 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                     if 'pages' in cross_ref:
                         pages = cross_ref['pages']
                     cross_references_dict[id] = pages
+
+        for mod_corpus_association_id in mod_corpus_association_dict:
+            if 'mod_corpus_associations' in sanitized_entry:
+                sanitized_entry['mod_corpus_associations'].append(mod_corpus_association_dict[mod_corpus_association_id])
+            else:
+                sanitized_entry['mod_corpus_associations'] = [mod_corpus_association_dict[mod_corpus_association_id]]
 
         for cross_ref_id in cross_references_dict:
             pages = cross_references_dict[cross_ref_id]
