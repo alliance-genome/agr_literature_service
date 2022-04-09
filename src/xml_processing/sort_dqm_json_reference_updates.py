@@ -218,9 +218,9 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     pmids_not_found = load_pmids_not_found()
 
     # make this True for live changes
-# PUT THIS BACK
-    live_changes = False
-    # live_changes = True
+    # PUT THIS BACK
+    # live_changes = False
+    live_changes = True
 
     # test data structure content
     # for prefix in xref_ref:
@@ -299,8 +299,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     break
 
                 # inject the mod corpus association data because if it came from that mod dqm file it should have this entry
-                mod_corpus_associations = [{"modAbbreviation": mod, "modCorpusSortSource": "dqm_files", "corpus": True}]
-                entry['modCorpusAssociations'] = mod_corpus_associations
+                mod_corpus_associations = [{"mod_abbreviation": mod, "mod_corpus_sort_source": "dqm_files", "corpus": True}]
+                entry['mod_corpus_associations'] = mod_corpus_associations
 
                 # for debugging changes
                 # dqm_entry_text = json.dumps(entry, indent=4)
@@ -553,9 +553,9 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     for agr in entries:
         dqm_entry = entries[agr]
         # to test a particular reference curie
-# PUT THIS BACK
-        if agr != 'AGR:AGR-Reference-0000000013':
-            continue
+        # PUT THIS BACK
+        # if agr != 'AGR:AGR-Reference-0000000013':
+        #     continue
 
         if retrieve_method == 'api_one_by_one':
             # agr_url = url_ref_curie_prefix + agr    # noqa: F841
@@ -688,12 +688,15 @@ def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):
                     db_mod_corpus_association.add(db_mca_entry['mod']['abbreviation'])
     # logger.info(agr)
     # logger.info(db_mod_corpus_association)
-    if 'modCorpusAssociations' in dqm_entry:
-        for dqm_mca_entry in dqm_entry['modCorpusAssociations']:
-            if 'modAbbreviation' in dqm_mca_entry and dqm_mca_entry['modAbbreviation'] is not None:
-                if dqm_mca_entry['modAbbreviation'] not in db_mod_corpus_association:
-                    logger.info("Action : add mod corpus association for %s to %s", dqm_mca_entry['modAbbreviation'], agr)
-                    # logger.info(dqm_mca_entry)
+    if 'mod_corpus_associations' in dqm_entry:
+        for dqm_mca_entry in dqm_entry['mod_corpus_associations']:
+            if 'mod_abbreviation' in dqm_mca_entry and dqm_mca_entry['mod_abbreviation'] is not None:
+                if dqm_mca_entry['mod_abbreviation'] not in db_mod_corpus_association:
+                    dqm_mca_entry['reference_curie'] = agr
+                    logger.info("Action : add mod corpus association for %s to %s", dqm_mca_entry['mod_abbreviation'], agr)
+                    logger.info(dqm_mca_entry)
+                    url = 'http://' + api_server + ':' + api_port + '/reference/mod_corpus_association/'
+                    headers = generic_api_post(live_changes, url, headers, dqm_mca_entry, agr, None, None)
 
     dqm_mod_ref_types = []
     if 'MODReferenceTypes' in dqm_entry:
