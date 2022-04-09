@@ -6,16 +6,13 @@ Paulo Nuin Apr 2022
 """
 
 
-import sys
-import pandas as pd
-import os
-import click
 import hashlib
-import logging
-import coloredlogs
 import json
-import hashlib
+import logging
 
+import click
+import coloredlogs
+import pandas as pd
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -102,7 +99,7 @@ def get_new_items(old_dqm, new_dqm):
     :return:
     """
 
-    logger.info(f"Getting new items")
+    logger.info("Getting new items")
     new_items = new_dqm[~new_dqm.primaryId.isin(old_dqm.primaryId)]
 
     print(new_items)
@@ -130,7 +127,7 @@ def get_changed_items(old_dqm, new_dqm):
     :return:
     """
 
-    logger.info(f"Getting changed items")
+    logger.info("Getting changed items")
 
 
 @click.command()
