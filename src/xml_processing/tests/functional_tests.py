@@ -196,7 +196,7 @@ def title_check(agr_data, value):
     return 'Failure'
 
 
-def mod_corpus_association_check (agr_data, values):
+def mod_corpus_association_check(agr_data, values):
     """
     check a database reference has explicit mod corpus association
 
