@@ -673,52 +673,27 @@ def compare_keywords(db_entry, dqm_entry):
 
 
 # always update mod_reference_types and mod_corpus_associations, whether 'mod_specific_fields_only' or 'mod_biblio_all'
-def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):
+def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):  # noqa: C901
     api_port = environ.get('API_PORT')
 
-    db_mod_corpus_association = set()
-#     logger.info(db_entry)
-    db_entry_text = json.dumps(db_entry, indent=4, sort_keys=True)
-    print('db ')
-    print(db_entry_text)
-# db_entry has 
-#     "mod_corpus_association": [
-#         {
-#             "corpus": true,
-#             "date_created": "2022-04-07T23:34:51.918373",
-#             "date_updated": "2022-04-08T04:22:16.961535",
-#             "mod_corpus_association_id": 299,
-#             "mod_corpus_sort_source": "dqm_files",
-#             "mod_id": 91,
-#             "reference_id": 366
-#         }
-#     ],
-# while api has
-#   {
-#     "mod_corpus_association_id": 299
-#     "date_created": "2022-04-07T23:34:51.918373"
-#     "mod_corpus_sort_source": "dqm_files"
-#     "mod_abbreviation": "WB"
-#     "date_updated": "2022-04-08T04:22:16.961535"
-#     "corpus": true
-#   }
-# meaning
-# from literature.models import ReferenceModel
-# is not getting what the API shows
+    # to debug
+    # db_entry_text = json.dumps(db_entry, indent=4, sort_keys=True)
+    # print(db_entry_text)
 
-    if 'mod_corpus_associations' in db_entry:
-        for db_mca_entry in db_entry['mod_corpus_associations']:
-            if 'mod_abbreviation' in db_mca_entry:
-                db_mod_corpus_association.add(db_mca_entry['mod_abbreviation'])
-    logger.info(agr)
-    logger.info(db_mod_corpus_association)
+    db_mod_corpus_association = set()
+    if 'mod_corpus_association' in db_entry and db_entry['mod_corpus_association'] is not None:
+        for db_mca_entry in db_entry['mod_corpus_association']:
+            if 'mod' in db_mca_entry and db_mca_entry['mod'] is not None:
+                if 'abbreviation' in db_mca_entry['mod'] and db_mca_entry['mod']['abbreviation'] is not None:
+                    db_mod_corpus_association.add(db_mca_entry['mod']['abbreviation'])
+    # logger.info(agr)
+    # logger.info(db_mod_corpus_association)
     if 'modCorpusAssociations' in dqm_entry:
         for dqm_mca_entry in dqm_entry['modCorpusAssociations']:
             if 'modAbbreviation' in dqm_mca_entry and dqm_mca_entry['modAbbreviation'] is not None:
                 if dqm_mca_entry['modAbbreviation'] not in db_mod_corpus_association:
-                    logger.info("Action : add %s to %s", dqm_mca_entry['modAbbreviation'], agr)
-                    logger.info(dqm_mca_entry)
-    
+                    logger.info("Action : add mod corpus association for %s to %s", dqm_mca_entry['modAbbreviation'], agr)
+                    # logger.info(dqm_mca_entry)
 
     dqm_mod_ref_types = []
     if 'MODReferenceTypes' in dqm_entry:
