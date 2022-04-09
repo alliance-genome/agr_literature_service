@@ -139,6 +139,9 @@
       "pmid": "PMID:21873635",
       "modId": ["FB:FBrf0239784", "MGI:6201960", "RGD:13792537", "SGD:S000246339", "WB:WBPaper00046480", "ZFIN:ZDB-PUB-110330-1"]
     }, {
+      "pmid": "PMID:21873635",
+      "modId": ["FB:FBrf0106846", "RGD:2304238", "WB:WBPaper00012751"]
+    }, {
       "pmid": "PMID:10206683",
       "modId": ["RGD:11526447"]
     }, {
