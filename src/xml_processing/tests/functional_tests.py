@@ -196,6 +196,48 @@ def title_check(agr_data, value):
     return 'Failure'
 
 
+def mod_corpus_association_check (agr_data, values):
+    """
+    check a database reference has explicit mod corpus association
+
+    :param agr_data:
+    :param value:
+    :return:
+    """
+
+    failure_string = ''
+    db_values = set()
+    if 'mod_corpus_associations' in agr_data:
+        for mca_db in agr_data['mod_corpus_associations']:
+            db_string = ''
+            if 'mod_abbreviation' in mca_db:
+                db_string = db_string + mca_db['mod_abbreviation']
+            if 'mod_corpus_sort_source' in mca_db:
+                db_string = db_string + mca_db['mod_corpus_sort_source']
+            if 'corpus' in mca_db:
+                db_string = db_string + str(mca_db['corpus'])
+            db_values.add(db_string)
+    for mca_dqm in values:
+        dqm_string = ''
+        if 'mod_abbreviation' in mca_dqm:
+            dqm_string = dqm_string + mca_dqm['mod_abbreviation']
+        if 'mod_corpus_sort_source' in mca_dqm:
+            dqm_string = dqm_string + mca_dqm['mod_corpus_sort_source']
+        if 'corpus' in mca_dqm:
+            dqm_string = dqm_string + str(mca_dqm['corpus'])
+        if dqm_string not in db_values:
+            mca_string = json.dumps(mca_dqm, indent=4, sort_keys=True)
+            failure_string = failure_string + mca_string + " not in database. "
+    result = 'Failure'
+    if failure_string != '':
+        failure_string = 'Failure: ' + failure_string
+        result = failure_string
+    else:
+        result = 'Success'
+    assert result == 'Success'
+    return result
+
+
 def mod_reference_types_check(agr_data, values):
     """
     check a database reference has explicit mod reference types
@@ -537,6 +579,7 @@ def check_test(agr_data, check, value):
         'Keywords': keywords_check,
         'has_erratum': erratum_check,
         'MODReferenceTypes': mod_reference_types_check,
+        'ModCorpusAssociation': mod_corpus_association_check,
         'authors': authors_exact_check,
         'FAIL': title_check
     }
