@@ -218,7 +218,6 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     pmids_not_found = load_pmids_not_found()
 
     # make this True for live changes
-    # PUT THIS BACK
     # live_changes = False
     live_changes = True
 
@@ -553,7 +552,6 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     for agr in entries:
         dqm_entry = entries[agr]
         # to test a particular reference curie
-        # PUT THIS BACK
         # if agr != 'AGR:AGR-Reference-0000000013':
         #     continue
 
