@@ -102,7 +102,7 @@ def get_new_items(old_dqm, new_dqm):
     logger.info("Getting new items")
     new_items = new_dqm[~new_dqm.primaryId.isin(old_dqm.primaryId)]
 
-    print(new_items)
+    return new_items
 
 
 def read_dqm_csv(file_name):
@@ -164,11 +164,8 @@ def process_dqm_data(old_version, new_version, output, test):
         new_dqm = read_dqm_csv(new_version)
         old_dqm = read_dqm_csv(old_version)
 
-    get_new_items(old_dqm, new_dqm)
-    get_changed_items(old_dqm, new_dqm)
-
-    # new_dqm.to_csv("new_dqm.csv", index=False)
-    # old_dqm.to_csv("old_dqm.csv", index=False)
+    new_items = get_new_items(old_dqm, new_dqm)
+    changed_items = get_changed_items(old_dqm, new_dqm)
 
 
 if __name__ == "__main__":
