@@ -576,6 +576,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
             for entry_field in blank_fields:
                 del entry[entry_field]
 
+            # inject the mod corpus association data because if it came from that mod dqm file it should have this entry
+            mod_corpus_associations = [{"modAbbreviation": mod, "modCorpusSortSource": "dqm_files", "corpus": True}]
+            entry['modCorpusAssociations'] = mod_corpus_associations
+
             # need to process crossReferences once to reassign primaryId if PMID and filter out
             # unexpected crossReferences,
             # then again later to clean up crossReferences that get data from pubmed xml (once the PMID is known)
@@ -883,6 +887,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
         alliance_category_dict = dict()
         sanitized_entry = dict()
         cross_references_dict = dict()
+        mod_corpus_association_dict = dict()
         for mod in unmerged_pubmed_data[pmid]:
             entry = unmerged_pubmed_data[pmid][mod]
 
@@ -915,6 +920,12 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                         else:
                             sanitized_entry[aggregate_field] = [value]
 
+            if 'modCorpusAssociations' in entry:
+                for mod_corpus_association in entry['modCorpusAssociations']:
+                    id = mod_corpus_association['modAbbreviation']
+                    mod_corpus_association_dict[id] = mod_corpus_association
+                    # logger.info("mod_corpus_association %s", mod_corpus_association)
+
             if 'crossReferences' in entry:
                 for cross_ref in entry['crossReferences']:
                     id = cross_ref['id']
@@ -922,6 +933,12 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                     if 'pages' in cross_ref:
                         pages = cross_ref['pages']
                     cross_references_dict[id] = pages
+
+        for mod_corpus_association_id in mod_corpus_association_dict:
+            if 'modCorpusAssociations' in sanitized_entry:
+                sanitized_entry['modCorpusAssociations'].append(mod_corpus_association_dict[mod_corpus_association_id])
+            else:
+                sanitized_entry['modCorpusAssociations'] = [mod_corpus_association_dict[mod_corpus_association_id]]
 
         for cross_ref_id in cross_references_dict:
             pages = cross_references_dict[cross_ref_id]
@@ -1049,7 +1066,7 @@ if __name__ == "__main__":
         if args['directory']:
             output_directory = args['directory']
 
-        # pipenv run python parse_dqm_json_reference.py -p
+        # pipenv run python parse_dqm_json_reference.py -f dqm_sample/ -p
         if args['generate_pmid_data']:
             logger.info("Generating PMID files from DQM data")
             generate_pmid_data(args['file'], output_directory)
