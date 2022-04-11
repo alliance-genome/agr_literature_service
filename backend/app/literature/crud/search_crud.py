@@ -1,11 +1,9 @@
-from typing import List
-
 from elasticsearch import Elasticsearch
 from literature.config import config
 from literature.models import ReferenceModel
 from sqlalchemy.orm import Session
 
-from literature.models import ModCorpusAssociationModel, ModModel, CrossReferenceModel, ResourceDescriptorModel
+from literature.models import ModCorpusAssociationModel, ModModel, ResourceDescriptorModel
 from literature.schemas import ReferenceSchemaNeedReviewShow, CrossReferenceSchemaShow
 
 
