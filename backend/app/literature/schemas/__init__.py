@@ -75,6 +75,7 @@ from literature.schemas.reference_comment_and_correction_schemas import Referenc
 from literature.schemas.reference_schemas import ReferenceSchemaPost
 from literature.schemas.reference_schemas import ReferenceSchemaUpdate
 from literature.schemas.reference_schemas import ReferenceSchemaShow
+from literature.schemas.reference_schemas import ReferenceSchemaNeedReviewShow
 
 from literature.schemas.file_schemas import FileSchemaUpdate
 from literature.schemas.file_schemas import FileSchemaShow

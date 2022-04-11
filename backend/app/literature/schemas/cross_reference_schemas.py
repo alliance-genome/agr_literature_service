@@ -58,7 +58,7 @@ class CrossReferenceSchemaShow(BaseModel):
     curie: str
     url: Optional[str] = None
     pages: Optional[List[CrossReferencePageSchemaShow]] = None
-    is_obsolete: bool
+    is_obsolete: Optional[bool]
 
 
 class CrossReferenceSchema(BaseModel):
