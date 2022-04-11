@@ -99,6 +99,12 @@
         "AggregateMods": ["WB", "FB", "ZFIN", "SGD", "MGI", "RGD"]
       }
     }, {
+      "pmid": "PMID:10022914",
+      "modId": ["FB:FBrf0106846", "RGD:2304238"],
+      "load_check": {
+        "AggregateMods": ["FB", "RGD"]
+      }
+    }, {
       "pmid": "PMID:31193955",
       "modId": ["ZFIN:ZDB-PUB-190614-11"],
       "doi": "DOI:10.1016/j.gene.2019.100011",
