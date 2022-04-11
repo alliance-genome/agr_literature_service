@@ -128,6 +128,17 @@ def get_changed_items(old_dqm, new_dqm):
     """
 
     logger.info("Getting changed items")
+    pd.set_option('display.max_rows', None)
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.width', 1000)
+    pd.set_option('display.colheader_justify', 'center')
+    pd.set_option('display.precision', 2)
+    logger.info("Getting changed items")
+    merged = old_dqm.merge(new_dqm, how='inner', left_on=["primaryId"], right_on=["primaryId"])
+
+    differences = merged[merged.md5_x != merged.md5_y]
+
+    return differences
 
 
 @click.command()
