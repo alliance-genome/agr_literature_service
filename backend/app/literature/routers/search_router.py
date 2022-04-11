@@ -28,5 +28,5 @@ def search(query: str):
 @router.get('/need_review',
             status_code=200,
             response_model=List[ReferenceSchemaNeedReviewShow])
-def show_need_review(mod_abbreviation: str, db: Session = db_session):
-    return search_crud.show_need_review(mod_abbreviation, db)
+def show_need_review(mod_abbreviation: str, count: int = None, db: Session = db_session):
+    return search_crud.show_need_review(mod_abbreviation, count, db)
