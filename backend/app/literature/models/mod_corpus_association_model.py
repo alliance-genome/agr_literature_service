@@ -46,8 +46,8 @@ class ModCorpusAssociationModel(Base):
 
     mod = relationship(
         "ModModel",
-        back_populates="mod_corpus_association",
-        lazy="joined"
+        lazy="joined",
+        cascade="all, delete"
     )
 
     corpus = Column(
