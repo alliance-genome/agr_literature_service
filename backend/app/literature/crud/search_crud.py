@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 from elasticsearch import Elasticsearch
 from literature.config import config
 from literature.models import ReferenceModel
@@ -34,7 +32,7 @@ def show_need_review(mod_abbreviation, db: Session):
     ).join(
         ReferenceModel.mod_corpus_association
     ).filter(
-        ModCorpusAssociationModel.corpus == None
+        ModCorpusAssociationModel.corpus == None # noqa
     ).join(
         ModCorpusAssociationModel.mod
     ).filter(
