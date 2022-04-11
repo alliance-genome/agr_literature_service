@@ -1,3 +1,5 @@
+from typing import List
+
 from elasticsearch import Elasticsearch
 from literature.config import config
 from literature.models import ReferenceModel
@@ -47,7 +49,7 @@ def show_need_review(mod_abbreviation, db: Session):
     references = []
     for reference_xref_joined in references_xref_joined:
         if reference_xref_joined.curie not in ref_curie_xref_set:
-            cross_references = []
+            cross_references: List[CrossReferenceSchemaShow] = []
             references.append(ReferenceSchemaNeedReviewShow(
                 curie=reference_xref_joined.curie,
                 title=reference_xref_joined.title,
@@ -57,6 +59,7 @@ def show_need_review(mod_abbreviation, db: Session):
         db_prefix, local_id = reference_xref_joined.cross_reference_curie.split(":", 1)
         if resource_descriptor_default_urls:
             xref_url = resource_descriptor_default_urls_dict[db_prefix].replace("[%s]", local_id)
-            references[-1].cross_references.append(CrossReferenceSchemaShow(
-                curie=reference_xref_joined.cross_reference_curie, url=xref_url))
+            if references[-1].cross_references is not None:
+                references[-1].cross_references.append(CrossReferenceSchemaShow(
+                    curie=reference_xref_joined.cross_reference_curie, url=xref_url))
     return references
