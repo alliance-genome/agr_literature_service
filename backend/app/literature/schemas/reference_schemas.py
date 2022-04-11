@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, validator
 
@@ -145,3 +145,10 @@ class ReferenceSchemaShow(BaseModelShow):
     editors: Optional[List[EditorSchemaShow]] = None
     comment_and_corrections: CommentAndCorrectionSchemaRelations
     open_access: Optional[bool] = None
+
+
+class ReferenceSchemaNeedReviewShow(BaseModel):
+    curie: str
+    title: str
+    abstract: str
+    cross_references: Optional[List[CrossReferenceSchemaShow]]
