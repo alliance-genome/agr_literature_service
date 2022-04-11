@@ -9,7 +9,6 @@ from typing import Dict
 
 import pytz
 from sqlalchemy import Column, DateTime, Integer, String
-from sqlalchemy.orm import relationship
 
 from literature.database.base import Base
 
@@ -22,14 +21,6 @@ class ModModel(Base):
         Integer,
         primary_key=True,
         autoincrement=True
-    )
-
-    mod_corpus_association = relationship(
-        "ModCorpusAssociationModel",
-        lazy="joined",
-        primaryjoin="ModModel.mod_id==ModCorpusAssociationModel.mod_id",
-        back_populates="mod",
-        cascade="all, delete, delete-orphan"
     )
 
     abbreviation = Column(
