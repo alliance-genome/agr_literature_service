@@ -17,6 +17,10 @@ from dotenv import load_dotenv
 from helper_file_processing import (generate_cross_references_file,
                                     load_ref_xref)
 
+from literature.database.main import get_db
+from literature.models import ReferenceModel, CrossReferenceModel, ModCorpusAssociationModel, ModModel
+
+
 load_dotenv()
 
 
@@ -140,6 +144,30 @@ if not path.exists(pmc_storage_path):
 #     'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*[ALL]+OR+melanogaster[ALL]+NOT+pubstatusaheadofprint&retmax=100000000',
 
 # alliance_pmids = set()     # type: Set
+
+
+def get_pmid_association_to_mod_via_reference(pmids: List[str], mod_abbreviation: str):
+    db_session = next(get_db())
+    query = db_session.query(
+        CrossReferenceModel.curie,
+        ReferenceModel.curie,
+        ModModel.abbreviation
+    ).join(
+        ReferenceModel.cross_references
+    ).filter(
+        CrossReferenceModel.curie.in_(pmids)
+    ).outerjoin(
+        ReferenceModel.mod_corpus_association
+    ).outerjoin(
+        ModCorpusAssociationModel.mod
+    )
+    results = query.all()
+    pmid_curie_mod_dict = {result[0]: (result[1], result[2] if result[2] == mod_abbreviation else None)
+                           for result in results}
+    for pmid in pmids:
+        if pmid not in pmid_curie_mod_dict:
+            pmid_curie_mod_dict[pmid] = (None, None)
+    return pmid_curie_mod_dict
 
 
 def query_pubmed_mod_updates():
