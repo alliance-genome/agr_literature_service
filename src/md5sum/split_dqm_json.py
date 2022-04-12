@@ -4,7 +4,7 @@ import json
 import hashlib
 import sys
 
-from os import environ, path, makedirs
+from os import path
 import logging.config
 
 import warnings
@@ -23,7 +23,6 @@ def split_dqm_json(input_path):      # noqa: C901
     pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished',
                    'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher',
                    'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
-
 
     counter = 0
     for mod in mods:
@@ -64,7 +63,7 @@ def split_dqm_json(input_path):      # noqa: C901
         logger.info("Writing md5sum mappings to %s", md5file)
         with open(md5file, "a") as md5file_fh:
             md5file_fh.write(md5data)
-            
+
 
 def split_identifier(identifier, ignore_error=False):
     """

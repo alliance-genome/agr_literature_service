@@ -14,6 +14,7 @@ import click
 import coloredlogs
 import pandas as pd
 
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 coloredlogs.install(level="DEBUG")
@@ -28,7 +29,7 @@ def hash_df(df):
 
     logger.info("Hashing dataframe")
     hashes = []
-    for index, row in df.iterrows():
+    for _index, row in df.iterrows():
         hashes.append(hashlib.md5(str(row).encode('utf-8')).hexdigest())
     df['md5'] = hashes
 
