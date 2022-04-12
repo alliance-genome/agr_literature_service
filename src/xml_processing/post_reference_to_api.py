@@ -99,6 +99,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     remap_keys['allianceCategory'] = 'category'
     remap_keys['MODReferenceType'] = 'mod_reference_types'
     remap_keys['MODReferenceTypes'] = 'mod_reference_types'
+    remap_keys['modCorpusAssociations'] = 'mod_corpus_associations'
     remap_keys['plainLanguageAbstract'] = 'plain_language_abstract'
     remap_keys['pubmedAbstractLanguages'] = 'pubmed_abstract_languages'
     remap_keys['publicationStatus'] = 'pubmed_publication_status'
@@ -117,6 +118,11 @@ def post_references(input_file, check_file_flag):      # noqa: C901
 
     remap_subkeys['mod_reference_types'] = dict()
     remap_subkeys['mod_reference_types']['referenceType'] = 'reference_type'
+
+    remap_subkeys['mod_corpus_associations'] = dict()
+    remap_subkeys['mod_corpus_associations']['modAbbreviation'] = 'mod_abbreviation'
+    remap_subkeys['mod_corpus_associations']['modCorpusSortSource'] = 'mod_corpus_sort_source'
+    remap_subkeys['mod_corpus_associations']['dqmFiles'] = 'dqm_files'
 
     remap_subkeys['tags'] = dict()
     remap_subkeys['tags']['tagName'] = 'tag_name'

@@ -145,3 +145,11 @@ class ReferenceSchemaShow(BaseModelShow):
     editors: Optional[List[EditorSchemaShow]] = None
     comment_and_corrections: CommentAndCorrectionSchemaRelations
     open_access: Optional[bool] = None
+
+
+class ReferenceSchemaNeedReviewShow(BaseModel):
+    curie: str
+    title: str
+    abstract: str
+    mod_corpus_association_id: int
+    cross_references: Optional[List[CrossReferenceSchemaShow]]

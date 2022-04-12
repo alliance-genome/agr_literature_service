@@ -18,8 +18,10 @@ import tarfile
 from os import environ, listdir, makedirs, path, rename, walk
 from shutil import copy2
 
-import boto3
-from botocore.exceptions import ClientError
+from helper_s3 import upload_file_to_s3
+
+# import boto3
+# from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
 # from datetime import datetime
@@ -46,7 +48,7 @@ temp_expand_dir = process_path + 'expand_tgz/temp_expand/'
 if not path.exists(temp_expand_dir):
     makedirs(temp_expand_dir)
 
-s3_client = boto3.client('s3')
+# s3_client = boto3.client('s3')
 
 
 def expand_tgz(tgz_file, expand_dir):
@@ -101,26 +103,26 @@ def upload_s3_dir(expand_dir, pmid):
             upload_file_to_s3(path.join(root, filename), bucketname, file)
 
 
-def upload_file_to_s3(filepath, bucketname, s3_file_location):
-    """
-
-    :param filepath:
-    :param bucketname:
-    :param s3_file_location:
-    :return:
-    """
-
-    try:
-        response = s3_client.upload_file(filepath, bucketname, s3_file_location)
-        if response is not None:
-            logger.info("boto 3 uploaded response: %s", response)
-        # else:
-        #     logger.info("uploaded to s3 %s %s", bucketname, filepath)
-    except ClientError as e:
-        logging.error(e)
-        return False
-
-    return True
+# def upload_file_to_s3(filepath, bucketname, s3_file_location):
+#     """
+#
+#     :param filepath:
+#     :param bucketname:
+#     :param s3_file_location:
+#     :return:
+#     """
+#
+#     try:
+#         response = s3_client.upload_file(filepath, bucketname, s3_file_location)
+#         if response is not None:
+#             logger.info("boto 3 uploaded response: %s", response)
+#         # else:
+#         #     logger.info("uploaded to s3 %s %s", bucketname, filepath)
+#     except ClientError as e:
+#         logging.error(e)
+#         return False
+#
+#     return True
 
 
 def process_tgz():
