@@ -151,4 +151,5 @@ class ReferenceSchemaNeedReviewShow(BaseModel):
     curie: str
     title: str
     abstract: str
+    mod_corpus_association_id: int
     cross_references: Optional[List[CrossReferenceSchemaShow]]
