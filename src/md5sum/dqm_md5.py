@@ -163,6 +163,8 @@ def process_dqm_data(old_version, new_version, output, test):
     new_items = get_new_items(old_dqm, new_dqm)
     changed_items = get_changed_items(old_dqm, new_dqm)
 
+    print(new_items, changed_items)
+
 
 if __name__ == "__main__":
 

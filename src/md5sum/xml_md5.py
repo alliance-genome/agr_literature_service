@@ -7,7 +7,6 @@ Paulo Nuin Apr 2022
 
 
 import hashlib
-import json
 import logging
 
 import click
@@ -122,6 +121,7 @@ def process_xml_data(old_location, new_location, output, test, json):
     compare_md5sum = get_changed_items(old_df, new_df)
     print(new_items)
     print(compare_md5sum)
+
 
 if __name__ == "__main__":
 
