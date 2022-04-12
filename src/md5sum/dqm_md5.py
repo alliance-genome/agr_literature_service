@@ -19,10 +19,6 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(level="DEBUG")
 
 
-# MODS = ["SGD", "RGD", "FB", "WB", "MGI", "ZFIN"]
-# DATATYPES = ["REFERENCE", "REF-EXCHANGE", "RESOURCE"]
-
-
 def hash_df(df):
     """
 
