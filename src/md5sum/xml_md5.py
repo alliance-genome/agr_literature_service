@@ -95,11 +95,22 @@ def get_data(location, test=False, json=False):
     return md5sum
 
 
+def generate_output(new_items, changed_items):
+    """
+
+    :param new_items:
+    :param changed_items:
+    :return:
+    """
+    new_items.to_json("new_items.json", orient="records")
+    changed_items.to_json("changed_items.json", orient="records")
+
+
 @click.command()
 @click.option("--old-location", "-O", "old_location", default=None, help="Old version of the file")
 @click.option("--new-location", "-N", "new_location", default=None, help="New version of the file")
 @click.option("--json", "-j", "json", is_flag=True, help="Input is JSON files")
-@click.option("--output", "-o", "output", default=None, help="Output file")
+@click.option("--output", "-o", "output", is_flag=True, default=None, help="Generate output file")
 @click.option("--test", "-t", "test", is_flag=True, default=False, help="Test mode, reading csv files")
 def process_xml_data(old_location, new_location, output, test, json):
     """
@@ -118,9 +129,11 @@ def process_xml_data(old_location, new_location, output, test, json):
     new_df = pd.DataFrame(list(new_md5sum.items()), columns=['filename', 'md5_y'])
 
     new_items = get_new_items(old_df, new_df)
-    compare_md5sum = get_changed_items(old_df, new_df)
-    print(new_items)
-    print(compare_md5sum)
+    chanmged_items = get_changed_items(old_df, new_df)
+
+    if output:
+        logger.info("Generating output file")
+        generate_output(new_items, chanmged_items)
 
 
 if __name__ == "__main__":
