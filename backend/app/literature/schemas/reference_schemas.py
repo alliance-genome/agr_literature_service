@@ -152,4 +152,5 @@ class ReferenceSchemaNeedReviewShow(BaseModel):
     title: str
     abstract: str
     mod_corpus_association_id: int
+    resource_title: str
     cross_references: Optional[List[CrossReferenceSchemaShow]]
