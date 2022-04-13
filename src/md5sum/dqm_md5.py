@@ -1,5 +1,5 @@
 """
-dqm_md5.py - MD5 checksum calculation
+dqm_md5.py - MD5 checksum calculation for DQM JSON files
 
 Paulo Nuin Apr 2022
 
@@ -24,8 +24,12 @@ coloredlogs.install(level="DEBUG")
 def hash_df(df):
     """
 
-    :param df:
-    :return:
+    function that hashes the dataframe and adds a md5 column to the it
+
+    TODO: might be able to be optimized by using some lambda function on the DF
+
+    :param df: dataframe to be hashed
+    :return: dataframe with md5 column
     """
 
     logger.info("Hashing dataframe")
@@ -40,8 +44,13 @@ def hash_df(df):
 def read_dqm_file(file_name):
     """
 
-    :param file_name:
-    :return:
+    function thar reads the DQM file
+    pandas has issues with JSON with mixed contents so we need to normalize the JSON
+    Main element on the DQM JSON is the [data] element, and this is used as the main
+    source of information, and all other elements become rows in the dataframe
+
+    :param file_name: DQM file name
+    :return: datafrane with DQM contents
     """
 
     logger.info(f"Reading file {file_name}")
@@ -164,7 +173,7 @@ def generate_output(new_items, changed_items, mod_output):
     new_items.to_json(f"{mod_output}_new.json", orient="records")
     changed_items.to_json(f"{mod_output}_changed.json", orient="records")
 
-    md5sum_only = changed_items[["primaryId","md5_x", "md5_y"]]
+    md5sum_only = changed_items[["primaryId", "md5_x", "md5_y"]]
     md5sum_only.to_csv(f"{mod_output}_changed.csv", index=False)
 
     return "success"
@@ -188,8 +197,6 @@ def process_dqm_data(old_version, new_version, output, test, mtrace):
     :param mtrace: Flag for memory trace, only if interested in memory usage
     :return:
     """
-
-
 
     tracemalloc.start()
     if not test:
