@@ -147,8 +147,8 @@ def generate_output(new_items, changed_items, mod_output):
     """
 
     logger.info("Generating output")
-    new_items.to_json(f"{mod_output}_new.json", orient='records')
-    changed_items.to_json(f"{mod_output}_changed.json", orient='records')
+    new_items.to_json(f"{mod_output}_new.json", orient="records")
+    changed_items.to_json(f"{mod_output}_changed.json", orient="records")
 
     return "success"
 
