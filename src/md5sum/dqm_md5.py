@@ -92,9 +92,12 @@ def sort_json(file_name):
 def get_new_items(old_dqm, new_dqm):
     """
 
-    :param old_dqm:
-    :param new_dqm:
-    :return:
+    function that compares the dataframes with old and new DQM files and
+    outputs the unique items in the new DQM file
+
+    :param old_dqm: dataframe with old DQM file, sorted
+    :param new_dqm: dataframe with new DQM file, sorted
+    :return: dataframe with new items, only columns from new DQM file
     """
 
     logger.info("Getting new items")
@@ -105,10 +108,13 @@ def get_new_items(old_dqm, new_dqm):
 
 def read_dqm_csv(file_name):
     """
-    faster, for testing only
 
-    :param file_name:
-    :return:
+    functions that reads a sorted JSON file dumped as CSV for quicker processing
+
+    TODO: function that reads a sorted JSON file dumps as CSV
+
+    :param file_name: DQM file name
+    :return: datagrame with DQM contents
     """
     logger.info(f"Reading file {file_name}")
     df = pd.read_csv(file_name)
@@ -119,9 +125,12 @@ def read_dqm_csv(file_name):
 def get_changed_items(old_dqm, new_dqm):
     """
 
-    :param old_dqm:
-    :param new_dqm:
-    :return:
+    function that compares the dataframes with old and new DQM files for
+    different md5sums
+
+    :param old_dqm: dataframe with old DQM file, sorted
+    :param new_dqm: dataframe with new DQM file, sorted
+    :return: datadframe with changed items all columns from both files
     """
 
     logger.info("Getting changed items")
@@ -140,15 +149,23 @@ def get_changed_items(old_dqm, new_dqm):
 def generate_output(new_items, changed_items, mod_output):
     """
 
-    :param new_items:
-    :param changed_items:
-    :param mod_output:
-    :return:
+    Function that generates the output files
+    {MOD}_new.json for new items
+    {MOD}_changed.json for changed items
+    {MOD}_changed.csv for changed items in CSV format (only primaryId and md5s are output)
+
+    :param new_items: dataframe with new items
+    :param changed_items: dataframe with changed items
+    :param mod_output: output MOD abbreviation
+    :return: success
     """
 
     logger.info("Generating output")
     new_items.to_json(f"{mod_output}_new.json", orient="records")
     changed_items.to_json(f"{mod_output}_changed.json", orient="records")
+
+    md5sum_only = changed_items[["primaryId","md5_x", "md5_y"]]
+    md5sum_only.to_csv(f"{mod_output}_changed.csv", index=False)
 
     return "success"
 
@@ -162,11 +179,17 @@ def generate_output(new_items, changed_items, mod_output):
 def process_dqm_data(old_version, new_version, output, test, mtrace):
     """
 
-    :param old_version:
-    :param new_version:
-    :param output:
+    Main function of the script
+
+    :param old_version: old version of the file
+    :param new_version: new version of the file
+    :param output: Flag if output will be generated or not
+    :param test: Flag for quicj testing, JSON files needs to be sorted and saved as CSV
+    :param mtrace: Flag for memory trace, only if interested in memory usage
     :return:
     """
+
+
 
     tracemalloc.start()
     if not test:
