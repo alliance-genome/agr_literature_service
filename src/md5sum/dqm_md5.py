@@ -9,11 +9,12 @@ Paulo Nuin Apr 2022
 import hashlib
 import json
 import logging
-
+import tracemalloc
+import os
 import click
 import coloredlogs
 import pandas as pd
-
+# from mongita import MongitaClientDisk
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -104,12 +105,11 @@ def get_new_items(old_dqm, new_dqm):
 
 def read_dqm_csv(file_name):
     """
-    faster for testing only
+    faster, for testing only
 
     :param file_name:
     :return:
     """
-
     logger.info(f"Reading file {file_name}")
     df = pd.read_csv(file_name)
 
@@ -130,7 +130,6 @@ def get_changed_items(old_dqm, new_dqm):
     pd.set_option('display.width', 1000)
     pd.set_option('display.colheader_justify', 'center')
     pd.set_option('display.precision', 2)
-    logger.info("Getting changed items")
     merged = old_dqm.merge(new_dqm, how='inner', left_on=["primaryId"], right_on=["primaryId"])
 
     differences = merged[merged.md5_x != merged.md5_y]
@@ -138,12 +137,29 @@ def get_changed_items(old_dqm, new_dqm):
     return differences
 
 
+def generate_output(new_items, changed_items, mod_output):
+    """
+
+    :param new_items:
+    :param changed_items:
+    :param mod_output:
+    :return:
+    """
+
+    logger.info("Generating output")
+    new_items.to_json(f"{mod_output}_new.json", orient='records')
+    changed_items.to_json(f"{mod_output}_changed.json", orient='records')
+
+    return "success"
+
+
 @click.command()
 @click.option("--old-version", "-O", "old_version", default=None, help="Old version of the file")
 @click.option("--new-version", "-N", "new_version", default=None, help="New version of the file")
-@click.option("--output", "-o", "output", default=None, help="Output file")
+@click.option("--output", "-o", "output", is_flag=True, default=None, help="Generate output")
 @click.option("--test", "-t", "test", is_flag=True, default=False, help="Test mode, reading csv files")
-def process_dqm_data(old_version, new_version, output, test):
+@click.option("--mtrace", "-m", "mtrace", is_flag=True, default=False, help="Memory trace")
+def process_dqm_data(old_version, new_version, output, test, mtrace):
     """
 
     :param old_version:
@@ -152,6 +168,7 @@ def process_dqm_data(old_version, new_version, output, test):
     :return:
     """
 
+    tracemalloc.start()
     if not test:
         sorted_new = sort_json(new_version)
         sorted_old = sort_json(old_version)
@@ -163,8 +180,14 @@ def process_dqm_data(old_version, new_version, output, test):
 
     new_items = get_new_items(old_dqm, new_dqm)
     changed_items = get_changed_items(old_dqm, new_dqm)
+    if mtrace:
+        print(f"Peak memory at {tracemalloc.get_traced_memory()[1]}")
+    tracemalloc.stop()
 
-    print(new_items, changed_items)
+    if output:
+        mod_output = os.path.basename(old_version).split("_")[-1].replace(".json", "")
+        logger.info(f"Generating output file for {mod_output}")
+        generate_output(new_items, changed_items, mod_output)
 
 
 if __name__ == "__main__":
