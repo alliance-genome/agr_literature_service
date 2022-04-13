@@ -28,12 +28,6 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-l', '--input-localfile', action='store_true', help='take input from local file')
-parser.add_argument('-u', '--input-url', action='store_true', help='take input from url')
-parser.add_argument('-s', '--upload-s3', action='store_true', help='upload json to s3')
-args = vars(parser.parse_args())
-
 
 # todo: save this in an env variable
 # root_path = '/home/azurebrd/git/agr_literature_service_demo/'
@@ -182,6 +176,12 @@ if __name__ == "__main__":
     """
     call main start function
     """
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-l', '--input-localfile', action='store_true', help='take input from local file')
+    parser.add_argument('-u', '--input-url', action='store_true', help='take input from url')
+    parser.add_argument('-s', '--upload-s3', action='store_true', help='upload json to s3')
+    args = vars(parser.parse_args())
 
     file_data = ''
     upload_to_s3 = False

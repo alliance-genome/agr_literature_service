@@ -2,8 +2,7 @@
 reference_crud.py
 =================
 """
-
-
+import logging
 from datetime import datetime
 from typing import Any, Dict, List
 
@@ -22,6 +21,10 @@ from literature.models import (AuthorModel, CrossReferenceModel, EditorModel,
                                ReferenceModel, ReferenceTagModel,
                                ResourceModel)
 from literature.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
+from literature.crud.mod_corpus_association_crud import create as create_mod_corpus_association
+
+
+logger = logging.getLogger(__name__)
 
 
 def create_next_curie(curie) -> str:
@@ -46,6 +49,9 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
     :return:
     """
 
+    add_separately_fields = ["mod_corpus_associations"]
+    list_fields = ["authors", "editors", "mod_reference_types", "tags", "mesh_terms", "cross_references"]
+
     reference_data = {}  # type: Dict[str, Any]
 
     if reference.cross_references:
@@ -67,7 +73,7 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
     for field, value in vars(reference).items():
         if value is None:
             continue
-        if field in ["authors", "editors", "mod_reference_types", "tags", "mesh_terms", "cross_references"]:
+        if field in list_fields:
             db_objs = []
             for obj in value:
                 obj_data = jsonable_encoder(obj)
@@ -93,7 +99,6 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
                     db_obj = MeshDetailModel(**obj_data)
                 elif field == "cross_references":
                     db_obj = CrossReferenceModel(**obj_data)
-
                 db.add(db_obj)
                 db_objs.append(db_obj)
             reference_data[field] = db_objs
@@ -109,12 +114,26 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Merged_into Reference with curie {value} does not exist")
             reference_data["merged_into_reference"] = merged_into_obj
+        elif field in add_separately_fields:
+            continue
         else:
             reference_data[field] = value
 
     reference_db_obj = ReferenceModel(**reference_data)
     db.add(reference_db_obj)
     db.commit()
+
+    for field, value in vars(reference).items():
+        if field == "mod_corpus_associations":
+            if value is not None:
+                for obj in value:
+                    obj_data = jsonable_encoder(obj)
+                    obj_data["reference_curie"] = curie
+                    try:
+                        create_mod_corpus_association(db, obj_data)
+                    except HTTPException:
+                        logger.warning("skipping mod corpus association to a mod that is already associated to "
+                                       "the reference")
 
     return curie
 
@@ -272,6 +291,16 @@ def show(db: Session, curie: str, http_request=True):  # noqa
     if reference.mod_reference_types:
         for mod_reference_type in reference_data["mod_reference_types"]:
             del mod_reference_type["reference_id"]
+
+    if reference.mod_corpus_association:
+        for i in range(len(reference_data["mod_corpus_association"])):
+            del reference_data["mod_corpus_association"][i]["reference_id"]
+            reference_data["mod_corpus_association"][i]["mod_abbreviation"] = reference_data[
+                "mod_corpus_association"][i]["mod"]["abbreviation"]
+            del reference_data["mod_corpus_association"][i]["mod"]
+            del reference_data["mod_corpus_association"][i]["mod_id"]
+        reference_data["mod_corpus_associations"] = reference_data["mod_corpus_association"]
+        del reference_data["mod_corpus_association"]
 
     if reference.tags:
         for tag in reference_data["tags"]:

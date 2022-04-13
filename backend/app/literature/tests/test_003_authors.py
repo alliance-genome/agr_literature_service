@@ -66,7 +66,7 @@ def test_update_author():
 def test_show_author():
     author = db.query(AuthorModel).filter(AuthorModel.name == "003_TCU").one()
     res = show(db, author.author_id)
-    assert res['orcid'] == "ORCID:4321-4321-4321-321X"
+    assert res['orcid']['curie'] == "ORCID:4321-4321-4321-321X"
 
     res = show_changesets(db, author.author_id)
 

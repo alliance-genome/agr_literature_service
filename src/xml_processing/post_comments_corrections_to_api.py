@@ -18,14 +18,6 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('post_comments_corrections_to_api')
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-p', '--generate-pmid-data', action='store_true', help='generate pmid outputs')
-parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
-parser.add_argument('-m', '--mod', action='store', help='which mod, use all or leave blank for all')
-parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
-
-args = vars(parser.parse_args())
-
 
 def post_comments_corrections(pmids_wanted):      # noqa: C901
     """
@@ -158,6 +150,14 @@ if __name__ == "__main__":
     """
     call main start function
     """
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p', '--generate-pmid-data', action='store_true', help='generate pmid outputs')
+    parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
+    parser.add_argument('-m', '--mod', action='store', help='which mod, use all or leave blank for all')
+    parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
+
+    args = vars(parser.parse_args())
 
     pmids_wanted = []
 

@@ -130,6 +130,10 @@ def show(db: Session, author_id: int):
         author_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == author_data["reference_id"]).first()
     del author_data["reference_id"]
 
+    author_data["orcid"] = author_data["orcid_cross_reference"]
+    del author_data["orcid_cross_reference"]
+    del author_data["reference_curie"]
+    del author_data["person_id"]
     return author_data
 
 

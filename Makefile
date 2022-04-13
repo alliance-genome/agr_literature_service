@@ -52,6 +52,11 @@ run-functest:
 	docker-compose --env-file .env.test down
 	docker-compose --env-file .env.test up -d postgres
 	sleep 5
+	docker-compose --env-file .env.test up -d api
+	sleep 5
+
+	# load the mods
+	docker-compose --env-file .env.test run test_runner python3 src/xml_processing/mod_populate_load.py
 
 	# load the data
 	docker-compose --env-file .env.test run test_runner /bin/bash src/xml_processing/sample_reference_populate_load.sh

@@ -11,6 +11,7 @@ from get_pubmed_xml import download_pubmed_xml
 from post_reference_to_api import post_references
 from sanitize_pubmed_json import sanitize_pubmed_json_list
 from xml_to_json import generate_json
+from helper_s3 import upload_file_to_s3
 
 # pipenv run python process_single_pmid.py -c 12345678
 # enter a single pmid as an argument, download xml, convert to json, sanitize, post to api
@@ -18,11 +19,6 @@ from xml_to_json import generate_json
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
-
-parser = argparse.ArgumentParser()
-parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
-
-args = vars(parser.parse_args())
 
 
 def check_pmid_cross_reference(pmid):
@@ -55,49 +51,6 @@ def check_pmid_cross_reference(pmid):
     return process_results
 
 
-# def sanitize_pubmed_json(pmid):
-#     base_path = environ.get('XML_PATH')
-#     pubmed_json_filepath = base_path + 'pubmed_json/' + pmid + '.json'
-#     sanitized_reference_json_path = base_path + 'sanitized_reference_json/'
-#     if not path.exists(sanitized_reference_json_path):
-#         makedirs(sanitized_reference_json_path)
-#
-#     pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReferences']
-#     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher', 'plainLanguageAbstract', 'pubmedAbstractLanguages']
-#     replace_value_fields = ['authors', 'pubMedType', 'meshTerms', 'crossReferences']
-#     date_fields = ['issueDate', 'dateArrivedInPubmed', 'dateLastModified']
-#
-#     pubmed_data = dict()
-#     try:
-#         with open(pubmed_json_filepath, 'r') as f:
-#             pubmed_data = json.load(f)
-#             f.close()
-#         entry = dict()
-#         entry['primaryId'] = 'PMID:' + pmid
-#         if 'nlm' in pubmed_data:
-#             entry['resource'] = 'NLM:' + pubmed_data['nlm']
-#         entry['category'] = 'unknown'
-#         for pmid_field in pmid_fields:
-#             if pmid_field in single_value_fields:
-#                 pmid_data = ''
-#                 if pmid_field in pubmed_data:
-#                     if pmid_field in date_fields:
-#                         pmid_data = pubmed_data[pmid_field]['date_string']
-#                     else:
-#                         pmid_data = pubmed_data[pmid_field]
-#                 if pmid_data != '':
-#                     entry[pmid_field] = pmid_data
-#             elif pmid_field in replace_value_fields:
-#                 if pmid_field in pubmed_data:
-#                     entry[pmid_field] = pubmed_data[pmid_field]
-#         sanitized_data = []
-#         sanitized_data.append(entry)
-#         json_filename = sanitized_reference_json_path + 'REFERENCE_PUBMED_' + pmid + '.json'
-#         write_json(json_filename, sanitized_data)
-#     except IOError:
-#         print(pubmed_json_filepath + ' not found in filesystem')
-
-
 def output_message_json(process_results):
     """
 
@@ -114,8 +67,19 @@ def output_message_json(process_results):
     else:
         process_result['text'] = 'Failure processing POST to API'
         process_result['status_code'] = 999
-    process_message_json = json.dumps(process_result)
-    print(process_message_json)
+    return json.dumps(process_result)
+
+
+def upload_xml_file_to_s3(pmid):
+    base_path = environ.get('XML_PATH')
+    env_state = environ.get('ENV_STATE', 'develop')
+    if env_state == 'build':
+        env_state = 'develop'
+    bucketname = 'agr-literature'
+    xml_filename = pmid + '.xml'
+    local_file_location = base_path + 'pubmed_xml/' + xml_filename
+    s3_file_location = env_state + '/reference/metadata/pubmed/xml/original/' + xml_filename
+    upload_file_to_s3(local_file_location, bucketname, s3_file_location)
 
 
 def process_pmid(pmid):
@@ -135,14 +99,19 @@ def process_pmid(pmid):
         # json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_' + pmid + '.json'
         json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_PMID.json'
         process_results = post_references(json_filepath, 'no_file_check')
-    output_message_json(process_results)
-    # print('finished')
+        upload_xml_file_to_s3(pmid)
+    return output_message_json(process_results)
 
 
 if __name__ == "__main__":
     """
     call main start function
     """
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
+
+    args = vars(parser.parse_args())
 
     pmids_wanted = []
 

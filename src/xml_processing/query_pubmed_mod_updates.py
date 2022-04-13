@@ -14,6 +14,13 @@ from typing import List, Set
 import requests
 from dotenv import load_dotenv
 
+from helper_file_processing import (generate_cross_references_file,
+                                    load_ref_xref)
+
+from literature.database.main import get_db
+from literature.models import ReferenceModel, CrossReferenceModel, ModCorpusAssociationModel, ModModel
+
+
 load_dotenv()
 
 
@@ -117,16 +124,6 @@ logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
-parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
-parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
-parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
-parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
-parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
-
-args = vars(parser.parse_args())
-
 base_path = environ.get('XML_PATH', "")
 search_path = base_path + 'pubmed_searches/'
 search_outfile_path = base_path + 'pubmed_searches/search_new_mods/'
@@ -146,27 +143,31 @@ if not path.exists(pmc_storage_path):
 #     'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=%27drosophil*[ALL]%20OR%20melanogaster[ALL]%20AND%202020/07/21:2021/07/21[EDAT]%20NOT%20pubstatusaheadofprint%27&retmax=100000000',
 #     'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*[ALL]+OR+melanogaster[ALL]+NOT+pubstatusaheadofprint&retmax=100000000',
 
-alliance_pmids = set()     # type: Set
+# alliance_pmids = set()     # type: Set
 
-mod_esearch_url = {
-    'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=drosophil*[ALL]+OR+melanogaster[ALL]+NOT+pubstatusaheadofprint',
-    'ZFIN': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=zebrafish[Title/Abstract]+OR+zebra+fish[Title/Abstract]+OR+danio[Title/Abstract]+OR+zebrafish[keyword]+OR+zebra+fish[keyword]+OR+danio[keyword]+OR+zebrafish[Mesh+Terms]+OR+zebra+fish[Mesh+Terms]+OR+danio[Mesh+Terms]',
-    'SGD': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=yeast+OR+cerevisiae',
-    'WB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=elegans'
-}
-# how far back to search pubmed in days for each MOD
-mod_daterange = {
-    'FB': '&reldate=365',
-    'ZFIN': '&reldate=730',
-    'SGD': '&reldate=14',
-    'WB': '&reldate=1825'
-}
-mod_false_positive_file = {
-    'FB': 'FB_fp_PMIDs_20210728.txt',
-    'WB': 'WB_false_positive_pmids',
-    'SGD': 'SGD_referencedeletedpmids_20210803.csv'
-}
-mods_to_query = ['FB', 'SGD', 'WB', 'ZFIN']
+
+def get_pmid_association_to_mod_via_reference(pmids: List[str], mod_abbreviation: str):
+    db_session = next(get_db())
+    query = db_session.query(
+        CrossReferenceModel.curie,
+        ReferenceModel.curie,
+        ModModel.abbreviation
+    ).join(
+        ReferenceModel.cross_references
+    ).filter(
+        CrossReferenceModel.curie.in_(pmids)
+    ).outerjoin(
+        ReferenceModel.mod_corpus_association
+    ).outerjoin(
+        ModCorpusAssociationModel.mod
+    )
+    results = query.all()
+    pmid_curie_mod_dict = {result[0]: (result[1], result[2] if result[2] == mod_abbreviation else None)
+                           for result in results}
+    for pmid in pmids:
+        if pmid not in pmid_curie_mod_dict:
+            pmid_curie_mod_dict[pmid] = (None, None)
+    return pmid_curie_mod_dict
 
 
 def query_pubmed_mod_updates():
@@ -175,7 +176,6 @@ def query_pubmed_mod_updates():
     :return:
     """
 
-    populate_alliance_pmids()
     # query_pmc_mgi()			# find pmc articles for mice and 9 journals, get pmid mappings and list of pmc without pmid
     # download_pmc_without_pmid_mgi()     # download pmc xml for pmc without pmid and find their article type
     query_mods()			# query pubmed for mod references
@@ -186,6 +186,28 @@ def query_mods():
 
     :return:
     """
+
+    mod_esearch_url = {
+        'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=drosophil*[ALL]+OR+melanogaster[ALL]+NOT+pubstatusaheadofprint',
+        'ZFIN': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=zebrafish[Title/Abstract]+OR+zebra+fish[Title/Abstract]+OR+danio[Title/Abstract]+OR+zebrafish[keyword]+OR+zebra+fish[keyword]+OR+danio[keyword]+OR+zebrafish[Mesh+Terms]+OR+zebra+fish[Mesh+Terms]+OR+danio[Mesh+Terms]',
+        'SGD': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=yeast+OR+cerevisiae',
+        'WB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=elegans'
+    }
+    # how far back to search pubmed in days for each MOD
+    mod_daterange = {
+        'FB': '&reldate=365',
+        'ZFIN': '&reldate=730',
+        'SGD': '&reldate=14',
+        'WB': '&reldate=1825'
+    }
+    mod_false_positive_file = {
+        'FB': 'FB_fp_PMIDs_20210728.txt',
+        'WB': 'WB_false_positive_pmids',
+        'SGD': 'SGD_referencedeletedpmids_20210803.csv'
+    }
+    mods_to_query = ['FB', 'SGD', 'WB', 'ZFIN']
+
+    alliance_pmids = populate_alliance_pmids()
 
     logger.info("Starting query mods")
     search_output = ''
@@ -230,11 +252,20 @@ def populate_alliance_pmids():
     :return:
     """
 
-    infile = base_path + 'inputs/alliance_pmids'
-    with open(infile, "r") as infile_fh:
-        for line in infile_fh:
-            pmid = line.rstrip()
-            alliance_pmids.add(pmid)
+    alliance_pmids = set()     # type: Set
+
+    # old way using flatfile from original population
+    # infile = base_path + 'inputs/alliance_pmids'
+    # with open(infile, "r") as infile_fh:
+    #     for line in infile_fh:
+    #         pmid = line.rstrip()
+    #         alliance_pmids.add(pmid)
+
+    generate_cross_references_file('reference')   # this updates from references in the database, and takes 88 seconds. if updating this script, comment it out after running it once
+    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+    for pmid in xref_ref['PMID']:
+        alliance_pmids.add(pmid)
+    return alliance_pmids
 
 
 # find pmc articles for mice and 9 journals, get pmid mappings and list of pmc without pmid
@@ -470,6 +501,16 @@ if __name__ == "__main__":
     """
     call main start function
     """
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
+    parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
+    parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
+    parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
+    parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
+    parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
+
+    args = vars(parser.parse_args())
 
     pmids_wanted = []     # type: List
 

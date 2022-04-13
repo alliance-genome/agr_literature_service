@@ -30,18 +30,6 @@ logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-x', '--xml', action='store_true', help='process xml files')
-parser.add_argument('-j', '--json', action='store_true', help='process json files')
-parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
-parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
-parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
-parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
-parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
-parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
-
-args = vars(parser.parse_args())
-
 # todo: save this in an env variable
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH', "")
@@ -77,6 +65,17 @@ if __name__ == "__main__":
     """
     call main start function
     """
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-x', '--xml', action='store_true', help='process xml files')
+    parser.add_argument('-j', '--json', action='store_true', help='process json files')
+    parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
+    parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
+    parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
+    parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
+    parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
+    parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
+
+    args = vars(parser.parse_args())
 
     file_type = 'xml'
 
