@@ -24,8 +24,12 @@ coloredlogs.install(level="DEBUG")
 def hash_df(df):
     """
 
-    :param df:
-    :return:
+    function that hashes a dataframe and add a column with the hash
+
+    TODO: can be optimized
+
+    :param df: dataframe with data
+    :return: dataframe with hash column
     """
 
     logger.info("Hashing dataframe")
@@ -40,8 +44,10 @@ def hash_df(df):
 def get_new_items(old_dqm, new_dqm):
     """
 
-    :param old_dqm:
-    :param new_dqm:
+    function that compares two md5sums and returns new items
+
+    :param old_dqm: dataframe with old file md5sums
+    :param new_dqm: dataframe with new file md5sums
     :return:
     """
 
@@ -54,9 +60,11 @@ def get_new_items(old_dqm, new_dqm):
 def get_changed_items(old_dqm, new_dqm):
     """
 
-    :param old_dqm:
-    :param new_dqm:
-    :return:
+    function that compare two md5sums and returns changed items
+
+    :param old_dqm: dataframe with old file md5sums
+    :param new_dqm: dataframe with new file md5sums
+    :return: dataframe with changed items
     """
 
     logger.info("Getting changed items")
@@ -76,8 +84,11 @@ def get_changed_items(old_dqm, new_dqm):
 def get_data(location, test=False, json=False):
     """
 
-    :param location:
-    :param test:
+    function that compares md5sums of files in two columns
+
+    :param location: directory with files
+    :param test: not implemented yet
+    :param json: flag to determine if input is JSON files
     :return:
     """
 
@@ -98,10 +109,18 @@ def get_data(location, test=False, json=False):
 def generate_output(new_items, changed_items):
     """
 
+    function that generates output files
+    new_items: new files
+    changed_items: changed files
+
+    only filename and md5sums are output, output is JSON for now
+    can be extended to XML or CSV
+
     :param new_items:
     :param changed_items:
     :return:
     """
+
     new_items.to_json("new_items.json", orient="records")
     changed_items.to_json("changed_items.json", orient="records")
 
@@ -115,9 +134,11 @@ def generate_output(new_items, changed_items):
 def process_xml_data(old_location, new_location, output, test, json):
     """
 
-    :param old_version:
-    :param new_version:
-    :param output:
+    :param old_location: directory with older version of the files
+    :param new_location: directory with newer version of the files
+    :param output: flag to determine if output file is generated
+    :param test: not implemented yet
+    :param json: flag to determine if input is JSON files
     :return:
     """
 
