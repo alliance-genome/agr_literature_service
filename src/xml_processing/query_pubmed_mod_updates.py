@@ -162,8 +162,10 @@ def get_pmid_association_to_mod_via_reference(pmids: List[str], mod_abbreviation
         ModCorpusAssociationModel.mod
     )
     results = query.all()
-    pmid_curie_mod_dict = {result[0]: (result[1], result[2] if result[2] == mod_abbreviation else None)
-                           for result in results}
+    pmid_curie_mod_dict = {}
+    for result in results:
+        if result[0] not in pmid_curie_mod_dict or pmid_curie_mod_dict[result[0]][1] is None:
+            pmid_curie_mod_dict[result[0]] = (result[1], result[2] if result[2] == mod_abbreviation else None)
     for pmid in pmids:
         if pmid not in pmid_curie_mod_dict:
             pmid_curie_mod_dict[pmid] = (None, None)
