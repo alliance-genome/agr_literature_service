@@ -10,10 +10,17 @@ from datetime import datetime
 # import os
 from os import environ, makedirs, path
 from typing import List, Set, Dict, Tuple, Union
+import json
+
 
 import requests
 from dotenv import load_dotenv
 
+from get_pubmed_xml import download_pubmed_xml
+from xml_to_json import generate_json
+from sanitize_pubmed_json import sanitize_pubmed_json_list
+from post_reference_to_api import post_references
+from helper_s3 import upload_file_to_s3
 from helper_file_processing import (generate_cross_references_file,
                                     load_ref_xref)
 
@@ -193,7 +200,8 @@ def query_mods():
         'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=drosophil*[ALL]+OR+melanogaster[ALL]+NOT+pubstatusaheadofprint',
         'ZFIN': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=zebrafish[Title/Abstract]+OR+zebra+fish[Title/Abstract]+OR+danio[Title/Abstract]+OR+zebrafish[keyword]+OR+zebra+fish[keyword]+OR+danio[keyword]+OR+zebrafish[Mesh+Terms]+OR+zebra+fish[Mesh+Terms]+OR+danio[Mesh+Terms]',
         'SGD': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=yeast+OR+cerevisiae',
-        'WB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=elegans'
+        'WB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=elegans',
+        'XB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=(Xenopus+OR+Silurana)+AND+%22Journal+Article%E2%80%9D'
     }
     # how far back to search pubmed in days for each MOD
     mod_daterange = {
@@ -207,9 +215,12 @@ def query_mods():
         'WB': 'WB_false_positive_pmids',
         'SGD': 'SGD_referencedeletedpmids_20210803.csv'
     }
-    mods_to_query = ['FB', 'SGD', 'WB', 'ZFIN']
+# PUT THIS BACK
+#     mods_to_query = ['FB', 'SGD', 'WB', 'ZFIN']
+#     alliance_pmids = populate_alliance_pmids()
 
-    alliance_pmids = populate_alliance_pmids()
+    alliance_pmids = set()     # type: Set
+    mods_to_query = ['ZFIN']
 
     logger.info("Starting query mods")
     search_output = ''
@@ -229,23 +240,75 @@ def query_mods():
             url = url + mod_daterange[mod]
         f = urllib.request.urlopen(url)
         xml_all = f.read().decode('utf-8')
+        pmids_to_create = []
+        agr_curies_to_corpus = []
         if re.findall(r"<Id>(\d+)</Id>", xml_all):
             pmid_group = re.findall(r"<Id>(\d+)</Id>", xml_all)
+            pmids_in_search = list(map(lambda x: 'PMID:' + x, pmid_group))
             new_pmids = []
-            for pmid in pmid_group:
-                if pmid not in alliance_pmids and pmid not in fp_pmids:
-                    new_pmids.append(pmid)
-                # new_pmids.append(pmid)
-            logger.info("%s search pmids not in alliance count : %s", mod, len(new_pmids))
-            search_output += mod + " search pmids not in alliance count : " + str(len(new_pmids)) + "\n"
-            pmids_joined = (',').join(sorted(new_pmids))
+            pmid_curie_mod_dict = get_pmid_association_to_mod_via_reference(pmids_in_search, mod)
+            # to debug
+            # json_data = json.dumps(pmid_curie_mod_dict, indent=4, sort_keys=True)
+            # print(mod)
+            # print(json_data)
+            # pmids_joined = (',').join(sorted(pmids_in_search))
             # logger.info(pmids_joined)
-            search_output += pmids_joined + "\n"
-    now = datetime.now()
-    date = now.strftime("%Y%m%d")
-    search_output_file = search_outfile_path + 'search_new_mods_' + date
-    with open(search_output_file, "w") as search_output_file_fh:
-        search_output_file_fh.write(search_output)
+            # logger.info(len(pmids_in_search))
+            for pmid in pmids_in_search:
+                if pmid in pmid_curie_mod_dict:
+                    agr_curie = pmid_curie_mod_dict[pmid][0]
+                    in_corpus = pmid_curie_mod_dict[pmid][1]
+                    # to debug
+                    # print(f"{pmid}\t{agr_curie}\t{in_corpus}")
+                    if agr_curie is None:
+                        pmids_to_create.append(pmid.replace('PMID:',''))
+                    elif in_corpus is None:
+                        agr_curies_to_corpus.append(agr_curie)
+        pmids_joined = (',').join(sorted(pmids_to_create))
+        logger.info('pmids_to_create')
+        logger.info(len(pmids_to_create))
+#         logger.info(pmids_joined)
+        pmids_joined = (',').join(sorted(agr_curies_to_corpus))
+        logger.info('agr_curies_to_corpus')
+        logger.info(len(agr_curies_to_corpus))
+#         logger.info(pmids_joined)
+
+        pmids_in_search = list(map(lambda x: 'PMID:' + x, pmid_group))
+        test_set_pmid = sorted(pmids_to_create)[0:1]
+        logger.info(test_set_pmid)
+        download_pubmed_xml(test_set_pmid)
+        generate_json(test_set_pmid, [])
+
+# TODO inject mod_corpus_association data
+        sanitize_pubmed_json_list(test_set_pmid)
+
+# TODO delete json_filepath after it's processed
+        json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_PMID.json'
+        process_results = post_references(json_filepath, 'no_file_check')
+
+# TODO upload each json file from test_set_pmid to s3
+#         upload_xml_file_to_s3(pmid)
+#     return output_message_json(process_results)
+                
+
+# old way to output what came out from search that is not in the database
+#                 if pmid not in alliance_pmids and pmid not in fp_pmids:
+#                     new_pmids.append(pmid)
+#                 # new_pmids.append(pmid)
+#             logger.info("%s search pmids not in alliance count : %s", mod, len(new_pmids))
+#             search_output += mod + " search pmids not in alliance count : " + str(len(new_pmids)) + "\n"
+#             pmids_joined = (',').join(sorted(new_pmids))
+#             # logger.info(pmids_joined)
+#             search_output += pmids_joined + "\n"
+#     now = datetime.now()
+#     date = now.strftime("%Y%m%d")
+#     search_output_file = search_outfile_path + 'search_new_mods_' + date
+#     with open(search_output_file, "w") as search_output_file_fh:
+#         search_output_file_fh.write(search_output)
+
+# TODO is it easier to create all these PMIDs and then attach mod corpus association to all of them, or to pass the mca value to the script that creates them ?
+# TODO route pubmed xml to download into   download_pubmed_xml(pmids_wanted)  and see if it's working from the import, then xml_to_json and sequentially process them, after injecting the mod_corpus_association for the mod
+# do not need to recursively process downloading errata and corrections, but if they exist, connect them.
 
 
 def populate_alliance_pmids():
@@ -517,6 +580,12 @@ if __name__ == "__main__":
     pmids_wanted = []     # type: List
 
     query_pubmed_mod_updates()
+
+    # to test Valerio's function
+#     pmids_wanted = ['PMID:32897189', 'PMID:1234', 'PMID:1', 'PMID:3']     # type: List
+#     pmid_curie_mod_dict = get_pmid_association_to_mod_via_reference(pmids_wanted, 'RGD')
+#     json_data = json.dumps(pmid_curie_mod_dict, indent=4, sort_keys=True)
+#     print(json_data)
 
 # #    python query_pubmed_mod_updates.py -d
 #     if args['database']:
