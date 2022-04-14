@@ -12,6 +12,10 @@ from sqlalchemy.orm import relationship
 
 from literature.database.base import Base
 from literature.schemas import FileCategories
+from literature.database.versioning import enable_versioning
+
+
+enable_versioning()
 
 
 class FileModel(Base):

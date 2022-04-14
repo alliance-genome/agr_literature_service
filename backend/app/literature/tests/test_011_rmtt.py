@@ -7,7 +7,8 @@ from literature.crud.reference_manual_term_tag_crud import (create, destroy,
                                                             patch, show,
                                                             show_changesets)
 from literature.database.config import SQLALCHEMY_DATABASE_URL
-from literature.models import Base, ReferenceManualTermTagModel
+from literature.database.base import Base
+from literature.models import ReferenceManualTermTagModel
 from literature.schemas import (ReferenceManualTermTagSchemaPatch,
                                 ReferenceManualTermTagSchemaPost)
 

@@ -6,7 +6,8 @@ from sqlalchemy.orm import sessionmaker
 from literature.crud.note_crud import (create, destroy, patch, show,
                                        show_changesets)
 from literature.database.config import SQLALCHEMY_DATABASE_URL
-from literature.models import Base, NoteModel
+from literature.database.base import Base
+from literature.models import NoteModel
 from literature.schemas import NoteSchemaPost
 
 metadata = MetaData()

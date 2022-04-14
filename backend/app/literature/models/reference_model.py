@@ -15,6 +15,10 @@ from sqlalchemy.sql.sqltypes import Boolean
 
 from literature.database.base import Base
 from literature.schemas import PubMedPublicationStatus, ReferenceCategory
+from literature.database.versioning import enable_versioning
+
+
+enable_versioning()
 
 
 class ReferenceModel(Base):
