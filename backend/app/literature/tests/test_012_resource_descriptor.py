@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 
 from literature.crud.resource_descriptor_crud import show, update
 from literature.database.config import SQLALCHEMY_DATABASE_URL
-from literature.models import Base, ResourceDescriptorModel
+from literature.database.base import Base
 
 metadata = MetaData()
 
