@@ -6,7 +6,8 @@ import logging
 import logging.config
 import re
 import sys
-from os import environ, listdir, path
+from os import environ, listdir
+# from os path
 
 from helper_file_processing import (generate_cross_references_file,
                                     load_ref_xref, split_identifier)
