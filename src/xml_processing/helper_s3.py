@@ -2,7 +2,8 @@
 # needs AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in environment.
 
 
-from os import path
+from os import environ
+# from os import path
 import sys
 import logging
 import logging.config
@@ -25,6 +26,9 @@ logging.basicConfig(level=logging.INFO,
                     format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
+logging.getLogger("s3transfer.utils").setLevel(logging.WARNING)
+logging.getLogger("s3transfer.tasks").setLevel(logging.WARNING)
+logging.getLogger("s3transfer.futures").setLevel(logging.WARNING)
 
 
 def upload_file_to_s3(filepath, bucketname, s3_file_location):
@@ -48,3 +52,15 @@ def upload_file_to_s3(filepath, bucketname, s3_file_location):
         return False
 
     return True
+
+
+def upload_xml_file_to_s3(pmid):
+    base_path = environ.get('XML_PATH')
+    env_state = environ.get('ENV_STATE', 'develop')
+    if env_state == 'build':
+        env_state = 'develop'
+    bucketname = 'agr-literature'
+    xml_filename = pmid + '.xml'
+    local_file_location = base_path + 'pubmed_xml/' + xml_filename
+    s3_file_location = env_state + '/reference/metadata/pubmed/xml/original/' + xml_filename
+    upload_file_to_s3(local_file_location, bucketname, s3_file_location)
