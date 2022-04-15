@@ -224,7 +224,7 @@ def query_mods():
 #     alliance_pmids = populate_alliance_pmids()
 
     # alliance_pmids = set()     # type: Set   # remove this later with removed block below
-    mods_to_query = ['ZFIN']
+    mods_to_query = ['WB']
 
     logger.info("Starting query mods")
     # search_output = ''  # remove this later with removed block below
@@ -248,17 +248,21 @@ def query_mods():
         agr_curies_to_corpus = []
         if re.findall(r"<Id>(\d+)</Id>", xml_all):
             pmid_group = re.findall(r"<Id>(\d+)</Id>", xml_all)
-            pmids_in_search = list(map(lambda x: 'PMID:' + x, pmid_group))
-            # new_pmids = []  # remove this later with removed block below
-            pmid_curie_mod_dict = get_pmid_association_to_mod_via_reference(pmids_in_search, mod)
+
+            whitelist_pmids = []  # remove this later with removed block below
+            for pmid in pmid_group:
+                if pmid not in fp_pmids:
+                    whitelist_pmids.append(pmid)
+            pmids_wanted = list(map(lambda x: 'PMID:' + x, whitelist_pmids))
+            pmid_curie_mod_dict = get_pmid_association_to_mod_via_reference(pmids_wanted, mod)
             # to debug
             # json_data = json.dumps(pmid_curie_mod_dict, indent=4, sort_keys=True)
             # print(mod)
             # print(json_data)
-            # pmids_joined = (',').join(sorted(pmids_in_search))
+            # pmids_joined = (',').join(sorted(pmids_wanted))
             # logger.info(pmids_joined)
-            # logger.info(len(pmids_in_search))
-            for pmid in pmids_in_search:
+            # logger.info(len(pmids_wanted))
+            for pmid in pmids_wanted:
                 if pmid in pmid_curie_mod_dict:
                     agr_curie = pmid_curie_mod_dict[pmid][0]
                     in_corpus = pmid_curie_mod_dict[pmid][1]
@@ -269,18 +273,16 @@ def query_mods():
                     elif in_corpus is None:
                         print(f"add {mod} mca to {pmid} is {agr_curie}")
                         agr_curies_to_corpus.append(agr_curie)
-        logger.info('pmids_to_create')
-        logger.info(len(pmids_to_create))
-        # pmids_joined = (',').join(sorted(pmids_to_create))
-        # logger.info(pmids_joined)
-        logger.info('agr_curies_to_corpus')
-        logger.info(len(agr_curies_to_corpus))
+        logger.info(f"pmids_to_create: {len(pmids_to_create)}")
+        pmids_joined = (',').join(sorted(pmids_to_create))
+        logger.info(pmids_joined)
+        logger.info(f"agr_curies_to_corpus: {len(agr_curies_to_corpus)}")
         # pmids_joined = (',').join(sorted(agr_curies_to_corpus))
         # logger.info(pmids_joined)
 
         # PUT THIS BACK
         # connect mod pmid from search to existing abc references
-        # post_mca_to_existing_references(agr_curies_to_corpus, mod)
+        post_mca_to_existing_references(agr_curies_to_corpus, mod)
 
         # PUT THIS BACK
         # test_set_pmid = sorted(pmids_to_create)
@@ -323,8 +325,7 @@ def query_mods():
 #     with open(search_output_file, "w") as search_output_file_fh:
 #         search_output_file_fh.write(search_output)
 
-# TODO is it easier to create all these PMIDs and then attach mod corpus association to all of them, or to pass the mca value to the script that creates them ?
-# TODO route pubmed xml to download into   download_pubmed_xml(pmids_wanted)  and see if it's working from the import, then xml_to_json and sequentially process them, after injecting the mod_corpus_association for the mod
+# TODO
 # do not need to recursively process downloading errata and corrections, but if they exist, connect them.
 
 
