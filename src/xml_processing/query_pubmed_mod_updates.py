@@ -6,11 +6,11 @@ import time
 import urllib
 # import glob
 # import hashlib
-from datetime import datetime
+# from datetime import datetime
 # import os
 from os import environ, makedirs, path
 from typing import List, Set, Dict, Tuple, Union
-import json
+# import json
 
 
 import requests
@@ -20,9 +20,11 @@ from get_pubmed_xml import download_pubmed_xml
 from xml_to_json import generate_json
 from sanitize_pubmed_json import sanitize_pubmed_json_list
 from post_reference_to_api import post_references
-from helper_s3 import upload_file_to_s3
+from helper_s3 import upload_xml_file_to_s3
 from helper_file_processing import (generate_cross_references_file,
                                     load_ref_xref)
+from helper_post_to_api import (generate_headers, get_authentication_token,
+                                process_api_request)
 
 from literature.database.main import get_db
 from literature.models import ReferenceModel, CrossReferenceModel, ModCorpusAssociationModel, ModModel
@@ -215,15 +217,17 @@ def query_mods():
         'WB': 'WB_false_positive_pmids',
         'SGD': 'SGD_referencedeletedpmids_20210803.csv'
     }
+    # source of WB FP file: https://tazendra.caltech.edu/~postgres/agr/lit/WB_false_positive_pmids
+
 # PUT THIS BACK
-#     mods_to_query = ['FB', 'SGD', 'WB', 'ZFIN']
+#     mods_to_query = ['ZFIN', 'WB', 'FB', 'SGD']
 #     alliance_pmids = populate_alliance_pmids()
 
-    alliance_pmids = set()     # type: Set
+    # alliance_pmids = set()     # type: Set   # remove this later with removed block below
     mods_to_query = ['ZFIN']
 
     logger.info("Starting query mods")
-    search_output = ''
+    # search_output = ''  # remove this later with removed block below
     sleep_delay = 1
     for mod in mods_to_query:
         fp_pmids = set()
@@ -245,7 +249,7 @@ def query_mods():
         if re.findall(r"<Id>(\d+)</Id>", xml_all):
             pmid_group = re.findall(r"<Id>(\d+)</Id>", xml_all)
             pmids_in_search = list(map(lambda x: 'PMID:' + x, pmid_group))
-            new_pmids = []
+            # new_pmids = []  # remove this later with removed block below
             pmid_curie_mod_dict = get_pmid_association_to_mod_via_reference(pmids_in_search, mod)
             # to debug
             # json_data = json.dumps(pmid_curie_mod_dict, indent=4, sort_keys=True)
@@ -261,35 +265,48 @@ def query_mods():
                     # to debug
                     # print(f"{pmid}\t{agr_curie}\t{in_corpus}")
                     if agr_curie is None:
-                        pmids_to_create.append(pmid.replace('PMID:',''))
+                        pmids_to_create.append(pmid.replace('PMID:', ''))
                     elif in_corpus is None:
+                        print(f"add {mod} mca to {pmid} is {agr_curie}")
                         agr_curies_to_corpus.append(agr_curie)
-        pmids_joined = (',').join(sorted(pmids_to_create))
         logger.info('pmids_to_create')
         logger.info(len(pmids_to_create))
-#         logger.info(pmids_joined)
-        pmids_joined = (',').join(sorted(agr_curies_to_corpus))
+        # pmids_joined = (',').join(sorted(pmids_to_create))
+        # logger.info(pmids_joined)
         logger.info('agr_curies_to_corpus')
         logger.info(len(agr_curies_to_corpus))
-#         logger.info(pmids_joined)
+        # pmids_joined = (',').join(sorted(agr_curies_to_corpus))
+        # logger.info(pmids_joined)
 
-        pmids_in_search = list(map(lambda x: 'PMID:' + x, pmid_group))
-        test_set_pmid = sorted(pmids_to_create)[0:1]
+        # PUT THIS BACK
+        # connect mod pmid from search to existing abc references
+        # post_mca_to_existing_references(agr_curies_to_corpus, mod)
+
+        # PUT THIS BACK
+        # test_set_pmid = sorted(pmids_to_create)
+        test_set_pmid = sorted(pmids_to_create)[0:1]   # smaller set to test
         logger.info(test_set_pmid)
         download_pubmed_xml(test_set_pmid)
         generate_json(test_set_pmid, [])
 
-# TODO inject mod_corpus_association data
-        sanitize_pubmed_json_list(test_set_pmid)
+        inject_object = {}
+        mod_corpus_associations = [{"modAbbreviation": mod, "modCorpusSortSource": "mod_pubmed_search", "corpus": None}]
+        inject_object['modCorpusAssociations'] = mod_corpus_associations
 
-# TODO delete json_filepath after it's processed
+        # generate json to post for these pmids and inject data not from pubmed
+        sanitize_pubmed_json_list(test_set_pmid, [inject_object])
+
+        # post generated json to api
         json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_PMID.json'
         process_results = post_references(json_filepath, 'no_file_check')
+        logger.info(process_results)
 
-# TODO upload each json file from test_set_pmid to s3
-#         upload_xml_file_to_s3(pmid)
-#     return output_message_json(process_results)
-                
+        # upload each processed json file to s3
+        for pmid in test_set_pmid:
+            # logger.info(f"upload {pmid} to s3")
+            # PUT THIS BACK
+            upload_xml_file_to_s3(pmid)
+
 
 # old way to output what came out from search that is not in the database
 #                 if pmid not in alliance_pmids and pmid not in fp_pmids:
@@ -309,6 +326,34 @@ def query_mods():
 # TODO is it easier to create all these PMIDs and then attach mod corpus association to all of them, or to pass the mca value to the script that creates them ?
 # TODO route pubmed xml to download into   download_pubmed_xml(pmids_wanted)  and see if it's working from the import, then xml_to_json and sequentially process them, after injecting the mod_corpus_association for the mod
 # do not need to recursively process downloading errata and corrections, but if they exist, connect them.
+
+
+def post_mca_to_existing_references(agr_curies_to_corpus, mod):
+    """
+
+    :param agr_curies_to_corpus: agr reference curies to add an mca_value to
+    :param mod: mod to associate
+    :return:
+    """
+
+    api_server = environ.get('API_SERVER', 'localhost')
+    api_port = environ.get('API_PORT')
+    token = get_authentication_token()
+    headers = generate_headers(token)
+
+    # to test a smaller set
+    # for agr in list(agr_curies_to_corpus)[0:10]:
+
+    for agr in list(agr_curies_to_corpus):
+        data_json = {"mod_abbreviation": mod, "mod_corpus_sort_source": "mod_pubmed_search", "corpus": None, "reference_curie": agr}
+        url = 'http://' + api_server + ':' + api_port + '/reference/mod_corpus_association/'
+        api_response_tuple = process_api_request('POST', url, headers, data_json, agr, None, None)
+        headers = api_response_tuple[0]
+        response_text = api_response_tuple[1]
+        response_status_code = api_response_tuple[2]
+        log_info = api_response_tuple[3]
+        if response_status_code != 201:
+            logger.info(f"Error adding {mod} mca to {url}: {response_text} {log_info}")
 
 
 def populate_alliance_pmids():
