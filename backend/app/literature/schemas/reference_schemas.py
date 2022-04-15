@@ -150,7 +150,7 @@ class ReferenceSchemaShow(BaseModelShow):
 class ReferenceSchemaNeedReviewShow(BaseModel):
     curie: str
     title: str
-    abstract: str
+    abstract: Optional[str] = None
     mod_corpus_association_id: int
-    resource_title: str
+    resource_title: Optional[str] = None
     cross_references: Optional[List[CrossReferenceSchemaShow]]
