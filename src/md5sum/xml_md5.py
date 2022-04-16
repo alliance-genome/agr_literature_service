@@ -136,10 +136,10 @@ def save_to_redis(old_df, new_df):
 
     logger.info("Saving to redis")
     r = redis.Redis(host='localhost', port=6379, db=1, password="password")
-    for idx, row in new_df.iterrows():
+    for _idx, row in new_df.iterrows():
         r.set(row["filename"], row["md5_y"])
     r = redis.Redis(host='localhost', port=6379, db=0, password="password")
-    for idx, row in old_df.iterrows():
+    for _idx, row in old_df.iterrows():
         r.set(row["filename"], row["md5_x"])
 
 
