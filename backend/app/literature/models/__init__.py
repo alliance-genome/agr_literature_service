@@ -1,7 +1,7 @@
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import configure_mappers, create_session
 
-from literature.database.main import Base
+from literature.database.main import create_all_tables
 from literature.models.author_model import AuthorModel
 from literature.models.cross_reference_model import CrossReferenceModel
 from literature.models.editor_model import EditorModel
@@ -29,4 +29,7 @@ from literature.models.resource_descriptor_models import (
 from literature.models.resource_model import ResourceModel
 from literature.models.user_model import UserModel
 
-configure_mappers()
+
+def initialize():
+    configure_mappers()
+    create_all_tables()

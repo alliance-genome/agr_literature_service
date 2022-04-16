@@ -7,7 +7,8 @@ from sqlalchemy.orm import sessionmaker
 from literature.crud.reference_comment_and_correction_crud import (
     create, destroy, patch, show, show_changesets)
 from literature.database.config import SQLALCHEMY_DATABASE_URL
-from literature.models import (Base, ReferenceCommentAndCorrectionModel,
+from literature.database.base import Base
+from literature.models import (ReferenceCommentAndCorrectionModel,
                                ReferenceModel)
 from literature.schemas import (ReferenceCommentAndCorrectionSchemaPatch,
                                 ReferenceCommentAndCorrectionSchemaPost)
