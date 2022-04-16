@@ -115,6 +115,8 @@ services:
      - REDIS_REPLICATION_MODE=master
     networks:
       - agr-literature
+    ports:
+       - '6379:6379'
 
   api:
     restart: always

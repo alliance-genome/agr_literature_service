@@ -14,6 +14,7 @@ import coloredlogs
 import pandas as pd
 import os
 import glob
+import redis
 
 
 logging.basicConfig(level=logging.INFO)
@@ -131,7 +132,8 @@ def generate_output(new_items, changed_items):
 @click.option("--json", "-j", "json", is_flag=True, help="Input is JSON files")
 @click.option("--output", "-o", "output", is_flag=True, default=None, help="Generate output file")
 @click.option("--test", "-t", "test", is_flag=True, default=False, help="Test mode, reading csv files")
-def process_xml_data(old_location, new_location, output, test, json):
+@click.option("--redis", "-r", "redis_export", is_flag=True, default=False, help="Save md5 to redis")
+def process_xml_data(old_location, new_location, output, test, json, redis_export):
     """
 
     :param old_location: directory with older version of the files
@@ -151,6 +153,16 @@ def process_xml_data(old_location, new_location, output, test, json):
 
     new_items = get_new_items(old_df, new_df)
     chanmged_items = get_changed_items(old_df, new_df)
+
+    # TODO: movoe to a function
+    if redis_export:
+        logger.info("Saving to redis")
+        r = redis.Redis(host='localhost', port=6379, db=1, password="password")
+        for idx, row in new_df.iterrows():
+            r.set(row["filename"], row["md5_y"])
+        r = redis.Redis(host='localhost', port=6379, db=0, password="password")
+        for idx, row in old_df.iterrows():
+            r.set(row["filename"], row["md5_x"])
 
     if output:
         logger.info("Generating output file")
