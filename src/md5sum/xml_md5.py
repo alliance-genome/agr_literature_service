@@ -6,16 +6,17 @@ Paulo Nuin Apr 2022
 """
 
 
+import glob
 import hashlib
 import logging
+import os
+import subprocess
+import json
 
 import click
 import coloredlogs
 import pandas as pd
-import os
-import glob
 import redis
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -126,7 +127,21 @@ def generate_output(new_items, changed_items):
     changed_items.to_json("changed_items.json", orient="records")
 
 
-def save_to_redis(old_df, new_df):
+def check_redis():
+    """
+
+    :return:
+    """
+    r = redis.Redis(host='localhost', port=6379, db=1, password="password")
+    try:
+        r.ping()
+        return True
+    except redis.exceptions.ConnectionError:
+        return False
+
+
+
+def save_to_redis(old_df, new_df, changed_df, start_redis=False):
     """
 
     :param old_df:
@@ -134,13 +149,26 @@ def save_to_redis(old_df, new_df):
     :return:
     """
 
-    logger.info("Saving to redis")
-    r = redis.Redis(host='localhost', port=6379, db=1, password="password")
-    for _idx, row in new_df.iterrows():
-        r.set(row["filename"], row["md5_y"])
-    r = redis.Redis(host='localhost', port=6379, db=0, password="password")
-    for _idx, row in old_df.iterrows():
-        r.set(row["filename"], row["md5_x"])
+    if start_redis:
+        os.environ["REDIS_AUTH"] = "password"
+        docker_compose = ["bash", "-c", "docker-compose up -d"]
+        popen = subprocess.Popen(docker_compose, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    if check_redis():
+        logger.info("Saving to redis")
+        r = redis.Redis(host='localhost', port=6379, db=1, password="password")
+        for _idx, row in new_df.iterrows():
+            r.set(row["filename"], row["md5_y"])
+        r = redis.Redis(host='localhost', port=6379, db=0, password="password")
+        for _idx, row in old_df.iterrows():
+            r.set(row["filename"], row["md5_x"])
+        r = redis.Redis(host='localhost', port=6379, db=10, password="password")
+        for _idx, row in changed_df.iterrows():
+            r.set(row["filename"], json.dumps([row["md5_x"], row["md5_y"]]))
+        return True
+    else:
+        logger.error("Could not connect to redis")
+        return False
 
 
 @click.command()
@@ -150,7 +178,8 @@ def save_to_redis(old_df, new_df):
 @click.option("--output", "-o", "output", is_flag=True, default=None, help="Generate output file")
 @click.option("--test", "-t", "test", is_flag=True, default=False, help="Test mode, reading csv files")
 @click.option("--redis", "-r", "redis_export", is_flag=True, default=False, help="Save md5 to redis")
-def process_xml_data(old_location, new_location, output, test, json, redis_export):
+@click.option("--start-redis", "-s", "start_redis", is_flag=True, default=False, help="Import md5 from redis")
+def process_xml_data(old_location, new_location, output, test, json, redis_export, start_redis):
     """
 
     :param old_location: directory with older version of the files
@@ -169,14 +198,18 @@ def process_xml_data(old_location, new_location, output, test, json, redis_expor
     new_df = pd.DataFrame(list(new_md5sum.items()), columns=['filename', 'md5_y'])
 
     new_items = get_new_items(old_df, new_df)
-    chanmged_items = get_changed_items(old_df, new_df)
+    changed_items = get_changed_items(old_df, new_df)
 
     if redis_export:
-        save_to_redis(old_df, new_df)
+        if save_to_redis(old_df, new_df, changed_items, start_redis):
+            logger.info("All saved")
+        else:
+            logger.error("Could not save to redis")
+            logger.error("Try running with --start-redis flag")
 
     if output:
         logger.info("Generating output file")
-        generate_output(new_items, chanmged_items)
+        generate_output(new_items, changed_items)
 
 
 if __name__ == "__main__":
