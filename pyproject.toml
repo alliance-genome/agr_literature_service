@@ -34,6 +34,7 @@ databases = "^0.5.5"
 fastapi-auth0 = "^0.3.0"
 isort = "^5.10.1"
 Sphinx = "^4.4.0"
+redis = "^4.2.2"
 
 [tool.poetry.dev-dependencies]
 
