@@ -126,6 +126,23 @@ def generate_output(new_items, changed_items):
     changed_items.to_json("changed_items.json", orient="records")
 
 
+def save_to_redis(old_df, new_df):
+    """
+
+    :param old_df:
+    :param new_df:
+    :return:
+    """
+
+    logger.info("Saving to redis")
+    r = redis.Redis(host='localhost', port=6379, db=1, password="password")
+    for idx, row in new_df.iterrows():
+        r.set(row["filename"], row["md5_y"])
+    r = redis.Redis(host='localhost', port=6379, db=0, password="password")
+    for idx, row in old_df.iterrows():
+        r.set(row["filename"], row["md5_x"])
+
+
 @click.command()
 @click.option("--old-location", "-O", "old_location", default=None, help="Old version of the file")
 @click.option("--new-location", "-N", "new_location", default=None, help="New version of the file")
@@ -154,15 +171,8 @@ def process_xml_data(old_location, new_location, output, test, json, redis_expor
     new_items = get_new_items(old_df, new_df)
     chanmged_items = get_changed_items(old_df, new_df)
 
-    # TODO: movoe to a function
     if redis_export:
-        logger.info("Saving to redis")
-        r = redis.Redis(host='localhost', port=6379, db=1, password="password")
-        for idx, row in new_df.iterrows():
-            r.set(row["filename"], row["md5_y"])
-        r = redis.Redis(host='localhost', port=6379, db=0, password="password")
-        for idx, row in old_df.iterrows():
-            r.set(row["filename"], row["md5_x"])
+        save_to_redis(old_df, new_df)
 
     if output:
         logger.info("Generating output file")
