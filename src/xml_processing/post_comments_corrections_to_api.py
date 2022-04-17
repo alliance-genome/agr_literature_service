@@ -3,11 +3,15 @@ import json
 import logging
 import logging.config
 from os import environ, path
+from typing import List
 
-from helper_file_processing import (generate_cross_references_file,
-                                    load_ref_xref)
+# from helper_file_processing import (generate_cross_references_file,
+#                                     load_ref_xref)
 from helper_post_to_api import (generate_headers, get_authentication_token,
                                 process_api_request)
+
+from literature.database.main import get_db
+from literature.models import ReferenceModel, CrossReferenceModel
 
 # pipenv run python post_comments_corrections_to_api.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/all_pmids > log_post_comments_corrections_to_api
 # enter a file of pmids as an argument, sanitize, post to api
@@ -17,6 +21,26 @@ from helper_post_to_api import (generate_headers, get_authentication_token,
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('post_comments_corrections_to_api')
+
+
+def get_pmid_to_reference(pmids: List[str]):
+    db_session = next(get_db())
+    query = db_session.query(
+        CrossReferenceModel.curie,
+        ReferenceModel.curie
+    ).join(
+        ReferenceModel.cross_references
+    ).filter(
+        CrossReferenceModel.curie.in_(pmids)
+    )
+    results = query.all()
+    pmid_curie_dict = {}
+    for result in results:
+        if result[0] not in pmid_curie_dict or pmid_curie_dict[result[0]] is None:
+            pmid_curie_dict[result[0]] = result[1]
+    # json_object = json.dumps(pmid_curie_dict, indent=4)
+    # print(json_object)
+    return pmid_curie_dict
 
 
 def post_comments_corrections(pmids_wanted):      # noqa: C901
@@ -45,26 +69,8 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
     remap_com_cor_types['RetractionIn'] = 'RetractionOf'
     remap_com_cor_types['UpdateIn'] = 'UpdateOf'
 
-    reference_to_curie = dict()
-    # previously loading from reference_primary_id_to_curie from past run of this script
-    # reference_primary_id_to_curie_file = base_path + 'reference_primary_id_to_curie'
-    # if path.isfile(reference_primary_id_to_curie_file):
-    #     with open(reference_primary_id_to_curie_file, 'r') as read_fh:
-    #         for line in read_fh:
-    #             line_data = line.split("\t")
-    #             if line_data[0]:
-    #                 reference_to_curie[line_data[0]] = line_data[1].rstrip()
-    #         read_fh.close
-
-    generate_cross_references_file('reference')   # this updates from references in the database, and takes 88 seconds. if updating this script, comment it out after running it once
-    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
-    reference_to_curie = dict()
-    for prefix in xref_ref:
-        for identifier in xref_ref[prefix]:
-            xref_curie = prefix + ':' + identifier
-            reference_to_curie[xref_curie] = xref_ref[prefix][identifier]
-
     mappings_set = set()
+    pmids_in_xml = set()
     for pmid in pmids_wanted:
         pubmed_json_filepath = base_path + 'pubmed_json/' + pmid + '.json'
         try:
@@ -80,14 +86,28 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
                             reverse = True
                             com_cor_type = remap_com_cor_types[com_cor_type]
                         if com_cor_type in allowed_com_cor_types:
-                            primary = pmid
-                            secondary = other_pmid
+                            primary = 'PMID:' + pmid
+                            secondary = 'PMID:' + other_pmid
+                            pmids_in_xml.add(primary)
+                            pmids_in_xml.add(secondary)
                             if reverse is True:
-                                primary = other_pmid
-                                secondary = pmid
+                                primary = 'PMID:' + other_pmid
+                                secondary = 'PMID:' + pmid
                             mappings_set.add(primary + '\t' + secondary + '\t' + com_cor_type)
         except IOError:
             print(pubmed_json_filepath + ' not found in filesystem')
+
+    reference_to_curie = dict()
+    # generating all mappings of xref to reference curie through api
+    # generate_cross_references_file('reference')   # this updates from references in the database, and takes 88 seconds. if updating this script, comment it out after running it once
+    # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+    # for prefix in xref_ref:
+    #     for identifier in xref_ref[prefix]:
+    #         xref_curie = prefix + ':' + identifier
+    #         reference_to_curie[xref_curie] = xref_ref[prefix][identifier]
+
+    # generating only needed pmid mappings of xref to reference curie through sqlalchemy
+    reference_to_curie = get_pmid_to_reference(list(pmids_in_xml))
 
     api_server = environ.get('API_SERVER', 'localhost')
     url = 'http://' + api_server + ':' + api_port + '/reference_comment_and_correction/'
@@ -101,8 +121,8 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
         #     break
 
         map_data = mapping.split("\t")
-        primary_pmid = 'PMID:' + map_data[0]
-        secondary_pmid = 'PMID:' + map_data[1]
+        primary_pmid = map_data[0]
+        secondary_pmid = map_data[1]
         com_cor_type = map_data[2]
         primary_curie = ''
         secondary_curie = ''
@@ -127,8 +147,8 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
             new_entry['reference_comment_and_correction_type'] = com_cor_type
 
             # output what is sent to API after converting file data
-            # json_object = json.dumps(new_entry, indent=4)
-            # print(json_object)
+            json_object = json.dumps(new_entry, indent=4)
+            print(json_object)
 
             api_response_tuple = process_api_request('POST', url, headers, new_entry, primary_pmid, None, None)
             headers = api_response_tuple[0]
