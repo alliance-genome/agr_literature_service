@@ -220,9 +220,9 @@ def query_mods():
     }
     # source of WB FP file: https://tazendra.caltech.edu/~postgres/agr/lit/WB_false_positive_pmids
 
-# PUT THIS BACK
+    # PUT THIS BACK
     mods_to_query = ['ZFIN', 'WB', 'FB', 'SGD']
-#     mods_to_query = ['WB']
+    # mods_to_query = ['WB']
 
     pmids_posted = set()     # type: Set
     logger.info("Starting query mods")
@@ -270,7 +270,7 @@ def query_mods():
                     if agr_curie is None:
                         pmids_to_create.append(pmid.replace('PMID:', ''))
                     elif in_corpus is None:
-                        print(f"add {mod} mca to {pmid} is {agr_curie}")
+                        # print(f"add {mod} mca to {pmid} is {agr_curie}")
                         agr_curies_to_corpus.append(agr_curie)
         logger.info(f"pmids_to_create: {len(pmids_to_create)}")
         # pmids_joined = (',').join(sorted(pmids_to_create))
@@ -285,7 +285,7 @@ def query_mods():
 
         # PUT THIS BACK
         pmids_to_process = sorted(pmids_to_create)
-        # pmids_to_process = sorted(pmids_to_create)[0:3]   # smaller set to test
+        # pmids_to_process = sorted(pmids_to_create)[0:2]   # smaller set to test
         for pmid in pmids_to_process:
             pmids_posted.add(pmid)
         logger.info(pmids_to_process)
@@ -315,8 +315,11 @@ def query_mods():
 
     # do not need to recursively process downloading errata and corrections, but if they exist, connect them.
     # take list of pmids that were posted to the database, look at their .json for corrections and connect to existing abc references.
-    # print(pmids_posted)
+    logger.info("pmids process comments corrections")
+    logger.info(pmids_posted)
     post_comments_corrections(list(pmids_posted))
+
+    logger.info("end query_mods")
 
 
 def post_mca_to_existing_references(agr_curies_to_corpus, mod):

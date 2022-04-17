@@ -3,7 +3,7 @@ import json
 import logging
 import logging.config
 from os import environ, path
-from typing import List
+from typing import List, Dict
 
 # from helper_file_processing import (generate_cross_references_file,
 #                                     load_ref_xref)
@@ -34,7 +34,7 @@ def get_pmid_to_reference(pmids: List[str]):
         CrossReferenceModel.curie.in_(pmids)
     )
     results = query.all()
-    pmid_curie_dict = {}
+    pmid_curie_dict: Dict[str, str] = {}
     for result in results:
         if result[0] not in pmid_curie_dict or pmid_curie_dict[result[0]] is None:
             pmid_curie_dict[result[0]] = result[1]
@@ -95,7 +95,7 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
                                 secondary = 'PMID:' + pmid
                             mappings_set.add(primary + '\t' + secondary + '\t' + com_cor_type)
         except IOError:
-            print(pubmed_json_filepath + ' not found in filesystem')
+            print(f"{pubmed_json_filepath} not found in filesystem")
 
     reference_to_curie = dict()
     # generating all mappings of xref to reference curie through api
@@ -146,9 +146,9 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
             new_entry['reference_curie_to'] = secondary_curie
             new_entry['reference_comment_and_correction_type'] = com_cor_type
 
-            # output what is sent to API after converting file data
-            json_object = json.dumps(new_entry, indent=4)
-            print(json_object)
+            # debug: output what is sent to API after converting file data
+            # json_object = json.dumps(new_entry, indent=4)
+            # print(json_object)
 
             api_response_tuple = process_api_request('POST', url, headers, new_entry, primary_pmid, None, None)
             headers = api_response_tuple[0]
