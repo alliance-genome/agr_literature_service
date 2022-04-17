@@ -27,7 +27,7 @@ import os
 import click
 import coloredlogs
 import pandas as pd
-# from mongita import MongitaClientDisk
+import redis
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -218,6 +218,47 @@ def generate_output(new_items, changed_items, mod_output):
     return "success"
 
 
+def save_to_redis(new_items, changed_items, mod):
+    """
+
+    11 - FB
+    12 - MGI
+    13 - RGD
+    14 - SGD
+    15 - WB
+    16 - ZFIN
+    17 - GO
+    18 - XB
+
+
+    :param new_items:
+    :param changed_items:
+    :param mod:
+    :return:
+    """
+
+    if mod == "FB":
+        db = 11
+    elif mod == "MGI":
+        db = 12
+    elif mod == "RGD":
+        db = 13
+    elif mod == "SGD":
+        db = 14
+    elif mod == "WB":
+        db = 15
+    elif mod == "ZFIN":
+        db = 16
+    elif mod == "XB":
+        db = 18
+
+    r = redis.Redis(host='localhost', port=6379, db=db, password="password")
+    output_df = new_items[["primaryId", "md5"]]
+    for _idx, row in output_df.iterrows():
+        r.set(row["primaryId"], row["md5"])
+
+
+
 @click.command()
 @click.option("--old-version", "-O", "old_version", default=None, help="Old version of the file")
 @click.option("--new-version", "-N", "new_version", default=None, help="New version of the file")
@@ -236,6 +277,8 @@ def process_dqm_data(old_version, new_version, output, test, mtrace, redis_expor
     :param output: Flag if output will be generated or not
     :param test: Flag for quicj testing, JSON files needs to be sorted and saved as CSV
     :param mtrace: Flag for memory trace, only if interested in memory usage
+    :param redis_export: Flag for exporting md5 to redis
+    :param start_redis: Flag for starting redis - not implemented yet
     :return:
     """
 
@@ -255,8 +298,9 @@ def process_dqm_data(old_version, new_version, output, test, mtrace, redis_expor
         print(f"Peak memory at {tracemalloc.get_traced_memory()[1]}")
     tracemalloc.stop()
 
-    if redis:
-
+    if redis_export:
+        mod = os.path.basename(old_version).split("_")[-1].replace(".json", "")
+        save_to_redis(new_items, changed_items, mod)
 
     if output:
         mod_output = os.path.basename(old_version).split("_")[-1].replace(".json", "")
