@@ -35,6 +35,7 @@ fastapi-auth0 = "^0.3.0"
 isort = "^5.10.1"
 Sphinx = "^4.4.0"
 redis = "^4.2.2"
+Flask = "^2.1.1"
 
 [tool.poetry.dev-dependencies]
 
