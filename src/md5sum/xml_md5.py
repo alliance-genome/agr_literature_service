@@ -3,6 +3,15 @@ dqm_md5.py - MD5 checksum calculation
 
 Paulo Nuin Apr 2022
 
+Redis DBs:
+
+0 - "old" XML/JSON md5sums
+1 - "new" XML/JSON md5sums
+
+10 - changes in XML/JSON md5sums, new XML/JSON files
+
+TODO: add timestamp to XML/JSON md5sums changes
+
 """
 
 
@@ -55,7 +64,6 @@ def get_new_items(old_dqm, new_dqm):
 
     logger.info("Getting new items")
     new_items = new_dqm[~new_dqm.filename.isin(old_dqm.filename)]
-
     return new_items
 
 
@@ -141,7 +149,7 @@ def check_redis():
 
 
 
-def save_to_redis(old_df, new_df, changed_df, start_redis=False):
+def save_to_redis(old_df, new_df, changed_df, new_items_df, start_redis=False):
     """
 
     :param old_df:
@@ -167,6 +175,8 @@ def save_to_redis(old_df, new_df, changed_df, start_redis=False):
         r = redis.Redis(host='localhost', port=6379, db=10, password="password")
         for _idx, row in changed_df.iterrows():
             r.set(row["filename"], json.dumps([row["md5_x"], row["md5_y"]]))
+        for _idx, row in new_items_df.iterrows():
+            r.set(row["filename"], json.dumps([row["md5_y"]]))
         return True
     else:
         logger.error("Could not connect to redis")
@@ -203,7 +213,7 @@ def process_xml_data(old_location, new_location, output, test, json, redis_expor
     changed_items = get_changed_items(old_df, new_df)
 
     if redis_export:
-        if save_to_redis(old_df, new_df, changed_items, start_redis):
+        if save_to_redis(old_df, new_df, changed_items, new_items, start_redis):
             logger.info("All saved")
         else:
             logger.error("Could not save to redis")
