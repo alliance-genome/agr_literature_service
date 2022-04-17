@@ -148,7 +148,6 @@ def check_redis():
         return False
 
 
-
 def save_to_redis(old_df, new_df, changed_df, new_items_df, start_redis=False):
     """
 
@@ -162,7 +161,7 @@ def save_to_redis(old_df, new_df, changed_df, new_items_df, start_redis=False):
     if start_redis:
         os.environ["REDIS_AUTH"] = "password"
         docker_compose = ["bash", "-c", "docker-compose up -d"]
-        popen = subprocess.Popen(docker_compose, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.Popen(docker_compose, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     if check_redis():
         logger.info("Saving to redis")

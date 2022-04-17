@@ -258,7 +258,6 @@ def save_to_redis(new_items, changed_items, mod):
         r.set(row["primaryId"], row["md5"])
 
 
-
 @click.command()
 @click.option("--old-version", "-O", "old_version", default=None, help="Old version of the file")
 @click.option("--new-version", "-N", "new_version", default=None, help="New version of the file")
