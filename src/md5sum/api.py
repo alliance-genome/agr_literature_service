@@ -17,6 +17,8 @@ api = flask.Flask(__name__)
 def index():
     """
 
+    Get all the keys in DB 1, which is storing all the new items
+
     :return:
     """
 
@@ -33,9 +35,12 @@ def index():
 def get_new_key(key):
     """
 
+    get a specific key from DB 1, new values
+
     :param key:
     :return:
     """
+
     r = redis.StrictRedis(host='localhost', port=6379, db=1, password="password", decode_responses=True)
     data = r.get(key)
     return json.dumps(data)
@@ -44,6 +49,8 @@ def get_new_key(key):
 @api.route("/old/<string:key>", methods=['GET'])
 def get_old_key(key):
     """
+
+    get a specific key from DB 0, old values
 
     :param key:
     :return:
@@ -57,6 +64,9 @@ def get_old_key(key):
 def get_all_changes():
     """
 
+    Get all the keys in DB 0, which is storing all the changed items, can be iterated over with a
+    generator
+
     :return:
     """
     r = redis.StrictRedis(host='localhost', port=6379, db=10, password="password", decode_responses=True)
@@ -69,4 +79,8 @@ def get_all_changes():
 
 
 if __name__ == "__main__":
+    """
+    Run the API
+    """
+
     api.run(host="0.0.0.0", port=8080, debug=True)
