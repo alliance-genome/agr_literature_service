@@ -21,10 +21,11 @@ from xml_to_json import generate_json
 from sanitize_pubmed_json import sanitize_pubmed_json_list
 from post_reference_to_api import post_references
 from helper_s3 import upload_xml_file_to_s3
-from helper_file_processing import (generate_cross_references_file,
-                                    load_ref_xref)
+# from helper_file_processing import (generate_cross_references_file,
+#                                     load_ref_xref)
 from helper_post_to_api import (generate_headers, get_authentication_token,
                                 process_api_request)
+from post_comments_corrections_to_api import post_comments_corrections
 
 from literature.database.main import get_db
 from literature.models import ReferenceModel, CrossReferenceModel, ModCorpusAssociationModel, ModModel
@@ -220,17 +221,15 @@ def query_mods():
     # source of WB FP file: https://tazendra.caltech.edu/~postgres/agr/lit/WB_false_positive_pmids
 
 # PUT THIS BACK
-#     mods_to_query = ['ZFIN', 'WB', 'FB', 'SGD']
-#     alliance_pmids = populate_alliance_pmids()
+    mods_to_query = ['ZFIN', 'WB', 'FB', 'SGD']
+#     mods_to_query = ['WB']
 
-    # alliance_pmids = set()     # type: Set   # remove this later with removed block below
-    mods_to_query = ['WB']
-
+    pmids_posted = set()     # type: Set
     logger.info("Starting query mods")
     # search_output = ''  # remove this later with removed block below
     sleep_delay = 1
     for mod in mods_to_query:
-        fp_pmids = set()
+        fp_pmids = set()     # type: Set
         if mod in mod_false_positive_file:
             infile = search_path + mod_false_positive_file[mod]
             with open(infile, "r") as infile_fh:
@@ -274,8 +273,8 @@ def query_mods():
                         print(f"add {mod} mca to {pmid} is {agr_curie}")
                         agr_curies_to_corpus.append(agr_curie)
         logger.info(f"pmids_to_create: {len(pmids_to_create)}")
-        pmids_joined = (',').join(sorted(pmids_to_create))
-        logger.info(pmids_joined)
+        # pmids_joined = (',').join(sorted(pmids_to_create))
+        # logger.info(pmids_joined)
         logger.info(f"agr_curies_to_corpus: {len(agr_curies_to_corpus)}")
         # pmids_joined = (',').join(sorted(agr_curies_to_corpus))
         # logger.info(pmids_joined)
@@ -285,48 +284,39 @@ def query_mods():
         post_mca_to_existing_references(agr_curies_to_corpus, mod)
 
         # PUT THIS BACK
-        # test_set_pmid = sorted(pmids_to_create)
-        test_set_pmid = sorted(pmids_to_create)[0:1]   # smaller set to test
-        logger.info(test_set_pmid)
-        download_pubmed_xml(test_set_pmid)
-        generate_json(test_set_pmid, [])
+        pmids_to_process = sorted(pmids_to_create)
+        # pmids_to_process = sorted(pmids_to_create)[0:3]   # smaller set to test
+        for pmid in pmids_to_process:
+            pmids_posted.add(pmid)
+        logger.info(pmids_to_process)
+        download_pubmed_xml(pmids_to_process)
+        generate_json(pmids_to_process, [])
 
         inject_object = {}
         mod_corpus_associations = [{"modAbbreviation": mod, "modCorpusSortSource": "mod_pubmed_search", "corpus": None}]
         inject_object['modCorpusAssociations'] = mod_corpus_associations
 
-        # generate json to post for these pmids and inject data not from pubmed
-        sanitize_pubmed_json_list(test_set_pmid, [inject_object])
+        # pmids_to_process = ['34849855']	# test a single pmid
 
+        # generate json to post for these pmids and inject data not from pubmed
+        sanitize_pubmed_json_list(pmids_to_process, [inject_object])
+
+        # PUT THIS BACK
         # post generated json to api
         json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_PMID.json'
         process_results = post_references(json_filepath, 'no_file_check')
         logger.info(process_results)
 
         # upload each processed json file to s3
-        for pmid in test_set_pmid:
+        for pmid in pmids_to_process:
             # logger.info(f"upload {pmid} to s3")
             # PUT THIS BACK
             upload_xml_file_to_s3(pmid)
 
-
-# old way to output what came out from search that is not in the database
-#                 if pmid not in alliance_pmids and pmid not in fp_pmids:
-#                     new_pmids.append(pmid)
-#                 # new_pmids.append(pmid)
-#             logger.info("%s search pmids not in alliance count : %s", mod, len(new_pmids))
-#             search_output += mod + " search pmids not in alliance count : " + str(len(new_pmids)) + "\n"
-#             pmids_joined = (',').join(sorted(new_pmids))
-#             # logger.info(pmids_joined)
-#             search_output += pmids_joined + "\n"
-#     now = datetime.now()
-#     date = now.strftime("%Y%m%d")
-#     search_output_file = search_outfile_path + 'search_new_mods_' + date
-#     with open(search_output_file, "w") as search_output_file_fh:
-#         search_output_file_fh.write(search_output)
-
-# TODO
-# do not need to recursively process downloading errata and corrections, but if they exist, connect them.
+    # do not need to recursively process downloading errata and corrections, but if they exist, connect them.
+    # take list of pmids that were posted to the database, look at their .json for corrections and connect to existing abc references.
+    # print(pmids_posted)
+    post_comments_corrections(list(pmids_posted))
 
 
 def post_mca_to_existing_references(agr_curies_to_corpus, mod):
@@ -355,28 +345,6 @@ def post_mca_to_existing_references(agr_curies_to_corpus, mod):
         log_info = api_response_tuple[3]
         if response_status_code != 201:
             logger.info(f"Error adding {mod} mca to {url}: {response_text} {log_info}")
-
-
-def populate_alliance_pmids():
-    """
-
-    :return:
-    """
-
-    alliance_pmids = set()     # type: Set
-
-    # old way using flatfile from original population
-    # infile = base_path + 'inputs/alliance_pmids'
-    # with open(infile, "r") as infile_fh:
-    #     for line in infile_fh:
-    #         pmid = line.rstrip()
-    #         alliance_pmids.add(pmid)
-
-    generate_cross_references_file('reference')   # this updates from references in the database, and takes 88 seconds. if updating this script, comment it out after running it once
-    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
-    for pmid in xref_ref['PMID']:
-        alliance_pmids.add(pmid)
-    return alliance_pmids
 
 
 # find pmc articles for mice and 9 journals, get pmid mappings and list of pmc without pmid
