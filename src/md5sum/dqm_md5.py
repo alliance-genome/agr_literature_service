@@ -3,6 +3,19 @@ dqm_md5.py - MD5 checksum calculation for DQM JSON files
 
 Paulo Nuin Apr 2022
 
+Redis export DBs:
+
+11 - FB
+12 - MGD
+13 - RGD
+14 - SGD
+15 - WB
+16 - ZFIN
+17 - GO
+18 - XB
+
+add more if needed
+
 """
 
 
@@ -35,8 +48,8 @@ def hash_df(df):
     logger.info("Hashing dataframe")
     hashes = []
     for _index, row in df.iterrows():
-        hashes.append(hashlib.md5(str(row).encode('utf-8')).hexdigest())
-    df['md5'] = hashes
+        hashes.append(hashlib.md5(str(row).encode("utf-8")).hexdigest())
+    df["md5"] = hashes
 
     return df
 
@@ -53,26 +66,52 @@ def read_dqm_file(file_name):
     :return: datafrane with DQM contents
     """
 
+    columns_FB = ["MODReferenceTypes", "abstract", "allianceCategory", "authors",
+                  "citation", "crossReferences", "dateLastModified", "datePublished",
+                  "issueName", "language", "pages", "primaryId", "resourceAbbreviation",
+                  "tags", "title", "volume", "publisher"]
+
+    columns_MGI = ["primaryId", "title", "authors", "datePublished", "dateLastModified",
+                   "volume", "pages", "abstract", "citation", "issueName",
+                   "allianceCategory", "resourceAbbreviation", "MODReferenceTypes", "tags",
+                   "crossReferences"]
+
+    columns_RGD = ["primaryId", "title", "datePublished", "citation", "allianceCategory",
+                   "dateLastModified", "volume", "pages", "issueName", "MODReferenceTypes",
+                   "authors", "crossReferences", "abstract", "publisher"]
+
+    columns_SGD = ["citation", "crossReferences", "issueName", "primaryId",
+                   "MODReferenceTypes", "pages", "authors", "abstract", "tags",
+                   "datePublished", "resourceAbbreviation", "allianceCategory", "volume",
+                   "dateLastModified", "title", "publisher"]
+
+    columns_WB = ["pages", "authors", "primaryId", "allianceCategory",
+                  "resourceAbbreviation", "volume", "abstract", "citation",
+                  "MODReferenceTypes", "title", "datePublished", "crossReferences",
+                  "tags", "publisher"]
+
+    columns_ZFIN = ["primaryId", "title", "datePublished", "citation", "allianceCategory",
+                    "volume", "pages", "keywords", "tags", "meshTerms", "crossReferences",
+                    "resourceAbbreviation", "authors", "MODReferenceTypes", "abstract"]
+
     logger.info(f"Reading file {file_name}")
     with open(file_name) as f:
         data = json.loads(f.read())
 
-    df = pd.json_normalize(data['data'])
+    df = pd.json_normalize(data["data"])
 
-    new_index = ["title",
-                 "datePublished",
-                 "abstract",
-                 "primaryId",
-                 "pages",
-                 "allianceCategory",
-                 "tags",
-                 "citation",
-                 "crossReferences",
-                 "volume",
-                 "authors",
-                 "MODReferenceTypes",
-                 "resourceAbbreviation",
-                 "publisher"]
+    if "FB" in file_name:
+        new_index = columns_FB
+    elif "MGI" in file_name:
+        new_index = columns_MGI
+    elif "RGD" in file_name:
+        new_index = columns_RGD
+    elif "SGD" in file_name:
+        new_index = columns_SGD
+    elif "WB" in file_name:
+        new_index = columns_WB
+    elif "ZFIN" in file_name:
+        new_index = columns_ZFIN
 
     df = df.reindex(columns=new_index)
     df = hash_df(df)
@@ -143,12 +182,12 @@ def get_changed_items(old_dqm, new_dqm):
     """
 
     logger.info("Getting changed items")
-    pd.set_option('display.max_rows', None)
-    pd.set_option('display.max_columns', None)
-    pd.set_option('display.width', 1000)
-    pd.set_option('display.colheader_justify', 'center')
-    pd.set_option('display.precision', 2)
-    merged = old_dqm.merge(new_dqm, how='inner', left_on=["primaryId"], right_on=["primaryId"])
+    # pd.set_option("display.max_rows", None)
+    # pd.set_option("display.max_columns", None)
+    # pd.set_option("display.width", 1000)
+    # pd.set_option("display.colheader_justify", "center")
+    # pd.set_option("display.precision", 2)
+    merged = old_dqm.merge(new_dqm, how="inner", left_on=["primaryId"], right_on=["primaryId"])
 
     differences = merged[merged.md5_x != merged.md5_y]
 
@@ -185,7 +224,9 @@ def generate_output(new_items, changed_items, mod_output):
 @click.option("--output", "-o", "output", is_flag=True, default=None, help="Generate output")
 @click.option("--test", "-t", "test", is_flag=True, default=False, help="Test mode, reading csv files")
 @click.option("--mtrace", "-m", "mtrace", is_flag=True, default=False, help="Memory trace")
-def process_dqm_data(old_version, new_version, output, test, mtrace):
+@click.option("--redis", "-r", "redis_export", is_flag=True, default=False, help="Save md5 to redis")
+@click.option("--start-redis", "-s", "start_redis", is_flag=True, default=False, help="Import md5 from redis")
+def process_dqm_data(old_version, new_version, output, test, mtrace, redis_export, start_redis):
     """
 
     Main function of the script
@@ -213,6 +254,9 @@ def process_dqm_data(old_version, new_version, output, test, mtrace):
     if mtrace:
         print(f"Peak memory at {tracemalloc.get_traced_memory()[1]}")
     tracemalloc.stop()
+
+    if redis:
+
 
     if output:
         mod_output = os.path.basename(old_version).split("_")[-1].replace(".json", "")
