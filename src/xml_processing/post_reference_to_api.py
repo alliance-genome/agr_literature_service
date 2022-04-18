@@ -321,22 +321,27 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                 response_text = api_response_tuple[1]
                 response_status_code = api_response_tuple[2]
                 log_info = api_response_tuple[3]
-                response_dict = json.loads(response_text)
-                process_result = dict()
-                process_result['text'] = response_text
-                process_result['status_code'] = response_status_code
-                process_results.append(process_result)
 
-                if log_info:
-                    logger.info(log_info)
+                try:
+                    response_dict = json.loads(response_text)
+                    process_result = dict()
+                    process_result['text'] = response_text
+                    process_result['status_code'] = response_status_code
+                    process_results.append(process_result)
 
-                if (response_status_code == 201):
-                    response_dict = response_dict.replace('"', '')
-                    logger.info("%s\t%s", primary_id, response_dict)
-                    mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
-                else:
-                    logger.info("api error %s primaryId %s message %s", str(response_status_code), primary_id, response_dict['detail'])
-                    error_fh.write("api error %s primaryId %s message %s\n" % (str(response_status_code), primary_id, response_dict['detail']))
+                    if log_info:
+                        logger.info(log_info)
+
+                    if (response_status_code == 201):
+                        response_dict = response_dict.replace('"', '')
+                        logger.info("%s\t%s", primary_id, response_dict)
+                        mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
+                    else:
+                        logger.info("api error %s primaryId %s message %s", str(response_status_code), primary_id, response_dict['detail'])
+                        error_fh.write("api error %s primaryId %s message %s\n" % (str(response_status_code), primary_id, response_dict['detail']))
+                except ValueError:
+                    logger.info(f"{primary_id}\tValueError")
+                    error_fh.write(f"ERROR {primary_id} did not convert to json\n")
 
         # if wanting to output keys in data for figuring out mapping
         # for key in keys_found:

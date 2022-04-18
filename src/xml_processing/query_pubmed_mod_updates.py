@@ -23,8 +23,8 @@ from post_reference_to_api import post_references
 from helper_s3 import upload_xml_file_to_s3
 # from helper_file_processing import (generate_cross_references_file,
 #                                     load_ref_xref)
-from helper_post_to_api import (generate_headers, get_authentication_token,
-                                process_api_request)
+from helper_post_to_api import (generate_headers,
+                                process_api_request, update_token)
 from post_comments_corrections_to_api import post_comments_corrections
 
 from literature.database.main import get_db
@@ -35,6 +35,8 @@ load_dotenv()
 
 
 # pipenv run python query_pubmed_mod_updates.py
+
+# Takes 11 minutes to process 1865 from ZFIN search between 2021 11 04 and 2022 04 18
 
 # query pubmed for each MOD's search preferences, add PMID results into queue to download from pubmed if they've not already
 # been processed by Alliance.  when ready, should output to inputs/new_results_<date>
@@ -229,6 +231,7 @@ def query_mods():
     # search_output = ''  # remove this later with removed block below
     sleep_delay = 1
     for mod in mods_to_query:
+        logger.info(f"Processing {mod}")
         fp_pmids = set()     # type: Set
         if mod in mod_false_positive_file:
             infile = search_path + mod_false_positive_file[mod]
@@ -332,7 +335,7 @@ def post_mca_to_existing_references(agr_curies_to_corpus, mod):
 
     api_server = environ.get('API_SERVER', 'localhost')
     api_port = environ.get('API_PORT')
-    token = get_authentication_token()
+    token = update_token()
     headers = generate_headers(token)
 
     # to test a smaller set
