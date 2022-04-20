@@ -11,7 +11,7 @@ from get_pubmed_xml import download_pubmed_xml
 from post_reference_to_api import post_references
 from sanitize_pubmed_json import sanitize_pubmed_json_list
 from xml_to_json import generate_json
-from helper_s3 import upload_file_to_s3
+from helper_s3 import upload_xml_file_to_s3
 
 # pipenv run python process_single_pmid.py -c 12345678
 # enter a single pmid as an argument, download xml, convert to json, sanitize, post to api
@@ -70,18 +70,6 @@ def output_message_json(process_results):
     return json.dumps(process_result)
 
 
-def upload_xml_file_to_s3(pmid):
-    base_path = environ.get('XML_PATH')
-    env_state = environ.get('ENV_STATE', 'develop')
-    if env_state == 'build':
-        env_state = 'develop'
-    bucketname = 'agr-literature'
-    xml_filename = pmid + '.xml'
-    local_file_location = base_path + 'pubmed_xml/' + xml_filename
-    s3_file_location = env_state + '/reference/metadata/pubmed/xml/original/' + xml_filename
-    upload_file_to_s3(local_file_location, bucketname, s3_file_location)
-
-
 def process_pmid(pmid):
     """
 
@@ -95,7 +83,7 @@ def process_pmid(pmid):
         pmids_wanted = [pmid]
         download_pubmed_xml(pmids_wanted)
         generate_json(pmids_wanted, [])
-        sanitize_pubmed_json_list(pmids_wanted)
+        sanitize_pubmed_json_list(pmids_wanted, [])
         # json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_' + pmid + '.json'
         json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_PMID.json'
         process_results = post_references(json_filepath, 'no_file_check')

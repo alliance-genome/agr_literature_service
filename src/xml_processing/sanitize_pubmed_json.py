@@ -1,18 +1,14 @@
-# import logging
 import json
 from os import environ, makedirs, path
 
 from helper_file_processing import write_json
 
-# log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-# logging.config.fileConfig(log_file_path)
-# logger = logging.getLogger('spam_application.aux')
 
-
-def sanitize_pubmed_json_list(pmids):
+def sanitize_pubmed_json_list(pmids, inject_list):
     """
 
     :param pmids:
+    :param inject_list: list of object to inject into each pmid json, each object's field replaces the entry field, so if multiple objects would have the same field they should get aggregated before coming here
     :return:
     """
 
@@ -56,6 +52,9 @@ def sanitize_pubmed_json_list(pmids):
                 elif pmid_field in replace_value_fields:
                     if pmid_field in pubmed_data:
                         entry[pmid_field] = pubmed_data[pmid_field]
+            for inject_object in inject_list:
+                for inject_field in inject_object:
+                    entry[inject_field] = inject_object[inject_field]
             sanitized_data.append(entry)
         except IOError:
             print(pubmed_json_filepath + ' not found in filesystem')
