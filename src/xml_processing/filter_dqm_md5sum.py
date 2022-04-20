@@ -227,6 +227,7 @@ if __name__ == "__main__":
 
     logger.info("start filter_dqm_md5sum")
 
+    # todo: use sqlalchemy to query list of mod abbreviations (maybe when we onboard XB)
     all_mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB']
     mods = all_mods
     if args['mod']:
@@ -238,7 +239,7 @@ if __name__ == "__main__":
         folder = args['file']
 
     # to generate md5sum data from dqm files
-    # md5dict = generate_new_md5(folder, mods)
+    md5dict = generate_new_md5(folder, mods)
 
     # to save md5sum data into s3
     # save_md5data(md5dict, mods)
@@ -247,6 +248,6 @@ if __name__ == "__main__":
     # md5dict = load_s3_md5data(mods)
 
     # one time pubmed json generation
-    pubmed_json_generate_md5sum_and_save()
+    # pubmed_json_generate_md5sum_and_save()
 
     logger.info("end filter_dqm_md5sum")
