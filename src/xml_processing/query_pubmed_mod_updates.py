@@ -4,18 +4,22 @@ import logging.config
 import re
 import time
 import urllib
-# import glob
-# import hashlib
-from datetime import datetime
-# import os
 from os import environ, makedirs, path
 from typing import List, Set, Dict, Tuple, Union
+# import json
+
 
 import requests
 from dotenv import load_dotenv
 
-from helper_file_processing import (generate_cross_references_file,
-                                    load_ref_xref)
+from get_pubmed_xml import download_pubmed_xml
+from xml_to_json import generate_json
+from sanitize_pubmed_json import sanitize_pubmed_json_list
+from post_reference_to_api import post_references
+from helper_s3 import upload_xml_file_to_s3
+from helper_post_to_api import (generate_headers,
+                                process_api_request, update_token)
+from post_comments_corrections_to_api import post_comments_corrections
 
 from literature.database.main import get_db
 from literature.models import ReferenceModel, CrossReferenceModel, ModCorpusAssociationModel, ModModel
@@ -25,6 +29,8 @@ load_dotenv()
 
 
 # pipenv run python query_pubmed_mod_updates.py
+
+# Takes 11 minutes to process 1865 from ZFIN search between 2021 11 04 and 2022 04 18
 
 # query pubmed for each MOD's search preferences, add PMID results into queue to download from pubmed if they've not already
 # been processed by Alliance.  when ready, should output to inputs/new_results_<date>
@@ -140,12 +146,6 @@ if not path.exists(pmc_storage_path):
     makedirs(pmc_storage_path)
 
 
-#     'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=%27drosophil*[ALL]%20OR%20melanogaster[ALL]%20AND%202020/07/21:2021/07/21[EDAT]%20NOT%20pubstatusaheadofprint%27&retmax=100000000',
-#     'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*[ALL]+OR+melanogaster[ALL]+NOT+pubstatusaheadofprint&retmax=100000000',
-
-# alliance_pmids = set()     # type: Set
-
-
 def get_pmid_association_to_mod_via_reference(pmids: List[str], mod_abbreviation: str):
     db_session = next(get_db())
     query = db_session.query(
@@ -193,7 +193,8 @@ def query_mods():
         'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=drosophil*[ALL]+OR+melanogaster[ALL]+NOT+pubstatusaheadofprint',
         'ZFIN': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=zebrafish[Title/Abstract]+OR+zebra+fish[Title/Abstract]+OR+danio[Title/Abstract]+OR+zebrafish[keyword]+OR+zebra+fish[keyword]+OR+danio[keyword]+OR+zebrafish[Mesh+Terms]+OR+zebra+fish[Mesh+Terms]+OR+danio[Mesh+Terms]',
         'SGD': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=yeast+OR+cerevisiae',
-        'WB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=elegans'
+        'WB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=elegans',
+        'XB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=(Xenopus+OR+Silurana)+AND+%22Journal+Article%E2%80%9D'
     }
     # how far back to search pubmed in days for each MOD
     mod_daterange = {
@@ -207,15 +208,16 @@ def query_mods():
         'WB': 'WB_false_positive_pmids',
         'SGD': 'SGD_referencedeletedpmids_20210803.csv'
     }
-    mods_to_query = ['FB', 'SGD', 'WB', 'ZFIN']
+    # source of WB FP file: https://tazendra.caltech.edu/~postgres/agr/lit/WB_false_positive_pmids
 
-    alliance_pmids = populate_alliance_pmids()
+    mods_to_query = ['ZFIN', 'WB', 'FB', 'SGD']
 
+    pmids_posted = set()     # type: Set
     logger.info("Starting query mods")
-    search_output = ''
     sleep_delay = 1
     for mod in mods_to_query:
-        fp_pmids = set()
+        logger.info(f"Processing {mod}")
+        fp_pmids = set()     # type: Set
         if mod in mod_false_positive_file:
             infile = search_path + mod_false_positive_file[mod]
             with open(infile, "r") as infile_fh:
@@ -229,45 +231,107 @@ def query_mods():
             url = url + mod_daterange[mod]
         f = urllib.request.urlopen(url)
         xml_all = f.read().decode('utf-8')
+        pmids_to_create = []
+        agr_curies_to_corpus = []
         if re.findall(r"<Id>(\d+)</Id>", xml_all):
             pmid_group = re.findall(r"<Id>(\d+)</Id>", xml_all)
-            new_pmids = []
+
+            whitelist_pmids = []  # remove this later with removed block below
             for pmid in pmid_group:
-                if pmid not in alliance_pmids and pmid not in fp_pmids:
-                    new_pmids.append(pmid)
-                # new_pmids.append(pmid)
-            logger.info("%s search pmids not in alliance count : %s", mod, len(new_pmids))
-            search_output += mod + " search pmids not in alliance count : " + str(len(new_pmids)) + "\n"
-            pmids_joined = (',').join(sorted(new_pmids))
+                if pmid not in fp_pmids:
+                    whitelist_pmids.append(pmid)
+            pmids_wanted = list(map(lambda x: 'PMID:' + x, whitelist_pmids))
+            pmid_curie_mod_dict = get_pmid_association_to_mod_via_reference(pmids_wanted, mod)
+            # to debug
+            # json_data = json.dumps(pmid_curie_mod_dict, indent=4, sort_keys=True)
+            # print(mod)
+            # print(json_data)
+            # pmids_joined = (',').join(sorted(pmids_wanted))
             # logger.info(pmids_joined)
-            search_output += pmids_joined + "\n"
-    now = datetime.now()
-    date = now.strftime("%Y%m%d")
-    search_output_file = search_outfile_path + 'search_new_mods_' + date
-    with open(search_output_file, "w") as search_output_file_fh:
-        search_output_file_fh.write(search_output)
+            # logger.info(len(pmids_wanted))
+            for pmid in pmids_wanted:
+                if pmid in pmid_curie_mod_dict:
+                    agr_curie = pmid_curie_mod_dict[pmid][0]
+                    in_corpus = pmid_curie_mod_dict[pmid][1]
+                    # to debug
+                    # print(f"{pmid}\t{agr_curie}\t{in_corpus}")
+                    if agr_curie is None:
+                        pmids_to_create.append(pmid.replace('PMID:', ''))
+                    elif in_corpus is None:
+                        # print(f"add {mod} mca to {pmid} is {agr_curie}")
+                        agr_curies_to_corpus.append(agr_curie)
+        logger.info(f"pmids_to_create: {len(pmids_to_create)}")
+        # pmids_joined = (',').join(sorted(pmids_to_create))
+        # logger.info(pmids_joined)
+        logger.info(f"agr_curies_to_corpus: {len(agr_curies_to_corpus)}")
+        # pmids_joined = (',').join(sorted(agr_curies_to_corpus))
+        # logger.info(pmids_joined)
+
+        # connect mod pmid from search to existing abc references
+        post_mca_to_existing_references(agr_curies_to_corpus, mod)
+
+        pmids_to_process = sorted(pmids_to_create)
+        # pmids_to_process = sorted(pmids_to_create)[0:2]   # smaller set to test
+        for pmid in pmids_to_process:
+            pmids_posted.add(pmid)
+        logger.info(pmids_to_process)
+        download_pubmed_xml(pmids_to_process)
+        generate_json(pmids_to_process, [])
+
+        inject_object = {}
+        mod_corpus_associations = [{"modAbbreviation": mod, "modCorpusSortSource": "mod_pubmed_search", "corpus": None}]
+        inject_object['modCorpusAssociations'] = mod_corpus_associations
+
+        # pmids_to_process = ['34849855']	# test a single pmid
+
+        # generate json to post for these pmids and inject data not from pubmed
+        sanitize_pubmed_json_list(pmids_to_process, [inject_object])
+
+        # post generated json to api
+        json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_PMID.json'
+        process_results = post_references(json_filepath, 'no_file_check')
+        logger.info(process_results)
+
+        # upload each processed json file to s3
+        for pmid in pmids_to_process:
+            # logger.info(f"upload {pmid} to s3")
+            upload_xml_file_to_s3(pmid)
+
+    # do not need to recursively process downloading errata and corrections, but if they exist, connect them.
+    # take list of pmids that were posted to the database, look at their .json for corrections and connect to existing abc references.
+    logger.info("pmids process comments corrections")
+    logger.info(pmids_posted)
+    post_comments_corrections(list(pmids_posted))
+
+    logger.info("end query_mods")
 
 
-def populate_alliance_pmids():
+def post_mca_to_existing_references(agr_curies_to_corpus, mod):
     """
 
+    :param agr_curies_to_corpus: agr reference curies to add an mca_value to
+    :param mod: mod to associate
     :return:
     """
 
-    alliance_pmids = set()     # type: Set
+    api_server = environ.get('API_SERVER', 'localhost')
+    api_port = environ.get('API_PORT')
+    token = update_token()
+    headers = generate_headers(token)
 
-    # old way using flatfile from original population
-    # infile = base_path + 'inputs/alliance_pmids'
-    # with open(infile, "r") as infile_fh:
-    #     for line in infile_fh:
-    #         pmid = line.rstrip()
-    #         alliance_pmids.add(pmid)
+    # to test a smaller set
+    # for agr in list(agr_curies_to_corpus)[0:10]:
 
-    generate_cross_references_file('reference')   # this updates from references in the database, and takes 88 seconds. if updating this script, comment it out after running it once
-    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
-    for pmid in xref_ref['PMID']:
-        alliance_pmids.add(pmid)
-    return alliance_pmids
+    for agr in list(agr_curies_to_corpus):
+        data_json = {"mod_abbreviation": mod, "mod_corpus_sort_source": "mod_pubmed_search", "corpus": None, "reference_curie": agr}
+        url = 'http://' + api_server + ':' + api_port + '/reference/mod_corpus_association/'
+        api_response_tuple = process_api_request('POST', url, headers, data_json, agr, None, None)
+        headers = api_response_tuple[0]
+        response_text = api_response_tuple[1]
+        response_status_code = api_response_tuple[2]
+        log_info = api_response_tuple[3]
+        if response_status_code != 201:
+            logger.info(f"Error adding {mod} mca to {url}: {response_text} {log_info}")
 
 
 # find pmc articles for mice and 9 journals, get pmid mappings and list of pmc without pmid
@@ -380,124 +444,6 @@ def download_pmc_without_pmid_mgi():
 
 # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=PMC3555923&retmode=xml
 
-# def download_pubmed_xml(pmids_wanted):
-#     # 4.5 minutes to download 28994 wormbase records in 10000 chunks
-#     # 61 minutes to download 429899 alliance records in 10000 chunks
-#     # 127 minutes to download 646714 alliance records in 5000 chunks, failed on 280
-#     pmids_slice_size = 5000
-#
-#     if not path.exists(storage_path):
-#         makedirs(storage_path)
-#
-#     # comparing through a set instead of a list takes 2.6 seconds instead of 4256
-#     pmids_found = set()
-#
-#     # this section reads pubmed xml files already acquired to skip downloading them.
-#     # to get full set, clear out storage_path, or comment out this section
-#     logger.info("Reading PubMed XML previously acquired")
-#     full_path_pmid_xml = glob.glob(storage_path + "*.xml")
-#     pmids_wanted_set = set(pmids_wanted)
-#     for elem in full_path_pmid_xml:
-#         elem = elem.replace(storage_path, '')
-#         elem = elem.replace('.xml', '')
-#         if elem in pmids_wanted_set:
-#             pmids_wanted_set.remove(elem)
-#     pmids_wanted = sorted(list(pmids_wanted_set))
-#
-# #     for pmid in pmids_wanted:
-# #         print(pmid)
-#
-#     logger.info("Starting download of new PubMed XML")
-#
-#     md5dict = {}
-#     md5file = storage_path + 'md5sum'
-#     if path.exists(md5file):
-#         logger.info("Reading previous md5sum mappings from %s", md5file)
-#         with open(md5file, "r") as md5file_fh:
-#             for line in md5file_fh:
-#                 line_data = line.split("\t")
-#                 if line_data[0]:
-#                     md5dict[line_data[0]] = line_data[1].rstrip()
-#
-#     for index in range(0, len(pmids_wanted), pmids_slice_size):
-#         pmids_slice = pmids_wanted[index:index + pmids_slice_size]
-#         pmids_joined = (',').join(pmids_slice)
-#         logger.debug("processing PMIDs %s", pmids_joined)
-#
-# #         https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=10074449&retmode=xml
-#
-# #         default way without a library, using get
-# #         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" + pmids_joined + "&retmode=xml"
-# #         print url
-# #         f = urllib.urlopen(url)
-# #         xml_all = f.read()
-#
-# #         using post with requests library, works well for 10000 pmids
-#         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
-#         parameters = {'db': 'pubmed', 'retmode': 'xml', 'id': pmids_joined}
-#         r = requests.post(url, data=parameters)
-#         xml_all = r.text
-# #         xml_all = r.text.encode('utf-8').strip()		# python2
-#         xml_split = xml_all.split("\n<Pubmed")		# some types are not PubmedArticle, like PubmedBookArticle, e.g. 32644453
-#
-#         header = xml_split.pop(0)
-#         header = header + "\n<Pubmed" + xml_split.pop(0)
-#         footer = "\n\n</PubmedArticleSet>"
-#
-#         for n in range(len(xml_split)):
-#             xml_split[n] = header + "\n<Pubmed" + xml_split[n]
-#             xml_split[n] = os.linesep.join([s for s in xml_split[n].splitlines() if s])
-#
-#         for n in range(len(xml_split) - 1):
-#             xml_split[n] += footer
-#
-#         for xml in xml_split:
-#             if re.search(r"<PMID[^>]*?>(\d+)</PMID>", xml):
-#                 pmid_group = re.search(r"<PMID[^>]*?>(\d+)</PMID>", xml)
-#                 pmid = pmid_group.group(1)
-#                 pmids_found.add(pmid)
-#                 filename = storage_path + pmid + '.xml'
-#                 f = open(filename, "w")
-#                 f.write(xml)
-#                 f.close()
-#                 md5sum = hashlib.md5(xml.encode('utf-8')).hexdigest()
-#                 md5dict[pmid] = md5sum
-#                 # md5data += pmid + "\t" + md5sum + "\n"
-#
-#         if len(pmids_slice) == pmids_slice_size:
-#             logger.info("waiting to process more pmids")
-#             time.sleep(5)
-#
-#     # md5file = storage_path + 'md5sum'
-#     logger.info("Writing md5sum mappings to %s", md5file)
-#     with open(md5file, "w") as md5file_fh:
-#         # md5file_fh.write(md5data)
-#         for key in sorted(md5dict.keys(), key=int):
-#             md5file_fh.write("%s\t%s\n" % (key, md5dict[key]))
-#
-#     logger.info("Writing log of pmids_not_found")
-#     output_pmids_not_found_file = base_path + 'pmids_not_found'
-#     with open(output_pmids_not_found_file, "w") as pmids_not_found_file:
-#         for pmid in pmids_wanted:
-#             if pmid not in pmids_found:
-#                 pmids_not_found_file.write("%s\n" % (pmid))
-#                 logger.info("PMID %s not found in pubmed query", pmid)
-#         pmids_not_found_file.close()
-#
-#     logger.info("Getting PubMed XML complete")
-#
-#
-# # to process one by one
-# #   for pmid in pmids_wanted:
-# # #    add some validation here
-# #     url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" + pmid + "&retmode=xml"
-# #     filename = storage_path + pmid + '.xml'
-# # #     print url
-# # #     print filename
-# #     logger.info("Downloading %s into %s", url, filename)
-# #     urllib.urlretrieve(url, filename)
-# #     time.sleep( 5 )
-
 
 if __name__ == "__main__":
     """
@@ -517,49 +463,3 @@ if __name__ == "__main__":
     pmids_wanted = []     # type: List
 
     query_pubmed_mod_updates()
-
-# #    python query_pubmed_mod_updates.py -d
-#     if args['database']:
-#         logger.info("Processing database entries")
-#
-#     elif args['restapi']:
-#         logger.info("Processing rest api entries")
-#
-# #     python query_pubmed_mod_updates.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/pmid_file.txt
-#     elif args['file']:
-#         logger.info("Processing file input from %s", args['file'])
-#         with open(args['file'], 'r') as fp:
-#             pmid = fp.readline()
-#             while pmid:
-#                 pmids_wanted.append(pmid.rstrip())
-#                 pmid = fp.readline()
-#
-# #     python query_pubmed_mod_updates.py -u http://tazendra.caltech.edu/~azurebrd/var/work/pmid_sample
-#     elif args['url']:
-#         logger.info("Processing url input from %s", args['url'])
-#         req = urllib.request.urlopen(args['url'])
-#         data = req.read()
-#         lines = data.splitlines()
-#         for pmid in lines:
-#             pmids_wanted.append(str(int(pmid)))
-#
-# #    python query_pubmed_mod_updates.py -c 1234 4576 1828
-#     elif args['commandline']:
-#         logger.info("Processing commandline input")
-#         for pmid in args['commandline']:
-#             pmids_wanted.append(pmid)
-#
-# #    python query_pubmed_mod_updates.py -s
-#     elif args['sample']:
-#         logger.info("Processing hardcoded sample input")
-#         pmid = '12345678'
-#         pmids_wanted.append(pmid)
-#         pmid = '12345679'
-#         pmids_wanted.append(pmid)
-#         pmid = '12345680'
-#         pmids_wanted.append(pmid)
-#
-#     else:
-#         logger.info("Processing database entries")
-#
-#     download_pubmed_xml(pmids_wanted)

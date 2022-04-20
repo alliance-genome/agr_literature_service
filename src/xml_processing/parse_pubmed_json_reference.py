@@ -54,7 +54,7 @@ if __name__ == "__main__":
     else:
         logger.info("Must enter a PMID through command line")
 
-    sanitize_pubmed_json_list(pmids_wanted)
+    sanitize_pubmed_json_list(pmids_wanted, [])
 
     # do below if wanting to post from here, instead of from post_reference_to_api.py
     # base_path = environ.get('XML_PATH')
