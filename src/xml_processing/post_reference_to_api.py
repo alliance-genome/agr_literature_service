@@ -21,10 +21,6 @@ from helper_post_to_api import (generate_headers, get_authentication_token,
 # python post_reference_to_api.py -a
 
 
-# log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-# logging.config.fileConfig(log_file_path)
-# logger = logging.getLogger('literature logger')
-
 logging.basicConfig(level=logging.INFO,
                     stream=sys.stdout,
                     format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251

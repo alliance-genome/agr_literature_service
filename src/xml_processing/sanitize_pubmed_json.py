@@ -1,12 +1,7 @@
-# import logging
 import json
 from os import environ, makedirs, path
 
 from helper_file_processing import write_json
-
-# log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-# logging.config.fileConfig(log_file_path)
-# logger = logging.getLogger('spam_application.aux')
 
 
 def sanitize_pubmed_json_list(pmids, inject_list):

@@ -5,8 +5,6 @@ import logging.config
 from os import environ, path
 from typing import List, Dict
 
-# from helper_file_processing import (generate_cross_references_file,
-#                                     load_ref_xref)
 from helper_post_to_api import (generate_headers, get_authentication_token,
                                 process_api_request)
 
@@ -98,13 +96,6 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
             print(f"{pubmed_json_filepath} not found in filesystem")
 
     reference_to_curie = dict()
-    # generating all mappings of xref to reference curie through api
-    # generate_cross_references_file('reference')   # this updates from references in the database, and takes 88 seconds. if updating this script, comment it out after running it once
-    # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
-    # for prefix in xref_ref:
-    #     for identifier in xref_ref[prefix]:
-    #         xref_curie = prefix + ':' + identifier
-    #         reference_to_curie[xref_curie] = xref_ref[prefix][identifier]
 
     # generating only needed pmid mappings of xref to reference curie through sqlalchemy
     reference_to_curie = get_pmid_to_reference(list(pmids_in_xml))
@@ -114,12 +105,6 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
     mappings = sorted(mappings_set)
     # counter = 0
     for mapping in mappings:
-        # print(mapping)
-        # only take a couple of samples for testing
-        # counter += 1
-        # if counter > 2:
-        #     break
-
         map_data = mapping.split("\t")
         primary_pmid = map_data[0]
         secondary_pmid = map_data[1]
@@ -131,16 +116,10 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
         if secondary_pmid in reference_to_curie:
             secondary_curie = reference_to_curie[secondary_pmid]
         if primary_curie == '':
-            # print('ERROR ' + primary_pmid + ' does not map to an AGR Reference curie')
-            logger.info("ERROR %s : %s does not map to an AGR Reference curie", mapping, primary_pmid)
+            logger.info(f"ERROR {mapping} : {primary_pmid} does not map to an AGR Reference curie")
         if secondary_curie == '':
-            # print('ERROR ' + secondary_pmid + ' does not map to an AGR Reference curie')
-            logger.info("ERROR %s does not map to an AGR Reference curie", secondary_pmid)
+            logger.info(f"ERROR {secondary_pmid} does not map to an AGR Reference curie")
         if primary_curie != '' and secondary_curie != '':
-            # print(primary_curie + '\t' + secondary_curie + '\t' + com_cor_type)
-            # print('primary ' + primary_pmid + ' maps to ' + primary_curie)
-            # print('secondary ' + secondary_pmid + ' maps to ' + secondary_curie)
-            # print('com_cor_type ' + com_cor_type)
             new_entry = dict()
             new_entry['reference_curie_from'] = primary_curie
             new_entry['reference_curie_to'] = secondary_curie
@@ -181,7 +160,7 @@ if __name__ == "__main__":
 
     pmids_wanted = []
 
-#    python post_comments_corrections_to_api.py -c 1234 4576 1828
+    # python post_comments_corrections_to_api.py -c 1234 4576 1828
     if args['commandline']:
         logger.info("Processing commandline input")
         for pmid in args['commandline']:
