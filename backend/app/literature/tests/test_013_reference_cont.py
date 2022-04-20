@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from literature.crud.reference_crud import create, patch, show, show_notes
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 # from literature import models
-from literature.models import Base
+from literature.database.base import Base
 from literature.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
 
 metadata = MetaData()

@@ -282,8 +282,8 @@ def show(db: Session, curie: str, http_request=True):  # noqa
 
     if reference.cross_references:
         cross_references = []
-        for cross_reference in reference_data["cross_references"]:
-            cross_reference_show = jsonable_encoder(cross_reference_crud.show(db, cross_reference["curie"]))
+        for cross_reference in reference.cross_references:
+            cross_reference_show = jsonable_encoder(cross_reference_crud.show(db, cross_reference.curie))
             del cross_reference_show["reference_curie"]
             cross_references.append(cross_reference_show)
         reference_data["cross_references"] = cross_references

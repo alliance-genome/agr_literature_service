@@ -11,6 +11,10 @@ from sqlalchemy.orm import relationship
 
 from literature.database.base import Base
 from literature.schemas import ReferenceCommentAndCorrectionType
+from literature.database.versioning import enable_versioning
+
+
+enable_versioning()
 
 
 class ReferenceCommentAndCorrectionModel(Base):

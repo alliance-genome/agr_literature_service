@@ -2,14 +2,20 @@ import urllib.request
 
 import yaml
 from sqlalchemy.orm import Session
+from typing import Optional
 
-from literature import database
+from literature.database.main import get_db
 from literature.config import config
 from literature.models.resource_descriptor_models import (
     ResourceDescriptorModel, ResourceDescriptorPageModel)
 
-get_db = database.get_db
-db_session = next(get_db(), None)
+
+db_session: Optional[Session] = None
+
+
+def initialize_database():
+    global db_session
+    db_session = next(get_db(), None)
 
 
 def update_resource_descriptor(db: Session = db_session):
@@ -53,7 +59,9 @@ def setup_resource_descriptor():
     :return:
     """
 
-    update_resource_descriptor()
+    initialize_database()
+    global db_session
+    update_resource_descriptor(db_session)
 
 
 if __name__ == '__main__':
