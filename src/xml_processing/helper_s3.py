@@ -34,8 +34,6 @@ def download_file_from_s3(filepath, bucketname, s3_file_location):
         response = s3_client.download_file(bucketname, s3_file_location, filepath)
         if response is not None:
             logger.info("boto 3 downloaded response: %s", response)
-        # else:
-        #     logger.info("downloaded from s3 %s %s", bucketname, filepath)
     except ClientError as e:
         logging.error(e)
         return False
