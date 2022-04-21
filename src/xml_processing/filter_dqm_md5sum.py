@@ -141,13 +141,14 @@ def save_s3_md5data(md5dict, mods):
     env_state = environ.get('ENV_STATE', 'develop')
     if env_state == 'build':
         env_state = 'develop'
-    bucketname = 'agr-literature'
-    for mod in mods:
-        mod_json_storage_path = get_json_storage_path(mod)
-        md5file = mod_json_storage_path + 'md5sum'
-        write_json(md5file, md5dict[mod])
-        s3_file_location = env_state + '/reference/metadata/md5sum/' + mod + '_md5sum'
-        upload_file_to_s3(md5file, bucketname, s3_file_location)
+    if env_state != 'test':
+        bucketname = 'agr-literature'
+        for mod in mods:
+            mod_json_storage_path = get_json_storage_path(mod)
+            md5file = mod_json_storage_path + 'md5sum'
+            write_json(md5file, md5dict[mod])
+            s3_file_location = env_state + '/reference/metadata/md5sum/' + mod + '_md5sum'
+            upload_file_to_s3(md5file, bucketname, s3_file_location)
 
 
 def load_s3_md5data(mods):
@@ -163,16 +164,19 @@ def load_s3_md5data(mods):
         env_state = 'develop'
     bucketname = 'agr-literature'
     for mod in mods:
-        s3_file_location = env_state + '/reference/metadata/md5sum/' + mod + '_md5sum'
-        mod_json_storage_path = get_json_storage_path(mod)
-        md5file = mod_json_storage_path + 'md5sum'
-        download_file_from_s3(md5file, bucketname, s3_file_location)
-        try:
-            with open(md5file, 'r') as f:
-                md5dict[mod] = json.load(f)
-                f.close()
-        except IOError:
-            logger.info(f"No md5sum data to update from s3 {s3_file_location}")
+        if env_state == 'test':
+            md5dict[mod] = {}
+        else:
+            s3_file_location = env_state + '/reference/metadata/md5sum/' + mod + '_md5sum'
+            mod_json_storage_path = get_json_storage_path(mod)
+            md5file = mod_json_storage_path + 'md5sum'
+            download_file_from_s3(md5file, bucketname, s3_file_location)
+            try:
+                with open(md5file, 'r') as f:
+                    md5dict[mod] = json.load(f)
+                    f.close()
+            except IOError:
+                logger.info(f"No md5sum data to update from s3 {s3_file_location}")
     # debug
     # json_data = json.dumps(md5dict, indent=4, sort_keys=True)
     # print(json_data)

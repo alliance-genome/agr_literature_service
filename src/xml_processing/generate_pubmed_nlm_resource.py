@@ -6,9 +6,8 @@ import re
 import urllib
 from os import environ, makedirs, path
 
-import boto3
-from botocore.exceptions import ClientError
 from dotenv import load_dotenv
+from helper_s3 import upload_file_to_s3
 
 # generate from local file and do not upload to s3
 # pipenv run python generate_pubmed_nlm_resource.py -l
@@ -29,9 +28,6 @@ logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
 
-# todo: save this in an env variable
-# root_path = '/home/azurebrd/git/agr_literature_service_demo/'
-# base_path = root_path + 'src/xml_processing/'
 base_path = environ.get('XML_PATH', "")
 storage_path = base_path + 'pubmed_resource_json/'
 
@@ -47,7 +43,7 @@ def populate_nlm_info(file_data):
     logger.info("Generating NLM data from file")
     entries = file_data.split('\n--------------------------------------------------------\n')
 
-#     counter = 0
+    # counter = 0
     for entry in entries:
         # counter = counter + 1
         # if counter > 5:
@@ -84,39 +80,11 @@ def populate_nlm_info(file_data):
             online_issn = online_issn_group.group(1)
             data_dict['onlineISSN'] = online_issn
 
-#             print nlm
-#             data_dict['nlm'] = nlm
+        #     print nlm
+        #     data_dict['nlm'] = nlm
         nlm_info.append(data_dict)
-#         print entry
+        # print entry
     return nlm_info
-
-
-def upload_file_to_s3(file_name, bucket, object_name=None):
-    """
-    Upload a file to an S3 bucket
-
-    :param file_name: File to upload
-    :param bucket: Bucket to upload to
-    :param object_name: S3 object name. If not specified then file_name is used
-    :return: True if file was uploaded, else False
-    """
-
-    # If S3 object_name was not specified, use file_name
-    if object_name is None:
-        object_name = file_name
-
-    # Upload the file
-    s3_client = boto3.client('s3')
-    try:
-        response = s3_client.upload_file(file_name, bucket, object_name)
-        if response is not None:
-            logger.info("boto 3 uploaded response: %s", response)
-        else:
-            logger.info("uploaded to s3 %s %s", bucket, file_name)
-    except ClientError as e:
-        logging.error(e)
-        return False
-    return True
 
 
 def generate_json(nlm_info, upload_to_s3):
@@ -126,18 +94,19 @@ def generate_json(nlm_info, upload_to_s3):
     if not path.exists(storage_path):
         makedirs(storage_path)
 
-# Write the json data to output json file
-# UNCOMMENT TO write to json directory
+    # Write the json data to output json file
     filename = 'resource_pubmed_all.json'
     output_json_file = storage_path + filename
     with open(output_json_file, "w") as json_file:
         json_file.write(json_data)
         json_file.close()
 
-    if upload_to_s3:
+    env_state = environ.get('ENV_STATE', 'develop')
+    if env_state == 'build':
+        env_state = 'develop'
+    if upload_to_s3 and env_state != 'test':
         s3_bucket = 'agr-literature'
-        s3_filename = 'develop/resource/metadata/' + filename
-# UNCOMMENT TO upload to aws bucket
+        s3_filename = env_state + '/resource/metadata/' + filename
         upload_file_to_s3(output_json_file, s3_bucket, s3_filename)
 
 # to remove an uploaded file
