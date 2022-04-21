@@ -5,7 +5,9 @@ import json
 import logging
 import logging.config
 import re
-from os import environ, listdir, path
+import sys
+from os import environ, listdir
+# from os path
 
 from helper_file_processing import (generate_cross_references_file,
                                     load_ref_xref, split_identifier)
@@ -19,9 +21,12 @@ from helper_post_to_api import (generate_headers, get_authentication_token,
 # python post_reference_to_api.py -a
 
 
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
+                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
+                    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
+
 
 # keys that exist in data
 # 2021-05-25 21:16:53,372 - literature logger - INFO - key abstract
@@ -312,22 +317,27 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                 response_text = api_response_tuple[1]
                 response_status_code = api_response_tuple[2]
                 log_info = api_response_tuple[3]
-                response_dict = json.loads(response_text)
-                process_result = dict()
-                process_result['text'] = response_text
-                process_result['status_code'] = response_status_code
-                process_results.append(process_result)
 
-                if log_info:
-                    logger.info(log_info)
+                try:
+                    response_dict = json.loads(response_text)
+                    process_result = dict()
+                    process_result['text'] = response_text
+                    process_result['status_code'] = response_status_code
+                    process_results.append(process_result)
 
-                if (response_status_code == 201):
-                    response_dict = response_dict.replace('"', '')
-                    logger.info("%s\t%s", primary_id, response_dict)
-                    mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
-                else:
-                    logger.info("api error %s primaryId %s message %s", str(response_status_code), primary_id, response_dict['detail'])
-                    error_fh.write("api error %s primaryId %s message %s\n" % (str(response_status_code), primary_id, response_dict['detail']))
+                    if log_info:
+                        logger.info(log_info)
+
+                    if (response_status_code == 201):
+                        response_dict = response_dict.replace('"', '')
+                        logger.info("%s\t%s", primary_id, response_dict)
+                        mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
+                    else:
+                        logger.info("api error %s primaryId %s message %s", str(response_status_code), primary_id, response_dict['detail'])
+                        error_fh.write("api error %s primaryId %s message %s\n" % (str(response_status_code), primary_id, response_dict['detail']))
+                except ValueError:
+                    logger.info(f"{primary_id}\tValueError")
+                    error_fh.write(f"ERROR {primary_id} did not convert to json\n")
 
         # if wanting to output keys in data for figuring out mapping
         # for key in keys_found:
