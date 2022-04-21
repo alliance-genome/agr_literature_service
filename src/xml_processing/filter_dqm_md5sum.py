@@ -29,7 +29,7 @@ load_dotenv()
 # the old md5sum from s3 (load_s3_md5data), generate the new md5sum from
 # dqm_data/ (generate_new_md5), filter on differences to process entries, if all
 # loads well, # update and append new md5sum to old md5sum and save to s3
-# (save_md5data).
+# (save_s3_md5data).
 
 
 logging.basicConfig(level=logging.INFO,
@@ -130,7 +130,7 @@ def generate_new_md5(input_path, mods):
     return md5dict
 
 
-def save_md5data(md5dict, mods):
+def save_s3_md5data(md5dict, mods):
     """
 
     :param md5dict:
@@ -211,7 +211,7 @@ def pubmed_json_generate_md5sum_and_save():
             # md5sum = hashlib.md5(json_data.encode('utf-8')).hexdigest()
             md5sum = generate_md5sum_from_dict(json_dict)
             md5dict['PMID'][pmid] = md5sum
-    save_md5data(md5dict, ['PMID'])
+    save_s3_md5data(md5dict, ['PMID'])
 
 
 def generate_md5sum_from_dict(json_dict):
@@ -257,7 +257,7 @@ if __name__ == "__main__":
     md5dict = generate_new_md5(folder, mods)
 
     # to save md5sum data into s3
-    save_md5data(md5dict, mods)
+    save_s3_md5data(md5dict, mods)
 
     # to load md5sum data from s3
     # md5dict = load_s3_md5data(mods)
