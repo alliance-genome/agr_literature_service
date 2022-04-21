@@ -207,7 +207,7 @@ def mod_corpus_association_check(agr_data, values):
 
     failure_string = ''
     db_values = set()
-    if 'mod_corpus_associations' in agr_data:
+    if 'mod_corpus_associations' in agr_data and agr_data['mod_corpus_associations'] is not None:
         for mca_db in agr_data['mod_corpus_associations']:
             db_string = ''
             if 'mod_abbreviation' in mca_db:
