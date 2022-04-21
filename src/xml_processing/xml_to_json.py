@@ -183,11 +183,6 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
         makedirs(json_storage_path)
 
     md5dict = load_s3_md5data(['PMID'])
-    # github actions don't have access to s3
-    have_s3_permission = True
-    if 'PMID' not in md5dict:
-        have_s3_permission = False
-        md5dict['PMID'] = {}
 
     new_pmids_set = set()
     ref_types_set = set()
@@ -632,9 +627,6 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
             md5sum = generate_md5sum_from_dict(data_dict)
             md5dict['PMID'][pmid] = md5sum
             md5data += pmid + "\t" + md5sum + "\n"
-
-    if have_s3_permission:
-        save_s3_md5data(md5dict, ['PMID'])
 
     md5file = json_storage_path + 'md5sum'
     logger.info("Writing md5sum mappings to %s", md5file)
