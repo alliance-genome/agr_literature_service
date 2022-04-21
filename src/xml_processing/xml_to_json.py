@@ -184,9 +184,9 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
 
     md5dict = load_s3_md5data(['PMID'])
     # github actions don't have access to s3
-    have_s3_permission = False
+    have_s3_permission = True
     if 'PMID' not in md5dict:
-        have_s3_permission = True
+        have_s3_permission = False
         md5dict['PMID'] = {}
 
     new_pmids_set = set()
