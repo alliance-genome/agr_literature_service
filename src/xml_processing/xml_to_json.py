@@ -628,6 +628,8 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
             md5dict['PMID'][pmid] = md5sum
             md5data += pmid + "\t" + md5sum + "\n"
 
+    save_s3_md5data(md5dict, ['PMID'])
+
     md5file = json_storage_path + 'md5sum'
     logger.info("Writing md5sum mappings to %s", md5file)
     with open(md5file, "a") as md5file_fh:
