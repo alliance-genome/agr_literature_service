@@ -183,6 +183,10 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
         makedirs(json_storage_path)
 
     md5dict = load_s3_md5data(['PMID'])
+    if 'PMID' not in md5dict:
+        md5dict['PMID'] = {}
+    env_state = environ.get('ENV_STATE', 'develop')
+    print(f"env_state {env_state}")
 
     new_pmids_set = set()
     ref_types_set = set()
