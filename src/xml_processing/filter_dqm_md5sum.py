@@ -226,7 +226,6 @@ def generate_md5sum_from_dict(json_dict):
     json_data = json.dumps(json_dict, indent=4, sort_keys=True)
     md5sum = hashlib.md5(json_data.encode('utf-8')).hexdigest()
     return md5sum
-    
 
 
 if __name__ == "__main__":
