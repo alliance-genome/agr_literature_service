@@ -1,6 +1,4 @@
 import argparse
-import hashlib
-import json
 # import logging.config
 import logging
 import re
@@ -8,6 +6,8 @@ import sys
 import urllib.request
 from os import environ, makedirs, path
 from typing import List, Set
+from filter_dqm_md5sum import load_s3_md5data, save_s3_md5data, generate_md5sum_from_dict
+from helper_file_processing import write_json
 
 # import xmltodict
 
@@ -175,16 +175,15 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
 
     # open input xml file and read data in form of python dictionary using xmltodict module
     md5data = ''
-    # storage_path = base_path + 'pubmed_xml_20210322/'
-    # json_storage_path = base_path + 'pubmed_json_20210322/'
     storage_path = base_path + 'pubmed_xml/'
     json_storage_path = base_path + 'pubmed_json/'
     if not path.exists(storage_path):
         makedirs(storage_path)
     if not path.exists(json_storage_path):
         makedirs(json_storage_path)
-#     new_pmids = []
-#     ref_types = []
+
+    md5dict = load_s3_md5data(['PMID'])
+
     new_pmids_set = set()
     ref_types_set = set()
     for pmid in pmids:
@@ -622,25 +621,14 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
 #                             meshs_list.append(mesh_dict)
                 data_dict['meshTerms'] = meshs_list
 
-            # generate the object using json.dumps()
-            # corresponding to json data
-
-            # minified
-            # json_data = json.dumps(data_dict)
-
-            # pretty-print
-            json_data = json.dumps(data_dict, indent=4, sort_keys=True)
-
             # Write the json data to output json file
-# UNCOMMENT TO write to json directory
             json_filename = json_storage_path + pmid + '.json'
-            # if getting pmids from directories split into multiple sub-subdirectories
-            # json_filename = get_path_from_pmid(pmid, 'json')
-            with open(json_filename, "w") as json_file:
-                json_file.write(json_data)
-                json_file.close()
-            md5sum = hashlib.md5(json_data.encode('utf-8')).hexdigest()
+            write_json(json_filename, data_dict)
+            md5sum = generate_md5sum_from_dict(data_dict)
+            md5dict['PMID'][pmid] = md5sum
             md5data += pmid + "\t" + md5sum + "\n"
+
+    save_s3_md5data(md5dict, ['PMID'])
 
     md5file = json_storage_path + 'md5sum'
     logger.info("Writing md5sum mappings to %s", md5file)

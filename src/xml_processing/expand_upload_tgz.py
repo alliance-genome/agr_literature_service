@@ -95,34 +95,16 @@ def upload_s3_dir(expand_dir, pmid):
     """
 
     # bucket is 's3://agr-literature/develop/reference/documents/pubmed/pmid/' + pmid
+    env_state = environ.get('ENV_STATE', 'develop')
+    if env_state == 'build':
+        env_state = 'develop'
     bucketname = 'agr-literature'
-    for root, _dirs, files in walk(expand_dir):
-        for filename in files:
-            file = 'develop/reference/documents/pubmed/pmid/' + pmid + '/' + filename
-            # logger.info("%s : %s : %s", path.join(root, file), bucketname, file)
-            upload_file_to_s3(path.join(root, filename), bucketname, file)
-
-
-# def upload_file_to_s3(filepath, bucketname, s3_file_location):
-#     """
-#
-#     :param filepath:
-#     :param bucketname:
-#     :param s3_file_location:
-#     :return:
-#     """
-#
-#     try:
-#         response = s3_client.upload_file(filepath, bucketname, s3_file_location)
-#         if response is not None:
-#             logger.info("boto 3 uploaded response: %s", response)
-#         # else:
-#         #     logger.info("uploaded to s3 %s %s", bucketname, filepath)
-#     except ClientError as e:
-#         logging.error(e)
-#         return False
-#
-#     return True
+    if env_state != 'test':
+        for root, _dirs, files in walk(expand_dir):
+            for filename in files:
+                file = env_state + '/reference/documents/pubmed/pmid/' + pmid + '/' + filename
+                # logger.info("%s : %s : %s", path.join(root, file), bucketname, file)
+                upload_file_to_s3(path.join(root, filename), bucketname, file)
 
 
 def process_tgz():
@@ -161,8 +143,12 @@ def process_tgz():
     with open(output_md5file, "w") as output_fh:
         output_fh.write(md5_summary)
         output_fh.close()
-    s3_file_location = 'develop/reference/documents/pubmed/tarball_chunks/pubmed_tgz_' + summary_md5file_filename
-    upload_file_to_s3(output_md5file, 'agr-literature', s3_file_location)
+    env_state = environ.get('ENV_STATE', 'develop')
+    if env_state == 'build':
+        env_state = 'develop'
+    s3_file_location = env_state + '/reference/documents/pubmed/tarball_chunks/pubmed_tgz_' + summary_md5file_filename
+    if env_state != 'test':
+        upload_file_to_s3(output_md5file, 'agr-literature', s3_file_location)
 
 
 if __name__ == "__main__":
