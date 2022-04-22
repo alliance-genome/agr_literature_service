@@ -29,7 +29,7 @@ load_dotenv()
 # the old md5sum from s3 (load_s3_md5data), generate the new md5sum from
 # dqm_data/ (generate_new_md5), filter on differences to process entries, if all
 # loads well, # update and append new md5sum to old md5sum and save to s3
-# (save_md5data).
+# (save_s3_md5data).
 
 
 logging.basicConfig(level=logging.INFO,
@@ -114,24 +114,23 @@ def generate_new_md5(input_path, mods):
                 if ignore_field in entry:
                     del entry[ignore_field]
 
-            # pretty-print
-            json_data = json.dumps(entry, indent=4, sort_keys=True)
-
             # Write the json data to output json file to debug
+            # json_data = json.dumps(entry, indent=4, sort_keys=True)
             # mod_json_storage_path = get_json_storage_path(mod)
             # json_filename = mod_json_storage_path + primary_id + '.json'
             # with open(json_filename, "w") as json_file:
             #     json_file.write(json_data)
             #     json_file.close()
+            # md5sum = hashlib.md5(json_data.encode('utf-8')).hexdigest()
 
-            md5sum = hashlib.md5(json_data.encode('utf-8')).hexdigest()
+            md5sum = generate_md5sum_from_dict(entry)
             md5dict[mod][primary_id] = md5sum
 
     logger.info(f"processed {counter} entries")
     return md5dict
 
 
-def save_md5data(md5dict, mods):
+def save_s3_md5data(md5dict, mods):
     """
 
     :param md5dict:
@@ -142,13 +141,14 @@ def save_md5data(md5dict, mods):
     env_state = environ.get('ENV_STATE', 'develop')
     if env_state == 'build':
         env_state = 'develop'
-    bucketname = 'agr-literature'
-    for mod in mods:
-        mod_json_storage_path = get_json_storage_path(mod)
-        md5file = mod_json_storage_path + 'md5sum'
-        write_json(md5file, md5dict[mod])
-        s3_file_location = env_state + '/reference/metadata/md5sum/' + mod + '_md5sum'
-        upload_file_to_s3(md5file, bucketname, s3_file_location)
+    if env_state != 'test':
+        bucketname = 'agr-literature'
+        for mod in mods:
+            mod_json_storage_path = get_json_storage_path(mod)
+            md5file = mod_json_storage_path + 'md5sum'
+            write_json(md5file, md5dict[mod])
+            s3_file_location = env_state + '/reference/metadata/md5sum/' + mod + '_md5sum'
+            upload_file_to_s3(md5file, bucketname, s3_file_location)
 
 
 def load_s3_md5data(mods):
@@ -164,16 +164,19 @@ def load_s3_md5data(mods):
         env_state = 'develop'
     bucketname = 'agr-literature'
     for mod in mods:
-        s3_file_location = env_state + '/reference/metadata/md5sum/' + mod + '_md5sum'
-        mod_json_storage_path = get_json_storage_path(mod)
-        md5file = mod_json_storage_path + 'md5sum'
-        download_file_from_s3(md5file, bucketname, s3_file_location)
-        try:
-            with open(md5file, 'r') as f:
-                md5dict[mod] = json.load(f)
-                f.close()
-        except IOError:
-            logger.info(f"No md5sum data to update from s3 {s3_file_location}")
+        if env_state == 'test':
+            md5dict[mod] = {}
+        else:
+            s3_file_location = env_state + '/reference/metadata/md5sum/' + mod + '_md5sum'
+            mod_json_storage_path = get_json_storage_path(mod)
+            md5file = mod_json_storage_path + 'md5sum'
+            download_file_from_s3(md5file, bucketname, s3_file_location)
+            try:
+                with open(md5file, 'r') as f:
+                    md5dict[mod] = json.load(f)
+                    f.close()
+            except IOError:
+                logger.info(f"No md5sum data to update from s3 {s3_file_location}")
     # debug
     # json_data = json.dumps(md5dict, indent=4, sort_keys=True)
     # print(json_data)
@@ -208,10 +211,25 @@ def pubmed_json_generate_md5sum_and_save():
                     f.close()
             except IOError:
                 logger.info(f"No json data to update from PMID {filename}")
-            json_data = json.dumps(json_dict, indent=4, sort_keys=True)
-            md5sum = hashlib.md5(json_data.encode('utf-8')).hexdigest()
+            # json_data = json.dumps(json_dict, indent=4, sort_keys=True)
+            # md5sum = hashlib.md5(json_data.encode('utf-8')).hexdigest()
+            md5sum = generate_md5sum_from_dict(json_dict)
             md5dict['PMID'][pmid] = md5sum
-    save_md5data(md5dict, ['PMID'])
+    save_s3_md5data(md5dict, ['PMID'])
+
+
+def generate_md5sum_from_dict(json_dict):
+    """
+
+    Standard way to generate json format and md5sum
+
+    :param json_dict:
+    :return:
+    """
+
+    json_data = json.dumps(json_dict, indent=4, sort_keys=True)
+    md5sum = hashlib.md5(json_data.encode('utf-8')).hexdigest()
+    return md5sum
 
 
 if __name__ == "__main__":
@@ -242,7 +260,7 @@ if __name__ == "__main__":
     md5dict = generate_new_md5(folder, mods)
 
     # to save md5sum data into s3
-    # save_md5data(md5dict, mods)
+    save_s3_md5data(md5dict, mods)
 
     # to load md5sum data from s3
     # md5dict = load_s3_md5data(mods)

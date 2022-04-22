@@ -47,10 +47,10 @@ def download_file_from_s3(filepath, bucketname, s3_file_location):
 def upload_file_to_s3(filepath, bucketname, s3_file_location):
     """
 
-    :param filepath:
-    :param bucketname:
-    :param s3_file_location:
-    :return:
+    :param filepath: local path to filename to upload
+    :param bucketname: s3 bucket to upload to
+    :param s3_file_location: s3 object name
+    :return: True if file was uploaded, else False
     """
 
     s3_client = boto3.client('s3')
@@ -70,8 +70,9 @@ def upload_xml_file_to_s3(pmid):
     env_state = environ.get('ENV_STATE', 'develop')
     if env_state == 'build':
         env_state = 'develop'
-    bucketname = 'agr-literature'
-    xml_filename = pmid + '.xml'
-    local_file_location = base_path + 'pubmed_xml/' + xml_filename
-    s3_file_location = env_state + '/reference/metadata/pubmed/xml/original/' + xml_filename
-    upload_file_to_s3(local_file_location, bucketname, s3_file_location)
+    if env_state != 'test':
+        bucketname = 'agr-literature'
+        xml_filename = pmid + '.xml'
+        local_file_location = base_path + 'pubmed_xml/' + xml_filename
+        s3_file_location = env_state + '/reference/metadata/pubmed/xml/original/' + xml_filename
+        upload_file_to_s3(local_file_location, bucketname, s3_file_location)
