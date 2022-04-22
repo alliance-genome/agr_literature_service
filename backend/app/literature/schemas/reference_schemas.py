@@ -12,7 +12,7 @@ from literature.schemas import (AuthorSchemaPost, AuthorSchemaShow,
                                 ModCorpusAssociationSchemaCreate,
                                 PubMedPublicationStatus, ReferenceCategory,
                                 ReferenceCommentAndCorrectionSchemaRelated,
-                                ReferenceTag, ReferenceTagShow, ModCorpusAssociationSchemaRelated)
+                                ModCorpusAssociationSchemaRelated)
 
 
 class ReferenceSchemaPost(BaseModel):
@@ -38,7 +38,6 @@ class ReferenceSchemaPost(BaseModel):
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     issue_date: Optional[str] = None
-    tags: Optional[List[ReferenceTag]] = None
     mesh_terms: Optional[List[MeshDetailSchemaCreate]] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
     authors: Optional[List[AuthorSchemaPost]] = None
@@ -136,7 +135,6 @@ class ReferenceSchemaShow(BaseModelShow):
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     issue_date: Optional[str] = None
-    tags: Optional[List[ReferenceTagShow]] = None
     mesh_terms: Optional[List[MeshDetailSchemaRelated]] = None
     cross_references: Optional[List[CrossReferenceSchemaShow]] = None
     resource_curie: Optional[str] = None

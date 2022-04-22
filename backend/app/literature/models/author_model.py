@@ -62,19 +62,6 @@ class AuthorModel(Base):
         back_populates="authors"
     )
 
-    person_id = Column(
-        Integer,
-        ForeignKey("people.person_id"),
-        nullable=True,
-        index=True
-    )
-
-    person = relationship(
-        "PersonModel",
-        back_populates="authors",
-        single_parent=True,
-    )
-
     first_author = Column(
         Boolean,
         nullable=True,

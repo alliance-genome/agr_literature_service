@@ -18,7 +18,7 @@ from literature.crud import (cross_reference_crud,
 from literature.crud.reference_resource import create_obj
 from literature.models import (AuthorModel, CrossReferenceModel, EditorModel,
                                MeshDetailModel, ModReferenceTypeModel,
-                               ReferenceModel, ReferenceTagModel,
+                               ReferenceModel,
                                ResourceModel)
 from literature.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
 from literature.crud.mod_corpus_association_crud import create as create_mod_corpus_association
@@ -93,8 +93,6 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
                         db_obj = create_obj(db, EditorModel, obj_data, non_fatal=True)
                 elif field == "mod_reference_types":
                     db_obj = ModReferenceTypeModel(**obj_data)
-                elif field == "tags":
-                    db_obj = ReferenceTagModel(**obj_data)
                 elif field == "mesh_terms":
                     db_obj = MeshDetailModel(**obj_data)
                 elif field == "cross_references":

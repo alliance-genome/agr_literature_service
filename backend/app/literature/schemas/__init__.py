@@ -16,9 +16,9 @@ from literature.schemas.editor_schemas import EditorSchemaPost
 from literature.schemas.editor_schemas import EditorSchemaShow
 from literature.schemas.editor_schemas import EditorSchemaCreate
 
-from literature.schemas.person_schemas import PersonSchemaPost
-from literature.schemas.person_schemas import PersonSchemaShow
-from literature.schemas.person_schemas import PersonSchemaCreate
+# from literature.schemas.person_schemas import PersonSchemaPost
+# from literature.schemas.person_schemas import PersonSchemaShow
+# from literature.schemas.person_schemas import PersonSchemaCreate
 
 
 from literature.schemas.resource_schemas import ResourceSchemaPost
@@ -32,8 +32,8 @@ from literature.schemas.pubmed_publication_status_enum import PubMedPublicationS
 
 from literature.schemas.tag_name_enum import TagName
 from literature.schemas.tag_source_enum import TagSource
-from literature.schemas.reference_tag_enum import ReferenceTag
-from literature.schemas.reference_tag_enum import ReferenceTagShow
+# from literature.schemas.reference_tag_enum import ReferenceTag
+# from literature.schemas.reference_tag_enum import ReferenceTagShow
 
 from literature.schemas.reference_category_schemas import ReferenceCategory
 

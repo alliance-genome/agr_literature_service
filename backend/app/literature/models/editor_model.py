@@ -63,18 +63,6 @@ class EditorModel(Base):
         back_populates="editors"
     )
 
-    person_id = Column(
-        Integer,
-        ForeignKey("people.person_id"),
-        nullable=True
-    )
-
-    person = relationship(
-        "PersonModel",
-        back_populates="editors",
-        single_parent=True,
-    )
-
     order = Column(
         Integer,
         nullable=True

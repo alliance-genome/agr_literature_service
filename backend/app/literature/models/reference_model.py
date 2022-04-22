@@ -107,12 +107,6 @@ class ReferenceModel(Base):
         single_parent=True,
     )
 
-    verified_people = relationship(
-        "PersonModel",
-        lazy="joined",
-        secondary="person_reference_link"
-    )
-
     title = Column(
         String,
         unique=False,
@@ -247,13 +241,6 @@ class ReferenceModel(Base):
         String(),
         unique=False,
         nullable=True
-    )
-
-    tags = relationship(
-        "ReferenceTagModel",
-        lazy="joined",
-        back_populates="reference",
-        cascade="all, delete, delete-orphan"
     )
 
     mesh_terms = relationship(
