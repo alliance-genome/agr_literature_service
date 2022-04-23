@@ -20,7 +20,7 @@ from literature.routers import (author_router, bulk_downloads_router,
                                 cross_reference_router, database_router,
                                 editor_router, file_router, mesh_detail_router,
                                 mod_reference_type_router, note_router,
-                                person_router, mod_router, mod_corpus_association_router,
+                                mod_router, mod_corpus_association_router,
                                 reference_automated_term_tag_router,
                                 reference_comment_and_correction_router,
                                 reference_manual_term_tag_router,
@@ -86,7 +86,7 @@ app.include_router(resource_descriptor_router.router)
 app.include_router(file_router.router)
 app.include_router(mesh_detail_router.router)
 app.include_router(mod_reference_type_router.router)
-app.include_router(person_router.router)
+# app.include_router(person_router.router)
 app.include_router(note_router.router)
 app.include_router(database_router.router)
 app.include_router(reference_comment_and_correction_router.router)
