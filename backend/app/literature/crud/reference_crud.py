@@ -300,10 +300,6 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         reference_data["mod_corpus_associations"] = reference_data["mod_corpus_association"]
         del reference_data["mod_corpus_association"]
 
-    if reference.tags:
-        for tag in reference_data["tags"]:
-            del tag["reference_id"]
-
     if reference.mesh_terms:
         for mesh_term in reference_data["mesh_terms"]:
             del mesh_term["reference_id"]
