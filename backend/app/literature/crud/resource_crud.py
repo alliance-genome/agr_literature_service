@@ -203,7 +203,6 @@ def show(db: Session, curie: str):
         for author in resource_data['authors']:
             if author['orcid']:
                 author['orcid'] = jsonable_encoder(cross_reference_crud.show(db, author['orcid']))
-            del author['person_id']
             del author['orcid_cross_reference']
             del author['resource_id']
             del author['reference_id']
@@ -212,7 +211,6 @@ def show(db: Session, curie: str):
         for editor in resource_data['editors']:
             if editor['orcid']:
                 editor['orcid'] = jsonable_encoder(cross_reference_crud.show(db, editor['orcid']))
-            del editor['person_id']
             del editor['orcid_cross_reference']
             del editor['resource_id']
             del editor['reference_id']
