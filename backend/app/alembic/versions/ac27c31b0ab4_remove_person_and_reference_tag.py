@@ -25,7 +25,6 @@ def upgrade():
     op.drop_index('ix_people_version_end_transaction_id', table_name='people_version')
     op.drop_index('ix_people_version_operation_type', table_name='people_version')
     op.drop_index('ix_people_version_transaction_id', table_name='people_version')
-    op.drop_table('people_version')
     op.drop_index('ix_reference_tags_version_end_transaction_id', table_name='reference_tags_version')
     op.drop_index('ix_reference_tags_version_operation_type', table_name='reference_tags_version')
     op.drop_index('ix_reference_tags_version_reference_id', table_name='reference_tags_version')
@@ -37,7 +36,7 @@ def upgrade():
     op.drop_index('ix_person_reference_link_version_transaction_id', table_name='person_reference_link_version')
     op.drop_table('person_reference_link_version')
     op.drop_table('person_reference_link')
-    op.drop_table('people')
+
     op.drop_index('ix_reference_tags_reference_id', table_name='reference_tags')
     op.drop_table('reference_tags')
     op.drop_index('ix_authors_person_id', table_name='authors')
@@ -50,6 +49,8 @@ def upgrade():
     op.drop_column('editors', 'person_id')
     op.drop_column('editors_version', 'person_id_mod')
     op.drop_column('editors_version', 'person_id')
+    op.drop_table('people')
+    op.drop_table('people_version')
     # ### end Alembic commands ###
 
 
@@ -65,105 +66,113 @@ def downgrade():
     op.add_column('authors', sa.Column('person_id', sa.INTEGER(), autoincrement=False, nullable=True))
     op.create_foreign_key('authors_person_id_fkey1', 'authors', 'people', ['person_id'], ['person_id'])
     op.create_index('ix_authors_person_id', 'authors', ['person_id'], unique=False)
-    op.create_table('reference_tags',
-    sa.Column('reference_tag_id', sa.INTEGER(), autoincrement=True, nullable=False),
-    sa.Column('reference_id', sa.INTEGER(), autoincrement=False, nullable=True),
-    sa.Column('tag_name', postgresql.ENUM('can_show_images', 'pmc_open_access', 'in_corpus', 'not_relevant', name='tagname'), autoincrement=False, nullable=False),
-    sa.Column('tag_source', postgresql.ENUM('SGD', 'ZFIN', 'RGD', 'WB', 'MGI', 'FB', name='tagsource'), autoincrement=False, nullable=False),
-    sa.ForeignKeyConstraint(['reference_id'], ['references.reference_id'], name='reference_tags_reference_id_fkey', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('reference_tag_id', name='reference_tags_pkey')
+    op.create_table(
+        'reference_tags',
+        sa.Column('reference_tag_id', sa.INTEGER(), autoincrement=True, nullable=False),
+        sa.Column('reference_id', sa.INTEGER(), autoincrement=False, nullable=True),
+        sa.Column('tag_name', postgresql.ENUM('can_show_images', 'pmc_open_access', 'in_corpus', 'not_relevant', name='tagname'), autoincrement=False, nullable=False),
+        sa.Column('tag_source', postgresql.ENUM('SGD', 'ZFIN', 'RGD', 'WB', 'MGI', 'FB', name='tagsource'), autoincrement=False, nullable=False),
+        sa.ForeignKeyConstraint(['reference_id'], ['references.reference_id'], name='reference_tags_reference_id_fkey', ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('reference_tag_id', name='reference_tags_pkey')
     )
     op.create_index('ix_reference_tags_reference_id', 'reference_tags', ['reference_id'], unique=False)
-    op.create_table('people',
-    sa.Column('person_id', sa.INTEGER(), server_default=sa.text("nextval('people_person_id_seq'::regclass)"), autoincrement=True, nullable=False),
-    sa.Column('order', sa.INTEGER(), autoincrement=False, nullable=True),
-    sa.Column('name', sa.VARCHAR(), autoincrement=False, nullable=True),
-    sa.Column('affiliation', postgresql.ARRAY(sa.VARCHAR()), autoincrement=False, nullable=True),
-    sa.Column('first_name', sa.VARCHAR(), autoincrement=False, nullable=True),
-    sa.Column('middle_names', postgresql.ARRAY(sa.VARCHAR()), autoincrement=False, nullable=True),
-    sa.Column('last_name', sa.VARCHAR(), autoincrement=False, nullable=True),
-    sa.Column('date_updated', postgresql.TIMESTAMP(), autoincrement=False, nullable=True),
-    sa.Column('date_created', postgresql.TIMESTAMP(), autoincrement=False, nullable=False),
-    sa.PrimaryKeyConstraint('person_id', name='people_pkey'),
-    postgresql_ignore_search_path=False
+    op.create_table(
+        'people',
+        sa.Column('person_id', sa.INTEGER(), server_default=sa.text("nextval('people_person_id_seq'::regclass)"), autoincrement=True, nullable=False),
+        sa.Column('order', sa.INTEGER(), autoincrement=False, nullable=True),
+        sa.Column('name', sa.VARCHAR(), autoincrement=False, nullable=True),
+        sa.Column('affiliation', postgresql.ARRAY(sa.VARCHAR()), autoincrement=False, nullable=True),
+        sa.Column('first_name', sa.VARCHAR(), autoincrement=False, nullable=True),
+        sa.Column('middle_names', postgresql.ARRAY(sa.VARCHAR()), autoincrement=False, nullable=True),
+        sa.Column('last_name', sa.VARCHAR(), autoincrement=False, nullable=True),
+        sa.Column('date_updated', postgresql.TIMESTAMP(), autoincrement=False, nullable=True),
+        sa.Column('date_created', postgresql.TIMESTAMP(), autoincrement=False, nullable=False),
+        sa.PrimaryKeyConstraint('person_id', name='people_pkey'),
+        postgresql_ignore_search_path=False
     )
-    op.create_table('person_reference_link',
-    sa.Column('person_id', sa.INTEGER(), autoincrement=False, nullable=False),
-    sa.Column('reference_curie', sa.VARCHAR(), autoincrement=False, nullable=False),
-    sa.ForeignKeyConstraint(['person_id'], ['people.person_id'], name='person_reference_link_person_id_fkey'),
-    sa.ForeignKeyConstraint(['person_id'], ['people.person_id'], name='person_reference_link_person_id_fkey1'),
-    sa.ForeignKeyConstraint(['reference_curie'], ['references.curie'], name='person_reference_link_reference_curie_fkey'),
-    sa.PrimaryKeyConstraint('person_id', 'reference_curie', name='person_reference_link_pkey')
+    op.create_table(
+        'person_reference_link',
+        sa.Column('person_id', sa.INTEGER(), autoincrement=False, nullable=False),
+        sa.Column('reference_curie', sa.VARCHAR(), autoincrement=False, nullable=False),
+        sa.ForeignKeyConstraint(['person_id'], ['people.person_id'], name='person_reference_link_person_id_fkey'),
+        sa.ForeignKeyConstraint(['person_id'], ['people.person_id'], name='person_reference_link_person_id_fkey1'),
+        sa.ForeignKeyConstraint(['reference_curie'], ['references.curie'], name='person_reference_link_reference_curie_fkey'),
+        sa.PrimaryKeyConstraint('person_id', 'reference_curie', name='person_reference_link_pkey')
     )
-    op.create_table('person_reference_link_version',
-    sa.Column('person_id', sa.INTEGER(), autoincrement=False, nullable=False),
-    sa.Column('reference_curie', sa.VARCHAR(), autoincrement=False, nullable=False),
-    sa.Column('transaction_id', sa.BIGINT(), autoincrement=False, nullable=False),
-    sa.Column('end_transaction_id', sa.BIGINT(), autoincrement=False, nullable=True),
-    sa.Column('operation_type', sa.SMALLINT(), autoincrement=False, nullable=False),
-    sa.PrimaryKeyConstraint('person_id', 'reference_curie', 'transaction_id', name='person_reference_link_version_pkey')
+    op.create_table(
+        'person_reference_link_version',
+        sa.Column('person_id', sa.INTEGER(), autoincrement=False, nullable=False),
+        sa.Column('reference_curie', sa.VARCHAR(), autoincrement=False, nullable=False),
+        sa.Column('transaction_id', sa.BIGINT(), autoincrement=False, nullable=False),
+        sa.Column('end_transaction_id', sa.BIGINT(), autoincrement=False, nullable=True),
+        sa.Column('operation_type', sa.SMALLINT(), autoincrement=False, nullable=False),
+        sa.PrimaryKeyConstraint('person_id', 'reference_curie', 'transaction_id', name='person_reference_link_version_pkey')
     )
     op.create_index('ix_person_reference_link_version_transaction_id', 'person_reference_link_version', ['transaction_id'], unique=False)
     op.create_index('ix_person_reference_link_version_operation_type', 'person_reference_link_version', ['operation_type'], unique=False)
     op.create_index('ix_person_reference_link_version_end_transaction_id', 'person_reference_link_version', ['end_transaction_id'], unique=False)
-    op.create_table('person_orcid_cross_reference_link',
-    sa.Column('person_id', sa.INTEGER(), autoincrement=False, nullable=False),
-    sa.Column('cross_reference_curie', sa.VARCHAR(), autoincrement=False, nullable=False),
-    sa.ForeignKeyConstraint(['cross_reference_curie'], ['cross_references.curie'], name='person_orcid_cross_reference_link_cross_reference_curie_fkey'),
-    sa.ForeignKeyConstraint(['person_id'], ['people.person_id'], name='person_orcid_cross_reference_link_person_id_fkey'),
-    sa.ForeignKeyConstraint(['person_id'], ['people.person_id'], name='person_orcid_cross_reference_link_person_id_fkey1'),
-    sa.PrimaryKeyConstraint('person_id', 'cross_reference_curie', name='person_orcid_cross_reference_link_pkey')
+    op.create_table(
+        'person_orcid_cross_reference_link',
+        sa.Column('person_id', sa.INTEGER(), autoincrement=False, nullable=False),
+        sa.Column('cross_reference_curie', sa.VARCHAR(), autoincrement=False, nullable=False),
+        sa.ForeignKeyConstraint(['cross_reference_curie'], ['cross_references.curie'], name='person_orcid_cross_reference_link_cross_reference_curie_fkey'),
+        sa.ForeignKeyConstraint(['person_id'], ['people.person_id'], name='person_orcid_cross_reference_link_person_id_fkey'),
+        sa.ForeignKeyConstraint(['person_id'], ['people.person_id'], name='person_orcid_cross_reference_link_person_id_fkey1'),
+        sa.PrimaryKeyConstraint('person_id', 'cross_reference_curie', name='person_orcid_cross_reference_link_pkey')
     )
-    op.create_table('reference_tags_version',
-    sa.Column('reference_tag_id', sa.INTEGER(), autoincrement=False, nullable=False),
-    sa.Column('reference_id', sa.INTEGER(), autoincrement=False, nullable=True),
-    sa.Column('tag_name', postgresql.ENUM('can_show_images', 'pmc_open_access', 'in_corpus', 'not_relevant', name='tagname'), autoincrement=False, nullable=True),
-    sa.Column('tag_source', postgresql.ENUM('SGD', 'ZFIN', 'RGD', 'WB', 'MGI', 'FB', name='tagsource'), autoincrement=False, nullable=True),
-    sa.Column('transaction_id', sa.BIGINT(), autoincrement=False, nullable=False),
-    sa.Column('end_transaction_id', sa.BIGINT(), autoincrement=False, nullable=True),
-    sa.Column('operation_type', sa.SMALLINT(), autoincrement=False, nullable=False),
-    sa.Column('reference_id_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
-    sa.Column('tag_name_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
-    sa.Column('tag_source_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
-    sa.PrimaryKeyConstraint('reference_tag_id', 'transaction_id', name='reference_tags_version_pkey')
+    op.create_table(
+        'reference_tags_version',
+        sa.Column('reference_tag_id', sa.INTEGER(), autoincrement=False, nullable=False),
+        sa.Column('reference_id', sa.INTEGER(), autoincrement=False, nullable=True),
+        sa.Column('tag_name', postgresql.ENUM('can_show_images', 'pmc_open_access', 'in_corpus', 'not_relevant', name='tagname'), autoincrement=False, nullable=True),
+        sa.Column('tag_source', postgresql.ENUM('SGD', 'ZFIN', 'RGD', 'WB', 'MGI', 'FB', name='tagsource'), autoincrement=False, nullable=True),
+        sa.Column('transaction_id', sa.BIGINT(), autoincrement=False, nullable=False),
+        sa.Column('end_transaction_id', sa.BIGINT(), autoincrement=False, nullable=True),
+        sa.Column('operation_type', sa.SMALLINT(), autoincrement=False, nullable=False),
+        sa.Column('reference_id_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
+        sa.Column('tag_name_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
+        sa.Column('tag_source_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
+        sa.PrimaryKeyConstraint('reference_tag_id', 'transaction_id', name='reference_tags_version_pkey')
     )
     op.create_index('ix_reference_tags_version_transaction_id', 'reference_tags_version', ['transaction_id'], unique=False)
     op.create_index('ix_reference_tags_version_reference_id', 'reference_tags_version', ['reference_id'], unique=False)
     op.create_index('ix_reference_tags_version_operation_type', 'reference_tags_version', ['operation_type'], unique=False)
     op.create_index('ix_reference_tags_version_end_transaction_id', 'reference_tags_version', ['end_transaction_id'], unique=False)
-    op.create_table('people_version',
-    sa.Column('person_id', sa.INTEGER(), autoincrement=False, nullable=False),
-    sa.Column('order', sa.INTEGER(), autoincrement=False, nullable=True),
-    sa.Column('name', sa.VARCHAR(), autoincrement=False, nullable=True),
-    sa.Column('affiliation', postgresql.ARRAY(sa.VARCHAR()), autoincrement=False, nullable=True),
-    sa.Column('first_name', sa.VARCHAR(), autoincrement=False, nullable=True),
-    sa.Column('middle_names', postgresql.ARRAY(sa.VARCHAR()), autoincrement=False, nullable=True),
-    sa.Column('last_name', sa.VARCHAR(), autoincrement=False, nullable=True),
-    sa.Column('date_updated', postgresql.TIMESTAMP(), autoincrement=False, nullable=True),
-    sa.Column('date_created', postgresql.TIMESTAMP(), autoincrement=False, nullable=True),
-    sa.Column('transaction_id', sa.BIGINT(), autoincrement=False, nullable=False),
-    sa.Column('end_transaction_id', sa.BIGINT(), autoincrement=False, nullable=True),
-    sa.Column('operation_type', sa.SMALLINT(), autoincrement=False, nullable=False),
-    sa.Column('order_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
-    sa.Column('name_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
-    sa.Column('affiliation_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
-    sa.Column('first_name_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
-    sa.Column('middle_names_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
-    sa.Column('last_name_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
-    sa.Column('date_updated_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
-    sa.Column('date_created_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
-    sa.PrimaryKeyConstraint('person_id', 'transaction_id', name='people_version_pkey')
+    op.create_table(
+        'people_version',
+        sa.Column('person_id', sa.INTEGER(), autoincrement=False, nullable=False),
+        sa.Column('order', sa.INTEGER(), autoincrement=False, nullable=True),
+        sa.Column('name', sa.VARCHAR(), autoincrement=False, nullable=True),
+        sa.Column('affiliation', postgresql.ARRAY(sa.VARCHAR()), autoincrement=False, nullable=True),
+        sa.Column('first_name', sa.VARCHAR(), autoincrement=False, nullable=True),
+        sa.Column('middle_names', postgresql.ARRAY(sa.VARCHAR()), autoincrement=False, nullable=True),
+        sa.Column('last_name', sa.VARCHAR(), autoincrement=False, nullable=True),
+        sa.Column('date_updated', postgresql.TIMESTAMP(), autoincrement=False, nullable=True),
+        sa.Column('date_created', postgresql.TIMESTAMP(), autoincrement=False, nullable=True),
+        sa.Column('transaction_id', sa.BIGINT(), autoincrement=False, nullable=False),
+        sa.Column('end_transaction_id', sa.BIGINT(), autoincrement=False, nullable=True),
+        sa.Column('operation_type', sa.SMALLINT(), autoincrement=False, nullable=False),
+        sa.Column('order_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
+        sa.Column('name_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
+        sa.Column('affiliation_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
+        sa.Column('first_name_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
+        sa.Column('middle_names_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
+        sa.Column('last_name_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
+        sa.Column('date_updated_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
+        sa.Column('date_created_mod', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=False),
+        sa.PrimaryKeyConstraint('person_id', 'transaction_id', name='people_version_pkey')
     )
     op.create_index('ix_people_version_transaction_id', 'people_version', ['transaction_id'], unique=False)
     op.create_index('ix_people_version_operation_type', 'people_version', ['operation_type'], unique=False)
     op.create_index('ix_people_version_end_transaction_id', 'people_version', ['end_transaction_id'], unique=False)
-    op.create_table('person_orcid_cross_reference_link_version',
-    sa.Column('person_id', sa.INTEGER(), autoincrement=False, nullable=False),
-    sa.Column('cross_reference_curie', sa.VARCHAR(), autoincrement=False, nullable=False),
-    sa.Column('transaction_id', sa.BIGINT(), autoincrement=False, nullable=False),
-    sa.Column('end_transaction_id', sa.BIGINT(), autoincrement=False, nullable=True),
-    sa.Column('operation_type', sa.SMALLINT(), autoincrement=False, nullable=False),
-    sa.PrimaryKeyConstraint('person_id', 'cross_reference_curie', 'transaction_id', name='person_orcid_cross_reference_link_version_pkey')
+    op.create_table(
+        'person_orcid_cross_reference_link_version',
+        sa.Column('person_id', sa.INTEGER(), autoincrement=False, nullable=False),
+        sa.Column('cross_reference_curie', sa.VARCHAR(), autoincrement=False, nullable=False),
+        sa.Column('transaction_id', sa.BIGINT(), autoincrement=False, nullable=False),
+        sa.Column('end_transaction_id', sa.BIGINT(), autoincrement=False, nullable=True),
+        sa.Column('operation_type', sa.SMALLINT(), autoincrement=False, nullable=False),
+        sa.PrimaryKeyConstraint('person_id', 'cross_reference_curie', 'transaction_id', name='person_orcid_cross_reference_link_version_pkey')
     )
     op.create_index('ix_person_orcid_cross_reference_link_version_transaction_id', 'person_orcid_cross_reference_link_version', ['transaction_id'], unique=False)
     op.create_index('ix_person_orcid_cross_reference_link_version_operation_type', 'person_orcid_cross_reference_link_version', ['operation_type'], unique=False)
