@@ -8,4 +8,3 @@ class FacetsOptionsSchema(BaseModel):
     facets_values: Optional[Dict[str, List[str]]]
     facets_limits: Optional[Dict[str, int]]
     return_facets_only: bool = False
-
