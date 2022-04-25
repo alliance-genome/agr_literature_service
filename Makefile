@@ -49,7 +49,7 @@ run-test-bash:
 	docker-compose --env-file .env.test down -v
 
 run-functest:
-	docker-compose --env-file .env.test down
+	docker-compose --env-file .env.test down -v
 	docker-compose --env-file .env.test up -d postgres
 	sleep 5
 	docker-compose --env-file .env.test up -d api

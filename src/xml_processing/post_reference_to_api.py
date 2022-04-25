@@ -91,7 +91,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     else:
         files_to_process.append(input_file)
 
-    keys_to_remove = {'nlm', 'primaryId', 'modResources', 'resourceAbbreviation'}
+    keys_to_remove = {'tags', 'nlm', 'primaryId', 'modResources', 'resourceAbbreviation'}
     remap_keys = dict()
     remap_keys['datePublished'] = 'date_published'
     remap_keys['dateArrivedInPubmed'] = 'date_arrived_in_pubmed'
@@ -163,7 +163,6 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     url = 'http://' + api_server + ':' + api_port + '/reference/'
     reference_primary_id_to_curie_file = base_path + 'reference_primary_id_to_curie'
     errors_in_posting_reference_file = base_path + 'errors_in_posting_reference'
-
     # previously loading from reference_primary_id_to_curie from past run of this script
     # already_processed_primary_id = set()
     # if check_file_flag == 'yes_file_check':
@@ -285,10 +284,6 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                             del new_entry['resource']
                 if 'category' in new_entry:
                     new_entry['category'] = new_entry['category'].lower().replace(" ", "_")
-                if 'tags' in new_entry:
-                    for sub_element in new_entry['tags']:
-                        if 'tag_name' in sub_element:
-                            sub_element['tag_name'] = camel_to_snake(sub_element['tag_name'])
                 if 'authors' in new_entry:
                     for author in new_entry['authors']:
                         if 'orcid' in author:
