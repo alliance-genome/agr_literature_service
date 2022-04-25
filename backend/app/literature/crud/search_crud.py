@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, cast, Any
 
 from elasticsearch import Elasticsearch
 from literature.config import config
@@ -20,7 +20,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         facets_limits = {}
     es_host = config.ELASTICSEARCH_HOST
     es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
-    es_body = {
+    es_body: Dict[str, Any] = {
         "query": {
             "bool": {
                 "must": [],
