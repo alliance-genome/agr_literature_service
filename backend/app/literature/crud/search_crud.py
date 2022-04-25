@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 from elasticsearch import Elasticsearch
 from literature.config import config
