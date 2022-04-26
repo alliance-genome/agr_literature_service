@@ -1,3 +1,4 @@
+from typing import cast
 from botocore.client import BaseClient
 from fastapi import (APIRouter, Depends, File, HTTPException, Response,
                      Security, UploadFile, status)
