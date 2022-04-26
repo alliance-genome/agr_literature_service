@@ -90,3 +90,5 @@ from literature.schemas.reference_automated_term_tag_schemas import ReferenceAut
 from literature.schemas.reference_manual_term_tag_schemas import ReferenceManualTermTagSchemaShow
 from literature.schemas.reference_manual_term_tag_schemas import ReferenceManualTermTagSchemaPost
 from literature.schemas.reference_manual_term_tag_schemas import ReferenceManualTermTagSchemaPatch
+
+from literature.schemas.search_schemas import FacetsOptionsSchema
