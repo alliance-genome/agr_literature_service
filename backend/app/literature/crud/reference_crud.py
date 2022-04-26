@@ -16,7 +16,7 @@ from sqlalchemy.sql.expression import cast
 from literature.crud import (cross_reference_crud,
                              reference_comment_and_correction_crud)
 from literature.crud.reference_resource import create_obj
-from literature.models import (AuthorModel, CrossReferenceModel, EditorModel,
+from literature.models import (AuthorModel, CrossReferenceModel,
                                MeshDetailModel, ModReferenceTypeModel,
                                ReferenceModel,
                                ResourceModel)
