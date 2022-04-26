@@ -765,68 +765,68 @@ def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):
                     headers = generic_api_post(live_changes, url, headers, dqm_mca_entry, agr, None, None)
 
 # PUT THIS BACK, the data is missing from rdsdev and lit-3002
-#     dqm_mod_ref_types = []
-#     if 'MODReferenceTypes' in dqm_entry:
-#         dqm_mod_ref_types = dqm_entry['MODReferenceTypes']
-#     dqm_mrt_data = dict()
-#     for mrt in dqm_mod_ref_types:
-#         source = mrt['source']
-#         ref_type = mrt['referenceType']
-#         if source not in dqm_mrt_data:
-#             dqm_mrt_data[source] = []
-#         dqm_mrt_data[source].append(ref_type)
-#
-#     db_mod_ref_types = []
-#     if 'mod_reference_types' in db_entry:
-#         db_mod_ref_types = db_entry['mod_reference_types']
-#
-#     # for debugging changes
-#     # dqm_mod_ref_types_json = json.dumps(dqm_mod_ref_types, indent=4)
-#     # db_mod_ref_types_json = json.dumps(db_mod_ref_types, indent=4)
-#     # logger.info("Action : aggregate PMID mod data %s was %s now %s", agr, db_mod_ref_types_json, dqm_mod_ref_types_json)
-#
-#     db_mrt_data = dict()
-#     for mrt in db_mod_ref_types:
-#         source = mrt['source']
-#         ref_type = mrt['reference_type']
-#         mrt_id = mrt['mod_reference_type_id']
-#         if source not in db_mrt_data:
-#             db_mrt_data[source] = dict()
-#         db_mrt_data[source][ref_type] = mrt_id
-#
-#     # live_changes = False
-#     # try AGR:AGR-Reference-0000382879	WBPaper00000292
-#     for mod in dqm_mrt_data:
-#         lc_dqm = [x.lower() for x in dqm_mrt_data[mod]]
-#         for dqm_mrt in dqm_mrt_data[mod]:
-#             create_it = True
-#             if mod in db_mrt_data:
-#                 for db_mrt in db_mrt_data[mod]:
-#                     if db_mrt.lower() in lc_dqm:
-#                         create_it = False
-#             if create_it:
-#                 logger.info("add %s %s to %s", mod, dqm_mrt, agr)
-#                 url = 'http://' + api_server + ':' + api_port + '/reference/mod_reference_type/'
-#                 new_entry = dict()
-#                 new_entry["reference_type"] = dqm_mrt
-#                 new_entry["source"] = mod
-#                 new_entry["reference_curie"] = agr
-#                 headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
-#                 # process_post_tuple = process_post('POST', url, headers, new_entry, agr, mapping_fh, error_fh)    # noqa: F841
-#         if mod in db_mrt_data:
-#             lc_db_dict = {x.lower(): x for x in db_mrt_data[mod]}
-#             lc_db = set(lc_db_dict.keys())
-#             for db_mrt in db_mrt_data[mod]:
-#                 delete_it = True
-#                 for dqm_mrt in dqm_mrt_data[mod]:
-#                     if dqm_mrt.lower() in lc_db:
-#                         delete_it = False
-#                 if delete_it:
-#                     mod_reference_type_id = str(db_mrt_data[mod][db_mrt])
-#                     logger.info("remove %s %s from %s via %s", mod, db_mrt, agr, mod_reference_type_id)
-#                     url = 'http://' + api_server + ':' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
-#                     headers = generic_api_delete(live_changes, url, headers, None, agr, None, None)
-#                     # process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
+    dqm_mod_ref_types = []
+    if 'MODReferenceTypes' in dqm_entry:
+        dqm_mod_ref_types = dqm_entry['MODReferenceTypes']
+    dqm_mrt_data = dict()
+    for mrt in dqm_mod_ref_types:
+        source = mrt['source']
+        ref_type = mrt['referenceType']
+        if source not in dqm_mrt_data:
+            dqm_mrt_data[source] = []
+        dqm_mrt_data[source].append(ref_type)
+
+    db_mod_ref_types = []
+    if 'mod_reference_types' in db_entry:
+        db_mod_ref_types = db_entry['mod_reference_types']
+
+    # for debugging changes
+    # dqm_mod_ref_types_json = json.dumps(dqm_mod_ref_types, indent=4)
+    # db_mod_ref_types_json = json.dumps(db_mod_ref_types, indent=4)
+    # logger.info("Action : aggregate PMID mod data %s was %s now %s", agr, db_mod_ref_types_json, dqm_mod_ref_types_json)
+
+    db_mrt_data = dict()
+    for mrt in db_mod_ref_types:
+        source = mrt['source']
+        ref_type = mrt['reference_type']
+        mrt_id = mrt['mod_reference_type_id']
+        if source not in db_mrt_data:
+            db_mrt_data[source] = dict()
+        db_mrt_data[source][ref_type] = mrt_id
+
+    # live_changes = False
+    # try AGR:AGR-Reference-0000382879	WBPaper00000292
+    for mod in dqm_mrt_data:
+        lc_dqm = [x.lower() for x in dqm_mrt_data[mod]]
+        for dqm_mrt in dqm_mrt_data[mod]:
+            create_it = True
+            if mod in db_mrt_data:
+                for db_mrt in db_mrt_data[mod]:
+                    if db_mrt.lower() in lc_dqm:
+                        create_it = False
+            if create_it:
+                logger.info("add %s %s to %s", mod, dqm_mrt, agr)
+                url = 'http://' + api_server + ':' + api_port + '/reference/mod_reference_type/'
+                new_entry = dict()
+                new_entry["reference_type"] = dqm_mrt
+                new_entry["source"] = mod
+                new_entry["reference_curie"] = agr
+                headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
+                # process_post_tuple = process_post('POST', url, headers, new_entry, agr, mapping_fh, error_fh)    # noqa: F841
+        if mod in db_mrt_data:
+            lc_db_dict = {x.lower(): x for x in db_mrt_data[mod]}
+            lc_db = set(lc_db_dict.keys())
+            for db_mrt in db_mrt_data[mod]:
+                delete_it = True
+                for dqm_mrt in dqm_mrt_data[mod]:
+                    if dqm_mrt.lower() in lc_db:
+                        delete_it = False
+                if delete_it:
+                    mod_reference_type_id = str(db_mrt_data[mod][db_mrt])
+                    logger.info("remove %s %s from %s via %s", mod, db_mrt, agr, mod_reference_type_id)
+                    url = 'http://' + api_server + ':' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
+                    headers = generic_api_delete(live_changes, url, headers, None, agr, None, None)
+                    # process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
     return headers
 
 
