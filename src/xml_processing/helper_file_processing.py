@@ -71,7 +71,7 @@ def load_ref_xref(datatype):
                 agr = line_data[0]
                 xref = line_data[1]
                 status = line_data[2]
-                prefix, identifier, separator = split_identifier(xref)
+                prefix, identifier, separator = split_identifier(xref, True)
                 if status == 'valid':
                     if agr not in ref_xref_valid:
                         ref_xref_valid[agr] = dict()
