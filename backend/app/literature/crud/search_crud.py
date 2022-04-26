@@ -1,3 +1,5 @@
+from typing import Dict, List, Any
+
 from elasticsearch import Elasticsearch
 from literature.config import config
 from literature.models import ReferenceModel
@@ -6,19 +8,57 @@ from sqlalchemy.orm import Session
 from literature.models import ModCorpusAssociationModel, ModModel, ResourceDescriptorModel
 from literature.schemas import ReferenceSchemaNeedReviewShow, CrossReferenceSchemaShow
 
+from fastapi import HTTPException, status
 
-def search_references(query):
+
+def search_references(query: str = None, facets_values: Dict[str, List[str]] = None,
+                      facets_limits: Dict[str, int] = None, return_facets_only: bool = False):
+    if query is None and facets_values is None and not return_facets_only:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="requested a search but no query and no facets provided")
+    if facets_limits is None:
+        facets_limits = {}
     es_host = config.ELASTICSEARCH_HOST
     es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
-    res = es.search(index="references_index",
-                    body={
-                        "query": {
-                            "match": {
-                                "title": query
-                            }
-                        }
-                    })
-    return [{"curie": ref["_source"]["curie"], "title": ref["_source"]["title"]} for ref in res["hits"]["hits"]]
+    es_body: Dict[str, Any] = {
+        "query": {
+            "bool": {
+                "must": [],
+                "filter": {
+                    "bool": {}
+                }
+            }
+        },
+        "aggregations": {
+            "pubmed_type.keyword": {
+                "terms": {
+                    "field": "pubmed_type.keyword",
+                    "size": facets_limits["pubmed_type.keyword"] if "pubmed_type.keyword" in facets_limits else 10
+                }
+            }
+        }
+    }
+    if return_facets_only:
+        del es_body["query"]
+        es_body["size"] = 0
+        res = es.search(index="references_index", body=es_body)
+        return {"hits": [], "aggregations": res["aggregations"]}
+    if query:
+        es_body["query"]["bool"]["must"].append({"match": {"title": query}})
+    if facets_values:
+        for facet_field, facet_list_values in facets_values.items():
+            es_body["query"]["bool"]["filter"]["bool"]["must"] = []
+            es_body["query"]["bool"]["filter"]["bool"]["must"].append({"bool": {"should": []}})
+            for facet_value in facet_list_values:
+                es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["should"].append({"term": {}})
+                es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["should"][-1]["term"][facet_field] = facet_value
+    else:
+        del es_body["query"]["bool"]["filter"]
+    res = es.search(index="references_index", body=es_body)
+    return {
+        "hits": [{"curie": ref["_source"]["curie"], "title": ref["_source"]["title"]} for ref in res["hits"]["hits"]],
+        "aggregations": res["aggregations"]
+    }
 
 
 def convert_xref_curie_to_url(curie, resource_descriptor_default_urls):

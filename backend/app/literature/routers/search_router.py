@@ -6,7 +6,7 @@ from literature import database
 from literature.routers.authentication import auth
 from literature.crud import search_crud
 from sqlalchemy.orm import Session
-from literature.schemas import ReferenceSchemaNeedReviewShow
+from literature.schemas import ReferenceSchemaNeedReviewShow, FacetsOptionsSchema
 
 
 router = APIRouter(
@@ -19,10 +19,12 @@ db_session: Session = Depends(get_db)
 db_user = Security(auth.get_user)
 
 
-@router.get("/references/{query}",
-            status_code=200)
-def search(query: str):
-    return search_crud.search_references(query=query)
+@router.post("/references/",
+             status_code=200)
+def search(body: FacetsOptionsSchema):
+    return search_crud.search_references(query=body.query, facets_values=body.facets_values,
+                                         facets_limits=body.facets_limits,
+                                         return_facets_only=body.return_facets_only)
 
 
 @router.get('/need_review',
