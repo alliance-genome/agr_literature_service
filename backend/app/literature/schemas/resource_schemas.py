@@ -4,8 +4,7 @@ from typing import List, Optional
 # from pydantic import ValidationError
 from pydantic import BaseModel, validator
 
-from literature.schemas import (AuthorSchemaPost, AuthorSchemaShow,
-                                BaseModelShow, CrossReferenceSchema,
+from literature.schemas import (BaseModelShow, CrossReferenceSchema,
                                 CrossReferenceSchemaRelated, EditorSchemaPost,
                                 EditorSchemaShow)
 
@@ -26,7 +25,6 @@ class ResourceSchemaPost(BaseModel):
     abstract: Optional[str] = None
     summary: Optional[str] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
-    authors: Optional[List[AuthorSchemaPost]] = None
     editors: Optional[List[EditorSchemaPost]] = None
     open_access: Optional[bool] = False
 
@@ -87,6 +85,5 @@ class ResourceSchemaShow(BaseModelShow):
     abstract: Optional[str] = None
     summary: Optional[str] = None
     cross_references: Optional[List[CrossReferenceSchema]] = None
-    authors: Optional[List[AuthorSchemaShow]] = None
     editors: Optional[List[EditorSchemaShow]] = None
     open_access: Optional[bool] = None

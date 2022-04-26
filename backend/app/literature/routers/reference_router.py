@@ -1,12 +1,12 @@
-from typing import cast
-from botocore.client import BaseClient
-from fastapi import (APIRouter, Depends, File, HTTPException, Response,
-                     Security, UploadFile, status)
+# from typing import cast
+# from botocore.client import BaseClient
+from fastapi import (APIRouter, Depends, HTTPException, Response,
+                     Security, status)
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
 from literature import database
-from literature.crud import cross_reference_crud, file_crud, reference_crud
+from literature.crud import cross_reference_crud, reference_crud
 from literature.deps import s3_auth
 from literature.routers.authentication import auth
 from literature.schemas import (ReferenceSchemaPost, ReferenceSchemaShow,
@@ -96,29 +96,29 @@ def show(curie: str,
     return reference_crud.show(db, curie)
 
 
-@router.post('/{curie}/upload_file',
-             status_code=status.HTTP_201_CREATED,
-             response_model=str)
-async def create_upload_file(curie: str,
-                             file_obj: UploadFile = File(...),  # noqa
-                             s3: BaseClient = s3_session,
-                             user: OktaUser = db_user,
-                             db: Session = db_session):
-    set_global_user_id(db, user.id)
+# @router.post('/{curie}/upload_file',
+#              status_code=status.HTTP_201_CREATED,
+#              response_model=str)
+# async def create_upload_file(curie: str,
+#                              file_obj: UploadFile = File(...),  # noqa
+#                              s3: BaseClient = s3_session,
+#                              user: OktaUser = db_user,
+#                              db: Session = db_session):
+#     set_global_user_id(db, user.id)
 
-    file_contents = bytes()
-    # Check if file is in binary mode. read() will return bytes
-    if "b" in file_obj.file.mode:
-        file_contents = cast(bytes, await file_obj.read())
-    else:
-        # file is in text mode. So convert read() to bytes
-        contents = cast(str, await file_obj.read())
-        file_contents = bytes(contents, "utf-8")
+#     file_contents = bytes()
+#     # Check if file is in binary mode. read() will return bytes
+#     if "b" in file_obj.file.mode:
+#         file_contents = cast(bytes, await file_obj.read())
+#     else:
+#         # file is in text mode. So convert read() to bytes
+#         contents = cast(str, await file_obj.read())
+#         file_contents = bytes(contents, "utf-8")
 
-    filename = file_obj.filename
-    content_type = file_obj.content_type
+#     filename = file_obj.filename
+#     content_type = file_obj.content_type
 
-    return file_crud.create(db, s3, 'reference', curie, file_contents, filename, content_type)
+#     return 1 # file_crud.create(db, s3, 'reference', curie, file_contents, filename, content_type)
 
 
 @router.get('/{curie}/versions',

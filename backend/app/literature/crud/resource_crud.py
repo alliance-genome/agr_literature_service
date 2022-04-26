@@ -202,7 +202,6 @@ def show(db: Session, curie: str):
                 editor['orcid'] = jsonable_encoder(cross_reference_crud.show(db, editor['orcid']))
             del editor['orcid_cross_reference']
             del editor['resource_id']
-            del editor['reference_id']
 
     return resource_data
 

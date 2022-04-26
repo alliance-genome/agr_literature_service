@@ -4,7 +4,7 @@ from pydantic import BaseModel, validator
 
 from literature.schemas import (AuthorSchemaPost, AuthorSchemaShow,
                                 BaseModelShow, CrossReferenceSchemaRelated,
-                                CrossReferenceSchemaShow, EditorSchemaPost,
+                                CrossReferenceSchemaShow,
                                 EditorSchemaShow, MeshDetailSchemaCreate,
                                 MeshDetailSchemaRelated,
                                 ModReferenceTypeSchemaCreate,
@@ -41,7 +41,6 @@ class ReferenceSchemaPost(BaseModel):
     mesh_terms: Optional[List[MeshDetailSchemaCreate]] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
     authors: Optional[List[AuthorSchemaPost]] = None
-    editors: Optional[List[EditorSchemaPost]] = None
     resource: Optional[str] = None
     open_access: Optional[bool] = None
 
