@@ -72,16 +72,6 @@ class ReferenceModel(Base):
         "ReferenceModel"
     )
 
-    automated_term_tags = relationship(
-        "ReferenceAutomatedTermTagModel",
-        back_populates="reference"
-    )
-
-    manual_term_tags = relationship(
-        "ReferenceManualTermTagModel",
-        back_populates="reference"
-    )
-
     resource_id = Column(
         Integer,
         ForeignKey("resources.resource_id"),
