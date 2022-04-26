@@ -1,5 +1,3 @@
-from typing import List
-
 from fastapi import APIRouter, Depends, Response, Security, status
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
@@ -7,7 +5,7 @@ from sqlalchemy.orm import Session
 from literature import database
 from literature.crud import resource_crud
 from literature.routers.authentication import auth
-from literature.schemas import (NoteSchemaShow, ResourceSchemaPost,
+from literature.schemas import (ResourceSchemaPost,
                                 ResourceSchemaShow, ResourceSchemaUpdate,
                                 ResponseMessageSchema)
 from literature.user import set_global_user_id
@@ -56,14 +54,6 @@ def patch(curie: str,
     patch = request.dict(exclude_unset=True)
 
     return resource_crud.patch(db, curie, patch)
-
-
-@router.get('/{curie}/notes',
-            status_code=200,
-            response_model=List[NoteSchemaShow])
-def show_notes(curie: str,
-               db: Session = db_session):
-    return resource_crud.show_notes(db, curie)
 
 
 @router.get('/{curie}',

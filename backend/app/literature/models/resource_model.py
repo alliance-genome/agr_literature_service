@@ -54,12 +54,6 @@ class ResourceModel(Base):
         nullable=True
     )
 
-    notes = relationship(
-        "NoteModel",
-        lazy="joined",
-        back_populates="resource",
-    )
-
     title_synonyms = Column(
         ARRAY(String()),
         unique=False,
@@ -98,13 +92,6 @@ class ResourceModel(Base):
         String(),
         unique=False,
         nullable=True
-    )
-
-    authors = relationship(
-        "AuthorModel",
-        lazy="joined",
-        back_populates="resource",
-        cascade="all, delete, delete-orphan"
     )
 
     editors = relationship(

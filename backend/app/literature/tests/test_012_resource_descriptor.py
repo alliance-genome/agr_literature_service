@@ -1,9 +1,8 @@
 # NOTE: updtae here not patch?
-from fastapi import HTTPException
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import sessionmaker
 
-from literature.crud.resource_descriptor_crud import show, update
+from literature.crud.resource_descriptor_crud import show
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 from literature.database.base import Base
 

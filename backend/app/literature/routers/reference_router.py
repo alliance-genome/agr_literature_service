@@ -1,5 +1,3 @@
-from typing import List, cast
-
 from botocore.client import BaseClient
 from fastapi import (APIRouter, Depends, File, HTTPException, Response,
                      Security, UploadFile, status)
@@ -10,8 +8,7 @@ from literature import database
 from literature.crud import cross_reference_crud, file_crud, reference_crud
 from literature.deps import s3_auth
 from literature.routers.authentication import auth
-from literature.schemas import (FileSchemaShow, NoteSchemaShow,
-                                ReferenceSchemaPost, ReferenceSchemaShow,
+from literature.schemas import (ReferenceSchemaPost, ReferenceSchemaShow,
                                 ReferenceSchemaUpdate, ResponseMessageSchema)
 from literature.user import set_global_user_id
 
@@ -96,22 +93,6 @@ def show_xref(curie: str,
 def show(curie: str,
          db: Session = db_session):
     return reference_crud.show(db, curie)
-
-
-@router.get('/{curie}/files',
-            status_code=200,
-            response_model=List[FileSchemaShow])
-def show_files(curie: str,
-               db: Session = db_session):
-    return reference_crud.show_files(db, curie)
-
-
-@router.get('/{curie}/notes',
-            status_code=200,
-            response_model=List[NoteSchemaShow])
-def show_notes(curie: str,
-               db: Session = db_session):
-    return reference_crud.show_notes(db, curie)
 
 
 @router.post('/{curie}/upload_file',

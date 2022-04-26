@@ -77,12 +77,12 @@ from literature.schemas.reference_schemas import ReferenceSchemaUpdate
 from literature.schemas.reference_schemas import ReferenceSchemaShow
 from literature.schemas.reference_schemas import ReferenceSchemaNeedReviewShow
 
-from literature.schemas.file_schemas import FileSchemaUpdate
-from literature.schemas.file_schemas import FileSchemaShow
+# from literature.schemas.file_schemas import FileSchemaUpdate
+# from literature.schemas.file_schemas import FileSchemaShow
 
-from literature.schemas.note_schemas import NoteSchemaPost
-from literature.schemas.note_schemas import NoteSchemaShow
-from literature.schemas.note_schemas import NoteSchemaUpdate
+# from literature.schemas.note_schemas import NoteSchemaPost
+# from literature.schemas.note_schemas import NoteSchemaShow
+# from literature.schemas.note_schemas import NoteSchemaUpdate
 
 from literature.schemas.reference_automated_term_tag_schemas import ReferenceAutomatedTermTagSchemaShow
 from literature.schemas.reference_automated_term_tag_schemas import ReferenceAutomatedTermTagSchemaPost

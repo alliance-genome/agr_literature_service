@@ -5,12 +5,12 @@ from literature.database.main import create_all_tables
 from literature.models.author_model import AuthorModel
 from literature.models.cross_reference_model import CrossReferenceModel
 from literature.models.editor_model import EditorModel
-from literature.models.file_model import FileModel
+# from literature.models.file_model import FileModel
 from literature.models.mesh_detail_model import MeshDetailModel
 from literature.models.mod_reference_type_model import ModReferenceTypeModel
 from literature.models.mod_model import ModModel
 from literature.models.mod_corpus_association_model import ModCorpusAssociationModel
-from literature.models.note_model import NoteModel
+# from literature.models.note_model import NoteModel
 # from literature.models.person_model import PersonModel
 # from literature.models.person_orcid_cross_reference_link_model import \
 #    PersonOrcidCrossReferenceLinkModel

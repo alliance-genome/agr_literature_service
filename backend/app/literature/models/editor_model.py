@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Dict
 
 import pytz
-from sqlalchemy import ARRAY, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from literature.database.base import Base
@@ -26,18 +26,6 @@ class EditorModel(Base):
         Integer,
         primary_key=True,
         autoincrement=True
-    )
-
-    reference_id = Column(
-        Integer,
-        ForeignKey("references.reference_id",
-                   ondelete="CASCADE"),
-        index=True
-    )
-
-    reference = relationship(
-        "ReferenceModel",
-        back_populates="editors"
     )
 
     resource_id = Column(
@@ -77,11 +65,6 @@ class EditorModel(Base):
     first_name = Column(
         String(),
         unique=False,
-        nullable=True
-    )
-
-    middle_names = Column(
-        ARRAY(String()),
         nullable=True
     )
 

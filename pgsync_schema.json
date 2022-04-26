@@ -195,7 +195,7 @@
                 {
                     "table": "authors",
                     "columns": [
-                        "orcid", "first_author", "corresponding_author", "affiliation", "first_name", "middle_names", "last_name"
+                        "orcid", "first_author", "corresponding_author", "affiliation", "first_name", "last_name"
                     ],
                     "relationship": {
                         "variant": "object",
@@ -228,16 +228,6 @@
                                 }
                             },
                             "first_name": {
-                                "type": "text",
-                                "fields": {
-                                    "keyword": {
-                                        "type": "keyword",
-                                        "normalizer": "sortNormalizer",
-                                        "ignore_above": 256
-                                    }
-                                }
-                            },
-                            "middle_names": {
                                 "type": "text",
                                 "fields": {
                                     "keyword": {

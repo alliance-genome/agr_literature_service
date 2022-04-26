@@ -45,12 +45,6 @@ class ReferenceModel(Base):
         passive_deletes=True
     )
 
-    files = relationship(
-        "FileModel",
-        lazy="joined",
-        back_populates="reference"
-    )
-
     comment_and_corrections_out = relationship(
         "ReferenceCommentAndCorrectionModel",
         foreign_keys="ReferenceCommentAndCorrectionModel.reference_id_from",
@@ -85,12 +79,6 @@ class ReferenceModel(Base):
 
     manual_term_tags = relationship(
         "ReferenceManualTermTagModel",
-        back_populates="reference"
-    )
-
-    notes = relationship(
-        "NoteModel",
-        lazy="joined",
         back_populates="reference"
     )
 
@@ -135,13 +123,6 @@ class ReferenceModel(Base):
 
     authors = relationship(
         "AuthorModel",
-        lazy="joined",
-        back_populates="reference",
-        cascade="all, delete, delete-orphan"
-    )
-
-    editors = relationship(
-        "EditorModel",
         lazy="joined",
         back_populates="reference",
         cascade="all, delete, delete-orphan"

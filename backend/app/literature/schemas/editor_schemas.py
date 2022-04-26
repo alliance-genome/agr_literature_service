@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import BaseModel, validator
 
@@ -10,7 +10,6 @@ class EditorSchemaPost(BaseModel):
 
     name: Optional[str] = None
     first_name: Optional[str] = None
-    middle_names: Optional[List[str]] = None
     last_name: Optional[str] = None
     orcid: Optional[str] = None
     reference_curie: Optional[str] = None
@@ -30,9 +29,6 @@ class EditorSchemaPost(BaseModel):
                 "order": 1,
                 "name": "string",
                 "first_name": "string",
-                "middle_names": [
-                    "string"
-                ],
                 "last_name": "string",
                 "orcid": "ORCID:string"
             }
@@ -45,7 +41,6 @@ class EditorSchemaShow(BaseModelShow):
 
     name: Optional[str] = None
     first_name: Optional[str] = None
-    middle_names: Optional[List[str]] = None
     last_name: Optional[str] = None
     orcid: Optional[CrossReferenceSchemaShow] = None
 

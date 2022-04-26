@@ -50,7 +50,7 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
     """
 
     add_separately_fields = ["mod_corpus_associations"]
-    list_fields = ["authors", "editors", "mod_reference_types", "tags", "mesh_terms", "cross_references"]
+    list_fields = ["authors", "mod_reference_types", "tags", "mesh_terms", "cross_references"]
 
     reference_data = {}  # type: Dict[str, Any]
 
@@ -78,7 +78,7 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
             for obj in value:
                 obj_data = jsonable_encoder(obj)
                 db_obj = None
-                if field in ["authors", "editors"]:
+                if field in ["authors"]:
                     if obj_data["orcid"]:
                         cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == obj_data["orcid"]).first()
                         if not cross_reference_obj:
@@ -87,10 +87,7 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
 
                         obj_data["orcid_cross_reference"] = cross_reference_obj
                     del obj_data["orcid"]
-                    if field == "authors":
-                        db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
-                    else:
-                        db_obj = create_obj(db, EditorModel, obj_data, non_fatal=True)
+                    db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
                 elif field == "mod_reference_types":
                     db_obj = ModReferenceTypeModel(**obj_data)
                 elif field == "mesh_terms":
@@ -217,45 +214,6 @@ def show_all_references_external_ids(db: Session):
             for reference in references_query.all()]
 
 
-def show_files(db: Session, curie: str):
-    """
-
-    :param db:
-    :param curie:
-    :return:
-    """
-
-    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
-    files_data = []
-    for reference_file in reference.files:
-        file_data = jsonable_encoder(reference_file)
-        del file_data["reference_id"]
-        files_data.append(file_data)
-
-    return files_data
-
-
-def show_notes(db: Session, curie: str):
-    """
-
-    :param db:
-    :param curie:
-    :return:
-    """
-
-    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
-
-    notes_data = []
-    for reference_note in reference.notes:
-        note_data = jsonable_encoder(reference_note)
-        del note_data["reference_id"]
-        del note_data["resource_id"]
-        note_data["reference_curie"] = curie
-        notes_data.append(note_data)
-
-    return notes_data
-
-
 def show(db: Session, curie: str, http_request=True):  # noqa
     """
 
@@ -312,21 +270,11 @@ def show(db: Session, curie: str, http_request=True):  # noqa
             del author["resource_id"]
             del author["reference_id"]
 
-    if reference.editors:
-        for editor in reference_data["editors"]:
-            if editor["orcid"]:
-                editor["orcid"] = jsonable_encoder(cross_reference_crud.show(db, editor["orcid"]))
-            del editor["orcid_cross_reference"]
-            del editor["resource_id"]
-            del editor["reference_id"]
-
     if reference.merged_into_id:
         reference_data["merged_into_reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == reference_data["merged_into_id"]).first()[0]
 
     if reference.mergee_references:
         reference_data["merged_reference_curies"] = [mergee.curie for mergee in reference.mergee_references]
-
-    del reference_data["files"]
 
     comment_and_corrections_data = {"to_references": [], "from_references": []}  # type: Dict[str, List[str]]
     for comment_and_correction in reference.comment_and_corrections_out:

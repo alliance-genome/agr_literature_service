@@ -136,14 +136,13 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     remap_subkeys['cross_references'] = dict()
     remap_subkeys['cross_references']['id'] = 'curie'
 
+    # NOTE: why are firstName and lastName done twice?
     remap_subkeys['authors'] = dict()
     remap_subkeys['authors']['authorRank'] = 'order'
     remap_subkeys['authors']['firstName'] = 'first_name'
     remap_subkeys['authors']['lastName'] = 'last_name'
-    remap_subkeys['authors']['middleNames'] = 'middle_names'
     remap_subkeys['authors']['firstname'] = 'first_name'
     remap_subkeys['authors']['lastname'] = 'last_name'
-    remap_subkeys['authors']['middlenames'] = 'middle_names'
     remap_subkeys['authors']['correspondingAuthor'] = 'corresponding_author'
     remap_subkeys['authors']['firstAuthor'] = 'first_author'
 
