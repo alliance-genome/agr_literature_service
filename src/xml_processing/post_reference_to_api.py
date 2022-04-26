@@ -91,7 +91,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     else:
         files_to_process.append(input_file)
 
-    keys_to_remove = {'nlm', 'primaryId', 'modResources', 'resourceAbbreviation'}
+    keys_to_remove = {'tags', 'issueDate', 'dateLastModified', 'citation', 'nlm', 'primaryId', 'modResources', 'resourceAbbreviation'}
     remap_keys = dict()
     remap_keys['datePublished'] = 'date_published'
     remap_keys['dateArrivedInPubmed'] = 'date_arrived_in_pubmed'
