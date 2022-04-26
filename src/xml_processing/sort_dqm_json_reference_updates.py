@@ -14,15 +14,22 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from fastapi.encoders import jsonable_encoder
 
-from literature.models import ReferenceModel
+from literature.database.main import get_db
+from literature.models import ReferenceModel, CrossReferenceModel
 
-from helper_file_processing import (clean_up_keywords,
-                                    compare_authors_or_editors, load_ref_xref,
+from filter_dqm_md5sum import load_s3_md5data, generate_new_md5
+
+# from helper_file_processing import (clean_up_keywords,
+#                                     generate_cross_references_file)
+from helper_file_processing import (compare_authors_or_editors, load_ref_xref,
                                     split_identifier, write_json)
 from helper_post_to_api import (generate_headers, get_authentication_token,
                                 process_api_request)
 
 # import re
+
+
+# TODO save md5sum to s3 after successful run
 
 
 # For WB needing 57578 references checked for updating,
@@ -41,8 +48,6 @@ api_server = environ.get('API_SERVER', 'localhost')
 # pipenv run python sort_dqm_json_reference_updates_batch_sqlalchemy.py -f dqm_data -m all > asdf_sanitized
 
 # first run  get_datatypes_cross_references.py  to generate mappings from references to xrefs and resources to xrefs
-
-# Attention Paulo: I'm actively making changes to this script, testing it, and cleaning it up
 
 # Workflow for DQM updates
 # 1 - get_datatypes_cross_references.py - to generate mappings from references to xrefs and resources to xrefs
@@ -192,8 +197,15 @@ def make_url_ref_curie_prefix():
     return url_ref_curie_prefix
 
 
+def filter_from_md5sum(mod):
+    return
+
+
 def sort_dqm_references(input_path, input_mod):      # noqa: C901
     """
+
+# TODO
+# DATA  WBPaper00061683 was primaryId in 2021 11 04, became PMID:34345807 in 2022 04 25 update, check that can be found via xref and associated
 
     :param input_path:
     :param input_mod:
@@ -213,12 +225,22 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     if input_mod in mods:
         mods = [input_mod]
 
+    # these tags are allowed from dqms, but we don't want them in the database
+    dqm_keys_to_remove = {'tags', 'issueDate', 'dateLastModified', 'keywords', 'citation'}
+
+# PUT THIS BACK
+    # to debug, save 9 seconds per run by generating xref mappings only once and load from flatfile
+    # generate_cross_references_file('reference')
     xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
-    # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference2')   # to test against older database mappings
+
+    # in production load xref mappings through sqlalchemy, which takes 14 seconds for all cross references
+    # xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
+
     pmids_not_found = load_pmids_not_found()
 
     # make this True for live changes
-    # live_changes = False
+#     live_changes = False
+# PUT THIS BACK
     live_changes = True
 
     # test data structure content
@@ -229,13 +251,11 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     #
     # for agr in ref_xref_valid:
     #     for prefix in ref_xref_valid[agr]:
-    #         for identifier in ref_xref_valid[agr][prefix]:
-    #             logger.info("agr %s valid prefix %s ident %s", agr, prefix, identifier)
+    #         logger.info("agr %s valid prefix %s ident %s", agr, prefix, ref_xref_valid[agr][prefix])
     #
     # for agr in ref_xref_obsolete:
     #     for prefix in ref_xref_obsolete[agr]:
-    #         for identifier in ref_xref_obsolete[agr][prefix]:
-    #             logger.info("agr %s obsolete prefix %s ident %s", agr, prefix, identifier)
+    #         logger.info("agr %s obsolete prefix %s ident %s", agr, prefix, ref_xref_obsolete[agr][prefix])
 
     # input_file = 'sanitized'	# set to sanitized to check after posting references to database, that all references are accounted for
     input_file = 'dqm'
@@ -279,6 +299,17 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     xref_to_pages = dict()
     for mod in sorted(files_to_process):
         references_to_create = []
+
+        logger.info("loading old md5")
+        old_md5dict = load_s3_md5data([mod])
+
+#         print("old_md5dict")
+#         db_entry_text = json.dumps(old_md5dict, indent=4, sort_keys=True)
+#         print(db_entry_text)
+
+        logger.info("generating new md5")
+        new_md5dict = generate_new_md5(input_path, [mod])
+
         for filename in sorted(files_to_process[mod]):
             logger.info(filename)
             dqm_data = dict()
@@ -292,10 +323,34 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
             counter = 0
             # max_counter = 1
             max_counter = 100000000
+#             max_counter = 10
             for entry in entries:
                 counter = counter + 1
                 if counter > max_counter:
                     break
+
+                if 'primaryId' not in entry or entry['primaryId'] is None:
+                    continue
+                primary_id = entry['primaryId']
+                old_md5 = 'none'
+                if mod in old_md5dict and primary_id in old_md5dict[mod] and old_md5dict[mod][primary_id] is not None:
+                    old_md5 = old_md5dict[mod][primary_id]
+                new_md5 = 'none'
+                if mod in new_md5dict and primary_id in new_md5dict[mod] and new_md5dict[mod][primary_id] is not None:
+                    new_md5 = new_md5dict[mod][primary_id]
+#                 logger.info(f"primaryId {primary_id} old {old_md5}")
+#                 logger.info(f"primaryId {primary_id} new {new_md5}")
+
+                if old_md5 == new_md5:
+                    continue
+
+                if old_md5 == 'none':
+                    logger.info(f"primaryId {primary_id} is new for {mod} but could pre-exist for other mod")
+                elif new_md5 == 'none':
+                    # logger.info(f"{primary_id} in previous dqm submission, not in current")
+                    fh_mod_report[mod].write(f"{primary_id} in previous dqm submission, not in current")
+                else:
+                    logger.info(f"primaryId {primary_id} has changed")
 
                 # inject the mod corpus association data because if it came from that mod dqm file it should have this entry
                 mod_corpus_associations = [{"mod_abbreviation": mod, "mod_corpus_sort_source": "dqm_files", "corpus": True}]
@@ -320,7 +375,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     xrefs.append(entry['primaryId'])
                     # logger.info("append primaryId %s", entry['primaryId'])
                 for cross_reference in xrefs:
-                    prefix, identifier, separator = split_identifier(cross_reference)
+                    prefix, identifier, separator = split_identifier(cross_reference, True)
                     if prefix not in dqm_xrefs:
                         dqm_xrefs[prefix] = set()
                     dqm_xrefs[prefix].add(identifier)
@@ -342,6 +397,9 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
                 if len(agrs_found) == 0:
                     # logger.info("Action : Create New mod %s", entry['primaryId'])
+                    for key in dqm_keys_to_remove:
+                        if key in entry:
+                            del entry[key]
                     references_to_create.append(entry)
                 elif len(agrs_found) > 1:
                     # logger.info("Notify curator, dqm %s too many matches %s", entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found))))
@@ -400,8 +458,9 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                         # logger.info("Action : aggregate PMID mod data %s", agr)
                         aggregate_mod_specific_fields_only[agr] = entry
                     elif flag_aggregate_biblio:
-                        if 'keywords' in entry:
-                            entry = clean_up_keywords(mod, entry)
+                        # ignore keywords after initial 2021 Nov load
+                        # if 'keywords' in entry:
+                        #     entry = clean_up_keywords(mod, entry)
                         # logger.info("Action : aggregate MOD biblio data %s", agr)
                         aggregate_mod_biblio_all[agr] = entry
                         pass
@@ -451,8 +510,10 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                         new_entry["reference_curie"] = agr
                         if xref_id in xref_to_pages:
                             new_entry["pages"] = xref_to_pages[xref_id]
+# COMMENT THIS OUT
+#                         logger.info(f"add validated dqm xref {xref_id} to agr {agr}")
                         if live_changes:
-                            logger.info("add validated dqm xref %s s to agr %s", xref_id, agr)
+                            logger.info(f"add validated dqm xref {xref_id} to agr {agr}")
                             url = 'http://' + api_server + ':' + api_port + '/cross_reference/'
                             headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
 
@@ -502,10 +563,10 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     remap_keys = dict()
     remap_keys['datePublished'] = 'date_published'
     remap_keys['dateArrivedInPubmed'] = 'date_arrived_in_pubmed'
-    remap_keys['dateLastModified'] = 'date_last_modified'
+    # remap_keys['dateLastModified'] = 'date_last_modified'
     remap_keys['crossReferences'] = 'cross_references'
     remap_keys['issueName'] = 'issue_name'
-    remap_keys['issueDate'] = 'issue_date'
+    # remap_keys['issueDate'] = 'issue_date'
     remap_keys['pubMedType'] = 'pubmed_type'
     remap_keys['meshTerms'] = 'mesh_terms'
     remap_keys['allianceCategory'] = 'category'
@@ -518,7 +579,9 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
 
     # MODReferenceTypes and allianceCategory cannot be auto converted from camel to snake, so have two lists
     # fields_simple_snake = ['title', 'category', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issue_name', 'issue_date', 'date_published', 'date_last_modified']
-    fields_simple_camel = ['title', 'allianceCategory', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issueName', 'issueDate', 'datePublished', 'dateLastModified']
+    # fields_simple_camel = ['title', 'allianceCategory', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issueName', 'issueDate', 'datePublished', 'dateLastModified']
+    # removed some fields that Ceri and Kimberly don't want to update anymore  2022 04 25
+    fields_simple_camel = ['title', 'allianceCategory', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issueName', 'datePublished']
     # there's no API to update tags
 
     api_port = environ.get('API_PORT')
@@ -568,6 +631,7 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
         else:
             continue
 
+        # to debug
         # db_entry_text = json.dumps(db_entry, indent=4, sort_keys=True)
         # print('db ')
         # print(db_entry_text)
@@ -601,12 +665,15 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
                 if field_snake in db_entry:
                     db_value = db_entry[field_snake]
                 if dqm_value != db_value:
-                    logger.info("patch %s field %s from db %s to dqm %s", agr, field_snake, db_value, dqm_value)
+                    logger.info(f"patch {agr} {dqm_entry['primaryId']} field {field_snake} from db {db_value} to dqm {dqm_value}")
                     update_json[field_snake] = dqm_value
-            keywords_changed = compare_keywords(db_entry, dqm_entry)
-            if keywords_changed[0]:
-                logger.info("patch %s field keywords from db %s to dqm %s", agr, keywords_changed[2], keywords_changed[1])
-                update_json['keywords'] = keywords_changed[1]
+
+            # ignore keywords after initial 2021 Nov load
+            # keywords_changed = compare_keywords(db_entry, dqm_entry)
+            # if keywords_changed[0]:
+            #     logger.info("patch %s field keywords from db %s to dqm %s", agr, keywords_changed[2], keywords_changed[1])
+            #     update_json['keywords'] = keywords_changed[1]
+
             authors_changed = compare_authors_or_editors(db_entry, dqm_entry, 'authors')
             if authors_changed[0]:
                 # live_changes = True
@@ -652,22 +719,23 @@ def compare_resource(db_entry, dqm_entry):
         return True, dqm_resource_abbreviation, db_resource_title
 
 
-def compare_keywords(db_entry, dqm_entry):
-    # e.g. ZFIN:ZDB-PUB-150828-18
-    db_keywords = []
-    dqm_keywords = []
-    if 'keywords' in db_entry:
-        if db_entry['keywords'] is not None:
-            db_keywords = db_entry['keywords']
-    lower_db_keywords = [i.lower() for i in db_keywords]
-    if 'keywords' in dqm_entry:
-        if dqm_entry['keywords'] is not None:
-            dqm_keywords = dqm_entry['keywords']
-    lower_dqm_keywords = [i.lower() for i in dqm_keywords]
-    if set(lower_db_keywords) == set(lower_dqm_keywords):
-        return False, None, None
-    else:
-        return True, dqm_keywords, db_keywords
+# keywords only from ZFIN old papers, will not need in the future
+# def compare_keywords(db_entry, dqm_entry):
+#     # e.g. ZFIN:ZDB-PUB-150828-18
+#     db_keywords = []
+#     dqm_keywords = []
+#     if 'keywords' in db_entry:
+#         if db_entry['keywords'] is not None:
+#             db_keywords = db_entry['keywords']
+#     lower_db_keywords = [i.lower() for i in db_keywords]
+#     if 'keywords' in dqm_entry:
+#         if dqm_entry['keywords'] is not None:
+#             dqm_keywords = dqm_entry['keywords']
+#     lower_dqm_keywords = [i.lower() for i in dqm_keywords]
+#     if set(lower_db_keywords) == set(lower_dqm_keywords):
+#         return False, None, None
+#     else:
+#         return True, dqm_keywords, db_keywords
 
 
 # always update mod_reference_types and mod_corpus_associations, whether 'mod_specific_fields_only' or 'mod_biblio_all'
@@ -696,68 +764,69 @@ def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):
                     url = 'http://' + api_server + ':' + api_port + '/reference/mod_corpus_association/'
                     headers = generic_api_post(live_changes, url, headers, dqm_mca_entry, agr, None, None)
 
-    dqm_mod_ref_types = []
-    if 'MODReferenceTypes' in dqm_entry:
-        dqm_mod_ref_types = dqm_entry['MODReferenceTypes']
-    dqm_mrt_data = dict()
-    for mrt in dqm_mod_ref_types:
-        source = mrt['source']
-        ref_type = mrt['referenceType']
-        if source not in dqm_mrt_data:
-            dqm_mrt_data[source] = []
-        dqm_mrt_data[source].append(ref_type)
-
-    db_mod_ref_types = []
-    if 'mod_reference_types' in db_entry:
-        db_mod_ref_types = db_entry['mod_reference_types']
-
-    # for debugging changes
-    # dqm_mod_ref_types_json = json.dumps(dqm_mod_ref_types, indent=4)
-    # db_mod_ref_types_json = json.dumps(db_mod_ref_types, indent=4)
-    # logger.info("Action : aggregate PMID mod data %s was %s now %s", agr, db_mod_ref_types_json, dqm_mod_ref_types_json)
-
-    db_mrt_data = dict()
-    for mrt in db_mod_ref_types:
-        source = mrt['source']
-        ref_type = mrt['reference_type']
-        mrt_id = mrt['mod_reference_type_id']
-        if source not in db_mrt_data:
-            db_mrt_data[source] = dict()
-        db_mrt_data[source][ref_type] = mrt_id
-
-    # live_changes = False
-    # try AGR:AGR-Reference-0000382879	WBPaper00000292
-    for mod in dqm_mrt_data:
-        lc_dqm = [x.lower() for x in dqm_mrt_data[mod]]
-        for dqm_mrt in dqm_mrt_data[mod]:
-            create_it = True
-            if mod in db_mrt_data:
-                for db_mrt in db_mrt_data[mod]:
-                    if db_mrt.lower() in lc_dqm:
-                        create_it = False
-            if create_it:
-                logger.info("add %s %s to %s", mod, dqm_mrt, agr)
-                url = 'http://' + api_server + ':' + api_port + '/reference/mod_reference_type/'
-                new_entry = dict()
-                new_entry["reference_type"] = dqm_mrt
-                new_entry["source"] = mod
-                new_entry["reference_curie"] = agr
-                headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
-                # process_post_tuple = process_post('POST', url, headers, new_entry, agr, mapping_fh, error_fh)    # noqa: F841
-        if mod in db_mrt_data:
-            lc_db_dict = {x.lower(): x for x in db_mrt_data[mod]}
-            lc_db = set(lc_db_dict.keys())
-            for db_mrt in db_mrt_data[mod]:
-                delete_it = True
-                for dqm_mrt in dqm_mrt_data[mod]:
-                    if dqm_mrt.lower() in lc_db:
-                        delete_it = False
-                if delete_it:
-                    mod_reference_type_id = str(db_mrt_data[mod][db_mrt])
-                    logger.info("remove %s %s from %s via %s", mod, db_mrt, agr, mod_reference_type_id)
-                    url = 'http://' + api_server + ':' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
-                    headers = generic_api_delete(live_changes, url, headers, None, agr, None, None)
-                    # process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
+# PUT THIS BACK, the data is missing from rdsdev and lit-3002
+#     dqm_mod_ref_types = []
+#     if 'MODReferenceTypes' in dqm_entry:
+#         dqm_mod_ref_types = dqm_entry['MODReferenceTypes']
+#     dqm_mrt_data = dict()
+#     for mrt in dqm_mod_ref_types:
+#         source = mrt['source']
+#         ref_type = mrt['referenceType']
+#         if source not in dqm_mrt_data:
+#             dqm_mrt_data[source] = []
+#         dqm_mrt_data[source].append(ref_type)
+#
+#     db_mod_ref_types = []
+#     if 'mod_reference_types' in db_entry:
+#         db_mod_ref_types = db_entry['mod_reference_types']
+#
+#     # for debugging changes
+#     # dqm_mod_ref_types_json = json.dumps(dqm_mod_ref_types, indent=4)
+#     # db_mod_ref_types_json = json.dumps(db_mod_ref_types, indent=4)
+#     # logger.info("Action : aggregate PMID mod data %s was %s now %s", agr, db_mod_ref_types_json, dqm_mod_ref_types_json)
+#
+#     db_mrt_data = dict()
+#     for mrt in db_mod_ref_types:
+#         source = mrt['source']
+#         ref_type = mrt['reference_type']
+#         mrt_id = mrt['mod_reference_type_id']
+#         if source not in db_mrt_data:
+#             db_mrt_data[source] = dict()
+#         db_mrt_data[source][ref_type] = mrt_id
+#
+#     # live_changes = False
+#     # try AGR:AGR-Reference-0000382879	WBPaper00000292
+#     for mod in dqm_mrt_data:
+#         lc_dqm = [x.lower() for x in dqm_mrt_data[mod]]
+#         for dqm_mrt in dqm_mrt_data[mod]:
+#             create_it = True
+#             if mod in db_mrt_data:
+#                 for db_mrt in db_mrt_data[mod]:
+#                     if db_mrt.lower() in lc_dqm:
+#                         create_it = False
+#             if create_it:
+#                 logger.info("add %s %s to %s", mod, dqm_mrt, agr)
+#                 url = 'http://' + api_server + ':' + api_port + '/reference/mod_reference_type/'
+#                 new_entry = dict()
+#                 new_entry["reference_type"] = dqm_mrt
+#                 new_entry["source"] = mod
+#                 new_entry["reference_curie"] = agr
+#                 headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
+#                 # process_post_tuple = process_post('POST', url, headers, new_entry, agr, mapping_fh, error_fh)    # noqa: F841
+#         if mod in db_mrt_data:
+#             lc_db_dict = {x.lower(): x for x in db_mrt_data[mod]}
+#             lc_db = set(lc_db_dict.keys())
+#             for db_mrt in db_mrt_data[mod]:
+#                 delete_it = True
+#                 for dqm_mrt in dqm_mrt_data[mod]:
+#                     if dqm_mrt.lower() in lc_db:
+#                         delete_it = False
+#                 if delete_it:
+#                     mod_reference_type_id = str(db_mrt_data[mod][db_mrt])
+#                     logger.info("remove %s %s from %s via %s", mod, db_mrt, agr, mod_reference_type_id)
+#                     url = 'http://' + api_server + ':' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
+#                     headers = generic_api_delete(live_changes, url, headers, None, agr, None, None)
+#                     # process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
     return headers
 
 
@@ -807,6 +876,76 @@ def generic_api_delete(live_changes, url, headers, json_data, agr, mapping_fh, e
     return headers
 
 
+def sqlalchemy_load_ref_xref():
+    # 2 minutes 20 seconds to load all xref through sqlalchemy
+    ref_xref_valid = dict()
+    ref_xref_obsolete = dict()
+    xref_ref = dict()
+    db_session = next(get_db())
+    query = db_session.query(
+        ReferenceModel.curie,
+        CrossReferenceModel.curie,
+        CrossReferenceModel.is_obsolete
+    ).join(
+        ReferenceModel.cross_references
+    ).filter(
+        CrossReferenceModel.reference_id.isnot(None)
+    )
+    results = query.all()
+    for result in results:
+        # print(result)
+        agr = result[0]
+        xref = result[1]
+        is_obsolete = result[2]
+        prefix, identifier, separator = split_identifier(xref, True)
+        if is_obsolete is False:
+            if agr not in ref_xref_valid:
+                ref_xref_valid[agr] = dict()
+            ref_xref_valid[agr][prefix] = identifier
+            if prefix not in xref_ref:
+                xref_ref[prefix] = dict()
+            if identifier not in xref_ref[prefix]:
+                xref_ref[prefix][identifier] = agr
+        else:
+            if agr not in ref_xref_obsolete:
+                ref_xref_obsolete[agr] = dict()
+            # a reference and prefix can still have multiple obsolete values
+            if prefix not in ref_xref_obsolete[agr]:
+                ref_xref_obsolete[agr][prefix] = set()
+            if identifier not in ref_xref_obsolete[agr][prefix]:
+                ref_xref_obsolete[agr][prefix].add(identifier.lower())
+    return xref_ref, ref_xref_valid, ref_xref_obsolete
+
+
+def test_ref_xref():
+    # generate_cross_references_file('reference')
+    # 3 minutes 17 seconds to generate and load
+    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+    # 2 minutes 08 seconds to load only from file / 5 seconds to just load
+
+    # xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
+    # 2 minutes 20 seconds to load all xref through sqlalchemy / 14 seconds to just load
+    # xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
+
+    # db_entry_text = json.dumps(ref_xref_valid, indent=4, sort_keys=True)
+    # print('db ')
+    # print(db_entry_text)
+
+    # test data structure content
+    # for prefix in xref_ref:
+    #     for identifier in xref_ref[prefix]:
+    #         agr = xref_ref[prefix][identifier]
+    #         logger.info("agr %s prefix %s ident %s", agr, prefix, identifier)
+    #
+    # for agr in ref_xref_valid:
+    #     for prefix in ref_xref_valid[agr]:
+    #         logger.info("agr %s valid prefix %s ident %s", agr, prefix, ref_xref_valid[agr][prefix])
+    #
+    # for agr in ref_xref_obsolete:
+    #     for prefix in ref_xref_obsolete[agr]:
+    #         logger.info("agr %s obsolete prefix %s ident %s", agr, prefix, ref_xref_obsolete[agr][prefix])
+
+
 if __name__ == "__main__":
     """
     call main start function
@@ -819,6 +958,8 @@ if __name__ == "__main__":
     args = vars(parser.parse_args())
 
     logger.info("starting sort_dqm_json_reference_updates.py")
+
+#     test_ref_xref()
 
     if args['file']:
         if args['mod']:
