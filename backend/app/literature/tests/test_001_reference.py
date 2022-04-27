@@ -155,7 +155,6 @@ def test_reference_large():
                 # "reference_id": "PMID:23524264"
             }
         ],
-        "citation": "Wu and Wu, 2013, Biochem. Biophys. Res. Commun. 433(4): 538--541",
         "cross_references": [
             {
                 "curie": "FB:FBrf0221304",
