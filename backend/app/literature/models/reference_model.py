@@ -166,12 +166,6 @@ class ReferenceModel(Base):
         nullable=True
     )
 
-    citation = Column(
-        String(),
-        unique=False,
-        nullable=True
-    )
-
     keywords = Column(
         ARRAY(String()),
         unique=False,
@@ -203,12 +197,6 @@ class ReferenceModel(Base):
     )
 
     issue_name = Column(
-        String(),
-        unique=False,
-        nullable=True
-    )
-
-    issue_date = Column(
         String(),
         unique=False,
         nullable=True

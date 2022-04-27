@@ -199,7 +199,7 @@ def test_reference_large():
     author = db.query(AuthorModel).filter(AuthorModel.name == "S. Wu").one()
     assert author.first_name == 'S.'
 
-    assert res["citation"] == "Wu and Wu, 2013, Biochem. Biophys. Res. Commun. 433(4): 538--541"
+    assert "citation" not in res
 
     assert res['cross_references'][0]['curie'] == 'FB:FBrf0221304'
     # cross references in the db?

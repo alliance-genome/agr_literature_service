@@ -62,7 +62,7 @@ def generate_new_md5(input_path, mods):
     """
 
     # if it's a pmid, ignore fields that come from pubmed, since they'll be updated from pubmed update
-    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
+    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
 
     # these fields we never want from dqm updates.  keyword was one time, tags will be processed differently later
     remove_fields = ['dateLastModified', 'issueDate', 'citation', 'keywords', 'tags']

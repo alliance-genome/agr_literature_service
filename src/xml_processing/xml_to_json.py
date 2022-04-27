@@ -408,7 +408,7 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                     date_dict['day'] = date_list[2]
                     # datePublished is a string, not a date-time
                     data_dict['datePublished'] = date_string
-                    data_dict['issueDate'] = date_dict
+                    # data_dict['issueDate'] = date_dict
                 else:
                     # 1524678 2993907 have MedlineDate instead of Year Month Day
                     medline_date = get_medline_date_from_xml_date(pub_date)

@@ -101,7 +101,7 @@ def post_references(input_file, check_file_flag):  # noqa: C901
     keys_to_remove = {"nlm", "primaryId", "modResources", "resourceAbbreviation"}
     remap_keys = {"datePublished": "date_published", "dateArrivedInPubmed": "date_arrived_in_pubmed",
                   "dateLastModified": "date_last_modified", "crossReferences": "cross_references",
-                  "issueName": "issue_name", "issueDate": "issue_date", "pubMedType": "pubmed_type",
+                  "issueName": "issue_name", "pubMedType": "pubmed_type",
                   "meshTerms": "mesh_terms", "allianceCategory": "category",
                   "MODReferenceType": "mod_reference_types", "MODReferenceTypes": "mod_reference_types",
                   "plainLanguageAbstract": "plain_language_abstract",

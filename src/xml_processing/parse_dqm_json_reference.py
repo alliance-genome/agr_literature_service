@@ -453,13 +453,13 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
     # assigns PMID to primaryId and to authors's referenceId.
     # if any reference's author doesn't have author Rank, assign authorRank based on array order.
     cross_ref_no_pages_ok_fields = ['DOI', 'PMID', 'PMC', 'PMCID', 'ISBN']
-    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
+    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
     # single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher']
-    single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
+    single_value_fields = ['volume', 'title', 'pages', 'issueName', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
     replace_value_fields = ['authors', 'pubMedType', 'meshTerms']
     # date_fields = ['issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified']
     # datePublished is a string, not a proper date field
-    date_fields = ['issueDate', 'dateArrivedInPubmed', 'dateLastModified']
+    date_fields = ['dateArrivedInPubmed', 'dateLastModified']
 
     compare_if_dqm_empty = False		# do dqm vs pmid comparison even if dqm has no data, by default skip
 
