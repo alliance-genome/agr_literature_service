@@ -473,7 +473,7 @@ def update_db_entries(
 
     remap_keys = {"datePublished": "date_published", "dateArrivedInPubmed": "date_arrived_in_pubmed",
                   "dateLastModified": "date_last_modified", "crossReferences": "cross_references",
-                  "issueName": "issue_name", "issueDate": "issue_date", "pubMedType": "pubmed_type",
+                  "issueName": "issue_name", "pubMedType": "pubmed_type",
                   "meshTerms": "mesh_terms", "allianceCategory": "category", "MODReferenceType": "mod_reference_types",
                   "MODReferenceTypes": "mod_reference_types", "plainLanguageAbstract": "plain_language_abstract",
                   "pubmedAbstractLanguages": "pubmed_abstract_languages",
@@ -483,8 +483,8 @@ def update_db_entries(
 
     # MODReferenceTypes and allianceCategory cannot be auto converted from camel to snake, so have two lists
     # fields_simple_snake = ['title', 'category', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issue_name', 'issue_date', 'date_published', 'date_last_modified']
-    fields_simple_camel = ["title", "allianceCategory", "citation", "volume", "pages", "language", "abstract",
-                           "publisher", "issueName", "issueDate", "datePublished", "dateLastModified"]
+    fields_simple_camel = ["title", "allianceCategory", "volume", "pages", "language", "abstract",
+                           "publisher", "issueName", "datePublished", "dateLastModified"]
     # there's no API to update tags
 
     api_port = environ.get("API_PORT")

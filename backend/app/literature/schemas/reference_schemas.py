@@ -4,22 +4,21 @@ from pydantic import BaseModel, validator
 
 from literature.schemas import (AuthorSchemaPost, AuthorSchemaShow,
                                 BaseModelShow, CrossReferenceSchemaRelated,
-                                CrossReferenceSchemaShow, EditorSchemaPost,
-                                EditorSchemaShow, MeshDetailSchemaCreate,
+                                CrossReferenceSchemaShow,
+                                MeshDetailSchemaCreate,
                                 MeshDetailSchemaRelated,
                                 ModReferenceTypeSchemaCreate,
                                 ModReferenceTypeSchemaRelated,
                                 ModCorpusAssociationSchemaCreate,
                                 PubMedPublicationStatus, ReferenceCategory,
                                 ReferenceCommentAndCorrectionSchemaRelated,
-                                ReferenceTag, ReferenceTagShow, ModCorpusAssociationSchemaRelated)
+                                ModCorpusAssociationSchemaRelated)
 
 
 class ReferenceSchemaPost(BaseModel):
     title: str
     category: ReferenceCategory
 
-    citation: Optional[str]
     date_published: Optional[str] = None
     date_arrived_in_pubmed: Optional[str] = None
     date_last_modified: Optional[str] = None
@@ -37,12 +36,9 @@ class ReferenceSchemaPost(BaseModel):
     mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaCreate]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
-    issue_date: Optional[str] = None
-    tags: Optional[List[ReferenceTag]] = None
     mesh_terms: Optional[List[MeshDetailSchemaCreate]] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
     authors: Optional[List[AuthorSchemaPost]] = None
-    editors: Optional[List[EditorSchemaPost]] = None
     resource: Optional[str] = None
     open_access: Optional[bool] = None
 
@@ -67,7 +63,6 @@ class ReferenceSchemaUpdate(BaseModel):
     title: Optional[str] = None
     category: Optional[ReferenceCategory] = None
 
-    citation: Optional[str] = None
     date_published: Optional[str] = None
     date_arrived_in_pubmed: Optional[str] = None
     date_last_modified: Optional[str] = None
@@ -83,7 +78,6 @@ class ReferenceSchemaUpdate(BaseModel):
     pubmed_publication_status: Optional[PubMedPublicationStatus] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
-    issue_date: Optional[str] = None
     resource: Optional[str] = None
     open_access: Optional[bool] = False
 
@@ -116,7 +110,6 @@ class ReferenceSchemaShow(BaseModelShow):
     category: ReferenceCategory
 
     resource_id: Optional[int] = None
-    citation: Optional[str] = None
     date_published: Optional[str] = None
     date_arrived_in_pubmed: Optional[str] = None
     date_last_modified: Optional[str] = None
@@ -135,14 +128,11 @@ class ReferenceSchemaShow(BaseModelShow):
     mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaRelated]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
-    issue_date: Optional[str] = None
-    tags: Optional[List[ReferenceTagShow]] = None
     mesh_terms: Optional[List[MeshDetailSchemaRelated]] = None
     cross_references: Optional[List[CrossReferenceSchemaShow]] = None
     resource_curie: Optional[str] = None
     resource_title: Optional[str] = None
     authors: Optional[List[AuthorSchemaShow]] = None
-    editors: Optional[List[EditorSchemaShow]] = None
     comment_and_corrections: CommentAndCorrectionSchemaRelations
     open_access: Optional[bool] = None
 

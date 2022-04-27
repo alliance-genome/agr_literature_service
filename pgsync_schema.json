@@ -74,8 +74,8 @@
         "nodes": {
             "table": "references",
             "columns": [
-                "curie", "title", "resource_id", "volume", "date_published", "pages", "abstract", "citation", "keywords", "publisher"
-                , "pubmed_type", "issue_name", "issue_date"
+                "curie", "title", "resource_id", "volume", "date_published", "pages", "abstract", "keywords", "publisher"
+                , "pubmed_type", "issue_name"
             ],
             "transform": {
                 "mapping": {
@@ -195,7 +195,7 @@
                 {
                     "table": "authors",
                     "columns": [
-                        "orcid", "first_author", "corresponding_author", "affiliation", "first_name", "middle_names", "last_name"
+                        "orcid", "first_author", "corresponding_author", "affiliation", "first_name", "last_name"
                     ],
                     "relationship": {
                         "variant": "object",
@@ -228,16 +228,6 @@
                                 }
                             },
                             "first_name": {
-                                "type": "text",
-                                "fields": {
-                                    "keyword": {
-                                        "type": "keyword",
-                                        "normalizer": "sortNormalizer",
-                                        "ignore_above": 256
-                                    }
-                                }
-                            },
-                            "middle_names": {
                                 "type": "text",
                                 "fields": {
                                     "keyword": {

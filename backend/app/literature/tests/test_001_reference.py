@@ -28,7 +28,6 @@ if "literature-test" not in SQLALCHEMY_DATABASE_URL:
 db.execute('delete from cross_references')
 db.execute('delete from authors')
 db.execute('delete from editors')
-db.execute('delete from notes')
 db.execute('delete from "references"')
 db.execute('delete from resources')
 
@@ -156,7 +155,6 @@ def test_reference_large():
                 # "reference_id": "PMID:23524264"
             }
         ],
-        "citation": "Wu and Wu, 2013, Biochem. Biophys. Res. Commun. 433(4): 538--541",
         "cross_references": [
             {
                 "curie": "FB:FBrf0221304",
@@ -169,13 +167,6 @@ def test_reference_large():
         "language": "English",
         "pages": "538--541",
         # "primary_id": "PMID:23524264",
-        "tags": [
-            {
-                # "reference_id": "FB:FBrf0221304",
-                "tag_name": "in_corpus",
-                "tag_source": "FB"
-            }
-        ],
         "title": "A conserved serine residue regulates the stability of Drosophila Salvador",
         "volume": "433",
         "open_access": True
@@ -207,7 +198,7 @@ def test_reference_large():
     author = db.query(AuthorModel).filter(AuthorModel.name == "S. Wu").one()
     assert author.first_name == 'S.'
 
-    assert res["citation"] == "Wu and Wu, 2013, Biochem. Biophys. Res. Commun. 433(4): 538--541"
+    assert "citation" not in res
 
     assert res['cross_references'][0]['curie'] == 'FB:FBrf0221304'
     # cross references in the db?
@@ -217,8 +208,6 @@ def test_reference_large():
     assert res["issue_name"] == "4"
     assert res["language"] == "English"
     assert res["pages"] == "538--541"
-    assert res["tags"][0]["tag_name"] == "in_corpus"
-    assert res["tags"][0]["tag_source"] == "FB"
     assert res["title"] == "A conserved serine residue regulates the stability of Drosophila Salvador"
     assert res["volume"] == "433"
     assert res['open_access']

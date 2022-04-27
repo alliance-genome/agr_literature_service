@@ -1,7 +1,7 @@
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import sessionmaker
 
-from literature.crud.reference_crud import create, patch, show, show_notes
+from literature.crud.reference_crud import create, patch, show
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 # from literature import models
 from literature.database.base import Base
@@ -43,18 +43,6 @@ def test_reference_create_with_existing_items():
     reference = ReferenceSchemaPost(**full_xml)
     res = create(db, reference)
     assert res == 'AGR:AGR-Reference-0000000005'
-
-
-def test_show():
-    # so we have added several things since created via other cruds so show that
-    res = show(db, 'AGR:AGR-Reference-0000000001')
-    # assert res == "bob"
-    assert res['notes'][0]['note'] == "Note for ref test"
-
-
-def test_show_notes():
-    res = show_notes(db, 'AGR:AGR-Reference-0000000001')
-    assert res[0]['name'] == "Name for ref test"
 
 
 def test_patch():
