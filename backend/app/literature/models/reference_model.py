@@ -130,7 +130,7 @@ class ReferenceModel(Base):
         nullable=True
     )
 
-    date_last_modified = Column(
+    date_last_modified_in_pubmed = Column(
         String(),
         unique=False,
         nullable=True
@@ -154,7 +154,7 @@ class ReferenceModel(Base):
         nullable=True
     )
 
-    pages = Column(
+    page_range = Column(
         String(),
         unique=False,
         nullable=True
@@ -172,7 +172,7 @@ class ReferenceModel(Base):
         nullable=True
     )
 
-    pubmed_type = Column(
+    pubmed_types = Column(
         ARRAY(String()),
         unique=False,
         nullable=True
