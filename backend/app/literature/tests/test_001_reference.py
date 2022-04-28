@@ -165,7 +165,7 @@ def test_reference_large():
         ],
         "issue_name": "4",
         "language": "English",
-        "pages": "538--541",
+        "page_range": "538--541",
         # "primary_id": "PMID:23524264",
         "title": "A conserved serine residue regulates the stability of Drosophila Salvador",
         "volume": "433",
@@ -207,7 +207,7 @@ def test_reference_large():
 
     assert res["issue_name"] == "4"
     assert res["language"] == "English"
-    assert res["pages"] == "538--541"
+    assert res["page_range"] == "538--541"
     assert res["title"] == "A conserved serine residue regulates the stability of Drosophila Salvador"
     assert res["volume"] == "433"
     assert res['open_access']
