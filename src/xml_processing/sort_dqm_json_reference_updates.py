@@ -41,11 +41,12 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
 api_server = environ.get('API_SERVER', 'localhost')
-# pipenv run python sort_dqm_json_reference_updates_batch_sqlalchemy.py -f dqm_data -m WB
 
-# pipenv run python sort_dqm_json_reference_updates_batch_sqlalchemy.py -f tests/dqm_update_sample -m WB
+# pipenv run python sort_dqm_json_reference_updates.py -f dqm_data -m WB
 
-# pipenv run python sort_dqm_json_reference_updates_batch_sqlalchemy.py -f dqm_data -m all > asdf_sanitized
+# pipenv run python sort_dqm_json_reference_updates.py -f tests/dqm_update_sample -m WB
+
+# pipenv run python sort_dqm_json_reference_updates.py -f dqm_data -m all > asdf_sanitized
 
 # first run  get_datatypes_cross_references.py  to generate mappings from references to xrefs and resources to xrefs
 
@@ -614,7 +615,8 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     for agr in entries:
         dqm_entry = entries[agr]
         # to test a particular reference curie
-        # if agr != 'AGR:AGR-Reference-0000000013':
+        # PUT THIS BACK
+        # if agr != 'AGR:AGR-Reference-0000658372':
         #     continue
 
         if retrieve_method == 'api_one_by_one':
@@ -745,25 +747,34 @@ def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):
     # db_entry_text = json.dumps(db_entry, indent=4, sort_keys=True)
     # print(db_entry_text)
 
-    db_mod_corpus_association = set()
+    db_mod_corpus_association = {}
     if 'mod_corpus_association' in db_entry and db_entry['mod_corpus_association'] is not None:
         for db_mca_entry in db_entry['mod_corpus_association']:
             if 'mod' in db_mca_entry and db_mca_entry['mod'] is not None:
                 if 'abbreviation' in db_mca_entry['mod'] and db_mca_entry['mod']['abbreviation'] is not None:
-                    db_mod_corpus_association.add(db_mca_entry['mod']['abbreviation'])
+                    mod = db_mca_entry['mod']['abbreviation']
+                    if mod not in db_mod_corpus_association:
+                        db_mod_corpus_association[mod] = {}
+                    db_mod_corpus_association[mod]['id'] = db_mca_entry['mod_corpus_association_id']
+                    db_mod_corpus_association[mod]['corpus'] = db_mca_entry['corpus']
     # logger.info(agr)
     # logger.info(db_mod_corpus_association)
     if 'mod_corpus_associations' in dqm_entry:
         for dqm_mca_entry in dqm_entry['mod_corpus_associations']:
             if 'mod_abbreviation' in dqm_mca_entry and dqm_mca_entry['mod_abbreviation'] is not None:
-                if dqm_mca_entry['mod_abbreviation'] not in db_mod_corpus_association:
-                    dqm_mca_entry['reference_curie'] = agr
-                    logger.info("Action : add mod corpus association for %s to %s", dqm_mca_entry['mod_abbreviation'], agr)
+                mod = dqm_mca_entry['mod_abbreviation']
+                dqm_mca_entry['reference_curie'] = agr
+                if mod not in db_mod_corpus_association:
+                    logger.info(f"Action : add mod corpus association for {mod} to {agr}")
                     logger.info(dqm_mca_entry)
-                    url = 'http://' + api_server + ':' + api_port + '/reference/mod_corpus_association/'
-                    headers = generic_api_post(live_changes, url, headers, dqm_mca_entry, agr, None, None)
+                    mca_post_url = 'http://' + api_server + ':' + api_port + '/reference/mod_corpus_association/'
+                    headers = generic_api_post(live_changes, mca_post_url, headers, dqm_mca_entry, agr, None, None)
+                elif dqm_mca_entry['corpus'] != db_mod_corpus_association[mod]['corpus']:
+                    logger.info(f"Action : update existing mod corpus association for {db_mod_corpus_association[mod]['id']} to {dqm_mca_entry}")
+                    mca_patch_url = 'http://' + api_server + ':' + api_port + '/reference/mod_corpus_association/' + str(db_mod_corpus_association[mod]['id'])
+                    logger.info(mca_patch_url)
+                    headers = generic_api_patch(live_changes, mca_patch_url, headers, dqm_mca_entry, str(db_mod_corpus_association[mod]['id']), None, None)
 
-# PUT THIS BACK, the data is missing from rdsdev and lit-3002
     dqm_mod_ref_types = []
     if 'MODReferenceTypes' in dqm_entry:
         dqm_mod_ref_types = dqm_entry['MODReferenceTypes']
