@@ -45,12 +45,6 @@ class ReferenceModel(Base):
         passive_deletes=True
     )
 
-    files = relationship(
-        "FileModel",
-        lazy="joined",
-        back_populates="reference"
-    )
-
     comment_and_corrections_out = relationship(
         "ReferenceCommentAndCorrectionModel",
         foreign_keys="ReferenceCommentAndCorrectionModel.reference_id_from",
@@ -78,22 +72,6 @@ class ReferenceModel(Base):
         "ReferenceModel"
     )
 
-    automated_term_tags = relationship(
-        "ReferenceAutomatedTermTagModel",
-        back_populates="reference"
-    )
-
-    manual_term_tags = relationship(
-        "ReferenceManualTermTagModel",
-        back_populates="reference"
-    )
-
-    notes = relationship(
-        "NoteModel",
-        lazy="joined",
-        back_populates="reference"
-    )
-
     resource_id = Column(
         Integer,
         ForeignKey("resources.resource_id"),
@@ -105,12 +83,6 @@ class ReferenceModel(Base):
         "ResourceModel",
         back_populates="references",
         single_parent=True,
-    )
-
-    verified_people = relationship(
-        "PersonModel",
-        lazy="joined",
-        secondary="person_reference_link"
     )
 
     title = Column(
@@ -141,13 +113,6 @@ class ReferenceModel(Base):
 
     authors = relationship(
         "AuthorModel",
-        lazy="joined",
-        back_populates="reference",
-        cascade="all, delete, delete-orphan"
-    )
-
-    editors = relationship(
-        "EditorModel",
         lazy="joined",
         back_populates="reference",
         cascade="all, delete, delete-orphan"
@@ -201,12 +166,6 @@ class ReferenceModel(Base):
         nullable=True
     )
 
-    citation = Column(
-        String(),
-        unique=False,
-        nullable=True
-    )
-
     keywords = Column(
         ARRAY(String()),
         unique=False,
@@ -241,19 +200,6 @@ class ReferenceModel(Base):
         String(),
         unique=False,
         nullable=True
-    )
-
-    issue_date = Column(
-        String(),
-        unique=False,
-        nullable=True
-    )
-
-    tags = relationship(
-        "ReferenceTagModel",
-        lazy="joined",
-        back_populates="reference",
-        cascade="all, delete, delete-orphan"
     )
 
     mesh_terms = relationship(

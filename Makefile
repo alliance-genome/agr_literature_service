@@ -43,13 +43,16 @@ run-test-bash:
 	docker-compose --env-file .env.test down -v
 	docker-compose --env-file .env.test up -d postgres
 	sleep 5
+	docker-compose --env-file .env.test up -d elasticsearch
+	docker-compose --env-file .env.test up -d api
+	sleep 10
 	-docker-compose --env-file .env.test run -v ${PWD}:/workdir test_runner ./run_tests.sh > pytest.out
     #doing here after shutdown of database
 	python3 check_tests.py
 	docker-compose --env-file .env.test down -v
 
 run-functest:
-	docker-compose --env-file .env.test down
+	docker-compose --env-file .env.test down -v
 	docker-compose --env-file .env.test up -d postgres
 	sleep 5
 	docker-compose --env-file .env.test up -d api

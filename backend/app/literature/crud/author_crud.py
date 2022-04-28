@@ -13,8 +13,7 @@ from literature.crud.reference_resource import add, create_obj, stripout
 from literature.models import (
     AuthorModel,
     CrossReferenceModel,
-    ReferenceModel,
-    ResourceModel,
+    ReferenceModel
 )
 from literature.schemas import AuthorSchemaCreate, AuthorSchemaPost
 
@@ -122,10 +121,6 @@ def show(db: Session, author_id: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Author with the author_id {author_id} is not available")
 
-    if author_data["resource_id"]:
-        author_data["resource_curie"] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == author_data["resource_id"]).first()
-    del author_data["resource_id"]
-
     if author_data["reference_id"]:
         author_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == author_data["reference_id"]).first()
     del author_data["reference_id"]
@@ -133,7 +128,6 @@ def show(db: Session, author_id: int):
     author_data["orcid"] = author_data["orcid_cross_reference"]
     del author_data["orcid_cross_reference"]
     del author_data["reference_curie"]
-    del author_data["person_id"]
     return author_data
 
 

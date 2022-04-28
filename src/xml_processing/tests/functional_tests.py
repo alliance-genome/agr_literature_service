@@ -119,6 +119,9 @@ def test_load_references():
     for entry in sample_json['data']:
         agr, agr_found = resolve_dqm_to_agr(entry, xref_ref)
         if not agr_found:
+            print("entry is {}".format(entry))
+            print(entry['load_check'])
+            print(agr)
             assert 'doi_conflict' in entry['load_check']
             continue
         if agr not in agr_wanted:

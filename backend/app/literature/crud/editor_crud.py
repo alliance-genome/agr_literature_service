@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from literature.crud.reference_resource import add, create_obj, stripout
 from literature.models import (CrossReferenceModel, EditorModel,
-                               ReferenceModel, ResourceModel)
+                               ResourceModel)
 from literature.schemas import EditorSchemaCreate
 
 
@@ -117,10 +117,6 @@ def show(db: Session, editor_id: int) -> dict:
     if editor_data["resource_id"]:
         editor_data["resource_curie"] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == editor_data["resource_id"]).first()
     del editor_data["resource_id"]
-
-    if editor_data["reference_id"]:
-        editor_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == editor_data["reference_id"]).first()
-    del editor_data["reference_id"]
 
     return editor_data
 

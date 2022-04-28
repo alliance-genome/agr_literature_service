@@ -15,7 +15,7 @@ from sqlalchemy.sql.expression import cast
 
 from literature.crud import cross_reference_crud
 from literature.crud.reference_resource import create_obj
-from literature.models import (AuthorModel, CrossReferenceModel, EditorModel,
+from literature.models import (CrossReferenceModel, EditorModel,
                                MeshDetailModel, ResourceModel)
 from literature.schemas import ResourceSchemaPost, ResourceSchemaUpdate
 
@@ -60,14 +60,14 @@ def create(db: Session, resource: ResourceSchemaPost):
     resource_data['curie'] = curie
 
     for field, value in vars(resource).items():
-        if field in ['authors', 'editors', 'cross_references', 'mesh_terms']:
+        if field in ['editors', 'cross_references', 'mesh_terms']:
             db_objs = []
             if value is None:
                 continue
             for obj in value:
                 obj_data = jsonable_encoder(obj)
                 db_obj = None
-                if field in ['authors', 'editors']:
+                if field in ['editors']:
                     if obj_data['orcid']:
                         cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == obj_data['orcid']).first()
                         if not cross_reference_obj:
@@ -76,10 +76,7 @@ def create(db: Session, resource: ResourceSchemaPost):
 
                         obj_data['orcid_cross_reference'] = cross_reference_obj
                     del obj_data['orcid']
-                    if field == 'authors':
-                        db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
-                    else:
-                        db_obj = create_obj(db, EditorModel, obj_data, non_fatal=True)
+                    db_obj = create_obj(db, EditorModel, obj_data, non_fatal=True)
                 elif field == 'cross_references':
                     db_obj = CrossReferenceModel(**obj_data)
                 elif field == 'mesh_terms':
@@ -199,46 +196,14 @@ def show(db: Session, curie: str):
             cross_references.append(cross_reference_show)
         resource_data['cross_references'] = cross_references
 
-    if resource.authors:
-        for author in resource_data['authors']:
-            if author['orcid']:
-                author['orcid'] = jsonable_encoder(cross_reference_crud.show(db, author['orcid']))
-            del author['person_id']
-            del author['orcid_cross_reference']
-            del author['resource_id']
-            del author['reference_id']
-
     if resource.editors:
         for editor in resource_data['editors']:
             if editor['orcid']:
                 editor['orcid'] = jsonable_encoder(cross_reference_crud.show(db, editor['orcid']))
-            del editor['person_id']
             del editor['orcid_cross_reference']
             del editor['resource_id']
-            del editor['reference_id']
 
     return resource_data
-
-
-def show_notes(db: Session, curie: str):
-    """
-
-    :param db:
-    :param curie:
-    :return:
-    """
-
-    resource = db.query(ResourceModel).filter(ResourceModel.curie == curie).first()
-
-    notes_data = []
-    for resource_note in resource.notes:
-        note_data = jsonable_encoder(resource_note)
-        del note_data['reference_id']
-        del note_data['resource_id']
-        note_data['resource_curie'] = curie
-        notes_data.append(note_data)
-
-    return notes_data
 
 
 def show_changesets(db: Session, curie: str):

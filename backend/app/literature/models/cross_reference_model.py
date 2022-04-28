@@ -63,11 +63,6 @@ class CrossReferenceModel(Base):
         back_populates="orcid_cross_reference"
     )
 
-    people = relationship(
-        "PersonModel",
-        secondary="person_orcid_cross_reference_link"
-    )
-
     pages = Column(
         ARRAY(String()),
         nullable=True

@@ -70,7 +70,6 @@ def post_resources(input_path):      # noqa: C901
     remap_editor_keys['authorRank'] = 'order'
     remap_editor_keys['firstName'] = 'first_name'
     remap_editor_keys['lastName'] = 'last_name'
-    remap_editor_keys['middleNames'] = 'middle_names'
     cross_references_keys_to_remove = dict()
     remap_cross_references_keys = dict()
     remap_cross_references_keys['id'] = 'curie'

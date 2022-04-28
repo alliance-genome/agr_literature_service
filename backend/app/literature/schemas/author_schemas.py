@@ -10,7 +10,6 @@ class AuthorSchemaPost(BaseModel):
 
     name: Optional[str] = None
     first_name: Optional[str] = None
-    middle_names: Optional[List[str]] = None
     last_name: Optional[str] = None
 
     first_author: Optional[bool] = False
@@ -34,9 +33,6 @@ class AuthorSchemaPost(BaseModel):
                 "order": 1,
                 "name": "string",
                 "first_name": "string",
-                "middle_names": [
-                    "string"
-                ],
                 "last_name": "string",
                 "affiliation": [
                     "string"
@@ -53,7 +49,6 @@ class AuthorSchemaShow(BaseModelShow):
 
     name: Optional[str] = None
     first_name: Optional[str] = None
-    middle_names: Optional[List[str]] = None
     last_name: Optional[str] = None
 
     first_author: Optional[bool]

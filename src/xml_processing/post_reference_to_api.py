@@ -98,7 +98,6 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     remap_keys['dateLastModified'] = 'date_last_modified'
     remap_keys['crossReferences'] = 'cross_references'
     remap_keys['issueName'] = 'issue_name'
-    remap_keys['issueDate'] = 'issue_date'
     remap_keys['pubMedType'] = 'pubmed_type'
     remap_keys['meshTerms'] = 'mesh_terms'
     remap_keys['allianceCategory'] = 'category'
@@ -136,14 +135,13 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     remap_subkeys['cross_references'] = dict()
     remap_subkeys['cross_references']['id'] = 'curie'
 
+    # NOTE: why are firstName and lastName done twice?
     remap_subkeys['authors'] = dict()
     remap_subkeys['authors']['authorRank'] = 'order'
     remap_subkeys['authors']['firstName'] = 'first_name'
     remap_subkeys['authors']['lastName'] = 'last_name'
-    remap_subkeys['authors']['middleNames'] = 'middle_names'
     remap_subkeys['authors']['firstname'] = 'first_name'
     remap_subkeys['authors']['lastname'] = 'last_name'
-    remap_subkeys['authors']['middlenames'] = 'middle_names'
     remap_subkeys['authors']['correspondingAuthor'] = 'corresponding_author'
     remap_subkeys['authors']['firstAuthor'] = 'first_author'
 
@@ -163,7 +161,6 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     url = 'http://' + api_server + ':' + api_port + '/reference/'
     reference_primary_id_to_curie_file = base_path + 'reference_primary_id_to_curie'
     errors_in_posting_reference_file = base_path + 'errors_in_posting_reference'
-
     # previously loading from reference_primary_id_to_curie from past run of this script
     # already_processed_primary_id = set()
     # if check_file_flag == 'yes_file_check':
@@ -285,10 +282,6 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                             del new_entry['resource']
                 if 'category' in new_entry:
                     new_entry['category'] = new_entry['category'].lower().replace(" ", "_")
-                if 'tags' in new_entry:
-                    for sub_element in new_entry['tags']:
-                        if 'tag_name' in sub_element:
-                            sub_element['tag_name'] = camel_to_snake(sub_element['tag_name'])
                 if 'authors' in new_entry:
                     for author in new_entry['authors']:
                         if 'orcid' in author:

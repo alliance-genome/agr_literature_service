@@ -39,17 +39,6 @@ class AuthorModel(Base):
         back_populates="authors"
     )
 
-    resource_id = Column(
-        Integer,
-        ForeignKey("resources.resource_id"),
-        index=True,
-    )
-
-    resource = relationship(
-        "ResourceModel",
-        back_populates="authors"
-    )
-
     orcid = Column(
         String,
         ForeignKey("cross_references.curie"),
@@ -60,19 +49,6 @@ class AuthorModel(Base):
         "CrossReferenceModel",
         lazy="joined",
         back_populates="authors"
-    )
-
-    person_id = Column(
-        Integer,
-        ForeignKey("people.person_id"),
-        nullable=True,
-        index=True
-    )
-
-    person = relationship(
-        "PersonModel",
-        back_populates="authors",
-        single_parent=True,
     )
 
     first_author = Column(
@@ -106,11 +82,6 @@ class AuthorModel(Base):
     first_name = Column(
         String(),
         unique=False,
-        nullable=True
-    )
-
-    middle_names = Column(
-        ARRAY(String()),
         nullable=True
     )
 

@@ -4,9 +4,15 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
+from sqlalchemy_continuum.plugins import PropertyModTrackerPlugin
+from sqlalchemy_continuum import make_versioned
+from literature.database.base import Base
+from sqlalchemy.orm import configure_mappers
+# from literature.database.versioning import enable_versioning
+# enable_versioning()
 
-
-
+make_versioned(user_cls=None,
+               plugins=[PropertyModTrackerPlugin()])
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -15,28 +21,17 @@ config = context.config
 # This line sets up loggers basically.
 fileConfig(config.config_file_name)
 
-
-
-### Needed for alembic magic
-# from literature.continuum_plugins import UserPlugin
-from sqlalchemy_continuum.plugins import PropertyModTrackerPlugin
-#user_plugin = UserPlugin()
-#
-from sqlalchemy_continuum import make_versioned
-make_versioned(user_cls=None,
-               plugins=[PropertyModTrackerPlugin()])
-# End of magic
-
-
 # add your model's MetaData object here
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
+# target_metadata = literature.database.base.Base.metadata
 ## target_metadata = None
-from literature.database.base import Base
+
 target_metadata = Base.metadata
 
-
+import literature.models  # noqa
+configure_mappers()
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")

@@ -566,7 +566,6 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     # remap_keys['dateLastModified'] = 'date_last_modified'
     remap_keys['crossReferences'] = 'cross_references'
     remap_keys['issueName'] = 'issue_name'
-    # remap_keys['issueDate'] = 'issue_date'
     remap_keys['pubMedType'] = 'pubmed_type'
     remap_keys['meshTerms'] = 'mesh_terms'
     remap_keys['allianceCategory'] = 'category'
