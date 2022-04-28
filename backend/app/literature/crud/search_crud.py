@@ -33,7 +33,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             "pubmed_type.keyword": {
                 "terms": {
                     "field": "pubmed_type.keyword",
-                    "size": facets_limits["pubmed_type.keyword"] if "pubmed_type.keyword" in facets_limits else 10
+                    "size": facets_limits["pubmed_type.keyword"] if "pubmed_type.keyword" in facets_limits else 10,
+                    "missing": "undefined"
                 }
             }
         }
