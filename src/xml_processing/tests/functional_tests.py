@@ -368,8 +368,8 @@ def author_affiliation_check(agr_data, value):
     if 'authors' not in agr_data:
         return 'Failure: No authors found in database'
     for author in agr_data['authors']:
-        if 'affiliation' in author and author['affiliation'] is not None:
-            for affiliation in author['affiliation']:
+        if 'affiliations' in author and author['affiliations'] is not None:
+            for affiliation in author['affiliations']:
                 if affiliation == value:
                     result = 'Success'
     assert result == 'Success'
