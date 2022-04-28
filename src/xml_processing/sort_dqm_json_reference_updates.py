@@ -240,9 +240,9 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     pmids_not_found = load_pmids_not_found()
 
     # make this True for live changes
-#     live_changes = False
+    live_changes = False
 # PUT THIS BACK
-    live_changes = True
+#     live_changes = True
 
     # test data structure content
     # for prefix in xref_ref:
@@ -299,7 +299,9 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
     xref_to_pages = dict()
     for mod in sorted(files_to_process):
-        references_to_create = []
+        references_to_create_all = []
+        references_to_create_pmid = []
+        references_to_create_mod = []
 
         logger.info("loading old md5")
         old_md5dict = load_s3_md5data([mod])
@@ -375,8 +377,11 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                 if entry['primaryId'] not in xrefs:
                     xrefs.append(entry['primaryId'])
                     # logger.info("append primaryId %s", entry['primaryId'])
+                is_pmid = False
                 for cross_reference in xrefs:
                     prefix, identifier, separator = split_identifier(cross_reference, True)
+                    if prefix == 'PMID':
+                        is_pmid = True
                     if prefix not in dqm_xrefs:
                         dqm_xrefs[prefix] = set()
                     dqm_xrefs[prefix].add(identifier)
@@ -401,7 +406,14 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     for key in dqm_keys_to_remove:
                         if key in entry:
                             del entry[key]
-                    references_to_create.append(entry)
+                    references_to_create_all.append(entry)
+                    logger.info(f"create {entry['primaryId']}")
+                    if is_pmid:
+                        references_to_create_pmid.append(entry)
+                        logger.info(f"create pmid {entry['primaryId']}")
+                    else:
+                        references_to_create_mod.append(entry)
+                        logger.info(f"create mod {entry['primaryId']}")
                 elif len(agrs_found) > 1:
                     # logger.info("Notify curator, dqm %s too many matches %s", entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found))))
                     fh_mod_report[mod].write("dqm %s too many matches %s\n" % (entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found)))))
@@ -475,7 +487,9 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                             # logger.info("Notify curator %s has DOI %s, dqm %s does not", agr, ref_xref_valid[agr]['DOI'], entry['primaryId'])
                             fh_mod_report[mod].write("%s has DOI %s, dqm %s does not\n" % (agr_url, ref_xref_valid[agr]['DOI'], entry['primaryId']))
 
-        save_new_references_to_file(references_to_create, mod)
+        save_new_references_to_file(references_to_create_all, mod)
+
+        # references_to_create_mod.append(entry)
 
         # check all db agrId->modId, check each dqm mod still had modId
         for agr in ref_xref_valid:
