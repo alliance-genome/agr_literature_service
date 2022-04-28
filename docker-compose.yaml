@@ -83,6 +83,10 @@ services:
     build:
       context: .
       dockerfile: docker/pgsync.dockerfile
+    sysctls:
+      - net.ipv4.tcp_keepalive_time=300
+      - net.ipv4.tcp_keepalive_intvl=300
+      - net.ipv4.tcp_keepalive_probes=10
     hostname: pgsync
     networks:
       - agr-literature
