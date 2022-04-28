@@ -387,7 +387,7 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                     author_dict["name"] = fullname
                     author_dict["authorRank"] = authors_rank
                     if len(affiliation_list) > 0:
-                        author_dict["affiliation"] = affiliation_list
+                        author_dict["affiliations"] = affiliation_list
                     if len(author_cross_references) > 0:
                         author_dict["crossReferences"] = author_cross_references
                     # print fullname

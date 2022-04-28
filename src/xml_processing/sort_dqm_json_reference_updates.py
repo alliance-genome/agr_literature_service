@@ -502,7 +502,7 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     remap_keys = dict()
     remap_keys['datePublished'] = 'date_published'
     remap_keys['dateArrivedInPubmed'] = 'date_arrived_in_pubmed'
-    remap_keys['dateLastModified'] = 'date_last_modified'
+    remap_keys['dateLastModified'] = 'date_last_modified_in_pubmed'
     remap_keys['crossReferences'] = 'cross_references'
     remap_keys['issueName'] = 'issue_name'
     remap_keys['pubMedType'] = 'pubmed_type'
@@ -513,11 +513,13 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     remap_keys['plainLanguageAbstract'] = 'plain_language_abstract'
     remap_keys['pubmedAbstractLanguages'] = 'pubmed_abstract_languages'
     remap_keys['publicationStatus'] = 'pubmed_publication_status'
+    remap_keys['pages'] = 'page_range'
+    remap_keys['pageRange'] = 'page_range'
     # remap_keys['resourceAbbreviation'] = 'resource_title'
 
     # MODReferenceTypes and allianceCategory cannot be auto converted from camel to snake, so have two lists
     # fields_simple_snake = ['title', 'category', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issue_name', 'date_published', 'date_last_modified']
-    fields_simple_camel = ['title', 'allianceCategory', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issueName', 'datePublished', 'dateLastModified']
+    fields_simple_camel = ['title', 'allianceCategory', 'volume', 'pageRange', 'language', 'abstract', 'publisher', 'issueName', 'datePublished', 'dateLastModified']
     # there's no API to update tags
 
     api_port = environ.get('API_PORT')

@@ -34,7 +34,7 @@ class AuthorSchemaPost(BaseModel):
                 "name": "string",
                 "first_name": "string",
                 "last_name": "string",
-                "affiliation": [
+                "affiliations": [
                     "string"
                 ],
                 "orcid": "ORCID:string"
