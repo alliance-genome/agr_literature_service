@@ -13,7 +13,7 @@ class AuthorSchemaPost(BaseModel):
     last_name: Optional[str] = None
 
     first_author: Optional[bool] = False
-    affiliation: Optional[List[str]] = None
+    affiliations: Optional[List[str]] = None
     corresponding_author: Optional[bool] = False
     reference_curie: Optional[str] = None
     resource_curie: Optional[str] = None
@@ -34,7 +34,7 @@ class AuthorSchemaPost(BaseModel):
                 "name": "string",
                 "first_name": "string",
                 "last_name": "string",
-                "affiliation": [
+                "affiliations": [
                     "string"
                 ],
                 "orcid": "ORCID:string"
@@ -53,7 +53,7 @@ class AuthorSchemaShow(BaseModelShow):
 
     first_author: Optional[bool]
     orcid: Optional[CrossReferenceSchemaShow] = None
-    affiliation: Optional[List[str]] = None
+    affiliations: Optional[List[str]] = None
 
     corresponding_author: Optional[bool] = None
 

@@ -73,7 +73,7 @@ class AuthorModel(Base):
         nullable=True
     )
 
-    affiliation = Column(
+    affiliations = Column(
         ARRAY(String),
         unique=False,
         nullable=True
