@@ -130,7 +130,7 @@ class ReferenceModel(Base):
         nullable=True
     )
 
-    date_last_modified = Column(
+    date_last_modified_in_pubmed = Column(
         String(),
         unique=False,
         nullable=True
@@ -154,7 +154,7 @@ class ReferenceModel(Base):
         nullable=True
     )
 
-    pages = Column(
+    page_range = Column(
         String(),
         unique=False,
         nullable=True
@@ -172,7 +172,7 @@ class ReferenceModel(Base):
         nullable=True
     )
 
-    pubmed_type = Column(
+    pubmed_types = Column(
         ARRAY(String()),
         unique=False,
         nullable=True
@@ -235,11 +235,10 @@ class ReferenceModel(Base):
             format(self.reference_id, self.curie, self.resource_id)
         dates = "\tDates: updated='{}', created='{}', published='{}', arrived_p='{}', last_mod='{}'\n".\
             format(self.date_updated, self.date_created, self.date_published,
-                   self.date_arrived_in_pubmed, self.date_last_modified)
+                   self.date_arrived_in_pubmed, self.date_last_modified_in_pubmed)
         long = "\ttitle10='{}...'\n\tabstract10='{}...'\n".format(self.title[:10], self.abstract[:10])
         auths = [str(x) for x in self.authors]
         mesh = [str(x) for x in self.mesh_terms]
-        tags = [str(x) for x in self.tags]
         peps = "\tauthors='{}'\n\teditors='{}'\n".format(auths, str(self.editors))
-        arrs = "\ttags='{}'\n\tmesh='{}'\n\tkeywords='{}'\n".format(str(tags), str(mesh), self.keywords)
+        arrs = "\tmesh='{}'\n\tkeywords='{}'\n".format(str(mesh), self.keywords)
         return "{}{}{}{}{}".format(ids, dates, long, peps, arrs)

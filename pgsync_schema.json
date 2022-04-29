@@ -74,8 +74,8 @@
         "nodes": {
             "table": "references",
             "columns": [
-                "curie", "title", "resource_id", "volume", "date_published", "pages", "abstract", "keywords", "publisher"
-                , "pubmed_type", "issue_name"
+                "curie", "title", "resource_id", "volume", "date_published", "page_range", "abstract", "keywords", "publisher"
+                , "pubmed_types", "issue_name"
             ],
             "transform": {
                 "mapping": {
@@ -119,7 +119,7 @@
                             }
                         }
                     },
-                    "pages": {
+                    "page_range": {
                         "type": "text",
                         "fields": {
                             "keyword": {
@@ -139,16 +139,6 @@
                             }
                         }
                     },
-                    "citation": {
-                        "type": "text",
-                        "fields": {
-                            "keyword": {
-                                "type": "keyword",
-                                "normalizer": "sortNormalizer",
-                                "ignore_above": 256
-                            }
-                        }
-                    },
                     "publisher": {
                         "type": "text",
                         "fields": {
@@ -159,7 +149,7 @@
                             }
                         }
                     },
-                    "pubmed_type": {
+                    "pubmed_types": {
                         "type": "text",
                         "fields": {
                             "keyword": {
@@ -178,16 +168,6 @@
                                 "ignore_above": 256
                             }
                         }
-                    },
-                    "issue_date": {
-                        "type": "text",
-                        "fields": {
-                            "keyword": {
-                                "type": "keyword",
-                                "normalizer": "sortNormalizer",
-                                "ignore_above": 256
-                            }
-                        }
                     }
                 }
             },
@@ -195,7 +175,7 @@
                 {
                     "table": "authors",
                     "columns": [
-                        "orcid", "first_author", "corresponding_author", "affiliation", "first_name", "last_name"
+                        "orcid", "first_author", "corresponding_author", "affiliations", "first_name", "last_name"
                     ],
                     "relationship": {
                         "variant": "object",
@@ -217,7 +197,7 @@
                                     }
                                 }
                             },
-                            "affiliation": {
+                            "affiliations": {
                                 "type": "text",
                                 "fields": {
                                     "keyword": {
