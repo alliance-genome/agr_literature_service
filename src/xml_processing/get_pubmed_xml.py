@@ -119,7 +119,7 @@ def download_pubmed_xml(pmids_wanted):
         logger.debug("processing PMIDs %s", pmids_joined)
 
         # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=1,10,100,1000487,1000584&retmode=xml
-        
+
         # default way without a library, using get
         # url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" \+
         # pmids_joined + "&retmode=xml"
@@ -215,6 +215,8 @@ if __name__ == "__main__":
     parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
 
     args = vars(parser.parse_args())
+
+    base_path = environ.get('XML_PATH', "")
 
     pmids_wanted = []
 
