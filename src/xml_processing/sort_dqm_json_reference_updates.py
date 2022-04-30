@@ -1,5 +1,6 @@
 import argparse
 import json
+import sys
 import logging
 import logging.config
 # import bs4
@@ -25,6 +26,12 @@ from helper_file_processing import (compare_authors_or_editors, load_ref_xref,
                                     split_identifier, write_json)
 from helper_post_to_api import (generate_headers, get_authentication_token,
                                 process_api_request)
+from parse_dqm_json_reference import (generate_pmid_data, 
+                                      aggregate_dqm_with_pubmed)
+from get_pubmed_xml import download_pubmed_xml
+from xml_to_json import generate_json
+# from process_many_pmids_to_json import download_and_convert_pmids
+# from sanitize_pubmed_json import sanitize_pubmed_json_list
 
 # import re
 
@@ -147,9 +154,11 @@ api_server = environ.get('API_SERVER', 'localhost')
 # https://zfin.org/downloads/ZFIN_1.0.1.4_Resource.json
 
 
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
+                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
+                    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
 
 
 def create_postgres_session(verbose):
@@ -293,8 +302,6 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     report_file_path = base_path + 'report_files/'
     if not path.exists(report_file_path):
         makedirs(report_file_path)
-    # sanitized_report_filename = base_path + 'report_files/sanitized_updates'
-    # fh_mod_report.setdefault('sanitized', open(sanitized_report_filename, 'w'))
 
     xref_to_pages = dict()
     # for mod in sorted(files_to_process):
@@ -412,12 +419,12 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                         del entry[key]
                 references_to_create_all.append(entry)
                 logger.info(f"create {entry['primaryId']}")
-                if is_pmid:
-                    references_to_create_pmid.append(entry)
-                    logger.info(f"create pmid {entry['primaryId']}")
-                else:
-                    references_to_create_mod.append(entry)
-                    logger.info(f"create mod {entry['primaryId']}")
+#                 if is_pmid:
+#                     references_to_create_pmid.append(entry)
+#                     logger.info(f"create pmid {entry['primaryId']}")
+#                 else:
+#                     references_to_create_mod.append(entry)
+#                     logger.info(f"create mod {entry['primaryId']}")
             elif len(agrs_found) > 1:
                 # logger.info("Notify curator, dqm %s too many matches %s", entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found))))
                 fh_mod_report[mod].write("dqm %s too many matches %s\n" % (entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found)))))
@@ -541,13 +548,75 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
         headers = update_db_entries(headers, aggregate_mod_specific_fields_only, live_changes, fh_mod_report[mod], 'mod_specific_fields_only')
         headers = update_db_entries(headers, aggregate_mod_biblio_all, live_changes, fh_mod_report[mod], 'mod_biblio_all')
 
+# TODO
+        output_directory_name = 'process_dqm_update_' + mod
+        output_directory_path = base_path + output_directory_name
+        if not path.exists(output_directory_path):
+            makedirs(output_directory_path)
+        if not path.exists(output_directory_path + '/inputs'):
+            makedirs(output_directory_path + '/inputs')
+
+        # get list of pmids to process from dqm papers filtered down to references_to_create
+        # equivalent to
+        # python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -p
+        generate_pmid_data('dqm_data_updates_new/', output_directory_name + '/', mod)
+
+        # read list of pmids to process from file
+        pmids_wanted = read_pmid_file(output_directory_name + '/inputs/alliance_pmids')
+
+        # download xml from pubmed into base_path pubmed_xml/
+        # equivalent to
+        # python3 get_pubmed_xml.py -f inputs/alliance_pmids
+        download_pubmed_xml(pmids_wanted)
+
+        # convert xml from base_path pubmed_xml/ to base_path pubmed_json/
+        # equivalent to
+        # python3 xml_to_json.py -f inputs/alliance_pmids
+        generate_json(pmids_wanted, [])
+
+        # if wanting to recursively download comments and corrections, which Ceri does not want
+        # untested equivalent to
+        # python3 process_many_pmids_to_json.py -s -f inputs/alliance_pmids > logs/log_process_many_pmids_to_json_update_create
+        # download_and_convert_pmids(pmids_wanted, True)
+
+        # aggregate dqm data with pubmed data from dqm_data_updates_new/ into <output_directory_name>/sanitized_reference_json/REFERENCE_PUBM[EO]D_WB_1.json
+        # equivalent to
+        # python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -m all
+        aggregate_dqm_with_pubmed('dqm_data_updates_new/', mod, output_directory_name + '/')
+
+        # if wanting to process the pmids from recursive download of comments and corrections, which Ceri does not want
+        # untested equivalent to
+        # python3 parse_pubmed_json_reference.py -f inputs/pubmed_only_pmids > logs/log_parse_pubmed_json_reference_update_create
+        # sanitize_pubmed_json_list(pmids_wanted, [])
+
+
+        # stuff
+# pipenv run python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -p > logs/log_parse_dqm_json_reference_update_create_pmid_list
+# pipenv run python3 get_pubmed_xml.py -f inputs/alliance_pmids > logs/log_get_pubmed_xml_update_create
+# pipenv run python3 xml_to_json.py -f inputs/alliance_pmids > logs/log_xml_to_json_update_create
+# pipenv run python3 process_many_pmids_to_json.py -s -f inputs/alliance_pmids > logs/log_process_many_pmids_to_json_update_create
+# pipenv run python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -m all > logs/log_parse_dqm_json_reference_update_create_sanitize
+# pipenv run python3 parse_pubmed_json_reference.py -f inputs/pubmed_only_pmids > logs/log_parse_pubmed_json_reference_update_create
+
+# pipenv run python3 post_reference_to_api.py > logs/log_post_reference_to_api_update_create
+# pipenv run python3 post_comments_corrections_to_api.py -f inputs/all_pmids > logs/log_post_comments_corrections_to_api_update_create
+
 # TODO update s3 md5sum here
 
         fh_mod_report[mod].close()
 
-#     for mod in fh_mod_report:
-#         fh_mod_report[mod].close()
-#     # fh_mod_report['sanitized'].close()
+
+def read_pmid_file(local_path):
+    pmids_wanted = []
+    base_path = environ.get('XML_PATH')
+    file = base_path + local_path
+    logger.info(f"Processing file input from {file}")
+    with open(file, 'r') as fp:
+        pmid = fp.readline()
+        while pmid:
+            pmids_wanted.append(pmid.rstrip())
+            pmid = fp.readline()
+    return pmids_wanted
 
 
 def save_new_references_to_file(references_to_create, mod):
@@ -556,7 +625,8 @@ def save_new_references_to_file(references_to_create, mod):
     if not path.exists(json_storage_path):
         makedirs(json_storage_path)
     dqm_data = dict()
-    dqm_data['data'] = references_to_create[0:100]
+    dqm_data['data'] = references_to_create
+    # dqm_data['data'] = references_to_create[0:100]	# sample for less papers
     json_filename = json_storage_path + 'REFERENCE_' + mod + '.json'
     write_json(json_filename, dqm_data)
 
