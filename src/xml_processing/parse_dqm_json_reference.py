@@ -546,6 +546,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
     schema_data = dict()
     with urllib.request.urlopen(agr_schemas_reference_json_url) as url:
         schema_data = json.loads(url.read().decode())
+        schema_data['properties']['mod_corpus_associations'] = 'injected_okay'
         # print(schema_data)
 
     # this has been obsoleted by generating from parse_dqm_json_resource.py but leaving in here until a full run works
