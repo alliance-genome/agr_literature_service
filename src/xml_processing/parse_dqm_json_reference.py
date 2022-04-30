@@ -4,6 +4,7 @@ import json
 import logging
 import logging.config
 import re
+import sys
 import urllib.request
 import warnings
 from os import environ, makedirs, path
@@ -39,9 +40,15 @@ load_dotenv()
 # TODO when creating authors, make sure that  first_author: false, corresponding_author: false  otherwise they get a null, which looks different than false when toggling on/off the flags in the UI
 
 
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+# log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
+# logging.config.fileConfig(log_file_path)
+# logger = logging.getLogger('literature logger')
+
+logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
+                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
+                    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
 
 
 # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
@@ -79,7 +86,7 @@ base_path = environ.get('XML_PATH')
 #     return prefix, identifier_processed, separator
 
 
-def generate_pmid_data(input_path, output_directory):      # noqa: C901
+def generate_pmid_data(input_path, output_directory, input_mod):      # noqa: C901
     """
 
     output set of PMID identifiers that will need XML downloaded
@@ -94,6 +101,9 @@ def generate_pmid_data(input_path, output_directory):      # noqa: C901
     # RGD should be first in mods list.  if conflicting allianceCategories the later mod gets priority
     mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB']
     # mods = ['SGD']
+
+    if input_mod in mods:
+        mods = [input_mod]
 
     pmid_stats = dict()
     unknown_prefix = set()
@@ -162,30 +172,32 @@ def generate_pmid_data(input_path, output_directory):      # noqa: C901
         if check_primary_id_is_unique:
             for primary_id in primary_id_unique:
                 if primary_id_unique[primary_id] > 1:
-                    print("%s primary_id %s has %s mentions" % (mod, primary_id, primary_id_unique[primary_id]))
+                    logger.info(f"{mod} primary_id {primary_id} has {primary_id_unique[primary_id]} mentions")
+                    # print(f"{mod} primary_id {primary_id} has {primary_id_unique[primary_id]} mentions")
         # output check of a mod's non-unique pmids (different from above because could be crossReferences
         if check_pmid_is_unique:
             for pmid in pmid_unique:
                 if pmid_unique[pmid] > 1:
-                    print("%s pmid %s has %s mentions" % (mod, pmid, pmid_unique[pmid]))
+                    logger.info(f"{mod} pmid {pmid} has {pmid_unique[pmid]} mentions")
+                    # print(f"{mod} pmid {pmid} has {pmid_unique[pmid]} mentions")
 
     # output each mod's count of pmid references
     for mod in pmid_references:
         count = len(pmid_references[mod])
-        print("%s has %s pmid references" % (mod, count))
-        # logger.info("%s has %s pmid references", mod, count)
+        logger.info(f"{mod} has {count} pmid references")
+        # print(f"{mod} has {count} pmid references")
 
     # output each mod's count of non-pmid references
     for mod in non_pmid_references:
         count = len(non_pmid_references[mod])
-        print("%s has %s non-pmid references" % (mod, count))
-        # logger.info("%s has %s non-pmid references", mod, count)
+        logger.info(f"{mod} has {count} non-pmid references")
+        # print(f"{mod} has {count} non-pmid references")
 
     # output actual reference identifiers that are not pmid
     # for mod in non_pmid_references:
     #     for primary_id in non_pmid_references[mod]:
-    #         print("%s non-pmid %s" % (mod, primary_id))
-    #         # logger.info("%s non-pmid %s", mod, primary_id)
+    #         logger.info(f"{mod} non-pmid {primary_id}")
+    #         print(f"{mod} non-pmid {primary_id}")
 
     # if a reference has an unexpected prefix, give a warning
     for prefix in unknown_prefix:
@@ -1069,7 +1081,7 @@ if __name__ == "__main__":
         # pipenv run python parse_dqm_json_reference.py -f dqm_sample/ -p
         if args['generate_pmid_data']:
             logger.info("Generating PMID files from DQM data")
-            generate_pmid_data(args['file'], output_directory)
+            generate_pmid_data(args['file'], output_directory, 'all')
 
         # pipenv run python parse_dqm_json_reference.py -f dqm_sample/ -m WB
         # pipenv run python parse_dqm_json_reference.py -f dqm_data_updates_new/ -m all
