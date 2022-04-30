@@ -19,7 +19,8 @@ from filter_dqm_md5sum import load_s3_md5data, generate_new_md5
 
 from literature.models import ReferenceModel
 
-# from helper_file_processing import (clean_up_keywords, load_ref_xref,
+# from helper_file_processing import (clean_up_keywords,
+#                                     load_ref_xref_api_flatfile,
 #                                     generate_cross_references_file)
 from helper_file_processing import (compare_authors_or_editors,
                                     split_identifier, write_json)
@@ -219,7 +220,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
     # to debug, save 9 seconds per run by generating xref mappings only once and load from flatfile
     # generate_cross_references_file('reference')
-    # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+    # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref_api_flatfile('reference')
 
     # in production load xref mappings through sqlalchemy, which takes 14 seconds for all cross references
     xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')

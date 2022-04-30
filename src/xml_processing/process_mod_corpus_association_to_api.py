@@ -2,7 +2,6 @@
 # query database for xrefs, extra MODs, post to populate mod_corpus_association
 # python process_mod_corpus_association_to_api.py
 
-# TODO: API to create mod_corpus_association is not live, when it is make sure new_entry is defined properly
 """
 
 import logging.config
@@ -12,7 +11,8 @@ from literature.database.main import get_db
 from literature.models import ModCorpusAssociationModel, ReferenceModel, ModModel
 import time
 
-from helper_file_processing import load_ref_xref
+from helper_sqlalchemy import sqlalchemy_load_ref_xref
+# from helper_file_processing import load_ref_xref_api_flatfile
 # from helper_file_processing import generate_cross_references_file
 # from helper_post_to_api import (generate_headers, get_authentication_token)
 
@@ -30,7 +30,7 @@ def do_everything():
     # base_url = 'http://' + api_server + ':' + api_port + '/reference/mod_corpus_association/'
 
     # generate_cross_references_file('reference')   # this updates from references in the database, and takes 88 seconds. if updating this script, comment it out after running it once
-    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+    xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
 
     db_session = next(get_db())
     all_references_ids = db_session.query(ReferenceModel.curie, ReferenceModel.reference_id).all()

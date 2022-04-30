@@ -10,7 +10,7 @@ from os import environ, listdir, path
 
 from helper_sqlalchemy import sqlalchemy_load_ref_xref
 # from helper_file_processing import (generate_cross_references_file,
-#                                     load_ref_xref)
+#                                     load_ref_xref_api_flatfile)
 from helper_file_processing import split_identifier
 from helper_post_to_api import (generate_headers, get_authentication_token,
                                 process_api_request, update_token)
@@ -181,7 +181,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
         # sqlalchemy load is much faster than api load
         # generate_cross_references_file('resource')   # this updates from resources in the database, and takes 4 seconds. if updating this script, comment it out after running it once
         # generate_cross_references_file('reference')   # this updates from references in the database, and takes 88 seconds. if updating this script, comment it out after running it once
-        # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('resource')
+        # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref_api_flatfile('resource')
 
         xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
         for prefix in xref_ref:
@@ -198,7 +198,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
         #                 resource_to_curie[line_data[0]] = line_data[1]
         #         read_fh.close
 
-        # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+        # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref_api_flatfile('reference')
         xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
 
     process_results = []

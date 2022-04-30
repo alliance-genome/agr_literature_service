@@ -7,8 +7,10 @@ from os import environ, makedirs, path
 import requests
 from dotenv import load_dotenv
 
-from helper_file_processing import (compare_authors_or_editors, load_ref_xref,
+from helper_sqlalchemy import sqlalchemy_load_ref_xref
+from helper_file_processing import (compare_authors_or_editors,
                                     save_resource_file, split_identifier)
+# from helper_file_processing import load_ref_xref_api_flatfile
 from helper_post_to_api import (generate_headers, get_authentication_token,
                                 process_api_request)
 
@@ -78,8 +80,7 @@ def update_sanitized_resources(datatype):
     token = get_authentication_token()
     headers = generate_headers(token)
 
-    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('resource')
-    # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('resource2')  # to test against older database mappings
+    xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
     sanitized_resources = load_sanitized_resource(datatype)
     resources_to_update = dict()
     resources_to_create = dict()
@@ -156,8 +157,7 @@ def update_resources(live_changes, headers, resources_to_update):
     # complex_fields = ['crossReferences', 'editorsOrAuthors']
     # TODO deal with editors, example AGR:AGR-Resource-0000034288     FB:FBmultipub_7448
 
-    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('resource')
-    # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('resource2')  # to test against older database mappings
+    xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
 
     api_port = environ.get('API_PORT')
 
