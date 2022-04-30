@@ -5,35 +5,38 @@ import logging
 import logging.config
 # import bs4
 import warnings
-from os import environ, listdir, makedirs, path
+from os import environ, makedirs, path
 
 # import urllib.request
 import requests
 from dotenv import load_dotenv
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+# from sqlalchemy import create_engine
+# from sqlalchemy.orm import sessionmaker
 from fastapi.encoders import jsonable_encoder
-
-from literature.database.main import get_db
-from literature.models import ReferenceModel, CrossReferenceModel
 
 from filter_dqm_md5sum import load_s3_md5data, generate_new_md5
 
-from helper_file_processing import (clean_up_keywords,
-                                    generate_cross_references_file)
-from helper_file_processing import (compare_authors_or_editors, load_ref_xref,
+from literature.models import ReferenceModel
+
+# from helper_file_processing import (clean_up_keywords, load_ref_xref,
+#                                     generate_cross_references_file)
+from helper_file_processing import (compare_authors_or_editors,
                                     split_identifier, write_json)
 from helper_post_to_api import (generate_headers, get_authentication_token,
                                 process_api_request)
-from parse_dqm_json_reference import (generate_pmid_data, 
+from helper_sqlalchemy import (create_postgres_session,
+                               sqlalchemy_load_ref_xref)
+
+
+from parse_dqm_json_reference import (generate_pmid_data,
                                       aggregate_dqm_with_pubmed)
 from get_pubmed_xml import download_pubmed_xml
 from xml_to_json import generate_json
 # from process_many_pmids_to_json import download_and_convert_pmids
 # from sanitize_pubmed_json import sanitize_pubmed_json_list
-
-# import re
+from post_reference_to_api import post_references
+from post_comments_corrections_to_api import post_comments_corrections
 
 
 # TODO save md5sum to s3 after successful run
@@ -161,30 +164,6 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 
-def create_postgres_session(verbose):
-    """Connect to database."""
-    USER = environ.get('PSQL_USERNAME', 'postgres')
-    PASSWORD = environ.get('PSQL_PASSWORD', 'postgres')
-    SERVER = environ.get('PSQL_HOST', 'localhost')
-    PORT = environ.get('PSQL_PORT', '5432')
-
-    DB = environ.get('PSQL_DATABASE', 'literature')
-
-    # Create our SQL Alchemy engine from our environmental variables.
-    engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
-    engine = create_engine(engine_var)
-
-    Session = sessionmaker(bind=engine)
-    session = Session()
-
-    if verbose:
-        print('Using server: {}'.format(SERVER))
-        print('Using database: {}'.format(DB))
-        print(engine_var)
-
-    return session
-
-
 def load_pmids_not_found():
     """
 
@@ -238,20 +217,12 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     # these tags are allowed from dqms, but we don't want them in the database
     dqm_keys_to_remove = {'tags', 'issueDate', 'dateLastModified', 'keywords', 'citation'}
 
-# PUT THIS BACK
     # to debug, save 9 seconds per run by generating xref mappings only once and load from flatfile
     # generate_cross_references_file('reference')
-    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+    # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
 
     # in production load xref mappings through sqlalchemy, which takes 14 seconds for all cross references
-    # xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
-
-    pmids_not_found = load_pmids_not_found()
-
-    # make this True for live changes
-    live_changes = False
-# PUT THIS BACK
-#     live_changes = True
+    xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
 
     # test data structure content
     # for prefix in xref_ref:
@@ -267,26 +238,12 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     #     for prefix in ref_xref_obsolete[agr]:
     #         logger.info("agr %s obsolete prefix %s ident %s", agr, prefix, ref_xref_obsolete[agr][prefix])
 
-    # input_file = 'sanitized'	# set to sanitized to check after posting references to database, that all references are accounted for
-    # input_file = 'dqm'
-    # files_to_process = dict()
-    # for mod in mods:
-    #     files_to_process[mod] = base_path + input_path + '/REFERENCE_' + mod + '.json'
-    # if input_file == 'sanitized':
-    #     files_to_process['sanitized'] = []
-    #     json_storage_path = base_path + 'sanitized_reference_json/'
-    #     dir_list = listdir(json_storage_path)
-    #     for filename in dir_list:
-    #         # logger.info("%s", filename)
-    #         if 'REFERENCE_' in filename and '.REFERENCE_' not in filename:
-    #             # logger.info("%s", filename)
-    #             files_to_process['sanitized'].append(json_storage_path + filename)
-    # else:
-    #     for mod in mods:
-    #         if mod not in files_to_process:
-    #             files_to_process[mod] = []
-    #         filename = base_path + input_path + '/REFERENCE_' + mod + '.json'
-    #         files_to_process[mod].append(filename)
+    pmids_not_found = load_pmids_not_found()
+
+    # make this True for live changes
+#     live_changes = False
+# PUT THIS BACK
+    live_changes = True
 
     dqm = dict()
     for mod in mods:
@@ -308,9 +265,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     for mod in sorted(mods):
         filename = report_file_path + mod + '_updates'
         fh_mod_report.setdefault(mod, open(filename, 'w'))
-        references_to_create_all = []
-        references_to_create_pmid = []
-        references_to_create_mod = []
+        references_to_create = []
 
         logger.info("loading old md5")
         old_md5dict = load_s3_md5data([mod])
@@ -388,11 +343,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
             if entry['primaryId'] not in xrefs:
                 xrefs.append(entry['primaryId'])
                 # logger.info("append primaryId %s", entry['primaryId'])
-            is_pmid = False
             for cross_reference in xrefs:
                 prefix, identifier, separator = split_identifier(cross_reference, True)
-                if prefix == 'PMID':
-                    is_pmid = True
                 if prefix not in dqm_xrefs:
                     dqm_xrefs[prefix] = set()
                 dqm_xrefs[prefix].add(identifier)
@@ -417,14 +369,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                 for key in dqm_keys_to_remove:
                     if key in entry:
                         del entry[key]
-                references_to_create_all.append(entry)
+                references_to_create.append(entry)
                 logger.info(f"create {entry['primaryId']}")
-#                 if is_pmid:
-#                     references_to_create_pmid.append(entry)
-#                     logger.info(f"create pmid {entry['primaryId']}")
-#                 else:
-#                     references_to_create_mod.append(entry)
-#                     logger.info(f"create mod {entry['primaryId']}")
             elif len(agrs_found) > 1:
                 # logger.info("Notify curator, dqm %s too many matches %s", entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found))))
                 fh_mod_report[mod].write("dqm %s too many matches %s\n" % (entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found)))))
@@ -498,9 +444,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                         # logger.info("Notify curator %s has DOI %s, dqm %s does not", agr, ref_xref_valid[agr]['DOI'], entry['primaryId'])
                         fh_mod_report[mod].write("%s has DOI %s, dqm %s does not\n" % (agr_url, ref_xref_valid[agr]['DOI'], entry['primaryId']))
 
-        save_new_references_to_file(references_to_create_all, mod)
-
-        # references_to_create_mod.append(entry)
+        save_new_references_to_file(references_to_create, mod)
 
         # check all db agrId->modId, check each dqm mod still had modId
         for agr in ref_xref_valid:
@@ -579,7 +523,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
         # python3 process_many_pmids_to_json.py -s -f inputs/alliance_pmids > logs/log_process_many_pmids_to_json_update_create
         # download_and_convert_pmids(pmids_wanted, True)
 
-        # aggregate dqm data with pubmed data from dqm_data_updates_new/ into <output_directory_name>/sanitized_reference_json/REFERENCE_PUBM[EO]D_WB_1.json
+        # aggregate dqm data with pubmed data from dqm_data_updates_new/ into <output_directory_name>/sanitized_reference_json/REFERENCE_PUBM[EO]D_<mod>_1.json
         # equivalent to
         # python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -m all
         aggregate_dqm_with_pubmed('dqm_data_updates_new/', mod, output_directory_name + '/')
@@ -589,8 +533,22 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
         # python3 parse_pubmed_json_reference.py -f inputs/pubmed_only_pmids > logs/log_parse_pubmed_json_reference_update_create
         # sanitize_pubmed_json_list(pmids_wanted, [])
 
+        # post generated json to api
+        # equivalent to
+        # python3 post_reference_to_api.py > logs/log_post_reference_to_api_update_create
+        json_filepath = base_path + 'process_dqm_update_' + mod + '/sanitized_reference_json/REFERENCE_PUBMED_' + mod + '_1.json'
+        process_results = post_references(json_filepath, 'yes_file_check')
+        logger.info(process_results)
+        json_filepath = base_path + 'process_dqm_update_' + mod + '/sanitized_reference_json/REFERENCE_PUBMOD_' + mod + '_1.json'
+        process_results = post_references(json_filepath, 'yes_file_check')
+        logger.info(process_results)
 
-        # stuff
+        # post generated json to api
+        # equivalent to
+        # python3 post_comments_corrections_to_api.py -f inputs/alliance_pmids
+        # but if doing recursive should take inputs/all_pmids instead of inputs/alliance_pmids
+        post_comments_corrections(pmids_wanted)
+
 # pipenv run python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -p > logs/log_parse_dqm_json_reference_update_create_pmid_list
 # pipenv run python3 get_pubmed_xml.py -f inputs/alliance_pmids > logs/log_get_pubmed_xml_update_create
 # pipenv run python3 xml_to_json.py -f inputs/alliance_pmids > logs/log_xml_to_json_update_create
@@ -979,76 +937,6 @@ def generic_api_delete(live_changes, url, headers, json_data, agr, mapping_fh, e
         if response_status_code == 204:
             logger.info("%s\t%s\tdelete success", agr, url)
     return headers
-
-
-def sqlalchemy_load_ref_xref():
-    # 2 minutes 20 seconds to load all xref through sqlalchemy
-    ref_xref_valid = dict()
-    ref_xref_obsolete = dict()
-    xref_ref = dict()
-    db_session = next(get_db())
-    query = db_session.query(
-        ReferenceModel.curie,
-        CrossReferenceModel.curie,
-        CrossReferenceModel.is_obsolete
-    ).join(
-        ReferenceModel.cross_references
-    ).filter(
-        CrossReferenceModel.reference_id.isnot(None)
-    )
-    results = query.all()
-    for result in results:
-        # print(result)
-        agr = result[0]
-        xref = result[1]
-        is_obsolete = result[2]
-        prefix, identifier, separator = split_identifier(xref, True)
-        if is_obsolete is False:
-            if agr not in ref_xref_valid:
-                ref_xref_valid[agr] = dict()
-            ref_xref_valid[agr][prefix] = identifier
-            if prefix not in xref_ref:
-                xref_ref[prefix] = dict()
-            if identifier not in xref_ref[prefix]:
-                xref_ref[prefix][identifier] = agr
-        else:
-            if agr not in ref_xref_obsolete:
-                ref_xref_obsolete[agr] = dict()
-            # a reference and prefix can still have multiple obsolete values
-            if prefix not in ref_xref_obsolete[agr]:
-                ref_xref_obsolete[agr][prefix] = set()
-            if identifier not in ref_xref_obsolete[agr][prefix]:
-                ref_xref_obsolete[agr][prefix].add(identifier.lower())
-    return xref_ref, ref_xref_valid, ref_xref_obsolete
-
-
-def test_ref_xref():
-    # generate_cross_references_file('reference')
-    # 3 minutes 17 seconds to generate and load
-    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
-    # 2 minutes 08 seconds to load only from file / 5 seconds to just load
-
-    # xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
-    # 2 minutes 20 seconds to load all xref through sqlalchemy / 14 seconds to just load
-    # xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
-
-    # db_entry_text = json.dumps(ref_xref_valid, indent=4, sort_keys=True)
-    # print('db ')
-    # print(db_entry_text)
-
-    # test data structure content
-    # for prefix in xref_ref:
-    #     for identifier in xref_ref[prefix]:
-    #         agr = xref_ref[prefix][identifier]
-    #         logger.info("agr %s prefix %s ident %s", agr, prefix, identifier)
-    #
-    # for agr in ref_xref_valid:
-    #     for prefix in ref_xref_valid[agr]:
-    #         logger.info("agr %s valid prefix %s ident %s", agr, prefix, ref_xref_valid[agr][prefix])
-    #
-    # for agr in ref_xref_obsolete:
-    #     for prefix in ref_xref_obsolete[agr]:
-    #         logger.info("agr %s obsolete prefix %s ident %s", agr, prefix, ref_xref_obsolete[agr][prefix])
 
 
 if __name__ == "__main__":
