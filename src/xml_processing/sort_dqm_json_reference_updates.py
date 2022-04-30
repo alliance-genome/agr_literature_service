@@ -481,8 +481,6 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                         new_entry["reference_curie"] = agr
                         if xref_id in xref_to_pages:
                             new_entry["pages"] = xref_to_pages[xref_id]
-# COMMENT THIS OUT
-#                         logger.info(f"add validated dqm xref {xref_id} to agr {agr}")
                         if live_changes:
                             logger.info(f"add validated dqm xref {xref_id} to agr {agr}")
                             url = 'http://' + api_server + ':' + api_port + '/cross_reference/'
@@ -492,7 +490,6 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
         headers = update_db_entries(headers, aggregate_mod_specific_fields_only, live_changes, fh_mod_report[mod], 'mod_specific_fields_only')
         headers = update_db_entries(headers, aggregate_mod_biblio_all, live_changes, fh_mod_report[mod], 'mod_biblio_all')
 
-# TODO
         output_directory_name = 'process_dqm_update_' + mod
         output_directory_path = base_path + output_directory_name
         if not path.exists(output_directory_path):
@@ -549,17 +546,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
         # but if doing recursive should take inputs/all_pmids instead of inputs/alliance_pmids
         post_comments_corrections(pmids_wanted)
 
-# pipenv run python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -p > logs/log_parse_dqm_json_reference_update_create_pmid_list
-# pipenv run python3 get_pubmed_xml.py -f inputs/alliance_pmids > logs/log_get_pubmed_xml_update_create
-# pipenv run python3 xml_to_json.py -f inputs/alliance_pmids > logs/log_xml_to_json_update_create
-# pipenv run python3 process_many_pmids_to_json.py -s -f inputs/alliance_pmids > logs/log_process_many_pmids_to_json_update_create
-# pipenv run python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -m all > logs/log_parse_dqm_json_reference_update_create_sanitize
-# pipenv run python3 parse_pubmed_json_reference.py -f inputs/pubmed_only_pmids > logs/log_parse_pubmed_json_reference_update_create
-
-# pipenv run python3 post_reference_to_api.py > logs/log_post_reference_to_api_update_create
-# pipenv run python3 post_comments_corrections_to_api.py -f inputs/all_pmids > logs/log_post_comments_corrections_to_api_update_create
-
-# TODO update s3 md5sum here
+        # TODO update s3 md5sum here
 
         fh_mod_report[mod].close()
 
