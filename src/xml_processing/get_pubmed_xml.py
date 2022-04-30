@@ -63,12 +63,6 @@ load_dotenv()
 # logger = logging.getLogger('literature logger')
 
 
-# todo: save this in an env variable
-# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
-base_path = environ.get('XML_PATH', "")
-storage_path = base_path + 'pubmed_xml/'
-
-
 def download_pubmed_xml(pmids_wanted):
     """
 
@@ -82,6 +76,9 @@ def download_pubmed_xml(pmids_wanted):
     """
 
     pmids_slice_size = 5000
+
+    base_path = environ.get('XML_PATH', "")
+    storage_path = base_path + 'pubmed_xml/'
 
     if not path.exists(storage_path):
         makedirs(storage_path)
@@ -101,8 +98,8 @@ def download_pubmed_xml(pmids_wanted):
             pmids_wanted_set.remove(elem)
     pmids_wanted = sorted(list(pmids_wanted_set))
 
-#     for pmid in pmids_wanted:
-#         print(pmid)
+    # for pmid in pmids_wanted:
+    #     print(pmid)
 
     logger.info("Starting download of new PubMed XML")
 
@@ -121,14 +118,14 @@ def download_pubmed_xml(pmids_wanted):
         pmids_joined = (',').join(pmids_slice)
         logger.debug("processing PMIDs %s", pmids_joined)
 
-#         https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=1,10,100,1000487,1000584&retmode=xml
-
-#         default way without a library, using get
-#         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" \+
-#         pmids_joined + "&retmode=xml"
-#         print url
-#         f = urllib.urlopen(url)
-#         xml_all = f.read()
+        # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=1,10,100,1000487,1000584&retmode=xml
+        
+        # default way without a library, using get
+        # url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" \+
+        # pmids_joined + "&retmode=xml"
+        # print url
+        # f = urllib.urlopen(url)
+        # xml_all = f.read()
 
         # using post with requests library, works well for 10000 pmids
         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
