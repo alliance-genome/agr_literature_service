@@ -1,14 +1,44 @@
 from helper_file_processing import split_identifier
 
-from literature.database.main import get_db
+from os import environ
+
+# from literature.database.main import get_db
 from literature.models import ReferenceModel, CrossReferenceModel, ResourceModel
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+
+def create_postgres_session(verbose):
+    """Connect to database."""
+    USER = environ.get('PSQL_USERNAME', 'postgres')
+    PASSWORD = environ.get('PSQL_PASSWORD', 'postgres')
+    SERVER = environ.get('PSQL_HOST', 'localhost')
+    PORT = environ.get('PSQL_PORT', '5432')
+
+    DB = environ.get('PSQL_DATABASE', 'literature')
+
+    # Create our SQL Alchemy engine from our environmental variables.
+    engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
+    engine = create_engine(engine_var)
+
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    if verbose:
+        print('Using server: {}'.format(SERVER))
+        print('Using database: {}'.format(DB))
+        print(engine_var)
+
+    return session
 
 
 def sqlalchemy_load_ref_xref(datatype):
     ref_xref_valid = dict()
     ref_xref_obsolete = dict()
     xref_ref = dict()
-    db_session = next(get_db())
+    # db_session = next(get_db())
+    db_session = create_postgres_session(False)
 
     query = None
     if datatype == 'reference':
