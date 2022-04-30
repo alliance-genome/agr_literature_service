@@ -7,7 +7,7 @@ import logging.config
 import re
 import sys
 from os import environ, listdir
-from os path
+from os import path
 
 from helper_sqlalchemy import sqlalchemy_load_ref_xref
 # from helper_file_processing import (generate_cross_references_file,
