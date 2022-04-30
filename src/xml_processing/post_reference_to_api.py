@@ -209,6 +209,8 @@ def post_references(input_file, check_file_flag):      # noqa: C901
             # if filepath != json_storage_path + 'REFERENCE_PUBMED_WB_1.json':
             #     continue
             # logger.info("opening file\t%s", filepath)
+            if not path.exists(filepath):
+                continue
             f = open(filepath)
             reference_data = json.load(f)
             # counter = 0
