@@ -36,7 +36,7 @@ class ResourceModel(Base):
         nullable=False
     )
 
-    cross_references = relationship(
+    cross_reference = relationship(
         "CrossReferenceModel",
         lazy="joined",
         back_populates="resource",
@@ -94,7 +94,7 @@ class ResourceModel(Base):
         nullable=True
     )
 
-    editors = relationship(
+    editor = relationship(
         "EditorModel",
         lazy="joined",
         back_populates="resource",

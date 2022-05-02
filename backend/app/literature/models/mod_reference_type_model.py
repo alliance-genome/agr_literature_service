@@ -17,7 +17,7 @@ enable_versioning()
 
 
 class ModReferenceTypeModel(Base):
-    __tablename__ = "mod_reference_types"
+    __tablename__ = "mod_reference_type"
     __versioned__: Dict = {}
 
     mod_reference_type_id = Column(
@@ -35,7 +35,7 @@ class ModReferenceTypeModel(Base):
 
     reference = relationship(
         "ReferenceModel",
-        back_populates="mod_reference_types"
+        back_populates="mod_reference_type"
     )
 
     reference_type = Column(

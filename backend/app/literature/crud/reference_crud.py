@@ -54,8 +54,8 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
 
     reference_data = {}  # type: Dict[str, Any]
 
-    if reference.cross_references:
-        for cross_reference in reference.cross_references:
+    if reference.cross_reference:
+        for cross_reference in reference.cross_reference:
             if db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == cross_reference.curie).first():
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"CrossReference with id {cross_reference.curie} already exists")
@@ -204,7 +204,7 @@ def show_all_references_external_ids(db: Session):
                                      ARRAY(String)),
                                 cast(func.array_agg(CrossReferenceModel.is_obsolete),
                                      ARRAY(Boolean))) \
-        .outerjoin(ReferenceModel.cross_references) \
+        .outerjoin(ReferenceModel.cross_reference) \
         .group_by(ReferenceModel.curie)
 
     return [{"curie": reference[0],
@@ -236,16 +236,16 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         reference_data["resource_curie"] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == reference.resource_id).first()[0]
         reference_data["resource_title"] = db.query(ResourceModel.title).filter(ResourceModel.resource_id == reference.resource_id).first()[0]
 
-    if reference.cross_references:
+    if reference.cross_reference:
         cross_references = []
-        for cross_reference in reference.cross_references:
+        for cross_reference in reference.cross_reference:
             cross_reference_show = jsonable_encoder(cross_reference_crud.show(db, cross_reference.curie))
             del cross_reference_show["reference_curie"]
             cross_references.append(cross_reference_show)
         reference_data["cross_references"] = cross_references
 
-    if reference.mod_reference_types:
-        for mod_reference_type in reference_data["mod_reference_types"]:
+    if reference.mod_reference_type:
+        for mod_reference_type in reference_data["mod_reference_type"]:
             del mod_reference_type["reference_id"]
 
     if reference.mod_corpus_association:
@@ -258,12 +258,12 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         reference_data["mod_corpus_associations"] = reference_data["mod_corpus_association"]
         del reference_data["mod_corpus_association"]
 
-    if reference.mesh_terms:
-        for mesh_term in reference_data["mesh_terms"]:
+    if reference.mesh_term:
+        for mesh_term in reference_data["mesh_term"]:
             del mesh_term["reference_id"]
 
-    if reference.authors:
-        for author in reference_data["authors"]:
+    if reference.author:
+        for author in reference_data["author"]:
             if author["orcid"]:
                 author["orcid"] = jsonable_encoder(cross_reference_crud.show(db, author["orcid"]))
             del author["orcid_cross_reference"]
