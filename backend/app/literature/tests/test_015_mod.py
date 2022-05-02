@@ -22,6 +22,8 @@ Base.metadata.create_all(engine)
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
+db.execute('delete from mod')
+
 def test_get_bad_mod():
 
     with pytest.raises(HTTPException):
