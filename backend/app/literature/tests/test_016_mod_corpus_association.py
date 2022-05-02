@@ -6,9 +6,12 @@ from sqlalchemy.orm import sessionmaker
 
 from literature.crud.mod_corpus_association_crud import create, destroy, patch,\
            show, show_by_reference_mod_abbreviation, show_changesets
+from literature.crud.mod_crud import create as mod_create
+from literature.crud.reference_crud import create as ref_create
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 from literature.database.base import Base
-from literature.models import ModCorpusAssociationModel
+from literature.models import ModModel, ReferenceModel, ModCorpusAssociationModel
+from literature.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
 
 metadata = MetaData()
 
@@ -18,17 +21,27 @@ db = SessionLocal()
 
 Base.metadata.create_all(engine)
 
-test_ref_id = 641424
-test_mod_id = 5
-test_source = 'Mod_pubmed_search'
-test_ref_id2 = 397259
-test_mod_id2 = 6
-test_source2 = 'Assigned_for_review'
-
 # Exit if this is not a test database, Exit.
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
+test_source = 'Mod_pubmed_search'
+test_source2 = 'Assigned_for_review'
+db.execute('delete from mod')
+db.execute('delete from cross_references')
+db.execute('delete from authors')
+db.execute('delete from editors')
+db.execute('delete from "references"')
+db.execute('delete from resources')
+
+def get_ids():
+
+    mod = db.query(ModModel).filter_by(abbreviation = "AtDB").one()
+    mod_id = mod.mod_id
+    ref = db.query(ReferenceModel).filter_by(curie = 'AGR:AGR-Reference-0000000001').one()
+    reference_id = ref.reference_id
+    return (mod_id, reference_id)
+            
 def test_get_bad_mca():
 
     with pytest.raises(HTTPException):
@@ -36,60 +49,66 @@ def test_get_bad_mca():
 
 def test_create_mca():
 
-    data = {
-        "mod_corpus_sort_source": test_source,
-        "reference_id": test_ref_id,
-        "mod_id": test_mod_id
+    mod_data = {
+        "abbreviation": 'AtDB',
+        "short_name": "AtDB",
+        "full_name": "Test genome database"
     }
+    res = mod_create(db, mod_data)
+    assert res
+
+    reference = ReferenceSchemaPost(title="Bob", category="thesis", abstract="3", language="MadeUp")
+    res = ref_create(db, reference)
+    assert res == 'AGR:AGR-Reference-0000000001'
     
+    data = {
+        "mod_abbreviation": "AtDB",
+        "reference_curie": "AGR:AGR-Reference-0000000001",
+        "mod_corpus_sort_source": test_source
+    }
     res = create(db, data)
     assert res
     
-    mca = db.query(ModCorpusAssociationModel).filter_by(reference_id=test_ref_id, mod_id=test_mod_id).one()
-    assert mca.mod_corpus_sort_source == test_source
-
+    
 def test_show_by_reference_mod_abbreviation():
 
-    ref_curie = "AGR:AGR-Reference-0000641424"
-    mod_abbreviation = "MGI"
-
-    res = show_mod_corpus_association(db, ref_curie, mod_abbreviation)
-
-    assert res['reference_id'] == test_ref_id
-    assert res['mod_id'] == test_mod_id
-    assert res['mod_corpus_sort_source'] == test_source
+    ref_curie = "AGR:AGR-Reference-0000000001"
+    mod_abbreviation = "AtDB"
+    res = show_by_reference_mod_abbreviation(db, ref_curie, mod_abbreviation)
+    assert res
     
 def test_patch_mca():
-    
-    data = { "reference_id": test_ref_id2,
-             "mod_id": test_mod_id2,
+
+    ref_curie = "AGR:AGR-Reference-0000000001"
+    mod_abbreviation = "AtDB"
+    data = { "reference_curie": ref_curie, 
+             "mod_abbreviation": mod_abbreviation,
              "mod_corpus_sort_source": test_source2 }
+
+    (mod_id, reference_id) = get_ids()
     
-    mca = db.query(ModCorpusAssociationModel).filter_by(reference_id=test_ref_id, mod_id=test_mod_id).one()
+    mca = db.query(ModCorpusAssociationModel).filter_by(reference_id=reference_id, mod_id=mod_id).one()
     res = patch(db, mca.mod_corpus_association_id, data)
     assert res
-             
-    mca2 = db.query(ModCorpusAssociationModel).filter_by(reference_id=test_ref_id2, mod_id=test_mod_id2).one()
-    assert mca.mod_id == mca2.mod_id
-    assert mca2.mod_corpus_sort_source == test_source2
     
 def test_show_mca():
 
-    mca = db.query(ModCorpusAssociationModel).filter_by(reference_id=test_ref_id2, mod_id=test_mod_id2).one()
+    (mod_id, reference_id) = get_ids()    
+    mca = db.query(ModCorpusAssociationModel).filter_by(reference_id=reference_id, mod_id=mod_id).one()
     res = show(db, mca.mod_corpus_association_id)
-             
-    assert res["mod_corpus_sort_source"] == test_source2
+    assert res
     
 def test_changesets():
-	
-    mca = db.query(ModCorpusAssociationModel).filter_by(reference_id=test_ref_id2, mod_id=test_mod_id2).one()
-    res = show_changesets(db, mca.mod_corpus_association_id)
 
-    assert res["mod_corpus_sort_source"] == test_source2
+    (mod_id, reference_id) = get_ids()
+    mca = db.query(ModCorpusAssociationModel).filter_by(reference_id=reference_id, mod_id=mod_id).one()
+    res = show_changesets(db, mca.mod_corpus_association_id)
+    assert res
 
 def test_destroy_mca():
-             
-    mca = db.query(ModCorpusAssociationModel).filter_by(reference_id=test_ref_id2, mod_id=test_mod_id2).one()
+
+    (mod_id, reference_id) = get_ids()
+    mca = db.query(ModCorpusAssociationModel).filter_by(reference_id=reference_id, mod_id=mod_id).one()
     destroy(db, mca.mod_corpus_association_id)
 
     # it should now give an error on lookup.
