@@ -54,8 +54,8 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
 
     reference_data = {}  # type: Dict[str, Any]
 
-    if reference.cross_reference:
-        for cross_reference in reference.cross_reference:
+    if reference.cross_references:
+        for cross_reference in reference.cross_references:
             if db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == cross_reference.curie).first():
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"CrossReference with id {cross_reference.curie} already exists")

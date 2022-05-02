@@ -43,8 +43,8 @@ def create(db: Session, resource: ResourceSchemaPost):
 
     resource_data = {}
 
-    if resource.cross_reference is not None:
-        for cross_reference in resource.cross_reference:
+    if resource.cross_references is not None:
+        for cross_reference in resource.cross_references:
             if db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == cross_reference.curie).first():
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"CrossReference with curie {cross_reference.curie} already exists")
@@ -60,14 +60,14 @@ def create(db: Session, resource: ResourceSchemaPost):
     resource_data['curie'] = curie
 
     for field, value in vars(resource).items():
-        if field in ['editor', 'cross_reference', 'mesh_term']:
+        if field in ['editors', 'cross_references', 'mesh_terms']:
             db_objs = []
             if value is None:
                 continue
             for obj in value:
                 obj_data = jsonable_encoder(obj)
                 db_obj = None
-                if field == 'editor':
+                if field == 'editors':
                     if obj_data['orcid']:
                         cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == obj_data['orcid']).first()
                         if not cross_reference_obj:
