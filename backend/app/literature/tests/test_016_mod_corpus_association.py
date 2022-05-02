@@ -59,7 +59,7 @@ def test_create_mca():
 
     reference = ReferenceSchemaPost(title="Bob", category="thesis", abstract="3", language="MadeUp")
     res = ref_create(db, reference)
-    assert res == 'AGR:AGR-Reference-0000000001'
+    assert res
     
     data = {
         "mod_abbreviation": "AtDB",
