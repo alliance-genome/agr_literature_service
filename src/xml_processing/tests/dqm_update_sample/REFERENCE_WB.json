@@ -26,7 +26,7 @@
                 }
             ],
             "citation": "Abdul Kader N et al. (1978) Revue de Nematologie \"Induction, detection and isolation of temperature-sensitive lethal and/or ....\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "WB:WBPaper00000003",
                     "pages": [
@@ -70,7 +70,7 @@
                 }
             ],
             "citation": "Abi-Rached M et al. (1975) Nematologica \"Etude ultrastructurale des relations entre ovocytes et rachis au cours de ....\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "DOI:10.1163/187529275X00518"
                 },
@@ -117,7 +117,7 @@
                 }
             ],
             "citation": "Abi-Rached M et al. (1978) Revue de Nematologie \"Ultrastructural changes in the nuclear and perinuclear regions of the oogonia ....\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "WB:WBPaper00000006",
                     "pages": [
@@ -161,7 +161,7 @@
                 }
             ],
             "citation": "Abi-Rached M et al. (1979) C R Seances Acad Sci D \"Changes in the synaptonemal complex in the oocyte nucleus in meiotic prophase of ....\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "WB:WBPaper00000007",
                     "pages": [
@@ -209,7 +209,7 @@
                 }
             ],
             "citation": "Ali MY et al. (1973) Parasitologia Hungarica \"Nematodes associated with Coleoptera species in Egypt Part 2.\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "WB:WBPaper00000010",
                     "pages": [
@@ -248,7 +248,7 @@
                 }
             ],
             "citation": "Anderson GL (1978) Canadian Journal of Zoology \"Responses of dauerlarvae of C. elegans (Nematoda: Rhabditidae) to thermal ....\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "DOI:10.1139/z78-244"
                 },
@@ -290,7 +290,7 @@
                 }
             ],
             "citation": "Ward S (1975) Experimental Neurology \"Genetic studies of chemotaxis mutants in nematodes.\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "WB:WBPaper00000015",
                     "pages": [
@@ -329,7 +329,7 @@
                 }
             ],
             "citation": "Babu P (1974) Mol Gen Genet \"Biochemical genetics of C. elegans.\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "DOI:10.1007/BF00433899"
                 },
@@ -403,7 +403,7 @@
            ],
            "title" : "Identification of a novel family of targets of PYK2 related to Drosophila retinal degeneration B (rdgB) protein.",
            "abstract" : "The protein tyrosine kinase PYK2 has been implicated in signaling pathways activated by G-protein-coupled receptors, intracellular calcium, and stress signals. Here we describe the molecular cloning and characterization of a novel family of PYK2-binding proteins designated Nirs (PYK2 N-terminal domain-interacting receptors). The three Nir proteins (Nir1, Nir2, and Nir3) bind to the amino-terminal domain of PYK2 via a conserved sequence motif located in the carboxy terminus. The primary structures of Nirs reveal six putative transmembrane domains, a region homologous to phosphatidylinositol (PI) transfer protein, and an acidic domain. The Nir proteins are the human homologues of the Drosophila retinal degeneration B protein (rdgB), a protein implicated in the visual transduction pathway in flies. We demonstrate that Nirs are calcium-binding proteins that exhibit PI transfer activity in vivo. Activation of PYK2 by agents that elevate intracellular calcium or by phorbol ester induce tyrosine phosphorylation of Nirs. Moreover, PYK2 and Nirs exhibit similar expression patterns in several regions of the brain and retina. In addition, PYK2-Nir complexes are detected in lysates prepared from cultured cells or from brain tissues. Finally, the Nir1-encoding gene is located at human chromosome 17p13.1, in proximity to a locus responsible for several human retinal diseases. We propose that the Nir and rdgB proteins represent a new family of evolutionarily conserved PYK2-binding proteins that play a role in the control of calcium and phosphoinositide metabolism downstream of G-protein-coupled receptors.",
-           "crossReferences" : [
+           "crossReference" : [
               {
                  "id" : "DOI:10.1128/MCB.19.3.2278"
               },
@@ -450,7 +450,7 @@
                 }
             ],
             "citation": "Waterston RH et al. (1997) \"The Genome.\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "PMID:21413225"
                 },
@@ -504,7 +504,7 @@
                 }
             ],
             "citation": "Riddle DL et al. (1997) \"C. elegans II\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "PMID:21413221"
                 },
@@ -550,7 +550,7 @@
                 }
             ],
             "citation": " (2005) \"Mechanotransduction in the Nematode Caenorhabditis elegans.\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "PMID:21290765"
                 },
@@ -604,7 +604,7 @@
                 }
             ],
             "citation": "Gaudet P et al. (2011) Brief Bioinform \"Phylogenetic-based propagation of functional annotations within the Gene ....\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "DOI:10.1093/bib/bbr042"
                 },

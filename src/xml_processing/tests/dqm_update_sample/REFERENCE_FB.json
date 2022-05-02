@@ -18,7 +18,7 @@
                 }
             ],
             "citation": "Lapta, 1980, Sov. Genet. 16(4): 386--390",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "FB:FBrf0035013",
                     "pages": [
@@ -97,7 +97,7 @@
             }
           ],
           "citation": "Lev et al., 1999, Mol. Cell. Biol. 19(3): 2278--2288",
-          "crossReferences": [
+          "crossReference": [
             {
               "id": "FB:FBrf0106846",
               "pages": [
@@ -147,7 +147,7 @@
                 }
             ],
             "citation": "Hardeland, 1969, Oecologia 3: 207--213",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "FB:FBrf0020888",
                     "pages": [
@@ -192,7 +192,7 @@
                 }
             ],
             "citation": "Scriba, 1967, Wilhelm Roux Arch. Entwickl. Mech. Org. 159: 314--345",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "FB:FBrf0019024",
                     "pages": [
@@ -252,7 +252,7 @@
                 }
             ],
             "citation": "Gaudet et al., 2011, Brief. Bioinform. 12(5): 449--462",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "FB:FBrf0239784",
                     "pages": [

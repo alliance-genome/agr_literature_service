@@ -97,8 +97,8 @@ def generate_new_md5(input_path, mods):
             # logger.info("counting %s %s %s", counter, mod, primary_id)
 
             is_pmid = False
-            if 'crossReferences' in entry:
-                for xref in entry['crossReferences']:
+            if 'crossReference' in entry:
+                for xref in entry['crossReference']:
                     if 'id' in xref:
                         prefix, identifier, separator = split_identifier(xref['id'])
                         if prefix == 'PMID':

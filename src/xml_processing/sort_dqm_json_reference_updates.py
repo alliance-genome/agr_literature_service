@@ -331,8 +331,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
             dqm_xrefs = dict()
             xrefs = []
             agrs_found = set()
-            if 'crossReferences' in entry:
-                for cross_reference in entry['crossReferences']:
+            if 'crossReference' in entry:
+                for cross_reference in entry['crossReference']:
                     if "id" in cross_reference:
                         xrefs.append(cross_reference["id"])
                         # logger.info("append xref %s", cross_reference["id"])
@@ -608,7 +608,7 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     remap_keys['datePublished'] = 'date_published'
     remap_keys['dateArrivedInPubmed'] = 'date_arrived_in_pubmed'
     remap_keys['dateLastModified'] = 'date_last_modified_in_pubmed'
-    remap_keys['crossReferences'] = 'cross_references'
+    remap_keys['crossReference'] = 'cross_reference'
     remap_keys['issueName'] = 'issue_name'
     remap_keys['pubMedType'] = 'pubmed_type'
     remap_keys['meshTerms'] = 'mesh_terms'

@@ -128,8 +128,8 @@ def update_resources(live_changes, headers, resources_to_update):
     :return:
     """
 
-    # pubmed_fields = ['isoAbbreviation', 'crossReferences', 'onlineISSN', 'medlineAbbreviation', 'printISSN', 'title', 'primaryId', 'nlm']
-    # keys_to_remove = {'nlm', 'primaryId', 'crossReferences'}   # these are all the nlm, which is the key to find this, so it cannot change
+    # pubmed_fields = ['isoAbbreviation', 'crossReference', 'onlineISSN', 'medlineAbbreviation', 'printISSN', 'title', 'primaryId', 'nlm']
+    # keys_to_remove = {'nlm', 'primaryId', 'crossReference'}   # these are all the nlm, which is the key to find this, so it cannot change
     remap_keys = dict()
     remap_keys['isoAbbreviation'] = 'iso_abbreviation'
     remap_keys['medlineAbbreviation'] = 'medline_abbreviation'
@@ -137,7 +137,7 @@ def update_resources(live_changes, headers, resources_to_update):
     remap_keys['onlineISSN'] = 'online_issn'
     remap_keys['abbreviationSynonyms'] = 'abbreviation_synonyms'
     remap_keys['titleSynonyms'] = 'title_synonyms'
-    remap_keys['crossReferences'] = 'cross_references'
+    remap_keys['crossReference'] = 'cross_reference'
     remap_keys['editorsOrAuthors'] = 'editors'
 
     # to account for editors and xrefs later
@@ -154,7 +154,7 @@ def update_resources(live_changes, headers, resources_to_update):
     # no one is sending abstractOrSummary / 'abstract', 'summary' ; titleSynonyms ; copyrightDate data
     simple_fields = ['title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN', 'publisher', 'pages']
     list_fields = ['abbreviationSynonyms', 'titleSynonyms', 'volumes']
-    # complex_fields = ['crossReferences', 'editorsOrAuthors']
+    # complex_fields = ['crossReference', 'editorsOrAuthors']
     # TODO deal with editors, example AGR:AGR-Resource-0000034288     FB:FBmultipub_7448
 
     xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
@@ -202,7 +202,7 @@ def update_resources(live_changes, headers, resources_to_update):
             if list_changed[0]:
                 logger.info("patch %s field %s from db %s to dqm %s", agr, list_changed[3], list_changed[2], list_changed[1])
                 update_json[list_changed[3]] = list_changed[1]
-        if 'crossReferences' in dqm_entry:
+        if 'crossReference' in dqm_entry:
             headers = compare_xref(agr, dqm_entry, xref_ref, ref_xref_valid, ref_xref_obsolete, headers, live_changes)
         editors_changed = compare_authors_or_editors(db_entry, dqm_entry, 'editors')
         # editor API needs updates.  reference_curie required to post reference authors but for some reason resource_curie not allowed here, cannot connect new editor to resource if resource_curie is not passed in
@@ -292,7 +292,7 @@ def compare_xref(agr, dqm_entry, xref_ref, ref_xref_valid, ref_xref_obsolete, he
     api_port = environ.get('API_PORT')
     url = 'http://' + api_server + ':' + api_port + '/cross_reference/'
 
-    for xref in dqm_entry['crossReferences']:
+    for xref in dqm_entry['crossReference']:
         curie = xref['id']
         prefix, identifier, separator = split_identifier(curie)
         agr_db_from_xref = ''

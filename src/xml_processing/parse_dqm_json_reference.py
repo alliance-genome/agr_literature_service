@@ -146,8 +146,8 @@ def generate_pmid_data(input_path, output_directory, input_mod):      # noqa: C9
             if prefix == 'PMID':
                 pmid = identifier
             elif prefix in mods:
-                if 'crossReferences' in entry:
-                    for cross_reference in entry['crossReferences']:
+                if 'crossReference' in entry:
+                    for cross_reference in entry['crossReference']:
                         prefix_xref, identifier_xref, separator_xref = split_identifier(cross_reference['id'])
                         if prefix_xref == 'PMID':
                             pmid = identifier_xref
@@ -174,7 +174,7 @@ def generate_pmid_data(input_path, output_directory, input_mod):      # noqa: C9
                 if primary_id_unique[primary_id] > 1:
                     logger.info(f"{mod} primary_id {primary_id} has {primary_id_unique[primary_id]} mentions")
                     # print(f"{mod} primary_id {primary_id} has {primary_id_unique[primary_id]} mentions")
-        # output check of a mod's non-unique pmids (different from above because could be crossReferences
+        # output check of a mod's non-unique pmids (different from above because could be crossReference
         if check_pmid_is_unique:
             for pmid in pmid_unique:
                 if pmid_unique[pmid] > 1:
@@ -288,7 +288,7 @@ def chunks(list, size):
 
 
 def populate_expected_cross_reference_type():
-    # if pages should be stripped from some crossReferences, make this a dict and set some to
+    # if pages should be stripped from some crossReference, make this a dict and set some to
     # have or not have, and strip when matched against this
     expected_cross_reference_type = set()
     expected_cross_reference_type.add('PMID:'.lower())
@@ -353,8 +353,8 @@ def load_mod_resource(mods, resource_to_nlm):
                                 resource_to_mod[mod][value].append(primary_id)
                         else:
                             resource_to_mod[mod][value] = [primary_id]
-                    if 'crossReferences' in entry:
-                        for xref_entry in entry['crossReferences']:
+                    if 'crossReference' in entry:
+                        for xref_entry in entry['crossReference']:
                             # if re.match(r"^ISSN:[0-9]+", xref_id):
                             # if entry['primaryId'] == 'FB:FBmultipub_1740':
                             #     logger.info("id %s xref id %s ", entry['primaryId'], xref_entry['id'])
@@ -397,7 +397,7 @@ def load_pubmed_resource():
     resource_to_nlm_highest = dict()
     resource_nlm_to_title = dict()
     resource_fields = ['primaryId', 'nlm', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
-    # ZFIN does not have ISSN in crossReferences, and may have already fixed them for 4.1.0
+    # ZFIN does not have ISSN in crossReference, and may have already fixed them for 4.1.0
     for entry in resource_data:
         primary_id = entry['primaryId']
         nlm = entry['nlm']
@@ -461,7 +461,7 @@ def load_pmid_multi_mods():
 def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # noqa: C901
     # reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
     # outputs sanitized json to sanitized_reference_json/
-    # does checks on dqm crossReferences.  if primaryId is not PMID, and a crossReference is PubMed,
+    # does checks on dqm crossReference.  if primaryId is not PMID, and a crossReference is PubMed,
     # assigns PMID to primaryId and to author's referenceId.
     # if any reference's author doesn't have author Rank, assign authorRank based on array order.
     cross_ref_no_pages_ok_fields = ['DOI', 'PMID', 'PMC', 'PMCID', 'ISBN']
@@ -593,13 +593,13 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
             mod_corpus_associations = [{"modAbbreviation": mod, "modCorpusSortSource": "dqm_files", "corpus": True}]
             entry['modCorpusAssociations'] = mod_corpus_associations
 
-            # need to process crossReferences once to reassign primaryId if PMID and filter out
-            # unexpected crossReferences,
-            # then again later to clean up crossReferences that get data from pubmed xml (once the PMID is known)
-            if 'crossReferences' in entry:
+            # need to process crossReference once to reassign primaryId if PMID and filter out
+            # unexpected crossReference,
+            # then again later to clean up crossReference that get data from pubmed xml (once the PMID is known)
+            if 'crossReference' in entry:
                 expected_cross_references = []
                 dqm_xrefs = dict()
-                for cross_reference in entry['crossReferences']:
+                for cross_reference in entry['crossReference']:
                     prefix, identifier, separator = split_identifier(cross_reference["id"])
                     if prefix not in dqm_xrefs:
                         dqm_xrefs[prefix] = set()
@@ -632,7 +632,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                             # cross_reference_types[mod].add(cross_ref_type_group[1])
                         if cross_ref_type_group[1].lower() not in exclude_cross_reference_type:
                             expected_cross_references.append(cross_reference)
-                entry['crossReferences'] = expected_cross_references
+                entry['crossReference'] = expected_cross_references
                 for prefix in dqm_xrefs:
                     if len(dqm_xrefs[prefix]) > 1:
                         too_many_xref_per_type_failure = True
@@ -683,15 +683,15 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                             author['referenceId'] = primary_id
                             authors_updated.append(author)
                         entry['author'] = authors_updated
-                if 'crossReferences' in entry:
+                if 'crossReference' in entry:
                     sanitized_cross_references = []
-                    for cross_reference in entry['crossReferences']:
+                    for cross_reference in entry['crossReference']:
                         id = cross_reference['id']
                         prefix, identifier, separator = split_identifier(id)
                         # cross references came from the mod, but some had a pmid (e.g. 24270275) that is no longer at PubMed, so do not add to cross_references
                         if prefix.lower() != 'pmid':
                             sanitized_cross_references.append(cross_reference)
-                    entry['crossReferences'] = sanitized_cross_references
+                    entry['crossReference'] = sanitized_cross_references
                 if 'keywords' in entry:
                     entry = clean_up_keywords(mod, entry)
                 if 'resourceAbbreviation' in entry:
@@ -700,7 +700,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                     journal_simplified = simplify_text_keep_digits(entry['resourceAbbreviation'])
                     if journal_simplified != '':
                         # logger.info("CHECK mod %s journal_simplified %s", mod, journal_simplified)
-                        # highest priority to mod resources from dqm resource file with an issn in crossReferences that maps to a single nlm
+                        # highest priority to mod resources from dqm resource file with an issn in crossReference that maps to a single nlm
                         if journal_simplified in resource_to_mod_issn_nlm[mod]:
                             entry['nlm'] = [resource_to_mod_issn_nlm[mod][journal_simplified]]
                             entry['resource'] = resource_to_mod_issn_nlm[mod][journal_simplified]
@@ -768,14 +768,14 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
 
                 sanitized_cross_references = []
                 pubmed_xrefs = dict()
-                if 'crossReferences' in pubmed_data:
-                    sanitized_cross_references = pubmed_data['crossReferences']
-                    for cross_reference in pubmed_data['crossReferences']:
+                if 'crossReference' in pubmed_data:
+                    sanitized_cross_references = pubmed_data['crossReference']
+                    for cross_reference in pubmed_data['crossReference']:
                         id = cross_reference['id']
                         prefix, identifier, separator = split_identifier(id)
                         pubmed_xrefs[prefix] = identifier
-                if 'crossReferences' in entry:
-                    for cross_reference in entry['crossReferences']:
+                if 'crossReference' in entry:
+                    for cross_reference in entry['crossReference']:
                         id = cross_reference['id']
                         prefix, identifier, separator = split_identifier(id)
                         if prefix in pubmed_xrefs:
@@ -784,7 +784,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                                 fh_mod_report[mod].write("primaryId %s has xref %s PubMed has %s%s%s\n" % (primary_id, id, prefix, separator, pubmed_xrefs[prefix]))
                         else:
                             sanitized_cross_references.append(cross_reference)
-                entry['crossReferences'] = sanitized_cross_references
+                entry['crossReference'] = sanitized_cross_references
 
                 if 'nlm' in pubmed_data:
                     nlm = pubmed_data['nlm']
@@ -843,13 +843,13 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                         if mod_keyword.upper() not in map(str.upper, entry['keywords']):
                             entry['keywords'].append(mod_keyword)
 
-# # datePublished, keywords, and crossReferences, MODReferenceTypes, tags, allianceCategory, resourceAbbreviation
+# # datePublished, keywords, and crossReference, MODReferenceTypes, tags, allianceCategory, resourceAbbreviation
 # # datePublished - pubmed value, if no value use mod's, if multiple mod's different, error
 # # resourceAbbreviation - if pmid always use NLM's name
 # # keywords - aggregate
 # # tags - aggregate
 # # MODReferenceTypes - aggregate
-# # crossReferences - aggregate and clean up pages
+# # crossReference - aggregate and clean up pages
 # # allianceCategory - single value, error if there's more than 1 unique value because of different MODs
 
             if is_pubmod:
@@ -939,8 +939,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                     mod_corpus_association_dict[id] = mod_corpus_association
                     # logger.info("mod_corpus_association %s", mod_corpus_association)
 
-            if 'crossReferences' in entry:
-                for cross_ref in entry['crossReferences']:
+            if 'crossReference' in entry:
+                for cross_ref in entry['crossReference']:
                     id = cross_ref['id']
                     pages = []
                     if 'pages' in cross_ref:
@@ -959,10 +959,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
             sanitized_cross_ref_dict["id"] = cross_ref_id
             if len(pages) > 0:
                 sanitized_cross_ref_dict["pages"] = pages
-            if 'crossReferences' in sanitized_entry:
-                sanitized_entry['crossReferences'].append(sanitized_cross_ref_dict)
+            if 'crossReference' in sanitized_entry:
+                sanitized_entry['crossReference'].append(sanitized_cross_ref_dict)
             else:
-                sanitized_entry['crossReferences'] = [sanitized_cross_ref_dict]
+                sanitized_entry['crossReference'] = [sanitized_cross_ref_dict]
 
         if 'allianceCategory' in sanitized_entry:
             if len(alliance_category_dict) > 1:
@@ -997,16 +997,16 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
 
     for mod in cross_reference_types:
         # for cross_reference_type in cross_reference_types[mod]:
-        #     logger.info("unexpected crossReferences mod %s type: %s", mod, cross_reference_type)
-        #     fh_mod_report[mod].write("Warning: unexpected crossReferences type: %s\n" % (cross_reference_type))
+        #     logger.info("unexpected crossReference mod %s type: %s", mod, cross_reference_type)
+        #     fh_mod_report[mod].write("Warning: unexpected crossReference type: %s\n" % (cross_reference_type))
         for cross_reference_type in cross_reference_types[mod]:
             if cross_reference_type.lower() in exclude_cross_reference_type:
-                logger.info("unexpected crossReferences mod %s type: %s", mod, cross_reference_type)
-                fh_mod_report[mod].write("Warning: unexpected crossReferences type: %s\n" % (cross_reference_type))
+                logger.info("unexpected crossReference mod %s type: %s", mod, cross_reference_type)
+                fh_mod_report[mod].write("Warning: unexpected crossReference type: %s\n" % (cross_reference_type))
             else:
                 for cross_reference_type_message in cross_reference_types[mod][cross_reference_type]:
-                    logger.info("unexpected crossReferences mod %s type: %s values: %s", mod, cross_reference_type, cross_reference_type_message)
-                    fh_mod_report[mod].write("Warning: unexpected crossReferences type: %s values: %s\n" % (cross_reference_type, cross_reference_type_message))
+                    logger.info("unexpected crossReference mod %s type: %s values: %s", mod, cross_reference_type, cross_reference_type_message)
+                    fh_mod_report[mod].write("Warning: unexpected crossReference type: %s values: %s\n" % (cross_reference_type, cross_reference_type_message))
 
     # output resourceAbbreviations not matched to NLMs or resource MOD IDs to a file for attempt to
     # download from other source

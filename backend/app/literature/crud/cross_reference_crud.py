@@ -110,7 +110,7 @@ def show(db: Session, curie: str, indirect=True) -> dict:
         for author in cross_reference.author:
             author_ids.append(author.author_id)
 
-        for editor in cross_reference.editors:
+        for editor in cross_reference.editor:
             editor_ids.append(editor.editor_id)
     cross_reference_data["author_ids"] = author_ids
     cross_reference_data["editor_ids"] = editor_ids

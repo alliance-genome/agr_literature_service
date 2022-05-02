@@ -22,7 +22,7 @@
                 }
             ],
             "citation": "Abdul Kader N et al. (1978) Revue de Nematologie \"Induction, detection and isolation of temperature-sensitive lethal and/or ....\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "WB:WBPaper00000003",
                     "pages": [
@@ -66,7 +66,7 @@
                 }
             ],
             "citation": "Abi-Rached M et al. (1975) Nematologica \"Etude ultrastructurale des relations entre ovocytes et rachis au cours de ....\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "DOI:10.1163/187529275X00518"
                 },
@@ -113,7 +113,7 @@
                 }
             ],
             "citation": "Abi-Rached M et al. (1978) Revue de Nematologie \"Ultrastructural changes in the nuclear and perinuclear regions of the oogonia ....\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "WB:WBPaper00000006",
                     "pages": [
@@ -157,7 +157,7 @@
                 }
             ],
             "citation": "Abi-Rached M et al. (1979) C R Seances Acad Sci D \"Changes in the synaptonemal complex in the oocyte nucleus in meiotic prophase of ....\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "WB:WBPaper00000007",
                     "pages": [
@@ -205,7 +205,7 @@
                 }
             ],
             "citation": "Ali MY et al. (1973) Parasitologia Hungarica \"Nematodes associated with Coleoptera species in Egypt Part 2.\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "WB:WBPaper00000010",
                     "pages": [
@@ -244,7 +244,7 @@
                 }
             ],
             "citation": "Anderson GL (1978) Canadian Journal of Zoology \"Responses of dauerlarvae of C. elegans (Nematoda: Rhabditidae) to thermal ....\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "DOI:10.1139/z78-244"
                 },
@@ -291,7 +291,7 @@
                 }
             ],
             "citation": "Andrew PA et al. (1976) Nematologica \"Effect of bacteria on dispersal of C. elegans (Rhabditidae).\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "DOI:10.1163/187529276X00454"
                 },
@@ -342,7 +342,7 @@
                 }
             ],
             "citation": "Waterston RH et al. (1997) \"The Genome.\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "PMID:21413225"
                 },
@@ -396,7 +396,7 @@
                 }
             ],
             "citation": "Riddle DL et al. (1997) \"C. elegans II\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "PMID:21413221"
                 },
@@ -442,7 +442,7 @@
                 }
             ],
             "citation": " (2005) \"Mechanotransduction in the Nematode Caenorhabditis elegans.\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "PMID:21290765"
                 },
@@ -496,7 +496,7 @@
                 }
             ],
             "citation": "Gaudet P et al. (2011) Brief Bioinform \"Phylogenetic-based propagation of functional annotations within the Gene ....\"",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "DOI:10.1093/bib/bbr042"
                 },

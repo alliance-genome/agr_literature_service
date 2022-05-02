@@ -389,7 +389,7 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                     if len(affiliation_list) > 0:
                         author_dict["affiliations"] = affiliation_list
                     if len(author_cross_references) > 0:
-                        author_dict["crossReferences"] = author_cross_references
+                        author_dict["crossReference"] = author_cross_references
                     # print fullname
                     authors_list.append(author_dict)
                 data_dict['author'] = authors_list
@@ -509,7 +509,7 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                 #     print "NO\t" + pmid
 
             if len(cross_references) > 0:
-                data_dict["crossReferences"] = cross_references
+                data_dict["crossReference"] = cross_references
 
             publisher_re_output = re.search("<PublisherName>(.+?)</PublisherName>", xml)
             if publisher_re_output is not None:

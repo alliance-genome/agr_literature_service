@@ -159,8 +159,8 @@ def load_mod_resource(json_storage_path, pubmed_by_nlm, nlm_by_issn, mod):      
                     primary_id = entry['primaryId']
                 if primary_id in pubmed_by_nlm:
                     nlm = primary_id
-                elif 'crossReferences' in entry:
-                    for cross_ref in entry['crossReferences']:
+                elif 'crossReference' in entry:
+                    for cross_ref in entry['crossReference']:
                         if 'id' in cross_ref:
                             prefix, identifier, separator = split_identifier(cross_ref['id'])
                             if prefix == 'ISSN':
@@ -177,13 +177,13 @@ def load_mod_resource(json_storage_path, pubmed_by_nlm, nlm_by_issn, mod):      
                 if nlm != '':
                     if nlm in pubmed_by_nlm:
                         nlm_cross_refs = set()
-                        for cross_ref in pubmed_by_nlm[nlm]['crossReferences']:
+                        for cross_ref in pubmed_by_nlm[nlm]['crossReference']:
                             nlm_cross_refs.add(cross_ref['id'])
-                        if 'crossReferences' in entry:
-                            for cross_ref in entry['crossReferences']:
+                        if 'crossReference' in entry:
+                            for cross_ref in entry['crossReference']:
                                 if cross_ref['id'] not in nlm_cross_refs:
                                     nlm_cross_refs.add(cross_ref['id'])
-                                    pubmed_by_nlm[nlm]['crossReferences'].append(cross_ref)
+                                    pubmed_by_nlm[nlm]['crossReference'].append(cross_ref)
                         if 'primaryId' in entry:
                             if entry['primaryId'] not in nlm_cross_refs:
                                 # the zfin primaryId is the nlm without the prefix, check if it already exists before adding for other MOD data
@@ -192,7 +192,7 @@ def load_mod_resource(json_storage_path, pubmed_by_nlm, nlm_by_issn, mod):      
                                     nlm_cross_refs.add(entry['primaryId'])
                                     cross_ref = dict()
                                     cross_ref['id'] = entry['primaryId']
-                                    pubmed_by_nlm[nlm]['crossReferences'].append(cross_ref)
+                                    pubmed_by_nlm[nlm]['crossReference'].append(cross_ref)
                         # this causes conflicts if different MODs match an NLM and they send different non-pubmed information
                         # whichever mod runs last will have the final value
                         for field in resource_fields_not_in_pubmed:
@@ -201,17 +201,17 @@ def load_mod_resource(json_storage_path, pubmed_by_nlm, nlm_by_issn, mod):      
                 else:
                     if 'primaryId' in entry:
                         entry_cross_refs = set()
-                        if 'crossReferences' in entry:
-                            for cross_ref in entry['crossReferences']:
+                        if 'crossReference' in entry:
+                            for cross_ref in entry['crossReference']:
                                 entry_cross_refs.add(cross_ref['id'])
                         if entry['primaryId'] not in entry_cross_refs:
                             entry_cross_refs.add(entry['primaryId'])
                             cross_ref = dict()
                             cross_ref['id'] = entry['primaryId']
-                            if 'crossReferences' in entry:
-                                entry['crossReferences'].append(cross_ref)
+                            if 'crossReference' in entry:
+                                entry['crossReference'].append(cross_ref)
                             else:
-                                entry['crossReferences'] = [cross_ref]
+                                entry['crossReference'] = [cross_ref]
                     sanitized_data.append(entry)
 
             dqm_data['data'] = sanitized_data

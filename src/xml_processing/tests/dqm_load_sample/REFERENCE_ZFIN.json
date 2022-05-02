@@ -36,7 +36,7 @@
                 }
             ],
             "citation": "Lee, M.S., Philippe, J., Katsanis, N., Zhou, W. (2019) Polyketide Synthase Plays a Conserved Role in Otolith Formation. Zebrafish. 16(4):363-369",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "ZFIN:ZDB-PUB-190613-8",
                     "pages": [
@@ -119,7 +119,7 @@
                 }
             ],
             "citation": "Glaser, V. (2004) An Interview with Erez Raz, Ph.D. Zebrafish. 1(1):9-11",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "ZFIN:ZDB-PUB-040528-2",
                     "pages": [
@@ -156,7 +156,7 @@
                 }
             ],
             "citation": "Zhou, S. (2003) Effects of cadmium on somitogenesis and neurogenesis of zebrafish embryos. Master's Thesis. :247P",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "ZFIN:ZDB-PUB-050216-15",
                     "pages": [
@@ -237,7 +237,7 @@
                 }
             ],
             "citation": "Wu, H., Larrib\u00e8re, L., Sun, Q., Novak, D., Sachindra, S., Granados, K., Umansky, V., Utikal, J. (2018) Loss of neural crest-associated gene FOXD1 impairs melanoma invasion and migration via RAC1B downregulation. International Journal of Cancer. 143(11):2962-2972",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "ZFIN:ZDB-PUB-180816-15",
                     "pages": [
@@ -361,7 +361,7 @@
                 }
             ],
             "citation": "Gaudet, P., Livstone, M., Thomas, P., The Reference Genome Project (2010) Annotation inferences using phylogenetic trees. Automated Data Submission. ",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "ZFIN:ZDB-PUB-110330-1",
                     "pages": [
@@ -535,7 +535,7 @@
                 }
             ],
             "citation": "Nittoli, V., Fortunato, A.E., Fasano, G., Coppola, U., Gentile, A., Maiella, S., Langellotto, F., Porreca, I., De Paolo, R., Marino, R., Fiengo, M., Donizetti, A., Aniello, F., Kondo, T., Ristoratore, F., Canzoniero, L.M.T., Duboule, D., Wilson, S.W., Sordino, P. (2019) Characterization of paralogous <i>uncx</i> transcription factor encoding genes in zebrafish. Gene X. 2:100011",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "ZFIN:ZDB-PUB-190614-11",
                     "pages": [
@@ -643,7 +643,7 @@
                 }
             ],
             "citation": "Tan, J., Zhao, L., Wang, G., Li, T., Li, D., Xu, Q., Chen, X., Shang, Z., Wang, J., Zhou, J. (2018) Human MLL-AF9 Overexpression Induces Aberrant Hematopoietic Expansion in Zebrafish. BioMed Research International. 2018:6705842",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "ZFIN:ZDB-PUB-180714-6",
                     "pages": [
@@ -717,7 +717,7 @@
                 }
             ],
             "citation": "Nittoli, V., Fortunato, A.E., Fasano, G., Coppola, U., Gentile, A., Maiella, S., Langellotto, F., Porreca, I., De Paolo, R., Marino, R., Fiengo, M., Donizetti, A., Aniello, F., Kondo, T., Ristoratore, F., Canzoniero, L.M.T., Duboule, D., Wilson, S.W., Sordino, P. (2019) Characterization of paralogous uncx transcription factor encoding genes in zebrafish. Gene. 721S:100011",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "ZFIN:ZDB-PUB-210918-21",
                     "pages": [

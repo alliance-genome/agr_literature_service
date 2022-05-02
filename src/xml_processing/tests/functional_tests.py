@@ -412,8 +412,8 @@ def xref_mods_check(agr_data, mods):
 
     result = 'Failure'
     prefixes = set()
-    if 'cross_references' in agr_data:
-        for xref in agr_data['cross_references']:
+    if 'cross_reference' in agr_data:
+        for xref in agr_data['cross_reference']:
             if 'curie' in xref:
                 prefix, identifier, separator = split_identifier(xref['curie'])
                 prefixes.add(prefix)
@@ -456,8 +456,8 @@ def html_doi_check(agr_data, value):
     """
 
     result = 'Failure'
-    if 'cross_references' in agr_data:
-        for xref in agr_data['cross_references']:
+    if 'cross_reference' in agr_data:
+        for xref in agr_data['cross_reference']:
             if 'curie' in xref:
                 prefix, identifier, separator = split_identifier(xref['curie'])
                 if xref['curie'] == value:
@@ -509,8 +509,8 @@ def has_doi_check(agr_data, value):
     """
 
     result = 'Failure'
-    if 'cross_references' in agr_data:
-        for xref in agr_data['cross_references']:
+    if 'cross_reference' in agr_data:
+        for xref in agr_data['cross_reference']:
             if 'curie' in xref:
                 if xref['curie'] == value:
                     result = 'Success'
@@ -528,8 +528,8 @@ def has_pmid_check(agr_data, value):
     """
 
     result = 'Failure'
-    if 'cross_references' in agr_data:
-        for xref in agr_data['cross_references']:
+    if 'cross_reference' in agr_data:
+        for xref in agr_data['cross_reference']:
             if 'curie' in xref:
                 if xref['curie'] == value:
                     result = 'Success: PMID found, PubMed XML might not have it'
@@ -547,8 +547,8 @@ def no_pmid_check(agr_data, value):
     """
 
     result = 'Success'
-    if 'cross_references' in agr_data:
-        for xref in agr_data['cross_references']:
+    if 'cross_reference' in agr_data:
+        for xref in agr_data['cross_reference']:
             if 'curie' in xref:
                 prefix, identifier, separator = split_identifier(xref['curie'])
                 if prefix == 'PMID':

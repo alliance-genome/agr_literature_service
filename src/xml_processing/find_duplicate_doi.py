@@ -106,8 +106,8 @@ def find_doi_duplicates():
                     primary_id_in_file[primary_id] = []
                     primary_id_in_file[primary_id].append(filename)
 
-                if 'crossReferences' in entry:
-                    for xref in entry['crossReferences']:
+                if 'crossReference' in entry:
+                    for xref in entry['crossReference']:
                         prefix, identifier, separator = split_identifier(xref['id'])
                         if prefix == 'NLM' or prefix == 'ISSN':
                             continue

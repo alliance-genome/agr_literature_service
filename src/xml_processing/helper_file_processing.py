@@ -221,7 +221,7 @@ def generate_cross_references_file(datatype):
     mapping_output = ''
     for entry in response_array:
         curie = entry['curie']
-        xref_array = entry['cross_references']
+        xref_array = entry['cross_reference']
         for xref_dict in xref_array:
             if xref_dict is not None:
                 flag = 'valid'

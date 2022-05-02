@@ -48,7 +48,7 @@ def sqlalchemy_load_ref_xref(datatype):
             CrossReferenceModel.curie,
             CrossReferenceModel.is_obsolete
         ).join(
-            ReferenceModel.cross_references
+            ReferenceModel.cross_reference
         ).filter(
             CrossReferenceModel.reference_id.isnot(None)
         )
@@ -59,7 +59,7 @@ def sqlalchemy_load_ref_xref(datatype):
             CrossReferenceModel.curie,
             CrossReferenceModel.is_obsolete
         ).join(
-            ResourceModel.cross_references
+            ResourceModel.cross_reference
         ).filter(
             CrossReferenceModel.resource_id.isnot(None)
         )

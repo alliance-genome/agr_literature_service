@@ -97,7 +97,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     remap_keys['datePublished'] = 'date_published'
     remap_keys['dateArrivedInPubmed'] = 'date_arrived_in_pubmed'
     remap_keys['dateLastModified'] = 'date_last_modified_in_pubmed'
-    remap_keys['crossReferences'] = 'cross_references'
+    remap_keys['crossReference'] = 'cross_reference'
     remap_keys['issueName'] = 'issue_name'
     remap_keys['pages'] = 'page_range'
     remap_keys['pubMedType'] = 'pubmed_types'
@@ -115,7 +115,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
 
     subkeys_to_remove['mesh_terms'] = {'referenceId'}
     subkeys_to_remove['tags'] = {'referenceId'}
-    subkeys_to_remove['author'] = {'referenceId', 'firstinit', 'firstInit', 'crossReferences', 'collectivename'}
+    subkeys_to_remove['author'] = {'referenceId', 'firstinit', 'firstInit', 'crossReference', 'collectivename'}
 
     remap_subkeys['mesh_terms'] = dict()
     remap_subkeys['mesh_terms']['meshHeadingTerm'] = 'heading_term'
@@ -134,8 +134,8 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     remap_subkeys['tags']['tagName'] = 'tag_name'
     remap_subkeys['tags']['tagSource'] = 'tag_source'
 
-    remap_subkeys['cross_references'] = dict()
-    remap_subkeys['cross_references']['id'] = 'curie'
+    remap_subkeys['cross_reference'] = dict()
+    remap_subkeys['cross_reference']['id'] = 'curie'
 
     # NOTE: why are firstName and lastName done twice?
     remap_subkeys['author'] = dict()
@@ -295,8 +295,8 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                             # orcid field in json has just the identifier, need to add the prefix
                             if 'ORCID:' not in author['orcid']:
                                 author['orcid'] = 'ORCID:' + author['orcid']
-                if 'cross_references' in new_entry:
-                    new_entry['cross_references'] = list(filter(lambda x: 'curie' in x and 'NLM:' not in x['curie'] and 'ISSN:' not in x['curie'], new_entry['cross_references']))
+                if 'cross_reference' in new_entry:
+                    new_entry['cross_reference'] = list(filter(lambda x: 'curie' in x and 'NLM:' not in x['curie'] and 'ISSN:' not in x['curie'], new_entry['cross_reference']))
 
                 # output what is sent to API after converting file data
                 # json_object = json.dumps(new_entry, indent=4)

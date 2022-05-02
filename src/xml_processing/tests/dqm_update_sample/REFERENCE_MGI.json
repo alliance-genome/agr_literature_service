@@ -16,7 +16,7 @@
                 }
             ],
             "citation": "Heredity 1961;16():485-95",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "MGI:48543",
                     "pages": [
@@ -60,7 +60,7 @@
                 }
             ],
             "citation": "Mouse News Lett 1965;32():30-31",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "MGI:48554",
                     "pages": [
@@ -112,7 +112,7 @@
                 }
             ],
             "citation": "Brief Bioinform 2011 Sep;12(5):449-62",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "MGI:6201960",
                     "pages": [
@@ -252,7 +252,7 @@
                 }
             ],
             "citation": "Nat Commun 2019 Apr 12;10(1):1718",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "MGI:6305446",
                     "pages": [

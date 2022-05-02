@@ -36,7 +36,7 @@ resource_fields_not_in_pubmed = ['titleSynonyms', 'abbreviationSynonyms', 'isoAb
 # 2021-05-24 23:06:27,844 - literature logger - INFO - key onlineISSN
 # 2021-05-24 23:06:27,844 - literature logger - INFO - key abbreviationSynonyms
 # 2021-05-24 23:06:27,844 - literature logger - INFO - key volumes
-# 2021-05-24 23:06:27,844 - literature logger - INFO - key crossReferences
+# 2021-05-24 23:06:27,844 - literature logger - INFO - key crossReference
 # 2021-05-24 23:06:27,844 - literature logger - INFO - key editorsOrAuthors
 # 2021-05-24 23:06:27,844 - literature logger - INFO - key nlm
 # 2021-05-24 23:06:27,845 - literature logger - INFO - key pages
@@ -63,7 +63,7 @@ def post_resources(input_path):      # noqa: C901
     remap_keys['isoAbbreviation'] = 'iso_abbreviation'
     remap_keys['medlineAbbreviation'] = 'medline_abbreviation'
     remap_keys['abbreviationSynonyms'] = 'abbreviation_synonyms'
-    remap_keys['crossReferences'] = 'cross_references'
+    remap_keys['crossReference'] = 'cross_reference'
     remap_keys['editorsOrAuthors'] = 'editors'
     remap_keys['printISSN'] = 'print_issn'
     remap_keys['onlineISSN'] = 'online_issn'
@@ -151,9 +151,9 @@ def post_resources(input_path):      # noqa: C901
                     elif key not in keys_to_remove:
                         new_entry[key] = entry[key]
 
-                if 'cross_references' in new_entry:
+                if 'cross_reference' in new_entry:
                     new_list = []
-                    for xref in new_entry['cross_references']:
+                    for xref in new_entry['cross_reference']:
                         new_xref = dict()
                         for subkey in xref:
                             if subkey in remap_cross_references_keys:
@@ -161,7 +161,7 @@ def post_resources(input_path):      # noqa: C901
                             elif subkey not in cross_references_keys_to_remove:
                                 new_xref[subkey] = xref[subkey]
                         new_list.append(new_xref)
-                    new_entry['cross_references'] = new_list
+                    new_entry['cross_reference'] = new_list
                 if 'editors' in new_entry:
                     new_list = []
                     for editor in new_entry['editors']:

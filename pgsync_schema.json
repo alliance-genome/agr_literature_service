@@ -332,7 +332,7 @@
                     }
                 },
                 {
-                    "table": "cross_references",
+                    "table": "cross_reference",
                     "columns":[
                        "curie", "is_obsolete"
                     ],

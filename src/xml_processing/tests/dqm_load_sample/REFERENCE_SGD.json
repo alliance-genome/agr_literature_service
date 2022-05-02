@@ -29,7 +29,7 @@
                 }
             ],
             "citation": "Bose KS and Sarma RH (1975) Delineation of the intimate details of the backbone conformation of pyridine nucleotide coenzymes in aqueous solution. Biochem Biophys Res Commun 66(4):1173-9",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "SGD:S000185526",
                     "pages": [
@@ -115,7 +115,7 @@
                 }
             ],
             "citation": "Duan SF, et al. (2018) The origin and adaptive evolution of domesticated populations of yeast from Far East Asia. Nat Commun 9(1):2690",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "SGD:S000217483",
                     "pages": [
@@ -184,7 +184,7 @@
                 }
             ],
             "citation": "Gaudet P, et al. (2011) Phylogenetic-based propagation of functional annotations within the Gene Ontology consortium. Brief. Bioinformatics 12(5):449-62",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "SGD:S000246339",
                     "pages": [
@@ -231,7 +231,7 @@
             "abstract": "In a word - yeast. Without yeast, there would be no beer. It's that simple. And yeast is a microbe, that is, a living organism that is too small to see with the human eye. Every time someone brews a batch of beer, in a very real sense he or she is doing a microbiology experiment. If you brew beer at home, you're a microbiologist! (In fact, you might even want to join the American Society for Microbiology!) So let's talk about yeast.",
             "allianceCategory": "Book",
             "citation": " (2012) None .",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "SGD:S000298041",
                     "pages": [
@@ -277,7 +277,7 @@
                 }
             ],
             "citation": "van Leeuwen J and Boone C (2015)   ",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "SGD:S000182237",
                     "pages": [
@@ -317,7 +317,7 @@
                 }
             ],
             "citation": "Offman J and Hoffman E (2008)   ",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "SGD:S000128229",
                     "pages": [

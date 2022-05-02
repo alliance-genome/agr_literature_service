@@ -68,7 +68,7 @@
                 }
             ],
             "citation": "Cenarro A, etal., Hum Mutat. 1998;11(5):413.",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "RGD:11526447",
                     "pages": [
@@ -136,7 +136,7 @@
             "name" : "Schlessinger J",
             "referenceId" : "RGD:A9805"
           } ],
-          "crossReferences" : [ {
+          "crossReference" : [ {
             "pages" : [ "reference" ],
             "id" : "RGD:2304238"
           } ]
@@ -166,7 +166,7 @@
                 }
             ],
             "citation": "Bose KS and Sarma RH, Biochem Biophys Res Commun 1975 Oct 27;66(4):1173-9.",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "RGD:1303381",
                     "pages": [
@@ -215,7 +215,7 @@
                 }
             ],
             "citation": "PubMed Book Article",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "RGD:11352983",
                     "pages": [
@@ -268,7 +268,7 @@
                 }
             ],
             "citation": "Gaudet P, etal., Brief Bioinform. 2011 Sep;12(5):449-62. doi: 10.1093/bib/bbr042. Epub 2011 Aug 27.",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "RGD:13792537",
                     "pages": [
@@ -322,7 +322,7 @@
                 }
             ],
             "citation": "de Castro F, etal., Brief Funct Genomics. 2016 Nov 29. pii: elw037.",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "RGD:11570444",
                     "pages": [
@@ -361,7 +361,7 @@
                 }
             ],
             "citation": "Personal communication between Dr. V. Kren's group and the RGD curators.",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "RGD:10002756",
                     "pages": [
@@ -393,7 +393,7 @@
                 }
             ],
             "citation": "Personal communication between Dr. Jintao Zhang's group and the RGD curators.",
-            "crossReferences": [
+            "crossReference": [
                 {
                     "id": "RGD:10002786",
                     "pages": [

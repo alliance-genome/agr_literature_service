@@ -153,7 +153,7 @@ def get_pmid_association_to_mod_via_reference(pmids: List[str], mod_abbreviation
         ReferenceModel.curie,
         ModModel.abbreviation
     ).join(
-        ReferenceModel.cross_references
+        ReferenceModel.cross_reference
     ).filter(
         CrossReferenceModel.curie.in_(pmids)
     ).outerjoin(
