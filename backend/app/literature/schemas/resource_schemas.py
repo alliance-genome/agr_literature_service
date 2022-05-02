@@ -24,7 +24,7 @@ class ResourceSchemaPost(BaseModel):
     volumes: Optional[List[str]] = None
     abstract: Optional[str] = None
     summary: Optional[str] = None
-    cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
+    cross_reference: Optional[List[CrossReferenceSchemaRelated]] = None
     editors: Optional[List[EditorSchemaPost]] = None
     open_access: Optional[bool] = False
 
@@ -84,6 +84,6 @@ class ResourceSchemaShow(BaseModelShow):
     volumes: Optional[List[str]] = None
     abstract: Optional[str] = None
     summary: Optional[str] = None
-    cross_references: Optional[List[CrossReferenceSchema]] = None
+    cross_reference: Optional[List[CrossReferenceSchema]] = None
     editors: Optional[List[EditorSchemaShow]] = None
     open_access: Optional[bool] = None

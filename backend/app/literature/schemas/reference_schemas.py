@@ -37,7 +37,7 @@ class ReferenceSchemaPost(BaseModel):
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     mesh_terms: Optional[List[MeshDetailSchemaCreate]] = None
-    cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
+    cross_reference: Optional[List[CrossReferenceSchemaRelated]] = None
     author: Optional[List[AuthorSchemaPost]] = None
     resource: Optional[str] = None
     open_access: Optional[bool] = None
@@ -129,7 +129,7 @@ class ReferenceSchemaShow(BaseModelShow):
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     mesh_terms: Optional[List[MeshDetailSchemaRelated]] = None
-    cross_references: Optional[List[CrossReferenceSchemaShow]] = None
+    cross_reference: Optional[List[CrossReferenceSchemaShow]] = None
     resource_curie: Optional[str] = None
     resource_title: Optional[str] = None
     author: Optional[List[AuthorSchemaShow]] = None
@@ -143,4 +143,4 @@ class ReferenceSchemaNeedReviewShow(BaseModel):
     abstract: Optional[str] = None
     mod_corpus_association_id: int
     resource_title: Optional[str] = None
-    cross_references: Optional[List[CrossReferenceSchemaShow]]
+    cross_reference: Optional[List[CrossReferenceSchemaShow]]

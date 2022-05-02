@@ -36,7 +36,7 @@ class ResourceModel(Base):
         nullable=False
     )
 
-    cross_references = relationship(
+    cross_reference = relationship(
         "CrossReferenceModel",
         lazy="joined",
         back_populates="resource",

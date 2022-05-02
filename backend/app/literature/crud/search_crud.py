@@ -94,8 +94,8 @@ def show_need_review(mod_abbreviation, count, db: Session):
             mod_corpus_association_id=[mca.mod_corpus_association_id for mca in reference.mod_corpus_association if
                                        mca.mod.abbreviation == mod_abbreviation][0],
             resource_title=reference.resource.title if reference.resource else "",
-            cross_references=[CrossReferenceSchemaShow(
+            cross_reference=[CrossReferenceSchemaShow(
                 curie=xref.curie, url=convert_xref_curie_to_url(xref.curie, resource_descriptor_default_urls_dict),
                 is_obsolete=xref.is_obsolete, pages=xref.pages)
-                for xref in reference.cross_references])
+                for xref in reference.cross_reference])
         for reference in references]

@@ -87,7 +87,7 @@ def test_update_Resource():
 def test_resource_create_large():
     xml = {
         "abbreviation_synonyms": ["Jackson, Mathews, Wickens, 1996"],
-        "cross_references": [
+        "cross_reference": [
             {
                 "curie": "FB:FBrf0044885",
                 "pages": [
@@ -125,7 +125,7 @@ def test_resource_create_large():
     # fetch the new record.
     res = show(db, 'AGR:AGR-Resource-0000000004')
 
-    assert res['cross_references'][0]['curie'] == "FB:FBrf0044885"
+    assert res['cross_reference'][0]['curie'] == "FB:FBrf0044885"
 
     # Not sure of order in array of the editors so:-
     assert len(res['editors']) == 3
@@ -149,7 +149,7 @@ def test_resource_create_large():
     # open access defaults to False
     assert not res.open_access
 
-    assert len(res.cross_references) == 1
+    assert len(res.cross_reference) == 1
 
 
 def test_delete_Resource():

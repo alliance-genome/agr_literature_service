@@ -38,7 +38,7 @@ class ReferenceModel(Base):
         index=True
     )
 
-    cross_references = relationship(
+    cross_reference = relationship(
         "CrossReferenceModel",
         back_populates="reference",
         cascade="all, delete, delete-orphan",

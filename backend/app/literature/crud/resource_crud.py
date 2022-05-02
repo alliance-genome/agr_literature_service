@@ -43,8 +43,8 @@ def create(db: Session, resource: ResourceSchemaPost):
 
     resource_data = {}
 
-    if resource.cross_references is not None:
-        for cross_reference in resource.cross_references:
+    if resource.cross_reference is not None:
+        for cross_reference in resource.cross_reference:
             if db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == cross_reference.curie).first():
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"CrossReference with curie {cross_reference.curie} already exists")
@@ -60,7 +60,7 @@ def create(db: Session, resource: ResourceSchemaPost):
     resource_data['curie'] = curie
 
     for field, value in vars(resource).items():
-        if field in ['editors', 'cross_references', 'mesh_terms']:
+        if field in ['editors', 'cross_reference', 'mesh_terms']:
             db_objs = []
             if value is None:
                 continue
@@ -77,7 +77,7 @@ def create(db: Session, resource: ResourceSchemaPost):
                         obj_data['orcid_cross_reference'] = cross_reference_obj
                     del obj_data['orcid']
                     db_obj = create_obj(db, EditorModel, obj_data, non_fatal=True)
-                elif field == 'cross_references':
+                elif field == 'cross_reference':
                     db_obj = CrossReferenceModel(**obj_data)
                 elif field == 'mesh_terms':
                     db_obj = MeshDetailModel(**obj_data)
@@ -106,13 +106,13 @@ def show_all_resources_external_ids(db: Session):
                                     ARRAY(String)),
                                cast(func.array_agg(CrossReferenceModel.is_obsolete),
                                     ARRAY(Boolean))) \
-        .outerjoin(ResourceModel.cross_references) \
+        .outerjoin(ResourceModel.cross_reference) \
         .group_by(ResourceModel.curie)
 
     return [{'curie': resource[0],
-             'cross_references': [{'curie': resource[1][idx],
-                                   'is_obsolete': resource[2][idx]}
-                                  for idx in range(len(resource[1]))]}
+             'cross_reference': [{'curie': resource[1][idx],
+                                  'is_obsolete': resource[2][idx]}
+                                 for idx in range(len(resource[1]))]}
             for resource in resources_query.all()]
 
 
@@ -188,13 +188,13 @@ def show(db: Session, curie: str):
                             detail=f"Resource with the id {curie} is not available")
 
     resource_data = jsonable_encoder(resource)
-    if resource.cross_references:
+    if resource.cross_reference:
         cross_references = []
-        for cross_reference in resource_data['cross_references']:
+        for cross_reference in resource_data['cross_reference']:
             cross_reference_show = jsonable_encoder(cross_reference_crud.show(db, cross_reference['curie']))
             del cross_reference_show['resource_curie']
             cross_references.append(cross_reference_show)
-        resource_data['cross_references'] = cross_references
+        resource_data['cross_reference'] = cross_references
 
     if resource.editors:
         for editor in resource_data['editors']:

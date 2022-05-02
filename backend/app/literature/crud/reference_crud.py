@@ -50,12 +50,12 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
     """
 
     add_separately_fields = ["mod_corpus_associations"]
-    list_fields = ["author", "mod_reference_types", "tags", "mesh_terms", "cross_references"]
+    list_fields = ["author", "mod_reference_types", "tags", "mesh_terms", "cross_reference"]
 
     reference_data = {}  # type: Dict[str, Any]
 
-    if reference.cross_references:
-        for cross_reference in reference.cross_references:
+    if reference.cross_reference:
+        for cross_reference in reference.cross_reference:
             if db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == cross_reference.curie).first():
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"CrossReference with id {cross_reference.curie} already exists")
@@ -92,7 +92,7 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
                     db_obj = ModReferenceTypeModel(**obj_data)
                 elif field == "mesh_terms":
                     db_obj = MeshDetailModel(**obj_data)
-                elif field == "cross_references":
+                elif field == "cross_reference":
                     db_obj = CrossReferenceModel(**obj_data)
                 db.add(db_obj)
                 db_objs.append(db_obj)
@@ -206,13 +206,13 @@ def show_all_references_external_ids(db: Session):
                                      ARRAY(String)),
                                 cast(func.array_agg(CrossReferenceModel.is_obsolete),
                                      ARRAY(Boolean))) \
-        .outerjoin(ReferenceModel.cross_references) \
+        .outerjoin(ReferenceModel.cross_reference) \
         .group_by(ReferenceModel.curie)
 
     return [{"curie": reference[0],
-             "cross_references": [{"curie": reference[1][idx],
-                                   "is_obsolete": reference[2][idx]}
-                                  for idx in range(len(reference[1]))]}
+             "cross_reference": [{"curie": reference[1][idx],
+                                  "is_obsolete": reference[2][idx]}
+                                 for idx in range(len(reference[1]))]}
             for reference in references_query.all()]
 
 
@@ -238,13 +238,13 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         reference_data["resource_curie"] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == reference.resource_id).first()[0]
         reference_data["resource_title"] = db.query(ResourceModel.title).filter(ResourceModel.resource_id == reference.resource_id).first()[0]
 
-    if reference.cross_references:
+    if reference.cross_reference:
         cross_references = []
-        for cross_reference in reference.cross_references:
+        for cross_reference in reference.cross_reference:
             cross_reference_show = jsonable_encoder(cross_reference_crud.show(db, cross_reference.curie))
             del cross_reference_show["reference_curie"]
             cross_references.append(cross_reference_show)
-        reference_data["cross_references"] = cross_references
+        reference_data["cross_reference"] = cross_references
 
     if reference.mod_reference_types:
         for mod_reference_type in reference_data["mod_reference_types"]:

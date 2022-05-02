@@ -25,7 +25,7 @@ Base.metadata.create_all(engine)
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
-db.execute('delete from cross_references')
+db.execute('delete from cross_reference')
 db.execute('delete from author')
 db.execute('delete from editors')
 db.execute('delete from "references"')
@@ -155,7 +155,7 @@ def test_reference_large():
                 # "reference_id": "PMID:23524264"
             }
         ],
-        "cross_references": [
+        "cross_reference": [
             {
                 "curie": "FB:FBrf0221304",
                 "pages": [
@@ -200,7 +200,7 @@ def test_reference_large():
 
     assert "citation" not in res
 
-    assert res['cross_references'][0]['curie'] == 'FB:FBrf0221304'
+    assert res['cross_reference'][0]['curie'] == 'FB:FBrf0221304'
     # cross references in the db?
     xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "FB:FBrf0221304").one()
     assert xref.reference.curie == 'AGR:AGR-Reference-0000000004'

@@ -42,7 +42,7 @@ class EditorModel(Base):
 
     orcid = Column(
         String,
-        ForeignKey("cross_references.curie")
+        ForeignKey("cross_reference.curie")
     )
 
     orcid_cross_reference = relationship(

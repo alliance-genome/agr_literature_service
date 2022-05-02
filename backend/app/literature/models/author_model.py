@@ -41,7 +41,7 @@ class AuthorModel(Base):
 
     orcid = Column(
         String,
-        ForeignKey("cross_references.curie"),
+        ForeignKey("cross_reference.curie"),
         index=True
     )
 
