@@ -19,11 +19,11 @@ def sanitize_pubmed_json_list(pmids, inject_list):
 
     pmid_fields = ['author', 'volume', 'title', 'pages', 'issueName', 'datePublished',
                    'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher',
-                   'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReference']
+                   'meshTerm', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReference']
     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'datePublished',
                            'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher',
                            'plainLanguageAbstract', 'pubmedAbstractLanguages']
-    replace_value_fields = ['author', 'pubMedType', 'meshTerms', 'crossReference']
+    replace_value_fields = ['author', 'pubMedType', 'meshTerm', 'crossReference']
     date_fields = ['dateArrivedInPubmed', 'dateLastModified']
 
     sanitized_data = []

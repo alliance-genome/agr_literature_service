@@ -202,7 +202,7 @@ class ReferenceModel(Base):
         nullable=True
     )
 
-    mesh_terms = relationship(
+    mesh_term = relationship(
         "MeshDetailModel",
         lazy="joined",
         back_populates="reference",
@@ -238,7 +238,7 @@ class ReferenceModel(Base):
                    self.date_arrived_in_pubmed, self.date_last_modified_in_pubmed)
         long = "\ttitle10='{}...'\n\tabstract10='{}...'\n".format(self.title[:10], self.abstract[:10])
         auths = [str(x) for x in self.author]
-        mesh = [str(x) for x in self.mesh_terms]
+        mesh = [str(x) for x in self.mesh_term]
         peps = "\tauthors='{}'\n\teditors='{}'\n".format(auths, str(self.editor))
         arrs = "\tmesh='{}'\n\tkeywords='{}'\n".format(str(mesh), self.keywords)
         return "{}{}{}{}{}".format(ids, dates, long, peps, arrs)

@@ -50,7 +50,7 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
     """
 
     add_separately_fields = ["mod_corpus_associations"]
-    list_fields = ["author", "mod_reference_types", "tags", "mesh_terms", "cross_reference"]
+    list_fields = ["author", "mod_reference_types", "tags", "mesh_term", "cross_reference"]
 
     reference_data = {}  # type: Dict[str, Any]
 
@@ -90,7 +90,7 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
                     db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
                 elif field == "mod_reference_types":
                     db_obj = ModReferenceTypeModel(**obj_data)
-                elif field == "mesh_terms":
+                elif field == "mesh_term":
                     db_obj = MeshDetailModel(**obj_data)
                 elif field == "cross_reference":
                     db_obj = CrossReferenceModel(**obj_data)
@@ -260,8 +260,8 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         reference_data["mod_corpus_associations"] = reference_data["mod_corpus_association"]
         del reference_data["mod_corpus_association"]
 
-    if reference.mesh_terms:
-        for mesh_term in reference_data["mesh_terms"]:
+    if reference.mesh_term:
+        for mesh_term in reference_data["mesh_term"]:
             del mesh_term["reference_id"]
 
     if reference.author:

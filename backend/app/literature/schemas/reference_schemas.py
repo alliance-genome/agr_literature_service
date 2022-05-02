@@ -36,7 +36,7 @@ class ReferenceSchemaPost(BaseModel):
     mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaCreate]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
-    mesh_terms: Optional[List[MeshDetailSchemaCreate]] = None
+    mesh_term: Optional[List[MeshDetailSchemaCreate]] = None
     cross_reference: Optional[List[CrossReferenceSchemaRelated]] = None
     author: Optional[List[AuthorSchemaPost]] = None
     resource: Optional[str] = None
@@ -128,7 +128,7 @@ class ReferenceSchemaShow(BaseModelShow):
     mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaRelated]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
-    mesh_terms: Optional[List[MeshDetailSchemaRelated]] = None
+    mesh_term: Optional[List[MeshDetailSchemaRelated]] = None
     cross_reference: Optional[List[CrossReferenceSchemaShow]] = None
     resource_curie: Optional[str] = None
     resource_title: Optional[str] = None

@@ -465,10 +465,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
     # assigns PMID to primaryId and to author's referenceId.
     # if any reference's author doesn't have author Rank, assign authorRank based on array order.
     cross_ref_no_pages_ok_fields = ['DOI', 'PMID', 'PMC', 'PMCID', 'ISBN']
-    pmid_fields = ['author', 'volume', 'title', 'pages', 'issueName', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
+    pmid_fields = ['author', 'volume', 'title', 'pages', 'issueName', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerm', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
     # single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher']
     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
-    replace_value_fields = ['author', 'pubMedType', 'meshTerms']
+    replace_value_fields = ['author', 'pubMedType', 'meshTerm']
     # date_fields = ['issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified']
     # datePublished is a string, not a proper date field
     date_fields = ['dateArrivedInPubmed', 'dateLastModified']
@@ -730,7 +730,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                 else:
                     fh_mod_report_reference_no_resource[mod].write("primaryId %s does not have a resourceAbbreviation.\n" % (primary_id))
             else:
-                # pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms']
+                # pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerm']
                 for pmid_field in pmid_fields:
                     if pmid_field in single_value_fields:
                         pmid_data = ''

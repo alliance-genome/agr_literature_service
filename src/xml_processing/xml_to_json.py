@@ -619,7 +619,7 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
 #                             mesh_dict["referenceId"] = id_name[0]
 #                             mesh_dict["meshQualifierTerm"] = id_name[1]
 #                             meshs_list.append(mesh_dict)
-                data_dict['meshTerms'] = meshs_list
+                data_dict['meshTerm'] = meshs_list
 
             # Write the json data to output json file
             json_filename = json_storage_path + pmid + '.json'

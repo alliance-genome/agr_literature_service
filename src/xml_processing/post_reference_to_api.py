@@ -43,10 +43,10 @@ logger = logging.getLogger(__name__)
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key issueDate
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key MODReferenceType
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key pubMedType
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key meshTerms
+# 2021-05-25 21:16:53,373 - literature logger - INFO - key meshTerm
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key allianceCategory
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key volume
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key authors
+# 2021-05-25 21:16:53,373 - literature logger - INFO - key author
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key pages
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key publisher
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key resource
@@ -101,7 +101,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     remap_keys['issueName'] = 'issue_name'
     remap_keys['pages'] = 'page_range'
     remap_keys['pubMedType'] = 'pubmed_types'
-    remap_keys['meshTerms'] = 'mesh_terms'
+    remap_keys['meshTerm'] = 'mesh_term'
     remap_keys['allianceCategory'] = 'category'
     remap_keys['MODReferenceType'] = 'mod_reference_types'
     remap_keys['MODReferenceTypes'] = 'mod_reference_types'
@@ -113,14 +113,14 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     subkeys_to_remove = dict()
     remap_subkeys = dict()
 
-    subkeys_to_remove['mesh_terms'] = {'referenceId'}
+    subkeys_to_remove['mesh_term'] = {'referenceId'}
     subkeys_to_remove['tags'] = {'referenceId'}
     subkeys_to_remove['author'] = {'referenceId', 'firstinit', 'firstInit', 'crossReference', 'collectivename'}
 
-    remap_subkeys['mesh_terms'] = dict()
-    remap_subkeys['mesh_terms']['meshHeadingTerm'] = 'heading_term'
-    remap_subkeys['mesh_terms']['meshQualfierTerm'] = 'qualifier_term'
-    remap_subkeys['mesh_terms']['meshQualifierTerm'] = 'qualifier_term'
+    remap_subkeys['mesh_term'] = dict()
+    remap_subkeys['mesh_term']['meshHeadingTerm'] = 'heading_term'
+    remap_subkeys['mesh_term']['meshQualfierTerm'] = 'qualifier_term'
+    remap_subkeys['mesh_term']['meshQualifierTerm'] = 'qualifier_term'
 
     remap_subkeys['mod_reference_types'] = dict()
     remap_subkeys['mod_reference_types']['referenceType'] = 'reference_type'

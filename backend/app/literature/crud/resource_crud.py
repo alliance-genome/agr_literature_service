@@ -60,7 +60,7 @@ def create(db: Session, resource: ResourceSchemaPost):
     resource_data['curie'] = curie
 
     for field, value in vars(resource).items():
-        if field in ['editor', 'cross_reference', 'mesh_terms']:
+        if field in ['editor', 'cross_reference', 'mesh_term']:
             db_objs = []
             if value is None:
                 continue
@@ -79,7 +79,7 @@ def create(db: Session, resource: ResourceSchemaPost):
                     db_obj = create_obj(db, EditorModel, obj_data, non_fatal=True)
                 elif field == 'cross_reference':
                     db_obj = CrossReferenceModel(**obj_data)
-                elif field == 'mesh_terms':
+                elif field == 'mesh_term':
                     db_obj = MeshDetailModel(**obj_data)
                 db.add(db_obj)
                 db_objs.append(db_obj)

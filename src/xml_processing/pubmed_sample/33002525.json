@@ -100,7 +100,7 @@
         "Fertility",
         "Mycotoxin"
     ],
-    "meshTerms": [
+    "meshTerm": [
         {
             "meshHeadingTerm": "Animals",
             "referenceId": "PMID:33002525"

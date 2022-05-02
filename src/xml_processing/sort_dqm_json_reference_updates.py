@@ -611,7 +611,7 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     remap_keys['crossReference'] = 'cross_reference'
     remap_keys['issueName'] = 'issue_name'
     remap_keys['pubMedType'] = 'pubmed_type'
-    remap_keys['meshTerms'] = 'mesh_terms'
+    remap_keys['meshTerm'] = 'mesh_term'
     remap_keys['allianceCategory'] = 'category'
     remap_keys['MODReferenceType'] = 'mod_reference_types'
     remap_keys['MODReferenceTypes'] = 'mod_reference_types'
