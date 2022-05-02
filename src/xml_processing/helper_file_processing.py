@@ -267,7 +267,7 @@ def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
             db_authors = db_entry[datatype]
 
     dqm_key = datatype
-    if datatype == 'editors':
+    if datatype == 'editor':
         dqm_key = 'editorsOrAuthors'
     if dqm_key in dqm_entry:
         if dqm_entry[dqm_key] is not None:
@@ -333,7 +333,7 @@ def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
         if author_changed:
             if datatype == 'author':
                 to_patch.append({'author_id': db_dict['author_id'], 'patch_dict': patch_dict})
-            elif datatype == 'editors':
+            elif datatype == 'editor':
                 to_patch.append({'editor_id': db_dict['editor_id'], 'patch_dict': patch_dict})
 
     for order in sorted(dqm_ordered.keys()):

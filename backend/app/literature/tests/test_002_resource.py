@@ -95,7 +95,7 @@ def test_resource_create_large():
                 ]
             }
         ],
-        "editors": [
+        "editor": [
             {
                 "order": 1,
                 "first_name": "R.J.",
@@ -128,8 +128,8 @@ def test_resource_create_large():
     assert res['cross_reference'][0]['curie'] == "FB:FBrf0044885"
 
     # Not sure of order in array of the editors so:-
-    assert len(res['editors']) == 3
-    for editor in res['editors']:
+    assert len(res['editor']) == 3
+    for editor in res['editor']:
         if editor['order'] == '1':
             assert editor["first_name"] == "R.J."
             assert editor["last_name"] == "Jackson"
@@ -145,7 +145,7 @@ def test_resource_create_large():
 
     res = db.query(ResourceModel).filter(ResourceModel.curie == 'AGR:AGR-Resource-0000000004').one()
     assert res.title == "Abstracts of papers presented at the 1996 meeting"
-    assert len(res.editors) == 3
+    assert len(res.editor) == 3
     # open access defaults to False
     assert not res.open_access
 

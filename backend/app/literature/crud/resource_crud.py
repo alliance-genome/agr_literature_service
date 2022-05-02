@@ -60,14 +60,14 @@ def create(db: Session, resource: ResourceSchemaPost):
     resource_data['curie'] = curie
 
     for field, value in vars(resource).items():
-        if field in ['editors', 'cross_reference', 'mesh_terms']:
+        if field in ['editor', 'cross_reference', 'mesh_terms']:
             db_objs = []
             if value is None:
                 continue
             for obj in value:
                 obj_data = jsonable_encoder(obj)
                 db_obj = None
-                if field in ['editors']:
+                if field == 'editor':
                     if obj_data['orcid']:
                         cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == obj_data['orcid']).first()
                         if not cross_reference_obj:
@@ -196,8 +196,8 @@ def show(db: Session, curie: str):
             cross_references.append(cross_reference_show)
         resource_data['cross_reference'] = cross_references
 
-    if resource.editors:
-        for editor in resource_data['editors']:
+    if resource.editor:
+        for editor in resource_data['editor']:
             if editor['orcid']:
                 editor['orcid'] = jsonable_encoder(cross_reference_crud.show(db, editor['orcid']))
             del editor['orcid_cross_reference']

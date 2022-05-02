@@ -94,7 +94,7 @@ class ResourceModel(Base):
         nullable=True
     )
 
-    editors = relationship(
+    editor = relationship(
         "EditorModel",
         lazy="joined",
         back_populates="resource",

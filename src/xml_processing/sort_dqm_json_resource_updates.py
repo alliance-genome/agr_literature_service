@@ -138,7 +138,7 @@ def update_resources(live_changes, headers, resources_to_update):
     remap_keys['abbreviationSynonyms'] = 'abbreviation_synonyms'
     remap_keys['titleSynonyms'] = 'title_synonyms'
     remap_keys['crossReference'] = 'cross_reference'
-    remap_keys['editorsOrAuthors'] = 'editors'
+    remap_keys['editorsOrAuthors'] = 'editor'
 
     # to account for editors and xrefs later
     # editor_keys_to_remove = {'referenceId'}

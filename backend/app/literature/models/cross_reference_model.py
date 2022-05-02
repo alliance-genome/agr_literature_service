@@ -58,7 +58,7 @@ class CrossReferenceModel(Base):
         back_populates="orcid_cross_reference"
     )
 
-    editors = relationship(
+    editor = relationship(
         "EditorModel",
         back_populates="orcid_cross_reference"
     )

@@ -64,7 +64,7 @@ def post_resources(input_path):      # noqa: C901
     remap_keys['medlineAbbreviation'] = 'medline_abbreviation'
     remap_keys['abbreviationSynonyms'] = 'abbreviation_synonyms'
     remap_keys['crossReference'] = 'cross_reference'
-    remap_keys['editorsOrAuthors'] = 'editors'
+    remap_keys['editorsOrAuthors'] = 'editor'
     remap_keys['printISSN'] = 'print_issn'
     remap_keys['onlineISSN'] = 'online_issn'
     editor_keys_to_remove = {'referenceId'}
@@ -162,9 +162,9 @@ def post_resources(input_path):      # noqa: C901
                                 new_xref[subkey] = xref[subkey]
                         new_list.append(new_xref)
                     new_entry['cross_reference'] = new_list
-                if 'editors' in new_entry:
+                if 'editor' in new_entry:
                     new_list = []
-                    for editor in new_entry['editors']:
+                    for editor in new_entry['editor']:
                         new_editor = dict()
                         for subkey in editor:
                             if subkey in remap_editor_keys:
@@ -172,7 +172,7 @@ def post_resources(input_path):      # noqa: C901
                             elif subkey not in editor_keys_to_remove:
                                 new_editor[subkey] = editor[subkey]
                         new_list.append(new_editor)
-                    new_entry['editors'] = new_list
+                    new_entry['editor'] = new_list
 
                 # UNCOMMENT to test data by replacing unique data with a timestamp
                 #             xref['curie'] = str(datetime.now())

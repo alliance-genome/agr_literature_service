@@ -25,7 +25,7 @@ class ResourceSchemaPost(BaseModel):
     abstract: Optional[str] = None
     summary: Optional[str] = None
     cross_reference: Optional[List[CrossReferenceSchemaRelated]] = None
-    editors: Optional[List[EditorSchemaPost]] = None
+    editor: Optional[List[EditorSchemaPost]] = None
     open_access: Optional[bool] = False
 
     @validator('title')
@@ -85,5 +85,5 @@ class ResourceSchemaShow(BaseModelShow):
     abstract: Optional[str] = None
     summary: Optional[str] = None
     cross_reference: Optional[List[CrossReferenceSchema]] = None
-    editors: Optional[List[EditorSchemaShow]] = None
+    editor: Optional[List[EditorSchemaShow]] = None
     open_access: Optional[bool] = None

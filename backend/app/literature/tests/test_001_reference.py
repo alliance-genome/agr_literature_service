@@ -27,7 +27,7 @@ if "literature-test" not in SQLALCHEMY_DATABASE_URL:
 
 db.execute('delete from cross_reference')
 db.execute('delete from author')
-db.execute('delete from editors')
+db.execute('delete from editor')
 db.execute('delete from "references"')
 db.execute('delete from resources')
 

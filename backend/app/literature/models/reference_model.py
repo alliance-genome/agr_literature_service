@@ -239,6 +239,6 @@ class ReferenceModel(Base):
         long = "\ttitle10='{}...'\n\tabstract10='{}...'\n".format(self.title[:10], self.abstract[:10])
         auths = [str(x) for x in self.author]
         mesh = [str(x) for x in self.mesh_terms]
-        peps = "\tauthors='{}'\n\teditors='{}'\n".format(auths, str(self.editors))
+        peps = "\tauthors='{}'\n\teditors='{}'\n".format(auths, str(self.editor))
         arrs = "\tmesh='{}'\n\tkeywords='{}'\n".format(str(mesh), self.keywords)
         return "{}{}{}{}{}".format(ids, dates, long, peps, arrs)
