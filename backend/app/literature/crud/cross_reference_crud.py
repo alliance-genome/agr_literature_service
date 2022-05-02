@@ -107,7 +107,7 @@ def show(db: Session, curie: str, indirect=True) -> dict:
     author_ids = []
     editor_ids = []
     if not indirect:
-        for author in cross_reference.authors:
+        for author in cross_reference.author:
             author_ids.append(author.author_id)
 
         for editor in cross_reference.editors:

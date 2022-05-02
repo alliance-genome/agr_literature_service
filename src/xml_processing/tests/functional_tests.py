@@ -292,12 +292,12 @@ def authors_exact_check(agr_data, values):
     :return:
     """
 
-    if 'authors' not in agr_data:
+    if 'author' not in agr_data:
         return 'Failure: No authors found in database'
     failure_string = ''
     db_values = set()
-    if 'authors' in agr_data:
-        for aut_db in agr_data['authors']:
+    if 'author' in agr_data:
+        for aut_db in agr_data['author']:
             db_string = ''
             if 'order' in aut_db and aut_db['order'] is not None:
                 db_string = db_string + str(aut_db['order'])
@@ -340,11 +340,11 @@ def author_name_check(agr_data, value):
     :return:
     """
 
-    if 'authors' not in agr_data:
+    if 'author' not in agr_data:
         return 'Failure: No authors found in database'
     result = 'Success'
     has_specific_value = False
-    for author in agr_data['authors']:
+    for author in agr_data['author']:
         has_name = False
         if 'name' in author:
             if author['name'] != '':
@@ -369,9 +369,9 @@ def author_affiliation_check(agr_data, value):
     """
 
     result = 'Failure'
-    if 'authors' not in agr_data:
+    if 'author' not in agr_data:
         return 'Failure: No authors found in database'
-    for author in agr_data['authors']:
+    for author in agr_data['author']:
         if 'affiliations' in author and author['affiliations'] is not None:
             for affiliation in author['affiliations']:
                 if affiliation == value:
@@ -390,9 +390,9 @@ def author_orcid_check(agr_data, value):
     """
 
     result = 'Failure'
-    if 'authors' not in agr_data:
+    if 'author' not in agr_data:
         result = 'Failure: No authors found in database'
-    for author in agr_data['authors']:
+    for author in agr_data['author']:
         if 'orcid' in author and author['orcid'] is not None:
             if 'curie' in author['orcid']:
                 if author['orcid']['curie'] == value:
@@ -587,7 +587,7 @@ def check_test(agr_data, check, value):
         'has_erratum': erratum_check,
         'MODReferenceTypes': mod_reference_types_check,
         'ModCorpusAssociation': mod_corpus_association_check,
-        'authors': authors_exact_check,
+        'author': authors_exact_check,
         'FAIL': title_check
     }
     if check in options:

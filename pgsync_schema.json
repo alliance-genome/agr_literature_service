@@ -173,7 +173,7 @@
             },
             "children":[
                 {
-                    "table": "authors",
+                    "table": "author",
                     "columns": [
                         "orcid", "first_author", "corresponding_author", "affiliations", "first_name", "last_name"
                     ],

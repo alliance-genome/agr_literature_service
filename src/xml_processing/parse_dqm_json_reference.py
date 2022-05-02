@@ -462,13 +462,13 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
     # reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
     # outputs sanitized json to sanitized_reference_json/
     # does checks on dqm crossReferences.  if primaryId is not PMID, and a crossReference is PubMed,
-    # assigns PMID to primaryId and to authors's referenceId.
+    # assigns PMID to primaryId and to author's referenceId.
     # if any reference's author doesn't have author Rank, assign authorRank based on array order.
     cross_ref_no_pages_ok_fields = ['DOI', 'PMID', 'PMC', 'PMCID', 'ISBN']
-    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
+    pmid_fields = ['author', 'volume', 'title', 'pages', 'issueName', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
     # single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher']
     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
-    replace_value_fields = ['authors', 'pubMedType', 'meshTerms']
+    replace_value_fields = ['author', 'pubMedType', 'meshTerms']
     # date_fields = ['issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified']
     # datePublished is a string, not a proper date field
     date_fields = ['dateArrivedInPubmed', 'dateLastModified']
@@ -663,26 +663,26 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
 
             if is_pubmod:
                 # print("primaryKey %s is None" % (primary_id))
-                if 'authors' in entry:
+                if 'author' in entry:
                     all_authors_have_rank = True
-                    for author in entry['authors']:
+                    for author in entry['author']:
                         author['correspondingAuthor'] = False
                         author['firstAuthor'] = False
                         if 'authorRank' not in author:
                             all_authors_have_rank = False
                     if all_authors_have_rank is False:
                         authors_with_rank = []
-                        for i in range(len(entry['authors'])):
-                            author = entry['authors'][i]
+                        for i in range(len(entry['author'])):
+                            author = entry['author'][i]
                             author['authorRank'] = i + 1
                             authors_with_rank.append(author)
-                        entry['authors'] = authors_with_rank
+                        entry['author'] = authors_with_rank
                     if update_primary_id:
                         authors_updated = []
-                        for author in entry['authors']:
+                        for author in entry['author']:
                             author['referenceId'] = primary_id
                             authors_updated.append(author)
-                        entry['authors'] = authors_updated
+                        entry['author'] = authors_updated
                 if 'crossReferences' in entry:
                     sanitized_cross_references = []
                     for cross_reference in entry['crossReferences']:
@@ -761,8 +761,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                             # logger.info("PMID %s pmid_field %s data %s", pmid, pmid_field, pubmed_data[pmid_field])
                             entry[pmid_field] = pubmed_data[pmid_field]
 
-                if 'authors' in entry:
-                    for author in entry['authors']:
+                if 'author' in entry:
+                    for author in entry['author']:
                         author['correspondingAuthor'] = False
                         author['firstAuthor'] = False
 

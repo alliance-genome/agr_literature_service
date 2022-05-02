@@ -115,7 +115,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
 
     subkeys_to_remove['mesh_terms'] = {'referenceId'}
     subkeys_to_remove['tags'] = {'referenceId'}
-    subkeys_to_remove['authors'] = {'referenceId', 'firstinit', 'firstInit', 'crossReferences', 'collectivename'}
+    subkeys_to_remove['author'] = {'referenceId', 'firstinit', 'firstInit', 'crossReferences', 'collectivename'}
 
     remap_subkeys['mesh_terms'] = dict()
     remap_subkeys['mesh_terms']['meshHeadingTerm'] = 'heading_term'
@@ -138,14 +138,14 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     remap_subkeys['cross_references']['id'] = 'curie'
 
     # NOTE: why are firstName and lastName done twice?
-    remap_subkeys['authors'] = dict()
-    remap_subkeys['authors']['authorRank'] = 'order'
-    remap_subkeys['authors']['firstName'] = 'first_name'
-    remap_subkeys['authors']['lastName'] = 'last_name'
-    remap_subkeys['authors']['firstname'] = 'first_name'
-    remap_subkeys['authors']['lastname'] = 'last_name'
-    remap_subkeys['authors']['correspondingAuthor'] = 'corresponding_author'
-    remap_subkeys['authors']['firstAuthor'] = 'first_author'
+    remap_subkeys['author'] = dict()
+    remap_subkeys['author']['authorRank'] = 'order'
+    remap_subkeys['author']['firstName'] = 'first_name'
+    remap_subkeys['author']['lastName'] = 'last_name'
+    remap_subkeys['author']['firstname'] = 'first_name'
+    remap_subkeys['author']['lastname'] = 'last_name'
+    remap_subkeys['author']['correspondingAuthor'] = 'corresponding_author'
+    remap_subkeys['author']['firstAuthor'] = 'first_author'
 
     keys_found = set()
 
@@ -289,8 +289,8 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                             del new_entry['resource']
                 if 'category' in new_entry:
                     new_entry['category'] = new_entry['category'].lower().replace(" ", "_")
-                if 'authors' in new_entry:
-                    for author in new_entry['authors']:
+                if 'author' in new_entry:
+                    for author in new_entry['author']:
                         if 'orcid' in author:
                             # orcid field in json has just the identifier, need to add the prefix
                             if 'ORCID:' not in author['orcid']:

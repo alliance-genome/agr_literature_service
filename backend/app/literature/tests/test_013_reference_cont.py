@@ -25,7 +25,7 @@ def test_reference_create_with_existing_items():
     full_xml = {
         "category": "research_article",
         "abstract": "The Hippo (Hpo) pathway is a conserved tumor suppressor pathway",
-        "authors": [
+        "author": [
             {
                 "orcid": 'ORCID:1234-1234-1234-123X'
             },

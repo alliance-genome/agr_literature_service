@@ -49,8 +49,9 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
     :return:
     """
 
+    logger.info("BOB - creatinf reference")
     add_separately_fields = ["mod_corpus_associations"]
-    list_fields = ["authors", "mod_reference_types", "tags", "mesh_terms", "cross_references"]
+    list_fields = ["author", "mod_reference_types", "tags", "mesh_terms", "cross_references"]
 
     reference_data = {}  # type: Dict[str, Any]
 
@@ -60,6 +61,8 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"CrossReference with id {cross_reference.curie} already exists")
 
+    logger.info("BOB xref done")
+    print("BOB does this appear?")
     last_curie = db.query(ReferenceModel.curie).order_by(sqlalchemy.desc(ReferenceModel.curie)).first()
 
     if not last_curie:
@@ -78,7 +81,7 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
             for obj in value:
                 obj_data = jsonable_encoder(obj)
                 db_obj = None
-                if field in ["authors"]:
+                if field == "author":
                     if obj_data["orcid"]:
                         cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == obj_data["orcid"]).first()
                         if not cross_reference_obj:
@@ -87,16 +90,23 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
 
                         obj_data["orcid_cross_reference"] = cross_reference_obj
                     del obj_data["orcid"]
+                    logger.info("BOB AUTH {}".format(obj_data))
                     db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
+                    logger.info("POST BOB AUTH")
                 elif field == "mod_reference_types":
                     db_obj = ModReferenceTypeModel(**obj_data)
                 elif field == "mesh_terms":
                     db_obj = MeshDetailModel(**obj_data)
                 elif field == "cross_references":
+                    logger.info("BOB XREF: {}".format(obj_data))
                     db_obj = CrossReferenceModel(**obj_data)
+                    logger.info("BOB - end xref")
                 db.add(db_obj)
                 db_objs.append(db_obj)
-            reference_data[field] = db_objs
+            if field == 'author':
+                reference_data['author'] = db_objs
+            else:
+                reference_data[field] = db_objs
         elif field == "resource":
             resource = db.query(ResourceModel).filter(ResourceModel.curie == value).first()
             if not resource:
@@ -129,7 +139,7 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
                     except HTTPException:
                         logger.warning("skipping mod corpus association to a mod that is already associated to "
                                        "the reference")
-
+    logger.info("BOB leaving reference creation cleanly?")
     return curie
 
 
@@ -262,8 +272,8 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         for mesh_term in reference_data["mesh_terms"]:
             del mesh_term["reference_id"]
 
-    if reference.authors:
-        for author in reference_data["authors"]:
+    if reference.author:
+        for author in reference_data["author"]:
             if author["orcid"]:
                 author["orcid"] = jsonable_encoder(cross_reference_crud.show(db, author["orcid"]))
             del author["orcid_cross_reference"]

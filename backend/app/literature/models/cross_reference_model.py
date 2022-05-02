@@ -53,7 +53,7 @@ class CrossReferenceModel(Base):
         back_populates="cross_references"
     )
 
-    authors = relationship(
+    author = relationship(
         "AuthorModel",
         back_populates="orcid_cross_reference"
     )

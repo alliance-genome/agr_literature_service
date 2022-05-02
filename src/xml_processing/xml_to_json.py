@@ -392,7 +392,7 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                         author_dict["crossReferences"] = author_cross_references
                     # print fullname
                     authors_list.append(author_dict)
-                data_dict['authors'] = authors_list
+                data_dict['author'] = authors_list
 
             pub_date_re_output = re.search("<PubDate>(.+?)</PubDate>", xml, re.DOTALL)
             if pub_date_re_output is not None:

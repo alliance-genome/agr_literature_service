@@ -275,7 +275,7 @@ def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
     db_has_change = False
     db_ordered = dict()
     for author_dict in db_authors:
-        if datatype == 'authors':
+        if datatype == 'author':
             if author_dict['corresponding_author']:
                 db_has_change = True
             if author_dict['first_author']:
@@ -331,7 +331,7 @@ def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
                 # print("field changed %s %s %s" % (field, db_value, dqm_value))
                 author_changed = True
         if author_changed:
-            if datatype == 'authors':
+            if datatype == 'author':
                 to_patch.append({'author_id': db_dict['author_id'], 'patch_dict': patch_dict})
             elif datatype == 'editors':
                 to_patch.append({'editor_id': db_dict['editor_id'], 'patch_dict': patch_dict})

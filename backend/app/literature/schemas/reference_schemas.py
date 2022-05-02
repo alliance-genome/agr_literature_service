@@ -38,7 +38,7 @@ class ReferenceSchemaPost(BaseModel):
     issue_name: Optional[str] = None
     mesh_terms: Optional[List[MeshDetailSchemaCreate]] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
-    authors: Optional[List[AuthorSchemaPost]] = None
+    author: Optional[List[AuthorSchemaPost]] = None
     resource: Optional[str] = None
     open_access: Optional[bool] = None
 
@@ -132,7 +132,7 @@ class ReferenceSchemaShow(BaseModelShow):
     cross_references: Optional[List[CrossReferenceSchemaShow]] = None
     resource_curie: Optional[str] = None
     resource_title: Optional[str] = None
-    authors: Optional[List[AuthorSchemaShow]] = None
+    author: Optional[List[AuthorSchemaShow]] = None
     comment_and_corrections: CommentAndCorrectionSchemaRelations
     open_access: Optional[bool] = None
 

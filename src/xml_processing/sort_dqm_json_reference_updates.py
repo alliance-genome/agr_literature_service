@@ -720,7 +720,7 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
             #     logger.info("patch %s field keywords from db %s to dqm %s", agr, keywords_changed[2], keywords_changed[1])
             #     update_json['keywords'] = keywords_changed[1]
 
-            authors_changed = compare_authors_or_editors(db_entry, dqm_entry, 'authors')
+            authors_changed = compare_authors_or_editors(db_entry, dqm_entry, 'author')
             if authors_changed[0]:
                 # live_changes = True
                 for patch_data in authors_changed[1]:

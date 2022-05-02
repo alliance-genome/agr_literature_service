@@ -26,7 +26,7 @@ if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
 db.execute('delete from cross_references')
-db.execute('delete from authors')
+db.execute('delete from author')
 db.execute('delete from editors')
 db.execute('delete from "references"')
 db.execute('delete from resources')
@@ -139,7 +139,7 @@ def test_reference_large():
     full_xml = {
         "category": "research_article",
         "abstract": "The Hippo (Hpo) pathway is a conserved tumor suppressor pathway",
-        "authors": [
+        "author": [
             {
                 "order": 2,
                 "first_name": "S.",
@@ -183,8 +183,8 @@ def test_reference_large():
     assert res['category'] == 'research_article'
 
     # Not sure of order in array of the authors so:-
-    assert len(res['authors']) == 2
-    for author in res['authors']:
+    assert len(res['author']) == 2
+    for author in res['author']:
         if author['first_name'] == 'D.':
             assert author['name'] == 'D. Wu'
             assert author['order'] == 1

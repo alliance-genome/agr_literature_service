@@ -19,7 +19,7 @@ enable_versioning()
 
 
 class AuthorModel(Base):
-    __tablename__ = "authors"
+    __tablename__ = "author"
     __versioned__: Dict = {}
 
     author_id = Column(
@@ -36,7 +36,7 @@ class AuthorModel(Base):
 
     reference = relationship(
         "ReferenceModel",
-        back_populates="authors"
+        back_populates="author"
     )
 
     orcid = Column(
@@ -48,7 +48,7 @@ class AuthorModel(Base):
     orcid_cross_reference = relationship(
         "CrossReferenceModel",
         lazy="joined",
-        back_populates="authors"
+        back_populates="author"
     )
 
     first_author = Column(

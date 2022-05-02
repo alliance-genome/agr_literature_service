@@ -9,7 +9,7 @@
             ],
             "abstract": "Otoliths (ear stones) are biomineralized complexes essential for the balancing and hearing function of the inner ears in fish. Their formation is controlled by a genetically programmed biological process that is yet to be defined. We have isolated and characterized a spontaneous genetic mutant zebrafish with a complete absence of otoliths, named <i>no otolith 1</i> (<i>not1</i>). <i>not1</i> mutants are unable to develop otoliths during embryonic stages and fail to respond to acoustic stimuli, indicating an inner ear defect. We identified a deleterious mutation (G239R) that altered a highly conserved amino acid residue in the zebrafish ortholog of type I polyketide synthase (<i>pks1</i>) to underlie these phenotypes and showed that expression of the polyketide synthase gene of Japanese medaka fish could rescue the otolith deficiency in <i>not1</i> mutant zebrafish. Our finding highlights a critical and conserved role of type I polyketide synthase in the initiation of otolith formation. Given the functional homology between otoliths in teleost fish and otoconia in mammals and humans, <i>not1</i> mutants provide a new animal model for the study of human otoconia-related diseases.",
             "allianceCategory": "Research Article",
-            "authors": [
+            "author": [
                 {
                     "firstName": "Nicholas",
                     "lastName": "Katsanis",
@@ -112,7 +112,7 @@
                 }
             ],
             "allianceCategory": "Research Article",
-            "authors": [
+            "author": [
                 {
                     "name": "Glaser, V.",
                     "referenceId": "ZFIN:ZDB-PUB-040528-2"
@@ -149,7 +149,7 @@
                 }
             ],
             "allianceCategory": "Thesis",
-            "authors": [
+            "author": [
                 {
                     "name": "Zhou, S.",
                     "referenceId": "ZFIN:ZDB-PUB-050216-15"
@@ -186,7 +186,7 @@
             ],
             "abstract": "Recent studies suggest that malignant melanoma heterogeneity includes subpopulations of cells with features of multipotent neural crest (NC) cells. Zebrafish and mouse models have shown that reactivation of neural crest-specific pathways during transformation determines the invasiveness of melanoma cells. In this study, we show that the neural crest-associated transcription factor FOXD1 plays a key role in the invasion and the migration capacities of metastatic melanomas both in vivo and in vitro. Gene expression profiling analysis identified both an upregulation of FOXD1 in NC and melanoma cells, as well as a downregulation of several genes related to cell invasion in FOXD1 knockdown cells, including MMP9 and RAC1B. Furthermore, we demonstrate that knockdown of RAC1B a tumor-specific isoform of RAC1, significantly impaired melanoma cell migration and invasion and could abrogate enhanced invasiveness induced by FOXD1 overexpression. We conclude that FOXD1 may influence invasion and migration via indirect regulation of MMP9 and RAC1B alternative splicing in melanoma cells. This article is protected by copyright. All rights reserved.",
             "allianceCategory": "Research Article",
-            "authors": [
+            "author": [
                 {
                     "firstName": "Huizi",
                     "lastName": "Wu",
@@ -334,7 +334,7 @@
             ],
             "abstract": "The goal of the GO Reference Genome Project, described in PMID 19578431, is to provide accurate, complete and consistent GO annotations for all genes in twelve model organism genomes.To this end, GO curators are annotating evolutionary trees from the PANTHER database with GO terms describing molecular function, biological process and cellular component. GO terms based on experimental data from the scientific literature are used to annotate ancestral genes in the phylogenetic tree by sequence similarity (ISS), and unannotated descendants of these ancestral genes are inferred to have inherited these same GO annotations by descent. The annotations are done using a tool called PAINT (Phylogenetic Annotation and INference Tool).\r\nurl: http://gocwiki.geneontology.org/index.php/PAINT",
             "allianceCategory": "Internal Process Reference",
-            "authors": [
+            "author": [
                 {
                     "firstName": "Suzanna E",
                     "lastName": "Lewis",
@@ -418,7 +418,7 @@
             ],
             "abstract": "The paired-type homeodomain transcription factor Uncx is involved in multiple processes of embryogenesis in vertebrates. Reasoning that zebrafish genes <i>uncx4.1</i> and <i>uncx</i> are orthologs of mouse <i>Uncx</i>, we studied their genomic environment and developmental expression. Evolutionary analyses indicate the zebrafish <i>uncx</i> genes as being paralogs deriving from teleost-specific whole-genome duplication. Whole-mount <i>in situ</i> mRNA hybridization of <i>uncx</i> transcripts in zebrafish embryos reveals novel expression domains, confirms those previously known, and suggests sub-functionalization of paralogs. Using genetic mutants and pharmacological inhibitors, we investigate the role of signaling pathways on the expression of zebrafish <i>uncx</i> genes in developing somites. In identifying putative functional role(s) of zebrafish <i>uncx</i> genes, we hypothesized that they encode transcription factors that coordinate growth and innervation of somitic muscles.",
             "allianceCategory": "Research Article",
-            "authors": [
+            "author": [
                 {
                     "firstName": "Francesco",
                     "lastName": "Aniello",
@@ -580,7 +580,7 @@
             ],
             "abstract": "The 11q23 of the mixed lineage leukemia 1 (<i>MLL1</i>) gene plays a crucial role in early embryonic development and hematopoiesis. The <i>MLL-AF9</i> fusion gene, resulting from chromosomal translocation, often leads to acute myeloid leukemia with poor prognosis. Here, we generated a zebrafish model expressing the human <i>MLL-AF9</i> fusion gene. Microinjection of human <i>MLL-AF9</i> mRNA into zebrafish embryos resulted in enhanced hematopoiesis and the activation of downstream genes such as <i>meis1</i> and <i>hox</i> cluster genes. Embryonic MLL-AF9 expression upregulated HSPC and myeloid lineage markers. Doxorubicin and MI-2 (a menin inhibitor) treatments significantly restored normal hematopoiesis in MLL-AF9-expressing animals. This study provides insight into the role of MLL-AF9 in zebrafish hematopoiesis and establishes a robust and efficient in vivo model for high-throughput drug screening.",
             "allianceCategory": "Research Article",
-            "authors": [
+            "author": [
                 {
                     "firstName": "Jue",
                     "lastName": "Wang",
@@ -710,7 +710,7 @@
             ],
             "abstract": "The paired-type homeodomain transcription factor Uncx is involved in multiple processes of embryogenesis in vertebrates. Reasoning that zebrafish genes uncx4.1 and uncx are orthologs of mouse Uncx, we studied their genomic environment and developmental expression. Evolutionary analyses indicate the zebrafish uncx genes as being paralogs deriving from teleost-specific whole-genome duplication. Whole-mount in situ mRNA hybridization of uncx transcripts in zebrafish embryos reveals novel expression domains, confirms those previously known, and suggests sub-functionalization of paralogs. Using genetic mutants and pharmacological inhibitors, we investigate the role of signaling pathways on the expression of zebrafish uncx genes in developing somites. In identifying putative functional role(s) of zebrafish uncx genes, we hypothesized that they encode transcription factors that coordinate growth and innervation of somitic muscles.",
             "allianceCategory": "Research Article",
-            "authors": [
+            "author": [
                 {
                     "name": "Nittoli, V., Fortunato, A.E., Fasano, G., Coppola, U., Gentile, A., Maiella, S., Langellotto, F., Porreca, I., De Paolo, R., Marino, R., Fiengo, M., Donizetti, A., Aniello, F., Kondo, T., Ristoratore, F., Canzoniero, L.M.T., Duboule, D., Wilson, S.W., Sordino, P.",
                     "referenceId": "ZFIN:ZDB-PUB-210918-21"

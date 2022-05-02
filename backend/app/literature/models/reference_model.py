@@ -111,7 +111,7 @@ class ReferenceModel(Base):
         cascade="all, delete, delete-orphan"
     )
 
-    authors = relationship(
+    author = relationship(
         "AuthorModel",
         lazy="joined",
         back_populates="reference",
@@ -237,7 +237,7 @@ class ReferenceModel(Base):
             format(self.date_updated, self.date_created, self.date_published,
                    self.date_arrived_in_pubmed, self.date_last_modified_in_pubmed)
         long = "\ttitle10='{}...'\n\tabstract10='{}...'\n".format(self.title[:10], self.abstract[:10])
-        auths = [str(x) for x in self.authors]
+        auths = [str(x) for x in self.author]
         mesh = [str(x) for x in self.mesh_terms]
         peps = "\tauthors='{}'\n\teditors='{}'\n".format(auths, str(self.editors))
         arrs = "\tmesh='{}'\n\tkeywords='{}'\n".format(str(mesh), self.keywords)
