@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 # from sqlalchemy.orm import sessionmaker
 from fastapi.encoders import jsonable_encoder
 
-from filter_dqm_md5sum import load_s3_md5data, generate_new_md5
+from filter_dqm_md5sum import load_s3_md5data, generate_new_md5, save_s3_md5data
 
 from literature.models import ReferenceModel
 
@@ -38,9 +38,6 @@ from xml_to_json import generate_json
 # from sanitize_pubmed_json import sanitize_pubmed_json_list
 from post_reference_to_api import post_references
 from post_comments_corrections_to_api import post_comments_corrections
-
-
-# TODO save md5sum to s3 after successful run
 
 
 # For WB needing 57578 references checked for updating,
@@ -458,7 +455,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     if prefix in dqm:
                         if identifier in dqm[prefix]:
                             ident_found = True
-# FIX, these do not exclude entries that have been skipped because the md5 didn't change, maybe this doesn't make sense to output anymore
+                    # FIX, these do not exclude entries that have been skipped because the md5 didn't change,
+                    # maybe this doesn't make sense to output anymore
                     if not ident_found:
                         # logger.info("Notify curator %s %s %s not in dqm submission", agr_url, prefix, identifier)
                         fh_mod_report[mod].write("%s %s %s not in dqm submission\n" % (agr_url, prefix, identifier))
@@ -547,7 +545,13 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
         # but if doing recursive should take inputs/all_pmids instead of inputs/alliance_pmids
         post_comments_corrections(pmids_wanted)
 
-        # TODO update s3 md5sum here
+        # update s3 md5sum only if prod, to test develop copy file from s3 prod to s3 develop
+        # https://s3.console.aws.amazon.com/s3/buckets/agr-literature?prefix=develop%2Freference%2Fmetadata%2Fmd5sum%2F&region=us-east-1&showversions=false#
+        env_state = environ.get('ENV_STATE', 'prod')
+        if env_state == 'build':
+            merge_md5dict = {}
+            merge_md5dict[mod] = {**old_md5dict[mod], **new_md5dict[mod]}
+            save_s3_md5data(merge_md5dict, [mod])
 
         fh_mod_report[mod].close()
 
