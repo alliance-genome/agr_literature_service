@@ -1,8 +1,9 @@
 import argparse
+import sys
 import json
 import logging
 import logging.config
-from os import environ, path
+from os import environ
 from typing import List, Dict
 
 from helper_post_to_api import (generate_headers, get_authentication_token,
@@ -16,9 +17,11 @@ from literature.models import ReferenceModel, CrossReferenceModel
 # 1 hour 19 minutes for 669998 pmids and 6268 rows created
 
 
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('post_comments_corrections_to_api')
+logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
+                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
+                    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
 
 
 def get_pmid_to_reference(pmids: List[str]):
