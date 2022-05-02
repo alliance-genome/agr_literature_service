@@ -49,7 +49,6 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
     :return:
     """
 
-    logger.info("BOB - creatinf reference")
     add_separately_fields = ["mod_corpus_associations"]
     list_fields = ["author", "mod_reference_types", "tags", "mesh_terms", "cross_references"]
 
@@ -61,8 +60,6 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"CrossReference with id {cross_reference.curie} already exists")
 
-    logger.info("BOB xref done")
-    print("BOB does this appear?")
     last_curie = db.query(ReferenceModel.curie).order_by(sqlalchemy.desc(ReferenceModel.curie)).first()
 
     if not last_curie:
@@ -90,17 +87,13 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
 
                         obj_data["orcid_cross_reference"] = cross_reference_obj
                     del obj_data["orcid"]
-                    logger.info("BOB AUTH {}".format(obj_data))
                     db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
-                    logger.info("POST BOB AUTH")
                 elif field == "mod_reference_types":
                     db_obj = ModReferenceTypeModel(**obj_data)
                 elif field == "mesh_terms":
                     db_obj = MeshDetailModel(**obj_data)
                 elif field == "cross_references":
-                    logger.info("BOB XREF: {}".format(obj_data))
                     db_obj = CrossReferenceModel(**obj_data)
-                    logger.info("BOB - end xref")
                 db.add(db_obj)
                 db_objs.append(db_obj)
             if field == 'author':
@@ -139,7 +132,6 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
                     except HTTPException:
                         logger.warning("skipping mod corpus association to a mod that is already associated to "
                                        "the reference")
-    logger.info("BOB leaving reference creation cleanly?")
     return curie
 
 
