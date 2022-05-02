@@ -275,7 +275,7 @@ def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
     db_has_change = False
     db_ordered = dict()
     for author_dict in db_authors:
-        if datatype == 'author':
+        if datatype == 'authors':
             if author_dict['corresponding_author']:
                 db_has_change = True
             if author_dict['first_author']:

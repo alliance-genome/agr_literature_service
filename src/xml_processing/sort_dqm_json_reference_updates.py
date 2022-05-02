@@ -137,7 +137,7 @@ api_server = environ.get('API_SERVER', 'localhost')
 # database - each entry
 #   get valid agrId->modId
 #     each mod
-#       modId not in dqm, notify curator or remove modId / mod_reference_types / tags ?
+#       modId not in dqm, notify curator or remove modId / mod_reference_type / tags ?
 #     if no mods have data, do nothing (probably created at agr and does not need to be removed, or data timing issue)
 # list to attach - each agr and prefix
 #   if more than one identifier notify curators
@@ -331,8 +331,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
             dqm_xrefs = dict()
             xrefs = []
             agrs_found = set()
-            if 'crossReference' in entry:
-                for cross_reference in entry['crossReference']:
+            if 'crossReferences' in entry:
+                for cross_reference in entry['crossReferences']:
                     if "id" in cross_reference:
                         xrefs.append(cross_reference["id"])
                         # logger.info("append xref %s", cross_reference["id"])
@@ -608,18 +608,19 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     remap_keys['datePublished'] = 'date_published'
     remap_keys['dateArrivedInPubmed'] = 'date_arrived_in_pubmed'
     remap_keys['dateLastModified'] = 'date_last_modified_in_pubmed'
-    remap_keys['crossReference'] = 'cross_reference'
+    remap_keys['crossReferences'] = 'cross_reference'
     remap_keys['issueName'] = 'issue_name'
     remap_keys['pubMedType'] = 'pubmed_type'
-    remap_keys['meshTerm'] = 'mesh_term'
+    remap_keys['meshTerms'] = 'mesh_term'
     remap_keys['allianceCategory'] = 'category'
-    remap_keys['MODReferenceType'] = 'mod_reference_types'
-    remap_keys['MODReferenceTypes'] = 'mod_reference_types'
+    remap_keys['MODReferenceType'] = 'mod_reference_type'
+    remap_keys['MODReferenceTypes'] = 'mod_reference_type'
     remap_keys['plainLanguageAbstract'] = 'plain_language_abstract'
     remap_keys['pubmedAbstractLanguages'] = 'pubmed_abstract_languages'
     remap_keys['publicationStatus'] = 'pubmed_publication_status'
     remap_keys['pages'] = 'page_range'
     remap_keys['pageRange'] = 'page_range'
+    remap_keys['authors'] = 'author'
     # remap_keys['resourceAbbreviation'] = 'resource_title'
 
     # MODReferenceTypes and allianceCategory cannot be auto converted from camel to snake, so have two lists
@@ -821,8 +822,8 @@ def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):
                     headers = generic_api_patch(live_changes, mca_patch_url, headers, dqm_mca_entry, str(db_mod_corpus_association[mod]['id']), None, None)
 
     dqm_mod_ref_types = []
-    if 'MODReferenceTypes' in dqm_entry:
-        dqm_mod_ref_types = dqm_entry['MODReferenceTypes']
+    if 'MODReferenceType' in dqm_entry:
+        dqm_mod_ref_types = dqm_entry['MODReferenceType']
     dqm_mrt_data = dict()
     for mrt in dqm_mod_ref_types:
         source = mrt['source']
@@ -832,8 +833,8 @@ def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):
         dqm_mrt_data[source].append(ref_type)
 
     db_mod_ref_types = []
-    if 'mod_reference_types' in db_entry:
-        db_mod_ref_types = db_entry['mod_reference_types']
+    if 'mod_reference_type' in db_entry:
+        db_mod_ref_types = db_entry['mod_reference_type']
 
     # for debugging changes
     # dqm_mod_ref_types_json = json.dumps(dqm_mod_ref_types, indent=4)

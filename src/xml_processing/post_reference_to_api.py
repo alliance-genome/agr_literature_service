@@ -52,7 +52,7 @@ logger = logging.getLogger(__name__)
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key resource
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key language
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key modResources
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key MODReferenceTypes
+# 2021-05-25 21:16:53,373 - literature logger - INFO - key MODReferenceType
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key resourceAbbreviation
 
 
@@ -97,14 +97,15 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     remap_keys['datePublished'] = 'date_published'
     remap_keys['dateArrivedInPubmed'] = 'date_arrived_in_pubmed'
     remap_keys['dateLastModified'] = 'date_last_modified_in_pubmed'
-    remap_keys['crossReference'] = 'cross_reference'
+    remap_keys['crossReferences'] = 'cross_reference'
     remap_keys['issueName'] = 'issue_name'
     remap_keys['pages'] = 'page_range'
     remap_keys['pubMedType'] = 'pubmed_types'
-    remap_keys['meshTerm'] = 'mesh_term'
+    remap_keys['meshTerms'] = 'mesh_term'
     remap_keys['allianceCategory'] = 'category'
-    remap_keys['MODReferenceType'] = 'mod_reference_types'
-    remap_keys['MODReferenceTypes'] = 'mod_reference_types'
+    remap_keys['authors'] = 'author'
+    remap_keys['MODReferenceType'] = 'mod_reference_type'
+    remap_keys['MODReferenceTypes'] = 'mod_reference_type'
     remap_keys['modCorpusAssociations'] = 'mod_corpus_associations'
     remap_keys['plainLanguageAbstract'] = 'plain_language_abstract'
     remap_keys['pubmedAbstractLanguages'] = 'pubmed_abstract_languages'
@@ -115,15 +116,15 @@ def post_references(input_file, check_file_flag):      # noqa: C901
 
     subkeys_to_remove['mesh_term'] = {'referenceId'}
     subkeys_to_remove['tags'] = {'referenceId'}
-    subkeys_to_remove['author'] = {'referenceId', 'firstinit', 'firstInit', 'crossReference', 'collectivename'}
+    subkeys_to_remove['author'] = {'referenceId', 'firstinit', 'firstInit', 'crossReferences', 'collectivename'}
 
     remap_subkeys['mesh_term'] = dict()
     remap_subkeys['mesh_term']['meshHeadingTerm'] = 'heading_term'
     remap_subkeys['mesh_term']['meshQualfierTerm'] = 'qualifier_term'
     remap_subkeys['mesh_term']['meshQualifierTerm'] = 'qualifier_term'
 
-    remap_subkeys['mod_reference_types'] = dict()
-    remap_subkeys['mod_reference_types']['referenceType'] = 'reference_type'
+    remap_subkeys['mod_reference_type'] = dict()
+    remap_subkeys['mod_reference_type']['referenceType'] = 'reference_type'
 
     remap_subkeys['mod_corpus_associations'] = dict()
     remap_subkeys['mod_corpus_associations']['modAbbreviation'] = 'mod_abbreviation'
@@ -299,8 +300,8 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                     new_entry['cross_reference'] = list(filter(lambda x: 'curie' in x and 'NLM:' not in x['curie'] and 'ISSN:' not in x['curie'], new_entry['cross_reference']))
 
                 # output what is sent to API after converting file data
-                # json_object = json.dumps(new_entry, indent=4)
-                # print(json_object)
+                json_object = json.dumps(new_entry, indent=4)
+                print(json_object)
 
                 api_response_tuple = process_api_request('POST', url, headers, new_entry, primary_id, None, None)
                 headers = api_response_tuple[0]

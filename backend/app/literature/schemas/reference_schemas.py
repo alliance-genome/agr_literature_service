@@ -32,7 +32,7 @@ class ReferenceSchemaPost(BaseModel):
     keywords: Optional[List[str]] = None
     merged_into_reference_curie: Optional[str] = None
     pubmed_types: Optional[List[str]] = None
-    mod_reference_types: Optional[List[ModReferenceTypeSchemaCreate]] = None
+    mod_reference_type: Optional[List[ModReferenceTypeSchemaCreate]] = None
     mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaCreate]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
@@ -124,7 +124,7 @@ class ReferenceSchemaShow(BaseModelShow):
     merged_into_reference_curie: Optional[str] = None
     mergee_reference_curies: Optional[List[str]] = None
     pubmed_types: Optional[List[str]] = None
-    mod_reference_types: Optional[List[ModReferenceTypeSchemaRelated]] = None
+    mod_reference_type: Optional[List[ModReferenceTypeSchemaRelated]] = None
     mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaRelated]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None

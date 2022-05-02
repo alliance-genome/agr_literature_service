@@ -9,7 +9,7 @@
             ],
             "abstract": "Applying a series of techniques intended to induce, detect and isolate lethal and/or sterile temperature-sensitive mutants, specific to the self-fertilizing hermaphrodite nematode Caenorhabditis elegans, Bergerac strain, 25 such mutants have been found. Optimal conditions for the application of mutagenic treatment and the detection of such mutations are discussed.",
             "allianceCategory": "Research Article",
-            "author": [
+            "authors": [
                 {
                     "authorRank": 1,
                     "name": "Abdul Kader N",
@@ -22,7 +22,7 @@
                 }
             ],
             "citation": "Abdul Kader N et al. (1978) Revue de Nematologie \"Induction, detection and isolation of temperature-sensitive lethal and/or ....\"",
-            "crossReference": [
+            "crossReferences": [
                 {
                     "id": "WB:WBPaper00000003",
                     "pages": [
@@ -53,7 +53,7 @@
             ],
             "abstract": "Before diakinesis, the development of the oocytes of C. elegans takes place in the presence of a specific anatomical structure: the rachis. This is an undivided, anucleated cytoplasmic mass placed in the central part of the ovary. Electron microscopy shows that, at first, in the gonial region, it is made of two branches which infiltrate themselves between the oogonia and then converge in a single axial column. Afterwards, this column will be pushed to the outside of the gonad and will disappear when the great oocyte increase takes place. Until then, the rachis is limited by its own envelope and connects each germinal cell through a pore present in the double layered membrane. The cytoplasmic bridge established between the oogonia and the rachis, the presence of a typical Golgi apparatus and of numerous mitochondria in the rachis strongly suggest that the rachis plays a role in the oocyte",
             "allianceCategory": "Research Article",
-            "author": [
+            "authors": [
                 {
                     "authorRank": 1,
                     "name": "Abi-Rached M",
@@ -66,7 +66,7 @@
                 }
             ],
             "citation": "Abi-Rached M et al. (1975) Nematologica \"Etude ultrastructurale des relations entre ovocytes et rachis au cours de ....\"",
-            "crossReference": [
+            "crossReferences": [
                 {
                     "id": "DOI:10.1163/187529275X00518"
                 },
@@ -100,7 +100,7 @@
             ],
             "abstract": "Electron microscope studies in and around the nucleus of C. elegans oogonia and primary oocytes showed fibrogranular formations whose presence is not always constant. The nucleolus, very large in the first oogenetic stages, disappeared during early diakinesis. In pachytene and diplotene, it underwent a vacuolization phase in its central part. Perinuclear corpuscules and groups of granules were limited to the vitellogenetic phase of meiotic I prophase: they were localized in the vicinity of the nuclear membrane and nucleolus. The perinuclear formations, detectable as early as germigene, remained until full ooplasmic growth. Their localization at the limit of the nucleus led to their involvement in the exchange processes which took place between the nucleolus and the cytoplasm, by way of the perinucleolar granules and",
             "allianceCategory": "Research Article",
-            "author": [
+            "authors": [
                 {
                     "authorRank": 1,
                     "name": "Abi-Rached M",
@@ -113,7 +113,7 @@
                 }
             ],
             "citation": "Abi-Rached M et al. (1978) Revue de Nematologie \"Ultrastructural changes in the nuclear and perinuclear regions of the oogonia ....\"",
-            "crossReference": [
+            "crossReferences": [
                 {
                     "id": "WB:WBPaper00000006",
                     "pages": [
@@ -144,7 +144,7 @@
             ],
             "abstract": "During oogenesis in the hermaphroditic nematode C. elegans, the synaptonemal complex is not detectable until the homologous chromosomes are at least partly paired (that is until meiotic prophase synapsis). In the pachytene stage, the complex has a typically classic organization. At the separation phase, the complex persists in certain places, in the diplotene stage and even in early diakinesis. These zones which persist during separation of the homologous chromosomes are believed to correspond to chiasma. This interpretation therefore implicates the complex in the recombination mechanism.",
             "allianceCategory": "Research Article",
-            "author": [
+            "authors": [
                 {
                     "authorRank": 1,
                     "name": "Abi-Rached M",
@@ -157,7 +157,7 @@
                 }
             ],
             "citation": "Abi-Rached M et al. (1979) C R Seances Acad Sci D \"Changes in the synaptonemal complex in the oocyte nucleus in meiotic prophase of ....\"",
-            "crossReference": [
+            "crossReferences": [
                 {
                     "id": "WB:WBPaper00000007",
                     "pages": [
@@ -187,7 +187,7 @@
                 }
             ],
             "allianceCategory": "Research Article",
-            "author": [
+            "authors": [
                 {
                     "authorRank": 1,
                     "name": "Ali MY",
@@ -205,7 +205,7 @@
                 }
             ],
             "citation": "Ali MY et al. (1973) Parasitologia Hungarica \"Nematodes associated with Coleoptera species in Egypt Part 2.\"",
-            "crossReference": [
+            "crossReferences": [
                 {
                     "id": "WB:WBPaper00000010",
                     "pages": [
@@ -236,7 +236,7 @@
             ],
             "abstract": "Larval forms of the free-living nematode Caenorhabditis elegans possess the ability to enter a developmental stage which is thought to be specialized for survival in harsh environmental conditions, i.e. the dauerlarval stage. In this study the responses of dauerlarvae to thermal stress and oxygen deprivation are investigated. Oxygen consumption of dauerlarvae is less sensitive to temperature change than that of adults, with Q10 values of 1.7 and 2.6 respectively. The upper thermal tolerance limit of dauerlarvae is also different from that of adults; dauerlarvae survive approximately three times longer than adults when exposed to 37C. In addition to differences in thermal tolerance, dauerlarvae surrvive longer under anaerobic conditions than adults, 7 days and 2 days respectively. On recovery from anaerobic stress dauerlarvae exhibit behavior changes which are suggestive of emergence from the dauerlarval stage. The responses of dauerlarvae to thermal stress and oxygen deprivation appear to be important aspects of the specialization for survival",
             "allianceCategory": "Research Article",
-            "author": [
+            "authors": [
                 {
                     "authorRank": 1,
                     "name": "Anderson GL",
@@ -244,7 +244,7 @@
                 }
             ],
             "citation": "Anderson GL (1978) Canadian Journal of Zoology \"Responses of dauerlarvae of C. elegans (Nematoda: Rhabditidae) to thermal ....\"",
-            "crossReference": [
+            "crossReferences": [
                 {
                     "id": "DOI:10.1139/z78-244"
                 },
@@ -278,7 +278,7 @@
             ],
             "abstract": "The dispersal and behavior of Caenorhabditis elegans in the presence of various species of bacteria were studied on agar plates. Several species proved attractive to the nematode, the proximity of colonies of living bacteria increasing the rate of dispersal of the nematodes, which on contact tended to remain within the colonies feeding on the bacteria. Other species showed little attraction, or proved repellent. Escherichia coli, Pseudomonas fluorescens and P. aeruginosa were attractive as well as supporting growth and reproduction of the nematode. Dead bacteria were unattractive. Bacillus megatherium repelled",
             "allianceCategory": "Research Article",
-            "author": [
+            "authors": [
                 {
                     "authorRank": 1,
                     "name": "Andrew PA",
@@ -291,7 +291,7 @@
                 }
             ],
             "citation": "Andrew PA et al. (1976) Nematologica \"Effect of bacteria on dispersal of C. elegans (Rhabditidae).\"",
-            "crossReference": [
+            "crossReferences": [
                 {
                     "id": "DOI:10.1163/187529276X00454"
                 },
@@ -324,7 +324,7 @@
                 }
             ],
             "allianceCategory": "Book",
-            "author": [
+            "authors": [
                 {
                     "authorRank": 1,
                     "name": "Waterston RH",
@@ -342,7 +342,7 @@
                 }
             ],
             "citation": "Waterston RH et al. (1997) \"The Genome.\"",
-            "crossReference": [
+            "crossReferences": [
                 {
                     "id": "PMID:21413225"
                 },
@@ -373,7 +373,7 @@
             ],
             "abstract": "This book is part of an on-going series presenting collections of original research papers and literature reviews on diverse topics in molecular and cellular biology. This volume houses 34 literature reviews and research summaries on various aspects of the biology of Caenorhabditis elegans, a nematode of extraordinary usefulness as a research model. Topics include: the genome, mutation, transcription and its regulation, sex determination, male development, nervous system patterning, feeding and defecation, neural plasticity, and evolution. Appendices house a list of characterized genes, on-line resources, and other information. The text is illustrated, indexed, and includes a common bibliography of over 2000 literature citations.",
             "allianceCategory": "Book",
-            "author": [
+            "authors": [
                 {
                     "authorRank": 1,
                     "name": "Riddle DL",
@@ -396,7 +396,7 @@
                 }
             ],
             "citation": "Riddle DL et al. (1997) \"C. elegans II\"",
-            "crossReference": [
+            "crossReferences": [
                 {
                     "id": "PMID:21413221"
                 },
@@ -429,7 +429,7 @@
             ],
             "abstract": "Mechanotransduction is the conversion of a mechanical stimulus into a biological                response and constitutes the basis for a plethora of fundamental biological                processes such as the senses of touch, balance and hearing and contributes                critically to development and homeostasis in all organisms. Recent, genetic and                electrophysiological studies have shown that specialized macromolecular complexes,                encompassing mechanically gated ion channels, play a central role in the                transformation of mechanical forces into a cellular signal, which takes place in                mechanosensory organs of diverse organisms. These complexes are highly efficient                sensors, closely entangled with their surrounding environment. Such association                appears essential for proper channel gating, and provides proximity of the                mechanosensory apparatus to the source of triggering mechanical energy. Genetic and                molecular evidence collected in model organisms such as the nematode worm                    Caenorhabditis elegans, the fruit fly Drosophila                    melanogaster and the mouse highlight distinct classes of mechanically                gated ion channels and interacting molecules, which are likely parts of the                mechanotransducing apparatus. In this article, we review the progress towards                deciphering mechanotransduction in C. elegans. The exceptional                amenability of this simple worm to genetic and molecular manipulations has                facilitated the dissection of a metazoan mechanotransducer complex to unprecedented                detail.",
             "allianceCategory": "Book",
-            "author": [
+            "authors": [
                 {
                     "authorRank": 3,
                     "name": "Voglis G",
@@ -442,7 +442,7 @@
                 }
             ],
             "citation": " (2005) \"Mechanotransduction in the Nematode Caenorhabditis elegans.\"",
-            "crossReference": [
+            "crossReferences": [
                 {
                     "id": "PMID:21290765"
                 },
@@ -473,7 +473,7 @@
             ],
             "abstract": "The goal of the Gene Ontology (GO) project is to provide a uniform way to describe the functions of gene products from organisms across all kingdoms of life and thereby enable analysis of genomic data. Protein annotations are either based on experiments or predicted from protein sequences. Since most sequences have not been experimentally characterized, most available annotations need to be based on predictions. To make as accurate inferences as possible, the GO Consortium's Reference Genome Project is using an explicit evolutionary framework to infer annotations of proteins from a broad set of genomes from experimental annotations in a semi-automated manner. Most components in the pipeline, such as selection of sequences, building multiple sequence alignments and phylogenetic trees, retrieving experimental annotations and depositing inferred annotations, are fully automated. However, the most crucial step in our pipeline relies on software-assisted curation by an expert biologist. This curation tool, Phylogenetic Annotation and INference Tool (PAINT) helps curators to infer annotations among members of a protein family. PAINT allows curators to make precise assertions as to when functions were gained and lost during evolution and record the evidence (e.g. experimentally supported GO annotations and phylogenetic information including orthology) for those assertions. In this article, we describe how we use PAINT to infer protein function in a phylogenetic context with emphasis on its strengths, limitations and guidelines. We also discuss specific examples showing how PAINT annotations compare with those generated by other highly used homology-based methods.",
             "allianceCategory": "Research Article",
-            "author": [
+            "authors": [
                 {
                     "authorRank": 1,
                     "name": "Gaudet P",
@@ -496,7 +496,7 @@
                 }
             ],
             "citation": "Gaudet P et al. (2011) Brief Bioinform \"Phylogenetic-based propagation of functional annotations within the Gene ....\"",
-            "crossReference": [
+            "crossReferences": [
                 {
                     "id": "DOI:10.1093/bib/bbr042"
                 },

@@ -146,8 +146,8 @@ def generate_pmid_data(input_path, output_directory, input_mod):      # noqa: C9
             if prefix == 'PMID':
                 pmid = identifier
             elif prefix in mods:
-                if 'crossReference' in entry:
-                    for cross_reference in entry['crossReference']:
+                if 'crossReferences' in entry:
+                    for cross_reference in entry['crossReferences']:
                         prefix_xref, identifier_xref, separator_xref = split_identifier(cross_reference['id'])
                         if prefix_xref == 'PMID':
                             pmid = identifier_xref
@@ -353,8 +353,8 @@ def load_mod_resource(mods, resource_to_nlm):
                                 resource_to_mod[mod][value].append(primary_id)
                         else:
                             resource_to_mod[mod][value] = [primary_id]
-                    if 'crossReference' in entry:
-                        for xref_entry in entry['crossReference']:
+                    if 'crossReferences' in entry:
+                        for xref_entry in entry['crossReferences']:
                             # if re.match(r"^ISSN:[0-9]+", xref_id):
                             # if entry['primaryId'] == 'FB:FBmultipub_1740':
                             #     logger.info("id %s xref id %s ", entry['primaryId'], xref_entry['id'])
@@ -465,10 +465,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
     # assigns PMID to primaryId and to author's referenceId.
     # if any reference's author doesn't have author Rank, assign authorRank based on array order.
     cross_ref_no_pages_ok_fields = ['DOI', 'PMID', 'PMC', 'PMCID', 'ISBN']
-    pmid_fields = ['author', 'volume', 'title', 'pages', 'issueName', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerm', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
+    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerm', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
     # single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher']
     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
-    replace_value_fields = ['author', 'pubMedType', 'meshTerm']
+    replace_value_fields = ['authors', 'pubMedType', 'meshTerms']
     # date_fields = ['issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified']
     # datePublished is a string, not a proper date field
     date_fields = ['dateArrivedInPubmed', 'dateLastModified']
@@ -596,10 +596,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
             # need to process crossReference once to reassign primaryId if PMID and filter out
             # unexpected crossReference,
             # then again later to clean up crossReference that get data from pubmed xml (once the PMID is known)
-            if 'crossReference' in entry:
+            if 'crossReferences' in entry:
                 expected_cross_references = []
                 dqm_xrefs = dict()
-                for cross_reference in entry['crossReference']:
+                for cross_reference in entry['crossReferences']:
                     prefix, identifier, separator = split_identifier(cross_reference["id"])
                     if prefix not in dqm_xrefs:
                         dqm_xrefs[prefix] = set()
@@ -632,7 +632,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                             # cross_reference_types[mod].add(cross_ref_type_group[1])
                         if cross_ref_type_group[1].lower() not in exclude_cross_reference_type:
                             expected_cross_references.append(cross_reference)
-                entry['crossReference'] = expected_cross_references
+                entry['crossReferences'] = expected_cross_references
                 for prefix in dqm_xrefs:
                     if len(dqm_xrefs[prefix]) > 1:
                         too_many_xref_per_type_failure = True
@@ -663,35 +663,35 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
 
             if is_pubmod:
                 # print("primaryKey %s is None" % (primary_id))
-                if 'author' in entry:
+                if 'authors' in entry:
                     all_authors_have_rank = True
-                    for author in entry['author']:
+                    for author in entry['authors']:
                         author['correspondingAuthor'] = False
                         author['firstAuthor'] = False
                         if 'authorRank' not in author:
                             all_authors_have_rank = False
                     if all_authors_have_rank is False:
                         authors_with_rank = []
-                        for i in range(len(entry['author'])):
-                            author = entry['author'][i]
+                        for i in range(len(entry['authors'])):
+                            author = entry['authors'][i]
                             author['authorRank'] = i + 1
                             authors_with_rank.append(author)
-                        entry['author'] = authors_with_rank
+                        entry['authors'] = authors_with_rank
                     if update_primary_id:
                         authors_updated = []
-                        for author in entry['author']:
+                        for author in entry['authors']:
                             author['referenceId'] = primary_id
                             authors_updated.append(author)
-                        entry['author'] = authors_updated
-                if 'crossReference' in entry:
+                        entry['authors'] = authors_updated
+                if 'crossReferences' in entry:
                     sanitized_cross_references = []
-                    for cross_reference in entry['crossReference']:
+                    for cross_reference in entry['crossReferences']:
                         id = cross_reference['id']
                         prefix, identifier, separator = split_identifier(id)
                         # cross references came from the mod, but some had a pmid (e.g. 24270275) that is no longer at PubMed, so do not add to cross_references
                         if prefix.lower() != 'pmid':
                             sanitized_cross_references.append(cross_reference)
-                    entry['crossReference'] = sanitized_cross_references
+                    entry['crossReferences'] = sanitized_cross_references
                 if 'keywords' in entry:
                     entry = clean_up_keywords(mod, entry)
                 if 'resourceAbbreviation' in entry:
@@ -761,21 +761,21 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                             # logger.info("PMID %s pmid_field %s data %s", pmid, pmid_field, pubmed_data[pmid_field])
                             entry[pmid_field] = pubmed_data[pmid_field]
 
-                if 'author' in entry:
-                    for author in entry['author']:
+                if 'authors' in entry:
+                    for author in entry['authors']:
                         author['correspondingAuthor'] = False
                         author['firstAuthor'] = False
 
                 sanitized_cross_references = []
                 pubmed_xrefs = dict()
-                if 'crossReference' in pubmed_data:
-                    sanitized_cross_references = pubmed_data['crossReference']
-                    for cross_reference in pubmed_data['crossReference']:
+                if 'crossReferences' in pubmed_data:
+                    sanitized_cross_references = pubmed_data['crossReferences']
+                    for cross_reference in pubmed_data['crossReferences']:
                         id = cross_reference['id']
                         prefix, identifier, separator = split_identifier(id)
                         pubmed_xrefs[prefix] = identifier
-                if 'crossReference' in entry:
-                    for cross_reference in entry['crossReference']:
+                if 'crossReferences' in entry:
+                    for cross_reference in entry['crossReferences']:
                         id = cross_reference['id']
                         prefix, identifier, separator = split_identifier(id)
                         if prefix in pubmed_xrefs:
@@ -784,7 +784,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                                 fh_mod_report[mod].write("primaryId %s has xref %s PubMed has %s%s%s\n" % (primary_id, id, prefix, separator, pubmed_xrefs[prefix]))
                         else:
                             sanitized_cross_references.append(cross_reference)
-                entry['crossReference'] = sanitized_cross_references
+                entry['crossReferences'] = sanitized_cross_references
 
                 if 'nlm' in pubmed_data:
                     nlm = pubmed_data['nlm']
@@ -885,7 +885,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
 
     logger.info("processing unmerged pubmed_data")
 
-    aggregate_fields = ['keywords', 'MODReferenceTypes', 'tags']
+    aggregate_fields = ['keywords', 'MODReferenceType', 'tags']
     additional_fields = ['nlm', 'resource']
 
     for pmid in unmerged_pubmed_data:
@@ -939,8 +939,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                     mod_corpus_association_dict[id] = mod_corpus_association
                     # logger.info("mod_corpus_association %s", mod_corpus_association)
 
-            if 'crossReference' in entry:
-                for cross_ref in entry['crossReference']:
+            if 'crossReferences' in entry:
+                for cross_ref in entry['crossReferences']:
                     id = cross_ref['id']
                     pages = []
                     if 'pages' in cross_ref:
@@ -959,10 +959,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
             sanitized_cross_ref_dict["id"] = cross_ref_id
             if len(pages) > 0:
                 sanitized_cross_ref_dict["pages"] = pages
-            if 'crossReference' in sanitized_entry:
-                sanitized_entry['crossReference'].append(sanitized_cross_ref_dict)
+            if 'crossReferences' in sanitized_entry:
+                sanitized_entry['crossReferences'].append(sanitized_cross_ref_dict)
             else:
-                sanitized_entry['crossReference'] = [sanitized_cross_ref_dict]
+                sanitized_entry['crossReferences'] = [sanitized_cross_ref_dict]
 
         if 'allianceCategory' in sanitized_entry:
             if len(alliance_category_dict) > 1:

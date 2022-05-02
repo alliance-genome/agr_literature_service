@@ -256,8 +256,8 @@ def mod_reference_types_check(agr_data, values):
 
     failure_string = ''
     db_values = set()
-    if 'mod_reference_types' in agr_data:
-        for mrt_db in agr_data['mod_reference_types']:
+    if 'mod_reference_type' in agr_data:
+        for mrt_db in agr_data['mod_reference_type']:
             db_string = ''
             if 'reference_type' in mrt_db:
                 db_string = db_string + mrt_db['reference_type']
@@ -585,7 +585,7 @@ def check_test(agr_data, check, value):
         'AffiliationInfo': author_affiliation_check,
         'Keywords': keywords_check,
         'has_erratum': erratum_check,
-        'MODReferenceTypes': mod_reference_types_check,
+        'MODReferenceType': mod_reference_types_check,
         'ModCorpusAssociation': mod_corpus_association_check,
         'author': authors_exact_check,
         'FAIL': title_check

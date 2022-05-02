@@ -389,10 +389,10 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                     if len(affiliation_list) > 0:
                         author_dict["affiliations"] = affiliation_list
                     if len(author_cross_references) > 0:
-                        author_dict["crossReference"] = author_cross_references
+                        author_dict["crossReferences"] = author_cross_references
                     # print fullname
                     authors_list.append(author_dict)
-                data_dict['author'] = authors_list
+                data_dict['authors'] = authors_list
 
             pub_date_re_output = re.search("<PubDate>(.+?)</PubDate>", xml, re.DOTALL)
             if pub_date_re_output is not None:
@@ -509,7 +509,7 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                 #     print "NO\t" + pmid
 
             if len(cross_references) > 0:
-                data_dict["crossReference"] = cross_references
+                data_dict["crossReferences"] = cross_references
 
             publisher_re_output = re.search("<PublisherName>(.+?)</PublisherName>", xml)
             if publisher_re_output is not None:
@@ -619,7 +619,7 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
 #                             mesh_dict["referenceId"] = id_name[0]
 #                             mesh_dict["meshQualifierTerm"] = id_name[1]
 #                             meshs_list.append(mesh_dict)
-                data_dict['meshTerm'] = meshs_list
+                data_dict['meshTerms'] = meshs_list
 
             # Write the json data to output json file
             json_filename = json_storage_path + pmid + '.json'

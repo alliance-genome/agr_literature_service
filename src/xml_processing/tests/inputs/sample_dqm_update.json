@@ -49,7 +49,7 @@
       "modId": ["WB:WBPaper00000003"],
       "update_check": {
         "title": "A new title",
-        "author": [
+        "authors": [
           {
             "order": 1,
             "name": "BOB",
@@ -68,7 +68,7 @@
       },
       "update_replace": {
         "title": "A new title",
-        "author": [
+        "authors": [
           {
             "authorRank": 1,
             "name": "BOB",

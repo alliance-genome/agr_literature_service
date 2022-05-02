@@ -63,10 +63,11 @@ def post_resources(input_path):      # noqa: C901
     remap_keys['isoAbbreviation'] = 'iso_abbreviation'
     remap_keys['medlineAbbreviation'] = 'medline_abbreviation'
     remap_keys['abbreviationSynonyms'] = 'abbreviation_synonyms'
-    remap_keys['crossReference'] = 'cross_reference'
+    remap_keys['crossReferences'] = 'cross_reference'
     remap_keys['editorsOrAuthors'] = 'editor'
     remap_keys['printISSN'] = 'print_issn'
     remap_keys['onlineISSN'] = 'online_issn'
+    remap_keys['editors'] = 'editor'
     editor_keys_to_remove = {'referenceId'}
     remap_editor_keys = dict()
     remap_editor_keys['authorRank'] = 'order'

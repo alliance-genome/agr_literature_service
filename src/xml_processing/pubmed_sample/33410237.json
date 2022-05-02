@@ -1,12 +1,12 @@
 {
     "abstract": "The transparent epidermis of Caenorhabditis elegans makes it an attractive model to study sperm motility and migration within an intact reproductive tract. C elegans synthesize specific F-series prostaglandins (PGFs) that are important for guiding sperm toward the spermatheca. These PGFs are synthesized from polyunsaturated fatty acid (PUFA) precursors, such as arachidonic acid (AA), via a novel pathway, independent of the classical cyclooxygenases (Cox) responsible for most PG synthesis. While the enzyme(s) responsible for PG synthesis has yet to be identified, the DAF-7 TGF\u00df pathway has been implicated in modulating PG levels and sperm guidance. We find that the reduced PGF levels in daf-1 type I receptor mutants are responsible for the sperm guidance defect. The lower level of PGs in daf-1 mutants is due in part to the inaccessibility of AA. Finally, lipid analysis and assessment of sperm guidance in daf-1;daf-3 double mutants suggest DAF-3 suppresses PG production and sperm accumulation at the spermatheca. Our data suggest that DAF-3 functions in the nervous system, and possibly the germline, to affect sperm guidance. The C elegans TGF\u00df pathway regulates many pathways to modulate PG metabolism and sperm guidance. These pathways likely function in the nervous system and possibly the germline.",
-    "author": [
+    "authors": [
         {
             "affiliation": [
                 "Department of Cell Development and Integrative Biology, University of Alabama at Birmingham, Birmingham, Alabama, USA."
             ],
             "authorRank": 1,
-            "crossReference": [
+            "crossReferences": [
                 {
                     "id": "ORCID:https://orcid.org/0000-0003-4571-4405",
                     "pages": [

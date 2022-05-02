@@ -1,6 +1,6 @@
 {
     "abstract": "Beauvericin is an ubiquitous mycotoxin with relevant occurrence in food and feed. It causes a high toxicity in several cell lines, but its general mechanism of action is not fully understood and only limited in vivo studies have been performed. We used Caenorhabditis elegans as a model organism to investigate effects of beauvericin. The mycotoxin displays a moderate acute toxicity at 100 \u03bcM; at this concentration also reproductive toxicity occurred (reduction of total progeny to 32.1 %), developmental toxicity was detectable at 250 \u03bcM. However, even lower concentrations were capable to reduce stress resistance and life span of the nematode: A significant reduction was detected at 10 \u03bcM beauvericin (decrease in mean survival time of 4.3 % and reduction in life span of 12.9 %). An increase in lipofuscin fluorescence was demonstrated starting at 10 \u03bcM suggesting oxidative stress as a mechanism of beauvericin toxicity. Beauvericin (100 \u03bcM) increases the number of apoptotic germ cells comparable to the positive control UV-C (400 J/m<sup>2</sup>). Conclusion: Low concentrations of beauvericin are capable to cause adverse effects in C. elegans, which may be relevant for hazard identification of this compound.",
-    "author": [
+    "authors": [
         {
             "affiliation": [
                 "Martin-Luther-University Halle-Wittenberg, Institute of Agricultural and Nutritional Sciences, Weinbergweg 22, 06120 Halle/Saale, Germany."
@@ -100,7 +100,7 @@
         "Fertility",
         "Mycotoxin"
     ],
-    "meshTerm": [
+    "meshTerms": [
         {
             "meshHeadingTerm": "Animals",
             "referenceId": "PMID:33002525"

@@ -17,13 +17,13 @@ def sanitize_pubmed_json_list(pmids, inject_list):
     if not path.exists(sanitized_reference_json_path):
         makedirs(sanitized_reference_json_path)
 
-    pmid_fields = ['author', 'volume', 'title', 'pages', 'issueName', 'datePublished',
+    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'datePublished',
                    'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher',
-                   'meshTerm', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReference']
+                   'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReferences']
     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'datePublished',
                            'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher',
                            'plainLanguageAbstract', 'pubmedAbstractLanguages']
-    replace_value_fields = ['author', 'pubMedType', 'meshTerm', 'crossReference']
+    replace_value_fields = ['authors', 'pubMedType', 'meshTerms', 'crossReferences']
     date_fields = ['dateArrivedInPubmed', 'dateLastModified']
 
     sanitized_data = []

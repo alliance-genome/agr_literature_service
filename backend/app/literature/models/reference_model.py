@@ -97,7 +97,7 @@ class ReferenceModel(Base):
         nullable=True
     )
 
-    mod_reference_types = relationship(
+    mod_reference_type = relationship(
         "ModReferenceTypeModel",
         lazy="joined",
         back_populates="reference",

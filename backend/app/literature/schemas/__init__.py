@@ -32,8 +32,6 @@ from literature.schemas.pubmed_publication_status_enum import PubMedPublicationS
 
 from literature.schemas.tag_name_enum import TagName
 from literature.schemas.tag_source_enum import TagSource
-# from literature.schemas.reference_tag_enum import ReferenceTag
-# from literature.schemas.reference_tag_enum import ReferenceTagShow
 
 from literature.schemas.reference_category_schemas import ReferenceCategory
 
@@ -76,19 +74,5 @@ from literature.schemas.reference_schemas import ReferenceSchemaPost
 from literature.schemas.reference_schemas import ReferenceSchemaUpdate
 from literature.schemas.reference_schemas import ReferenceSchemaShow
 from literature.schemas.reference_schemas import ReferenceSchemaNeedReviewShow
-
-# from literature.schemas.file_schemas import FileSchemaUpdate
-# from literature.schemas.file_schemas import FileSchemaShow
-
-# from literature.schemas.note_schemas import NoteSchemaPost
-# from literature.schemas.note_schemas import NoteSchemaShow
-# from literature.schemas.note_schemas import NoteSchemaUpdate
-
-# from literature.schemas.reference_automated_term_tag_schemas import ReferenceAutomatedTermTagSchemaShow
-# from literature.schemas.reference_automated_term_tag_schemas import ReferenceAutomatedTermTagSchemaPost
-# from literature.schemas.reference_automated_term_tag_schemas import ReferenceAutomatedTermTagSchemaPatch
-# from literature.schemas.reference_manual_term_tag_schemas import ReferenceManualTermTagSchemaShow
-# from literature.schemas.reference_manual_term_tag_schemas import ReferenceManualTermTagSchemaPost
-# from literature.schemas.reference_manual_term_tag_schemas import ReferenceManualTermTagSchemaPatch
 
 from literature.schemas.search_schemas import FacetsOptionsSchema
