@@ -44,7 +44,7 @@ def test_create_mod():
 
 def test_update_mod():
     
-    data = { "abbreviation": "AtDB2",
+    data = { "abbreviation": "AtDB",
              "short_name": "AtDB2",
              "full_name": "Test genome database2" }
     
@@ -52,31 +52,25 @@ def test_update_mod():
     res = patch(db, mod.mod_id, data)
     assert res
              
-    mod2 = db.query(ModModel).filter_by(abbreviation = "AtDB2").one()
+    mod2 = db.query(ModModel).filter_by(abbreviation = "AtDB").one()
     assert mod.mod_id == mod2.mod_id
     assert mod2.full_name == "Test genome database2"
     
 def test_show_mod():
 
-    mod = db.query(ModModel).filter_by(abbreviation = "AtDB2").one()
+    mod = db.query(ModModel).filter_by(abbreviation = "AtDB").one()
     res = show(db, mod.abbreviation)
              
-    assert res["short_name"] == "AtDB2"
-
-    # mod_id = 88 that does not exist
-    with pytest.raises(HTTPException):
-        show(db, 88)
-
+    assert res["full_name"] == "Test genome database2"
+    
 def test_changesets():
 	
-    mod = db.query(ModModel).filter_by(Abbreviation = "AtDB2").one()
+    mod = db.query(ModModel).filter_by(abbreviation = "AtDB").one()
     res = show_changesets(db, mod.mod_id)
-
-    assert res["full_name"] == "Test genome database2"
-             
+    
 def test_destroy_mod():
              
-    mod = db.query(ModModel).filter_by(abbreviation = "AtDB2").one()
+    mod = db.query(ModModel).filter_by(abbreviation = "AtDB").one()
     destroy(db, mod.mod_id)
 
     # it should now give an error on lookup.
