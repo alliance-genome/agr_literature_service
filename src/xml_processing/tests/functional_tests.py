@@ -198,7 +198,7 @@ def title_check(agr_data, value):
     """
 
     if 'title' in agr_data:
-        # assert agr_data['title'] == value
+        assert agr_data['title'] == value
         if agr_data['title'] == value:
             return 'Success'
     return 'Failure'
