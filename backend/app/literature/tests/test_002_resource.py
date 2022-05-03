@@ -145,11 +145,11 @@ def test_resource_create_large():
 
     res = db.query(ResourceModel).filter(ResourceModel.curie == 'AGR:AGR-Resource-0000000004').one()
     assert res.title == "Abstracts of papers presented at the 1996 meeting"
-    assert len(res.editors) == 3
+    assert len(res.editor) == 3
     # open access defaults to False
     assert not res.open_access
 
-    assert len(res.cross_references) == 1
+    assert len(res.cross_reference) == 1
 
 
 def test_delete_Resource():

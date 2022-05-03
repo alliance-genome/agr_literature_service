@@ -236,9 +236,18 @@ class ReferenceModel(Base):
         dates = "\tDates: updated='{}', created='{}', published='{}', arrived_p='{}', last_mod='{}'\n".\
             format(self.date_updated, self.date_created, self.date_published,
                    self.date_arrived_in_pubmed, self.date_last_modified_in_pubmed)
-        long = "\ttitle10='{}...'\n\tabstract10='{}...'\n".format(self.title[:10], self.abstract[:10])
+        long = ""
+        if self.title:
+            long += "\ttitle10='{}\n".format(self.title[:10])
+        else:
+            long += "\tNO title??\n"
+        if self.abstract:
+            long += "\tabstract10='{}...'\n".format(self.abstract[:10])
+        else:
+            long += "NO abstract?\n"
+        # long = "\ttitle10='{}...'\n\tabstract10='{}...'\n".format(self.title[:10], self.abstract[:10])
         auths = [str(x) for x in self.author]
         mesh = [str(x) for x in self.mesh_term]
-        peps = "\tauthors='{}'\n\teditors='{}'\n".format(auths, str(self.editor))
+        peps = "\tauthors='{}'\n".format(auths)
         arrs = "\tmesh='{}'\n\tkeywords='{}'\n".format(str(mesh), self.keywords)
         return "{}{}{}{}{}".format(ids, dates, long, peps, arrs)

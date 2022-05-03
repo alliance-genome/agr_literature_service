@@ -40,7 +40,10 @@ def create(db: Session, resource: ResourceSchemaPost):
     :param resource:
     :return:
     """
-
+    remap = {'editors': 'editor',
+             'mesh_terms': 'mesh_term',
+             'cross_references': 'cross_reference',
+             'mod_reference_types': 'mod_reference_type'}
     resource_data = {}
 
     if resource.cross_references is not None:
@@ -83,7 +86,10 @@ def create(db: Session, resource: ResourceSchemaPost):
                     db_obj = MeshDetailModel(**obj_data)
                 db.add(db_obj)
                 db_objs.append(db_obj)
-            resource_data[field] = db_objs
+            if field in remap:
+                resource_data[remap[field]] = db_objs
+            else:
+                resource_data[field] = db_objs
         else:
             resource_data[field] = value
 
@@ -197,12 +203,14 @@ def show(db: Session, curie: str):
         resource_data['cross_references'] = cross_references
 
     if resource.editor:
+        editors = []
         for editor in resource_data['editor']:
             if editor['orcid']:
                 editor['orcid'] = jsonable_encoder(cross_reference_crud.show(db, editor['orcid']))
             del editor['orcid_cross_reference']
             del editor['resource_id']
-
+            editors.append(editor)
+        resource_data['editors'] = editors
     return resource_data
 
 

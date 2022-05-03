@@ -90,7 +90,7 @@ def test_update_references():
                 # for debugging
                 # json_data = json.dumps(entry['update_check'], indent=4, sort_keys=True)
                 # logger.info(json_data)
-                logger.info("check %s", check)
+                logger.debug("check %s", check)
                 agr_wanted[agr][check] = entry['update_check'][check]
     api_port = environ.get('API_PORT')
     api_server = environ.get('API_SERVER', 'localhost')
@@ -98,10 +98,10 @@ def test_update_references():
         db_entry = dict()
         if agr_wanted[agr]:
             url = 'http://' + api_server + ':' + api_port + '/reference/' + agr
-            logger.info("get AGR reference info from database %s", url)
+            logger.debug("get AGR reference info from database %s", url)
             get_return = requests.get(url)
             db_entry = json.loads(get_return.text)
-            # logger.info(db_entry)
+            logger.debug(db_entry)
         for check in agr_wanted[agr]:
             test_result = check_test(db_entry, check, agr_wanted[agr][check])
             logger.info("agr %s check %s result %s", agr, check, test_result)
@@ -151,11 +151,12 @@ def test_load_references():
         url = 'http://' + api_server + ':' + api_port + '/reference/' + agr
         logger.info("get AGR reference info from database %s", url)
         get_return = requests.get(url)
+        logger.debug(get_return.text)
         db_entry = json.loads(get_return.text)
-        # logger.info(db_entry)
+        logger.debug(db_entry)
         for check in agr_wanted[agr]:
             test_result = check_test(db_entry, check, agr_wanted[agr][check])
-            logger.info("agr %s check %s result %s", agr, check, test_result)
+            logger.debug("agr %s check %s result %s", agr, check, test_result)
 
 
 def erratum_check(agr_data, value):
@@ -197,7 +198,7 @@ def title_check(agr_data, value):
     """
 
     if 'title' in agr_data:
-        assert agr_data['title'] == value
+        # assert agr_data['title'] == value
         if agr_data['title'] == value:
             return 'Success'
     return 'Failure'
@@ -256,7 +257,7 @@ def mod_reference_types_check(agr_data, values):
 
     failure_string = ''
     db_values = set()
-    if 'mod_reference_types' in agr_data:
+    if 'mod_reference_types' in agr_data and agr_data['mod_reference_types']:
         for mrt_db in agr_data['mod_reference_types']:
             db_string = ''
             if 'reference_type' in mrt_db:

@@ -227,6 +227,7 @@ services:
       REG: "${REG}"
     volumes:
       - agr-logs:/logs
+      - .:/usr/local/bin/src/literature
     networks:
       - agr-literature
     depends_on:
