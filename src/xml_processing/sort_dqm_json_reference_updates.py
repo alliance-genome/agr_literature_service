@@ -1,28 +1,43 @@
 import argparse
 import json
+import sys
 import logging
 import logging.config
 # import bs4
 import warnings
-from os import environ, listdir, makedirs, path
+from os import environ, makedirs, path
 
 # import urllib.request
 import requests
 from dotenv import load_dotenv
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+# from sqlalchemy import create_engine
+# from sqlalchemy.orm import sessionmaker
 from fastapi.encoders import jsonable_encoder
+
+from filter_dqm_md5sum import load_s3_md5data, generate_new_md5, save_s3_md5data
 
 from literature.models import ReferenceModel
 
-from helper_file_processing import (clean_up_keywords,
-                                    compare_authors_or_editors, load_ref_xref,
+# from helper_file_processing import (clean_up_keywords,
+#                                     load_ref_xref_api_flatfile,
+#                                     generate_cross_references_file)
+from helper_file_processing import (compare_authors_or_editors,
                                     split_identifier, write_json)
 from helper_post_to_api import (generate_headers, get_authentication_token,
                                 process_api_request)
+from helper_sqlalchemy import (create_postgres_session,
+                               sqlalchemy_load_ref_xref)
 
-# import re
+
+from parse_dqm_json_reference import (generate_pmid_data,
+                                      aggregate_dqm_with_pubmed)
+from get_pubmed_xml import download_pubmed_xml
+from xml_to_json import generate_json
+# from process_many_pmids_to_json import download_and_convert_pmids
+# from sanitize_pubmed_json import sanitize_pubmed_json_list
+from post_reference_to_api import post_references
+from post_comments_corrections_to_api import post_comments_corrections
 
 
 # For WB needing 57578 references checked for updating,
@@ -34,15 +49,14 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
 api_server = environ.get('API_SERVER', 'localhost')
-# pipenv run python sort_dqm_json_reference_updates_batch_sqlalchemy.py -f dqm_data -m WB
 
-# pipenv run python sort_dqm_json_reference_updates_batch_sqlalchemy.py -f tests/dqm_update_sample -m WB
+# pipenv run python sort_dqm_json_reference_updates.py -f dqm_data -m WB
 
-# pipenv run python sort_dqm_json_reference_updates_batch_sqlalchemy.py -f dqm_data -m all > asdf_sanitized
+# pipenv run python sort_dqm_json_reference_updates.py -f tests/dqm_update_sample -m WB
+
+# pipenv run python sort_dqm_json_reference_updates.py -f dqm_data -m all > asdf_sanitized
 
 # first run  get_datatypes_cross_references.py  to generate mappings from references to xrefs and resources to xrefs
-
-# Attention Paulo: I'm actively making changes to this script, testing it, and cleaning it up
 
 # Workflow for DQM updates
 # 1 - get_datatypes_cross_references.py - to generate mappings from references to xrefs and resources to xrefs
@@ -141,33 +155,11 @@ api_server = environ.get('API_SERVER', 'localhost')
 # https://zfin.org/downloads/ZFIN_1.0.1.4_Resource.json
 
 
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
-
-
-def create_postgres_session(verbose):
-    """Connect to database."""
-    USER = environ.get('PSQL_USERNAME', 'postgres')
-    PASSWORD = environ.get('PSQL_PASSWORD', 'postgres')
-    SERVER = environ.get('PSQL_HOST', 'localhost')
-    PORT = environ.get('PSQL_PORT', '5432')
-
-    DB = environ.get('PSQL_DATABASE', 'literature')
-
-    # Create our SQL Alchemy engine from our environmental variables.
-    engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
-    engine = create_engine(engine_var)
-
-    Session = sessionmaker(bind=engine)
-    session = Session()
-
-    if verbose:
-        print('Using server: {}'.format(SERVER))
-        print('Using database: {}'.format(DB))
-        print(engine_var)
-
-    return session
+logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
+                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
+                    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
 
 
 def load_pmids_not_found():
@@ -192,8 +184,15 @@ def make_url_ref_curie_prefix():
     return url_ref_curie_prefix
 
 
+def filter_from_md5sum(mod):
+    return
+
+
 def sort_dqm_references(input_path, input_mod):      # noqa: C901
     """
+
+# TODO
+# DATA  WBPaper00061683 was primaryId in 2021 11 04, became PMID:34345807 in 2022 04 25 update, check that can be found via xref and associated
 
     :param input_path:
     :param input_mod:
@@ -213,13 +212,15 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     if input_mod in mods:
         mods = [input_mod]
 
-    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
-    # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference2')   # to test against older database mappings
-    pmids_not_found = load_pmids_not_found()
+    # these tags are allowed from dqms, but we don't want them in the database
+    dqm_keys_to_remove = {'tags', 'issueDate', 'dateLastModified', 'keywords', 'citation'}
 
-    # make this True for live changes
-    # live_changes = False
-    live_changes = True
+    # to debug, save 9 seconds per run by generating xref mappings only once and load from flatfile
+    # generate_cross_references_file('reference')
+    # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref_api_flatfile('reference')
+
+    # in production load xref mappings through sqlalchemy, which takes 14 seconds for all cross references
+    xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
 
     # test data structure content
     # for prefix in xref_ref:
@@ -229,32 +230,18 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     #
     # for agr in ref_xref_valid:
     #     for prefix in ref_xref_valid[agr]:
-    #         for identifier in ref_xref_valid[agr][prefix]:
-    #             logger.info("agr %s valid prefix %s ident %s", agr, prefix, identifier)
+    #         logger.info("agr %s valid prefix %s ident %s", agr, prefix, ref_xref_valid[agr][prefix])
     #
     # for agr in ref_xref_obsolete:
     #     for prefix in ref_xref_obsolete[agr]:
-    #         for identifier in ref_xref_obsolete[agr][prefix]:
-    #             logger.info("agr %s obsolete prefix %s ident %s", agr, prefix, identifier)
+    #         logger.info("agr %s obsolete prefix %s ident %s", agr, prefix, ref_xref_obsolete[agr][prefix])
 
-    # input_file = 'sanitized'	# set to sanitized to check after posting references to database, that all references are accounted for
-    input_file = 'dqm'
-    files_to_process = dict()
-    if input_file == 'sanitized':
-        files_to_process['sanitized'] = []
-        json_storage_path = base_path + 'sanitized_reference_json/'
-        dir_list = listdir(json_storage_path)
-        for filename in dir_list:
-            # logger.info("%s", filename)
-            if 'REFERENCE_' in filename and '.REFERENCE_' not in filename:
-                # logger.info("%s", filename)
-                files_to_process['sanitized'].append(json_storage_path + filename)
-    else:
-        for mod in mods:
-            if mod not in files_to_process:
-                files_to_process[mod] = []
-            filename = base_path + input_path + '/REFERENCE_' + mod + '.json'
-            files_to_process[mod].append(filename)
+    pmids_not_found = load_pmids_not_found()
+
+    # make this True for live changes
+#     live_changes = False
+# PUT THIS BACK
+    live_changes = True
 
     dqm = dict()
     for mod in mods:
@@ -270,150 +257,190 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     report_file_path = base_path + 'report_files/'
     if not path.exists(report_file_path):
         makedirs(report_file_path)
-    for mod in mods:
-        filename = report_file_path + mod + '_updates'
-        fh_mod_report.setdefault(mod, open(filename, 'w'))
-    sanitized_report_filename = base_path + 'report_files/sanitized_updates'
-    fh_mod_report.setdefault('sanitized', open(sanitized_report_filename, 'w'))
 
     xref_to_pages = dict()
-    for mod in sorted(files_to_process):
+    # for mod in sorted(files_to_process):
+    for mod in sorted(mods):
+        filename = report_file_path + mod + '_updates'
+        fh_mod_report.setdefault(mod, open(filename, 'w'))
         references_to_create = []
-        for filename in sorted(files_to_process[mod]):
-            logger.info(filename)
-            dqm_data = dict()
-            with open(filename, 'r') as f:
-                dqm_data = json.load(f)
-                f.close()
-            entries = dqm_data
-            if input_file == 'dqm':
-                entries = dqm_data['data']
-            # get rid of counter
-            counter = 0
-            # max_counter = 1
-            max_counter = 100000000
-            for entry in entries:
-                counter = counter + 1
-                if counter > max_counter:
-                    break
 
-                # inject the mod corpus association data because if it came from that mod dqm file it should have this entry
-                mod_corpus_associations = [{"mod_abbreviation": mod, "mod_corpus_sort_source": "dqm_files", "corpus": True}]
-                entry['mod_corpus_associations'] = mod_corpus_associations
+        logger.info("loading old md5")
+        old_md5dict = load_s3_md5data([mod])
 
-                # for debugging changes
-                # dqm_entry_text = json.dumps(entry, indent=4)
-                # print('dqm ')
-                # print(dqm_entry_text)
+#         print("old_md5dict")
+#         db_entry_text = json.dumps(old_md5dict, indent=4, sort_keys=True)
+#         print(db_entry_text)
 
-                dqm_xrefs = dict()
-                xrefs = []
-                agrs_found = set()
-                if 'crossReferences' in entry:
-                    for cross_reference in entry['crossReferences']:
-                        if "id" in cross_reference:
-                            xrefs.append(cross_reference["id"])
-                            # logger.info("append xref %s", cross_reference["id"])
-                            if "pages" in cross_reference:
-                                xref_to_pages[cross_reference["id"]] = cross_reference["pages"]
-                if entry['primaryId'] not in xrefs:
-                    xrefs.append(entry['primaryId'])
-                    # logger.info("append primaryId %s", entry['primaryId'])
-                for cross_reference in xrefs:
-                    prefix, identifier, separator = split_identifier(cross_reference)
-                    if prefix not in dqm_xrefs:
-                        dqm_xrefs[prefix] = set()
-                    dqm_xrefs[prefix].add(identifier)
-                    if prefix in xref_ref:
-                        if identifier in xref_ref[prefix]:
-                            agr = xref_ref[prefix][identifier]
-                            agrs_found.add(agr)
-                    if prefix in mods:
-                        dqm[prefix].add(identifier)
+        logger.info("generating new md5")
+        new_md5dict = generate_new_md5(input_path, [mod])
 
-                flag_dqm_prefix_fail = False
+        filename = base_path + input_path + '/REFERENCE_' + mod + '.json'
+        logger.info(f"Processing {filename}")
+        dqm_data = dict()
+        with open(filename, 'r') as f:
+            dqm_data = json.load(f)
+            f.close()
+        entries = dqm_data['data']
+        # not sure why this was getting assigned, should always come from dqms
+        # entries = dqm_data
+        # if input_file == 'dqm':
+        #     entries = dqm_data['data']
+        # get rid of counter
+        counter = 0
+        # max_counter = 1
+        max_counter = 100000000
+#         max_counter = 10
+        for entry in entries:
+            counter = counter + 1
+            if counter > max_counter:
+                break
+
+            if 'primaryId' not in entry or entry['primaryId'] is None:
+                continue
+            primary_id = entry['primaryId']
+            old_md5 = 'none'
+            if mod in old_md5dict and primary_id in old_md5dict[mod] and old_md5dict[mod][primary_id] is not None:
+                old_md5 = old_md5dict[mod][primary_id]
+            new_md5 = 'none'
+            if mod in new_md5dict and primary_id in new_md5dict[mod] and new_md5dict[mod][primary_id] is not None:
+                new_md5 = new_md5dict[mod][primary_id]
+#             logger.info(f"primaryId {primary_id} old {old_md5}")
+#             logger.info(f"primaryId {primary_id} new {new_md5}")
+
+            if old_md5 == new_md5:
+                continue
+
+            if old_md5 == 'none':
+                logger.info(f"primaryId {primary_id} is new for {mod} but could pre-exist for other mod")
+            elif new_md5 == 'none':
+                # logger.info(f"{primary_id} in previous dqm submission, not in current")
+                fh_mod_report[mod].write(f"{primary_id} in previous dqm submission, not in current")
+            else:
+                logger.info(f"primaryId {primary_id} has changed")
+
+            # inject the mod corpus association data because if it came from that mod dqm file it should have this entry
+            mod_corpus_associations = [{"mod_abbreviation": mod, "mod_corpus_sort_source": "dqm_files", "corpus": True}]
+            entry['mod_corpus_associations'] = mod_corpus_associations
+
+            # for debugging changes
+            # dqm_entry_text = json.dumps(entry, indent=4)
+            # print('dqm ')
+            # print(dqm_entry_text)
+
+            dqm_xrefs = dict()
+            xrefs = []
+            agrs_found = set()
+            if 'crossReferences' in entry:
+                for cross_reference in entry['crossReferences']:
+                    if "id" in cross_reference:
+                        xrefs.append(cross_reference["id"])
+                        # logger.info("append xref %s", cross_reference["id"])
+                        if "pages" in cross_reference:
+                            xref_to_pages[cross_reference["id"]] = cross_reference["pages"]
+            if entry['primaryId'] not in xrefs:
+                xrefs.append(entry['primaryId'])
+                # logger.info("append primaryId %s", entry['primaryId'])
+            for cross_reference in xrefs:
+                prefix, identifier, separator = split_identifier(cross_reference, True)
+                if prefix not in dqm_xrefs:
+                    dqm_xrefs[prefix] = set()
+                dqm_xrefs[prefix].add(identifier)
+                if prefix in xref_ref:
+                    if identifier in xref_ref[prefix]:
+                        agr = xref_ref[prefix][identifier]
+                        agrs_found.add(agr)
+                if prefix in mods:
+                    dqm[prefix].add(identifier)
+
+            flag_dqm_prefix_fail = False
+            for prefix in dqm_xrefs:
+                if len(dqm_xrefs[prefix]) > 1:
+                    flag_dqm_prefix_fail = True
+                    # logger.info("Notify curator, filename %s, dqm %s has too many identifiers for %s %s", filename, entry['primaryId'], prefix, ', '.join(sorted(dqm_xrefs[prefix])))
+                    fh_mod_report[mod].write("dqm %s has too many identifiers for %s %s\n" % (entry['primaryId'], prefix, ', '.join(sorted(dqm_xrefs[prefix]))))
+            if flag_dqm_prefix_fail:
+                continue
+
+            if len(agrs_found) == 0:
+                # logger.info("Action : Create New mod %s", entry['primaryId'])
+                for key in dqm_keys_to_remove:
+                    if key in entry:
+                        del entry[key]
+                references_to_create.append(entry)
+                logger.info(f"create {entry['primaryId']}")
+            elif len(agrs_found) > 1:
+                # logger.info("Notify curator, dqm %s too many matches %s", entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found))))
+                fh_mod_report[mod].write("dqm %s too many matches %s\n" % (entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found)))))
+            elif len(agrs_found) == 1:
+                # logger.info("Normal %s", entry['primaryId'])
+                agr = agrs_found.pop()
+                agr_url = url_ref_curie_prefix + agr
+                flag_aggregate_biblio = False
+                flag_aggregate_mod_specific = False
                 for prefix in dqm_xrefs:
-                    if len(dqm_xrefs[prefix]) > 1:
-                        flag_dqm_prefix_fail = True
-                        # logger.info("Notify curator, filename %s, dqm %s has too many identifiers for %s %s", filename, entry['primaryId'], prefix, ', '.join(sorted(dqm_xrefs[prefix])))
-                        fh_mod_report[mod].write("dqm %s has too many identifiers for %s %s\n" % (entry['primaryId'], prefix, ', '.join(sorted(dqm_xrefs[prefix]))))
-                if flag_dqm_prefix_fail:
-                    continue
+                    for ident in dqm_xrefs[prefix]:
+                        # logger.info("looking for %s %s", prefix, ident)
+                        dqm_xref_valid_found = False
+                        agr_had_prefix = False
+                        if agr in ref_xref_valid:
+                            # logger.info("agr found %s", agr)
+                            if prefix == 'PMID' and ident in pmids_not_found:
+                                # logger.info("Notify curator dqm has PMID not in PubMed %s %s in agr %s", prefix, ident, agr_url)
+                                fh_mod_report[mod].write("dqm has PMID not in PubMed %s %s in agr %s\n" % (prefix, ident, agr_url))
+                            elif prefix in ref_xref_valid[agr]:
+                                agr_had_prefix = True
+                                # logger.info("agr prefix found %s %s", agr, prefix)
+                                if ident.lower() == ref_xref_valid[agr][prefix].lower():
+                                    # logger.info("agr prefix ident found %s %s %s", agr, prefix, ident)
+                                    dqm_xref_valid_found = True
+                                    if prefix == 'PMID':
+                                        flag_aggregate_mod_specific = True
+                                        # logger.info("valid PMID xref %s %s to update agr %s", prefix, ident, agr)
+                                    if prefix in mods:
+                                        flag_aggregate_biblio = True
+                                        # logger.info("valid MOD xref %s %s to update agr %s", prefix, ident, agr)
+                        dqm_xref_obsolete_found = False
+                        if agr in ref_xref_obsolete:
+                            if prefix in ref_xref_obsolete[agr]:
+                                if ident.lower() in ref_xref_obsolete[agr][prefix]:
+                                    dqm_xref_obsolete_found = True
+                        if dqm_xref_obsolete_found:
+                            # logger.info("Notify curator dqm has obsolete xref %s %s in agr %s", prefix, ident, agr_url)
+                            fh_mod_report[mod].write("dqm has obsolete xref %s %s in agr %s\n" % (prefix, ident, agr_url))
+                        if not dqm_xref_valid_found:
+                            if agr_had_prefix:
+                                # logger.info("Notify curator, %s had %s %s, dqm submitted %s", agr_url, prefix, ref_xref_valid[agr][prefix], ident)
+                                fh_mod_report[mod].write("%s had %s %s, dqm submitted %s\n" % (agr_url, prefix, ref_xref_valid[agr][prefix], ident))
+                            elif not dqm_xref_obsolete_found:
+                                if agr not in xrefs_to_add:
+                                    xrefs_to_add[agr] = dict()
+                                if prefix not in xrefs_to_add[agr]:
+                                    xrefs_to_add[agr][prefix] = dict()
+                                if ident not in xrefs_to_add[agr][prefix]:
+                                    xrefs_to_add[agr][prefix][ident] = set()
+                                xrefs_to_add[agr][prefix][ident].add(filename)
+                                # logger.info("Action : Add dqm xref %s %s to agr %s", prefix, ident, agr)  # dealt with below, not needed
 
-                if len(agrs_found) == 0:
-                    # logger.info("Action : Create New mod %s", entry['primaryId'])
-                    references_to_create.append(entry)
-                elif len(agrs_found) > 1:
-                    # logger.info("Notify curator, dqm %s too many matches %s", entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found))))
-                    fh_mod_report[mod].write("dqm %s too many matches %s\n" % (entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found)))))
-                elif len(agrs_found) == 1:
-                    # logger.info("Normal %s", entry['primaryId'])
-                    agr = agrs_found.pop()
-                    agr_url = url_ref_curie_prefix + agr
-                    flag_aggregate_biblio = False
-                    flag_aggregate_mod_specific = False
-                    for prefix in dqm_xrefs:
-                        for ident in dqm_xrefs[prefix]:
-                            # logger.info("looking for %s %s", prefix, ident)
-                            dqm_xref_valid_found = False
-                            agr_had_prefix = False
-                            if agr in ref_xref_valid:
-                                # logger.info("agr found %s", agr)
-                                if prefix == 'PMID' and ident in pmids_not_found:
-                                    # logger.info("Notify curator dqm has PMID not in PubMed %s %s in agr %s", prefix, ident, agr_url)
-                                    fh_mod_report[mod].write("dqm has PMID not in PubMed %s %s in agr %s\n" % (prefix, ident, agr_url))
-                                elif prefix in ref_xref_valid[agr]:
-                                    agr_had_prefix = True
-                                    # logger.info("agr prefix found %s %s", agr, prefix)
-                                    if ident.lower() == ref_xref_valid[agr][prefix].lower():
-                                        # logger.info("agr prefix ident found %s %s %s", agr, prefix, ident)
-                                        dqm_xref_valid_found = True
-                                        if prefix == 'PMID':
-                                            flag_aggregate_mod_specific = True
-                                            # logger.info("valid PMID xref %s %s to update agr %s", prefix, ident, agr)
-                                        if prefix in mods:
-                                            flag_aggregate_biblio = True
-                                            # logger.info("valid MOD xref %s %s to update agr %s", prefix, ident, agr)
-                            dqm_xref_obsolete_found = False
-                            if agr in ref_xref_obsolete:
-                                if prefix in ref_xref_obsolete[agr]:
-                                    if ident.lower() in ref_xref_obsolete[agr][prefix]:
-                                        dqm_xref_obsolete_found = True
-                            if dqm_xref_obsolete_found:
-                                # logger.info("Notify curator dqm has obsolete xref %s %s in agr %s", prefix, ident, agr_url)
-                                fh_mod_report[mod].write("dqm has obsolete xref %s %s in agr %s\n" % (prefix, ident, agr_url))
-                            if not dqm_xref_valid_found:
-                                if agr_had_prefix:
-                                    # logger.info("Notify curator, %s had %s %s, dqm submitted %s", agr_url, prefix, ref_xref_valid[agr][prefix], ident)
-                                    fh_mod_report[mod].write("%s had %s %s, dqm submitted %s\n" % (agr_url, prefix, ref_xref_valid[agr][prefix], ident))
-                                elif not dqm_xref_obsolete_found:
-                                    if agr not in xrefs_to_add:
-                                        xrefs_to_add[agr] = dict()
-                                    if prefix not in xrefs_to_add[agr]:
-                                        xrefs_to_add[agr][prefix] = dict()
-                                    if ident not in xrefs_to_add[agr][prefix]:
-                                        xrefs_to_add[agr][prefix][ident] = set()
-                                    xrefs_to_add[agr][prefix][ident].add(filename)
-                                    # logger.info("Action : Add dqm xref %s %s to agr %s", prefix, ident, agr)  # dealt with below, not needed
-
-                    if flag_aggregate_mod_specific:
-                        # logger.info("Action : aggregate PMID mod data %s", agr)
-                        aggregate_mod_specific_fields_only[agr] = entry
-                    elif flag_aggregate_biblio:
-                        if 'keywords' in entry:
-                            entry = clean_up_keywords(mod, entry)
-                        # logger.info("Action : aggregate MOD biblio data %s", agr)
-                        aggregate_mod_biblio_all[agr] = entry
-                        pass
-                    # check if dqm has no pmid/doi, but pmid/doi in DB
-                    if 'PMID' not in dqm_xrefs:
-                        if 'PMID' in ref_xref_valid[agr]:
-                            # logger.info("Notify curator %s has PMID %s, dqm %s does not", agr, ref_xref_valid[agr]['PMID'], entry['primaryId'])
-                            fh_mod_report[mod].write("%s has PMID %s, dqm %s does not\n" % (agr_url, ref_xref_valid[agr]['PMID'], entry['primaryId']))
-                    if 'DOI' not in dqm_xrefs:
-                        if 'DOI' in ref_xref_valid[agr]:
-                            # logger.info("Notify curator %s has DOI %s, dqm %s does not", agr, ref_xref_valid[agr]['DOI'], entry['primaryId'])
-                            fh_mod_report[mod].write("%s has DOI %s, dqm %s does not\n" % (agr_url, ref_xref_valid[agr]['DOI'], entry['primaryId']))
+                if flag_aggregate_mod_specific:
+                    # logger.info("Action : aggregate PMID mod data %s", agr)
+                    aggregate_mod_specific_fields_only[agr] = entry
+                elif flag_aggregate_biblio:
+                    # ignore keywords after initial 2021 Nov load
+                    # if 'keywords' in entry:
+                    #     entry = clean_up_keywords(mod, entry)
+                    # logger.info("Action : aggregate MOD biblio data %s", agr)
+                    aggregate_mod_biblio_all[agr] = entry
+                    pass
+                # check if dqm has no pmid/doi, but pmid/doi in DB
+                if 'PMID' not in dqm_xrefs:
+                    if 'PMID' in ref_xref_valid[agr]:
+                        # logger.info("Notify curator %s has PMID %s, dqm %s does not", agr, ref_xref_valid[agr]['PMID'], entry['primaryId'])
+                        fh_mod_report[mod].write("%s has PMID %s, dqm %s does not\n" % (agr_url, ref_xref_valid[agr]['PMID'], entry['primaryId']))
+                if 'DOI' not in dqm_xrefs:
+                    if 'DOI' in ref_xref_valid[agr]:
+                        # logger.info("Notify curator %s has DOI %s, dqm %s does not", agr, ref_xref_valid[agr]['DOI'], entry['primaryId'])
+                        fh_mod_report[mod].write("%s has DOI %s, dqm %s does not\n" % (agr_url, ref_xref_valid[agr]['DOI'], entry['primaryId']))
 
         save_new_references_to_file(references_to_create, mod)
 
@@ -428,6 +455,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     if prefix in dqm:
                         if identifier in dqm[prefix]:
                             ident_found = True
+                    # FIX, these do not exclude entries that have been skipped because the md5 didn't change,
+                    # maybe this doesn't make sense to output anymore
                     if not ident_found:
                         # logger.info("Notify curator %s %s %s not in dqm submission", agr_url, prefix, identifier)
                         fh_mod_report[mod].write("%s %s %s not in dqm submission\n" % (agr_url, prefix, identifier))
@@ -452,7 +481,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                         if xref_id in xref_to_pages:
                             new_entry["pages"] = xref_to_pages[xref_id]
                         if live_changes:
-                            logger.info("add validated dqm xref %s s to agr %s", xref_id, agr)
+                            logger.info(f"add validated dqm xref {xref_id} to agr {agr}")
                             url = 'http://' + api_server + ':' + api_port + '/cross_reference/'
                             headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
 
@@ -460,9 +489,84 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
         headers = update_db_entries(headers, aggregate_mod_specific_fields_only, live_changes, fh_mod_report[mod], 'mod_specific_fields_only')
         headers = update_db_entries(headers, aggregate_mod_biblio_all, live_changes, fh_mod_report[mod], 'mod_biblio_all')
 
-    for mod in fh_mod_report:
+        output_directory_name = 'process_dqm_update_' + mod
+        output_directory_path = base_path + output_directory_name
+        if not path.exists(output_directory_path):
+            makedirs(output_directory_path)
+        if not path.exists(output_directory_path + '/inputs'):
+            makedirs(output_directory_path + '/inputs')
+
+        # get list of pmids to process from dqm papers filtered down to references_to_create
+        # equivalent to
+        # python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -p
+        generate_pmid_data('dqm_data_updates_new/', output_directory_name + '/', mod)
+
+        # read list of pmids to process from file
+        pmids_wanted = read_pmid_file(output_directory_name + '/inputs/alliance_pmids')
+
+        # download xml from pubmed into base_path pubmed_xml/
+        # equivalent to
+        # python3 get_pubmed_xml.py -f inputs/alliance_pmids
+        download_pubmed_xml(pmids_wanted)
+
+        # convert xml from base_path pubmed_xml/ to base_path pubmed_json/
+        # equivalent to
+        # python3 xml_to_json.py -f inputs/alliance_pmids
+        generate_json(pmids_wanted, [])
+
+        # if wanting to recursively download comments and corrections, which Ceri does not want
+        # untested equivalent to
+        # python3 process_many_pmids_to_json.py -s -f inputs/alliance_pmids > logs/log_process_many_pmids_to_json_update_create
+        # download_and_convert_pmids(pmids_wanted, True)
+
+        # aggregate dqm data with pubmed data from dqm_data_updates_new/ into <output_directory_name>/sanitized_reference_json/REFERENCE_PUBM[EO]D_<mod>_1.json
+        # equivalent to
+        # python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -m all
+        aggregate_dqm_with_pubmed('dqm_data_updates_new/', mod, output_directory_name + '/')
+
+        # if wanting to process the pmids from recursive download of comments and corrections, which Ceri does not want
+        # untested equivalent to
+        # python3 parse_pubmed_json_reference.py -f inputs/pubmed_only_pmids > logs/log_parse_pubmed_json_reference_update_create
+        # sanitize_pubmed_json_list(pmids_wanted, [])
+
+        # post generated json to api
+        # equivalent to
+        # python3 post_reference_to_api.py > logs/log_post_reference_to_api_update_create
+        json_filepath = base_path + 'process_dqm_update_' + mod + '/sanitized_reference_json/REFERENCE_PUBMED_' + mod + '_1.json'
+        process_results = post_references(json_filepath, 'yes_file_check')
+        logger.info(process_results)
+        json_filepath = base_path + 'process_dqm_update_' + mod + '/sanitized_reference_json/REFERENCE_PUBMOD_' + mod + '_1.json'
+        process_results = post_references(json_filepath, 'yes_file_check')
+        logger.info(process_results)
+
+        # post generated json to api
+        # equivalent to
+        # python3 post_comments_corrections_to_api.py -f inputs/alliance_pmids
+        # but if doing recursive should take inputs/all_pmids instead of inputs/alliance_pmids
+        post_comments_corrections(pmids_wanted)
+
+        # update s3 md5sum only if prod, to test develop copy file from s3 prod to s3 develop
+        # https://s3.console.aws.amazon.com/s3/buckets/agr-literature?prefix=develop%2Freference%2Fmetadata%2Fmd5sum%2F&region=us-east-1&showversions=false#
+        env_state = environ.get('ENV_STATE', 'prod')
+        if env_state == 'build':
+            merge_md5dict = {}
+            merge_md5dict[mod] = {**old_md5dict[mod], **new_md5dict[mod]}
+            save_s3_md5data(merge_md5dict, [mod])
+
         fh_mod_report[mod].close()
-    fh_mod_report['sanitized'].close()
+
+
+def read_pmid_file(local_path):
+    pmids_wanted = []
+    base_path = environ.get('XML_PATH')
+    file = base_path + local_path
+    logger.info(f"Processing file input from {file}")
+    with open(file, 'r') as fp:
+        pmid = fp.readline()
+        while pmid:
+            pmids_wanted.append(pmid.rstrip())
+            pmid = fp.readline()
+    return pmids_wanted
 
 
 def save_new_references_to_file(references_to_create, mod):
@@ -472,6 +576,7 @@ def save_new_references_to_file(references_to_create, mod):
         makedirs(json_storage_path)
     dqm_data = dict()
     dqm_data['data'] = references_to_create
+    # dqm_data['data'] = references_to_create[0:100]	# sample for less papers
     json_filename = json_storage_path + 'REFERENCE_' + mod + '.json'
     write_json(json_filename, dqm_data)
 
@@ -518,8 +623,10 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     # remap_keys['resourceAbbreviation'] = 'resource_title'
 
     # MODReferenceTypes and allianceCategory cannot be auto converted from camel to snake, so have two lists
-    # fields_simple_snake = ['title', 'category', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issue_name', 'date_published', 'date_last_modified']
-    fields_simple_camel = ['title', 'allianceCategory', 'volume', 'pageRange', 'language', 'abstract', 'publisher', 'issueName', 'datePublished', 'dateLastModified']
+    # fields_simple_snake = ['title', 'category', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issue_name', 'issue_date', 'date_published', 'date_last_modified']
+    # fields_simple_camel = ['title', 'allianceCategory', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issueName', 'issueDate', 'datePublished', 'dateLastModified']
+    # removed some fields that Ceri and Kimberly don't want to update anymore  2022 04 25
+    fields_simple_camel = ['title', 'allianceCategory', 'volume', 'pageRange', 'language', 'abstract', 'publisher', 'issueName', 'datePublished']
     # there's no API to update tags
 
     api_port = environ.get('API_PORT')
@@ -553,7 +660,8 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     for agr in entries:
         dqm_entry = entries[agr]
         # to test a particular reference curie
-        # if agr != 'AGR:AGR-Reference-0000000013':
+        # PUT THIS BACK
+        # if agr != 'AGR:AGR-Reference-0000658372':
         #     continue
 
         if retrieve_method == 'api_one_by_one':
@@ -569,6 +677,7 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
         else:
             continue
 
+        # to debug
         # db_entry_text = json.dumps(db_entry, indent=4, sort_keys=True)
         # print('db ')
         # print(db_entry_text)
@@ -602,12 +711,15 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
                 if field_snake in db_entry:
                     db_value = db_entry[field_snake]
                 if dqm_value != db_value:
-                    logger.info("patch %s field %s from db %s to dqm %s", agr, field_snake, db_value, dqm_value)
+                    logger.info(f"patch {agr} {dqm_entry['primaryId']} field {field_snake} from db {db_value} to dqm {dqm_value}")
                     update_json[field_snake] = dqm_value
-            keywords_changed = compare_keywords(db_entry, dqm_entry)
-            if keywords_changed[0]:
-                logger.info("patch %s field keywords from db %s to dqm %s", agr, keywords_changed[2], keywords_changed[1])
-                update_json['keywords'] = keywords_changed[1]
+
+            # ignore keywords after initial 2021 Nov load
+            # keywords_changed = compare_keywords(db_entry, dqm_entry)
+            # if keywords_changed[0]:
+            #     logger.info("patch %s field keywords from db %s to dqm %s", agr, keywords_changed[2], keywords_changed[1])
+            #     update_json['keywords'] = keywords_changed[1]
+
             authors_changed = compare_authors_or_editors(db_entry, dqm_entry, 'authors')
             if authors_changed[0]:
                 # live_changes = True
@@ -653,22 +765,23 @@ def compare_resource(db_entry, dqm_entry):
         return True, dqm_resource_abbreviation, db_resource_title
 
 
-def compare_keywords(db_entry, dqm_entry):
-    # e.g. ZFIN:ZDB-PUB-150828-18
-    db_keywords = []
-    dqm_keywords = []
-    if 'keywords' in db_entry:
-        if db_entry['keywords'] is not None:
-            db_keywords = db_entry['keywords']
-    lower_db_keywords = [i.lower() for i in db_keywords]
-    if 'keywords' in dqm_entry:
-        if dqm_entry['keywords'] is not None:
-            dqm_keywords = dqm_entry['keywords']
-    lower_dqm_keywords = [i.lower() for i in dqm_keywords]
-    if set(lower_db_keywords) == set(lower_dqm_keywords):
-        return False, None, None
-    else:
-        return True, dqm_keywords, db_keywords
+# keywords only from ZFIN old papers, will not need in the future
+# def compare_keywords(db_entry, dqm_entry):
+#     # e.g. ZFIN:ZDB-PUB-150828-18
+#     db_keywords = []
+#     dqm_keywords = []
+#     if 'keywords' in db_entry:
+#         if db_entry['keywords'] is not None:
+#             db_keywords = db_entry['keywords']
+#     lower_db_keywords = [i.lower() for i in db_keywords]
+#     if 'keywords' in dqm_entry:
+#         if dqm_entry['keywords'] is not None:
+#             dqm_keywords = dqm_entry['keywords']
+#     lower_dqm_keywords = [i.lower() for i in dqm_keywords]
+#     if set(lower_db_keywords) == set(lower_dqm_keywords):
+#         return False, None, None
+#     else:
+#         return True, dqm_keywords, db_keywords
 
 
 # always update mod_reference_types and mod_corpus_associations, whether 'mod_specific_fields_only' or 'mod_biblio_all'
@@ -679,23 +792,33 @@ def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):
     # db_entry_text = json.dumps(db_entry, indent=4, sort_keys=True)
     # print(db_entry_text)
 
-    db_mod_corpus_association = set()
+    db_mod_corpus_association = {}
     if 'mod_corpus_association' in db_entry and db_entry['mod_corpus_association'] is not None:
         for db_mca_entry in db_entry['mod_corpus_association']:
             if 'mod' in db_mca_entry and db_mca_entry['mod'] is not None:
                 if 'abbreviation' in db_mca_entry['mod'] and db_mca_entry['mod']['abbreviation'] is not None:
-                    db_mod_corpus_association.add(db_mca_entry['mod']['abbreviation'])
+                    mod = db_mca_entry['mod']['abbreviation']
+                    if mod not in db_mod_corpus_association:
+                        db_mod_corpus_association[mod] = {}
+                    db_mod_corpus_association[mod]['id'] = db_mca_entry['mod_corpus_association_id']
+                    db_mod_corpus_association[mod]['corpus'] = db_mca_entry['corpus']
     # logger.info(agr)
     # logger.info(db_mod_corpus_association)
     if 'mod_corpus_associations' in dqm_entry:
         for dqm_mca_entry in dqm_entry['mod_corpus_associations']:
             if 'mod_abbreviation' in dqm_mca_entry and dqm_mca_entry['mod_abbreviation'] is not None:
-                if dqm_mca_entry['mod_abbreviation'] not in db_mod_corpus_association:
-                    dqm_mca_entry['reference_curie'] = agr
-                    logger.info("Action : add mod corpus association for %s to %s", dqm_mca_entry['mod_abbreviation'], agr)
+                mod = dqm_mca_entry['mod_abbreviation']
+                dqm_mca_entry['reference_curie'] = agr
+                if mod not in db_mod_corpus_association:
+                    logger.info(f"Action : add mod corpus association for {mod} to {agr}")
                     logger.info(dqm_mca_entry)
-                    url = 'http://' + api_server + ':' + api_port + '/reference/mod_corpus_association/'
-                    headers = generic_api_post(live_changes, url, headers, dqm_mca_entry, agr, None, None)
+                    mca_post_url = 'http://' + api_server + ':' + api_port + '/reference/mod_corpus_association/'
+                    headers = generic_api_post(live_changes, mca_post_url, headers, dqm_mca_entry, agr, None, None)
+                elif dqm_mca_entry['corpus'] != db_mod_corpus_association[mod]['corpus']:
+                    logger.info(f"Action : update existing mod corpus association for {db_mod_corpus_association[mod]['id']} to {dqm_mca_entry}")
+                    mca_patch_url = 'http://' + api_server + ':' + api_port + '/reference/mod_corpus_association/' + str(db_mod_corpus_association[mod]['id'])
+                    logger.info(mca_patch_url)
+                    headers = generic_api_patch(live_changes, mca_patch_url, headers, dqm_mca_entry, str(db_mod_corpus_association[mod]['id']), None, None)
 
     dqm_mod_ref_types = []
     if 'MODReferenceTypes' in dqm_entry:
@@ -820,6 +943,8 @@ if __name__ == "__main__":
     args = vars(parser.parse_args())
 
     logger.info("starting sort_dqm_json_reference_updates.py")
+
+#     test_ref_xref()
 
     if args['file']:
         if args['mod']:

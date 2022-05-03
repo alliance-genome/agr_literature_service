@@ -49,7 +49,7 @@ def split_identifier(identifier, ignore_error=False):
     return prefix, identifier_processed, separator
 
 
-def load_ref_xref(datatype):
+def load_ref_xref_api_flatfile(datatype):
     """
     datatype can be reference or resource, generate mappings of their curies to their cross_reference curies
 
@@ -63,7 +63,7 @@ def load_ref_xref(datatype):
     xref_ref = dict()
     base_path = environ.get('XML_PATH')
     datatype_primary_id_to_curie_file = base_path + datatype + '_curie_to_xref'
-    print("load_ref_xref: Loading {}".format(datatype_primary_id_to_curie_file))
+    print("load_ref_xref_api_flatfile: Loading {}".format(datatype_primary_id_to_curie_file))
     if path.isfile(datatype_primary_id_to_curie_file):
         with open(datatype_primary_id_to_curie_file, 'r') as read_fh:
             for line in read_fh:
@@ -71,7 +71,7 @@ def load_ref_xref(datatype):
                 agr = line_data[0]
                 xref = line_data[1]
                 status = line_data[2]
-                prefix, identifier, separator = split_identifier(xref)
+                prefix, identifier, separator = split_identifier(xref, True)
                 if status == 'valid':
                     if agr not in ref_xref_valid:
                         ref_xref_valid[agr] = dict()

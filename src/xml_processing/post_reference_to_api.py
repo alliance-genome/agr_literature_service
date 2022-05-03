@@ -6,11 +6,12 @@ import logging
 import logging.config
 import re
 import sys
-from os import environ, listdir
-# from os path
+from os import environ, listdir, path
 
-from helper_file_processing import (generate_cross_references_file,
-                                    load_ref_xref, split_identifier)
+from helper_sqlalchemy import sqlalchemy_load_ref_xref
+# from helper_file_processing import (generate_cross_references_file,
+#                                     load_ref_xref_api_flatfile)
+from helper_file_processing import split_identifier
 from helper_post_to_api import (generate_headers, get_authentication_token,
                                 process_api_request, update_token)
 
@@ -91,7 +92,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     else:
         files_to_process.append(input_file)
 
-    keys_to_remove = {'issue_date', 'citation', 'tags', 'nlm', 'primaryId', 'modResources', 'resourceAbbreviation'}
+    keys_to_remove = {'tags', 'issueDate', 'dateLastModified', 'citation', 'nlm', 'primaryId', 'modResources', 'resourceAbbreviation'}
     remap_keys = dict()
     remap_keys['datePublished'] = 'date_published'
     remap_keys['dateArrivedInPubmed'] = 'date_arrived_in_pubmed'
@@ -173,14 +174,16 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     #                     already_processed_primary_id.add(line_data[0].rstrip())
     #             read_fh.close
 
+    resource_to_curie = dict()
     if check_file_flag == 'no_file_check':
         xref_ref = dict()
     else:
-        generate_cross_references_file('resource')   # this updates from resources in the database, and takes 4 seconds. if updating this script, comment it out after running it once
-        generate_cross_references_file('reference')   # this updates from references in the database, and takes 88 seconds. if updating this script, comment it out after running it once
+        # sqlalchemy load is much faster than api load
+        # generate_cross_references_file('resource')   # this updates from resources in the database, and takes 4 seconds. if updating this script, comment it out after running it once
+        # generate_cross_references_file('reference')   # this updates from references in the database, and takes 88 seconds. if updating this script, comment it out after running it once
+        # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref_api_flatfile('resource')
 
-        xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('resource')
-        resource_to_curie = dict()
+        xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
         for prefix in xref_ref:
             for identifier in xref_ref[prefix]:
                 xref_curie = prefix + ':' + identifier
@@ -195,7 +198,8 @@ def post_references(input_file, check_file_flag):      # noqa: C901
         #                 resource_to_curie[line_data[0]] = line_data[1]
         #         read_fh.close
 
-        xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+        # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref_api_flatfile('reference')
+        xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
 
     process_results = []
     with open(reference_primary_id_to_curie_file, 'a') as mapping_fh, open(errors_in_posting_reference_file, 'a') as error_fh:
@@ -204,6 +208,8 @@ def post_references(input_file, check_file_flag):      # noqa: C901
             # if filepath != json_storage_path + 'REFERENCE_PUBMED_WB_1.json':
             #     continue
             # logger.info("opening file\t%s", filepath)
+            if not path.exists(filepath):
+                continue
             f = open(filepath)
             reference_data = json.load(f)
             # counter = 0
@@ -295,16 +301,6 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                 # output what is sent to API after converting file data
                 # json_object = json.dumps(new_entry, indent=4)
                 # print(json_object)
-
-                # get rid of this if process_api_request works on a full run
-                # process_post_tuple = process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh)
-                # headers = process_post_tuple[0]
-                # process_text = process_post_tuple[1]
-                # process_status_code = process_post_tuple[2]
-                # process_result = dict()
-                # process_result['text'] = process_text
-                # process_result['status_code'] = process_status_code
-                # process_results.append(process_result)
 
                 api_response_tuple = process_api_request('POST', url, headers, new_entry, primary_id, None, None)
                 headers = api_response_tuple[0]

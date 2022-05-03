@@ -7,7 +7,9 @@ from os import environ
 import logging
 import logging.config
 
-from helper_file_processing import load_ref_xref, split_identifier, generate_cross_references_file
+from helper_sqlalchemy import sqlalchemy_load_ref_xref
+# from helper_file_processing import load_ref_xref_api_flatfile, generate_cross_references_file
+from helper_file_processing import split_identifier
 
 from generate_dqm_json_test_set import load_sample_json
 
@@ -69,7 +71,8 @@ def test_update_references():
 
     """
 
-    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+    # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref_api_flatfile('reference')
+    xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
     input_file = 'inputs/sample_dqm_update.json'
     sample_json = load_sample_json(input_file)
     if not sample_json:
@@ -110,7 +113,8 @@ def test_load_references():
 
     """
 
-    xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref('reference')
+    # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref_api_flatfile('reference')
+    xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
     input_file = 'inputs/sample_dqm_load.json'
     sample_json = load_sample_json(input_file)
     if not sample_json:
@@ -601,7 +605,7 @@ if __name__ == "__main__":
     logger.info("starting functional_tests.py")
 
     # run this once after data is loaded
-    generate_cross_references_file('reference')
+    # generate_cross_references_file('reference')
     test_load_references()
     test_update_references()
 
