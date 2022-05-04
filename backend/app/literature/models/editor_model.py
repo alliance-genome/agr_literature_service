@@ -30,7 +30,7 @@ class EditorModel(Base):
 
     resource_id = Column(
         Integer,
-        ForeignKey("resources.resource_id",
+        ForeignKey("resource.resource_id",
                    ondelete="CASCADE"),
         index=True
     )

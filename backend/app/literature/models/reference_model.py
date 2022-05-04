@@ -22,7 +22,7 @@ enable_versioning()
 
 
 class ReferenceModel(Base):
-    __tablename__ = "references"
+    __tablename__ = "reference"
     __versioned__: Dict = {}
 
     reference_id = Column(
@@ -60,7 +60,7 @@ class ReferenceModel(Base):
 
     merged_into_id = Column(
         Integer,
-        ForeignKey("references.reference_id")
+        ForeignKey("reference.reference_id")
     )
 
     merged_into_reference = relationship(
@@ -74,14 +74,14 @@ class ReferenceModel(Base):
 
     resource_id = Column(
         Integer,
-        ForeignKey("resources.resource_id"),
+        ForeignKey("resource.resource_id"),
         index=True,
         nullable=True
     )
 
     resource = relationship(
         "ResourceModel",
-        back_populates="references",
+        back_populates="reference",
         single_parent=True,
     )
 

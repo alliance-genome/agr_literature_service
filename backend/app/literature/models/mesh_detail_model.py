@@ -27,7 +27,7 @@ class MeshDetailModel(Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey("references.reference_id",
+        ForeignKey("reference.reference_id",
                    ondelete="CASCADE"),
         index=True
     )

@@ -28,8 +28,8 @@ if "literature-test" not in SQLALCHEMY_DATABASE_URL:
 db.execute('delete from cross_reference')
 db.execute('delete from author')
 db.execute('delete from editor')
-db.execute('delete from "references"')
-db.execute('delete from resources')
+db.execute('delete from "reference"')
+db.execute('delete from resource')
 
 
 def test_get_bad_reference():
@@ -155,6 +155,18 @@ def test_reference_large():
                 # "reference_id": "PMID:23524264"
             }
         ],
+        "mesh_terms": [
+            {
+                "heading_term": "hterm",
+                "qualifier_term": "qterm"
+            }
+        ],
+        "mod_reference_types": [
+            {
+                "reference_type": "mrt_rt",
+                "source": "mrt_s"
+            }
+        ],
         "cross_references": [
             {
                 "curie": "FB:FBrf0221304",
@@ -201,6 +213,11 @@ def test_reference_large():
     assert "citation" not in res
 
     assert res['cross_references'][0]['curie'] == 'FB:FBrf0221304'
+
+    assert res['mod_reference_types'][0]['reference_type'] == "mrt_rt"
+
+    assert res['mesh_terms'][0]['heading_term'] == "hterm"
+
     # cross references in the db?
     xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "FB:FBrf0221304").one()
     assert xref.reference.curie == 'AGR:AGR-Reference-0000000004'

@@ -30,8 +30,8 @@ db.execute('delete from mod')
 db.execute('delete from cross_reference')
 db.execute('delete from author')
 db.execute('delete from editor')
-db.execute('delete from "references"')
-db.execute('delete from resources')
+db.execute('delete from "reference"')
+db.execute('delete from resource')
 
 
 def get_ids():

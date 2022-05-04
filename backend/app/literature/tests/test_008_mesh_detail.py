@@ -18,6 +18,7 @@ db = SessionLocal()
 
 # Add tables/schema if not already there.
 Base.metadata.create_all(engine)
+mesh_id = None
 
 # Exit if this is not a test database, Exit.
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
@@ -30,16 +31,19 @@ def test_get_bad_mesh_detail():
 
 
 def test_create_mesh():
+    global mesh_id
     xml = {'reference_curie': "AGR:AGR-Reference-0000000001",
            'heading_term': "Head1",
            'qualifier_term': "Qual1"}
     md_schema = MeshDetailSchemaPost(**xml)
     res = create(db, md_schema)
-    assert res == 1
+    mesh_id = res
+    assert res > 0
 
 
 def test_show_mesh():
-    res = show(db, 1)
+    global mesh_id
+    res = show(db, mesh_id)
     assert res['heading_term'] == "Head1"
     assert res['qualifier_term'] == "Qual1"
     assert res['reference_curie'] == "AGR:AGR-Reference-0000000001"
@@ -51,20 +55,22 @@ def test_show_mesh():
 
 
 def test_patch_mesh():
+    global mesh_id
     xml = {'heading_term': "Head2",
            'qualifier_term': "Qual2",
            'reference_curie': "AGR:AGR-Reference-0000000003"}
     schema = MeshDetailSchemaUpdate(**xml)
-    res = patch(db, 1, schema)
+    res = patch(db, 2, schema)
     assert res == {"message": "updated"}
-    mesh_detail_obj = db.query(MeshDetailModel).filter(MeshDetailModel.mesh_detail_id == 1).one()
+    mesh_detail_obj = db.query(MeshDetailModel).filter(MeshDetailModel.mesh_detail_id == mesh_id).one()
     assert mesh_detail_obj.heading_term == "Head2"
     assert mesh_detail_obj.reference.curie == "AGR:AGR-Reference-0000000003"
     assert mesh_detail_obj.qualifier_term == "Qual2"
 
 
 def test_changesets():
-    res = show_changesets(db, 1)
+    global mesh_id
+    res = show_changesets(db, mesh_id)
 
     # reference_curie : None -> 1 -> 3
     # heading_term            : None -> Head1 -> Head2
@@ -82,12 +88,13 @@ def test_changesets():
 
 
 def test_destroy_mesh_detail():
-    destroy(db, 1)
+    global mesh_id
+    destroy(db, mesh_id)
 
     # It should now give an error on lookup.
     with pytest.raises(HTTPException):
-        show(db, 1)
+        show(db, mesh_id)
 
     # Deleting it again should give an error as the lookup will fail.
     with pytest.raises(HTTPException):
-        destroy(db, 1)
+        destroy(db, mesh_id)

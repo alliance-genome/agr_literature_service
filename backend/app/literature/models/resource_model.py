@@ -21,7 +21,7 @@ enable_versioning()
 
 class ResourceModel(Base):
     __versioned__: Dict = {}
-    __tablename__ = "resources"
+    __tablename__ = "resource"
 
     resource_id = Column(
         Integer,
@@ -44,7 +44,7 @@ class ResourceModel(Base):
         passive_deletes=True
     )
 
-    references = relationship(
+    reference = relationship(
         "ReferenceModel",
         back_populates="resource"
     )
