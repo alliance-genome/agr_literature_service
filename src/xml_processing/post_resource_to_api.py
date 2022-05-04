@@ -3,7 +3,7 @@ import argparse
 import json
 import logging
 import logging.config
-from os import environ, path
+from os import environ, sys
 
 from dotenv import load_dotenv
 
@@ -19,9 +19,6 @@ from helper_post_to_api import (generate_headers, get_authentication_token,
 load_dotenv()
 
 # pipenv run python3 post_resource_to_api.py > log_post_resource_to_api
-
-# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
-base_path = environ.get('XML_PATH', "")
 
 # resource_fields = ['primaryId', 'nlm', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
 # resource_fields_from_pubmed = ['title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
@@ -43,21 +40,26 @@ resource_fields_not_in_pubmed = ['titleSynonyms', 'abbreviationSynonyms', 'isoAb
 # 2021-05-24 23:06:27,845 - literature logger - INFO - key printISSN
 
 
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
+                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
+                    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
 
 
-def post_resources(input_path):      # noqa: C901
+def post_resources(input_path, input_mod):      # noqa: C901
     """
 
     :param input_path:
     :return:
     """
 
+    base_path = environ.get('XML_PATH', "")
     api_port = environ.get('API_PORT')
     json_storage_path = base_path + input_path + '/'
     filesets = ['NLM', 'FB', 'ZFIN']
+    if input_mod in filesets:
+        filesets = [input_mod]
     keys_to_remove = {'nlm', 'primaryId'}
     remap_keys = dict()
     remap_keys['isoAbbreviation'] = 'iso_abbreviation'
@@ -224,7 +226,7 @@ if __name__ == "__main__":
     logger.info("starting post_resource_to_api.py")
 
     if args['file']:
-        post_resources(args['file'])
+        post_resources(args['file'], 'all')
 
     else:
         logger.info("No flag passed in.  Use -h for help.")
