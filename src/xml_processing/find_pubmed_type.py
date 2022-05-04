@@ -1,4 +1,3 @@
-# import json
 import argparse
 import logging
 import logging.config
@@ -6,14 +5,6 @@ import re
 import urllib.request
 from os import environ, makedirs, path
 from typing import List, Set
-
-# import xmltodict
-# import hashlib
-
-# from dotenv import load_dotenv
-#
-# load_dotenv()
-
 
 # search all pubmed_xml/*.xml for types of
 # <CommentsCorrections RefType="<TO_FIND>">
@@ -29,9 +20,6 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-
-# todo: save this in an env variable
-# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH', "")
 
 publication_type_set = set()     # type: Set
@@ -241,14 +229,3 @@ if __name__ == "__main__":
 
     generate_json()
     logger.info("Done converting XML to JSON")
-
-# capture ISSN / NLM
-#         <MedlineJournalInfo>
-#             <Country>England</Country>
-#             <MedlineTA>J Travel Med</MedlineTA>
-#             <NlmUniqueID>9434456</NlmUniqueID>
-#             <ISSNLinking>1195-1982</ISSNLinking>
-#         </MedlineJournalInfo>
-# not from
-#             <Journal>
-#                 <ISSN IssnType="Electronic">1708-8305</ISSN>

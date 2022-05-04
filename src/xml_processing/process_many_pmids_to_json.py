@@ -7,8 +7,6 @@ from os import environ, makedirs, path
 from get_pubmed_xml import download_pubmed_xml
 from xml_to_json import generate_json
 
-# import logging.config
-
 # pipenv run python process_many_pmids_to_json.py -f inputs/alliance_pmids
 #
 # to force skip of downloading xml
@@ -16,10 +14,6 @@ from xml_to_json import generate_json
 #
 # enter a file with a list of pmids as an argument, download xml, convert to json, find new pmids in commentsCorrections, recurse, output list of pubmed-based (as opposed to MOD-DQM-based) pmids to  inputs/pubmed_only_pmids
 
-
-# log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-# logging.config.fileConfig(log_file_path)
-# logger = logging.getLogger('literature logger')
 logging.basicConfig(level=logging.INFO,
                     stream=sys.stdout,
                     format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251

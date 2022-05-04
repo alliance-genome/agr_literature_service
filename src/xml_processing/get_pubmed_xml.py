@@ -1,6 +1,4 @@
 import argparse
-# import logging
-# import logging.config
 import glob
 import hashlib
 import logging

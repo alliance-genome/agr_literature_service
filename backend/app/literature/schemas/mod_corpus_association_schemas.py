@@ -1,5 +1,4 @@
 from typing import Optional
-# from typing import List
 
 from pydantic import BaseModel
 from literature.schemas import ModCorpusSortSourceType, BaseModelShow

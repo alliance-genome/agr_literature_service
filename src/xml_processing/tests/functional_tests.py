@@ -8,7 +8,6 @@ import logging
 import logging.config
 
 from helper_sqlalchemy import sqlalchemy_load_ref_xref
-# from helper_file_processing import load_ref_xref_api_flatfile, generate_cross_references_file
 from helper_file_processing import split_identifier
 
 from generate_dqm_json_test_set import load_sample_json
@@ -87,9 +86,9 @@ def test_update_references():
             agr_wanted[agr] = dict()
         if 'update_check' in entry:
             for check in entry['update_check']:
-                # for debugging
-                # json_data = json.dumps(entry['update_check'], indent=4, sort_keys=True)
-                # logger.info(json_data)
+                if logger.getEffectiveLevel() <= logging.DEBUG:
+                    json_data = json.dumps(entry['update_check'], indent=4, sort_keys=True)
+                    logger.debug(json_data)
                 logger.debug("check %s", check)
                 agr_wanted[agr][check] = entry['update_check'][check]
     api_port = environ.get('API_PORT')
@@ -123,18 +122,18 @@ def test_load_references():
     for entry in sample_json['data']:
         agr, agr_found = resolve_dqm_to_agr(entry, xref_ref)
         if not agr_found:
-            print("entry is {}".format(entry))
-            print(entry['load_check'])
-            print(agr)
+            logger.debug("entry is {}".format(entry))
+            logger.debug(entry['load_check'])
+            logger.debug(agr)
             assert 'doi_conflict' in entry['load_check']
             continue
         if agr not in agr_wanted:
             agr_wanted[agr] = dict()
         if 'load_check' in entry:
             for check in entry['load_check']:
-                # for debugging
-                # json_data = json.dumps(entry['load_check'], indent=4, sort_keys=True)
-                # logger.info(json_data)
+                if logger.getEffectiveLevel() <= logging.DEBUG:
+                    json_data = json.dumps(entry['load_check'], indent=4, sort_keys=True)
+                    logger.debug(json_data)
                 agr_wanted[agr][check] = entry['load_check'][check]
     api_port = environ.get('API_PORT')
     api_server = environ.get('API_SERVER', 'localhost')

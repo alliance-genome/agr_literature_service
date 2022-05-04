@@ -34,7 +34,7 @@ def test_get_bad_xref():
 
 def test_create_xref():
 
-    db.execute("INSERT INTO resource_descriptors  (db_prefix, name, default_url) VALUES ('XREF', 'Madeup', 'http://www.bob.com/[%s]')")
+    db.execute("INSERT INTO resource_descriptor  (db_prefix, name, default_url) VALUES ('XREF', 'Madeup', 'http://www.bob.com/[%s]')")
     db.commit()
 
     xml = {"curie": 'XREF:123456', "reference_curie": 'AGR:AGR-Reference-0000000001', "pages": ["reference"]}

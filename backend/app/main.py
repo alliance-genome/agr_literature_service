@@ -8,12 +8,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi_health import health
-# from uvicorn.config import LOGGING_CONFIG
 
 from initialize import setup_resource_descriptor
 from literature.models import initialize
 
-# from literature.config import config
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 from literature.database.main import is_database_online
 from literature.routers import (author_router, bulk_downloads_router,

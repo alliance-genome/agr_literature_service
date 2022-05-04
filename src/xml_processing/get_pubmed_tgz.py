@@ -24,7 +24,6 @@ logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
 
-# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH', "")
 storage_path = base_path + 'pubmed_tgz/'
 

@@ -245,7 +245,6 @@ class ReferenceModel(Base):
             long += "\tabstract10='{}...'\n".format(self.abstract[:10])
         else:
             long += "NO abstract?\n"
-        # long = "\ttitle10='{}...'\n\tabstract10='{}...'\n".format(self.title[:10], self.abstract[:10])
         auths = [str(x) for x in self.author]
         mesh = [str(x) for x in self.mesh_term]
         peps = "\tauthors='{}'\n".format(auths)

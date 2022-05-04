@@ -1,6 +1,3 @@
-# from os import environ
-# import json
-# import requests
 import argparse
 import logging
 import logging.config

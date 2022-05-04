@@ -19,41 +19,7 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-
-# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
-
-
-# def split_identifier(identifier, ignore_error=False):
-#     """
-#
-#     Split Identifier.
-#
-#     Does not throw exception anymore. Check return, if None returned, there was an error
-#
-#     :param identifier:
-#     :param ignore_error:
-#     :return:
-#     """
-#
-#     prefix = None
-#     identifier_processed = None
-#     separator = None
-#
-#     if ':' in identifier:
-#         prefix, identifier_processed = identifier.split(':', 1)  # Split on the first occurrence
-#         separator = ':'
-#     elif '-' in identifier:
-#         prefix, identifier_processed = identifier.split('-', 1)  # Split on the first occurrence
-#         separator = '-'
-#     else:
-#         if not ignore_error:
-#             logger.critical('Identifier does not contain \':\' or \'-\' characters.')
-#             logger.critical('Splitting identifier is not possible.')
-#             logger.critical('Identifier: %s', identifier)
-#         prefix = identifier_processed = separator = None
-#
-#     return prefix, identifier_processed, separator
 
 
 def find_doi_duplicates():

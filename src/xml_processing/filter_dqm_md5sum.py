@@ -121,7 +121,6 @@ def generate_new_md5(input_path, mods):
             # with open(json_filename, "w") as json_file:
             #     json_file.write(json_data)
             #     json_file.close()
-            # md5sum = hashlib.md5(json_data.encode('utf-8')).hexdigest()
 
             md5sum = generate_md5sum_from_dict(entry)
             md5dict[mod][primary_id] = md5sum
@@ -196,7 +195,6 @@ def pubmed_json_generate_md5sum_and_save():
 
     base_path = environ.get('XML_PATH')
     json_storage_path = base_path + 'pubmed_json/'
-    # json_storage_path = base_path + 'pubmed_sample/'
     dir_list = listdir(json_storage_path)
     md5dict = {}
     md5dict['PMID'] = {}
@@ -211,8 +209,6 @@ def pubmed_json_generate_md5sum_and_save():
                     f.close()
             except IOError:
                 logger.info(f"No json data to update from PMID {filename}")
-            # json_data = json.dumps(json_dict, indent=4, sort_keys=True)
-            # md5sum = hashlib.md5(json_data.encode('utf-8')).hexdigest()
             md5sum = generate_md5sum_from_dict(json_dict)
             md5dict['PMID'][pmid] = md5sum
     save_s3_md5data(md5dict, ['PMID'])

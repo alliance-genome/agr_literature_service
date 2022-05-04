@@ -13,7 +13,6 @@ def establish_db_connection():
     DB = environ.get('PSQL_DATABASE', 'literature')
     conn_string = "host=%s dbname=%s user=%s password='%s'" % (SERVER, DB, USER, PASSWORD)
     db_connection = psycopg2.connect(conn_string)
-    # print('Successful connection to database {} on host {}.'.format(database, database_host))
 
     return db_connection
 

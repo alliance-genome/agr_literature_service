@@ -7,7 +7,6 @@ from os import environ, path
 import requests
 
 from get_pubmed_xml import download_pubmed_xml
-# from parse_dqm_json_reference import write_json
 from post_reference_to_api import post_references
 from sanitize_pubmed_json import sanitize_pubmed_json_list
 from xml_to_json import generate_json

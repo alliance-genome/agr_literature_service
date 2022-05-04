@@ -40,50 +40,13 @@ load_dotenv()
 # TODO when creating authors, make sure that  first_author: false, corresponding_author: false  otherwise they get a null, which looks different than false when toggling on/off the flags in the UI
 
 
-# log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
-# logging.config.fileConfig(log_file_path)
-# logger = logging.getLogger('literature logger')
-
 logging.basicConfig(level=logging.INFO,
                     stream=sys.stdout,
                     format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
-
-# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
-
-
-# def split_identifier(identifier, ignore_error=False):
-#     """
-#     Split Identifier
-#
-#     Does not throw exception anymore. Check return, if None returned, there was an error
-#
-#     :param identifier:
-#     :param ignore_error:
-#     :return:
-#     """
-#
-#     prefix = None
-#     identifier_processed = None
-#     separator = None
-#
-#     if ':' in identifier:
-#         prefix, identifier_processed = identifier.split(':', 1)  # Split on the first occurrence
-#         separator = ':'
-#     elif '-' in identifier:
-#         prefix, identifier_processed = identifier.split('-', 1)  # Split on the first occurrence
-#         separator = '-'
-#     else:
-#         if not ignore_error:
-#             logger.critical('Identifier does not contain \':\' or \'-\' characters.')
-#             logger.critical('Splitting identifier is not possible.')
-#             logger.critical('Identifier: %s', identifier)
-#         prefix = identifier_processed = separator = None
-#
-#     return prefix, identifier_processed, separator
 
 
 def generate_pmid_data(input_path, output_directory, input_mod):      # noqa: C901
@@ -173,31 +136,26 @@ def generate_pmid_data(input_path, output_directory, input_mod):      # noqa: C9
             for primary_id in primary_id_unique:
                 if primary_id_unique[primary_id] > 1:
                     logger.info(f"{mod} primary_id {primary_id} has {primary_id_unique[primary_id]} mentions")
-                    # print(f"{mod} primary_id {primary_id} has {primary_id_unique[primary_id]} mentions")
         # output check of a mod's non-unique pmids (different from above because could be crossReferences
         if check_pmid_is_unique:
             for pmid in pmid_unique:
                 if pmid_unique[pmid] > 1:
                     logger.info(f"{mod} pmid {pmid} has {pmid_unique[pmid]} mentions")
-                    # print(f"{mod} pmid {pmid} has {pmid_unique[pmid]} mentions")
 
     # output each mod's count of pmid references
     for mod in pmid_references:
         count = len(pmid_references[mod])
         logger.info(f"{mod} has {count} pmid references")
-        # print(f"{mod} has {count} pmid references")
 
     # output each mod's count of non-pmid references
     for mod in non_pmid_references:
         count = len(non_pmid_references[mod])
         logger.info(f"{mod} has {count} non-pmid references")
-        # print(f"{mod} has {count} non-pmid references")
 
     # output actual reference identifiers that are not pmid
     # for mod in non_pmid_references:
     #     for primary_id in non_pmid_references[mod]:
     #         logger.info(f"{mod} non-pmid {primary_id}")
-    #         print(f"{mod} non-pmid {primary_id}")
 
     # if a reference has an unexpected prefix, give a warning
     for prefix in unknown_prefix:

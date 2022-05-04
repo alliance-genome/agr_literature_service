@@ -2,7 +2,6 @@ from helper_file_processing import split_identifier
 
 from os import environ
 
-# from literature.database.main import get_db
 from literature.models import ReferenceModel, CrossReferenceModel, ResourceModel
 
 from sqlalchemy import create_engine

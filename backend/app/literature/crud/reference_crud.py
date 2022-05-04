@@ -291,7 +291,6 @@ def show(db: Session, curie: str, http_request=True):  # noqa
     if reference.mesh_term:
         for mesh_term in reference_data["mesh_term"]:
             del mesh_term["reference_id"]
-            # add mesh_terms
         reference_data['mesh_terms'] = reference_data['mesh_term']
 
     if reference.author:
