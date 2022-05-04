@@ -28,10 +28,6 @@ logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
 
-base_path = environ.get('XML_PATH', "")
-storage_path = base_path + 'pubmed_resource_json/'
-
-
 def populate_nlm_info(file_data):
     """
 
@@ -91,6 +87,9 @@ def generate_json(nlm_info, upload_to_s3):
     logger.info("Generating JSON from NLM data and saving to outfile")
     json_data = json.dumps(nlm_info, indent=4, sort_keys=True)
 
+    base_path = environ.get('XML_PATH', "")
+    storage_path = base_path + 'pubmed_resource_json/'
+
     if not path.exists(storage_path):
         makedirs(storage_path)
 
@@ -132,6 +131,7 @@ def populate_from_local_file():
     :return:
     """
 
+    base_path = environ.get('XML_PATH', "")
     filename = base_path + 'J_Medline.txt'
     with open(filename) as txt_file:
         if not path.exists(filename):
