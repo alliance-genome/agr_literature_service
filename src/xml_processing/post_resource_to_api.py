@@ -3,7 +3,8 @@ import argparse
 import json
 import logging
 import logging.config
-from os import environ, sys
+import sys
+from os import environ
 
 from dotenv import load_dotenv
 

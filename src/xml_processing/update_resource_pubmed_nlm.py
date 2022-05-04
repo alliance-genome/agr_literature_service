@@ -1,7 +1,8 @@
 
 import logging
 import logging.config
-from os import environ, sys
+import sys
+from os import environ
 
 from generate_pubmed_nlm_resource import (populate_from_url, populate_nlm_info,
                                           generate_json)
