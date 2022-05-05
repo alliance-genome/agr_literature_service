@@ -199,7 +199,10 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate) -> d
         elif field == "merged_into_reference_curie":
             reference_db_obj.merged_into_reference = None
         else:
-            setattr(reference_db_obj, field, value)
+            if field == "mod_reference_types":
+                setattr(reference_db_obj, "mod_reference_type", value)
+            else:
+                setattr(reference_db_obj, field, value)
 
     reference_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
