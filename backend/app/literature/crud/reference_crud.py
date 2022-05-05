@@ -176,6 +176,7 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate) -> d
     """
 
     reference_data = jsonable_encoder(reference_update)
+    logger.debug("reference_data = {}".format(reference_data))
     reference_db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
 
     if not reference_db_obj:
