@@ -36,7 +36,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "size": facets_limits["pubmed_types.keyword"] if "pubmed_types.keyword" in facets_limits else 10
                 }
             }
-        }
+        },
+        "track_total_hits": True
     }
     if return_facets_only:
         del es_body["query"]
@@ -57,7 +58,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     res = es.search(index="references_index", body=es_body)
     return {
         "hits": [{"curie": ref["_source"]["curie"], "title": ref["_source"]["title"]} for ref in res["hits"]["hits"]],
-        "aggregations": res["aggregations"]
+        "aggregations": res["aggregations"],
+        "return_count": res["hits"]["total"]["value"]
     }
 
 
