@@ -2,7 +2,6 @@
 mod_reference_type_crud.py
 ===========================
 """
-import logging
 from datetime import datetime
 
 from fastapi import HTTPException, status
@@ -11,8 +10,6 @@ from sqlalchemy.orm import Session
 
 from literature.models import ModReferenceTypeModel, ReferenceModel
 from literature.schemas import ModReferenceTypeSchemaPost, ModReferenceTypeSchemaUpdate
-
-logger = logging.getLogger(__name__)
 
 
 def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost) -> int:
@@ -24,7 +21,6 @@ def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost) -> int:
     """
 
     mod_reference_type_data = jsonable_encoder(mod_reference_type)
-    logger.debug("mrt create '{}'".format(mod_reference_type_data))
     reference_curie = mod_reference_type_data["reference_curie"]
     del mod_reference_type_data["reference_curie"]
 
@@ -68,13 +64,13 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update: Mo
     :return:
     """
 
+    mrt_data = jsonable_encoder(mod_reference_type_update)
     mod_reference_type_db_obj = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
     if not mod_reference_type_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with mod_reference_type_id {mod_reference_type_id} not found")
 
-    logger.debug("mrt obj")
-    for field, value in mod_reference_type_update.dict().items():
+    for field, value in mrt_data.items():
         if field == "reference_curie" and value:
             reference_curie = value
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
@@ -82,13 +78,11 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update: Mo
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Reference with curie {reference_curie} does not exist")
             mod_reference_type_db_obj.reference = reference
-            # mod_reference_type_db_obj.resource = None
         else:
             setattr(mod_reference_type_db_obj, field, value)
 
     mod_reference_type_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
-
     return {"message": "updated"}
 
 
