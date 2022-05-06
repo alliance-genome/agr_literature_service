@@ -3,6 +3,7 @@ with open('pytest.out') as f:
 
 okay = True
 for line in lines:
+    print(line)
     if 'FAILED' in line:
         okay = False
 
