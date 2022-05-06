@@ -24,6 +24,7 @@ db_user = Security(auth.get_user)
 def search(body: FacetsOptionsSchema):
     return search_crud.search_references(query=body.query, facets_values=body.facets_values,
                                          facets_limits=body.facets_limits,
+                                         size_result_count=body.size_result_count,
                                          return_facets_only=body.return_facets_only)
 
 
