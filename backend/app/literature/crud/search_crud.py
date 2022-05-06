@@ -12,12 +12,15 @@ from fastapi import HTTPException, status
 
 
 def search_references(query: str = None, facets_values: Dict[str, List[str]] = None,
+                      size_result_count: int = 10,
                       facets_limits: Dict[str, int] = None, return_facets_only: bool = False):
     if query is None and facets_values is None and not return_facets_only:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="requested a search but no query and no facets provided")
     if facets_limits is None:
         facets_limits = {}
+    if size_result_count is None:
+        size_result_count = 10
     es_host = config.ELASTICSEARCH_HOST
     es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
     es_body: Dict[str, Any] = {
@@ -37,6 +40,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 }
             }
         },
+        "size": size_result_count,
         "track_total_hits": True
     }
     if return_facets_only:
