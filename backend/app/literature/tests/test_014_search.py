@@ -62,6 +62,8 @@ class TestSearch:
         res = search_references(query="cell", facets_values=facets_values, return_facets_only=False)
         assert "hits" in res
         assert "aggregations" in res
+        print(f"return_count in res {res['return_count']}")
+        assert "return_count" in res
 
     def test_search_references_facets_limits(self, initialize_elasticsearch):
         res = search_references(return_facets_only=True, facets_limits={"pubmed_types.keyword": 15})
