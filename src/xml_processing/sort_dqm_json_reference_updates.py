@@ -29,7 +29,8 @@ from get_pubmed_xml import download_pubmed_xml
 from xml_to_json import generate_json
 from post_reference_to_api import post_references
 from post_comments_corrections_to_api import post_comments_corrections
-
+from update_resource_pubmed_nlm import update_resource_pubmed_nlm
+from get_dqm_data import download_dqm_json
 
 # For WB needing 57578 references checked for updating,
 # It would take 48 hours to query the database through the API one by one.
@@ -195,6 +196,15 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     # url_ref_curie_prefix = 'https://dev' + api_port + '-literature-rest.alliancegenome.org/reference/'
     url_ref_curie_prefix = make_url_ref_curie_prefix()
 
+    # download the dqm file(s) from mod(s)
+    download_dqm_json()
+
+    return
+    
+    
+    # to pull in new journal info from pubmed
+    update_resource_pubmed_nlm()
+    
     token = get_authentication_token()
     headers = generate_headers(token)
 
