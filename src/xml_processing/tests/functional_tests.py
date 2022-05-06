@@ -8,7 +8,6 @@ import logging
 import logging.config
 
 from helper_sqlalchemy import sqlalchemy_load_ref_xref
-# from helper_file_processing import load_ref_xref_api_flatfile, generate_cross_references_file
 from helper_file_processing import split_identifier
 
 from generate_dqm_json_test_set import load_sample_json
@@ -87,10 +86,10 @@ def test_update_references():
             agr_wanted[agr] = dict()
         if 'update_check' in entry:
             for check in entry['update_check']:
-                # for debugging
-                # json_data = json.dumps(entry['update_check'], indent=4, sort_keys=True)
-                # logger.info(json_data)
-                logger.info("check %s", check)
+                if logger.getEffectiveLevel() <= logging.DEBUG:
+                    json_data = json.dumps(entry['update_check'], indent=4, sort_keys=True)
+                    logger.debug(json_data)
+                logger.debug("check %s", check)
                 agr_wanted[agr][check] = entry['update_check'][check]
     api_port = environ.get('API_PORT')
     api_server = environ.get('API_SERVER', 'localhost')
@@ -98,10 +97,10 @@ def test_update_references():
         db_entry = dict()
         if agr_wanted[agr]:
             url = 'http://' + api_server + ':' + api_port + '/reference/' + agr
-            logger.info("get AGR reference info from database %s", url)
+            logger.debug("get AGR reference info from database %s", url)
             get_return = requests.get(url)
             db_entry = json.loads(get_return.text)
-            # logger.info(db_entry)
+            logger.debug(db_entry)
         for check in agr_wanted[agr]:
             test_result = check_test(db_entry, check, agr_wanted[agr][check])
             logger.info("agr %s check %s result %s", agr, check, test_result)
@@ -123,18 +122,18 @@ def test_load_references():
     for entry in sample_json['data']:
         agr, agr_found = resolve_dqm_to_agr(entry, xref_ref)
         if not agr_found:
-            print("entry is {}".format(entry))
-            print(entry['load_check'])
-            print(agr)
+            logger.debug("entry is {}".format(entry))
+            logger.debug(entry['load_check'])
+            logger.debug(agr)
             assert 'doi_conflict' in entry['load_check']
             continue
         if agr not in agr_wanted:
             agr_wanted[agr] = dict()
         if 'load_check' in entry:
             for check in entry['load_check']:
-                # for debugging
-                # json_data = json.dumps(entry['load_check'], indent=4, sort_keys=True)
-                # logger.info(json_data)
+                if logger.getEffectiveLevel() <= logging.DEBUG:
+                    json_data = json.dumps(entry['load_check'], indent=4, sort_keys=True)
+                    logger.debug(json_data)
                 agr_wanted[agr][check] = entry['load_check'][check]
     api_port = environ.get('API_PORT')
     api_server = environ.get('API_SERVER', 'localhost')
@@ -151,11 +150,12 @@ def test_load_references():
         url = 'http://' + api_server + ':' + api_port + '/reference/' + agr
         logger.info("get AGR reference info from database %s", url)
         get_return = requests.get(url)
+        logger.debug(get_return.text)
         db_entry = json.loads(get_return.text)
-        # logger.info(db_entry)
+        logger.debug(db_entry)
         for check in agr_wanted[agr]:
             test_result = check_test(db_entry, check, agr_wanted[agr][check])
-            logger.info("agr %s check %s result %s", agr, check, test_result)
+            logger.debug("agr %s check %s result %s", agr, check, test_result)
 
 
 def erratum_check(agr_data, value):
@@ -256,7 +256,7 @@ def mod_reference_types_check(agr_data, values):
 
     failure_string = ''
     db_values = set()
-    if 'mod_reference_types' in agr_data:
+    if 'mod_reference_types' in agr_data and agr_data['mod_reference_types']:
         for mrt_db in agr_data['mod_reference_types']:
             db_string = ''
             if 'reference_type' in mrt_db:

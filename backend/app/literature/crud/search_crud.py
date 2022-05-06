@@ -103,5 +103,5 @@ def show_need_review(mod_abbreviation, count, db: Session):
             cross_references=[CrossReferenceSchemaShow(
                 curie=xref.curie, url=convert_xref_curie_to_url(xref.curie, resource_descriptor_default_urls_dict),
                 is_obsolete=xref.is_obsolete, pages=xref.pages)
-                for xref in reference.cross_references])
+                for xref in reference.cross_reference])
         for reference in references]

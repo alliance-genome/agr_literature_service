@@ -22,7 +22,7 @@ enable_versioning()
 
 
 class ReferenceModel(Base):
-    __tablename__ = "references"
+    __tablename__ = "reference"
     __versioned__: Dict = {}
 
     reference_id = Column(
@@ -38,7 +38,7 @@ class ReferenceModel(Base):
         index=True
     )
 
-    cross_references = relationship(
+    cross_reference = relationship(
         "CrossReferenceModel",
         back_populates="reference",
         cascade="all, delete, delete-orphan",
@@ -60,7 +60,7 @@ class ReferenceModel(Base):
 
     merged_into_id = Column(
         Integer,
-        ForeignKey("references.reference_id")
+        ForeignKey("reference.reference_id")
     )
 
     merged_into_reference = relationship(
@@ -74,14 +74,14 @@ class ReferenceModel(Base):
 
     resource_id = Column(
         Integer,
-        ForeignKey("resources.resource_id"),
+        ForeignKey("resource.resource_id"),
         index=True,
         nullable=True
     )
 
     resource = relationship(
         "ResourceModel",
-        back_populates="references",
+        back_populates="reference",
         single_parent=True,
     )
 
@@ -97,7 +97,7 @@ class ReferenceModel(Base):
         nullable=True
     )
 
-    mod_reference_types = relationship(
+    mod_reference_type = relationship(
         "ModReferenceTypeModel",
         lazy="joined",
         back_populates="reference",
@@ -111,7 +111,7 @@ class ReferenceModel(Base):
         cascade="all, delete, delete-orphan"
     )
 
-    authors = relationship(
+    author = relationship(
         "AuthorModel",
         lazy="joined",
         back_populates="reference",
@@ -202,7 +202,7 @@ class ReferenceModel(Base):
         nullable=True
     )
 
-    mesh_terms = relationship(
+    mesh_term = relationship(
         "MeshDetailModel",
         lazy="joined",
         back_populates="reference",
@@ -236,9 +236,17 @@ class ReferenceModel(Base):
         dates = "\tDates: updated='{}', created='{}', published='{}', arrived_p='{}', last_mod='{}'\n".\
             format(self.date_updated, self.date_created, self.date_published,
                    self.date_arrived_in_pubmed, self.date_last_modified_in_pubmed)
-        long = "\ttitle10='{}...'\n\tabstract10='{}...'\n".format(self.title[:10], self.abstract[:10])
-        auths = [str(x) for x in self.authors]
-        mesh = [str(x) for x in self.mesh_terms]
-        peps = "\tauthors='{}'\n\teditors='{}'\n".format(auths, str(self.editors))
+        long = ""
+        if self.title:
+            long += "\ttitle10='{}\n".format(self.title[:10])
+        else:
+            long += "\tNO title??\n"
+        if self.abstract:
+            long += "\tabstract10='{}...'\n".format(self.abstract[:10])
+        else:
+            long += "NO abstract?\n"
+        auths = [str(x) for x in self.author]
+        mesh = [str(x) for x in self.mesh_term]
+        peps = "\tauthors='{}'\n".format(auths)
         arrs = "\tmesh='{}'\n\tkeywords='{}'\n".format(str(mesh), self.keywords)
         return "{}{}{}{}{}".format(ids, dates, long, peps, arrs)

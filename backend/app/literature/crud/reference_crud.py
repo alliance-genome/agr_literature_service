@@ -49,9 +49,14 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
     :return:
     """
 
+    logger.debug("creating reference")
+    logger.debug(reference)
     add_separately_fields = ["mod_corpus_associations"]
     list_fields = ["authors", "mod_reference_types", "tags", "mesh_terms", "cross_references"]
-
+    remap = {'authors': 'author',
+             'mesh_terms': 'mesh_term',
+             'cross_references': 'cross_reference',
+             'mod_reference_types': 'mod_reference_type'}
     reference_data = {}  # type: Dict[str, Any]
 
     if reference.cross_references:
@@ -59,13 +64,14 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
             if db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == cross_reference.curie).first():
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"CrossReference with id {cross_reference.curie} already exists")
-
+    logger.debug("done x ref")
     last_curie = db.query(ReferenceModel.curie).order_by(sqlalchemy.desc(ReferenceModel.curie)).first()
 
     if not last_curie:
         last_curie = "AGR:AGR-Reference-0000000000"
     else:
         last_curie = last_curie[0]
+    logger.debug("done last curie")
 
     curie = create_next_curie(last_curie)
     reference_data["curie"] = curie
@@ -73,6 +79,7 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
     for field, value in vars(reference).items():
         if value is None:
             continue
+        logger.debug("processing {} {}".format(field, value))
         if field in list_fields:
             db_objs = []
             for obj in value:
@@ -96,7 +103,10 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
                     db_obj = CrossReferenceModel(**obj_data)
                 db.add(db_obj)
                 db_objs.append(db_obj)
-            reference_data[field] = db_objs
+            if field in remap:
+                reference_data[remap[field]] = db_objs
+            else:
+                reference_data[field] = db_objs
         elif field == "resource":
             resource = db.query(ResourceModel).filter(ResourceModel.curie == value).first()
             if not resource:
@@ -113,12 +123,17 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
             continue
         else:
             reference_data[field] = value
+        logger.debug("finished processing {} {}".format(field, value))
 
+    logger.debug("add reference")
     reference_db_obj = ReferenceModel(**reference_data)
+    logger.debug("have model, save to db")
     db.add(reference_db_obj)
+    logger.debug("saved")
     db.commit()
 
     for field, value in vars(reference).items():
+        logger.debug("Porcessing mod corpus asso")
         if field == "mod_corpus_associations":
             if value is not None:
                 for obj in value:
@@ -129,7 +144,7 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
                     except HTTPException:
                         logger.warning("skipping mod corpus association to a mod that is already associated to "
                                        "the reference")
-
+    logger.debug("returning successfully?")
     return curie
 
 
@@ -161,6 +176,7 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate) -> d
     """
 
     reference_data = jsonable_encoder(reference_update)
+    logger.debug("reference_data = {}".format(reference_data))
     reference_db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
 
     if not reference_db_obj:
@@ -204,7 +220,7 @@ def show_all_references_external_ids(db: Session):
                                      ARRAY(String)),
                                 cast(func.array_agg(CrossReferenceModel.is_obsolete),
                                      ARRAY(Boolean))) \
-        .outerjoin(ReferenceModel.cross_references) \
+        .outerjoin(ReferenceModel.cross_reference) \
         .group_by(ReferenceModel.curie)
 
     return [{"curie": reference[0],
@@ -223,7 +239,16 @@ def show(db: Session, curie: str, http_request=True):  # noqa
     :return:
     """
 
-    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one_or_none()
+    logger.debug("BOB: fetching reference '{}'".format(curie))
+    try:
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one_or_none()
+    except Exception as e:
+        logger.debug("BOB: lookup failed '{}' raising http exception instead".format(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Reference with the id {curie} is not available")
+        return None
+
+    logger.debug("BOB: Reference is {}".format(reference))
     if not reference:
         if http_request:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -232,21 +257,27 @@ def show(db: Session, curie: str, http_request=True):  # noqa
             return None
 
     reference_data = jsonable_encoder(reference)
+    logger.debug("BOB: Post encoding:- {}".format(reference_data))
     if reference.resource_id:
         reference_data["resource_curie"] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == reference.resource_id).first()[0]
         reference_data["resource_title"] = db.query(ResourceModel.title).filter(ResourceModel.resource_id == reference.resource_id).first()[0]
 
-    if reference.cross_references:
+    if reference.cross_reference:
         cross_references = []
-        for cross_reference in reference.cross_references:
+        for cross_reference in reference.cross_reference:
             cross_reference_show = jsonable_encoder(cross_reference_crud.show(db, cross_reference.curie))
             del cross_reference_show["reference_curie"]
             cross_references.append(cross_reference_show)
         reference_data["cross_references"] = cross_references
+        # del reference_data["cross_reference"]
 
-    if reference.mod_reference_types:
-        for mod_reference_type in reference_data["mod_reference_types"]:
+    if reference.mod_reference_type:
+        mrt = []
+        for mod_reference_type in reference_data["mod_reference_type"]:
             del mod_reference_type["reference_id"]
+            mrt.append(mod_reference_type)
+        reference_data['mod_reference_types'] = mrt
+        # del reference_data['mod_reference_type']
 
     if reference.mod_corpus_association:
         for i in range(len(reference_data["mod_corpus_association"])):
@@ -258,16 +289,21 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         reference_data["mod_corpus_associations"] = reference_data["mod_corpus_association"]
         del reference_data["mod_corpus_association"]
 
-    if reference.mesh_terms:
-        for mesh_term in reference_data["mesh_terms"]:
+    if reference.mesh_term:
+        for mesh_term in reference_data["mesh_term"]:
             del mesh_term["reference_id"]
+        reference_data['mesh_terms'] = reference_data['mesh_term']
 
-    if reference.authors:
-        for author in reference_data["authors"]:
+    if reference.author:
+        authors = []
+        for author in reference_data["author"]:
             if author["orcid"]:
                 author["orcid"] = jsonable_encoder(cross_reference_crud.show(db, author["orcid"]))
             del author["orcid_cross_reference"]
             del author["reference_id"]
+            authors.append(author)
+        reference_data['authors'] = authors
+        del reference_data['author']
 
     if reference.merged_into_id:
         reference_data["merged_into_reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == reference_data["merged_into_id"]).first()[0]
@@ -286,7 +322,7 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         comment_and_corrections_data["from_references"].append(comment_and_correction_data)
 
     reference_data["comment_and_corrections"] = comment_and_corrections_data
-
+    logger.debug("returning {}".format(reference_data))
     return reference_data
 
 

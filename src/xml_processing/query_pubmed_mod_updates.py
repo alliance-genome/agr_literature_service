@@ -6,7 +6,6 @@ import time
 import urllib
 from os import environ, makedirs, path
 from typing import List, Set, Dict, Tuple, Union
-# import json
 
 
 import requests

@@ -16,7 +16,7 @@ enable_versioning()
 
 
 class MeshDetailModel(Base):
-    __tablename__ = "mesh_details"
+    __tablename__ = "mesh_detail"
     __versioned__: Dict = {}
 
     mesh_detail_id = Column(
@@ -27,14 +27,14 @@ class MeshDetailModel(Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey("references.reference_id",
+        ForeignKey("reference.reference_id",
                    ondelete="CASCADE"),
         index=True
     )
 
     reference = relationship(
         "ReferenceModel",
-        back_populates="mesh_terms"
+        back_populates="mesh_term"
     )
 
     heading_term = Column(

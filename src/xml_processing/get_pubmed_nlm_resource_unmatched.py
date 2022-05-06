@@ -3,15 +3,11 @@ import logging
 import logging.config
 import re
 import time
-# import os
 from os import environ, path
 from typing import List, Set
 
 import requests
 from dotenv import load_dotenv
-
-# import urllib
-# import argparse
 
 
 load_dotenv()
@@ -27,7 +23,6 @@ logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
 
-# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH', "")
 storage_path = base_path + 'resource_xml/'
 
@@ -57,7 +52,7 @@ def download_pubmed_unmatched_resource_xml():
         counter += 1
         if counter > max_count:
             break
-        print(resource_abbreviation)
+        logger.info(resource_abbreviation)
 #         url = https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=nlmcatalog&term=Revue%20de%20Nematologie%5BAll%20Fields%5D&cmd=DetailsSearch
         url = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=nlmcatalog&term=' \
               + resource_abbreviation + '%5BAll%20Fields%5D&cmd=DetailsSearch'

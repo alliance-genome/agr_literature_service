@@ -17,7 +17,7 @@ enable_versioning()
 
 
 class CrossReferenceModel(Base):
-    __tablename__ = "cross_references"
+    __tablename__ = "cross_reference"
     __versioned__: Dict = {}
 
     curie = Column(
@@ -33,32 +33,32 @@ class CrossReferenceModel(Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey("references.reference_id", ondelete="CASCADE"),
+        ForeignKey("reference.reference_id", ondelete="CASCADE"),
         index=True
     )
 
     reference = relationship(
         "ReferenceModel",
-        back_populates="cross_references"
+        back_populates="cross_reference"
     )
 
     resource_id = Column(
         Integer,
-        ForeignKey("resources.resource_id"),
+        ForeignKey("resource.resource_id"),
         index=True
     )
 
     resource = relationship(
         "ResourceModel",
-        back_populates="cross_references"
+        back_populates="cross_reference"
     )
 
-    authors = relationship(
+    author = relationship(
         "AuthorModel",
         back_populates="orcid_cross_reference"
     )
 
-    editors = relationship(
+    editor = relationship(
         "EditorModel",
         back_populates="orcid_cross_reference"
     )

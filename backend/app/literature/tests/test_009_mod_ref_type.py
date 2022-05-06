@@ -24,6 +24,8 @@ Base.metadata.create_all(engine)
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
+mrt_id = None
+
 
 def test_get_bad_mrt():
     with pytest.raises(HTTPException):
@@ -31,29 +33,32 @@ def test_get_bad_mrt():
 
 
 def test_create_mrt():
+    global mrt_id
     res_sch = ModReferenceTypeSchemaPost(
         reference_curie="AGR:AGR-Reference-0000000001",
         reference_type="string1",
         source="string2")
     res = create(db, res_sch)
-    assert res == 1
+    mrt_id = res
+    assert res > 1
     # check db for mrt
-    mrt = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == 1).one()
+    mrt = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mrt_id).one()
     assert mrt.reference_type == "string1"
     assert mrt.reference.curie == "AGR:AGR-Reference-0000000001"
     assert mrt.source == "string2"
 
 
 def test_patch_mrt():
+    global mrt_id
     xml = {"reference_curie": "AGR:AGR-Reference-0000000003",
            "reference_type": "string3",
            "source": "string4"}
     schema = ModReferenceTypeSchemaUpdate(**xml)
-    res = patch(db, 1, schema)
+    res = patch(db, mrt_id, schema)
     assert res == {"message": "updated"}
 
     # check db for mrt
-    mrt = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == 1).one()
+    mrt = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mrt_id).one()
     assert mrt.reference_type == "string3"
     assert mrt.reference.curie == "AGR:AGR-Reference-0000000003"
     assert mrt.source == "string4"
@@ -61,13 +66,15 @@ def test_patch_mrt():
 
 # NOTE: BAD... recursion error. NEEDS fixing.
 def test_show_mrt():
+    global mrt_id
     with pytest.raises(RecursionError):
-        res = show(db, 1)
+        res = show(db, mrt_id)
         assert res == 0
 
 
 def test_changesets():
-    res = show_changesets(db, 1)
+    global mrt_id
+    res = show_changesets(db, mrt_id)
 
     # reference_id      : None -> 1 -> 3
     # reference_type    : None -> 'string1' -> 'string3'
@@ -85,12 +92,13 @@ def test_changesets():
 
 
 def test_destroy_mrt():
-    destroy(db, 1)
+    global mrt_id
+    destroy(db, mrt_id)
 
     # It should now give an error on lookup.
     with pytest.raises(HTTPException):
-        show(db, 1)
+        show(db, mrt_id)
 
     # Deleting it again should give an error as the lookup will fail.
     with pytest.raises(HTTPException):
-        destroy(db, 1)
+        destroy(db, mrt_id)

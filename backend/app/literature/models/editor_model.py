@@ -19,7 +19,7 @@ enable_versioning()
 
 
 class EditorModel(Base):
-    __tablename__ = "editors"
+    __tablename__ = "editor"
     __versioned__: Dict = {}
 
     editor_id = Column(
@@ -30,25 +30,25 @@ class EditorModel(Base):
 
     resource_id = Column(
         Integer,
-        ForeignKey("resources.resource_id",
+        ForeignKey("resource.resource_id",
                    ondelete="CASCADE"),
         index=True
     )
 
     resource = relationship(
         "ResourceModel",
-        back_populates="editors"
+        back_populates="editor"
     )
 
     orcid = Column(
         String,
-        ForeignKey("cross_references.curie")
+        ForeignKey("cross_reference.curie")
     )
 
     orcid_cross_reference = relationship(
         "CrossReferenceModel",
         lazy="joined",
-        back_populates="editors"
+        back_populates="editor"
     )
 
     order = Column(

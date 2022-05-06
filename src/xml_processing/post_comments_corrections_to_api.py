@@ -30,7 +30,7 @@ def get_pmid_to_reference(pmids: List[str]):
         CrossReferenceModel.curie,
         ReferenceModel.curie
     ).join(
-        ReferenceModel.cross_references
+        ReferenceModel.cross_reference
     ).filter(
         CrossReferenceModel.curie.in_(pmids)
     )

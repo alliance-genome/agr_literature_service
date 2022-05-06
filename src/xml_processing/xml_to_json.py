@@ -1,5 +1,4 @@
 import argparse
-# import logging.config
 import logging
 import re
 import sys
@@ -8,12 +7,6 @@ from os import environ, makedirs, path
 from typing import List, Set
 from filter_dqm_md5sum import load_s3_md5data, save_s3_md5data, generate_md5sum_from_dict
 from helper_file_processing import write_json
-
-# import xmltodict
-
-# from dotenv import load_dotenv
-#
-# load_dotenv()
 
 
 # pipenv run python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
@@ -63,9 +56,6 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
-
-# todo: save this in an env variable
-# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH')
 
 
@@ -223,7 +213,6 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                 # e.g. 33054145 21413221
                 book_title_re_output = re.search("<BookTitle[^>]*?>(.+?)</BookTitle>", xml, re.DOTALL)
                 if book_title_re_output is not None:
-                    # print title
                     title = book_title_re_output.group(1).replace('\n', ' ').replace('\r', '')
                     title = re.sub(r'\s+', ' ', title)
                     data_dict['title'] = title
@@ -232,7 +221,6 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                     # e.g. 28304499 28308877
                     vernacular_title_re_output = re.search("<VernacularTitle[^>]*?>(.+?)</VernacularTitle>", xml, re.DOTALL)
                     if vernacular_title_re_output is not None:
-                        # print title
                         title = vernacular_title_re_output.group(1).replace('\n', ' ').replace('\r', '')
                         title = re.sub(r'\s+', ' ', title)
                         data_dict['title'] = title
@@ -242,36 +230,29 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
 
             journal_re_output = re.search("<MedlineTA>(.+?)</MedlineTA>", xml)
             if journal_re_output is not None:
-                # print journal
                 data_dict['journal'] = journal_re_output.group(1)
 
             pages_re_output = re.search("<MedlinePgn>(.+?)</MedlinePgn>", xml)
             if pages_re_output is not None:
-                # print pages
                 data_dict['pages'] = pages_re_output.group(1)
 
             volume_re_output = re.search("<Volume>(.+?)</Volume>", xml)
             if volume_re_output is not None:
-                # print volume
                 data_dict['volume'] = volume_re_output.group(1)
 
             issue_re_output = re.search("<Issue>(.+?)</Issue>", xml)
             if issue_re_output is not None:
-                # print issue
                 data_dict['issueName'] = issue_re_output.group(1)
 
             pubstatus_re_output = re.search("<PublicationStatus>(.+?)</PublicationStatus>", xml)
             if pubstatus_re_output is not None:
-                # print pubstatus
                 data_dict['publicationStatus'] = pubstatus_re_output.group(1)
 
             if re.findall("<PublicationType>(.+?)</PublicationType>", xml):
                 types_group = re.findall("<PublicationType>(.+?)</PublicationType>", xml)
-                # print types_group
                 data_dict['pubMedType'] = types_group
             elif re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml):
                 types_group = re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml)
-                # print types_group
                 data_dict['pubMedType'] = types_group
 
             # <CommentsCorrectionsList><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler. 1999 Dec;5(6):378</RefSource><PMID Version="1">10644162</PMID></CommentsCorrections><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler. 2000 Aug;6(4):291-2</RefSource><PMID Version="1">10962551</PMID></CommentsCorrections></CommentsCorrectionsList>
@@ -358,14 +339,6 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                                 affiliation_list.append(affiliation)
 
                     author_dict = {}
-                    # if (firstname and firstinit):
-                    #     print "GOOD\t" + pmid
-                    # elif firstname:
-                    #     print "FN\t" + pmid + "\t" + firstname
-                    # elif firstinit:
-                    #     print "FI\t" + pmid + "\t" + firstinit
-                    # else:
-                    #     print "NO\t" + pmid
                     if firstname != '':
                         author_dict["firstname"] = firstname
                     if firstinit != '':
@@ -486,27 +459,16 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                 if nlm_re_output is not None:
                     nlm = nlm_re_output.group(1)
                     cross_references.append({'id': 'NLM:' + nlm})
-                    # cross_references.append({'id': 'NLM:' + nlm, 'pages': ['NLM']})
                 issn_re_output = re.search("<ISSNLinking>(.+?)</ISSNLinking>", medline_journal_info)
                 if issn_re_output is not None:
                     issn = issn_re_output.group(1)
                     cross_references.append({'id': 'ISSN:' + issn})
-                    # cross_references.append({'id': 'ISSN:' + issn, 'pages': ['ISSN']})
                 journal_abbrev_re_output = re.search("<MedlineTA>(.+?)</MedlineTA>", medline_journal_info)
                 if journal_abbrev_re_output is not None:
                     journal_abbrev = journal_abbrev_re_output.group(1)
                 data_dict['nlm'] = nlm			# for mapping to resource
                 data_dict['issn'] = issn		# for mapping to MOD data to resource
                 data_dict['resourceAbbreviation'] = journal_abbrev
-                # check whether all xml has an nlm or issn, for WB set, they all do
-                # if (nlm and issn):
-                #     print "GOOD\t" + pmid
-                # elif nlm:
-                #     print "NLM\t" + pmid + "\t" + nlm
-                # elif issn:
-                #     print "ISSN\t" + pmid + "\t" + issn
-                # else:
-                #     print "NO\t" + pmid
 
             if len(cross_references) > 0:
                 data_dict["crossReferences"] = cross_references
@@ -514,7 +476,6 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
             publisher_re_output = re.search("<PublisherName>(.+?)</PublisherName>", xml)
             if publisher_re_output is not None:
                 publisher = publisher_re_output.group(1)
-                # print publisher
                 data_dict['publisher'] = publisher
 
             # previously was only getting all abstract text together, but this was causing different types of abstracts to be concatenated
@@ -604,21 +565,6 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                             mesh_dict["referenceId"] = 'PMID:' + pmid
                             mesh_dict["meshHeadingTerm"] = mesh_heading_term
                             meshs_list.append(mesh_dict)
-#                 for mesh_xml in meshs_group:
-#                     descriptor_group = re.findall("<DescriptorName.*?UI=\"(.+?)\".*?>(.+?)</DescriptorName>", mesh_xml, re.DOTALL)
-#                     if len(descriptor_group) > 0:
-#                         for id_name in descriptor_group:
-#                             mesh_dict = {}
-#                             mesh_dict["referenceId"] = id_name[0]
-#                             mesh_dict["meshHeadingTerm"] = id_name[1]
-#                             meshs_list.append(mesh_dict)
-#                     qualifier_group = re.findall("<QualifierName.*?UI=\"(.+?)\".*?>(.+?)</QualifierName>", mesh_xml, re.DOTALL)
-#                     if len(qualifier_group) > 0:
-#                         for id_name in qualifier_group:
-#                             mesh_dict = {}
-#                             mesh_dict["referenceId"] = id_name[0]
-#                             mesh_dict["meshQualifierTerm"] = id_name[1]
-#                             meshs_list.append(mesh_dict)
                 data_dict['meshTerms'] = meshs_list
 
             # Write the json data to output json file

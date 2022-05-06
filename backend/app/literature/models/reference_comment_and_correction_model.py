@@ -29,7 +29,7 @@ class ReferenceCommentAndCorrectionModel(Base):
 
     reference_id_from = Column(
         Integer,
-        ForeignKey("references.reference_id"),
+        ForeignKey("reference.reference_id"),
         index=True,
         nullable=False
     )
@@ -42,7 +42,7 @@ class ReferenceCommentAndCorrectionModel(Base):
 
     reference_id_to = Column(
         Integer,
-        ForeignKey("references.reference_id"),
+        ForeignKey("reference.reference_id"),
         index=True,
         nullable=False
     )

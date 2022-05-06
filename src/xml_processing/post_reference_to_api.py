@@ -1,4 +1,3 @@
-
 import requests
 import argparse
 import json
@@ -9,8 +8,6 @@ import sys
 from os import environ, listdir, path
 
 from helper_sqlalchemy import sqlalchemy_load_ref_xref
-# from helper_file_processing import (generate_cross_references_file,
-#                                     load_ref_xref_api_flatfile)
 from helper_file_processing import split_identifier
 from helper_post_to_api import (generate_headers, get_authentication_token,
                                 process_api_request, update_token)
@@ -31,14 +28,12 @@ logger = logging.getLogger(__name__)
 
 # keys that exist in data
 # 2021-05-25 21:16:53,372 - literature logger - INFO - key abstract
-# 2021-05-25 21:16:53,372 - literature logger - INFO - key citation
 # 2021-05-25 21:16:53,372 - literature logger - INFO - key datePublished
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key dateArrivedInPubmed
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key dateLastModified
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key keywords
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key crossReferences
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key title
-# 2021-05-25 21:16:53,373 - literature logger - INFO - key tags
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key issueName
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key issueDate
 # 2021-05-25 21:16:53,373 - literature logger - INFO - key MODReferenceType
@@ -77,7 +72,6 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     """
 
     api_port = environ.get('API_PORT')
-    # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
     base_path = environ.get('XML_PATH')
 
     files_to_process = []
@@ -85,9 +79,9 @@ def post_references(input_file, check_file_flag):      # noqa: C901
         json_storage_path = base_path + 'sanitized_reference_json/'
         dir_list = listdir(json_storage_path)
         for filename in dir_list:
-            # logger.info("%s", filename)
+            logger.debug("%s", filename)
             if 'REFERENCE_' in filename and '.REFERENCE_' not in filename:
-                # logger.info("%s", filename)
+                logger.debug("%s", filename)
                 files_to_process.append(json_storage_path + filename)
     else:
         files_to_process.append(input_file)
@@ -137,7 +131,6 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     remap_subkeys['cross_references'] = dict()
     remap_subkeys['cross_references']['id'] = 'curie'
 
-    # NOTE: why are firstName and lastName done twice?
     remap_subkeys['authors'] = dict()
     remap_subkeys['authors']['authorRank'] = 'order'
     remap_subkeys['authors']['firstName'] = 'first_name'
@@ -149,30 +142,12 @@ def post_references(input_file, check_file_flag):      # noqa: C901
 
     keys_found = set()
 
-    # token = ''
-    # okta_file = base_path + 'okta_token'
-    # if path.isfile(okta_file):
-    #     with open(okta_file, 'r') as okta_fh:
-    #         token = okta_fh.read().replace("\n", "")
-    #         okta_fh.close
-    # else:
-    #     token = update_token()
     token = get_authentication_token()
     headers = generate_headers(token)
     api_server = environ.get('API_SERVER', 'localhost')
     url = 'http://' + api_server + ':' + api_port + '/reference/'
     reference_primary_id_to_curie_file = base_path + 'reference_primary_id_to_curie'
     errors_in_posting_reference_file = base_path + 'errors_in_posting_reference'
-    # previously loading from reference_primary_id_to_curie from past run of this script
-    # already_processed_primary_id = set()
-    # if check_file_flag == 'yes_file_check':
-    #     if path.isfile(reference_primary_id_to_curie_file):
-    #         with open(reference_primary_id_to_curie_file, 'r') as read_fh:
-    #             for line in read_fh:
-    #                 line_data = line.split("\t")
-    #                 if line_data[0]:
-    #                     already_processed_primary_id.add(line_data[0].rstrip())
-    #             read_fh.close
 
     resource_to_curie = dict()
     if check_file_flag == 'no_file_check':
@@ -188,17 +163,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
             for identifier in xref_ref[prefix]:
                 xref_curie = prefix + ':' + identifier
                 resource_to_curie[xref_curie] = xref_ref[prefix][identifier]
-        # previously loading from resource_primary_id_to_curie from past run of post_resource_to_api
-        # resource_primary_id_to_curie_file = base_path + 'resource_primary_id_to_curie'
-        # if path.isfile(resource_primary_id_to_curie_file):
-        #     with open(resource_primary_id_to_curie_file, 'r') as read_fh:
-        #         for line in read_fh:
-        #             line_data = line.rstrip().split("\t")
-        #             if line_data[0]:
-        #                 resource_to_curie[line_data[0]] = line_data[1]
-        #         read_fh.close
 
-        # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref_api_flatfile('reference')
         xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
 
     process_results = []
@@ -222,7 +187,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
 
                 # output what we get from the file before converting for the API
                 # json_object = json.dumps(entry, indent=4)
-                # print(json_object)
+                # logger.debug(json_object)
 
                 primary_id = entry['primaryId']
                 prefix, identifier, separator = split_identifier(primary_id)
@@ -232,36 +197,28 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                     if identifier in xref_ref[prefix]:
                         logger.info("%s\talready in", primary_id)
                         continue
-                # previously loading from reference_primary_id_to_curie from past run of this script
-                # if primary_id in already_processed_primary_id:
-                #     continue
-
-                # if primary_id != 'PMID:9643811':
-                #     continue
 
                 new_entry = dict()
 
                 for key in entry:
                     keys_found.add(key)
-                    # logger.info("key found\t%s\t%s", key, entry[key])
+                    logger.debug("key found\t%s\t%s", key, entry[key])
                     if key in remap_keys:
-                        # logger.info("remap\t%s\t%s", key, remap_keys[key])
-                        # this renames a key, but it can be accessed again in the for key loop, so sometimes a key is visited twice while another is skipped, so have to create a new dict to populate instead
-                        # entry[remap_keys[key]] = entry.pop(key)
+                        logger.debug("remap\t%s\t%s", key, remap_keys[key])
                         new_entry[remap_keys[key]] = entry[key]
                     elif key not in keys_to_remove:
                         new_entry[key] = entry[key]
 
                 for key in remap_subkeys:
                     if key in new_entry:
-                        # logger.info("%s\t%s\t%s", primary_id, key, new_entry[key])
+                        logger.debug("%s\t%s\t%s", primary_id, key, new_entry[key])
                         new_list = []
                         for sub_element in new_entry[key]:
                             new_sub_element = dict()
                             for subkey in sub_element:
                                 if subkey in remap_subkeys[key]:
                                     new_sub_element[remap_subkeys[key][subkey]] = sub_element[subkey]
-                                    # logger.info("remap subkey\t%s\t%s", subkey, remap_subkeys[key][subkey])
+                                    logger.debug("remap subkey\t%s\t%s", subkey, remap_subkeys[key][subkey])
                                 elif key not in subkeys_to_remove or subkey not in subkeys_to_remove[key]:
                                     new_sub_element[subkey] = sub_element[subkey]
                             new_list.append(new_sub_element)
@@ -298,9 +255,10 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                 if 'cross_references' in new_entry:
                     new_entry['cross_references'] = list(filter(lambda x: 'curie' in x and 'NLM:' not in x['curie'] and 'ISSN:' not in x['curie'], new_entry['cross_references']))
 
-                # output what is sent to API after converting file data
-                # json_object = json.dumps(new_entry, indent=4)
-                # print(json_object)
+                # output what is sent to API after converting file data if debugging
+                if logger.getEffectiveLevel() <= logging.DEBUG:
+                    json_object = json.dumps(new_entry, indent=4)
+                    logger.debug(json_object)
 
                 api_response_tuple = process_api_request('POST', url, headers, new_entry, primary_id, None, None)
                 headers = api_response_tuple[0]
@@ -323,75 +281,21 @@ def post_references(input_file, check_file_flag):      # noqa: C901
                         logger.info("%s\t%s", primary_id, response_dict)
                         mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
                     else:
-                        logger.info("api error %s primaryId %s message %s", str(response_status_code), primary_id, response_dict['detail'])
+                        logger.warning("api error %s primaryId %s message %s", str(response_status_code), primary_id, response_dict['detail'])
                         error_fh.write("api error %s primaryId %s message %s\n" % (str(response_status_code), primary_id, response_dict['detail']))
                 except ValueError:
                     logger.info(f"{primary_id}\tValueError")
                     error_fh.write(f"ERROR {primary_id} did not convert to json\n")
 
         # if wanting to output keys in data for figuring out mapping
-        # for key in keys_found:
-        #     logger.info("key %s", key)
+        # if debug mode or lower log this info.
+        if logger.getEffectiveLevel() <= logging.DEBUG:
+            for key in keys_found:
+                logger.debug("key %s", key)
 
         mapping_fh.close
         error_fh.close
     return process_results
-
-
-# get rid of this if process_api_request works on a full run
-# def process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh):
-#     """
-#
-#     output the json getting posted to the API
-#     json_object = json.dumps(new_entry, indent = 4)
-#     print(json_object)
-#
-#     :param url:
-#     :param headers:
-#     :param new_entry:
-#     :param primary_id:
-#     :param mapping_fh:
-#     :param error_fh:
-#     :return:
-#     """
-#
-#     post_return = requests.post(url, headers=headers, json=new_entry)
-#     process_text = str(post_return.text)
-#     process_status_code = str(post_return.status_code)
-#     logger.info(primary_id + ' text ' + process_text)
-#     logger.info(primary_id + ' status_code ' + process_status_code)
-#
-#     response_dict = dict()
-#     try:
-#         response_dict = json.loads(post_return.text)
-#     except ValueError:
-#         logger.info("%s\tValueError", primary_id)
-#         error_fh.write("ERROR %s primaryId did not convert to json\n" % (primary_id))
-#         return headers, process_text, process_status_code
-#
-#     if (post_return.status_code == 201):
-#         response_dict = response_dict.replace('"', '')
-#         logger.info("%s\t%s", primary_id, response_dict)
-#         mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
-#     elif (post_return.status_code == 401):
-#         logger.info("%s\texpired token", primary_id)
-#         mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
-#         token = update_token()
-#         headers = generate_headers(token)
-#         process_post_tuple = process_post(url, headers, new_entry, primary_id, mapping_fh, error_fh)
-#         headers = process_post_tuple[0]
-#         process_text = process_post_tuple[1]
-#         process_status_code = process_post_tuple[2]
-#     elif (post_return.status_code == 500):
-#         logger.info("%s\tFAILURE", primary_id)
-#         mapping_fh.write("%s\t%s\n" % (primary_id, response_dict))
-#     # if redoing a run and want to skip errors of data having already gone in
-#     # elif (post_return.status_code == 409):
-#     #     continue
-#     else:
-#         logger.info("ERROR %s primaryId %s message %s", post_return.status_code, primary_id, response_dict['detail'])
-#         error_fh.write("ERROR %s primaryId %s message %s\n" % (post_return.status_code, primary_id, response_dict['detail']))
-#     return headers, process_text, process_status_code
 
 
 if __name__ == "__main__":

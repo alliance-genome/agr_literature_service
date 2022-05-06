@@ -6,16 +6,11 @@
 
 import logging.config
 from os import path
-# from os import environ
 from literature.database.main import get_db
 from literature.models import ModCorpusAssociationModel, ReferenceModel, ModModel
 import time
 
 from helper_sqlalchemy import sqlalchemy_load_ref_xref
-# from helper_file_processing import load_ref_xref_api_flatfile
-# from helper_file_processing import generate_cross_references_file
-# from helper_post_to_api import (generate_headers, get_authentication_token)
-
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf')
 logging.config.fileConfig(log_file_path)

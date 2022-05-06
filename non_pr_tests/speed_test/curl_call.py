@@ -13,7 +13,6 @@ def use_curl(curies, max_number, translate=True, count_start=0, verbose=False):
     count = 0
     while(count <= max_number):
         url = 'http://' + api_server + ':' + api_port + '/reference/' + curies[count + count_start]
-        # logger.info("get AGR reference info from database %s", url)
         get_return = requests.get(url)
         if translate:
             json.loads(get_return.text)

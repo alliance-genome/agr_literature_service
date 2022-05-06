@@ -13,18 +13,12 @@
 import hashlib
 import logging
 import logging.config
-# import re
 import tarfile
 from os import environ, listdir, makedirs, path, rename, walk
 from shutil import copy2
 
 from helper_s3 import upload_file_to_s3
-
-# import boto3
-# from botocore.exceptions import ClientError
 from dotenv import load_dotenv
-
-# from datetime import datetime
 
 
 load_dotenv()
@@ -37,7 +31,6 @@ logging.getLogger("s3transfer.tasks").setLevel(logging.WARNING)
 logging.getLogger("s3transfer.futures").setLevel(logging.WARNING)
 
 
-# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH', "")
 process_path = base_path + 'chunking_pmids/'
 
@@ -47,8 +40,6 @@ if not path.exists(base_expand_dir):
 temp_expand_dir = process_path + 'expand_tgz/temp_expand/'
 if not path.exists(temp_expand_dir):
     makedirs(temp_expand_dir)
-
-# s3_client = boto3.client('s3')
 
 
 def expand_tgz(tgz_file, expand_dir):
@@ -94,7 +85,6 @@ def upload_s3_dir(expand_dir, pmid):
     :return:
     """
 
-    # bucket is 's3://agr-literature/develop/reference/documents/pubmed/pmid/' + pmid
     env_state = environ.get('ENV_STATE', 'develop')
     if env_state == 'build':
         env_state = 'develop'
@@ -103,7 +93,6 @@ def upload_s3_dir(expand_dir, pmid):
         for root, _dirs, files in walk(expand_dir):
             for filename in files:
                 file = env_state + '/reference/documents/pubmed/pmid/' + pmid + '/' + filename
-                # logger.info("%s : %s : %s", path.join(root, file), bucketname, file)
                 upload_file_to_s3(path.join(root, filename), bucketname, file)
 
 

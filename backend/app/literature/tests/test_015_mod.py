@@ -1,11 +1,10 @@
 import pytest
 from fastapi import HTTPException
-from pydantic import ValidationError
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import sessionmaker
 
 from literature.crud.mod_crud import create, destroy, patch, show,\
-                                     show_changesets
+    show_changesets
 from literature.database.config import SQLALCHEMY_DATABASE_URL
 from literature.database.base import Base
 from literature.models import ModModel
@@ -24,10 +23,12 @@ if "literature-test" not in SQLALCHEMY_DATABASE_URL:
 
 db.execute('delete from mod')
 
+
 def test_get_bad_mod():
 
     with pytest.raises(HTTPException):
         show(db, "AtDB")
+
 
 def test_create_mod():
 
@@ -36,43 +37,47 @@ def test_create_mod():
         "short_name": "AtDB",
         "full_name": "Test genome database"
     }
-    
+
     res = create(db, data)
     assert res
-    
-    mod = db.query(ModModel).filter_by(abbreviation = "AtDB").one()
+
+    mod = db.query(ModModel).filter_by(abbreviation="AtDB").one()
     assert mod.short_name == "AtDB"
     assert mod.full_name == "Test genome database"
 
+
 def test_update_mod():
-    
-    data = { "abbreviation": "AtDB",
-             "short_name": "AtDB2",
-             "full_name": "Test genome database2" }
-    
-    mod = db.query(ModModel).filter_by(abbreviation = "AtDB").one()
+
+    data = {"abbreviation": "AtDB",
+            "short_name": "AtDB2",
+            "full_name": "Test genome database2"}
+
+    mod = db.query(ModModel).filter_by(abbreviation="AtDB").one()
     res = patch(db, mod.mod_id, data)
     assert res
-             
-    mod2 = db.query(ModModel).filter_by(abbreviation = "AtDB").one()
+
+    mod2 = db.query(ModModel).filter_by(abbreviation="AtDB").one()
     assert mod.mod_id == mod2.mod_id
     assert mod2.full_name == "Test genome database2"
-    
+
+
 def test_show_mod():
 
-    mod = db.query(ModModel).filter_by(abbreviation = "AtDB").one()
+    mod = db.query(ModModel).filter_by(abbreviation="AtDB").one()
     res = show(db, mod.abbreviation)
-             
+
     assert res["full_name"] == "Test genome database2"
-    
+
+
 def test_changesets():
-	
-    mod = db.query(ModModel).filter_by(abbreviation = "AtDB").one()
-    res = show_changesets(db, mod.mod_id)
-    
+
+    mod = db.query(ModModel).filter_by(abbreviation="AtDB").one()
+    show_changesets(db, mod.mod_id)
+
+
 def test_destroy_mod():
-             
-    mod = db.query(ModModel).filter_by(abbreviation = "AtDB").one()
+
+    mod = db.query(ModModel).filter_by(abbreviation="AtDB").one()
     destroy(db, mod.mod_id)
 
     # it should now give an error on lookup.
@@ -82,6 +87,3 @@ def test_destroy_mod():
     # deleting it again should give an error as the lookup will fail.
     with pytest.raises(HTTPException):
         destroy(db, mod.mod_id)
-
-
-

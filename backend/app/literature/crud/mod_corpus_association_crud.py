@@ -137,7 +137,6 @@ def show(db: Session, mod_corpus_association_id: int):
     return mod_corpus_association_data
 
 
-# def show_id(db: Session, mod_corpus_association: ModCorpusAssociationSchemaShowID) -> int:
 def show_by_reference_mod_abbreviation(db: Session, reference_curie: str, mod_abbreviation: str) -> int:
     """
 
@@ -145,11 +144,6 @@ def show_by_reference_mod_abbreviation(db: Session, reference_curie: str, mod_ab
     :param mod_corpus_association_id:
     :return:
     """
-    # logging.basicConfig(level=logging.INFO)
-    # logging.info("start to encode data")
-    # mod_corpus_association_data = jsonable_encoder(mod_corpus_association)
-    # reference_curie = mod_corpus_association_data["reference_curie"]
-    # mod_abbreviation = mod_corpus_association_data["mod_abbreviation"]
 
     mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
@@ -160,9 +154,6 @@ def show_by_reference_mod_abbreviation(db: Session, reference_curie: str, mod_ab
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the curie {reference_curie} is not available")
     else:
-        # mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(
-        # ModCorpusAssociationModel.reference_id == reference.reference_id
-        # and ModCorpusAssociationModel.mod_id == mod.mod_id).first()
         mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(
             ModCorpusAssociationModel.reference_id == reference.reference_id).filter(
             ModCorpusAssociationModel.mod_id == mod.mod_id).first()

@@ -3,25 +3,18 @@ import json
 import sys
 import logging
 import logging.config
-# import bs4
 import warnings
 from os import environ, makedirs, path
 
-# import urllib.request
 import requests
 from dotenv import load_dotenv
 
-# from sqlalchemy import create_engine
-# from sqlalchemy.orm import sessionmaker
 from fastapi.encoders import jsonable_encoder
 
 from filter_dqm_md5sum import load_s3_md5data, generate_new_md5, save_s3_md5data
 
 from literature.models import ReferenceModel
 
-# from helper_file_processing import (clean_up_keywords,
-#                                     load_ref_xref_api_flatfile,
-#                                     generate_cross_references_file)
 from helper_file_processing import (compare_authors_or_editors,
                                     split_identifier, write_json)
 from helper_post_to_api import (generate_headers, get_authentication_token,
@@ -34,8 +27,6 @@ from parse_dqm_json_reference import (generate_pmid_data,
                                       aggregate_dqm_with_pubmed)
 from get_pubmed_xml import download_pubmed_xml
 from xml_to_json import generate_json
-# from process_many_pmids_to_json import download_and_convert_pmids
-# from sanitize_pubmed_json import sanitize_pubmed_json_list
 from post_reference_to_api import post_references
 from post_comments_corrections_to_api import post_comments_corrections
 
@@ -199,7 +190,6 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     :return:
     """
 
-    # base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
     base_path = environ.get('XML_PATH')
     api_port = environ.get('API_PORT')    # noqa: F841
     # url_ref_curie_prefix = 'https://dev' + api_port + '-literature-rest.alliancegenome.org/reference/'
@@ -282,10 +272,6 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
             dqm_data = json.load(f)
             f.close()
         entries = dqm_data['data']
-        # not sure why this was getting assigned, should always come from dqms
-        # entries = dqm_data
-        # if input_file == 'dqm':
-        #     entries = dqm_data['data']
         # get rid of counter
         counter = 0
         # max_counter = 1

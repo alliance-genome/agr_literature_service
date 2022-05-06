@@ -40,7 +40,10 @@ def create(db: Session, resource: ResourceSchemaPost):
     :param resource:
     :return:
     """
-
+    remap = {'editors': 'editor',
+             'mesh_terms': 'mesh_term',
+             'cross_references': 'cross_reference',
+             'mod_reference_types': 'mod_reference_type'}
     resource_data = {}
 
     if resource.cross_references is not None:
@@ -67,7 +70,7 @@ def create(db: Session, resource: ResourceSchemaPost):
             for obj in value:
                 obj_data = jsonable_encoder(obj)
                 db_obj = None
-                if field in ['editors']:
+                if field == 'editors':
                     if obj_data['orcid']:
                         cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == obj_data['orcid']).first()
                         if not cross_reference_obj:
@@ -83,7 +86,10 @@ def create(db: Session, resource: ResourceSchemaPost):
                     db_obj = MeshDetailModel(**obj_data)
                 db.add(db_obj)
                 db_objs.append(db_obj)
-            resource_data[field] = db_objs
+            if field in remap:
+                resource_data[remap[field]] = db_objs
+            else:
+                resource_data[field] = db_objs
         else:
             resource_data[field] = value
 
@@ -106,7 +112,7 @@ def show_all_resources_external_ids(db: Session):
                                     ARRAY(String)),
                                cast(func.array_agg(CrossReferenceModel.is_obsolete),
                                     ARRAY(Boolean))) \
-        .outerjoin(ResourceModel.cross_references) \
+        .outerjoin(ResourceModel.cross_reference) \
         .group_by(ResourceModel.curie)
 
     return [{'curie': resource[0],
@@ -188,21 +194,23 @@ def show(db: Session, curie: str):
                             detail=f"Resource with the id {curie} is not available")
 
     resource_data = jsonable_encoder(resource)
-    if resource.cross_references:
+    if resource.cross_reference:
         cross_references = []
-        for cross_reference in resource_data['cross_references']:
+        for cross_reference in resource_data['cross_reference']:
             cross_reference_show = jsonable_encoder(cross_reference_crud.show(db, cross_reference['curie']))
             del cross_reference_show['resource_curie']
             cross_references.append(cross_reference_show)
         resource_data['cross_references'] = cross_references
 
-    if resource.editors:
-        for editor in resource_data['editors']:
+    if resource.editor:
+        editors = []
+        for editor in resource_data['editor']:
             if editor['orcid']:
                 editor['orcid'] = jsonable_encoder(cross_reference_crud.show(db, editor['orcid']))
             del editor['orcid_cross_reference']
             del editor['resource_id']
-
+            editors.append(editor)
+        resource_data['editors'] = editors
     return resource_data
 
 

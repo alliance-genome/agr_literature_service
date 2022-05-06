@@ -1,12 +1,9 @@
-# import json
 import argparse
 import hashlib
-# from os import makedirs, listdir
 import logging
 import logging.config
 import urllib
 from os import environ, path
-# from shutil import copyfile
 from typing import List
 
 from dotenv import load_dotenv
@@ -18,8 +15,6 @@ from dotenv import load_dotenv
 
 # 5 minutes 5 seconds for 649073 xml
 
-# import re
-
 load_dotenv()
 
 pmids = []      # type: List
@@ -29,9 +24,6 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-
-# todo: save this in an env variable
-# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH', "")
 
 
@@ -42,7 +34,6 @@ def generate_md5sums(file_type):
     :return:
     """
 
-    # storage_path = base_path + 'pubmed_' + file_type + '_20210322/'
     storage_path = base_path + 'pubmed_' + file_type + '/'
     md5data = ''
     for pmid in pmids:

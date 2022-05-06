@@ -19,8 +19,6 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-
-# base_path = '/home/azurebrd/git/agr_literature_service_demo/src/xml_processing/'
 base_path = environ.get('XML_PATH', "")
 process_path = base_path + 'chunking_pmids/'
 
