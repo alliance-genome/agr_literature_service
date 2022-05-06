@@ -19,7 +19,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                             detail="requested a search but no query and no facets provided")
     if facets_limits is None:
         facets_limits = {}
-    # I don't know why the argument default value to 10 doesn't work, search_crud all results in a None if the field is missing in the json
     if size_result_count is None:
         size_result_count = 10
     es_host = config.ELASTICSEARCH_HOST
