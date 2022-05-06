@@ -198,9 +198,6 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
     # download the dqm file(s) from mod(s)
     download_dqm_json()
-
-    return
-    
     
     # to pull in new journal info from pubmed
     update_resource_pubmed_nlm()
