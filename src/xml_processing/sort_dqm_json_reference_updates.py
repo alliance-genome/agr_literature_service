@@ -538,8 +538,10 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
         # update s3 md5sum only if prod, to test develop copy file from s3 prod to s3 develop
         # https://s3.console.aws.amazon.com/s3/buckets/agr-literature?prefix=develop%2Freference%2Fmetadata%2Fmd5sum%2F&region=us-east-1&showversions=false#
-        env_state = environ.get('ENV_STATE', 'prod')
-        if env_state == 'build':
+        # env_state = environ.get('ENV_STATE', 'prod')
+        # if env_state == 'build':
+        env_state = environ.get('ENV_STATE', 'build')
+        if env_state == 'prod':
             merge_md5dict = {}
             merge_md5dict[mod] = {**old_md5dict[mod], **new_md5dict[mod]}
             save_s3_md5data(merge_md5dict, [mod])
