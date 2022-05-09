@@ -253,7 +253,7 @@ def query_mods(input_mod, reldate):
             # print(json_data)
             # pmids_joined = (',').join(sorted(pmids_wanted))
             # logger.info(pmids_joined)
-            # logger.info(len(pmids_wanted)
+            # logger.info(len(pmids_wanted))
             for pmid in pmids_wanted:
                 if pmid in pmid_curie_mod_dict:
                     agr_curie = pmid_curie_mod_dict[pmid][0]
