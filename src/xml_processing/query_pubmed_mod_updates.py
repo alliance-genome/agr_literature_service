@@ -206,9 +206,9 @@ def query_mods(input_mod, reldate):
         'WB': '&reldate=1825'
     }
     mod_false_positive_file = {
-        'FB': 'FB_fp_PMIDs_20210728.txt',
-        'WB': 'WB_false_positive_pmids',
-        'SGD': 'SGD_referencedeletedpmids_20210803.csv'
+        'FB': 'FB_false_positive_pmids.txt',
+        'WB': 'WB_false_positive_pmids.txt',
+        'SGD': 'SGD_false_positive_pmids.txt'
     }
     # source of WB FP file: https://tazendra.caltech.edu/~postgres/agr/lit/WB_false_positive_pmids
 
