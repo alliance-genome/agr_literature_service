@@ -1,4 +1,3 @@
-
 import argparse
 import json
 import logging
@@ -398,14 +397,18 @@ def strip_string_to_integer(string):
     return int("".join(filter(lambda x: x.isdigit(), string)))
 
 
-def load_pmid_multi_mods():
+def load_pmid_multi_mods(output_path):
     """
 
     :return:
     """
 
     pmid_multi_mods = dict()
-    pmid_multi_mods_file = base_path + 'pmids_by_mods'
+    pmid_multi_mods_file = None
+    if output_path:
+        pmid_multi_mods_file = base_path + output_path + 'pmids_by_mods'
+    else:
+        pmid_multi_mods_file = base_path + 'pmids_by_mods'
     with open(pmid_multi_mods_file, 'r') as f:
         for line in f:
             cols = line.split("\t")
@@ -442,7 +445,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
 
     # this has to be loaded, if the mod data is hashed by pmid+mod and sorted for those with
     # multiple mods, there's an out-of-memory crash
-    pmid_multi_mods = load_pmid_multi_mods()
+    pmid_multi_mods = load_pmid_multi_mods(output_directory)
 
     # use these two lines to properly load resource data, but it takes a bit of time
     resource_to_nlm, resource_to_nlm_highest, resource_nlm_to_title = load_pubmed_resource()
