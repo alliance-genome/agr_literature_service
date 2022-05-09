@@ -19,6 +19,7 @@ from helper_s3 import upload_xml_file_to_s3
 from helper_post_to_api import (generate_headers,
                                 process_api_request, update_token)
 from post_comments_corrections_to_api import post_comments_corrections
+from update_resource_pubmed_nlm import update_resource_pubmed_nlm
 
 from literature.database.main import get_db
 from literature.models import ReferenceModel, CrossReferenceModel, ModCorpusAssociationModel, ModModel
@@ -128,7 +129,6 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-
 base_path = environ.get('XML_PATH', "")
 search_path = base_path + 'pubmed_searches/'
 search_outfile_path = base_path + 'pubmed_searches/search_new_mods/'
@@ -152,7 +152,7 @@ def get_pmid_association_to_mod_via_reference(pmids: List[str], mod_abbreviation
         ReferenceModel.curie,
         ModModel.abbreviation
     ).join(
-        ReferenceModel.cross_references
+        ReferenceModel.cross_reference
     ).filter(
         CrossReferenceModel.curie.in_(pmids)
     ).outerjoin(
@@ -162,6 +162,7 @@ def get_pmid_association_to_mod_via_reference(pmids: List[str], mod_abbreviation
     )
     results = query.all()
     pmid_curie_mod_dict: Dict[str, Tuple[Union[str, None], Union[str, None]]] = {}
+    ## example: pmid_curie_mod_dict['PMID:35510023'] = ('AGR:AGR-Reference-0000862607', 'SGD')
     for result in results:
         if result[0] not in pmid_curie_mod_dict or pmid_curie_mod_dict[result[0]][1] is None:
             pmid_curie_mod_dict[result[0]] = (result[1], result[2] if result[2] == mod_abbreviation else None)
@@ -171,7 +172,7 @@ def get_pmid_association_to_mod_via_reference(pmids: List[str], mod_abbreviation
     return pmid_curie_mod_dict
 
 
-def query_pubmed_mod_updates():
+def query_pubmed_mod_updates(input_mod, reldate):
     """
 
     :return:
@@ -179,14 +180,17 @@ def query_pubmed_mod_updates():
 
     # query_pmc_mgi()			# find pmc articles for mice and 9 journals, get pmid mappings and list of pmc without pmid
     # download_pmc_without_pmid_mgi()     # download pmc xml for pmc without pmid and find their article type
-    query_mods()			# query pubmed for mod references
+    query_mods(input_mod, reldate)			# query pubmed for mod references
 
 
-def query_mods():
+def query_mods(input_mod, reldate):
     """
 
     :return:
     """
+
+    # to pull in new journal info from pubmed
+    update_resource_pubmed_nlm()
 
     mod_esearch_url = {
         'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=drosophil*[ALL]+OR+melanogaster[ALL]+NOT+pubstatusaheadofprint',
@@ -195,7 +199,6 @@ def query_mods():
         'WB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=elegans',
         'XB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=(Xenopus+OR+Silurana)+AND+%22Journal+Article%E2%80%9D'
     }
-    # how far back to search pubmed in days for each MOD
     mod_daterange = {
         'FB': '&reldate=365',
         'ZFIN': '&reldate=730',
@@ -203,14 +206,15 @@ def query_mods():
         'WB': '&reldate=1825'
     }
     mod_false_positive_file = {
-        'FB': 'FB_fp_PMIDs_20210728.txt',
-        'WB': 'WB_false_positive_pmids',
-        'SGD': 'SGD_referencedeletedpmids_20210803.csv'
+        'FB': 'FB_false_positive_pmids.txt',
+        'WB': 'WB_false_positive_pmids.txt',
+        'SGD': 'SGD_false_positive_pmids.txt'
     }
     # source of WB FP file: https://tazendra.caltech.edu/~postgres/agr/lit/WB_false_positive_pmids
 
     mods_to_query = ['ZFIN', 'WB', 'FB', 'SGD']
-
+    if input_mod in mods_to_query:
+        mods_to_query = [input_mod]
     pmids_posted = set()     # type: Set
     logger.info("Starting query mods")
     sleep_delay = 1
@@ -226,7 +230,9 @@ def query_mods():
                     fp_pmids.add(pmid)
         time.sleep(sleep_delay)
         url = mod_esearch_url[mod]
-        if mod in mod_daterange:
+        if reldate:
+            url = url + "&reldate=" + str(reldate)
+        elif mod in mod_daterange:
             url = url + mod_daterange[mod]
         f = urllib.request.urlopen(url)
         xml_all = f.read().decode('utf-8')
@@ -260,6 +266,7 @@ def query_mods():
                         # print(f"add {mod} mca to {pmid} is {agr_curie}")
                         agr_curies_to_corpus.append(agr_curie)
         logger.info(f"pmids_to_create: {len(pmids_to_create)}")
+        # print (f"pmids_to_create: {len(pmids_to_create)}")
         # pmids_joined = (',').join(sorted(pmids_to_create))
         # logger.info(pmids_joined)
         logger.info(f"agr_curies_to_corpus: {len(agr_curies_to_corpus)}")
@@ -456,9 +463,19 @@ if __name__ == "__main__":
     parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
     parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
     parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
-
+    ##########
+    parser.add_argument('-m', '--mod', action='store', help='which mod, use all or leave blank for all')
+    parser.add_argument('-b', '--reldate', action='store', help='how far back to search pubmed in days for each MOD')
     args = vars(parser.parse_args())
+    # pmids_wanted = []
+    ## usage: query_pubmed_mod_updates.py -m SGD -b 7
+    ## usage: query_pubmed_mod_updates.py -m WB -b 14
+    ## usage: query_pubmed_mod_updates.py -m FB -b 14
+    ## usage: query_pubmed_mod_updates.py -m ZFIN -b 14
+    ## usage: query_pubmed_mod_updates.py -b 14
+    ## usage: query_pubmed_mod_updates.py
 
-    pmids_wanted = []     # type: List
+    mod = args['mod'] if args['mod'] else 'all'
+    reldate = args['reldate'] if args['reldate'] else 'None'
 
-    query_pubmed_mod_updates()
+    query_pubmed_mod_updates(mod, reldate)
