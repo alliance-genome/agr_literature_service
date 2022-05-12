@@ -216,6 +216,7 @@ def query_mods(input_mod, reldate):
 
     # retrieve all cross_reference info from database
     xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
+    db_session = next(get_db())
     mods_to_query = ['ZFIN', 'WB', 'FB', 'SGD']
     if input_mod in mods_to_query:
         mods_to_query = [input_mod]
@@ -288,49 +289,9 @@ def query_mods(input_mod, reldate):
         download_pubmed_xml(pmids_to_process)
         generate_json(pmids_to_process, [])
 
-        # check for papers with same doi in the database
-        # print ("ref_xref_valid=", str(ref_xref_valid['AGR:AGR-Reference-0000167781']))
-        # ref_xref_valid= {'DOI': '10.1111/j.1440-1711.2005.01311.x', 'MGI': '3573820', 'PMID': '15748210'}
-        # print ("xref_ref['DOI'][doi]=", str(xref_ref['DOI']['10.1111/j.1440-1711.2005.01311.x']))
-        # xref_ref['DOI'][doi]= AGR:AGR-Reference-0000167781
-        db_session = next(get_db())
-        json_path = base_path + "pubmed_json/"
-        log_file = base_path + "pubmed_searches/duplicate_rows.log"
-        fw = open(log_file, "w")
-        for pmid in pmids_to_process:
-            json_file = json_path + pmid + ".json"
-            f = open(json_file)
-            json_data = json.load(f)
-            f.close()
-            cross_references = json_data['crossReferences']
-            doi = None
-            for c in cross_references:
-                if c['id'].startswith('DOI:'):
-                    doi = c['id'].replace('DOI:', '')
-            if doi and doi in xref_ref['DOI']:
-                ## the doi for the new paper is in the database
-                agr = xref_ref['DOI'][doi]
-                all_ref_xref = ref_xref_valid[agr] if agr in ref_xref_valid else {}
-                if agr in ref_xref_obsolete:
-                    # merge two dictionaries
-                    all_ref_xref.update(ref_xref_obsolete[agr])
-                found_pmids_for_this_doi = []
-                for prefix in all_ref_xref:
-                    if prefix == 'PMID':
-                        found_pmids_for_this_doi.append(all_ref_xref[prefix])
-                if len(found_pmids_for_this_doi) == 0:
-                    fw.write("adding PMID:" + pmid + " to the row with doi = " + doi + " in the database\n")
-                    data = {"curie": "PMID:" + pmid, "reference_curie": agr, "pages": ["reference"]}
-                    try:
-                        xref_schema = CrossReferenceSchemaPost(**data)
-                        create(db_session, xref_schema)
-                    except Exception as e:
-                        fw.write("adding " + pmid + " to the row with " + doi + " is failed: " + str(e) + "\n")
-                else:
-                    fw.write(doi + " is associated with PMID(s) in the database: " + ",".join(found_pmids_for_this_doi) + "\n")
-                pmids_to_process.remove(pmid)
-        fw.close()
-        # done checking
+        check_handle_duplicate(db_session, pmids_to_process, xref_ref,
+                               ref_xref_valid, ref_xref_obsolete)
+
         inject_object = {}
         mod_corpus_associations = [{"modAbbreviation": mod, "modCorpusSortSource": "mod_pubmed_search", "corpus": None}]
         inject_object['modCorpusAssociations'] = mod_corpus_associations
@@ -354,13 +315,59 @@ def query_mods(input_mod, reldate):
     logger.info("pmids process comments corrections")
     logger.info(pmids_posted)
     post_comments_corrections(list(pmids_posted))
-
+    db_session.close()
     logger.info("end query_mods")
+
+
+def check_handle_duplicate(db_session, pmids, xref_ref, ref_xref_valid, ref_xref_obsolete):
+
+    # check for papers with same doi in the database
+    # print ("ref_xref_valid=", str(ref_xref_valid['AGR:AGR-Reference-0000167781']))
+    # ref_xref_valid= {'DOI': '10.1111/j.1440-1711.2005.01311.x', 'MGI': '3573820', 'PMID': '15748210'}
+    # print ("xref_ref['DOI'][doi]=", str(xref_ref['DOI']['10.1111/j.1440-1711.2005.01311.x']))
+    # xref_ref['DOI'][doi]= AGR:AGR-Reference-0000167781
+
+    json_path = base_path + "pubmed_json/"
+    log_file = base_path + "pubmed_searches/duplicate_rows.log"
+
+    fw = open(log_file, "w")
+    for pmid in pmids:
+        json_file = json_path + pmid + ".json"
+        f = open(json_file)
+        json_data = json.load(f)
+        f.close()
+        cross_references = json_data['crossReferences']
+        doi = None
+        for c in cross_references:
+            if c['id'].startswith('DOI:'):
+                doi = c['id'].replace('DOI:', '')
+        if doi and doi in xref_ref['DOI']:
+            ## the doi for the new paper is in the database
+            agr = xref_ref['DOI'][doi]
+            all_ref_xref = ref_xref_valid[agr] if agr in ref_xref_valid else {}
+            if agr in ref_xref_obsolete:
+                # merge two dictionaries
+                all_ref_xref.update(ref_xref_obsolete[agr])
+            found_pmids_for_this_doi = []
+            for prefix in all_ref_xref:
+                if prefix == 'PMID':
+                    found_pmids_for_this_doi.append(all_ref_xref[prefix])
+            if len(found_pmids_for_this_doi) == 0:
+                fw.write("adding PMID:" + pmid + " to the row with doi = " + doi + " in the database\n")
+                data = {"curie": "PMID:" + pmid, "reference_curie": agr, "pages": ["reference"]}
+                try:
+                    xref_schema = CrossReferenceSchemaPost(**data)
+                    create(db_session, xref_schema)
+                except Exception as e:
+                    fw.write("adding " + pmid + " to the row with " + doi + " is failed: " + str(e) + "\n")
+            else:
+                fw.write(doi + " is associated with PMID(s) in the database: " + ",".join(found_pmids_for_this_doi) + "\n")
+            pmids.remove(pmid)
+    fw.close()
 
 
 def post_mca_to_existing_references(agr_curies_to_corpus, mod):
     """
-
     :param agr_curies_to_corpus: agr reference curies to add an mca_value to
     :param mod: mod to associate
     :return:
