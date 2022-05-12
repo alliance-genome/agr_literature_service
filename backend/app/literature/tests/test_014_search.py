@@ -71,6 +71,15 @@ class TestSearch:
         assert "return_count" in res
         assert res["return_count"] == 1
 
+    def test_search_max_results(self, initialize_elasticsearch):
+        facets_values = {
+            "pubmed_types.keyword": ["Book"]
+        }
+        test_size = 2
+        res = search_references(query=None, facets_values=facets_values, return_facets_only=False, size_result_count=test_size)
+        assert "hits" in res
+        assert len(res["hits"]) == test_size
+
     def test_search_references_facets_limits(self, initialize_elasticsearch):
         res = search_references(return_facets_only=True, facets_limits={"pubmed_types.keyword": 15})
         assert len(res["aggregations"]["pubmed_types.keyword"]["buckets"]) > 10
