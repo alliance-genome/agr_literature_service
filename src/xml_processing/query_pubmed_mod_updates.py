@@ -355,7 +355,8 @@ def check_handle_duplicate(db_session, pmids, xref_ref, ref_xref_valid, ref_xref
                     found_pmids_for_this_doi.append(all_ref_xref[prefix])
             if len(found_pmids_for_this_doi) == 0:
                 fw.write("adding PMID:" + pmid + " to the row with doi = " + doi + " in the database\n")
-                data = {"curie": "PMID:" + pmid, "reference_curie": agr, "pages": ["reference"]}
+                # data = {"curie": "PMID:" + pmid, "reference_curie": agr, "pages": ["reference"]}
+                data = {"curie": "PMID:" + pmid, "reference_curie": agr}
                 try:
                     xref_schema = CrossReferenceSchemaPost(**data)
                     create(db_session, xref_schema)
