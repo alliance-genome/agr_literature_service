@@ -197,7 +197,9 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     url_ref_curie_prefix = make_url_ref_curie_prefix()
 
     # download the dqm file(s) from mod(s)
-    download_dqm_json()
+    env_state = environ.get('ENV_STATE', 'build')
+    if env_state != 'test':
+        download_dqm_json()
     # to pull in new journal info from pubmed
     update_resource_pubmed_nlm()
     token = get_authentication_token()
@@ -541,7 +543,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
         # env_state = environ.get('ENV_STATE', 'prod')
         # if env_state == 'build':
         env_state = environ.get('ENV_STATE', 'build')
-        if env_state != 'test':
+        if env_state == 'prod'':
             merge_md5dict = {}
             merge_md5dict[mod] = {**old_md5dict[mod], **new_md5dict[mod]}
             save_s3_md5data(merge_md5dict, [mod])
