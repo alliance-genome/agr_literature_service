@@ -216,7 +216,6 @@ def query_mods(input_mod, reldate):
 
     # retrieve all cross_reference info from database
     xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
-    
     mods_to_query = ['ZFIN', 'WB', 'FB', 'SGD']
     if input_mod in mods_to_query:
         mods_to_query = [input_mod]
@@ -258,7 +257,7 @@ def query_mods(input_mod, reldate):
             # print(json_data)
             # pmids_joined = (',').join(sorted(pmids_wanted))
             # logger.info(pmids_joined)
-            # logger.info(len(pmids_wanted))            
+            # logger.info(len(pmids_wanted))
             for pmid in pmids_wanted:
                 if pmid in pmid_curie_mod_dict:
                     agr_curie = pmid_curie_mod_dict[pmid][0]
@@ -290,12 +289,10 @@ def query_mods(input_mod, reldate):
         generate_json(pmids_to_process, [])
 
         # check for papers with same doi in the database
-        
         # print ("ref_xref_valid=", str(ref_xref_valid['AGR:AGR-Reference-0000167781']))
         # ref_xref_valid= {'DOI': '10.1111/j.1440-1711.2005.01311.x', 'MGI': '3573820', 'PMID': '15748210'}
         # print ("xref_ref['DOI'][doi]=", str(xref_ref['DOI']['10.1111/j.1440-1711.2005.01311.x']))
         # xref_ref['DOI'][doi]= AGR:AGR-Reference-0000167781
-        
         db_session = next(get_db())
         json_path = base_path + "pubmed_json/"
         log_file = base_path + "pubmed_searches/duplicate_rows.log"
@@ -310,13 +307,13 @@ def query_mods(input_mod, reldate):
             for c in cross_references:
                 if c['id'].startswith('DOI:'):
                     doi = c['id'].replace('DOI:', '')
-                    break                    
             if doi and doi in xref_ref['DOI']:
                 ## the doi for the new paper is in the database
                 agr = xref_ref['DOI'][doi]
                 all_ref_xref = ref_xref_valid[agr] if agr in ref_xref_valid else {}
                 if agr in ref_xref_obsolete:
-                    all_ref_xref.update(ref_xref_obsolete[agr]) ## merge two dictionaries            
+                    # merge two dictionaries
+                    all_ref_xref.update(ref_xref_obsolete[agr])
                 found_pmids_for_this_doi = []
                 for prefix in all_ref_xref:
                     if prefix == 'PMID':
@@ -334,7 +331,6 @@ def query_mods(input_mod, reldate):
                 pmids_to_process.remove(pmid)
         fw.close()
         # done checking
-    
         inject_object = {}
         mod_corpus_associations = [{"modAbbreviation": mod, "modCorpusSortSource": "mod_pubmed_search", "corpus": None}]
         inject_object['modCorpusAssociations'] = mod_corpus_associations
@@ -347,9 +343,7 @@ def query_mods(input_mod, reldate):
         # post generated json to api
         json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_PMID.json'
         process_results = post_references(json_filepath, 'no_file_check')
-
         logger.info(process_results)
-        
         # upload each processed json file to s3
         for pmid in pmids_to_process:
             # logger.info(f"upload {pmid} to s3")
