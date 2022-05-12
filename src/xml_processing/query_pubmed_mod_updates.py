@@ -328,10 +328,11 @@ def check_handle_duplicate(db_session, pmids, xref_ref, ref_xref_valid, ref_xref
     # print ("xref_ref['DOI'][doi]=", str(xref_ref['DOI']['10.1111/j.1440-1711.2005.01311.x']))
     # xref_ref['DOI'][doi]= AGR:AGR-Reference-0000167781
 
+    from datetime import datetime
     json_path = base_path + "pubmed_json/"
-    log_file = base_path + "pubmed_searches/duplicate_rows.log"
+    log_file = base_path + "report_files/duplicate_rows.log"
 
-    fw = open(log_file, "w")
+    fw = open(log_file, "a")
     for pmid in pmids:
         json_file = json_path + pmid + ".json"
         f = open(json_file)
@@ -354,16 +355,15 @@ def check_handle_duplicate(db_session, pmids, xref_ref, ref_xref_valid, ref_xref
                 if prefix == 'PMID':
                     found_pmids_for_this_doi.append(all_ref_xref[prefix])
             if len(found_pmids_for_this_doi) == 0:
-                fw.write("adding PMID:" + pmid + " to the row with doi = " + doi + " in the database\n")
-                # data = {"curie": "PMID:" + pmid, "reference_curie": agr, "pages": ["reference"]}
+                fw.write(str(datetime.now()) + ": adding PMID:" + pmid + " to the row with doi = " + doi + " in the database\n")
                 data = {"curie": "PMID:" + pmid, "reference_curie": agr}
                 try:
                     xref_schema = CrossReferenceSchemaPost(**data)
                     create(db_session, xref_schema)
                 except Exception as e:
-                    fw.write("adding " + pmid + " to the row with " + doi + " is failed: " + str(e) + "\n")
+                    logger.info(str(datetime.now()) + ": adding " + pmid + " to the row with " + doi + " is failed: " + str(e) + "\n")
             else:
-                fw.write(doi + " is associated with PMID(s) in the database: " + ",".join(found_pmids_for_this_doi) + "\n")
+                fw.write(str(datetime.now()) + ": " + doi + " is associated with PMID(s) in the database: " + ",".join(found_pmids_for_this_doi) + "\n")
             pmids.remove(pmid)
     fw.close()
 
