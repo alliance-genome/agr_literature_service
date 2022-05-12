@@ -283,14 +283,15 @@ def query_mods(input_mod, reldate):
 
         pmids_to_process = sorted(pmids_to_create)
         # pmids_to_process = sorted(pmids_to_create)[0:2]   # smaller set to test
-        for pmid in pmids_to_process:
-            pmids_posted.add(pmid)
         logger.info(pmids_to_process)
         download_pubmed_xml(pmids_to_process)
         generate_json(pmids_to_process, [])
 
         check_handle_duplicate(db_session, pmids_to_process, xref_ref,
                                ref_xref_valid, ref_xref_obsolete)
+
+        for pmid in pmids_to_process:
+            pmids_posted.add(pmid)
 
         inject_object = {}
         mod_corpus_associations = [{"modAbbreviation": mod, "modCorpusSortSource": "mod_pubmed_search", "corpus": None}]
