@@ -199,9 +199,10 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     # download the dqm file(s) from mod(s)
     env_state = environ.get('ENV_STATE', 'build')
     if env_state != 'test':
+        # download the dqm file(s) from mod(s)
         download_dqm_json()
-    # to pull in new journal info from pubmed
-    update_resource_pubmed_nlm()
+        # to pull in new journal info from pubmed
+        update_resource_pubmed_nlm()
     token = get_authentication_token()
     headers = generate_headers(token)
 
