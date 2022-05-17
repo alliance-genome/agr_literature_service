@@ -75,7 +75,7 @@
             "table": "reference",
             "columns": [
                 "curie", "title", "resource_id", "volume", "date_published", "page_range", "abstract", "keywords", "publisher"
-                , "pubmed_types", "issue_name"
+                , "pubmed_types", "issue_name", "category", "pubmed_publication_status"
             ],
             "transform": {
                 "mapping": {
@@ -168,12 +168,32 @@
                                 "ignore_above": 256
                             }
                         }
+                    },
+                    "category": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "normalizer": "sortNormalizer",
+                                "ignore_above": 256
+                            }
+                        }
+                    },
+                    "pubmed_publication_status": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "normalizer": "sortNormalizer",
+                                "ignore_above": 256
+                            }
+                        }
                     }
                 }
             },
             "children":[
                 {
-                    "table": "authors",
+                    "table": "author",
                     "columns": [
                         "orcid", "first_author", "corresponding_author", "affiliations", "first_name", "last_name"
                     ],
@@ -231,7 +251,7 @@
                     }
                 },
                 {
-                    "table": "resources",
+                    "table": "resource",
                     "columns":[
                        "title", "title_synonyms", "iso_abbreviation", "medline_abbreviation", "publisher", "volumes"
                        ,"abstract", "summary"

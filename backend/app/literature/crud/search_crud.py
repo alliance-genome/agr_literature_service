@@ -38,6 +38,18 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "field": "pubmed_types.keyword",
                     "size": facets_limits["pubmed_types.keyword"] if "pubmed_types.keyword" in facets_limits else 10
                 }
+            },
+            "category.keyword": {
+                "terms": {
+                    "field": "category.keyword",
+                    "size": facets_limits["category.keyword"] if "category.keyword" in facets_limits else 10
+                }
+            },
+            "pubmed_publication_status.keyword": {
+                "terms": {
+                    "field": "pubmed_publication_status.keyword",
+                    "size": facets_limits["pubmed_publication_status.keyword"] if "pubmed_publication_status.keyword" in facets_limits else 10
+                }
             }
         },
         "size": size_result_count,
@@ -52,7 +64,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         es_body["query"]["bool"]["must"].append({"match": {"title": query}})
     if facets_values:
         for facet_field, facet_list_values in facets_values.items():
-            es_body["query"]["bool"]["filter"]["bool"]["must"] = []
+            if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
+                es_body["query"]["bool"]["filter"]["bool"]["must"] = []
             es_body["query"]["bool"]["filter"]["bool"]["must"].append({"bool": {"should": []}})
             for facet_value in facet_list_values:
                 es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["should"].append({"term": {}})
