@@ -204,7 +204,7 @@ def query_mods(input_mod, reldate):
     mod_daterange = {
         'FB': '&reldate=365',
         'ZFIN': '&reldate=730',
-        'SGD': '&reldate=60',
+        'SGD': '&reldate=200',
         'WB': '&reldate=1825'
     }
     mod_false_positive_file = {
