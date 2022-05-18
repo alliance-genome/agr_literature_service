@@ -204,7 +204,7 @@ def query_mods(input_mod, reldate):
     mod_daterange = {
         'FB': '&reldate=365',
         'ZFIN': '&reldate=730',
-        'SGD': '&reldate=14',
+        'SGD': '&reldate=200',
         'WB': '&reldate=1825'
     }
     mod_false_positive_file = {
@@ -239,6 +239,7 @@ def query_mods(input_mod, reldate):
             url = url + "&reldate=" + str(reldate)
         elif mod in mod_daterange:
             url = url + mod_daterange[mod]
+        # print (" url for " + mod + "=" + url)
         f = urllib.request.urlopen(url)
         xml_all = f.read().decode('utf-8')
         pmids_to_create = []
@@ -330,9 +331,15 @@ def check_handle_duplicate(db_session, pmids, xref_ref, ref_xref_valid, ref_xref
 
     from datetime import datetime
     json_path = base_path + "pubmed_json/"
-    log_file = base_path + "report_files/duplicate_rows.log"
-
-    fw = open(log_file, "a")
+    log_path = base_path + "report_files/"
+    if not path.exists(log_path):
+        makedirs(log_path)
+    log_file = log_path + "duplicate_rows.log"
+    fw = None
+    if path.exists(log_file):
+        fw = open(log_file, "a")
+    else:
+        fw = open(log_file, "w")
     for pmid in pmids:
         json_file = json_path + pmid + ".json"
         f = open(json_file)
@@ -363,7 +370,7 @@ def check_handle_duplicate(db_session, pmids, xref_ref, ref_xref_valid, ref_xref
                 except Exception as e:
                     logger.info(str(datetime.now()) + ": adding " + pmid + " to the row with " + doi + " is failed: " + str(e) + "\n")
             else:
-                fw.write(str(datetime.now()) + ": " + doi + " is associated with PMID(s) in the database: " + ",".join(found_pmids_for_this_doi) + "\n")
+                fw.write(str(datetime.now()) + ": " + doi + " for PMID:" + pmid + " is associated with PMID(s) in the database: " + ",".join(found_pmids_for_this_doi) + "\n")
             pmids.remove(pmid)
     fw.close()
 
@@ -531,6 +538,6 @@ if __name__ == "__main__":
     ## usage: query_pubmed_mod_updates.py
 
     mod = args['mod'] if args['mod'] else 'all'
-    reldate = args['reldate'] if args['reldate'] else 'None'
+    reldate = args['reldate'] if args['reldate'] else None
 
     query_pubmed_mod_updates(mod, reldate)
