@@ -273,6 +273,40 @@ services:
     depends_on:
       - postgres
 
+  dbz_zookeeper:
+    image: quay.io/debezium/zookeeper:${DEBEZIUM_VERSION}
+    ports:
+      - 2181:2181
+      - 2888:2888
+      - 3888:3888
+    networks:
+      - agr-literature
+
+  dbz_kafka:
+    image: quay.io/debezium/kafka:${DEBEZIUM_VERSION}
+    ports:
+      - 9092:9092
+    environment:
+      - ZOOKEEPER_CONNECT=dbz_zookeeper:2181
+    networks:
+      - agr-literature
+
+  dbz_connector:
+    build:
+      context: .
+      dockerfile: docker/debezium_connector.dockerfile
+    ports:
+      - 8083:8083
+    environment:
+      - BOOTSTRAP_SERVERS=dbz_kafka:9092
+      - GROUP_ID=1
+      - CONFIG_STORAGE_TOPIC=my_source_connect_configs
+      - OFFSET_STORAGE_TOPIC=my_source_connect_offsets
+      - CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE=false
+      - CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE=false
+    networks:
+      - agr-literature
+
 volumes:
   agr-literature-pg-data:
   agr-literature-redis-data:
