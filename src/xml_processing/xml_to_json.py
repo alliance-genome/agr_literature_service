@@ -533,6 +533,11 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
                 publisher = publisher_re_output.group(1)
                 data_dict['publisher'] = publisher
 
+            language_re_output = re.search("<Language>(.+?)</Language>", xml)
+            if language_re_output is not None:
+                language = language_re_output.group(1)
+                data_dict['language'] = language
+
             # previously was only getting all abstract text together, but this was causing different types of abstracts to be concatenated
             # regex_abstract_output = re.findall("<AbstractText.*?>(.+?)</AbstractText>", xml, re.DOTALL)
             # if len(regex_abstract_output) > 0:
