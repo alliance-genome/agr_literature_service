@@ -131,11 +131,11 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-base_path = environ.get('XML_PATH', "").replace("tests/", "")
-search_path = base_path + 'pubmed_searches/'
-search_outfile_path = base_path + 'pubmed_searches/search_new_mods/'
-pmc_process_path = base_path + 'pubmed_searches/pmc_processing/'
-pmc_storage_path = base_path + 'pubmed_searches/pmc_processing/pmc_xml/'
+base_path = environ.get('XML_PATH', "")
+search_path = base_path.replace("tests/", "") + 'pubmed_searches/'
+search_outfile_path = search_path + 'search_new_mods/'
+pmc_process_path = search_path + 'pmc_processing/'
+pmc_storage_path = search_path + 'pmc_processing/pmc_xml/'
 
 if not path.exists(search_path):
     makedirs(search_path)
