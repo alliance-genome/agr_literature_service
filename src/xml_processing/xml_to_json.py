@@ -157,7 +157,9 @@ def get_medline_date_from_xml_date(pub_date):
 
 def get_alliance_category_from_pubmed_types(pubmed_types):     # noqa: C901
 
-    mapping_file = base_path + "pubmed_searches/pubMedType2allianceCategory_mapping.tsv"
+    # for functional tests work
+    mapping_path = base_path.replace("tests/", "")
+    mapping_file = mapping_path + "pubmed_searches/pubMedType2allianceCategory_mapping.tsv"
     type2categoryInfo = {}
 
     f = open(mapping_file)
