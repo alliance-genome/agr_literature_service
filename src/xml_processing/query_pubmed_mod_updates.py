@@ -131,7 +131,7 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../logging.conf
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
-base_path = environ.get('XML_PATH', "")
+base_path = environ.get('XML_PATH', "").replace("tests/", "")
 search_path = base_path + 'pubmed_searches/'
 search_outfile_path = base_path + 'pubmed_searches/search_new_mods/'
 pmc_process_path = base_path + 'pubmed_searches/pmc_processing/'
@@ -227,7 +227,7 @@ def query_mods(input_mod, reldate):
         logger.info(f"Processing {mod}")
         fp_pmids = set()     # type: Set
         if mod in mod_false_positive_file:
-            infile = search_path.replace("tests/", "") + mod_false_positive_file[mod]
+            infile = search_path + mod_false_positive_file[mod]
             with open(infile, "r") as infile_fh:
                 for line in infile_fh:
                     pmid = line.rstrip()
