@@ -186,7 +186,7 @@ def get_alliance_category_from_pubmed_types(pubmed_types):     # noqa: C901
                 continue
             if filter == 1:
                 first_choice_category = thisCategory
-            if filter == 'secondary':
+            elif filter == 'secondary':
                 secondary_choice_category = thisCategory
             elif filter == 'last':
                 last_choice_category = thisCategory
