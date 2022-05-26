@@ -227,7 +227,7 @@ def query_mods(input_mod, reldate):
         logger.info(f"Processing {mod}")
         fp_pmids = set()     # type: Set
         if mod in mod_false_positive_file:
-            infile = search_path + mod_false_positive_file[mod]
+            infile = search_path.replace("tests/", "") + mod_false_positive_file[mod]
             with open(infile, "r") as infile_fh:
                 for line in infile_fh:
                     pmid = line.rstrip()
