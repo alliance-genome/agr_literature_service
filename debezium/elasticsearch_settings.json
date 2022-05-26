@@ -1,0 +1,185 @@
+{
+  "settings": {
+    "number_of_shards": "1",
+    "number_of_replicas": "0",
+    "max_ngram_diff": "20",
+    "max_result_window": 1000000,
+    "analysis": {
+      "filter": {
+        "ngram_filter": {
+          "type": "edge_ngram",
+          "min_gram": "1",
+          "max_gram": "20"
+        }
+      },
+      "normalizer": {
+        "sortNormalizer": {
+          "filter": [
+            "asciifolding",
+            "lowercase"
+          ],
+          "type": "custom"
+        }
+      },
+      "analyzer": {
+        "autocompleteAnalyzer": {
+          "filter": [
+            "asciifolding",
+            "lowercase"
+          ],
+          "type": "custom",
+          "tokenizer": "ngram_tokenizer"
+        },
+        "autocompleteSearchAnalyzer": {
+          "filter": [
+            "asciifolding",
+            "lowercase"
+          ],
+          "type": "custom",
+          "tokenizer": "ngram_tokenizer"
+        },
+        "default": {
+          "filter": [
+            "asciifolding",
+            "lowercase"
+          ],
+          "type": "custom",
+          "tokenizer": "ngram_tokenizer"
+        },
+        "default_search": {
+          "filter": [
+            "asciifolding",
+            "lowercase"
+          ],
+          "type": "custom",
+          "tokenizer": "ngram_tokenizer"
+        }
+      },
+      "tokenizer": {
+        "ngram_tokenizer": {
+          "token_chars": [
+            "letter",
+            "digit"
+          ],
+          "min_gram": "1",
+          "type": "edge_ngram",
+          "max_gram": "20"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "curie": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "title": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "volume": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "date_published": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "page_range": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "abstract": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "publisher": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "pubmed_types": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "issue_name": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "category": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "pubmed_publication_status": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      }
+    }
+  }
+}

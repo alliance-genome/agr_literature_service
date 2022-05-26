@@ -1,0 +1,1 @@
+curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" ${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/references_index -d @debezium/elasticsearch_settings.json
