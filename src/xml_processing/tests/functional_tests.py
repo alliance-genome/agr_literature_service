@@ -543,7 +543,7 @@ def test_pubmed_types_to_category_mapping():
         f = open(json_file)
         json_data = json.load(f)
         f.close()
-        if json_data.get('category') and json_data.get('category') == pmid_to_category[pmid]:
+        if json_data.get('allianceCategory') and json_data['allianceCategory'] == pmid_to_category[pmid]:
             good_check_check_count = good_check_check_count + 1
     if good_check_check_count == 4:
         result = "Success"
