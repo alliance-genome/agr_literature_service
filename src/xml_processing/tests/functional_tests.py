@@ -1,9 +1,7 @@
 import json
 import requests
-
 import re
-
-from os import environ
+from os import environ, makedirs, path
 import logging
 import logging.config
 
@@ -11,6 +9,7 @@ from helper_sqlalchemy import sqlalchemy_load_ref_xref
 from helper_file_processing import split_identifier
 
 from generate_dqm_json_test_set import load_sample_json
+from xml_to_json import generate_json
 
 from dotenv import load_dotenv
 
@@ -518,6 +517,41 @@ def has_doi_check(agr_data, value):
     return result
 
 
+def test_pubmed_types_to_category_mapping():
+
+    base_path = environ.get('XML_PATH')
+    json_path = base_path + "pubmed_json/"
+    if not path.exists(json_path):
+        makedirs(json_path)
+
+    pmids = ['26051182', '19678847', '21976771', '7567443']
+    # 26051182 ['Journal Article', 'Research Support, N.I.H., Extramural', "Research Support, Non-U.S. Gov't"]
+    # 19678847 ['Comparative Study', 'Journal Article', "Research Support, Non-U.S. Gov't", 'Review']
+    # 21976771 ['Journal Article', 'Retracted Publication']
+    # 7567443  ['Journal Article', "Research Support, Non-U.S. Gov't", 'Corrected and Republished Article']
+    pmid_to_category = {'26051182': 'Research_Article',
+                        '19678847': 'Review_Article',
+                        '21976771': 'Retraction',
+                        '7567443': 'Correction'}
+
+    generate_json(pmids, [])
+
+    result = 'Failure'
+    good_check_check_count = 0
+    for pmid in pmids:
+        json_file = json_path + pmid + ".json"
+        f = open(json_file)
+        json_data = json.load(f)
+        f.close()
+        if json_data.get('allianceCategory') and json_data['allianceCategory'] == pmid_to_category[pmid]:
+            good_check_check_count = good_check_check_count + 1
+    if good_check_check_count == 4:
+        result = "Success"
+
+    assert result != 'Failure'
+    return result
+
+
 def has_pmid_check(agr_data, value):
     """
     check a database reference does have a pmid
@@ -608,5 +642,6 @@ if __name__ == "__main__":
     # generate_cross_references_file('reference')
     test_load_references()
     test_update_references()
+    test_pubmed_types_to_category_mapping()
 
     logger.info("ending sort_dqm_json_reference_updates.py")
