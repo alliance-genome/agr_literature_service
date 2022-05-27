@@ -517,7 +517,7 @@ def has_doi_check(agr_data, value):
     return result
 
 
-def pubmed_types_to_category_mapping_check(json_data, value):
+def test_pubmed_types_to_category_mapping():
 
     base_path = environ.get('XML_PATH')
     json_path = base_path + "pubmed_json"
@@ -642,5 +642,6 @@ if __name__ == "__main__":
     # generate_cross_references_file('reference')
     test_load_references()
     test_update_references()
+    test_pubmed_types_to_category_mapping()
 
     logger.info("ending sort_dqm_json_reference_updates.py")
