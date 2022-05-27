@@ -310,7 +310,7 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
             elif re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml):
                 types_group = re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml)
                 data_dict['pubMedType'] = types_group
-            data_dict['category'] = get_alliance_category_from_pubmed_types(data_dict['pubMedType'])
+            data_dict['allianceCategory'] = get_alliance_category_from_pubmed_types(data_dict['pubMedType'])
 
             # <CommentsCorrectionsList><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler. 1999 Dec;5(6):378</RefSource><PMID Version="1">10644162</PMID></CommentsCorrections><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler. 2000 Aug;6(4):291-2</RefSource><PMID Version="1">10962551</PMID></CommentsCorrections></CommentsCorrectionsList>
             comments_corrections_group = re.findall("<CommentsCorrections (.+?)</CommentsCorrections>", xml, re.DOTALL)
