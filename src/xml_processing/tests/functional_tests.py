@@ -520,7 +520,7 @@ def has_doi_check(agr_data, value):
 def test_pubmed_types_to_category_mapping():
 
     base_path = environ.get('XML_PATH')
-    json_path = base_path + "pubmed_json"
+    json_path = base_path + "pubmed_json/"
     if not path.exists(json_path):
         makedirs(json_path)
 
