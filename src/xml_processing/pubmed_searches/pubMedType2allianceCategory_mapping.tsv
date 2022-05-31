@@ -42,7 +42,7 @@ Government Publication
 Guideline		
 Historical Article		
 Interactive Tutorial	Other	
-Interview		
+Interview   Other	
 Introductory Journal Article		
 Journal Article	Research_Article	secondary
 Lecture		
@@ -63,9 +63,9 @@ Portrait	Other
 Practice Guideline		
 Preprint	Preprint	
 Pragmatic Clinical Trial		
-Published Erratum	Erratum	
-Randomized Controlled Trial	Research_Article	
-Randomized Controlled Trial, Veterinary	Research_Article	
+Published Erratum	Correction	
+Randomized Controlled Trial	Research_Article	Last
+Randomized Controlled Trial, Veterinary	Research_Article	Last
 Research Support, American Recovery and Reinvestment Act	Research_Article	Last
 Research Support, N.I.H., Extramural	Research_Article	Last
 Research Support, N.I.H., Intramural	Research_Article	Last
