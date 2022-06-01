@@ -270,6 +270,7 @@ services:
       - agr-literature
     volumes:
       - agr-logs:/logs
+      - .:/usr/local/bin/src/literature
     depends_on:
       - postgres
 
