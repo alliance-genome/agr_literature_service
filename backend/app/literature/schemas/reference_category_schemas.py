@@ -14,3 +14,5 @@ class ReferenceCategory(str, Enum):
     Internal_Process_Reference = "internal_process_reference"
     Unknown = "unknown"
     Retraction = "retraction"
+    Obsolete = "obsolete"
+    Correction = "correction"
