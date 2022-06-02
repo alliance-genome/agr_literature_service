@@ -307,6 +307,25 @@ services:
     networks:
       - agr-literature
 
+  dbz_setup:
+    build:
+      context: .
+      dockerfile: docker/debezium_setup.dockerfile
+    environment:
+      ELASTICSEARCH_HOST: "${ELASTICSEARCH_HOST}"
+      ELASTICSEARCH_PORT: "${ELASTICSEARCH_PORT}"
+      DEBEZIUM_CONNECTOR_HOST: "${DEBEZIUM_CONNECTOR_HOST}"
+      DEBEZIUM_CONNECTOR_PORT: "${DEBEZIUM_CONNECTOR_PORT}"
+    volumes:
+      - "./debezium/elasticsearch-sink.json:/elasticsearch-sink.json"
+      - "./debezium/postgres-source.json:/postgres-source.json"
+      - "./debezium/elasticsearch-settings.json:/elasticsearch-settings.json"
+      - "./debezium/setup.sh:/setup.sh"
+    networks:
+      - agr-literature
+    command:
+      /setup.sh
+
 volumes:
   agr-literature-pg-data:
   agr-literature-redis-data:

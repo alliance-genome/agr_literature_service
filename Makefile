@@ -82,3 +82,12 @@ start-pgsync-local:
 	sleep 5
 	docker-compose up -d pgsync
 
+
+start-debezium-local:
+	docker-compose up -d postgres
+	sleep 5
+	docker-compose up -d elasticsearch
+	sleep 10
+	docker-compose up -d dbz_zookeeper dbz_kafka dbz_connector
+	sleep 10
+	docker-compose up -d dbz_setup

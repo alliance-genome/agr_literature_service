@@ -4,7 +4,7 @@
     "connector.class": "io.confluent.connect.elasticsearch.ElasticsearchSinkConnector",
     "tasks.max": "1",
     "topics": "abc.public.reference",
-    "connection.url": "http://elasticsearch:9200",
+    "connection.url": "${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}",
     "transforms": "unwrap,key,dropPrefix",
     "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
     "transforms.unwrap.drop.tombstones": "false",
