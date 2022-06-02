@@ -31,19 +31,20 @@ field_names_to_report = refColName_to_update + ['doi', 'pmcid', 'author_name', '
 limit = 2000
 max_rows_per_commit = 250
 download_xml_max_size = 150000
-sleep_time = 600 # 10min
+sleep_time = 600
+
 
 def update_data(mod):  # noqa: C901
 
     ## update journal info (resource table)
-    # update_resource_pubmed_nlm()
+    update_resource_pubmed_nlm()
 
     db_session = create_postgres_session(False)
 
     datestamp = str(date.today()).replace("-", "")
 
     (xml_path, json_path, old_xml_path, old_json_path, log_path) = set_paths()
-    
+
     log_file = log_path + "update_pubmed_papers_" + mod + "_" + datestamp + ".log"
 
     fw = open(log_file, "w")
@@ -58,7 +59,7 @@ def update_data(mod):  # noqa: C901
     get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id_to_pmid)
     pmids_all = list(pmid_to_reference_id.keys())
     pmids_all.sort()
-    
+
     db_session.close()
 
     update_log = {}
@@ -70,24 +71,24 @@ def update_data(mod):  # noqa: C901
     log.info(str(datetime.now()))
     log.info("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...")
 
-    # move_files_to_old_directory(xml_path, old_xml_path)
+    move_files_to_old_directory(xml_path, old_xml_path)
 
-    # if len(pmids_all) > download_xml_max_size:
-    #    for index in range(0, len(pmids_all), download_xml_max_size):
-    #        pmids_slice = pmids_all[index:index + download_xml_max_size]
-    #        download_pubmed_xml(pmids_slice)
-    #        time.sleep(sleep_time)
-    # else:
-    #    download_pubmed_xml(pmids_all)
-                
+    if len(pmids_all) > download_xml_max_size:
+        for index in range(0, len(pmids_all), download_xml_max_size):
+            pmids_slice = pmids_all[index:index + download_xml_max_size]
+            download_pubmed_xml(pmids_slice)
+            time.sleep(sleep_time)
+    else:
+        download_pubmed_xml(pmids_all)
+
     fw.write(str(datetime.now()) + "\n")
     fw.write("Generating json files...\n")
     log.info(str(datetime.now()))
     log.info("Generating json files...")
 
-    # move_files_to_old_directory(json_path, old_json_path)
-    
-    # generate_json(pmids_all, [])
+    move_files_to_old_directory(json_path, old_json_path)
+
+    generate_json(pmids_all, [])
 
     fw.write(str(datetime.now()) + "\n")
     fw.write("Updating database...\n")
@@ -113,8 +114,8 @@ def update_data(mod):  # noqa: C901
 
     if len(authors_with_first_or_corresponding_flag) > 0:
 
-        log.info("Following PMID(s) with author info updated in PubMed, but it has first_author or corresponding_author in ABC database")
-        fw.write("Following PMID(s) with author info updated in PubMed, but it has first_author or corresponding_author in ABC database\n")
+        log.info("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author in ABC database")
+        fw.write("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author in ABC database\n")
 
         for x in authors_with_first_or_corresponding_flag:
             (pmid, name, first_author, corresponding_author) = x
@@ -147,7 +148,7 @@ def update_database(fw, mod, reference_id_to_pmid, pmid_to_reference_id, authors
     fw.write("Getting ORCID info from database...\n")
     log.info("Getting ORCID info from database...")
     orcid_dict = get_orcid_data(db_session)
-    
+
     ## (reference_id_from, reference_id_to) => a list of reference_comment_and_correction_type
     fw.write("Getting comment/correction info from database...\n")
     log.info("Getting comment/correction info from database...")
@@ -199,8 +200,8 @@ def update_reference_data_batch(fw, reference_id_to_pmid, pmid_to_reference_id, 
     db_session = create_postgres_session(False)
 
     fw.write("Getting data from Reference table...\n")
-    log.info("Getting data from Reference table...limit="+str(limit) + ", offset=" + str(offset))
-    
+    log.info("Getting data from Reference table...limit=" + str(limit) + ", offset=" + str(offset))
+
     all = db_session.query(
         ReferenceModel
     ).join(
@@ -219,20 +220,20 @@ def update_reference_data_batch(fw, reference_id_to_pmid, pmid_to_reference_id, 
 
     if len(all) == 0:
         return
-    
+
     i = 0
-    
+
     for x in all:
 
         if x.category in ['Obsolete', 'obsolete']:
             continue
-        
+
         pmid = reference_id_to_pmid.get(x.reference_id)
         if pmid is None:
             continue
 
         count = count + 1
-        
+
         if i > max_rows_per_commit:
             # db_session.rollback()
             db_session.commit()
@@ -319,7 +320,7 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
             x.resource_id = new_resource_id
             has_update = has_update + 1
             update_log['journal'] = update_log['journal'] + 1
-            fw.write("\tPMID:" + str(pmid) + ": resource_id is updated from " + str(x.resource_id) + " to " + str(new_resource_id) +"\n")
+            fw.write("\tPMID:" + str(pmid) + ": resource_id is updated from " + str(x.resource_id) + " to " + str(new_resource_id) + "\n")
             # PMID:22479268: resource_id is updated from 41570 to 41570
             # is it possible that this resource_id in database is a string?
         elif colName in ['date_last_modified_in_pubmed', 'date_arrived_in_pubmed']:
@@ -332,10 +333,10 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
                     update_log[colName] = update_log[colName] + 1
                     fw.write("\tPMID:" + str(pmid) + ": " + colName + " is updated from '" + str(old_value) + "' to '" + str(json_data[j_key]) + "'\n")
         elif colName in ['pubmed_abstract_languages', 'pubmed_types']:
-            j_key = colName_to_json_key[colName] 
+            j_key = colName_to_json_key[colName]
             if json_data.get(j_key) and len(json_data[j_key]) > 0:
                 if getattr(x, colName) and set(getattr(x, colName)) != set(json_data[j_key]):
-                    old_value = getattr(x, colName) 
+                    old_value = getattr(x, colName)
                     setattr(x, colName, json_data[j_key])
                     has_update = has_update + 1
                     update_log[colName] = update_log[colName] + 1
@@ -367,7 +368,7 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
                 has_update = has_update + 1
                 update_log[colName] = update_log[colName] + 1
                 fw.write("\tPMID:" + str(pmid) + ": " + colName + " is updated from '" + str(old_value) + "' to '" + str(json_data[j_key]) + "'\n")
-                
+
         if has_update > 0:
             x.date_updated = date.today()
             db_session.add(x)
@@ -390,7 +391,7 @@ def update_authors(db_session, fw, pmid, reference_id, author_list_in_db, author
 
     if author_list_in_json is None:
         return []
-    
+
     authors_in_db = []
     author_list_with_first_or_corresponding_author = []
     if author_list_in_db:
@@ -400,7 +401,7 @@ def update_authors(db_session, fw, pmid, reference_id, author_list_in_db, author
             affiliations = x.affiliations if x.affiliations else []
             orcid = x.orcid if x.orcid else ''
             authors_in_db.append((x.name, x.first_name, x.last_name, x.order, '|'.join(affiliations), orcid))
-        
+
     authors_in_json = []
     for x in author_list_in_json:
         orcid = 'ORCID:' + x['orcid'] if x.get('orcid') else ''
@@ -409,12 +410,12 @@ def update_authors(db_session, fw, pmid, reference_id, author_list_in_db, author
 
     # print ("authors_in_db=", authors_in_db)
     # print ("authors_in_json", authors_in_json)
-         
+
     if set(authors_in_db) == set(authors_in_json):
         return []
 
     update_log['author_name'] = update_log['author_name'] + 1
-    
+
     ## only return / notify if there is any other author info changed
     if len(author_list_with_first_or_corresponding_author) > 0:
         return author_list_with_first_or_corresponding_author
@@ -530,9 +531,9 @@ def insert_comment_correction(db_session, fw, pmid, reference_id_from, reference
     try:
         x = ReferenceCommentAndCorrectionModel(**data)
         db_session.add(x)
-        fw.write("PMID:" + str(pmid) + ": INSERT CommentsAndCorrections: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type  + "\n")
+        fw.write("PMID:" + str(pmid) + ": INSERT CommentsAndCorrections: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + "\n")
     except Exception as e:
-        fw.write("PMID:" + str(pmid) + ": INSERT CommentsAndCorrections: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type  + " failed: " + str(e) + "\n")
+        fw.write("PMID:" + str(pmid) + ": INSERT CommentsAndCorrections: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + " failed: " + str(e) + "\n")
 
 
 def update_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):
@@ -541,7 +542,7 @@ def update_comment_correction(db_session, fw, pmid, reference_id_from, reference
 
     if x is None:
         return
-    
+
     try:
         old_type = x.reference_comment_and_correction_type
         x.reference_comment_and_correction_type = type
@@ -567,7 +568,7 @@ def update_mesh_terms(db_session, fw, pmid, reference_id, mesh_terms_in_db, mesh
         return
 
     mesh_terms_in_json = []
-    
+
     for m in mesh_terms_in_json_data:
         heading_term = m.get('meshHeadingTerm')
         qualifier_term = m.get('meshQualifierTerm', '')
@@ -577,7 +578,7 @@ def update_mesh_terms(db_session, fw, pmid, reference_id, mesh_terms_in_db, mesh
 
     if mesh_terms_in_db is None:
         mesh_terms_in_db = []
-        
+
     if len(mesh_terms_in_json) == 0 or set(mesh_terms_in_json) == set(mesh_terms_in_db):
         return
 
@@ -712,7 +713,7 @@ def update_cross_reference_for_resource(db_session, fw, pmid, new_resource_id, i
 
     for x in db_session.query(CrossReferenceModel).filter_by(resource_id=new_resource_id).all():
         if issn_json and x.curie.startswith('ISSN:') and x.curie != 'ISSN:' + issn_json:
-            
+
             issn_db = x.curie
             try:
                 x.curie = issn_json
@@ -749,7 +750,7 @@ def merge_md5sum(new_path, old_path):
 
     if not path.exists(new_path + "md5sum"):
         return
-    
+
     f = open(new_path + "md5sum")
     found = {}
     for line in f:
@@ -769,7 +770,7 @@ def merge_md5sum(new_path, old_path):
 
 
 def move_files_to_old_directory(new_path, old_path):
-    
+
     merge_md5sum(new_path, old_path)
     allfiles = listdir(new_path)
     log.info("moving files from " + new_path + " to " + old_path)
@@ -816,7 +817,7 @@ def get_reference_id_by_pmid(db_session, pmid):
 def get_orcid_data(db_session):
 
     orcid_dict = {}
-    
+
     for x in db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie.like('ORCID:%')).all():
         orcid_dict[x.curie] = x.is_obsolete
 
@@ -923,4 +924,3 @@ if __name__ == "__main__":
     else:
         print("Usage:         update_pubmed_papers.py -m [SGD|WB|FB|ZFIN|MGI|RGD]")
         print("Usage example: update_pubmed_papers.py -m SGD")
-        
