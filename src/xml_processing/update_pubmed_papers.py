@@ -29,6 +29,8 @@ refColName_to_update = ['title', 'volume', 'issue_name', 'page_range', 'abstract
 field_names_to_report = refColName_to_update + ['doi', 'pmcid', 'author_name', 'journal',
                                                 'comment_erratum', 'mesh_term']
 
+authors_with_first_or_corresponding_flag = []
+
 limit = 2000
 max_rows_per_commit = 250
 download_xml_max_size = 150000
@@ -38,7 +40,7 @@ sleep_time = 600
 def update_data(mod, pmids):  # noqa: C901
 
     ## update journal info (resource table)
-    update_resource_pubmed_nlm()
+    # update_resource_pubmed_nlm()
 
     db_session = create_postgres_session(False)
 
@@ -67,11 +69,11 @@ def update_data(mod, pmids):  # noqa: C901
         pmids_all = list(pmid_to_reference_id.keys())
     else:
         get_reference_ids_by_pmids(db_session, pmids, pmid_to_reference_id, reference_id_to_pmid)
-        pmids_all = pmids
+        pmids_all = pmids.split('|')
     pmids_all.sort()
-
+    
     db_session.close()
-
+    
     update_log = {}
     for field_name in field_names_to_report:
         update_log[field_name] = 0
@@ -117,10 +119,8 @@ def update_data(mod, pmids):  # noqa: C901
     log.info(str(datetime.now()))
     log.info("Updating database...")
 
-    authors_with_first_or_corresponding_flag = []
     update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id,
-                    authors_with_first_or_corresponding_flag, update_log,
-                    json_path, old_json_path)
+                    update_log, json_path, old_json_path)
 
     # write updating summary
 
@@ -133,16 +133,16 @@ def update_data(mod, pmids):  # noqa: C901
 
         log.info("Paper(s) with " + field_name + " updated:" + str(update_log[field_name]))
         fw.write("Paper(s) with " + field_name + " updated:" + str(update_log[field_name]) + "\n")
-
+    
     if len(authors_with_first_or_corresponding_flag) > 0:
 
-        log.info("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author in ABC database")
-        fw.write("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author in ABC database\n")
-
+        log.info("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in ABC database")
+        fw.write("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in ABC database\n")
+        
         for x in authors_with_first_or_corresponding_flag:
             (pmid, name, first_author, corresponding_author) = x
-            log.info("\tPMID:" + str(pmid) + ": name=" + name + ", first_author=" + first_author + ", corresponding_author=" + corresponding_author)
-            fw.write("\tPMID:" + str(pmid) + ": name=" + name + ", first_author=" + first_author + ", corresponding_author=" + corresponding_author + "\n")
+            log.info("PMID:" + str(pmid) + ": name = " + name + ", " + first_author + ", " + corresponding_author)
+            fw.write("PMID:" + str(pmid) + ": name = " + name + ", " + first_author + ", " + corresponding_author + "\n")
 
     fw.write(str(datetime.now()) + "\n")
     fw.write("DONE!\n")
@@ -152,7 +152,7 @@ def update_data(mod, pmids):  # noqa: C901
     log.info("DONE!")
 
 
-def update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id, authors_with_first_or_corresponding_flag, update_log, json_path, old_json_path):   # noqa: C901
+def update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id, update_log, json_path, old_json_path):   # noqa: C901
 
     ## 1. do nothing if a field has no value in pubmed xml/json
     ##    so won't delete whatever in the database
@@ -184,7 +184,7 @@ def update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id, 
     ## reference_id => a list of mesh_terms in order
     fw.write("Getting mesh_term info from database...\n")
     log.info("Getting mesh_term info from database...")
-    reference_id_to_mesh_terms = get_mesh_term_data(db_session, mod)
+    reference_id_to_mesh_terms = get_mesh_term_data(db_session, mod, reference_id_list)
 
     ## reference_id => doi, reference_id =>pmcid
     fw.write("Getting DOI/PMCID info from database...\n")
@@ -210,6 +210,7 @@ def update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id, 
     newly_added_orcid = []
     count = 0
     offset = 0
+    
     update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference_id,
                                 reference_id_to_authors,
                                 reference_ids_to_comment_correction_type,
@@ -217,11 +218,10 @@ def update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id, 
                                 reference_id_to_pmcid, journal_to_resource_id,
                                 resource_id_to_issn, resource_id_to_nlm, orcid_dict,
                                 old_md5sum, new_md5sum, count, newly_added_orcid,
-                                authors_with_first_or_corresponding_flag,
                                 json_path, update_log, offset)
 
 
-def update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, authors_with_first_or_corresponding_flag, json_path, update_log, offset):
+def update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, json_path, update_log, offset):
 
     ## only update 3000 references per session (set in max_rows_per_db_session)
     ## just in case the database get disconnected during the update process
@@ -259,6 +259,8 @@ def update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference
 
     i = 0
 
+    global authors_with_first_or_corresponding_flag
+    
     for x in all:
 
         if x.category in ['Obsolete', 'obsolete']:
@@ -274,17 +276,18 @@ def update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference
             # db_session.rollback()
             db_session.commit()
             i = 0
+        
+        json_file = json_path + pmid + ".json"
+        if not path.exists(json_file):
+            continue
 
         if mod:
-            json_file = json_path + pmid + ".json"
-            if not path.exists(json_file):
-                continue
             md5sum = new_md5sum.get(pmid, None)
             if md5sum and pmid in old_md5sum and old_md5sum[pmid] == md5sum:
                 continue
 
         i = i + 1
-
+        
         f = open(json_file)
         json_data = json.load(f)
         f.close()
@@ -310,8 +313,9 @@ def update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference
                                  reference_id_to_authors.get(x.reference_id),
                                  json_data.get('authors'), orcid_dict,
                                  newly_added_orcid, update_log)
-        authors_with_first_or_corresponding_flag = authors_with_first_or_corresponding_flag + authors
 
+        authors_with_first_or_corresponding_flag = authors_with_first_or_corresponding_flag + authors
+        
         ## update reference_comment_and_correction table
         update_comment_corrections(db_session, fw, pmid, x.reference_id, pmid_to_reference_id,
                                    reference_ids_to_comment_correction_type,
@@ -336,7 +340,6 @@ def update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference
                                     reference_id_to_pmcid, journal_to_resource_id,
                                     resource_id_to_issn, resource_id_to_nlm, orcid_dict,
                                     old_md5sum, new_md5sum, count, newly_added_orcid,
-                                    authors_with_first_or_corresponding_flag,
                                     json_path, update_log, offset)
 
 
@@ -358,7 +361,7 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
             x.resource_id = new_resource_id
             has_update = has_update + 1
             update_log['journal'] = update_log['journal'] + 1
-            fw.write("\tPMID:" + str(pmid) + ": resource_id is updated from " + str(x.resource_id) + " to " + str(new_resource_id) + "\n")
+            fw.write("PMID:" + str(pmid) + ": resource_id is updated from " + str(x.resource_id) + " to " + str(new_resource_id) + "\n")
             # PMID:22479268: resource_id is updated from 41570 to 41570
             # is it possible that this resource_id in database is a string?
         elif colName in ['date_last_modified_in_pubmed', 'date_arrived_in_pubmed']:
@@ -369,7 +372,7 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
                     setattr(x, colName, json_data[j_key])
                     has_update = has_update + 1
                     update_log[colName] = update_log[colName] + 1
-                    fw.write("\tPMID:" + str(pmid) + ": " + colName + " is updated from '" + str(old_value) + "' to '" + str(json_data[j_key]) + "'\n")
+                    fw.write("PMID:" + str(pmid) + ": " + colName + " is updated from '" + str(old_value) + "' to '" + str(json_data[j_key]) + "'\n")
         elif colName in ['pubmed_abstract_languages', 'pubmed_types']:
             j_key = colName_to_json_key[colName]
             if json_data.get(j_key) and len(json_data[j_key]) > 0:
@@ -378,34 +381,46 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
                     setattr(x, colName, json_data[j_key])
                     has_update = has_update + 1
                     update_log[colName] = update_log[colName] + 1
-                    fw.write("\tPMID:" + str(pmid) + ": " + colName + " is updated from " + str(old_value) + " to " + str(json_data[j_key]) + "\n")
-        elif colName == 'keywords' and json_data.get('keywords'):
-            # never delete keywords - only add new one(s)
-            old_keywords = x.keywords
-            if old_keywords is None:
-                old_keywords = []
-            new_keywords = list(set(old_keywords + json_data['keywords']))
-            old_keywords.sort()
-            new_keywords.sort()
-            if old_keywords != new_keywords:
-                setattr(x, colName, new_keywords)
-                has_update = has_update + 1
-                update_log[colName] = update_log[colName] + 1
-                fw.write("\tPMID:" + str(pmid) + ": " + colName + " is updated from " + str(old_keywords) + " to " + str(new_keywords) + "\n")
+                    fw.write("PMID:" + str(pmid) + ": " + colName + " is updated from " + str(old_value) + " to " + str(json_data[j_key]) + "\n")
+        elif colName == 'keywords':
+            if json_data.get('keywords'):
+                # never delete keywords - only add new one(s)
+                old_keywords = x.keywords
+                if old_keywords is None:
+                    old_keywords = []
+                new_keywords = list(set(old_keywords + json_data['keywords']))
+                old_keywords.sort()
+                new_keywords.sort()
+                if old_keywords != new_keywords:
+                    setattr(x, colName, new_keywords)
+                    has_update = has_update + 1
+                    update_log[colName] = update_log[colName] + 1
+                    fw.write("PMID:" + str(pmid) + ": " + colName + " is updated from " + str(old_keywords) + " to " + str(new_keywords) + "\n")
         else:
             j_key = colName_to_json_key[colName] if colName_to_json_key.get(colName) else colName
             old_value = getattr(x, colName)
+            new_value = json_data.get(j_key)
+            if new_value is None:
+                continue
             if colName == 'category':
                 old_value = old_value.replace("ReferenceCategory.", "")
                 ## can remove this when category 'Correction' is added
                 if json_data.get(j_key) == 'Correction':
                     continue
                 ## end check
-            if json_data.get(j_key) and json_data[j_key] != old_value:
-                setattr(x, colName, json_data[j_key])
+                if new_value.lower() != old_value.lower():
+                    setattr(x, colName, new_value)
+                    has_update = has_update + 1
+                    update_log[colName] = update_log[colName] + 1
+                    fw.write("PMID:" + str(pmid) + ": " + colName + " is updated from '" + str(old_value) + "' to '" + str(new_value) + "'\n")
+                continue
+            if colName == 'pubmed_publication_status':
+                old_value = old_value.replace("PubMedPublicationStatus.", "")
+            if new_value != old_value:
+                setattr(x, colName, new_value)
                 has_update = has_update + 1
                 update_log[colName] = update_log[colName] + 1
-                fw.write("\tPMID:" + str(pmid) + ": " + colName + " is updated from '" + str(old_value) + "' to '" + str(json_data[j_key]) + "'\n")
+                fw.write("PMID:" + str(pmid) + ": " + colName + " is updated from '" + str(old_value) + "' to '" + str(new_value) + "'\n")
 
         if has_update > 0:
             x.date_updated = date.today()
@@ -414,9 +429,9 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
     if has_update:
         db_session.add(x)
         log.info(str(count) + " PMID:" + str(pmid) + " Reference table has been updated")
-        fw.write(str(count) + " PMID:" + str(pmid) + " Reference table has been updated\n")
+        fw.write("PMID:" + str(pmid) + " Reference table has been updated\n")
     else:
-        fw.write(str(count) + " PMID:" + str(pmid) + " No Change in Reference table\n")
+        fw.write("PMID:" + str(pmid) + " No Change in Reference table\n")
         log.info(str(count) + " PMID:" + str(pmid) + " No Change in Reference table")
 
 
@@ -434,8 +449,8 @@ def update_authors(db_session, fw, pmid, reference_id, author_list_in_db, author
     author_list_with_first_or_corresponding_author = []
     if author_list_in_db:
         for x in author_list_in_db:
-            if x.first_author or x.corresponding_author:
-                author_list_with_first_or_corresponding_author.append((pmid, x.name, x.first_author, x.corresponding_author))
+            if x.first_author or x.corresponding_author:                
+                author_list_with_first_or_corresponding_author.append((pmid, x.name, "first_author = " + str(x.first_author), "corresponding_author = " + str(x.corresponding_author)))
             affiliations = x.affiliations if x.affiliations else []
             orcid = x.orcid if x.orcid else ''
             authors_in_db.append((x.name, x.first_name, x.last_name, x.order, '|'.join(affiliations), orcid))
@@ -451,13 +466,13 @@ def update_authors(db_session, fw, pmid, reference_id, author_list_in_db, author
 
     if set(authors_in_db) == set(authors_in_json):
         return []
-
-    update_log['author_name'] = update_log['author_name'] + 1
-
+    
     ## only return / notify if there is any other author info changed
     if len(author_list_with_first_or_corresponding_author) > 0:
         return author_list_with_first_or_corresponding_author
 
+    update_log['author_name'] = update_log['author_name'] + 1
+    
     ## deleting authors from database for the given pmid
     for x in db_session.query(AuthorModel).filter_by(reference_id=reference_id).all():
         name = x.name
@@ -979,9 +994,9 @@ def get_journal_data(db_session):
 def get_reference_ids_by_pmids(db_session, pmids, pmid_to_reference_id, reference_id_to_pmid):
 
     pmid_list = []
-    for pmid in pmids:
+    for pmid in pmids.split('|'):
         pmid_list.append('PMID:' + pmid)
-
+        
     for x in db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie.in_(pmid_list)).all():
         pmid = x.curie.replace('PMID:', '')
         pmid_to_reference_id[pmid] = x.reference_id
