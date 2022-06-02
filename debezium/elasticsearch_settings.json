@@ -179,6 +179,26 @@
             "ignore_above": 256
           }
         }
+      },
+      "date_arrived_in_pubmed": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "date_last_modified_in_pubmed": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
       }
     }
   }
