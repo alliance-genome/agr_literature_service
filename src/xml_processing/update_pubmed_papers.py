@@ -1,0 +1,908 @@
+import argparse
+import logging
+from os import environ, makedirs, path
+from dotenv import load_dotenv
+from datetime import datetime, date
+import shutil
+import json
+import time
+
+from literature.models import CrossReferenceModel, ReferenceModel, ModModel, \
+    ModCorpusAssociationModel, ReferenceCommentAndCorrectionModel, \
+    AuthorModel, MeshDetailModel, ResourceModel
+from helper_sqlalchemy import create_postgres_session
+from update_resource_pubmed_nlm import update_resource_pubmed_nlm
+from get_pubmed_xml import download_pubmed_xml
+from xml_to_json import generate_json
+
+logging.basicConfig(format='%(message)s')
+log = logging.getLogger()
+log.setLevel(logging.INFO)
+
+refColName_to_update = ['title', 'volume', 'issue_name', 'page_range', 'abstract',
+                        'pubmed_types', 'pubmed_publication_status', 'keywords',
+                        'category', 'plain_language_abstract',
+                        'pubmed_abstract_languages', 'language', 'date_published',
+                        'date_arrived_in_pubmed', 'date_last_modified_in_pubmed',
+                        'publisher', 'resource_id']
+
+field_names_to_report = refColName_to_update + ['doi', 'pmcid', 'author_name', 'journal',
+                                                'comment_erratum', 'mesh_term']
+
+limit = 2000
+max_rows_per_commit = 250
+download_xml_max_size = 150000
+sleep_time = 600 # 10min
+
+def update_data(mod):  # noqa: C901
+
+    ## update journal info (resource table)
+    update_resource_pubmed_nlm()
+
+    db_session = create_postgres_session(False)
+
+    datestamp = str(date.today()).replace("-", "")
+
+    (xml_path, json_path, old_xml_path, old_json_path, log_path) = set_paths()
+    
+    log_file = log_path + "update_pubmed_papers_" + mod + "_" + datestamp + ".log"
+
+    fw = open(log_file, "w")
+
+    fw.write(str(datetime.now()) + "\n")
+    fw.write("Getting data from the database...\n")
+    log.info(str(datetime.now()))
+    log.info("Getting data from the database...")
+
+    pmid_to_reference_id = {}
+    reference_id_to_pmid = {}
+    get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id_to_pmid)
+    pmids_all = list(pmid_to_reference_id.keys())
+    pmids_all.sort()
+    
+    db_session.close()
+
+    update_log = {}
+    for field_name in field_names_to_report:
+        update_log[field_name] = 0
+
+    fw.write(str(datetime.now()) + "\n")
+    fw.write("Downloading pubmed xml files for " + len(pmids_all) + " PMIDs...\n")
+    log.info(str(datetime.now()))
+    log.info("Downloading pubmed xml files for " + len(pmids_all) + " PMIDs...")
+
+    merge_md5sum(xml_path, old_xml_path)
+    shutil.move(xml_path + "*", old_xml_path)
+
+    if len(pmids_all) > download_xml_max_size:
+        for index in range(0, len(pmids_all), download_xml_max_size):
+            pmids_slice = pmids_all[index:index + download_xml_max_size]
+            download_pubmed_xml(pmids_slice)
+            time.sleep(sleep_time)
+    else:
+        download_pubmed_xml(pmids_all)
+                
+    fw.write(str(datetime.now()) + "\n")
+    fw.write("Generating json files...\n")
+    log.info(str(datetime.now()))
+    log.info("Generating json files...")
+
+    merge_md5sum(json_path, old_json_path)
+    shutil.move(json_path + "*", old_json_path)
+
+    generate_json(pmids_all, [])
+
+    fw.write(str(datetime.now()) + "\n")
+    fw.write("Updating database...\n")
+    log.info(str(datetime.now()))
+    log.info("Updating database...")
+
+    authors_with_first_or_corresponding_flag = []
+    update_database(fw, mod, reference_id_to_pmid, pmid_to_reference_id,
+                    authors_with_first_or_corresponding_flag, update_log,
+                    json_path, old_json_path)
+
+    # write updating summary
+
+    fw.write(str(datetime.now()) + "\n")
+    fw.write("Updating Summary...\n")
+    log.info(str(datetime.now()))
+    log.info("Updating Summary...")
+
+    for field_name in field_names_to_report:
+
+        log.info("Paper(s) with " + field_name + " updated:" + str(update_log[field_name]))
+        fw.write("Paper(s) with " + field_name + " updated:" + str(update_log[field_name]) + "\n")
+
+    if len(authors_with_first_or_corresponding_flag) > 0:
+
+        log.info("Following PMID(s) with author info updated in PubMed, but it has first_author or corresponding_author in ABC database")
+        fw.write("Following PMID(s) with author info updated in PubMed, but it has first_author or corresponding_author in ABC database\n")
+
+        for x in authors_with_first_or_corresponding_flag:
+            (pmid, name, first_author, corresponding_author) = x
+            log.info("\tPMID:" + str(pmid) + ": name=" + name + ", first_author=" + first_author + ", corresponding_author=" + corresponding_author)
+            fw.write("\tPMID:" + str(pmid) + ": name=" + name + ", first_author=" + first_author + ", corresponding_author=" + corresponding_author + "\n")
+
+    fw.write(str(datetime.now()) + "\n")
+    fw.write("DONE!\n")
+    fw.close()
+
+    log.info(str(datetime.now()))
+    log.info("DONE!")
+
+
+def update_database(fw, mod, reference_id_to_pmid, pmid_to_reference_id, authors_with_first_or_corresponding_flag, update_log, json_path, old_json_path):   # noqa: C901
+
+    ## 1. do nothing if a field has no value in pubmed xml/json
+    ##    so won't delete whatever in the database
+    ## 2. update/add the field if a field has a new value in pubmed xml/json
+
+    ## start a database session
+    db_session = create_postgres_session(False)
+
+    ## reference_id => a list of author name in order
+    fw.write("Getting author info from database...\n")
+    log.info("Getting author info from database...")
+    reference_id_to_authors = get_author_data(db_session, mod)
+
+    ## ORCID ID => is_obsolete
+    fw.write("Getting ORCID info from database...\n")
+    log.info("Getting ORCID info from database...")
+    orcid_dict = get_orcid_data(db_session)
+    
+    ## (reference_id_from, reference_id_to) => a list of reference_comment_and_correction_type
+    fw.write("Getting comment/correction info from database...\n")
+    log.info("Getting comment/correction info from database...")
+    reference_ids_to_comment_correction_type = get_comment_correction_data(db_session, mod)
+
+    ## reference_id => a list of mesh_terms in order
+    fw.write("Getting mesh_term info from database...\n")
+    log.info("Getting mesh_term info from database...")
+    reference_id_to_mesh_terms = get_mesh_term_data(db_session, mod)
+
+    ## reference_id => doi, reference_id =>pmcid
+    fw.write("Getting DOI/PMCID info from database...\n")
+    log.info("Getting DOI/PMCID info from database...")
+    (reference_id_to_doi, reference_id_to_pmcid) = get_cross_reference_data(db_session, mod)
+
+    ## journal => resource_id
+    fw.write("Getting journal info from database...\n")
+    log.info("Getting journal info from database...")
+    journal_to_resource_id = get_journal_data(db_session)
+
+    ## resource_id => issn, resource_id => nlm
+    fw.write("Getting ISSN/NLM info from database...\n")
+    log.info("Getting ISSN/NLM info from database...")
+    (resource_id_to_issn, resource_id_to_nlm) = get_cross_reference_data_for_resource(db_session)
+
+    db_session.close()
+
+    old_md5sum = get_md5sum(old_json_path)
+    new_md5sum = get_md5sum(json_path)
+
+    newly_added_orcid = []
+    count = 0
+    offset = 0
+    update_reference_data_batch(fw, reference_id_to_pmid, pmid_to_reference_id,
+                                reference_id_to_authors,
+                                reference_ids_to_comment_correction_type,
+                                reference_id_to_mesh_terms, reference_id_to_doi,
+                                reference_id_to_pmcid, journal_to_resource_id,
+                                resource_id_to_issn, resource_id_to_nlm, orcid_dict,
+                                old_md5sum, new_md5sum, count, newly_added_orcid,
+                                authors_with_first_or_corresponding_flag,
+                                json_path, update_log, offset)
+
+
+def update_reference_data_batch(fw, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, authors_with_first_or_corresponding_flag, json_path, update_log, offset):
+
+    ## only update 3000 references per session (set in max_rows_per_db_session)
+    ## just in case the database get disconnected during the update process
+    db_session = create_postgres_session(False)
+
+    fw.write("Getting data from Reference table...\n")
+    log.info("Getting data from Reference table...limit="+str(limit) + ", offset=" + str(offset))
+    
+    all = db_session.query(
+        ReferenceModel
+    ).join(
+        ReferenceModel.mod_corpus_association
+    ).outerjoin(
+        ModCorpusAssociationModel.mod
+    ).filter(
+        ModModel.abbreviation == mod
+    ).order_by(
+        ReferenceModel.reference_id
+    ).offset(
+        offset
+    ).limit(
+        limit
+    ).all()
+
+    if len(all) == 0:
+        return
+    
+    i = 0
+    
+    for x in all:
+
+        if x.category in ['Obsolete', 'obsolete']:
+            continue
+        
+        pmid = reference_id_to_pmid.get(x.reference_id)
+        if pmid is None:
+            continue
+
+        count = count + 1
+        
+        if i > max_rows_per_commit:
+            # db_session.rollback()
+            db_session.commit()
+            i = 0
+
+        json_file = json_path + pmid + ".json"
+        if not path.exists(json_file):
+            continue
+        md5sum = new_md5sum.get(pmid, None)
+        if md5sum and pmid in old_md5sum and old_md5sum[pmid] == md5sum:
+            continue
+
+        i = i + 1
+
+        f = open(json_file)
+        json_data = json.load(f)
+        f.close()
+
+        new_resource_id = None
+        if json_data.get('journal'):
+            new_resource_id = journal_to_resource_id.get(json_data.get('journal'))
+
+        update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id,
+                               update_log, count)
+
+        ## update cross_reference table for reference
+        if json_data.get('doi') or json_data.get('pmc'):
+            update_cross_reference(db_session, fw, pmid, x.reference_id,
+                                   reference_id_to_doi.get(x.reference_id),
+                                   json_data.get('doi'), reference_id_to_pmcid.get(x.reference_id),
+                                   json_data.get('pmc'), update_log)
+
+        ## update author table
+        # author_list_with_first_or_corresponding_author =
+        # a list of (pmid, name, first_author, corresponding_author)
+        authors = update_authors(db_session, fw, pmid, x.reference_id,
+                                 reference_id_to_authors.get(x.reference_id),
+                                 json_data.get('authors'), orcid_dict,
+                                 newly_added_orcid, update_log)
+        authors_with_first_or_corresponding_flag = authors_with_first_or_corresponding_flag + authors
+
+        ## update reference_comment_and_correction table
+        update_comment_corrections(db_session, fw, pmid, x.reference_id, pmid_to_reference_id,
+                                   reference_ids_to_comment_correction_type,
+                                   json_data.get('commentsCorrections'), update_log)
+
+        ## update mesh_detail table
+        update_mesh_terms(db_session, fw, pmid, x.reference_id,
+                          reference_id_to_mesh_terms.get(x.reference_id),
+                          json_data.get('meshTerms'), update_log)
+
+    # db_session.rollback()
+    db_session.commit()
+    db_session.close()
+
+    ## call itself until all rows have been retrieved from the database for the given mod
+    offset = offset + limit
+    update_reference_data_batch(fw, reference_id_to_pmid, pmid_to_reference_id,
+                                reference_id_to_authors,
+                                reference_ids_to_comment_correction_type,
+                                reference_id_to_mesh_terms, reference_id_to_doi,
+                                reference_id_to_pmcid, journal_to_resource_id,
+                                resource_id_to_issn, resource_id_to_nlm, orcid_dict,
+                                old_md5sum, new_md5sum, count, newly_added_orcid,
+                                authors_with_first_or_corresponding_flag,
+                                json_path, update_log, offset)
+
+
+def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, update_log, count):
+
+    colName_to_json_key = {'issue_name': 'issueName',
+                           'page_range': 'pages',
+                           'pubmed_publication_status': 'publicationStatus',
+                           'date_last_modified_in_pubmed': 'dateLastModified',
+                           'date_arrived_in_pubmed': 'dateArrivedInPubmed',
+                           'plain_language_abstract': 'plainLanguageAbstract',
+                           'pubmed_abstract_languages': 'pubmedAbstractLanguages',
+                           'pubmed_types': 'pubMedType',
+                           'category': 'allianceCategory'}
+
+    has_update = 0
+    for colName in refColName_to_update:
+        if colName == 'resource_id' and new_resource_id and new_resource_id != x.resource_id:
+            x.resource_id = new_resource_id
+            has_update = has_update + 1
+            update_log['journal'] = update_log['journal'] + 1
+            fw.write("\tPMID:" + str(pmid) + ": resource_id is updated from " + str(x.resource_id) + " to " + str(new_resource_id) +"\n")
+            # PMID:22479268: resource_id is updated from 41570 to 41570
+            # is it possible that this resource_id in database is a string?
+        elif colName in ['date_last_modified_in_pubmed', 'date_arrived_in_pubmed']:
+            j_key = colName_to_json_key[colName]
+            if json_data.get('j_key'):
+                if getattr(x, colName) is None or json_data[j_key]['date_string'] != str(getattr(x, colName))[0:10]:
+                    old_value = getattr(x, colName)
+                    setattr(x, colName, json_data[j_key])
+                    has_update = has_update + 1
+                    update_log[colName] = update_log[colName] + 1
+                    fw.write("\tPMID:" + str(pmid) + ": " + colName + " is updated from '" + str(old_value) + "' to '" + str(json_data[j_key]) + "'\n")
+        elif colName in ['pubmed_abstract_languages', 'pubmed_types']:
+            j_key = colName_to_json_key[colName] 
+            if json_data.get(j_key) and len(json_data[j_key]) > 0:
+                if getattr(x, colName) and set(getattr(x, colName)) != set(json_data[j_key]):
+                    old_value = getattr(x, colName) 
+                    setattr(x, colName, json_data[j_key])
+                    has_update = has_update + 1
+                    update_log[colName] = update_log[colName] + 1
+                    fw.write("\tPMID:" + str(pmid) + ": " + colName + " is updated from " + str(old_value) + " to " + str(json_data[j_key]) + "\n")
+        elif colName == 'keywords' and json_data.get('keywords'):
+            # never delete keywords - only add new one(s)
+            old_keywords = x.keywords
+            if old_keywords is None:
+                old_keywords = []
+            new_keywords = list(set(old_keywords + json_data['keywords']))
+            old_keywords.sort()
+            new_keywords.sort()
+            if old_keywords != new_keywords:
+                setattr(x, colName, new_keywords)
+                has_update = has_update + 1
+                update_log[colName] = update_log[colName] + 1
+                fw.write("\tPMID:" + str(pmid) + ": " + colName + " is updated from " + str(old_keywords) + " to " + str(new_keywords) + "\n")
+        else:
+            j_key = colName_to_json_key[colName] if colName_to_json_key.get(colName) else colName
+            old_value = getattr(x, colName)
+            if colName == 'category':
+                old_value = old_value.replace("ReferenceCategory.", "")
+            if json_data.get(j_key) and json_data[j_key] != old_value:
+                setattr(x, colName, json_data[j_key])
+                has_update = has_update + 1
+                update_log[colName] = update_log[colName] + 1
+                fw.write("\tPMID:" + str(pmid) + ": " + colName + " is updated from '" + str(old_value) + "' to '" + str(json_data[j_key]) + "'\n")
+                
+        if has_update > 0:
+            x.date_updated = date.today()
+            db_session.add(x)
+
+    if has_update:
+        db_session.add(x)
+        log.info(str(count) + " PMID:" + str(pmid) + " Reference table has been updated")
+        fw.write(str(count) + " PMID:" + str(pmid) + " Reference table has been updated\n")
+    else:
+        fw.write(str(count) + " PMID:" + str(pmid) + "No Change in Reference table\n")
+        log.info(str(count) + " PMID:" + str(pmid) + "No Change in Reference table")
+
+
+def update_authors(db_session, fw, pmid, reference_id, author_list_in_db, author_list_in_json, orcid_dict, newly_added_orcid, update_log):
+    # If any of the author fields are different, check if any of our ABC authors
+    # have a different corresponding_author or first_author, in which case do not
+    # update the authors at all (in theory, eventually send a message to a curator,
+    # but for now don't do that).  If the first/corr flags have not been changed,
+    # then get rid of all the ABC authors, and repopulate them from the PubMed data
+
+    if author_list_in_json is None:
+        return []
+    
+    authors_in_db = []
+    author_list_with_first_or_corresponding_author = []
+    if author_list_in_db:
+        for x in author_list_in_db:
+            if x.first_author or x.corresponding_author:
+                author_list_with_first_or_corresponding_author.append((pmid, x.name, x.first_author, x.corresponding_author))
+            affiliations = x.affiliations if x.affiliations else []
+            orcid = x.orcid if x.orcid else ''
+            authors_in_db.append((x.name, x.first_name, x.last_name, x.order, '|'.join(affiliations), orcid))
+        
+    authors_in_json = []
+    for x in author_list_in_json:
+        orcid = 'ORCID:' + x['orcid'] if x.get('orcid') else ''
+        affiliations = x['affiliations'] if x.get('affiliations') else []
+        authors_in_json.append((x.get('name', ''), x.get('firstname', ''), x.get('lastname', ''), x.get('authorRank', 0), '|'.join(affiliations), orcid))
+
+    # print ("authors_in_db=", authors_in_db)
+    # print ("authors_in_json", authors_in_json)
+         
+    if set(authors_in_db) == set(authors_in_json):
+        return []
+
+    update_log['author_name'] = update_log['author_name'] + 1
+    
+    ## only return / notify if there is any other author info changed
+    if len(author_list_with_first_or_corresponding_author) > 0:
+        return author_list_with_first_or_corresponding_author
+
+    ## deleting authors from database for the given pmid
+    for x in db_session.query(AuthorModel).filter_by(reference_id=reference_id).all():
+        name = x.name
+        affiliations = x.affiliations if x.affiliations else []
+        try:
+            db_session.delete(x)
+            fw.write("PMID:" + str(pmid) + ": DELETE AUTHOR: " + name + " | '" + '|'.join(affiliations) + "'\n")
+        except Exception as e:
+            fw.write("PMID:" + str(pmid) + ": DELETE AUTHOR: " + name + " failed: " + str(e) + "\n")
+
+    ## adding authors from pubmed into database
+    for x in authors_in_json:
+        (name, firstname, lastname, authorRank, affiliations, orcid) = x
+        if orcid and orcid not in orcid_dict and orcid not in newly_added_orcid:
+            ## not in cross_reference table
+            data = {"curie": orcid, "is_obsolete": False}
+            try:
+                c = CrossReferenceModel(**data)
+                db_session.add(c)
+                fw.write("PMID:" + str(pmid) + ": INSERT CROSS_REFERENCE: " + orcid + "\n")
+                newly_added_orcid.append(orcid)
+            except Exception as e:
+                fw.write("PMID:" + str(pmid) + ": INSERT CROSS_REFERENCE: " + orcid + " failed: " + str(e) + "\n")
+        data = {"reference_id": reference_id,
+                "name": name,
+                "first_name": firstname,
+                "last_name": lastname,
+                "order": authorRank,
+                "affiliations": affiliations.split('|'),
+                "orcid": orcid if orcid else None,
+                "first_author": False,
+                "corresponding_author": False}
+        try:
+            x = AuthorModel(**data)
+            db_session.add(x)
+            fw.write("PMID:" + str(pmid) + ": INSERT AUTHOR: " + name + " | '" + affiliations + "'\n")
+        except Exception as e:
+            fw.write("PMID:" + str(pmid) + ": INSERT AUTHOR: " + name + " failed: " + str(e) + "\n")
+
+    return []
+
+
+def update_comment_corrections(db_session, fw, pmid, reference_id, pmid_to_reference_id, reference_ids_to_comment_correction_type, comment_correction_in_json, update_log):
+
+    if comment_correction_in_json is None or str(comment_correction_in_json) == '{}':
+        return
+
+    type_mapping = {'ErratumIn': 'ErratumFor',
+                    'RepublishedIn': 'RepublishedFrom',
+                    'RetractionIn': 'RetractionOf',
+                    'ExpressionOfConcernIn': 'ExpressionOfConcernFor',
+                    'ReprintIn': 'ReprintOf',
+                    'UpdateIn': 'UpdateOf'}
+
+    new_reference_ids_to_comment_correction_type = {}
+    for type in comment_correction_in_json:
+        other_pmids = comment_correction_in_json[type]
+        other_reference_ids = []
+        for pmid in other_pmids:
+            other_reference_id = pmid_to_reference_id.get(int(pmid))
+            if other_reference_id is None:
+                other_reference_id = get_reference_id_by_pmid(db_session, pmid)
+                if other_reference_id is None:
+                    continue
+            other_reference_ids.append(other_reference_id)
+        if len(other_reference_ids) == 0:
+            continue
+        if type.endswith('For') or type.endswith('From') or type.endswith('Of'):
+            reference_id_from = reference_id
+            for reference_id_to in other_reference_ids:
+                new_reference_ids_to_comment_correction_type[(reference_id_from, reference_id_to)] = type
+        else:
+            type = type_mapping.get(type)
+            if type is None:
+                continue
+            reference_id_to = reference_id
+            for reference_id_from in other_reference_ids:
+                new_reference_ids_to_comment_correction_type[(reference_id_from, reference_id_to)] = type
+
+    if len(new_reference_ids_to_comment_correction_type.keys()) == 0:
+        return
+
+    for key in new_reference_ids_to_comment_correction_type:
+        if key in reference_ids_to_comment_correction_type:
+            if reference_ids_to_comment_correction_type[key] == new_reference_ids_to_comment_correction_type[key]:
+                continue
+            (reference_id_from, reference_id_to) = key
+            update_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
+            update_log['comment_erratum'] = update_log['comment_erratum'] + 1
+        else:
+            insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
+            update_log['comment_erratum'] = update_log['comment_erratum'] + 1
+
+    for key in reference_ids_to_comment_correction_type:
+        if key in new_reference_ids_to_comment_correction_type:
+            continue
+        (reference_id_from, reference_id_to) = key
+        if reference_id in [reference_id_from, reference_id_to]:
+            ## only remove the ones that are associated with given PMIDs
+            delete_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
+            update_log['comment_erratum'] = update_log['comment_erratum'] + 1
+
+
+def insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):
+
+    data = {"reference_id_from": reference_id_from,
+            "reference_id_to": reference_id_to,
+            "reference_comment_and_correction_type": type}
+    try:
+        x = ReferenceCommentAndCorrectionModel(**data)
+        db_session.add(x)
+        fw.write("PMID:" + str(pmid) + ": INSERT CommentsAndCorrections: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type  + "\n")
+    except Exception as e:
+        fw.write("PMID:" + str(pmid) + ": INSERT CommentsAndCorrections: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type  + " failed: " + str(e) + "\n")
+
+
+def update_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):
+
+    x = db_session.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to).one_or_none()
+
+    if x is None:
+        return
+    
+    try:
+        old_type = x.reference_comment_and_correction_type
+        x.reference_comment_and_correction_type = type
+        db_session.add(x)
+        fw.write("PMID:" + str(pmid) + ": UPDATE CommentsAndCorrections TYPE from " + old_type + " to " + type + "\n")
+    except Exception as e:
+        fw.write("PMID:" + str(pmid) + ": UPDATE CommentsAndCorrections TYPE from " + old_type + " to " + type + " failed: " + str(e) + "\n")
+
+
+def delete_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):
+
+    for x in db_session.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to, reference_comment_and_correction_type=type).all():
+        try:
+            db_session.delete(x)
+            fw.write("PMID:" + str(pmid) + ": DELETE CommentsAndCorrections: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + "\n")
+        except Exception as e:
+            fw.write("PMID:" + str(pmid) + ": DELETE CommentsAndCorrections: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + " failed: " + str(e) + "\n")
+
+
+def update_mesh_terms(db_session, fw, pmid, reference_id, mesh_terms_in_db, mesh_terms_in_json_data, update_log):
+
+    if mesh_terms_in_json_data is None:
+        return
+
+    mesh_terms_in_json = []
+    
+    for m in mesh_terms_in_json_data:
+        heading_term = m.get('meshHeadingTerm')
+        qualifier_term = m.get('meshQualifierTerm', '')
+        if heading_term is None:
+            continue
+        mesh_terms_in_json.append((heading_term, qualifier_term))
+
+    if mesh_terms_in_db is None:
+        mesh_terms_in_db = []
+        
+    if len(mesh_terms_in_json) == 0 or set(mesh_terms_in_json) == set(mesh_terms_in_db):
+        return
+
+    for m in mesh_terms_in_json:
+        if m in mesh_terms_in_db:
+            continue
+        else:
+            insert_mesh_term(db_session, fw, pmid, reference_id, m)
+
+    for m in mesh_terms_in_db:
+        if m in mesh_terms_in_json:
+            continue
+        else:
+            delete_mesh_term(db_session, fw, pmid, reference_id, m)
+
+    update_log['mesh_term'] = update_log['mesh_term'] + 1
+
+
+def insert_mesh_term(db_session, fw, pmid, reference_id, terms):
+
+    (heading_term, qualifier_term) = terms
+
+    data = {'reference_id': reference_id, 'heading_term': heading_term, 'qualifier_term': qualifier_term}
+    try:
+        x = MeshDetailModel(**data)
+        db_session.add(x)
+        fw.write("PMID:" + str(pmid) + ": INSERT mesh term: " + str(terms) + "\n")
+    except Exception as e:
+        fw.write("PMID:" + str(pmid) + ": INSERT mesh term: " + str(terms) + " failed: " + str(e) + "\n")
+
+
+def delete_mesh_term(db_session, fw, pmid, reference_id, terms):
+
+    (heading_term, qualifier_term) = terms
+
+    try:
+        x = db_session.query(MeshDetailModel).filter_by(reference_id=reference_id, heading_term=heading_term, qualifier_term=qualifier_term).one_or_none()
+        if x is None:
+            return
+        db_session.delete(x)
+        fw.write("PMID:" + str(pmid) + ": DELETE mesh term " + str(terms) + "\n")
+    except Exception as e:
+        fw.write("PMID:" + str(pmid) + ": DELETE mesh term: " + str(terms) + " failed: " + str(e) + "\n")
+
+
+def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_json, pmcid_db, pmcid_json, update_log):
+
+    if doi_json is None and pmcid_json is None:
+        return
+
+    ## take care of DOI
+
+    if doi_json and doi_json != doi_db:
+        if doi_db is None:
+            insert_doi(db_session, fw, pmid, reference_id, doi_json)
+        else:
+            update_doi(db_session, fw, pmid, reference_id, doi_db, doi_json)
+        update_log['doi'] = update_log['doi'] + 1
+
+    ## take care of PMCID
+
+    if pmcid_json:
+        if pmcid_json.startswith('PMC'):
+            if not pmcid_json.replace('PMC', '').isdigit():
+                pmcid_json = None
+        else:
+            pmcid_json = None
+
+    if pmcid_json is None:
+        return
+
+    if pmcid_db and pmcid_db == pmcid_json:
+        return
+
+    if pmcid_db:
+        update_pmcid(db_session, fw, pmid, reference_id, pmcid_db, pmcid_json)
+    else:
+        insert_pmcid(db_session, fw, pmid, reference_id, pmcid_json)
+
+    update_log['pmcid'] = update_log['pmcid'] + 1
+
+
+def update_doi(db_session, fw, pmid, reference_id, old_doi, new_doi):
+
+    try:
+        x = db_session.query(CrossReferenceModel).filter_by(reference_id=reference_id).filter(CrossReferenceModel.curie == 'DOI:' + old_doi).one_or_none()
+        if x is None:
+            return
+        x.curie = new_doi
+        db_session.add(x)
+        fw.write("PMID:" + str(pmid) + ": UPDATE DOI from " + old_doi + " to " + new_doi + "\n")
+    except Exception as e:
+        fw.write("PMID:" + str(pmid) + ": UPDATE DOI from " + old_doi + " to " + new_doi + " failed: " + str(e) + "\n")
+
+
+def insert_doi(db_session, fw, pmid, reference_id, doi):
+
+    data = {"curie": "DOI:" + doi, "reference_id": reference_id, "is_obsolete": False}
+    try:
+        x = CrossReferenceModel(**data)
+        db_session.add(x)
+        fw.write("PMID:" + str(pmid) + ": INSERT DOI:" + doi + "\n")
+    except Exception as e:
+        fw.write("PMID:" + str(pmid) + ": INSERT DOI:" + doi + " failed: " + str(e) + "\n")
+
+
+def update_pmcid(db_session, fw, pmid, reference_id, old_pmcid, new_pmcid):
+
+    try:
+        x = db_session.query(CrossReferenceModel).filter_by(reference_id=reference_id).filter(CrossReferenceModel.curie == 'PMCID:' + old_pmcid).one_or_none()
+        if x is None:
+            return
+        x.curie = new_pmcid
+        db_session.add(x)
+        fw.write("PMID:" + str(pmid) + ": UPDATE PMCID from " + old_pmcid + " to " + new_pmcid + "\n")
+    except Exception as e:
+        fw.write("PMID:" + str(pmid) + ": UPDATE PMCID from " + old_pmcid + " to " + new_pmcid + " failed: " + str(e) + "\n")
+
+
+def insert_pmcid(db_session, fw, pmid, reference_id, pmcid):
+
+    data = {"curie": "PMCID:" + pmcid, "reference_id": reference_id, "is_obsolete": False}
+    try:
+        x = CrossReferenceModel(**data)
+        db_session.add(x)
+        fw.write("PMID:" + str(pmid) + ": INSERT PMCID:" + pmcid + "\n")
+    except Exception as e:
+        fw.write("PMID:" + str(pmid) + ": INSERT PMCID:" + pmcid + " failed: " + str(e) + "\n")
+
+
+def update_cross_reference_for_resource(db_session, fw, pmid, new_resource_id, issn_json, nlm_json):
+
+    for x in db_session.query(CrossReferenceModel).filter_by(resource_id=new_resource_id).all():
+        if issn_json and x.curie.startswith('ISSN:') and x.curie != 'ISSN:' + issn_json:
+            
+            issn_db = x.curie
+            try:
+                x.curie = issn_json
+                db_session.add(x)
+                fw.write("PMID:" + str(pmid) + ": UPDATE " + issn_db + " to " + "ISSN:" + issn_json + "\n")
+            except Exception as e:
+                fw.write("PMID:" + str(pmid) + ": UPDATE " + issn_db + " to " + "ISSN:" + issn_json + " failed: " + str(e) + "\n")
+        elif nlm_json and x.curie.startswith('NLM:') and x.curie != 'NLM:' + nlm_json:
+            nlm_db = x.curie
+            try:
+                x.curie = nlm_json
+                db_session.add(x)
+                fw.write("PMID:" + str(pmid) + ": UPDATE " + nlm_db + " to " + "NLM:" + nlm_json + "\n")
+            except Exception as e:
+                fw.write("PMID:" + str(pmid) + ": UPDATE " + nlm_db + " to " + "NLM:" + nlm_json + " failed: " + str(e) + "\n")
+
+
+def get_md5sum(md5sum_path):
+
+    file = md5sum_path + "md5sum"
+    pmid_to_md5sum = {}
+    if path.exists(file):
+        f = open(file)
+        for line in f:
+            pieces = line.strip().split("\t")
+            pmid_to_md5sum[pieces[0]] = pieces[1]
+    return pmid_to_md5sum
+
+
+def merge_md5sum(new_path, old_path):
+
+    f = open(new_path + "md5sum")
+    found = {}
+    for line in f:
+        pieces = line.strip().split("\t")
+        found[pieces[0]] = pieces[1]
+    f.close()
+
+    fw = open(new_path + "md5sum", "a")
+    f = open(old_path + "md5sum")
+
+    for line in f:
+        pieces = line.split("\t")
+        if pieces[0] not in found:
+            fw.write(line)
+    f.close()
+    fw.close()
+
+
+def set_paths():
+
+    load_dotenv()
+
+    base_path = environ.get('XML_PATH', "")
+    xml_path = base_path + "pubmed_xml/"
+    json_path = base_path + "pubmed_json/"
+    old_xml_path = base_path + "pubmed_xml/old/"
+    old_json_path = base_path + "pubmed_json/old/"
+    log_path = base_path + 'pubmed_search_logs/'
+
+    if not path.exists(xml_path):
+        makedirs(xml_path)
+    if not path.exists(json_path):
+        makedirs(json_path)
+    if not path.exists(old_xml_path):
+        makedirs(old_xml_path)
+    if not path.exists(old_json_path):
+        makedirs(old_json_path)
+    if not path.exists(log_path):
+        makedirs(log_path)
+
+    return (xml_path, json_path, old_xml_path, old_json_path, log_path)
+
+
+def get_reference_id_by_pmid(db_session, pmid):
+
+    x = db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie == 'PMID:' + pmid).one_or_none()
+    if x:
+        return x.reference_id
+    else:
+        return None
+
+
+def get_orcid_data(db_session):
+
+    orcid_dict = {}
+    
+    for x in db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie.like('ORCID:%')).all():
+        orcid_dict[x.curie] = x.is_obsolete
+
+    return orcid_dict
+
+
+def get_author_data(db_session, mod):
+
+    reference_id_to_authors = {}
+
+    for x in db_session.query(AuthorModel).join(ReferenceModel.author).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).order_by(AuthorModel.reference_id, AuthorModel.order).all():
+
+        authors = []
+        if x.reference_id in reference_id_to_authors:
+            authors = reference_id_to_authors[x.reference_id]
+        authors.append(x)
+        reference_id_to_authors[x.reference_id] = authors
+
+    return reference_id_to_authors
+
+
+def get_mesh_term_data(db_session, mod):
+
+    reference_id_to_mesh_terms = {}
+
+    for x in db_session.query(MeshDetailModel).join(ReferenceModel.mesh_term).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).all():
+
+        mesh_terms = []
+        if x.reference_id in reference_id_to_mesh_terms:
+            mesh_terms = reference_id_to_mesh_terms[x.reference_id]
+        qualifier_term = x.qualifier_term if x.qualifier_term else ''
+        mesh_terms.append((x.heading_term, qualifier_term))
+        reference_id_to_mesh_terms[x.reference_id] = mesh_terms
+
+    return reference_id_to_mesh_terms
+
+
+def get_cross_reference_data(db_session, mod):
+
+    reference_id_to_doi = {}
+    reference_id_to_pmcid = {}
+
+    for x in db_session.query(CrossReferenceModel).join(ReferenceModel.cross_reference).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).all():
+        if x.curie.startswith('DOI:'):
+            reference_id_to_doi[x.reference_id] = x.curie.replace('DOI:', '')
+        elif x.curie.startswith('PMCID:'):
+            reference_id_to_pmcid[x.reference_id] = x.curie.replace('PMCID:', '')
+
+    return (reference_id_to_doi, reference_id_to_pmcid)
+
+
+def get_cross_reference_data_for_resource(db_session):
+
+    resource_id_to_issn = {}
+    resource_id_to_nlm = {}
+
+    for x in db_session.query(CrossReferenceModel).filter(CrossReferenceModel.resource_id.isnot(None)).all():
+        if x.curie.startswith('ISSN:'):
+            resource_id_to_issn[x.resource_id] = x.curie.replace('ISSN:', '')
+        elif x.curie.startswith('NLM:'):
+            resource_id_to_nlm[x.resource_id] = x.curie.replace('NLM:', '')
+
+    return (resource_id_to_issn, resource_id_to_nlm)
+
+
+def get_comment_correction_data(db_session, mod):
+
+    reference_ids_to_comment_correction_type = {}
+
+    for x in db_session.query(ReferenceCommentAndCorrectionModel).join(ReferenceModel.comment_and_corrections_in or ReferenceModel.comment_and_corrections_out).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).all():
+        type = x.reference_comment_and_correction_type.replace("x.reference_comment_and_correction_type", "")
+        reference_ids_to_comment_correction_type[(x.reference_id_from, x.reference_id_to)] = type
+
+    return reference_ids_to_comment_correction_type
+
+
+def get_journal_data(db_session):
+
+    journal_to_resource_id = {}
+
+    for x in db_session.query(ResourceModel).all():
+        journal_to_resource_id[x.iso_abbreviation] = x.resource_id
+
+    return journal_to_resource_id
+
+
+def get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id_to_pmid):
+
+    for x in db_session.query(CrossReferenceModel).join(ReferenceModel.cross_reference).filter(CrossReferenceModel.curie.like('PMID:%')).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).all():
+        pmid = x.curie.replace('PMID:', '')
+        pmid_to_reference_id[pmid] = x.reference_id
+        reference_id_to_pmid[x.reference_id] = pmid
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-m', '--mod', action='store', help='which mod, [SGD|WB|FB|ZFIN|MGI|RGD]')
+    args = vars(parser.parse_args())
+    mod = args['mod'] if args.get('mod') else ''
+
+    if mod and mod in ['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD']:
+        update_data(mod)
+    else:
+        print("Usage:         update_pubmed_papers.py -m [SGD|WB|FB|ZFIN|MGI|RGD]")
+        print("Usage example: update_pubmed_papers.py -m SGD")
+        
