@@ -1,3 +1,4 @@
+from sqlalchemy import or_
 import argparse
 import logging
 from os import environ, makedirs, path, listdir, rename
@@ -34,7 +35,7 @@ download_xml_max_size = 150000
 sleep_time = 600
 
 
-def update_data(mod):  # noqa: C901
+def update_data(mod, pmids):  # noqa: C901
 
     ## update journal info (resource table)
     update_resource_pubmed_nlm()
@@ -45,7 +46,11 @@ def update_data(mod):  # noqa: C901
 
     (xml_path, json_path, old_xml_path, old_json_path, log_path) = set_paths()
 
-    log_file = log_path + "update_pubmed_papers_" + mod + "_" + datestamp + ".log"
+    log_file = log_path + "update_pubmed_papers_"
+    if mod:
+        log_file = log_file + mod + "_" + datestamp + ".log"
+    else:
+        log_file = log_file + datestamp + ".log"
 
     fw = open(log_file, "w")
 
@@ -56,8 +61,13 @@ def update_data(mod):  # noqa: C901
 
     pmid_to_reference_id = {}
     reference_id_to_pmid = {}
-    get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id_to_pmid)
-    pmids_all = list(pmid_to_reference_id.keys())
+    pmids_all = []
+    if mod:
+        get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id_to_pmid)
+        pmids_all = list(pmid_to_reference_id.keys())
+    else:
+        get_reference_ids_by_pmids(db_session, pmids, pmid_to_reference_id, reference_id_to_pmid)
+        pmids_all = pmids
     pmids_all.sort()
 
     db_session.close()
@@ -71,7 +81,10 @@ def update_data(mod):  # noqa: C901
     log.info(str(datetime.now()))
     log.info("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...")
 
-    move_files_to_old_directory(xml_path, old_xml_path)
+    if mod:
+        move_files_to_old_directory(xml_path, old_xml_path)
+    else:
+        rename(xml_path + 'md5sum', xml_path + 'md5sum_bk')
 
     if len(pmids_all) > download_xml_max_size:
         for index in range(0, len(pmids_all), download_xml_max_size):
@@ -81,14 +94,23 @@ def update_data(mod):  # noqa: C901
     else:
         download_pubmed_xml(pmids_all)
 
+    if mod is None:
+        rename(xml_path + 'md5sum_bk', xml_path + 'md5sum')
+
     fw.write(str(datetime.now()) + "\n")
     fw.write("Generating json files...\n")
     log.info(str(datetime.now()))
     log.info("Generating json files...")
 
-    move_files_to_old_directory(json_path, old_json_path)
+    if mod:
+        move_files_to_old_directory(json_path, old_json_path)
+    else:
+        rename(json_path + 'md5sum', json_path + 'md5sum_bk')
 
     generate_json(pmids_all, [])
+
+    if mod is None:
+        rename(json_path + 'md5sum_bk', json_path + 'md5sum')
 
     fw.write(str(datetime.now()) + "\n")
     fw.write("Updating database...\n")
@@ -96,7 +118,7 @@ def update_data(mod):  # noqa: C901
     log.info("Updating database...")
 
     authors_with_first_or_corresponding_flag = []
-    update_database(fw, mod, reference_id_to_pmid, pmid_to_reference_id,
+    update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id,
                     authors_with_first_or_corresponding_flag, update_log,
                     json_path, old_json_path)
 
@@ -130,7 +152,7 @@ def update_data(mod):  # noqa: C901
     log.info("DONE!")
 
 
-def update_database(fw, mod, reference_id_to_pmid, pmid_to_reference_id, authors_with_first_or_corresponding_flag, update_log, json_path, old_json_path):   # noqa: C901
+def update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id, authors_with_first_or_corresponding_flag, update_log, json_path, old_json_path):   # noqa: C901
 
     ## 1. do nothing if a field has no value in pubmed xml/json
     ##    so won't delete whatever in the database
@@ -139,10 +161,14 @@ def update_database(fw, mod, reference_id_to_pmid, pmid_to_reference_id, authors
     ## start a database session
     db_session = create_postgres_session(False)
 
+    reference_id_list = []
+    if pmids:
+        reference_id_list = list(reference_id_to_pmid.keys())
+
     ## reference_id => a list of author name in order
     fw.write("Getting author info from database...\n")
     log.info("Getting author info from database...")
-    reference_id_to_authors = get_author_data(db_session, mod)
+    reference_id_to_authors = get_author_data(db_session, mod, reference_id_list)
 
     ## ORCID ID => is_obsolete
     fw.write("Getting ORCID info from database...\n")
@@ -152,7 +178,8 @@ def update_database(fw, mod, reference_id_to_pmid, pmid_to_reference_id, authors
     ## (reference_id_from, reference_id_to) => a list of reference_comment_and_correction_type
     fw.write("Getting comment/correction info from database...\n")
     log.info("Getting comment/correction info from database...")
-    reference_ids_to_comment_correction_type = get_comment_correction_data(db_session, mod)
+    reference_ids_to_comment_correction_type = get_comment_correction_data(db_session, mod,
+                                                                           reference_id_list)
 
     ## reference_id => a list of mesh_terms in order
     fw.write("Getting mesh_term info from database...\n")
@@ -162,7 +189,8 @@ def update_database(fw, mod, reference_id_to_pmid, pmid_to_reference_id, authors
     ## reference_id => doi, reference_id =>pmcid
     fw.write("Getting DOI/PMCID info from database...\n")
     log.info("Getting DOI/PMCID info from database...")
-    (reference_id_to_doi, reference_id_to_pmcid) = get_cross_reference_data(db_session, mod)
+    (reference_id_to_doi, reference_id_to_pmcid) = get_cross_reference_data(db_session, mod,
+                                                                            reference_id_list)
 
     ## journal => resource_id
     fw.write("Getting journal info from database...\n")
@@ -182,7 +210,7 @@ def update_database(fw, mod, reference_id_to_pmid, pmid_to_reference_id, authors
     newly_added_orcid = []
     count = 0
     offset = 0
-    update_reference_data_batch(fw, reference_id_to_pmid, pmid_to_reference_id,
+    update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference_id,
                                 reference_id_to_authors,
                                 reference_ids_to_comment_correction_type,
                                 reference_id_to_mesh_terms, reference_id_to_doi,
@@ -193,7 +221,7 @@ def update_database(fw, mod, reference_id_to_pmid, pmid_to_reference_id, authors
                                 json_path, update_log, offset)
 
 
-def update_reference_data_batch(fw, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, authors_with_first_or_corresponding_flag, json_path, update_log, offset):
+def update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, authors_with_first_or_corresponding_flag, json_path, update_log, offset):
 
     ## only update 3000 references per session (set in max_rows_per_db_session)
     ## just in case the database get disconnected during the update process
@@ -202,21 +230,29 @@ def update_reference_data_batch(fw, reference_id_to_pmid, pmid_to_reference_id, 
     fw.write("Getting data from Reference table...\n")
     log.info("Getting data from Reference table...limit=" + str(limit) + ", offset=" + str(offset))
 
-    all = db_session.query(
-        ReferenceModel
-    ).join(
-        ReferenceModel.mod_corpus_association
-    ).outerjoin(
-        ModCorpusAssociationModel.mod
-    ).filter(
-        ModModel.abbreviation == mod
-    ).order_by(
-        ReferenceModel.reference_id
-    ).offset(
-        offset
-    ).limit(
-        limit
-    ).all()
+    all = None
+    if mod:
+        all = db_session.query(
+            ReferenceModel
+        ).join(
+            ReferenceModel.mod_corpus_association
+        ).outerjoin(
+            ModCorpusAssociationModel.mod
+        ).filter(
+            ModModel.abbreviation == mod
+        ).order_by(
+            ReferenceModel.reference_id
+        ).offset(
+            offset
+        ).limit(
+            limit
+        ).all()
+    else:
+        all = db_session.query(
+            ReferenceModel
+        ).filter(
+            ReferenceModel.reference_id.in_(list(reference_id_to_pmid.keys()))
+        ).all()
 
     if len(all) == 0:
         return
@@ -239,12 +275,13 @@ def update_reference_data_batch(fw, reference_id_to_pmid, pmid_to_reference_id, 
             db_session.commit()
             i = 0
 
-        json_file = json_path + pmid + ".json"
-        if not path.exists(json_file):
-            continue
-        md5sum = new_md5sum.get(pmid, None)
-        if md5sum and pmid in old_md5sum and old_md5sum[pmid] == md5sum:
-            continue
+        if mod:
+            json_file = json_path + pmid + ".json"
+            if not path.exists(json_file):
+                continue
+            md5sum = new_md5sum.get(pmid, None)
+            if md5sum and pmid in old_md5sum and old_md5sum[pmid] == md5sum:
+                continue
 
         i = i + 1
 
@@ -289,17 +326,18 @@ def update_reference_data_batch(fw, reference_id_to_pmid, pmid_to_reference_id, 
     db_session.commit()
     db_session.close()
 
-    ## call itself until all rows have been retrieved from the database for the given mod
-    offset = offset + limit
-    update_reference_data_batch(fw, reference_id_to_pmid, pmid_to_reference_id,
-                                reference_id_to_authors,
-                                reference_ids_to_comment_correction_type,
-                                reference_id_to_mesh_terms, reference_id_to_doi,
-                                reference_id_to_pmcid, journal_to_resource_id,
-                                resource_id_to_issn, resource_id_to_nlm, orcid_dict,
-                                old_md5sum, new_md5sum, count, newly_added_orcid,
-                                authors_with_first_or_corresponding_flag,
-                                json_path, update_log, offset)
+    if mod:
+        ## call itself until all rows have been retrieved from the database for the given mod
+        offset = offset + limit
+        update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference_id,
+                                    reference_id_to_authors,
+                                    reference_ids_to_comment_correction_type,
+                                    reference_id_to_mesh_terms, reference_id_to_doi,
+                                    reference_id_to_pmcid, journal_to_resource_id,
+                                    resource_id_to_issn, resource_id_to_nlm, orcid_dict,
+                                    old_md5sum, new_md5sum, count, newly_added_orcid,
+                                    authors_with_first_or_corresponding_flag,
+                                    json_path, update_log, offset)
 
 
 def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, update_log, count):
@@ -824,12 +862,20 @@ def get_orcid_data(db_session):
     return orcid_dict
 
 
-def get_author_data(db_session, mod):
+def get_author_data(db_session, mod, reference_id_list):
 
     reference_id_to_authors = {}
 
-    for x in db_session.query(AuthorModel).join(ReferenceModel.author).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).order_by(AuthorModel.reference_id, AuthorModel.order).all():
+    allAuthors = None
+    if mod:
+        allAuthors = db_session.query(AuthorModel).join(ReferenceModel.author).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).order_by(AuthorModel.reference_id, AuthorModel.order).all()
+    elif reference_id_list and len(reference_id_list) > 0:
+        allAuthors = db_session.query(AuthorModel).filter(AuthorModel.reference_id.in_(reference_id_list)).all()
 
+    if allAuthors is None:
+        return reference_id_to_authors
+
+    for x in allAuthors:
         authors = []
         if x.reference_id in reference_id_to_authors:
             authors = reference_id_to_authors[x.reference_id]
@@ -839,12 +885,20 @@ def get_author_data(db_session, mod):
     return reference_id_to_authors
 
 
-def get_mesh_term_data(db_session, mod):
+def get_mesh_term_data(db_session, mod, reference_id_list):
 
     reference_id_to_mesh_terms = {}
 
-    for x in db_session.query(MeshDetailModel).join(ReferenceModel.mesh_term).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).all():
+    allMeshTerms = None
+    if mod:
+        allMeshTerms = db_session.query(MeshDetailModel).join(ReferenceModel.mesh_term).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).all()
+    elif reference_id_list and len(reference_id_list) > 0:
+        allMeshTerms = db_session.query(MeshDetailModel).filter(MeshDetailModel.reference_id.in_(reference_id_list)).all()
 
+    if allMeshTerms is None:
+        return reference_id_to_mesh_terms
+
+    for x in allMeshTerms:
         mesh_terms = []
         if x.reference_id in reference_id_to_mesh_terms:
             mesh_terms = reference_id_to_mesh_terms[x.reference_id]
@@ -855,12 +909,21 @@ def get_mesh_term_data(db_session, mod):
     return reference_id_to_mesh_terms
 
 
-def get_cross_reference_data(db_session, mod):
+def get_cross_reference_data(db_session, mod, reference_id_list):
 
     reference_id_to_doi = {}
     reference_id_to_pmcid = {}
 
-    for x in db_session.query(CrossReferenceModel).join(ReferenceModel.cross_reference).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).all():
+    allCrossRefs = None
+    if mod:
+        allCrossRefs = db_session.query(CrossReferenceModel).join(ReferenceModel.cross_reference).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).all()
+    elif reference_id_list and len(reference_id_list) > 0:
+        allCrossRefs = db_session.query(CrossReferenceModel).filter(CrossReferenceModel.reference_id.in_(reference_id_list)).all()
+
+    if allCrossRefs is None:
+        return (reference_id_to_doi, reference_id_to_pmcid)
+
+    for x in allCrossRefs:
         if x.curie.startswith('DOI:'):
             reference_id_to_doi[x.reference_id] = x.curie.replace('DOI:', '')
         elif x.curie.startswith('PMCID:'):
@@ -883,11 +946,20 @@ def get_cross_reference_data_for_resource(db_session):
     return (resource_id_to_issn, resource_id_to_nlm)
 
 
-def get_comment_correction_data(db_session, mod):
+def get_comment_correction_data(db_session, mod, reference_id_list):
 
     reference_ids_to_comment_correction_type = {}
 
-    for x in db_session.query(ReferenceCommentAndCorrectionModel).join(ReferenceModel.comment_and_corrections_in or ReferenceModel.comment_and_corrections_out).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).all():
+    allCommentCorrections = None
+    if mod:
+        allCommentCorrections = db_session.query(ReferenceCommentAndCorrectionModel).join(ReferenceModel.comment_and_corrections_in or ReferenceModel.comment_and_corrections_out).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).all()
+    elif reference_id_list and len(reference_id_list) > 0:
+        allCommentCorrections = db_session.query(ReferenceCommentAndCorrectionModel).filter(or_(ReferenceCommentAndCorrectionModel.reference_id_from.in_(reference_id_list), ReferenceCommentAndCorrectionModel.reference_id_to.in_(reference_id_list))).all()
+
+    if allCommentCorrections is None:
+        return reference_ids_to_comment_correction_type
+
+    for x in allCommentCorrections:
         type = x.reference_comment_and_correction_type.replace("x.reference_comment_and_correction_type", "")
         reference_ids_to_comment_correction_type[(x.reference_id_from, x.reference_id_to)] = type
 
@@ -904,6 +976,18 @@ def get_journal_data(db_session):
     return journal_to_resource_id
 
 
+def get_reference_ids_by_pmids(db_session, pmids, pmid_to_reference_id, reference_id_to_pmid):
+
+    pmid_list = []
+    for pmid in pmids:
+        pmid_list.append('PMID:' + pmid)
+
+    for x in db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie.in_(pmid_list)).all():
+        pmid = x.curie.replace('PMID:', '')
+        pmid_to_reference_id[pmid] = x.reference_id
+        reference_id_to_pmid[x.reference_id] = pmid
+
+
 def get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id_to_pmid):
 
     for x in db_session.query(CrossReferenceModel).join(ReferenceModel.cross_reference).filter(CrossReferenceModel.curie.like('PMID:%')).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).all():
@@ -916,11 +1000,21 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--mod', action='store', help='which mod, [SGD|WB|FB|ZFIN|MGI|RGD]')
+    parser.add_argument('-p', '--pmids', action='store', help="a list of '|' delimited pmid list")
     args = vars(parser.parse_args())
-    mod = args['mod'] if args.get('mod') else ''
+    mod = args['mod'] if args.get('mod') else None
+    pmids = args['pmids'] if args.get('pmids') else None
 
-    if mod and mod in ['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD']:
-        update_data(mod)
+    if mod:
+        if mod in ['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD']:
+            update_data(mod, pmids)
+        else:
+            print("Usage:         update_pubmed_papers.py -m [SGD|WB|FB|ZFIN|MGI|RGD]")
+            print("Usage example: update_pubmed_papers.py -m SGD")
+    elif pmids:
+        update_data(mod, pmids)
     else:
         print("Usage:         update_pubmed_papers.py -m [SGD|WB|FB|ZFIN|MGI|RGD]")
+        print("Usage:         update_pubmed_papers.py -p PMID_LIST")
         print("Usage example: update_pubmed_papers.py -m SGD")
+        print("Usage example: update_pubmed_papers.py -p 10022942|9922370")
