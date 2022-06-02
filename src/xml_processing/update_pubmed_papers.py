@@ -1,9 +1,8 @@
 import argparse
 import logging
-from os import environ, makedirs, path
+from os import environ, makedirs, path, listdir, rename
 from dotenv import load_dotenv
 from datetime import datetime, date
-import shutil
 import json
 import time
 
@@ -37,7 +36,7 @@ sleep_time = 600 # 10min
 def update_data(mod):  # noqa: C901
 
     ## update journal info (resource table)
-    update_resource_pubmed_nlm()
+    # update_resource_pubmed_nlm()
 
     db_session = create_postgres_session(False)
 
@@ -67,30 +66,28 @@ def update_data(mod):  # noqa: C901
         update_log[field_name] = 0
 
     fw.write(str(datetime.now()) + "\n")
-    fw.write("Downloading pubmed xml files for " + len(pmids_all) + " PMIDs...\n")
+    fw.write("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...\n")
     log.info(str(datetime.now()))
-    log.info("Downloading pubmed xml files for " + len(pmids_all) + " PMIDs...")
+    log.info("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...")
 
-    merge_md5sum(xml_path, old_xml_path)
-    shutil.move(xml_path + "*", old_xml_path)
+    # move_files_to_old_directory(xml_path, old_xml_path)
 
-    if len(pmids_all) > download_xml_max_size:
-        for index in range(0, len(pmids_all), download_xml_max_size):
-            pmids_slice = pmids_all[index:index + download_xml_max_size]
-            download_pubmed_xml(pmids_slice)
-            time.sleep(sleep_time)
-    else:
-        download_pubmed_xml(pmids_all)
+    # if len(pmids_all) > download_xml_max_size:
+    #    for index in range(0, len(pmids_all), download_xml_max_size):
+    #        pmids_slice = pmids_all[index:index + download_xml_max_size]
+    #        download_pubmed_xml(pmids_slice)
+    #        time.sleep(sleep_time)
+    # else:
+    #    download_pubmed_xml(pmids_all)
                 
     fw.write(str(datetime.now()) + "\n")
     fw.write("Generating json files...\n")
     log.info(str(datetime.now()))
     log.info("Generating json files...")
 
-    merge_md5sum(json_path, old_json_path)
-    shutil.move(json_path + "*", old_json_path)
-
-    generate_json(pmids_all, [])
+    # move_files_to_old_directory(json_path, old_json_path)
+    
+    # generate_json(pmids_all, [])
 
     fw.write(str(datetime.now()) + "\n")
     fw.write("Updating database...\n")
@@ -361,6 +358,10 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
             old_value = getattr(x, colName)
             if colName == 'category':
                 old_value = old_value.replace("ReferenceCategory.", "")
+                ## can remove this when category 'Correction' is added
+                if json_data.get(j_key) == 'Correction':
+                    continue
+                ## end check
             if json_data.get(j_key) and json_data[j_key] != old_value:
                 setattr(x, colName, json_data[j_key])
                 has_update = has_update + 1
@@ -376,8 +377,8 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
         log.info(str(count) + " PMID:" + str(pmid) + " Reference table has been updated")
         fw.write(str(count) + " PMID:" + str(pmid) + " Reference table has been updated\n")
     else:
-        fw.write(str(count) + " PMID:" + str(pmid) + "No Change in Reference table\n")
-        log.info(str(count) + " PMID:" + str(pmid) + "No Change in Reference table")
+        fw.write(str(count) + " PMID:" + str(pmid) + " No Change in Reference table\n")
+        log.info(str(count) + " PMID:" + str(pmid) + " No Change in Reference table")
 
 
 def update_authors(db_session, fw, pmid, reference_id, author_list_in_db, author_list_in_json, orcid_dict, newly_added_orcid, update_log):
@@ -743,6 +744,12 @@ def get_md5sum(md5sum_path):
 
 def merge_md5sum(new_path, old_path):
 
+    if not path.exists(old_path + "md5sum"):
+        return
+
+    if not path.exists(new_path + "md5sum"):
+        return
+    
     f = open(new_path + "md5sum")
     found = {}
     for line in f:
@@ -759,6 +766,17 @@ def merge_md5sum(new_path, old_path):
             fw.write(line)
     f.close()
     fw.close()
+
+
+def move_files_to_old_directory(new_path, old_path):
+    
+    merge_md5sum(new_path, old_path)
+    allfiles = listdir(new_path)
+    log.info("moving files from " + new_path + " to " + old_path)
+    for f in allfiles:
+        if f.endswith('xml') or f.endswith('json') or f == 'md5sum':
+            # print (new_path + f, old_path + f)
+            rename(new_path + f, old_path + f)
 
 
 def set_paths():
