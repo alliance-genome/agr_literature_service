@@ -29,8 +29,6 @@ refColName_to_update = ['title', 'volume', 'issue_name', 'page_range', 'abstract
 field_names_to_report = refColName_to_update + ['doi', 'pmcid', 'author_name', 'journal',
                                                 'comment_erratum', 'mesh_term']
 
-authors_with_first_or_corresponding_flag = []
-
 limit = 2000
 max_rows_per_commit = 250
 download_xml_max_size = 150000
@@ -40,7 +38,8 @@ sleep_time = 600
 def update_data(mod, pmids):  # noqa: C901
 
     ## update journal info (resource table)
-    # update_resource_pubmed_nlm()
+    if mod:
+        update_resource_pubmed_nlm()
 
     db_session = create_postgres_session(False)
 
@@ -119,8 +118,10 @@ def update_data(mod, pmids):  # noqa: C901
     log.info(str(datetime.now()))
     log.info("Updating database...")
 
-    update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id,
-                    update_log, json_path, old_json_path)
+    authors_with_first_or_corresponding_flag = update_database(fw, mod,
+                                    pmids, reference_id_to_pmid,
+                                    pmid_to_reference_id, update_log,
+                                    json_path, old_json_path)
 
     # write updating summary
 
@@ -210,23 +211,30 @@ def update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id, 
     newly_added_orcid = []
     count = 0
     offset = 0
+
+    ## for some reason, it needs to return from recursive function...
+    authors_with_first_or_corresponding_flag = []
     
-    update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference_id,
+    authors_with_first_or_corresponding_flag = update_reference_data_batch(fw, mod,
+                                reference_id_to_pmid, pmid_to_reference_id,
                                 reference_id_to_authors,
                                 reference_ids_to_comment_correction_type,
                                 reference_id_to_mesh_terms, reference_id_to_doi,
                                 reference_id_to_pmcid, journal_to_resource_id,
                                 resource_id_to_issn, resource_id_to_nlm, orcid_dict,
                                 old_md5sum, new_md5sum, count, newly_added_orcid,
+                                authors_with_first_or_corresponding_flag,
                                 json_path, update_log, offset)
 
+    return authors_with_first_or_corresponding_flag
 
-def update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, json_path, update_log, offset):
 
+def update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, authors_with_first_or_corresponding_flag, json_path, update_log, offset):
+    
     ## only update 3000 references per session (set in max_rows_per_db_session)
     ## just in case the database get disconnected during the update process
     db_session = create_postgres_session(False)
-
+    
     fw.write("Getting data from Reference table...\n")
     log.info("Getting data from Reference table...limit=" + str(limit) + ", offset=" + str(offset))
 
@@ -253,13 +261,11 @@ def update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference
         ).filter(
             ReferenceModel.reference_id.in_(list(reference_id_to_pmid.keys()))
         ).all()
-
+        
     if len(all) == 0:
-        return
+        return authors_with_first_or_corresponding_flag
 
     i = 0
-
-    global authors_with_first_or_corresponding_flag
     
     for x in all:
 
@@ -333,14 +339,18 @@ def update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference
     if mod:
         ## call itself until all rows have been retrieved from the database for the given mod
         offset = offset + limit
-        update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference_id,
+        authors_with_first_or_corresponding_flag = update_reference_data_batch(fw,
+                                    mod, reference_id_to_pmid, pmid_to_reference_id,
                                     reference_id_to_authors,
                                     reference_ids_to_comment_correction_type,
                                     reference_id_to_mesh_terms, reference_id_to_doi,
                                     reference_id_to_pmcid, journal_to_resource_id,
                                     resource_id_to_issn, resource_id_to_nlm, orcid_dict,
                                     old_md5sum, new_md5sum, count, newly_added_orcid,
+                                    authors_with_first_or_corresponding_flag,
                                     json_path, update_log, offset)
+
+    return authors_with_first_or_corresponding_flag
 
 
 def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, update_log, count):
