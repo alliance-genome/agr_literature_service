@@ -521,7 +521,7 @@ def test_first_corresponding_author_flag():
 
     from helper_sqlalchemy import create_postgres_session
     from literature.models import CrossReferenceModel, AuthorModel
-    from process_single_pmid.py import process_pmid
+    from process_single_pmid import process_pmid
     from update_pubmed_papers import update_data
 
     pmid = "26051182"
