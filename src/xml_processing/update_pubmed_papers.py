@@ -434,11 +434,8 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
             if new_value is None:
                 continue
             if colName == 'category':
-                old_value = old_value.replace("ReferenceCategory.", "")
-                ## can remove this when category 'Correction' is added
-                if json_data.get(j_key) == 'Correction':
-                    continue
-                ## end check
+                if old_value:
+                    old_value = old_value.replace("ReferenceCategory.", "")
                 if new_value.lower() != old_value.lower():
                     setattr(x, colName, new_value)
                     has_update = has_update + 1
@@ -446,7 +443,8 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
                     fw.write("PMID:" + str(pmid) + ": " + colName + " is updated from '" + str(old_value) + "' to '" + str(new_value) + "'\n")
                 continue
             if colName == 'pubmed_publication_status':
-                old_value = old_value.replace("PubMedPublicationStatus.", "")
+                if old_value:
+                    old_value = old_value.replace("PubMedPublicationStatus.", "")
             if new_value != old_value:
                 setattr(x, colName, new_value)
                 has_update = has_update + 1
