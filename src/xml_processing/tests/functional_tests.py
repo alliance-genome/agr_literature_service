@@ -547,7 +547,7 @@ def test_first_corresponding_author_flag():
     ## accordingly
     update_data(None, pmid)
 
-    x = db_session(AuthorModel).filter_by(name='TEST full name', reference_id=c.reference_id).one_or_none()
+    x = db_session.query(AuthorModel).filter_by(name='TEST full name', reference_id=c.reference_id).one_or_none()
     if x is None:
         return result
     if x.first_author is True and x.corresponding_author is True:
