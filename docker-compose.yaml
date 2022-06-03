@@ -316,6 +316,12 @@ services:
       ELASTICSEARCH_PORT: "${ELASTICSEARCH_PORT}"
       DEBEZIUM_CONNECTOR_HOST: "${DEBEZIUM_CONNECTOR_HOST}"
       DEBEZIUM_CONNECTOR_PORT: "${DEBEZIUM_CONNECTOR_PORT}"
+      DEBEZIUM_INDEX_NAME: "${DEBEZIUM_INDEX_NAME}"
+      PSQL_USERNAME: "${PSQL_USERNAME}"
+      PSQL_PASSWORD: "${PSQL_PASSWORD}"
+      PSQL_HOST: "${PSQL_HOST}"
+      PSQL_PORT: "${PSQL_PORT}"
+      PSQL_DATABASE: "${PSQL_DATABASE}"
     volumes:
       - "./debezium/elasticsearch-sink.json:/elasticsearch-sink.json"
       - "./debezium/postgres-source.json:/postgres-source.json"
