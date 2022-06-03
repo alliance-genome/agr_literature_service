@@ -442,9 +442,8 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
                     update_log[colName] = update_log[colName] + 1
                     fw.write("PMID:" + str(pmid) + ": " + colName + " is updated from '" + str(old_value) + "' to '" + str(new_value) + "'\n")
                 continue
-            if colName == 'pubmed_publication_status':
-                if old_value:
-                    old_value = old_value.replace("PubMedPublicationStatus.", "")
+            if colName == 'pubmed_publication_status' and old_value:
+                old_value = old_value.replace("PubMedPublicationStatus.", "")
             if new_value != old_value:
                 setattr(x, colName, new_value)
                 has_update = has_update + 1
