@@ -517,6 +517,45 @@ def has_doi_check(agr_data, value):
     return result
 
 
+def test_first_corresponding_author_flag():
+
+    from helper_sqlalchemy import create_postgres_session
+    from literature.models import CrossReferenceModel, AuthorModel
+    from process_single_pmid.py import process_pmid
+    from update_pubmed_papers import update_data
+
+    pmid = "26051182"
+    process_pmid(pmid)
+
+    db_session = create_postgres_session(False)
+
+    result = 'Failure'
+    c = db_session.query(CrossReferenceModel).filter_by(curie='PMID:' + pmid).one_or_none()
+    if c is None:
+        return result
+
+    a = db_session.query(AuthorModel).filter_by(reference_id=c.reference_id, order=1).one_or_none()
+    a.first_author = True
+    a.corresponding_author = True
+    a.name = 'TEST full name'
+    db_session.add(a)
+    db_session.commit()
+
+    ## in the case of updating pubmed papers for one or more pmids
+    ## the updating script will not check md5sum - which means it
+    ## will always go to pubmed to grab a new xml and update the database
+    ## accordingly
+    update_data(None, pmid)
+
+    x = db_session(AuthorModel).filter_by(name='TEST full name', reference_id=c.reference_id).one_or_none()
+    if x is None:
+        return result
+    if x.first_author is True and x.corresponding_author is True:
+        result = "Success"
+    assert result != 'Failure'
+    return result
+
+
 def test_pubmed_types_to_category_mapping():
 
     base_path = environ.get('XML_PATH')
@@ -640,8 +679,10 @@ if __name__ == "__main__":
 
     # run this once after data is loaded
     # generate_cross_references_file('reference')
+
     test_load_references()
     test_update_references()
     test_pubmed_types_to_category_mapping()
+    test_first_corresponding_author_flag()
 
     logger.info("ending sort_dqm_json_reference_updates.py")
