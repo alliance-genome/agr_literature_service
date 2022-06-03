@@ -95,7 +95,7 @@ def update_data(mod, pmids):  # noqa: C901
     else:
         download_pubmed_xml(pmids_all)
 
-    if mod is None:
+    if mod is None and path.exists(xml_path + 'md5sum_bk'):
         rename(xml_path + 'md5sum_bk', xml_path + 'md5sum')
 
     fw.write(str(datetime.now()) + "\n")
@@ -110,7 +110,7 @@ def update_data(mod, pmids):  # noqa: C901
 
     generate_json(pmids_all, [])
 
-    if mod is None:
+    if mod is None and path.exists(json_path + 'md5sum_bk'):
         rename(json_path + 'md5sum_bk', json_path + 'md5sum')
 
     fw.write(str(datetime.now()) + "\n")
