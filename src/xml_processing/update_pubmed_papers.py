@@ -84,7 +84,7 @@ def update_data(mod, pmids):  # noqa: C901
 
     if mod:
         move_files_to_old_directory(xml_path, old_xml_path)
-    else:
+    elif path.exists(xml_path + 'md5sum'):
         rename(xml_path + 'md5sum', xml_path + 'md5sum_bk')
 
     if len(pmids_all) > download_xml_max_size:
@@ -105,7 +105,7 @@ def update_data(mod, pmids):  # noqa: C901
 
     if mod:
         move_files_to_old_directory(json_path, old_json_path)
-    else:
+    elif path.exists(json_path + 'md5sum'):
         rename(json_path + 'md5sum', json_path + 'md5sum_bk')
 
     generate_json(pmids_all, [])
