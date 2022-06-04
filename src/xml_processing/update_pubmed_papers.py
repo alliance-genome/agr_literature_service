@@ -84,7 +84,7 @@ def update_data(mod, pmids):  # noqa: C901
 
     if mod:
         move_files_to_old_directory(xml_path, old_xml_path)
-    elif path.exists(xml_path + 'md5sum'):
+    else:
         rename(xml_path + 'md5sum', xml_path + 'md5sum_bk')
 
     if len(pmids_all) > download_xml_max_size:
@@ -95,7 +95,7 @@ def update_data(mod, pmids):  # noqa: C901
     else:
         download_pubmed_xml(pmids_all)
 
-    if mod is None and path.exists(xml_path + 'md5sum_bk'):
+    if mod is None:
         rename(xml_path + 'md5sum_bk', xml_path + 'md5sum')
 
     fw.write(str(datetime.now()) + "\n")
@@ -105,12 +105,12 @@ def update_data(mod, pmids):  # noqa: C901
 
     if mod:
         move_files_to_old_directory(json_path, old_json_path)
-    elif path.exists(json_path + 'md5sum'):
+    else:
         rename(json_path + 'md5sum', json_path + 'md5sum_bk')
 
     generate_json(pmids_all, [])
 
-    if mod is None and path.exists(json_path + 'md5sum_bk'):
+    if mod is None:
         rename(json_path + 'md5sum_bk', json_path + 'md5sum')
 
     fw.write(str(datetime.now()) + "\n")
@@ -788,28 +788,6 @@ def insert_pmcid(db_session, fw, pmid, reference_id, pmcid):
         fw.write("PMID:" + str(pmid) + ": INSERT PMCID:" + pmcid + "\n")
     except Exception as e:
         fw.write("PMID:" + str(pmid) + ": INSERT PMCID:" + pmcid + " failed: " + str(e) + "\n")
-
-
-def update_cross_reference_for_resource(db_session, fw, pmid, new_resource_id, issn_json, nlm_json):
-
-    for x in db_session.query(CrossReferenceModel).filter_by(resource_id=new_resource_id).all():
-        if issn_json and x.curie.startswith('ISSN:') and x.curie != 'ISSN:' + issn_json:
-
-            issn_db = x.curie
-            try:
-                x.curie = issn_json
-                db_session.add(x)
-                fw.write("PMID:" + str(pmid) + ": UPDATE " + issn_db + " to " + "ISSN:" + issn_json + "\n")
-            except Exception as e:
-                fw.write("PMID:" + str(pmid) + ": UPDATE " + issn_db + " to " + "ISSN:" + issn_json + " failed: " + str(e) + "\n")
-        elif nlm_json and x.curie.startswith('NLM:') and x.curie != 'NLM:' + nlm_json:
-            nlm_db = x.curie
-            try:
-                x.curie = nlm_json
-                db_session.add(x)
-                fw.write("PMID:" + str(pmid) + ": UPDATE " + nlm_db + " to " + "NLM:" + nlm_json + "\n")
-            except Exception as e:
-                fw.write("PMID:" + str(pmid) + ": UPDATE " + nlm_db + " to " + "NLM:" + nlm_json + " failed: " + str(e) + "\n")
 
 
 def get_md5sum(md5sum_path):
