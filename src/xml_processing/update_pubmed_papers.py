@@ -29,7 +29,7 @@ refColName_to_update = ['title', 'volume', 'issue_name', 'page_range', 'abstract
 field_names_to_report = refColName_to_update + ['doi', 'pmcid', 'author_name', 'journal',
                                                 'comment_erratum', 'mesh_term']
 
-limit = 2000
+limit = 1000
 max_rows_per_commit = 250
 download_xml_max_size = 150000
 sleep_time = 600
@@ -64,7 +64,12 @@ def update_data(mod, pmids):  # noqa: C901
     reference_id_to_pmid = {}
     pmids_all = []
     if mod:
-        get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id_to_pmid)
+        if mod == 'NONE':
+            get_pmid_to_reference_id_for_papers_not_associated_with_mod(db_session,
+                                                                        pmid_to_reference_id,
+                                                                        reference_id_to_pmid)
+        else:
+            get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id_to_pmid)
         pmids_all = list(pmid_to_reference_id.keys())
     else:
         get_reference_ids_by_pmids(db_session, pmids, pmid_to_reference_id, reference_id_to_pmid)
@@ -162,8 +167,13 @@ def update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id, 
     ## start a database session
     db_session = create_postgres_session(False)
 
+    check_md5sum = 0
+    if mod:
+        check_md5sum = 1
+
     reference_id_list = []
-    if pmids:
+    if pmids or (mod and mod == 'NONE'):
+        mod = None
         reference_id_list = list(reference_id_to_pmid.keys())
 
     ## reference_id => a list of author name in order
@@ -215,7 +225,7 @@ def update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id, 
     ## for some reason, it needs to return from recursive function...
     authors_with_first_or_corresponding_flag = []
 
-    authors_with_first_or_corresponding_flag = update_reference_data_batch(fw, mod,
+    authors_with_first_or_corresponding_flag = update_reference_data_batch(fw, mod, check_md5sum,
                                                                            reference_id_to_pmid,
                                                                            pmid_to_reference_id,
                                                                            reference_id_to_authors,
@@ -239,7 +249,7 @@ def update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id, 
     return authors_with_first_or_corresponding_flag
 
 
-def update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, authors_with_first_or_corresponding_flag, json_path, update_log, offset):
+def update_reference_data_batch(fw, mod, check_md5sum, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, authors_with_first_or_corresponding_flag, json_path, update_log, offset):
 
     ## only update 3000 references per session (set in max_rows_per_db_session)
     ## just in case the database get disconnected during the update process
@@ -297,7 +307,7 @@ def update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference
         if not path.exists(json_file):
             continue
 
-        if mod:
+        if check_md5sum:
             md5sum = new_md5sum.get(pmid, None)
             if md5sum and pmid in old_md5sum and old_md5sum[pmid] == md5sum:
                 continue
@@ -351,6 +361,7 @@ def update_reference_data_batch(fw, mod, reference_id_to_pmid, pmid_to_reference
         offset = offset + limit
         authors_with_first_or_corresponding_flag = update_reference_data_batch(fw,
                                                                                mod,
+                                                                               check_md5sum,
                                                                                reference_id_to_pmid,
                                                                                pmid_to_reference_id,
                                                                                reference_id_to_authors,
@@ -1009,6 +1020,20 @@ def get_reference_ids_by_pmids(db_session, pmids, pmid_to_reference_id, referenc
         reference_id_to_pmid[x.reference_id] = pmid
 
 
+def get_pmid_to_reference_id_for_papers_not_associated_with_mod(db_session, pmid_to_reference_id, reference_id_to_pmid):
+
+    in_corpus = {}
+    for x in db_session.query(ModCorpusAssociationModel).all():
+        in_corpus[x.reference_id] = 1
+
+    for x in db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie.like('PMID:%')).all():
+        if x.reference_id in in_corpus:
+            continue
+        pmid = x.curie.replace('PMID:', '')
+        pmid_to_reference_id[pmid] = x.reference_id
+        reference_id_to_pmid[x.reference_id] = pmid
+
+
 def get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id_to_pmid):
 
     for x in db_session.query(CrossReferenceModel).join(ReferenceModel.cross_reference).filter(CrossReferenceModel.curie.like('PMID:%')).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).all():
@@ -1020,22 +1045,24 @@ def get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-m', '--mod', action='store', help='which mod, [SGD|WB|FB|ZFIN|MGI|RGD]')
+    parser.add_argument('-m', '--mod', action='store', help='which mod, [SGD|WB|FB|ZFIN|MGI|RGD][NONE]')
     parser.add_argument('-p', '--pmids', action='store', help="a list of '|' delimited pmid list")
+
     args = vars(parser.parse_args())
     mod = args['mod'] if args.get('mod') else None
     pmids = args['pmids'] if args.get('pmids') else None
 
+    ## set mod to NONE to only update the papers that are not associated with a MOD
     if mod:
-        if mod in ['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD']:
+        if mod in ['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'NONE']:
             update_data(mod, pmids)
         else:
-            print("Usage:         update_pubmed_papers.py -m [SGD|WB|FB|ZFIN|MGI|RGD]")
+            print("Usage:         update_pubmed_papers.py -m [SGD|WB|FB|ZFIN|MGI|RGD|NONE]")
             print("Usage example: update_pubmed_papers.py -m SGD")
     elif pmids:
         update_data(mod, pmids)
     else:
-        print("Usage:         update_pubmed_papers.py -m [SGD|WB|FB|ZFIN|MGI|RGD]")
+        print("Usage:         update_pubmed_papers.py -m [SGD|WB|FB|ZFIN|MGI|RGD|NONE]")
         print("Usage:         update_pubmed_papers.py -p PMID_LIST")
         print("Usage example: update_pubmed_papers.py -m SGD")
         print("Usage example: update_pubmed_papers.py -p 10022942|9922370")
