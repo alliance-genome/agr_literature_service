@@ -10,7 +10,7 @@
     "database.dbname" : "${PSQL_DATABASE}",
     "database.server.name": "abc",
     "table.include.list": "public.reference",
-    "database.history.kafka.bootstrap.servers": "kafka:9092",
+    "database.history.kafka.bootstrap.servers": "dbz_kafka:9092",
     "decimal.handling.mode" : "string",
     "poll.interval.ms": "100",
     "transforms": "unwrap",

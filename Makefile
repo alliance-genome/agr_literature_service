@@ -91,3 +91,8 @@ start-debezium-local:
 	docker-compose up -d dbz_zookeeper dbz_kafka dbz_connector
 	sleep 20
 	docker-compose up -d dbz_setup
+
+start-debezium-aws:
+	docker-compose up -d dbz_zookeeper dbz_kafka dbz_connector
+	sleep 20
+	docker-compose up -d dbz_setup
