@@ -1,7 +1,7 @@
 from sqlalchemy import or_
 import argparse
 import logging
-from os import environ, makedirs, path, listdir, rename
+from os import environ, makedirs, path
 from dotenv import load_dotenv
 from datetime import datetime, date
 import json
@@ -14,6 +14,8 @@ from helper_sqlalchemy import create_postgres_session
 from update_resource_pubmed_nlm import update_resource_pubmed_nlm
 from get_pubmed_xml import download_pubmed_xml
 from xml_to_json import generate_json
+from filter_dqm_md5sum import load_s3_md5data
+from helper_s3 import upload_xml_file_to_s3
 
 logging.basicConfig(format='%(message)s')
 log = logging.getLogger()
@@ -87,11 +89,6 @@ def update_data(mod, pmids):  # noqa: C901
     log.info(str(datetime.now()))
     log.info("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...")
 
-    if mod:
-        move_files_to_old_directory(xml_path, old_xml_path)
-    else:
-        rename(xml_path + 'md5sum', xml_path + 'md5sum_bk')
-
     if len(pmids_all) > download_xml_max_size:
         for index in range(0, len(pmids_all), download_xml_max_size):
             pmids_slice = pmids_all[index:index + download_xml_max_size]
@@ -100,33 +97,52 @@ def update_data(mod, pmids):  # noqa: C901
     else:
         download_pubmed_xml(pmids_all)
 
-    if mod is None:
-        rename(xml_path + 'md5sum_bk', xml_path + 'md5sum')
+    fw.write(str(datetime.now()) + "\n")
+    fw.write("Downloading PMID_md5sum from s3...\n")
+    log.info(str(datetime.now()))
+    log.info("Downloading PMID_md5sum from s3...")
+
+    md5dict = load_s3_md5data(['PMID'])
+    old_md5sum = md5dict['PMID']
+
+    ## for testing purpose, test run for WB
+    # old_md5sum.pop('15279955')
+    # old_md5sum.pop('15302406')
+    # old_md5sum.pop('19167330')
+    # old_md5sum.pop('18931687')
+    # old_md5sum.pop('19116311')
+    # old_md5sum.pop('17276139')
+    ## end testing
 
     fw.write(str(datetime.now()) + "\n")
     fw.write("Generating json files...\n")
     log.info(str(datetime.now()))
     log.info("Generating json files...")
 
-    if mod:
-        move_files_to_old_directory(json_path, old_json_path)
-    else:
-        rename(json_path + 'md5sum', json_path + 'md5sum_bk')
-
     generate_json(pmids_all, [])
 
-    if mod is None:
-        rename(json_path + 'md5sum_bk', json_path + 'md5sum')
+    new_md5sum = get_md5sum(json_path)
 
     fw.write(str(datetime.now()) + "\n")
     fw.write("Updating database...\n")
     log.info(str(datetime.now()))
     log.info("Updating database...")
 
+    pmids_updated = []
     authors_with_first_or_corresponding_flag = update_database(fw, mod,
                                                                pmids, reference_id_to_pmid,
                                                                pmid_to_reference_id, update_log,
-                                                               json_path, old_json_path)
+                                                               new_md5sum, old_md5sum, json_path,
+                                                               pmids_updated)
+
+    fw.write(str(datetime.now()) + "\n")
+    fw.write("Uploading xml files to s3...\n")
+    log.info(str(datetime.now()))
+    log.info("Uploading xml files to s3...")
+
+    for pmid in pmids_updated:
+        # log.info("Uploading xml file for " + pmid + " to s3")
+        upload_xml_file_to_s3(pmid, 'latest')
 
     # write updating summary
 
@@ -158,7 +174,7 @@ def update_data(mod, pmids):  # noqa: C901
     log.info("DONE!")
 
 
-def update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id, update_log, json_path, old_json_path):   # noqa: C901
+def update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id, update_log, new_md5sum, old_md5sum, json_path, pmids_updated):   # noqa: C901
 
     ## 1. do nothing if a field has no value in pubmed xml/json
     ##    so won't delete whatever in the database
@@ -215,9 +231,6 @@ def update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id, 
 
     db_session.close()
 
-    old_md5sum = get_md5sum(old_json_path)
-    new_md5sum = get_md5sum(json_path)
-
     newly_added_orcid = []
     count = 0
     offset = 0
@@ -243,13 +256,14 @@ def update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id, 
                                                                            newly_added_orcid,
                                                                            authors_with_first_or_corresponding_flag,
                                                                            json_path,
+                                                                           pmids_updated,
                                                                            update_log,
                                                                            offset)
 
     return authors_with_first_or_corresponding_flag
 
 
-def update_reference_data_batch(fw, mod, check_md5sum, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, authors_with_first_or_corresponding_flag, json_path, update_log, offset):
+def update_reference_data_batch(fw, mod, check_md5sum, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, authors_with_first_or_corresponding_flag, json_path, pmids_updated, update_log, offset):
 
     ## only update 3000 references per session (set in max_rows_per_db_session)
     ## just in case the database get disconnected during the update process
@@ -311,6 +325,8 @@ def update_reference_data_batch(fw, mod, check_md5sum, reference_id_to_pmid, pmi
             md5sum = new_md5sum.get(pmid, None)
             if md5sum and pmid in old_md5sum and old_md5sum[pmid] == md5sum:
                 continue
+
+        pmids_updated.append(pmid)
 
         i = i + 1
 
@@ -379,6 +395,7 @@ def update_reference_data_batch(fw, mod, check_md5sum, reference_id_to_pmid, pmi
                                                                                newly_added_orcid,
                                                                                authors_with_first_or_corresponding_flag,
                                                                                json_path,
+                                                                               pmids_updated,
                                                                                update_log,
                                                                                offset)
 
@@ -819,43 +836,6 @@ def get_md5sum(md5sum_path):
             pieces = line.strip().split("\t")
             pmid_to_md5sum[pieces[0]] = pieces[1]
     return pmid_to_md5sum
-
-
-def merge_md5sum(new_path, old_path):
-
-    if not path.exists(old_path + "md5sum"):
-        return
-
-    if not path.exists(new_path + "md5sum"):
-        return
-
-    f = open(new_path + "md5sum")
-    found = {}
-    for line in f:
-        pieces = line.strip().split("\t")
-        found[pieces[0]] = pieces[1]
-    f.close()
-
-    fw = open(new_path + "md5sum", "a")
-    f = open(old_path + "md5sum")
-
-    for line in f:
-        pieces = line.split("\t")
-        if pieces[0] not in found:
-            fw.write(line)
-    f.close()
-    fw.close()
-
-
-def move_files_to_old_directory(new_path, old_path):
-
-    merge_md5sum(new_path, old_path)
-    allfiles = listdir(new_path)
-    log.info("moving files from " + new_path + " to " + old_path)
-    for f in allfiles:
-        if f.endswith('xml') or f.endswith('json') or f == 'md5sum':
-            # print (new_path + f, old_path + f)
-            rename(new_path + f, old_path + f)
 
 
 def set_paths():
