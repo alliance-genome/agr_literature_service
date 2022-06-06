@@ -155,6 +155,62 @@ def get_medline_date_from_xml_date(pub_date):
         return medline_re_output.group(1)
 
 
+def get_alliance_category_from_pubmed_types(pubmed_types):     # noqa: C901
+
+    # for functional tests work
+    mapping_path = base_path.replace("tests/", "")
+    mapping_file = mapping_path + "pubmed_searches/pubMedType2allianceCategory_mapping.tsv"
+    type2categoryInfo = {}
+
+    f = open(mapping_file)
+    for line in f:
+        if line.startswith('#'):
+            continue
+        pieces = line.strip().split("\t")
+        if len(pieces) > 2:
+            type2categoryInfo[pieces[0].lower()] = (pieces[1], pieces[2].lower())
+        elif len(pieces) > 1:
+            type2categoryInfo[pieces[0].lower()] = (pieces[1], '')
+    f.close()
+
+    category_list = []
+    review_category = None
+    first_choice_category = None
+    secondary_choice_category = None
+    last_choice_category = None
+    for type in pubmed_types:
+        if type.lower() == 'review':
+            review_category = 'Review_Article'
+            break
+        if type.lower() in type2categoryInfo:
+            (thisCategory, filter) = type2categoryInfo[type.lower()]
+            if thisCategory is None:
+                continue
+            if filter == 1:
+                first_choice_category = thisCategory
+            elif filter == 'secondary':
+                secondary_choice_category = thisCategory
+            elif filter == 'last':
+                last_choice_category = thisCategory
+            elif thisCategory != 'Other':
+                category_list.append(thisCategory)
+
+    if review_category:
+        return review_category
+    if first_choice_category:
+        return first_choice_category
+    if secondary_choice_category:
+        for category in category_list:
+            if secondary_choice_category != category:
+                return category
+        return secondary_choice_category
+    for category in category_list:
+        return category
+    if last_choice_category:
+        return last_choice_category
+    return 'Other'
+
+
 def generate_json(pmids, previous_pmids):      # noqa: C901
     """
 
@@ -254,6 +310,7 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
             elif re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml):
                 types_group = re.findall("<PublicationType UI=\".*?\">(.+?)</PublicationType>", xml)
                 data_dict['pubMedType'] = types_group
+            data_dict['allianceCategory'] = get_alliance_category_from_pubmed_types(data_dict['pubMedType'])
 
             # <CommentsCorrectionsList><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler. 1999 Dec;5(6):378</RefSource><PMID Version="1">10644162</PMID></CommentsCorrections><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler. 2000 Aug;6(4):291-2</RefSource><PMID Version="1">10962551</PMID></CommentsCorrections></CommentsCorrectionsList>
             comments_corrections_group = re.findall("<CommentsCorrections (.+?)</CommentsCorrections>", xml, re.DOTALL)
