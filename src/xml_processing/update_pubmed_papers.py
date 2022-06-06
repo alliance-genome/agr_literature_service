@@ -630,18 +630,26 @@ def insert_comment_correction(db_session, fw, pmid, reference_id_from, reference
 
 def update_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):
 
-    x = db_session.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to).one_or_none()
+    all = db_session.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to).all()
 
-    if x is None:
+    if len(all) == 0:
         return
 
-    try:
-        old_type = x.reference_comment_and_correction_type
-        x.reference_comment_and_correction_type = type
-        db_session.add(x)
-        fw.write("PMID:" + str(pmid) + ": UPDATE CommentsAndCorrections TYPE from " + old_type + " to " + type + "\n")
-    except Exception as e:
-        fw.write("PMID:" + str(pmid) + ": UPDATE CommentsAndCorrections TYPE from " + old_type + " to " + type + " failed: " + str(e) + "\n")
+    all_left = []
+    for x in all:
+        if x.reference_comment_and_correction_type == type:
+            return
+        all_left.append(x)
+
+    for x in all_left:
+        try:
+            old_type = x.reference_comment_and_correction_type
+            x.reference_comment_and_correction_type = type
+            db_session.add(x)
+            fw.write("PMID:" + str(pmid) + ": UPDATE CommentsAndCorrections TYPE from " + old_type + " to " + type + "\n")
+        except Exception as e:
+            fw.write("PMID:" + str(pmid) + ": UPDATE CommentsAndCorrections TYPE from " + old_type + " to " + type + " failed: " + str(e) + "\n")
+        return
 
 
 def delete_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):
@@ -921,22 +929,45 @@ def get_mesh_term_data(db_session, mod, reference_id_list):
 
     reference_id_to_mesh_terms = {}
 
-    allMeshTerms = None
     if mod:
-        allMeshTerms = db_session.query(MeshDetailModel).join(ReferenceModel.mesh_term).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).all()
+        # the query is taking too long to return so break up to query database
+        # multiple times to keep session alive
+        limit = 1000000
+        for index in range(10):
+            offset = index * limit
+            all = db_session.query(MeshDetailModel).join(
+                ReferenceModel.mesh_term
+            ).outerjoin(
+                ReferenceModel.mod_corpus_association
+            ).outerjoin(
+                ModCorpusAssociationModel.mod
+            ).filter(
+                ModModel.abbreviation == mod
+            ).order_by(
+                MeshDetailModel.mesh_detail_id
+            ).limit(
+                limit
+            ).offset(
+                offset
+            ).all()
+
+            if len(all) == 0:
+                break
+            for x in all:
+                mesh_terms = []
+                if x.reference_id in reference_id_to_mesh_terms:
+                    mesh_terms = reference_id_to_mesh_terms[x.reference_id]
+                qualifier_term = x.qualifier_term if x.qualifier_term else ''
+                mesh_terms.append((x.heading_term, qualifier_term))
+                reference_id_to_mesh_terms[x.reference_id] = mesh_terms
     elif reference_id_list and len(reference_id_list) > 0:
-        allMeshTerms = db_session.query(MeshDetailModel).filter(MeshDetailModel.reference_id.in_(reference_id_list)).all()
-
-    if allMeshTerms is None:
-        return reference_id_to_mesh_terms
-
-    for x in allMeshTerms:
-        mesh_terms = []
-        if x.reference_id in reference_id_to_mesh_terms:
-            mesh_terms = reference_id_to_mesh_terms[x.reference_id]
-        qualifier_term = x.qualifier_term if x.qualifier_term else ''
-        mesh_terms.append((x.heading_term, qualifier_term))
-        reference_id_to_mesh_terms[x.reference_id] = mesh_terms
+        for x in db_session.query(MeshDetailModel).filter(MeshDetailModel.reference_id.in_(reference_id_list)).all():
+            mesh_terms = []
+            if x.reference_id in reference_id_to_mesh_terms:
+                mesh_terms = reference_id_to_mesh_terms[x.reference_id]
+            qualifier_term = x.qualifier_term if x.qualifier_term else ''
+            mesh_terms.append((x.heading_term, qualifier_term))
+            reference_id_to_mesh_terms[x.reference_id] = mesh_terms
 
     return reference_id_to_mesh_terms
 
