@@ -106,12 +106,12 @@ def update_data(mod, pmids):  # noqa: C901
     old_md5sum = md5dict['PMID']
 
     ## for testing purpose, test run for WB
-    old_md5sum.pop('15279955')
-    old_md5sum.pop('15302406')
-    old_md5sum.pop('19167330')
-    old_md5sum.pop('18931687')
-    old_md5sum.pop('19116311')
-    old_md5sum.pop('17276139')
+    # old_md5sum.pop('15279955')
+    # old_md5sum.pop('15302406')
+    # old_md5sum.pop('19167330')
+    # old_md5sum.pop('18931687')
+    # old_md5sum.pop('19116311')
+    # old_md5sum.pop('17276139')
     ## end testing
 
     fw.write(str(datetime.now()) + "\n")
@@ -654,7 +654,7 @@ def update_comment_correction(db_session, fw, pmid, reference_id_from, reference
 
     for x in all:
         db_session.delete(x)
-        
+
     insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
 
 
