@@ -135,14 +135,14 @@ def update_data(mod, pmids):  # noqa: C901
                                                                new_md5sum, old_md5sum, json_path,
                                                                pmids_updated)
 
-    fw.write(str(datetime.now()) + "\n")
-    fw.write("Uploading xml files to s3...\n")
-    log.info(str(datetime.now()))
-    log.info("Uploading xml files to s3...")
-
-    for pmid in pmids_updated:
-        log.info("Uploading xml file for " + pmid + " to s3")
-        upload_xml_file_to_s3(pmid, 'latest')
+    if environ.get('ENV_STATE') and environ['ENV_STATE'] == 'prod':
+        fw.write(str(datetime.now()) + "\n")
+        fw.write("Uploading xml files to s3...\n")
+        log.info(str(datetime.now()))
+        log.info("Uploading xml files to s3...")
+        for pmid in pmids_updated:
+            # log.info("Uploading xml file for " + pmid + " to s3")
+            upload_xml_file_to_s3(pmid, 'latest')
 
     # write updating summary
 
