@@ -106,12 +106,12 @@ def update_data(mod, pmids):  # noqa: C901
     old_md5sum = md5dict['PMID']
 
     ## for testing purpose, test run for WB
-    # old_md5sum.pop('15279955')
-    # old_md5sum.pop('15302406')
-    # old_md5sum.pop('19167330')
-    # old_md5sum.pop('18931687')
-    # old_md5sum.pop('19116311')
-    # old_md5sum.pop('17276139')
+    old_md5sum.pop('15279955')
+    old_md5sum.pop('15302406')
+    old_md5sum.pop('19167330')
+    old_md5sum.pop('18931687')
+    old_md5sum.pop('19116311')
+    old_md5sum.pop('17276139')
     ## end testing
 
     fw.write(str(datetime.now()) + "\n")
@@ -141,7 +141,7 @@ def update_data(mod, pmids):  # noqa: C901
     log.info("Uploading xml files to s3...")
 
     for pmid in pmids_updated:
-        # log.info("Uploading xml file for " + pmid + " to s3")
+        log.info("Uploading xml file for " + pmid + " to s3")
         upload_xml_file_to_s3(pmid, 'latest')
 
     # write updating summary
@@ -588,7 +588,7 @@ def update_comment_corrections(db_session, fw, pmid, reference_id, pmid_to_refer
         other_pmids = comment_correction_in_json[type]
         other_reference_ids = []
         for pmid in other_pmids:
-            other_reference_id = pmid_to_reference_id.get(int(pmid))
+            other_reference_id = pmid_to_reference_id.get(pmid)
             if other_reference_id is None:
                 other_reference_id = get_reference_id_by_pmid(db_session, pmid)
                 if other_reference_id is None:
@@ -652,21 +652,10 @@ def update_comment_correction(db_session, fw, pmid, reference_id_from, reference
     if len(all) == 0:
         return
 
-    all_left = []
     for x in all:
-        if x.reference_comment_and_correction_type == type:
-            return
-        all_left.append(x)
-
-    for x in all_left:
-        try:
-            old_type = x.reference_comment_and_correction_type
-            x.reference_comment_and_correction_type = type
-            db_session.add(x)
-            fw.write("PMID:" + str(pmid) + ": UPDATE CommentsAndCorrections TYPE from " + old_type + " to " + type + "\n")
-        except Exception as e:
-            fw.write("PMID:" + str(pmid) + ": UPDATE CommentsAndCorrections TYPE from " + old_type + " to " + type + " failed: " + str(e) + "\n")
-        return
+        db_session.delete(x)
+        
+    insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
 
 
 def delete_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):
