@@ -149,6 +149,7 @@ services:
       OKTA_API_AUDIENCE: "${OKTA_API_AUDIENCE}"
       ELASTICSEARCH_HOST: "${ELASTICSEARCH_HOST}"
       ELASTICSEARCH_PORT: "${ELASTICSEARCH_PORT}"
+      ELASTICSEARCH_INDEX: "${ELASTICSEARCH_INDEX}"
     hostname: literature_api
     networks:
       - agr-literature
