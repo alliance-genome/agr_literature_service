@@ -98,3 +98,9 @@ start-debezium-aws:
 	docker-compose --env-file ${ENV_FILE} up -d dbz_zookeeper dbz_kafka dbz_connector
 	sleep 20
 	docker-compose --env-file ${ENV_FILE} up -d dbz_setup
+
+restart-api:
+	docker-compose --env-file ${ENV_FILE} build --no-cache api
+	docker-compose --env-file ${ENV_FILE} rm -s -f api
+	docker-compose --env-file ${ENV_FILE} up -d api
+
