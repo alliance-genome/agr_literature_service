@@ -34,6 +34,7 @@ field_names_to_report = refColName_to_update + ['doi', 'pmcid', 'author_name', '
 limit = 1000
 max_rows_per_commit = 250
 download_xml_max_size = 150000
+query_cutoff = 5000
 sleep_time = 600
 
 
@@ -105,6 +106,12 @@ def update_data(mod, pmids):  # noqa: C901
     md5dict = load_s3_md5data(['PMID'])
     old_md5sum = md5dict['PMID']
 
+    ## for testing purpose, test run for SGD
+    # old_md5sum.pop('8460134')
+    # old_md5sum.pop('9489999')
+    # old_md5sum.pop('9334203')
+    # old_md5sum.pop('2506425')
+    # old_md5sum.pop('10525964')
     ## for testing purpose, test run for WB
     # old_md5sum.pop('15279955')
     # old_md5sum.pop('15302406')
@@ -123,6 +130,12 @@ def update_data(mod, pmids):  # noqa: C901
 
     new_md5sum = get_md5sum(json_path)
 
+    reference_id_list = []
+    if mod:
+        reference_id_list = generate_pmids_with_info(pmids_all, old_md5sum, new_md5sum, pmid_to_reference_id)
+    else:
+        reference_id_list = list(reference_id_to_pmid.keys())
+
     fw.write(str(datetime.now()) + "\n")
     fw.write("Updating database...\n")
     log.info(str(datetime.now()))
@@ -130,9 +143,11 @@ def update_data(mod, pmids):  # noqa: C901
 
     pmids_updated = []
     authors_with_first_or_corresponding_flag = update_database(fw, mod,
-                                                               pmids, reference_id_to_pmid,
-                                                               pmid_to_reference_id, update_log,
-                                                               new_md5sum, old_md5sum, json_path,
+                                                               reference_id_list,
+                                                               reference_id_to_pmid,
+                                                               pmid_to_reference_id,
+                                                               update_log, new_md5sum,
+                                                               old_md5sum, json_path,
                                                                pmids_updated)
 
     if environ.get('ENV_STATE') and environ['ENV_STATE'] == 'prod':
@@ -174,7 +189,22 @@ def update_data(mod, pmids):  # noqa: C901
     log.info("DONE!")
 
 
-def update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id, update_log, new_md5sum, old_md5sum, json_path, pmids_updated):   # noqa: C901
+def generate_pmids_with_info(pmids_all, old_md5sum, new_md5sum, pmid_to_reference_id):
+
+    reference_id_list = []
+    for pmid in pmids_all:
+        if pmid not in new_md5sum:
+            continue
+        if pmid not in old_md5sum:
+            if pmid in pmid_to_reference_id:
+                reference_id_list.append(pmid_to_reference_id[pmid])
+        elif new_md5sum[pmid] != old_md5sum[pmid]:
+            if pmid in pmid_to_reference_id:
+                reference_id_list.append(pmid_to_reference_id[pmid])
+    return reference_id_list
+
+
+def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, update_log, new_md5sum, old_md5sum, json_path, pmids_updated):   # noqa: C901
 
     ## 1. do nothing if a field has no value in pubmed xml/json
     ##    so won't delete whatever in the database
@@ -182,15 +212,6 @@ def update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id, 
 
     ## start a database session
     db_session = create_postgres_session(False)
-
-    check_md5sum = 0
-    if mod:
-        check_md5sum = 1
-
-    reference_id_list = []
-    if pmids or (mod and mod == 'NONE'):
-        mod = None
-        reference_id_list = list(reference_id_to_pmid.keys())
 
     ## reference_id => a list of author name in order
     fw.write("Getting author info from database...\n")
@@ -238,7 +259,7 @@ def update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id, 
     ## for some reason, it needs to return from recursive function...
     authors_with_first_or_corresponding_flag = []
 
-    authors_with_first_or_corresponding_flag = update_reference_data_batch(fw, mod, check_md5sum,
+    authors_with_first_or_corresponding_flag = update_reference_data_batch(fw, mod, reference_id_list,
                                                                            reference_id_to_pmid,
                                                                            pmid_to_reference_id,
                                                                            reference_id_to_authors,
@@ -263,17 +284,20 @@ def update_database(fw, mod, pmids, reference_id_to_pmid, pmid_to_reference_id, 
     return authors_with_first_or_corresponding_flag
 
 
-def update_reference_data_batch(fw, mod, check_md5sum, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, authors_with_first_or_corresponding_flag, json_path, pmids_updated, update_log, offset):
+def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, authors_with_first_or_corresponding_flag, json_path, pmids_updated, update_log, offset):
 
     ## only update 3000 references per session (set in max_rows_per_db_session)
     ## just in case the database get disconnected during the update process
     db_session = create_postgres_session(False)
 
     fw.write("Getting data from Reference table...\n")
-    log.info("Getting data from Reference table...limit=" + str(limit) + ", offset=" + str(offset))
+    if mod and len(reference_id_list) > query_cutoff:
+        log.info("Getting data from Reference table...limit=" + str(limit) + ", offset=" + str(offset))
+    else:
+        log.info("Getting data from Reference table...")
 
     all = None
-    if mod:
+    if mod and len(reference_id_list) > query_cutoff:
         all = db_session.query(
             ReferenceModel
         ).join(
@@ -293,7 +317,7 @@ def update_reference_data_batch(fw, mod, check_md5sum, reference_id_to_pmid, pmi
         all = db_session.query(
             ReferenceModel
         ).filter(
-            ReferenceModel.reference_id.in_(list(reference_id_to_pmid.keys()))
+            ReferenceModel.reference_id.in_(reference_id_list)
         ).all()
 
     if len(all) == 0:
@@ -321,10 +345,8 @@ def update_reference_data_batch(fw, mod, check_md5sum, reference_id_to_pmid, pmi
         if not path.exists(json_file):
             continue
 
-        if check_md5sum:
-            md5sum = new_md5sum.get(pmid, None)
-            if md5sum and pmid in old_md5sum and old_md5sum[pmid] == md5sum:
-                continue
+        if x.reference_id not in reference_id_list:
+            continue
 
         pmids_updated.append(pmid)
 
@@ -372,12 +394,12 @@ def update_reference_data_batch(fw, mod, check_md5sum, reference_id_to_pmid, pmi
     db_session.commit()
     db_session.close()
 
-    if mod:
+    if mod and len(reference_id_list) > query_cutoff:
         ## call itself until all rows have been retrieved from the database for the given mod
         offset = offset + limit
         authors_with_first_or_corresponding_flag = update_reference_data_batch(fw,
                                                                                mod,
-                                                                               check_md5sum,
+                                                                               reference_id_list,
                                                                                reference_id_to_pmid,
                                                                                pmid_to_reference_id,
                                                                                reference_id_to_authors,
@@ -876,7 +898,7 @@ def get_author_data(db_session, mod, reference_id_list):
     reference_id_to_authors = {}
 
     allAuthors = None
-    if mod:
+    if mod and len(reference_id_list) > query_cutoff:
         allAuthors = db_session.query(AuthorModel).join(ReferenceModel.author).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).order_by(AuthorModel.reference_id, AuthorModel.order).all()
     elif reference_id_list and len(reference_id_list) > 0:
         allAuthors = db_session.query(AuthorModel).filter(AuthorModel.reference_id.in_(reference_id_list)).all()
@@ -898,7 +920,7 @@ def get_mesh_term_data(db_session, mod, reference_id_list):
 
     reference_id_to_mesh_terms = {}
 
-    if mod:
+    if mod and len(reference_id_list) > query_cutoff:
         # the query is taking too long to return so break up to query database
         # multiple times to keep session alive
         limit = 1000000
