@@ -623,6 +623,7 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     # fields_simple_camel = ['title', 'allianceCategory', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issueName', 'issueDate', 'datePublished', 'dateLastModified']
     # removed some fields that Ceri and Kimberly don't want to update anymore  2022 04 25
     fields_simple_camel = ['title', 'allianceCategory', 'volume', 'pageRange', 'language', 'abstract', 'publisher', 'issueName', 'datePublished']
+
     # there's no API to update tags
 
     api_port = environ.get('API_PORT')
@@ -695,6 +696,12 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
 
             update_json = dict()
             for field_camel in fields_simple_camel:
+                if dqm_entry['primaryId'].startswith('PMID:') and field_camel in ['allianceCategory', 'language']:
+                    # if it is a pubmed paper, don't update 'category' and 'language' columns
+                    # since not every mod has language info in the dqm file (at least, sgd doesn't)
+                    # and the allianceCategory generated from each mod is different from what we
+                    # have in alliance
+                    continue
                 field_snake = field_camel
                 if field_camel in remap_keys:
                     field_snake = remap_keys[field_camel]
