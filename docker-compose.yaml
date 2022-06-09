@@ -68,17 +68,6 @@ services:
     networks:
       - agr-literature
 
-  initdb:
-    build:
-      context: .
-      dockerfile: docker/initdb.dockerfile
-    hostname: initdb
-    networks:
-      - agr-literature
-    depends_on:
-      - postgres
-    restart: on-failure
-
   pgsync:
     build:
       context: .
@@ -131,8 +120,8 @@ services:
     environment:
       API_PORT: "${API_PORT}"
       API_SERVER: "${API_SERVER}"
-      PYTHONPATH: "/usr/local/bin/src/literature/src/xml_processing:/usr/local/bin/src/literature/backend/app"
-      XML_PATH: "/usr/local/bin/src/literature/src/xml_processing/"
+      PYTHONPATH: "/usr/local/bin/src/literature/"
+      XML_PATH: "/usr/local/bin/src/literature/agr_literature_service/lit_processing/"
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
       AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
       OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
@@ -172,8 +161,8 @@ services:
     environment:
       API_PORT: "${API_PORT}"
       API_SERVER: "${API_SERVER}"
-      PYTHONPATH: "/usr/local/bin/src/literature/src/xml_processing:/usr/local/bin/src/literature/backend/app"
-      XML_PATH: "/usr/local/bin/src/literature/src/xml_processing/"
+      PYTHONPATH: "/usr/local/bin/src/literature/"
+      XML_PATH: "/usr/local/bin/src/literature/agr_literature_service/lit_processing/"
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
       AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
       OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
@@ -207,8 +196,8 @@ services:
     environment:
       API_PORT: "${API_PORT}"
       API_SERVER: "${API_SERVER}"
-      PYTHONPATH: "/usr/local/bin/src/literature/src/xml_processing:/usr/local/bin/src/literature/backend/app"
-      XML_PATH: "/usr/local/bin/src/literature/src/xml_processing/tests/"
+      PYTHONPATH: "/usr/local/bin/src/literature/"
+      XML_PATH: "/usr/local/bin/src/literature/agr_literature_service/lit_processing/tests/"
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
       AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
       OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
@@ -247,8 +236,8 @@ services:
     environment:
       API_PORT: "8080"
       API_SERVER: "localhost"
-      PYTHONPATH: "/usr/local/bin/src/literature/src/xml_processing:/usr/local/bin/src/literature/backend/app"
-      XML_PATH: "/usr/local/bin/src/literature/src/xml_processing/"
+      PYTHONPATH: "/usr/local/bin/src/literature/"
+      XML_PATH: "/usr/local/bin/src/literature/agr_literature_service/lit_processing/"
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
       AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
       OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"

@@ -2,17 +2,17 @@ __pycache__/
 Pipfile.lock
 junk
 htmlcov
-src/xml_processing/pubmed_json
-src/xml_processing/pubmed_xml
-src/xml_processing/reference_primary_id_to_curie
+agr_literature_service/lit_processing/pubmed_json
+agr_literature_service/lit_processing/pubmed_xml
+agr_literature_service/lit_processing/reference_primary_id_to_curie
 src/xml_processing/resource_primary_id_to_curie
 src/xml_processing/junk
 src/xml_processing/past_runs
-src/xml_processing/inputs
+agr_literature_service/lit_processing/inputs
 src/xml_processing/J_Medline.txt
 src/xml_processing/auth0_token
-src/xml_processing/okta_token
+agr_literature_service/lit_processing/okta_token
 src/xml_processing/pmids_by_mods
-src/xml_processing/pmids_not_found
+agr_literature_service/lit_processing/pmids_not_found
 
 src/xml_processing/code/venv/
