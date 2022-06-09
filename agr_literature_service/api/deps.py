@@ -1,7 +1,7 @@
 import boto3
 from botocore.client import BaseClient
 
-from literature.config import config
+from agr_literature_service.api.config import config
 
 
 def s3_auth() -> BaseClient:

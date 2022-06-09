@@ -6,8 +6,8 @@ import logging.config
 from os import environ
 from typing import List, Dict
 
-from helper_post_to_api import (generate_headers, get_authentication_token,
-                                process_api_request)
+from agr_literature_service.lit_processing.helper_post_to_api import (generate_headers, get_authentication_token,
+                                                                      process_api_request)
 
 from agr_literature_service.api.database.main import get_db
 from agr_literature_service.api.models import ReferenceModel, CrossReferenceModel

@@ -10,10 +10,10 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
-from literature.crud.reference_resource import add, create_obj, stripout
-from literature.models import (CrossReferenceModel, EditorModel,
-                               ResourceModel)
-from literature.schemas import EditorSchemaCreate
+from agr_literature_service.api.crud.reference_resource import add, create_obj, stripout
+from agr_literature_service.api.models import (CrossReferenceModel, EditorModel,
+                                               ResourceModel)
+from agr_literature_service.api.schemas import EditorSchemaCreate
 
 
 def create(db: Session, editor: EditorSchemaCreate) -> int:

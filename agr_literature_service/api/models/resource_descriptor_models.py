@@ -7,8 +7,8 @@ resource_descriptor_models.py
 from sqlalchemy import ARRAY, Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
-from literature.database.base import Base
-from literature.database.versioning import enable_versioning
+from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.database.versioning import enable_versioning
 
 
 enable_versioning()

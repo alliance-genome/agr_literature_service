@@ -5,8 +5,8 @@ from os import environ, path
 import bs4
 import requests
 
-from helper_post_to_api import (generate_headers, get_authentication_token,
-                                update_token)
+from agr_literature_service.lit_processing.helper_post_to_api import (generate_headers, get_authentication_token,
+                                                                      update_token)
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 

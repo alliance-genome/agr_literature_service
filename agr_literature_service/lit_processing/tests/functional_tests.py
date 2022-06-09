@@ -5,11 +5,11 @@ from os import environ, makedirs, path
 import logging
 import logging.config
 
-from helper_sqlalchemy import sqlalchemy_load_ref_xref
-from helper_file_processing import split_identifier
+from agr_literature_service.lit_processing.helper_sqlalchemy import sqlalchemy_load_ref_xref
+from agr_literature_service.lit_processing.helper_file_processing import split_identifier
 
-from generate_dqm_json_test_set import load_sample_json
-from xml_to_json import generate_json
+from agr_literature_service.lit_processing.generate_dqm_json_test_set import load_sample_json
+from agr_literature_service.lit_processing.xml_to_json import generate_json
 
 from dotenv import load_dotenv
 

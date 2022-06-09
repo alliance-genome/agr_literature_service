@@ -11,15 +11,15 @@ import json
 import requests
 from dotenv import load_dotenv
 
-from get_pubmed_xml import download_pubmed_xml
-from xml_to_json import generate_json
-from sanitize_pubmed_json import sanitize_pubmed_json_list
-from post_reference_to_api import post_references
-from helper_s3 import upload_xml_file_to_s3
-from helper_post_to_api import (generate_headers,
-                                process_api_request, update_token)
-from post_comments_corrections_to_api import post_comments_corrections
-from update_resource_pubmed_nlm import update_resource_pubmed_nlm
+from agr_literature_service.lit_processing.get_pubmed_xml import download_pubmed_xml
+from agr_literature_service.lit_processing.xml_to_json import generate_json
+from agr_literature_service.lit_processing.sanitize_pubmed_json import sanitize_pubmed_json_list
+from agr_literature_service.lit_processing.post_reference_to_api import post_references
+from agr_literature_service.lit_processing.helper_s3 import upload_xml_file_to_s3
+from agr_literature_service.lit_processing.helper_post_to_api import (generate_headers,
+                                                                      process_api_request, update_token)
+from agr_literature_service.lit_processing.post_comments_corrections_to_api import post_comments_corrections
+from agr_literature_service.lit_processing.update_resource_pubmed_nlm import update_resource_pubmed_nlm
 
 from agr_literature_service.api.database.main import get_db
 from agr_literature_service.api.models import ReferenceModel, CrossReferenceModel, ModCorpusAssociationModel, ModModel

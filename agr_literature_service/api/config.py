@@ -2,7 +2,7 @@ from typing import Optional
 
 from pydantic import BaseSettings, Field
 
-from literature.schemas import EnvStateSchema
+from agr_literature_service.api.schemas import EnvStateSchema
 
 
 class GlobalConfig(BaseSettings):

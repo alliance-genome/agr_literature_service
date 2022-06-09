@@ -1,6 +1,6 @@
 from typing import Optional
 from pydantic import BaseModel
-from literature.schemas import BaseModelShow
+from agr_literature_service.api.schemas import BaseModelShow
 
 
 class ModSchemaPost(BaseModel):

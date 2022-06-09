@@ -3,7 +3,7 @@ import logging
 import logging.config
 from os import path
 
-from helper_file_processing import generate_cross_references_file
+from agr_literature_service.lit_processing.helper_file_processing import generate_cross_references_file
 
 # pipenv run python get_datatypes_cross_references.py -d resource
 # pipenv run python get_datatypes_cross_references.py -d reference

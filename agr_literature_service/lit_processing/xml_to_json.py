@@ -5,8 +5,8 @@ import sys
 import urllib.request
 from os import environ, makedirs, path
 from typing import List, Set
-from filter_dqm_md5sum import load_s3_md5data, save_s3_md5data, generate_md5sum_from_dict
-from helper_file_processing import write_json
+from agr_literature_service.lit_processing.filter_dqm_md5sum import load_s3_md5data, save_s3_md5data, generate_md5sum_from_dict
+from agr_literature_service.lit_processing.helper_file_processing import write_json
 
 
 # pipenv run python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set

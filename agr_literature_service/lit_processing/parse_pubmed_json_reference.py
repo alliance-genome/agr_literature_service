@@ -3,7 +3,7 @@ import logging
 import logging.config
 from os import environ, path
 
-from sanitize_pubmed_json import sanitize_pubmed_json_list
+from agr_literature_service.lit_processing.sanitize_pubmed_json import sanitize_pubmed_json_list
 
 # pipenv run python parse_pubmed_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/pubmed_only_pmids
 # enter a file of pmids as an argument, sanitize, post to api

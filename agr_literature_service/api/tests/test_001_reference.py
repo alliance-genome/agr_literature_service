@@ -4,12 +4,12 @@ from pydantic import ValidationError
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import sessionmaker
 
-from literature.crud.reference_crud import (create, destroy, patch, show,
+from agr_literature_service.api.crud.reference_crud import (create, destroy, patch, show,
                                             show_changesets)
-from literature.database.config import SQLALCHEMY_DATABASE_URL
-from literature.database.base import Base
-from literature.models import AuthorModel, CrossReferenceModel
-from literature.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
+from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
+from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.models import AuthorModel, CrossReferenceModel
+from agr_literature_service.api.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
 
 metadata = MetaData()
 

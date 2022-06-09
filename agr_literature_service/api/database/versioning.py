@@ -1,6 +1,6 @@
 from sqlalchemy_continuum import make_versioned
 from sqlalchemy_continuum.plugins import PropertyModTrackerPlugin
-from literature.continuum_plugins import UserPlugin
+from agr_literature_service.api.continuum_plugins import UserPlugin
 
 
 def enable_versioning():

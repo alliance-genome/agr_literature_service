@@ -6,11 +6,11 @@ from os import environ, path
 
 import requests
 
-from get_pubmed_xml import download_pubmed_xml
-from post_reference_to_api import post_references
-from sanitize_pubmed_json import sanitize_pubmed_json_list
-from xml_to_json import generate_json
-from helper_s3 import upload_xml_file_to_s3
+from agr_literature_service.lit_processing.get_pubmed_xml import download_pubmed_xml
+from agr_literature_service.lit_processing.post_reference_to_api import post_references
+from agr_literature_service.lit_processing.sanitize_pubmed_json import sanitize_pubmed_json_list
+from agr_literature_service.lit_processing.xml_to_json import generate_json
+from agr_literature_service.lit_processing.helper_s3 import upload_xml_file_to_s3
 
 # pipenv run python process_single_pmid.py -c 12345678
 # enter a single pmid as an argument, download xml, convert to json, sanitize, post to api

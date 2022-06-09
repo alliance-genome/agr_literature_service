@@ -13,15 +13,15 @@ from sqlalchemy import ARRAY, Boolean, String, func
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast
 
-from literature.crud import (cross_reference_crud,
-                             reference_comment_and_correction_crud)
-from literature.crud.reference_resource import create_obj
-from literature.models import (AuthorModel, CrossReferenceModel,
-                               MeshDetailModel, ModReferenceTypeModel,
-                               ReferenceModel,
-                               ResourceModel)
-from literature.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
-from literature.crud.mod_corpus_association_crud import create as create_mod_corpus_association
+from agr_literature_service.api.crud import (cross_reference_crud,
+                                             reference_comment_and_correction_crud)
+from agr_literature_service.api.crud.reference_resource import create_obj
+from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
+                                               MeshDetailModel, ModReferenceTypeModel,
+                                               ReferenceModel,
+                                               ResourceModel)
+from agr_literature_service.api.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
+from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 
 
 logger = logging.getLogger(__name__)

@@ -2,7 +2,7 @@ from os import environ
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from literature.models import ReferenceModel
+from agr_literature_service.api.models import ReferenceModel
 
 
 def create_postgres_session(verbose):

@@ -2,7 +2,7 @@ from typing import Optional
 
 from pydantic import BaseModel, validator
 
-from literature.schemas import BaseModelShow, CrossReferenceSchemaShow
+from agr_literature_service.api.schemas import BaseModelShow, CrossReferenceSchemaShow
 
 
 class EditorSchemaPost(BaseModel):

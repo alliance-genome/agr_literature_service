@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi_health import health
 
-from initialize import setup_resource_descriptor
+from agr_literature_service.api.initialize import setup_resource_descriptor
 from agr_literature_service.api.models import initialize
 
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL

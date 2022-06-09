@@ -1,12 +1,12 @@
 from typing import Dict, List, Any
 
 from elasticsearch import Elasticsearch
-from literature.config import config
-from literature.models import ReferenceModel
+from agr_literature_service.api.config import config
+from agr_literature_service.api.models import ReferenceModel
 from sqlalchemy.orm import Session
 
-from literature.models import ModCorpusAssociationModel, ModModel, ResourceDescriptorModel
-from literature.schemas import ReferenceSchemaNeedReviewShow, CrossReferenceSchemaShow
+from agr_literature_service.api.models import ModCorpusAssociationModel, ModModel, ResourceDescriptorModel
+from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, CrossReferenceSchemaShow
 
 from fastapi import HTTPException, status
 

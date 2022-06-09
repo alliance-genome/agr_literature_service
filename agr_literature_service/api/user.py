@@ -2,8 +2,8 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from literature.crud import user_crud
-from literature.models.user_model import UserModel
+from agr_literature_service.api.crud import user_crud
+from agr_literature_service.api.models.user_model import UserModel
 
 user_id: Optional[str] = None
 

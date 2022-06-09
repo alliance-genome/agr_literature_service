@@ -12,8 +12,8 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, Enum, UniqueConstr
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
 
-from literature.database.base import Base
-from literature.schemas import ModCorpusSortSourceType
+from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.schemas import ModCorpusSortSourceType
 
 
 class ModCorpusAssociationModel(Base):

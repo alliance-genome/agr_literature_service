@@ -9,11 +9,11 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
-from literature.crud.reference_resource import (add_reference_resource,
-                                                create_obj)
-from literature.models import (CrossReferenceModel, ReferenceModel,
-                               ResourceDescriptorModel, ResourceModel)
-from literature.schemas import CrossReferenceSchema, CrossReferenceSchemaUpdate
+from agr_literature_service.api.crud.reference_resource import (add_reference_resource,
+                                                                create_obj)
+from agr_literature_service.api.models import (CrossReferenceModel, ReferenceModel,
+                                               ResourceDescriptorModel, ResourceModel)
+from agr_literature_service.api.schemas import CrossReferenceSchema, CrossReferenceSchemaUpdate
 
 
 def create(db: Session, cross_reference: CrossReferenceSchema) -> str:

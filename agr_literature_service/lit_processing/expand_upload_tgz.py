@@ -17,7 +17,7 @@ import tarfile
 from os import environ, listdir, makedirs, path, rename, walk
 from shutil import copy2
 
-from helper_s3 import upload_file_to_s3
+from agr_literature_service.lit_processing.helper_s3 import upload_file_to_s3
 from dotenv import load_dotenv
 
 

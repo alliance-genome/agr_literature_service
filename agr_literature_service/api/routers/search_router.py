@@ -2,11 +2,11 @@ from typing import List
 
 from fastapi import APIRouter, Security, Depends
 
-from literature import database
-from literature.routers.authentication import auth
-from literature.crud import search_crud
+from agr_literature_service.api import database
+from agr_literature_service.api.routers.authentication import auth
+from agr_literature_service.api.crud import search_crud
 from sqlalchemy.orm import Session
-from literature.schemas import ReferenceSchemaNeedReviewShow, FacetsOptionsSchema
+from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, FacetsOptionsSchema
 
 
 router = APIRouter(

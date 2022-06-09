@@ -11,8 +11,8 @@ from os import environ, makedirs, path
 import bs4
 from dotenv import load_dotenv
 
-from helper_file_processing import (clean_up_keywords, split_identifier,
-                                    write_json)
+from agr_literature_service.lit_processing.helper_file_processing import (clean_up_keywords, split_identifier,
+                                                                          write_json)
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 

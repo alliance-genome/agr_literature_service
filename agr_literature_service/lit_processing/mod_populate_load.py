@@ -3,8 +3,8 @@ import logging
 import logging.config
 from os import environ, path
 
-from helper_post_to_api import (generate_headers, get_authentication_token,
-                                process_api_request)
+from agr_literature_service.lit_processing.helper_post_to_api import (generate_headers, get_authentication_token,
+                                                                      process_api_request)
 
 # post to api data for eight mods
 # python mod_populate_load.py

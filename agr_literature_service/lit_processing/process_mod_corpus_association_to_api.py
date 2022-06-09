@@ -10,7 +10,7 @@ from agr_literature_service.api.database.main import get_db
 from agr_literature_service.api.models import ModCorpusAssociationModel, ReferenceModel, ModModel
 import time
 
-from helper_sqlalchemy import sqlalchemy_load_ref_xref
+from agr_literature_service.lit_processing.helper_sqlalchemy import sqlalchemy_load_ref_xref
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../logging.conf')
 logging.config.fileConfig(log_file_path)

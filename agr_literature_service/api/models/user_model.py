@@ -8,7 +8,7 @@ from typing import Dict
 
 from sqlalchemy import Column, String
 
-from literature.database.base import Base
+from agr_literature_service.api.database.base import Base
 
 
 class UserModel(Base):

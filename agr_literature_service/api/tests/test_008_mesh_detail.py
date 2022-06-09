@@ -3,12 +3,12 @@ from fastapi import HTTPException
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import sessionmaker
 
-from literature.crud.mesh_detail_crud import (create, destroy, patch, show,
-                                              show_changesets)
-from literature.database.config import SQLALCHEMY_DATABASE_URL
-from literature.database.base import Base
-from literature.models import MeshDetailModel
-from literature.schemas import MeshDetailSchemaPost, MeshDetailSchemaUpdate
+from agr_literature_service.api.crud.mesh_detail_crud import (create, destroy, patch, show,
+                                                              show_changesets)
+from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
+from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.models import MeshDetailModel
+from agr_literature_service.api.schemas import MeshDetailSchemaPost, MeshDetailSchemaUpdate
 
 metadata = MetaData()
 

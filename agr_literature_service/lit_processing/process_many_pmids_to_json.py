@@ -4,8 +4,8 @@ import sys
 import time
 from os import environ, makedirs, path
 
-from get_pubmed_xml import download_pubmed_xml
-from xml_to_json import generate_json
+from agr_literature_service.lit_processing.get_pubmed_xml import download_pubmed_xml
+from agr_literature_service.lit_processing.xml_to_json import generate_json
 
 # pipenv run python process_many_pmids_to_json.py -f inputs/alliance_pmids
 #

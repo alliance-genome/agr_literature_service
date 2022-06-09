@@ -1,9 +1,9 @@
 import pytest
 
 from elasticsearch import Elasticsearch
-from literature.crud.search_crud import search_references
+from agr_literature_service.api.crud.search_crud import search_references
 from fastapi import HTTPException
-from literature.config import config
+from agr_literature_service.api.config import config
 
 
 @pytest.fixture(scope='module')

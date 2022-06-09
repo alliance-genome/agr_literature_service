@@ -4,10 +4,10 @@ from pydantic import ValidationError
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import sessionmaker
 
-from literature.crud.resource_crud import create, destroy, patch, show
-from literature.database.config import SQLALCHEMY_DATABASE_URL
-from literature.models import ResourceModel
-from literature.schemas import ResourceSchemaPost, ResourceSchemaUpdate
+from agr_literature_service.api.crud.resource_crud import create, destroy, patch, show
+from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
+from agr_literature_service.api.models import ResourceModel
+from agr_literature_service.api.schemas import ResourceSchemaPost, ResourceSchemaUpdate
 
 metadata = MetaData()
 

@@ -2,7 +2,7 @@ from typing import List
 
 from pydantic import BaseModel
 
-from literature.schemas import ResourceSchemaShow
+from agr_literature_service.api.schemas import ResourceSchemaShow
 
 
 class UserSchema(BaseModel):

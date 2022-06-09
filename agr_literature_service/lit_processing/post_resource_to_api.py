@@ -8,12 +8,12 @@ from os import environ
 
 from dotenv import load_dotenv
 
-from helper_sqlalchemy import sqlalchemy_load_ref_xref
+from agr_literature_service.lit_processing.helper_sqlalchemy import sqlalchemy_load_ref_xref
 # from helper_file_processing import (generate_cross_references_file,
 #                                     load_ref_xref_api_flatfile)
-from helper_file_processing import split_identifier
-from helper_post_to_api import (generate_headers, get_authentication_token,
-                                process_api_request)
+from agr_literature_service.lit_processing.helper_file_processing import split_identifier
+from agr_literature_service.lit_processing.helper_post_to_api import (generate_headers, get_authentication_token,
+                                                                      process_api_request)
 
 # from datetime import datetime
 

@@ -11,26 +11,26 @@ from dotenv import load_dotenv
 
 from fastapi.encoders import jsonable_encoder
 
-from filter_dqm_md5sum import load_s3_md5data, generate_new_md5, save_s3_md5data
+from agr_literature_service.lit_processing.filter_dqm_md5sum import load_s3_md5data, generate_new_md5, save_s3_md5data
 
 from agr_literature_service.api.models import ReferenceModel
 
-from helper_file_processing import (compare_authors_or_editors,
-                                    split_identifier, write_json)
-from helper_post_to_api import (generate_headers, get_authentication_token,
-                                process_api_request)
-from helper_sqlalchemy import (create_postgres_session,
-                               sqlalchemy_load_ref_xref)
+from agr_literature_service.lit_processing.helper_file_processing import (compare_authors_or_editors,
+                                                                          split_identifier, write_json)
+from agr_literature_service.lit_processing.helper_post_to_api import (generate_headers, get_authentication_token,
+                                                                      process_api_request)
+from agr_literature_service.lit_processing.helper_sqlalchemy import (create_postgres_session,
+                                                                     sqlalchemy_load_ref_xref)
 
 
-from parse_dqm_json_reference import (generate_pmid_data,
-                                      aggregate_dqm_with_pubmed)
-from get_pubmed_xml import download_pubmed_xml
-from xml_to_json import generate_json
-from post_reference_to_api import post_references
-from post_comments_corrections_to_api import post_comments_corrections
-from update_resource_pubmed_nlm import update_resource_pubmed_nlm
-from get_dqm_data import download_dqm_json
+from agr_literature_service.lit_processing.parse_dqm_json_reference import (generate_pmid_data,
+                                                                            aggregate_dqm_with_pubmed)
+from agr_literature_service.lit_processing.get_pubmed_xml import download_pubmed_xml
+from agr_literature_service.lit_processing.xml_to_json import generate_json
+from agr_literature_service.lit_processing.post_reference_to_api import post_references
+from agr_literature_service.lit_processing.post_comments_corrections_to_api import post_comments_corrections
+from agr_literature_service.lit_processing.update_resource_pubmed_nlm import update_resource_pubmed_nlm
+from agr_literature_service.lit_processing.get_dqm_data import download_dqm_json
 
 # For WB needing 57578 references checked for updating,
 # It would take 48 hours to query the database through the API one by one.

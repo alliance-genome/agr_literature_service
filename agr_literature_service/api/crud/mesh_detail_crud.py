@@ -11,8 +11,8 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
-from literature.models import MeshDetailModel, ReferenceModel
-from literature.schemas import MeshDetailSchemaPost, MeshDetailSchemaUpdate
+from agr_literature_service.api.models import MeshDetailModel, ReferenceModel
+from agr_literature_service.api.schemas import MeshDetailSchemaPost, MeshDetailSchemaUpdate
 
 
 def create(db: Session, mesh_detail: MeshDetailSchemaPost) -> int:

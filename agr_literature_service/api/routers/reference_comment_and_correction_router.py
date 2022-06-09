@@ -2,14 +2,14 @@ from fastapi import APIRouter, Depends, Response, Security, status
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
-from literature import database
-from literature.crud import reference_comment_and_correction_crud
-from literature.routers.authentication import auth
-from literature.schemas import (ReferenceCommentAndCorrectionSchemaPatch,
-                                ReferenceCommentAndCorrectionSchemaPost,
-                                ReferenceCommentAndCorrectionSchemaShow,
-                                ResponseMessageSchema)
-from literature.user import set_global_user_id
+from agr_literature_service.api import database
+from agr_literature_service.api.crud import reference_comment_and_correction_crud
+from agr_literature_service.api.routers.authentication import auth
+from agr_literature_service.api.schemas import (ReferenceCommentAndCorrectionSchemaPatch,
+                                                ReferenceCommentAndCorrectionSchemaPost,
+                                                ReferenceCommentAndCorrectionSchemaShow,
+                                                ResponseMessageSchema)
+from agr_literature_service.api.user import set_global_user_id
 
 router = APIRouter(
     prefix="/reference_comment_and_correction",

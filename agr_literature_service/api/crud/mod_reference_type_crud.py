@@ -8,8 +8,8 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
-from literature.models import ModReferenceTypeModel, ReferenceModel
-from literature.schemas import ModReferenceTypeSchemaPost, ModReferenceTypeSchemaUpdate
+from agr_literature_service.api.models import ModReferenceTypeModel, ReferenceModel
+from agr_literature_service.api.schemas import ModReferenceTypeSchemaPost, ModReferenceTypeSchemaUpdate
 
 
 def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost) -> int:

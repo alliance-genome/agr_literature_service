@@ -1,6 +1,6 @@
 from sqlalchemy_continuum.plugins import Plugin
 
-from literature.user import get_global_user_id
+from agr_literature_service.api.user import get_global_user_id
 
 
 class UserPlugin(Plugin):

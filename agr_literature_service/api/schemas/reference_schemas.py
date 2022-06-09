@@ -2,17 +2,17 @@ from typing import List, Optional
 
 from pydantic import BaseModel, validator
 
-from literature.schemas import (AuthorSchemaPost, AuthorSchemaShow,
-                                BaseModelShow, CrossReferenceSchemaRelated,
-                                CrossReferenceSchemaShow,
-                                MeshDetailSchemaCreate,
-                                MeshDetailSchemaRelated,
-                                ModReferenceTypeSchemaCreate,
-                                ModReferenceTypeSchemaRelated,
-                                ModCorpusAssociationSchemaCreate,
-                                PubMedPublicationStatus, ReferenceCategory,
-                                ReferenceCommentAndCorrectionSchemaRelated,
-                                ModCorpusAssociationSchemaRelated)
+from agr_literature_service.api.schemas import (AuthorSchemaPost, AuthorSchemaShow,
+                                                BaseModelShow, CrossReferenceSchemaRelated,
+                                                CrossReferenceSchemaShow,
+                                                MeshDetailSchemaCreate,
+                                                MeshDetailSchemaRelated,
+                                                ModReferenceTypeSchemaCreate,
+                                                ModReferenceTypeSchemaRelated,
+                                                ModCorpusAssociationSchemaCreate,
+                                                PubMedPublicationStatus, ReferenceCategory,
+                                                ReferenceCommentAndCorrectionSchemaRelated,
+                                                ModCorpusAssociationSchemaRelated)
 
 
 class ReferenceSchemaPost(BaseModel):

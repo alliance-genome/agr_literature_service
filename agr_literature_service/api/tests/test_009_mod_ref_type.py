@@ -3,13 +3,13 @@ from fastapi import HTTPException
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import sessionmaker
 
-from literature.crud.mod_reference_type_crud import (create, destroy, patch,
-                                                     show, show_changesets)
-from literature.database.config import SQLALCHEMY_DATABASE_URL
-from literature.database.base import Base
-from literature.models import ModReferenceTypeModel
-from literature.schemas import (ModReferenceTypeSchemaPost,
-                                ModReferenceTypeSchemaUpdate)
+from agr_literature_service.api.crud.mod_reference_type_crud import (create, destroy, patch,
+                                                                     show, show_changesets)
+from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
+from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.models import ModReferenceTypeModel
+from agr_literature_service.api.schemas import (ModReferenceTypeSchemaPost,
+                                                ModReferenceTypeSchemaUpdate)
 
 metadata = MetaData()
 

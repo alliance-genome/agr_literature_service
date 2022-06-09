@@ -10,7 +10,7 @@ from typing import Dict
 import pytz
 from sqlalchemy import Column, DateTime, Integer, String
 
-from literature.database.base import Base
+from agr_literature_service.api.database.base import Base
 
 
 class ModModel(Base):

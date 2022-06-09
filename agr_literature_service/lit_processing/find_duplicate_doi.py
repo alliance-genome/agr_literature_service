@@ -6,7 +6,7 @@ from os import environ, listdir, path
 
 from dotenv import load_dotenv
 
-from helper_file_processing import split_identifier
+from agr_literature_service.lit_processing.helper_file_processing import split_identifier
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 

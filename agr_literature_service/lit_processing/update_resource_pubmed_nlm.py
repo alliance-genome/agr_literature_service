@@ -4,12 +4,12 @@ import logging.config
 import sys
 from os import environ
 
-from generate_pubmed_nlm_resource import (populate_from_url, populate_nlm_info,
-                                          generate_json)
-from helper_file_processing import load_pubmed_resource_basic
-from parse_dqm_json_resource import (save_resource_file, create_storage_path)
-from helper_sqlalchemy import sqlalchemy_load_ref_xref
-from post_resource_to_api import post_resources
+from agr_literature_service.lit_processing.generate_pubmed_nlm_resource import (populate_from_url, populate_nlm_info,
+                                                                                generate_json)
+from agr_literature_service.lit_processing.helper_file_processing import load_pubmed_resource_basic
+from agr_literature_service.lit_processing.parse_dqm_json_resource import (save_resource_file, create_storage_path)
+from agr_literature_service.lit_processing.helper_sqlalchemy import sqlalchemy_load_ref_xref
+from agr_literature_service.lit_processing.post_resource_to_api import post_resources
 
 
 logging.basicConfig(level=logging.INFO,

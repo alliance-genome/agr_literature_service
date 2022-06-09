@@ -7,11 +7,11 @@ from os import environ, makedirs, path
 import requests
 from dotenv import load_dotenv
 
-from helper_sqlalchemy import sqlalchemy_load_ref_xref
-from helper_file_processing import (compare_authors_or_editors,
-                                    save_resource_file, split_identifier)
-from helper_post_to_api import (generate_headers, get_authentication_token,
-                                process_api_request)
+from agr_literature_service.lit_processing.helper_sqlalchemy import sqlalchemy_load_ref_xref
+from agr_literature_service.lit_processing.helper_file_processing import (compare_authors_or_editors,
+                                                                          save_resource_file, split_identifier)
+from agr_literature_service.lit_processing.helper_post_to_api import (generate_headers, get_authentication_token,
+                                                                      process_api_request)
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 

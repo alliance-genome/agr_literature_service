@@ -7,10 +7,10 @@ import re
 import sys
 from os import environ, listdir, path
 
-from helper_sqlalchemy import sqlalchemy_load_ref_xref
-from helper_file_processing import split_identifier
-from helper_post_to_api import (generate_headers, get_authentication_token,
-                                process_api_request, update_token)
+from agr_literature_service.lit_processing.helper_sqlalchemy import sqlalchemy_load_ref_xref
+from agr_literature_service.lit_processing.helper_file_processing import split_identifier
+from agr_literature_service.lit_processing.helper_post_to_api import (generate_headers, get_authentication_token,
+                                                                      process_api_request, update_token)
 
 # post to api data from sanitized_reference_json/
 # python post_reference_to_api.py

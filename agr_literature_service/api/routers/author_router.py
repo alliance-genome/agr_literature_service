@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends, Response, Security, status
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
-from literature import database
-from literature.crud import author_crud
-from literature.routers.authentication import auth
-from literature.schemas import (AuthorSchemaCreate, AuthorSchemaShow,
-                                ResponseMessageSchema)
-from literature.user import set_global_user_id
+from agr_literature_service.api import database
+from agr_literature_service.api.crud import author_crud
+from agr_literature_service.api.routers.authentication import auth
+from agr_literature_service.api.schemas import (AuthorSchemaCreate, AuthorSchemaShow,
+                                                ResponseMessageSchema)
+from agr_literature_service.api.user import set_global_user_id
 
 router = APIRouter(
     prefix="/author",

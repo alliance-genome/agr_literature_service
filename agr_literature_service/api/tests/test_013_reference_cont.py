@@ -1,11 +1,10 @@
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import sessionmaker
 
-from literature.crud.reference_crud import create, patch, show
-from literature.database.config import SQLALCHEMY_DATABASE_URL
-# from literature import models
-from literature.database.base import Base
-from literature.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
+from agr_literature_service.api.crud.reference_crud import create, patch, show
+from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
+from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
 
 metadata = MetaData()
 

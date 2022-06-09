@@ -4,9 +4,9 @@ import yaml
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from literature.database.main import get_db
-from literature.config import config
-from literature.models.resource_descriptor_models import (
+from agr_literature_service.api.database.main import get_db
+from agr_literature_service.api.config import config
+from agr_literature_service.api.models.resource_descriptor_models import (
     ResourceDescriptorModel, ResourceDescriptorPageModel)
 
 

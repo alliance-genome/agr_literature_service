@@ -1,7 +1,7 @@
 from typing import Optional
 
 from pydantic import BaseModel
-from literature.schemas import ModCorpusSortSourceType, BaseModelShow
+from agr_literature_service.api.schemas import ModCorpusSortSourceType, BaseModelShow
 
 
 class ModCorpusAssociationSchemaCreate(BaseModel):

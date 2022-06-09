@@ -7,8 +7,8 @@ from os import environ, path, makedirs, listdir
 import logging
 import logging.config
 
-from helper_file_processing import split_identifier, write_json
-from helper_s3 import upload_file_to_s3, download_file_from_s3
+from agr_literature_service.lit_processing.helper_file_processing import split_identifier, write_json
+from agr_literature_service.lit_processing.helper_s3 import upload_file_to_s3, download_file_from_s3
 
 from dotenv import load_dotenv
 

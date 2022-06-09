@@ -4,8 +4,8 @@ from sqlalchemy import MetaData
 
 from fastapi import Depends
 
-from literature.database.base import Base
-from literature.database.config import SQLALCHEMY_DATABASE_URL
+from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session

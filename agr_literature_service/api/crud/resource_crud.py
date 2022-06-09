@@ -13,11 +13,11 @@ from sqlalchemy import ARRAY, Boolean, String, func
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast
 
-from literature.crud import cross_reference_crud
-from literature.crud.reference_resource import create_obj
-from literature.models import (CrossReferenceModel, EditorModel,
-                               MeshDetailModel, ResourceModel)
-from literature.schemas import ResourceSchemaPost, ResourceSchemaUpdate
+from agr_literature_service.api.crud import cross_reference_crud
+from agr_literature_service.api.crud.reference_resource import create_obj
+from agr_literature_service.api.models import (CrossReferenceModel, EditorModel,
+                                               MeshDetailModel, ResourceModel)
+from agr_literature_service.api.schemas import ResourceSchemaPost, ResourceSchemaUpdate
 
 
 def create_next_curie(curie):

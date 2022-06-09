@@ -1,4 +1,4 @@
-from helper_file_processing import split_identifier
+from agr_literature_service.lit_processing.helper_file_processing import split_identifier
 
 from os import environ
 

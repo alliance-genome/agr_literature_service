@@ -3,17 +3,17 @@ from fastapi import (APIRouter, Depends, HTTPException, Response,
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
-from literature import database
-from literature.crud import cross_reference_crud, reference_crud
-from literature.deps import s3_auth
-from literature.routers.authentication import auth
-from literature.schemas import (ReferenceSchemaPost, ReferenceSchemaShow,
+from agr_literature_service.api import database
+from agr_literature_service.api.crud import cross_reference_crud, reference_crud
+from agr_literature_service.api.deps import s3_auth
+from agr_literature_service.api.routers.authentication import auth
+from agr_literature_service.api.schemas import (ReferenceSchemaPost, ReferenceSchemaShow,
                                 ReferenceSchemaUpdate, ResponseMessageSchema)
-from literature.user import set_global_user_id
+from agr_literature_service.api.user import set_global_user_id
 
 import logging
 
-from process_single_pmid import process_pmid
+from agr_literature_service.lit_processing.process_single_pmid import process_pmid
 
 logger = logging.getLogger(__name__)
 

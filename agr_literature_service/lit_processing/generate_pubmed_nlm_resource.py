@@ -7,7 +7,7 @@ import urllib
 from os import environ, makedirs, path
 
 from dotenv import load_dotenv
-from helper_s3 import upload_file_to_s3
+from agr_literature_service.lit_processing.helper_s3 import upload_file_to_s3
 
 # generate from local file and do not upload to s3
 # pipenv run python generate_pubmed_nlm_resource.py -l

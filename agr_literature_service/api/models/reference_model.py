@@ -13,9 +13,9 @@ from sqlalchemy import (ARRAY, Column, DateTime, Enum, ForeignKey, Integer,
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
 
-from literature.database.base import Base
-from literature.schemas import PubMedPublicationStatus, ReferenceCategory
-from literature.database.versioning import enable_versioning
+from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.schemas import PubMedPublicationStatus, ReferenceCategory
+from agr_literature_service.api.database.versioning import enable_versioning
 
 
 enable_versioning()

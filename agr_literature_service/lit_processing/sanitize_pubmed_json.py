@@ -1,7 +1,7 @@
 import json
 from os import environ, makedirs, path
 
-from helper_file_processing import write_json
+from agr_literature_service.lit_processing.helper_file_processing import write_json
 
 
 def sanitize_pubmed_json_list(pmids, inject_list):

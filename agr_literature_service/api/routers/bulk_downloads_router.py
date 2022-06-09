@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, Security
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
-from literature import database
-from literature.crud import reference_crud, resource_crud
-from literature.routers.authentication import auth
+from agr_literature_service.api import database
+from agr_literature_service.api.crud import reference_crud, resource_crud
+from agr_literature_service.api.routers.authentication import auth
 
 router = APIRouter(
     prefix="/bulk_download",

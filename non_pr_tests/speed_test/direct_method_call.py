@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from os import environ
 
-from literature.crud import reference_crud
+from agr_literature_service.api.crud import reference_crud
 
 
 def create_postgres_session(verbose):

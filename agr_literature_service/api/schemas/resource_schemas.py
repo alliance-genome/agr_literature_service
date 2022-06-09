@@ -3,9 +3,9 @@ from typing import List, Optional
 
 from pydantic import BaseModel, validator
 
-from literature.schemas import (BaseModelShow, CrossReferenceSchema,
-                                CrossReferenceSchemaRelated, EditorSchemaPost,
-                                EditorSchemaShow)
+from agr_literature_service.api.schemas import (BaseModelShow, CrossReferenceSchema,
+                                                CrossReferenceSchemaRelated, EditorSchemaPost,
+                                                EditorSchemaShow)
 
 
 class ResourceSchemaPost(BaseModel):
