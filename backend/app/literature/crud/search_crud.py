@@ -58,7 +58,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     if return_facets_only:
         del es_body["query"]
         es_body["size"] = 0
-        res = es.search(index="references_index", body=es_body)
+        res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
         return {"hits": [], "aggregations": res["aggregations"]}
     if query:
         es_body["query"]["bool"]["must"].append({"match": {"title": query}})
@@ -72,7 +72,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["should"][-1]["term"][facet_field] = facet_value
     else:
         del es_body["query"]["bool"]["filter"]
-    res = es.search(index="references_index", body=es_body)
+    res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
     return {
         "hits": [{"curie": ref["_source"]["curie"], "title": ref["_source"]["title"]} for ref in res["hits"]["hits"]],
         "aggregations": res["aggregations"],
