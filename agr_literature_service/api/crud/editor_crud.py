@@ -13,10 +13,10 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api.crud.reference_resource import add, create_obj, stripout
 from agr_literature_service.api.models import (CrossReferenceModel, EditorModel,
                                                ResourceModel)
-from agr_literature_service.api.schemas import EditorSchemaCreate
+from agr_literature_service.api.schemas import EditorSchemaCreate, EditorSchemaPost
 
 
-def create(db: Session, editor: EditorSchemaCreate) -> int:
+def create(db: Session, editor: EditorSchemaPost) -> int:
     """
 
     :param db:
@@ -79,7 +79,7 @@ def patch(db: Session, editor_id: int, editor_update: EditorSchemaCreate) -> dic
     if not editor_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Editor with editor_id {editor_id} not found")
-    res_ref = stripout(db, editor_update, non_fatal=True)
+    res_ref = stripout(db, editor_update.dict(), non_fatal=True)
     add(res_ref, editor_db_obj)
 
     for field, value in editor_data.items():

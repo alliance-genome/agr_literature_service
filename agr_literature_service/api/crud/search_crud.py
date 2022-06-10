@@ -1,4 +1,4 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 from elasticsearch import Elasticsearch
 from agr_literature_service.api.config import config
@@ -12,7 +12,7 @@ from fastapi import HTTPException, status
 
 
 def search_references(query: str = None, facets_values: Dict[str, List[str]] = None,
-                      size_result_count: int = 10,
+                      size_result_count: Optional[int] = 10,
                       facets_limits: Dict[str, int] = None, return_facets_only: bool = False):
     if query is None and facets_values is None and not return_facets_only:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
