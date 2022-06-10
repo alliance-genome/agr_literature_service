@@ -1,6 +1,6 @@
 # updates are taking a while off of 4005, 52 seconds for checking 10 references
 
-python3 ../agr_literature_service/lit_processing/sort_dqm_json_reference_updates.py -f dqm_update_sample/ -m WB > /logs/log_sort_dqm_json_reference_updates
+python3 ./agr_literature_service/lit_processing/sort_dqm_json_reference_updates.py -f dqm_update_sample/ -m WB > /logs/log_sort_dqm_json_reference_updates
 
 # old update required a lot of sequential scripts, now all in sort_dqm_json_reference_updates.py
 # python3 ./src/xml_processing/get_datatypes_cross_references.py -d reference > /logs/log_get_datatypes_cross_references_01_reference

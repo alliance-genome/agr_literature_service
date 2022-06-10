@@ -1,5 +1,5 @@
 [run]
-source = backend
+source = agr_literature_service/api
 
 [report]
 exclude_lines =
