@@ -552,7 +552,7 @@ def update_authors(db_session, fw, pmid, reference_id, author_list_in_db, author
     update_log['author_name'] = update_log['author_name'] + 1
 
     ## deleting authors from database for the given pmid
-    for x in db_session.query(AuthorModel).filter_by(reference_id=reference_id).all():
+    for x in db_session.query(AuthorModel).filter_by(reference_id=reference_id).order_by(AuthorModel.order).all():
         name = x.name
         affiliations = x.affiliations if x.affiliations else []
         try:
@@ -729,6 +729,9 @@ def insert_mesh_term(db_session, fw, pmid, reference_id, terms):
 
     (heading_term, qualifier_term) = terms
 
+    if qualifier_term == '':
+        qualifier_term = None
+        
     data = {'reference_id': reference_id, 'heading_term': heading_term, 'qualifier_term': qualifier_term}
     try:
         x = MeshDetailModel(**data)
@@ -743,7 +746,13 @@ def delete_mesh_term(db_session, fw, pmid, reference_id, terms):
     (heading_term, qualifier_term) = terms
 
     try:
-        x = db_session.query(MeshDetailModel).filter_by(reference_id=reference_id, heading_term=heading_term, qualifier_term=qualifier_term).one_or_none()
+        x = None
+        if qualifier_term != '':
+            x = db_session.query(MeshDetailModel).filter_by(reference_id=reference_id, heading_term=heading_term, qualifier_term=qualifier_term).one_or_none()
+        else:
+            for m in db_session.query(MeshDetailModel).filter_by(reference_id=reference_id, heading_term=heading_term).all():
+                if not m.qualifier_term:
+                    x = m
         if x is None:
             return
         db_session.delete(x)
