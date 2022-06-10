@@ -731,7 +731,7 @@ def insert_mesh_term(db_session, fw, pmid, reference_id, terms):
 
     if qualifier_term == '':
         qualifier_term = None
-        
+
     data = {'reference_id': reference_id, 'heading_term': heading_term, 'qualifier_term': qualifier_term}
     try:
         x = MeshDetailModel(**data)
