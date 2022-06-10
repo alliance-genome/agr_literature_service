@@ -8,7 +8,7 @@ from agr_literature_service.api.crud import cross_reference_crud, reference_crud
 from agr_literature_service.api.deps import s3_auth
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (ReferenceSchemaPost, ReferenceSchemaShow,
-                                ReferenceSchemaUpdate, ResponseMessageSchema)
+                                                ReferenceSchemaUpdate, ResponseMessageSchema)
 from agr_literature_service.api.user import set_global_user_id
 
 import logging

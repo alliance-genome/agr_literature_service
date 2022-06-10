@@ -15,7 +15,7 @@ build:
 
 run-flake8:
 	docker-compose --env-file .env.test down -v
-	docker-compose --env-file .env.test run -v ${PWD}:/workdir test_runner /bin/bash -c "python3 -m flake8 ."
+	docker-compose --env-file .env.test run -v ${PWD}:/workdir test_runner /bin/bash -c "python3 -m flake8 agr_literature_service"
 	docker-compose --env-file .env.test down -v
 
 run-local-flake8:
