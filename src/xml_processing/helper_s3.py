@@ -66,7 +66,7 @@ def upload_file_to_s3(filepath, bucketname, s3_file_location, storage_class='STA
     return True
 
 
-def upload_xml_file_to_s3(pmid):
+def upload_xml_file_to_s3(pmid, subDir=None):
     base_path = environ.get('XML_PATH')
     env_state = environ.get('ENV_STATE', 'develop')
     if env_state == 'build':
@@ -75,5 +75,9 @@ def upload_xml_file_to_s3(pmid):
         bucketname = 'agr-literature'
         xml_filename = pmid + '.xml'
         local_file_location = base_path + 'pubmed_xml/' + xml_filename
-        s3_file_location = env_state + '/reference/metadata/pubmed/xml/original/' + xml_filename
+        if subDir is None:
+            s3_file_location = env_state + '/reference/metadata/pubmed/xml/original/' + xml_filename
+        else:
+            # eg subDir = 'latest'
+            s3_file_location = env_state + '/reference/metadata/pubmed/xml/' + subDir + '/' + xml_filename
         upload_file_to_s3(local_file_location, bucketname, s3_file_location, 'GLACIER_IR')
