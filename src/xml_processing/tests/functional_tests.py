@@ -10,6 +10,10 @@ from helper_file_processing import split_identifier
 
 from generate_dqm_json_test_set import load_sample_json
 from xml_to_json import generate_json
+from helper_sqlalchemy import create_postgres_session
+from literature.models import CrossReferenceModel, AuthorModel
+from process_single_pmid import process_pmid
+from update_pubmed_papers import update_data
 
 from dotenv import load_dotenv
 
@@ -518,11 +522,6 @@ def has_doi_check(agr_data, value):
 
 
 def test_first_corresponding_author_flag():
-
-    from helper_sqlalchemy import create_postgres_session
-    from literature.models import CrossReferenceModel, AuthorModel
-    from process_single_pmid import process_pmid
-    from update_pubmed_papers import update_data
 
     pmid = "26051182"
     process_pmid(pmid)
