@@ -48,8 +48,8 @@ async def patch(mesh_detail_id: int,
                 user: OktaUser = db_user,
                 db: Session = db_session):
     set_global_user_id(db, user.id)
-
-    return mesh_detail_crud.patch(db, mesh_detail_id, request)
+    patch = request.dict(exclude_unset=True)
+    return mesh_detail_crud.patch(db, mesh_detail_id, patch)
 
 
 @router.get('/{mesh_detail_id}',

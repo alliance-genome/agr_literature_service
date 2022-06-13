@@ -20,7 +20,7 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                MeshDetailModel, ModReferenceTypeModel,
                                                ReferenceModel,
                                                ResourceModel)
-from agr_literature_service.api.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
+from agr_literature_service.api.schemas import ReferenceSchemaPost
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 
 
@@ -166,7 +166,7 @@ def destroy(db: Session, curie: str):
     return None
 
 
-def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate) -> dict:
+def patch(db: Session, curie: str, reference_update) -> dict:
     """
 
     :param db:
@@ -175,8 +175,7 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate) -> d
     :return:
     """
 
-    patch = reference_update.dict(exclude_unset=True)
-    reference_data = jsonable_encoder(patch)
+    reference_data = jsonable_encoder(reference_update)
     logger.debug("reference_data = {}".format(reference_data))
     reference_db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
 

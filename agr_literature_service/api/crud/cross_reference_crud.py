@@ -4,7 +4,6 @@ cross_reference_crud.py
 """
 
 from datetime import datetime
-from typing import Dict
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -14,10 +13,9 @@ from agr_literature_service.api.crud.reference_resource import (add_reference_re
                                                                 create_obj)
 from agr_literature_service.api.models import (CrossReferenceModel, ReferenceModel,
                                                ResourceDescriptorModel, ResourceModel)
-from agr_literature_service.api.schemas import CrossReferenceSchema, CrossReferenceSchemaUpdate
 
 
-def create(db: Session, cross_reference: CrossReferenceSchema) -> str:
+def create(db: Session, cross_reference) -> str:
     """
 
     :param db:
@@ -57,7 +55,7 @@ def destroy(db: Session, curie: str) -> None:
     return None
 
 
-def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaUpdate) -> dict:
+def patch(db: Session, curie: str, cross_reference_update) -> dict:
     """
     Update a CrossReference.
     :param db:
@@ -66,13 +64,12 @@ def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaU
     :return:
     """
 
-    patch = cross_reference_update.dict(exclude_unset=True)
-    cross_reference_data = jsonable_encoder(patch)
+    cross_reference_data = jsonable_encoder(cross_reference_update)
     cross_reference_db_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == curie).first()
     if not cross_reference_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Cross Reference with curie {curie} not found")
-    add_reference_resource(db, cross_reference_db_obj, patch, non_fatal=True)
+    add_reference_resource(db, cross_reference_db_obj, cross_reference_update, non_fatal=True)
 
     for field, value in cross_reference_data.items():
         setattr(cross_reference_db_obj, field, value)

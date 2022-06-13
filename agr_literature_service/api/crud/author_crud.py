@@ -15,7 +15,7 @@ from agr_literature_service.api.models import (
     CrossReferenceModel,
     ReferenceModel
 )
-from agr_literature_service.api.schemas import AuthorSchemaCreate, AuthorSchemaPost
+from agr_literature_service.api.schemas import AuthorSchemaPost
 
 
 def create(db: Session, author: AuthorSchemaPost):
@@ -66,7 +66,7 @@ def destroy(db: Session, author_id: int):
     return None
 
 
-def patch(db: Session, author_id: int, author_patch: AuthorSchemaCreate) -> dict:
+def patch(db: Session, author_id: int, author_patch) -> dict:
     """
     Update an author
     :param db:
@@ -75,8 +75,7 @@ def patch(db: Session, author_id: int, author_patch: AuthorSchemaCreate) -> dict
     :return:
     """
 
-    patch = author_patch.dict(exclude_unset=True)
-    author_data = jsonable_encoder(patch)
+    author_data = jsonable_encoder(author_patch)
 
     if "resource_curie" in author_data and author_data["resource_curie"] and \
             "reference_curie" in author_data and author_data["reference_curie"]:

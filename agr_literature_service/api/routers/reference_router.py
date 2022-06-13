@@ -67,7 +67,8 @@ async def patch(curie: str,
                 user: OktaUser = db_user,
                 db: Session = db_session):
     set_global_user_id(db, user.id)
-    return reference_crud.patch(db, curie, request)
+    patch = request.dict(exclude_unset=True)
+    return reference_crud.patch(db, curie, patch)
 
 
 @router.get('/by_cross_reference/{curie:path}',

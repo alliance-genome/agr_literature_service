@@ -10,7 +10,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import ModCorpusAssociationModel, ReferenceModel, ModModel
-from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost, ModCorpusAssociationSchemaUpdate
+from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost
 
 
 def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) -> int:
@@ -73,7 +73,7 @@ def destroy(db: Session, mod_corpus_association_id: int) -> None:
     return None
 
 
-def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_update: ModCorpusAssociationSchemaUpdate):
+def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_update):
     """
     Update a mod_corpus_association
     :param db:
@@ -81,8 +81,7 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
     :param mod_corpus_association_update:
     :return:
     """
-    patch = mod_corpus_association_update.dict(exclude_unset=True)
-    mod_corpus_association_data = jsonable_encoder(patch)
+    mod_corpus_association_data = jsonable_encoder(mod_corpus_association_update)
     mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(ModCorpusAssociationModel.mod_corpus_association_id == mod_corpus_association_id).first()
     if not mod_corpus_association_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

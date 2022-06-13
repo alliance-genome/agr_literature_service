@@ -10,7 +10,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import ModModel
-from agr_literature_service.api.schemas import ModSchemaPost, ModSchemaUpdate
+from agr_literature_service.api.schemas import ModSchemaPost
 
 
 def create(db: Session, mod: ModSchemaPost):
@@ -49,7 +49,7 @@ def destroy(db: Session, mod_id: int):
     return None
 
 
-def patch(db: Session, mod_id: int, mod_update: ModSchemaUpdate):
+def patch(db: Session, mod_id: int, mod_update):
     """
 
     :param db:
@@ -58,8 +58,7 @@ def patch(db: Session, mod_id: int, mod_update: ModSchemaUpdate):
     :return:
     """
 
-    patch = mod_update.dict(exclude_unset=True)
-    mod_data = jsonable_encoder(patch)
+    mod_data = jsonable_encoder(mod_update)
     mod_db_obj = db.query(ModModel).filter(ModModel.mod_id == mod_id).first()
     if not mod_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

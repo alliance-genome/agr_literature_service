@@ -9,7 +9,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import ModReferenceTypeModel, ReferenceModel
-from agr_literature_service.api.schemas import ModReferenceTypeSchemaPost, ModReferenceTypeSchemaUpdate
+from agr_literature_service.api.schemas import ModReferenceTypeSchemaPost
 
 
 def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost) -> int:
@@ -55,7 +55,7 @@ def destroy(db: Session, mod_reference_type_id: int) -> None:
     return None
 
 
-def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update: ModReferenceTypeSchemaUpdate):
+def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update):
     """
     Update a mod_reference_type
     :param db:
@@ -64,8 +64,7 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update: Mo
     :return:
     """
 
-    patch = mod_reference_type_update.dict(exclude_unset=True)
-    mrt_data = jsonable_encoder(patch)
+    mrt_data = jsonable_encoder(mod_reference_type_update)
     mod_reference_type_db_obj = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
     if not mod_reference_type_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

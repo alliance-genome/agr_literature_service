@@ -46,8 +46,8 @@ async def patch(author_id: int,
                 user: OktaUser = db_user,
                 db: Session = db_session):
     set_global_user_id(db, user.id)
-
-    return author_crud.patch(db, author_id, request)
+    patch = request.dict(exclude_unset=True)
+    return author_crud.patch(db, author_id, patch)
 
 
 @router.get('/{author_id}',

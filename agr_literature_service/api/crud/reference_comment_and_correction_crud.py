@@ -10,8 +10,7 @@ from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import (ReferenceCommentAndCorrectionModel,
                                                ReferenceModel)
-from agr_literature_service.api.schemas import (ReferenceCommentAndCorrectionSchemaPatch,
-                                                ReferenceCommentAndCorrectionSchemaPost)
+from agr_literature_service.api.schemas import ReferenceCommentAndCorrectionSchemaPost
 
 
 def create(db: Session, reference_comment_and_correction: ReferenceCommentAndCorrectionSchemaPost):
@@ -74,8 +73,7 @@ def destroy(db: Session, reference_comment_and_correction_id: int):
     return None
 
 
-def patch(db: Session, reference_comment_and_correction_id: int,
-          reference_comment_and_correction_update: ReferenceCommentAndCorrectionSchemaPatch):
+def patch(db: Session, reference_comment_and_correction_id: int, reference_comment_and_correction_update):
     """
 
     :param db:
@@ -84,14 +82,13 @@ def patch(db: Session, reference_comment_and_correction_id: int,
     :return:
     """
 
-    patch = reference_comment_and_correction_update.dict(exclude_unset=True)
     db_obj = db.query(ReferenceCommentAndCorrectionModel).filter(ReferenceCommentAndCorrectionModel.reference_comment_and_correction_id == reference_comment_and_correction_id).first()
     if not db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference Comment And Correction with reference_comment_and_correction_id "
                                    f"{reference_comment_and_correction_id} not found")
 
-    for field, value in patch.items():
+    for field, value in reference_comment_and_correction_update.dict().items():
         if field == "reference_curie_to" and value:
             reference_curie_to = value
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_to).first()

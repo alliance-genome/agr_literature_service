@@ -51,8 +51,8 @@ async def patch(mod_corpus_association_id: int,
                 user: OktaUser = db_user,
                 db: Session = db_session):
     set_global_user_id(db, user.id)
-
-    return mod_corpus_association_crud.patch(db, mod_corpus_association_id, request)
+    patch = request.dict(exclude_unset=True)
+    return mod_corpus_association_crud.patch(db, mod_corpus_association_id, patch)
 
 
 @router.get('/{mod_corpus_association_id}',

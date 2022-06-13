@@ -50,8 +50,8 @@ async def patch(mod_reference_type_id: int,
                 user: OktaUser = db_user,
                 db: Session = db_session):
     set_global_user_id(db, user.id)
-
-    return mod_reference_type_crud.patch(db, mod_reference_type_id, request)
+    patch = request.dict(exclude_unset=True)
+    return mod_reference_type_crud.patch(db, mod_reference_type_id, patch)
 
 
 @router.get('/{mod_reference_type_id}',

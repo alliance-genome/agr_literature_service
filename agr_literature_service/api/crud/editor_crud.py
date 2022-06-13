@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api.crud.reference_resource import add, create_obj, stripout
 from agr_literature_service.api.models import (CrossReferenceModel, EditorModel,
                                                ResourceModel)
-from agr_literature_service.api.schemas import EditorSchemaCreate, EditorSchemaPost
+from agr_literature_service.api.schemas import EditorSchemaPost
 
 
 def create(db: Session, editor: EditorSchemaPost) -> int:
@@ -65,7 +65,7 @@ def destroy(db: Session, editor_id: int) -> None:
     return None
 
 
-def patch(db: Session, editor_id: int, editor_update: EditorSchemaCreate) -> dict:
+def patch(db: Session, editor_id: int, editor_update) -> dict:
     """
 
     :param db:
@@ -74,13 +74,12 @@ def patch(db: Session, editor_id: int, editor_update: EditorSchemaCreate) -> dic
     :return:
     """
 
-    patch = editor_update.dict(exclude_unset=True)
-    editor_data = jsonable_encoder(patch)
+    editor_data = jsonable_encoder(editor_update)
     editor_db_obj = db.query(EditorModel).filter(EditorModel.editor_id == editor_id).first()
     if not editor_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Editor with editor_id {editor_id} not found")
-    res_ref = stripout(db, patch, non_fatal=True)
+    res_ref = stripout(db, editor_update.dict(), non_fatal=True)
     add(res_ref, editor_db_obj)
 
     for field, value in editor_data.items():
