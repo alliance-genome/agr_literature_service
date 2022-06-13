@@ -3,6 +3,8 @@ TAG=latest
 
 ifdef ENV_FILE
 	include ${ENV_FILE}
+else
+	ENV_FILE=.env
 endif
 
 login-ecr:
@@ -84,15 +86,21 @@ start-pgsync-local:
 
 
 start-debezium-local:
-	docker-compose up -d postgres
+	docker-compose --env-file ${ENV_FILE} up -d postgres
 	sleep 5
-	docker-compose up -d elasticsearch
+	docker-compose --env-file ${ENV_FILE} up -d elasticsearch
 	sleep 10
-	docker-compose up -d dbz_zookeeper dbz_kafka dbz_connector
+	docker-compose --env-file ${ENV_FILE} up -d dbz_zookeeper dbz_kafka dbz_connector
 	sleep 20
-	docker-compose up -d dbz_setup
+	docker-compose --env-file ${ENV_FILE} up -d dbz_setup
 
 start-debezium-aws:
-	docker-compose up -d dbz_zookeeper dbz_kafka dbz_connector
+	docker-compose --env-file ${ENV_FILE} up -d dbz_zookeeper dbz_kafka dbz_connector
 	sleep 20
-	docker-compose up -d dbz_setup
+	docker-compose --env-file ${ENV_FILE} up -d dbz_setup
+
+restart-api:
+	docker-compose --env-file ${ENV_FILE} build --no-cache api
+	docker-compose --env-file ${ENV_FILE} rm -s -f api
+	docker-compose --env-file ${ENV_FILE} up -d api
+
