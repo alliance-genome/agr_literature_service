@@ -11,6 +11,11 @@ from agr_literature_service.lit_processing.helper_file_processing import split_i
 from agr_literature_service.lit_processing.generate_dqm_json_test_set import load_sample_json
 from agr_literature_service.lit_processing.xml_to_json import generate_json
 
+from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session
+from agr_literature_service.api.models import CrossReferenceModel, AuthorModel
+from agr_literature_service.lit_processing.process_single_pmid import process_pmid
+from agr_literature_service.lit_processing.update_pubmed_papers import update_data
+
 from dotenv import load_dotenv
 
 import warnings
@@ -518,11 +523,6 @@ def has_doi_check(agr_data, value):
 
 
 def test_first_corresponding_author_flag():
-
-    from helper_sqlalchemy import create_postgres_session
-    from literature.models import CrossReferenceModel, AuthorModel
-    from process_single_pmid import process_pmid
-    from update_pubmed_papers import update_data
 
     pmid = "26051182"
     process_pmid(pmid)
