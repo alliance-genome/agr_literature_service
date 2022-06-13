@@ -4,6 +4,7 @@ cross_reference_crud.py
 """
 
 from datetime import datetime
+from typing import Dict
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -65,12 +66,13 @@ def patch(db: Session, curie: str, cross_reference_update: CrossReferenceSchemaU
     :return:
     """
 
-    cross_reference_data = jsonable_encoder(cross_reference_update)
+    patch = cross_reference_update.dict(exclude_unset=True)
+    cross_reference_data = jsonable_encoder(patch)
     cross_reference_db_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == curie).first()
     if not cross_reference_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Cross Reference with curie {curie} not found")
-    add_reference_resource(db, cross_reference_db_obj, cross_reference_update.dict(), non_fatal=True)
+    add_reference_resource(db, cross_reference_db_obj, patch, non_fatal=True)
 
     for field, value in cross_reference_data.items():
         setattr(cross_reference_db_obj, field, value)

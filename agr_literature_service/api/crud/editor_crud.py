@@ -74,12 +74,13 @@ def patch(db: Session, editor_id: int, editor_update: EditorSchemaCreate) -> dic
     :return:
     """
 
-    editor_data = jsonable_encoder(editor_update)
+    patch = editor_update.dict(exclude_unset=True)
+    editor_data = jsonable_encoder(patch)
     editor_db_obj = db.query(EditorModel).filter(EditorModel.editor_id == editor_id).first()
     if not editor_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Editor with editor_id {editor_id} not found")
-    res_ref = stripout(db, editor_update.dict(), non_fatal=True)
+    res_ref = stripout(db, patch, non_fatal=True)
     add(res_ref, editor_db_obj)
 
     for field, value in editor_data.items():

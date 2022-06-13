@@ -38,9 +38,8 @@ async def patch(mod_id: int,
                 user: OktaUser = db_user,
                 db: Session = db_session):
     set_global_user_id(db, user.id)
-    patch = request.dict(exclude_unset=True)
 
-    return mod_crud.patch(db, mod_id, patch)
+    return mod_crud.patch(db, mod_id, request)
 
 
 @router.get('/{abbreviation}',

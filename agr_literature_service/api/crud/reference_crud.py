@@ -175,7 +175,8 @@ def patch(db: Session, curie: str, reference_update: ReferenceSchemaUpdate) -> d
     :return:
     """
 
-    reference_data = jsonable_encoder(reference_update)
+    patch = reference_update.dict(exclude_unset=True)
+    reference_data = jsonable_encoder(patch)
     logger.debug("reference_data = {}".format(reference_data))
     reference_db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
 

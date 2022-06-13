@@ -57,7 +57,9 @@ def patch(db: Session, mod_id: int, mod_update: ModSchemaUpdate):
     :param mod_update:
     :return:
     """
-    mod_data = jsonable_encoder(mod_update)
+
+    patch = mod_update.dict(exclude_unset=True)
+    mod_data = jsonable_encoder(patch)
     mod_db_obj = db.query(ModModel).filter(ModModel.mod_id == mod_id).first()
     if not mod_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

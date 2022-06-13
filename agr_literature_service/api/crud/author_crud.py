@@ -75,7 +75,8 @@ def patch(db: Session, author_id: int, author_patch: AuthorSchemaCreate) -> dict
     :return:
     """
 
-    author_data = jsonable_encoder(author_patch)
+    patch = author_patch.dict(exclude_unset=True)
+    author_data = jsonable_encoder(patch)
 
     if "resource_curie" in author_data and author_data["resource_curie"] and \
             "reference_curie" in author_data and author_data["reference_curie"]:

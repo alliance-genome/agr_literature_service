@@ -64,7 +64,8 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update: Mo
     :return:
     """
 
-    mrt_data = jsonable_encoder(mod_reference_type_update)
+    patch = mod_reference_type_update.dict(exclude_unset=True)
+    mrt_data = jsonable_encoder(patch)
     mod_reference_type_db_obj = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
     if not mod_reference_type_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import editor_crud
 from agr_literature_service.api.routers.authentication import auth
-from agr_literature_service.api.schemas import EditorSchemaPost, ResponseMessageSchema
+from agr_literature_service.api.schemas import EditorSchemaPost, ResponseMessageSchema, EditorSchemaCreate
 from agr_literature_service.api.user import set_global_user_id
 
 router = APIRouter(
@@ -47,9 +47,8 @@ async def patch(editor_id: int,
                 db: Session = db_session):
 
     set_global_user_id(db, user.id)
-    patch = request.dict(exclude_unset=True)
 
-    return editor_crud.patch(db, editor_id, patch)
+    return editor_crud.patch(db, editor_id, EditorSchemaCreate(**request.dict()))
 
 
 @router.get('/{editor_id}',

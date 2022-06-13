@@ -81,7 +81,8 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
     :param mod_corpus_association_update:
     :return:
     """
-    mod_corpus_association_data = jsonable_encoder(mod_corpus_association_update)
+    patch = mod_corpus_association_update.dict(exclude_unset=True)
+    mod_corpus_association_data = jsonable_encoder(patch)
     mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(ModCorpusAssociationModel.mod_corpus_association_id == mod_corpus_association_id).first()
     if not mod_corpus_association_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

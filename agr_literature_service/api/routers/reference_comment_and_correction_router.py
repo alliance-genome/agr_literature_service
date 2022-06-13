@@ -51,9 +51,8 @@ async def patch(reference_comment_and_correction_id: int,
                 user: OktaUser = db_user,
                 db: Session = db_session):
     set_global_user_id(db, user.id)
-    patch = request.dict(exclude_unset=True)
 
-    return reference_comment_and_correction_crud.patch(db, reference_comment_and_correction_id, patch)
+    return reference_comment_and_correction_crud.patch(db, reference_comment_and_correction_id, request)
 
 
 @router.get('/{reference_comment_and_correction_id}',

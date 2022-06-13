@@ -27,7 +27,7 @@ def create(request: CrossReferenceSchemaPost,
            user: OktaUser = db_user,
            db: Session = db_session):
     set_global_user_id(db, user.id)
-    return cross_reference_crud.create(db, request)
+    return cross_reference_crud.create(db, CrossReferenceSchema(**request.dict()))
 
 
 @router.delete('/{curie:path}',
@@ -50,7 +50,7 @@ async def patch(curie: str,
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)
 
-    return cross_reference_crud.patch(db, curie, patch)
+    return cross_reference_crud.patch(db, curie, CrossReferenceSchemaUpdate(**patch))
 
 
 @router.get('/{curie:path}/versions',

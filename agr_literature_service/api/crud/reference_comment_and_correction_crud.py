@@ -74,7 +74,8 @@ def destroy(db: Session, reference_comment_and_correction_id: int):
     return None
 
 
-def patch(db: Session, reference_comment_and_correction_id: int, reference_comment_and_correction_update: ReferenceCommentAndCorrectionSchemaPatch):
+def patch(db: Session, reference_comment_and_correction_id: int,
+          reference_comment_and_correction_update: ReferenceCommentAndCorrectionSchemaPatch):
     """
 
     :param db:
@@ -83,13 +84,14 @@ def patch(db: Session, reference_comment_and_correction_id: int, reference_comme
     :return:
     """
 
+    patch = reference_comment_and_correction_update.dict(exclude_unset=True)
     db_obj = db.query(ReferenceCommentAndCorrectionModel).filter(ReferenceCommentAndCorrectionModel.reference_comment_and_correction_id == reference_comment_and_correction_id).first()
     if not db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference Comment And Correction with reference_comment_and_correction_id "
                                    f"{reference_comment_and_correction_id} not found")
 
-    for field, value in reference_comment_and_correction_update.dict().items():
+    for field, value in patch.items():
         if field == "reference_curie_to" and value:
             reference_curie_to = value
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_to).first()
