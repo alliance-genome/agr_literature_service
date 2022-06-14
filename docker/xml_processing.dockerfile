@@ -7,6 +7,6 @@ WORKDIR /usr/local/bin/src/literature
 
 ADD . .
 
-RUN pip3 install -r backend/app/requirements.txt
+RUN pip3 install -r requirements.txt
 
 CMD ["bash"]

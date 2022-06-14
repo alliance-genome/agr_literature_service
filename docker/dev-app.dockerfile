@@ -5,8 +5,8 @@ FROM ${REG}/agr_base_linux_env:${ALLIANCE_RELEASE}
 
 WORKDIR /usr/local/bin/src/literature
 
-ADD backend/app/requirements.txt .
-ADD backend/app/requirements.dev.txt .
+ADD requirements.txt .
+ADD requirements.dev.txt .
 
 ADD . .
 

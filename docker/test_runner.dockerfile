@@ -7,8 +7,8 @@ WORKDIR /usr/local/bin/src/literature
 
 ADD . .
 
-RUN pip3 install -r backend/app/requirements.dev.txt
-RUN pip3 install -r backend/app/requirements.txt
+RUN pip3 install -r requirements.dev.txt
+RUN pip3 install -r requirements.txt
 
-CMD ["python3", "backend/app/main.py", "--port=8080"]
+CMD ["python3", "agr_literature_service/api/main.py", "--port=8080"]
 

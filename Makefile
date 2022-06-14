@@ -15,7 +15,7 @@ build:
 
 run-flake8:
 	docker-compose --env-file .env.test down -v
-	docker-compose --env-file .env.test run -v ${PWD}:/workdir test_runner /bin/bash -c "python3 -m flake8 ."
+	docker-compose --env-file .env.test run -v ${PWD}:/workdir test_runner /bin/bash -c "python3 -m flake8 agr_literature_service"
 	docker-compose --env-file .env.test down -v
 
 run-local-flake8:
@@ -23,7 +23,7 @@ run-local-flake8:
 
 run-mypy:
 	docker-compose --env-file .env.test down -v
-	docker-compose --env-file .env.test run -v ${PWD}:/workdir test_runner /bin/bash -c "mypy --config-file mypy.config ."
+	docker-compose --env-file .env.test run -v ${PWD}:/workdir test_runner /bin/bash -c "mypy --config-file mypy.config agr_literature_service"
 	docker-compose --env-file .env.test down -v
 
 run-local-mypy:
@@ -62,15 +62,15 @@ run-functest:
 	sleep 5
 
 	# load the mods
-	docker-compose --env-file .env.test run test_runner python3 src/xml_processing/mod_populate_load.py
+	docker-compose --env-file .env.test run test_runner python3 agr_literature_service/lit_processing/mod_populate_load.py
 
 	# load the data
-	docker-compose --env-file .env.test run test_runner /bin/bash src/xml_processing/sample_reference_populate_load.sh
+	docker-compose --env-file .env.test run test_runner /bin/bash agr_literature_service/lit_processing/sample_reference_populate_load.sh
 
 	# load the update
-	docker-compose --env-file .env.test run test_runner /bin/bash src/xml_processing/sample_reference_populate_update.sh
+	docker-compose --env-file .env.test run test_runner /bin/bash agr_literature_service/lit_processing/sample_reference_populate_update.sh
 
-	docker-compose --env-file .env.test run test_runner python3 src/xml_processing/tests/functional_tests.py
+	docker-compose --env-file .env.test run test_runner python3 agr_literature_service/lit_processing/tests/functional_tests.py
 	docker-compose --env-file .env.test down
 
 start-pgsync-aws:

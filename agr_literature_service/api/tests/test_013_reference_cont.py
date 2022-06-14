@@ -1,0 +1,58 @@
+from sqlalchemy import MetaData, create_engine
+from sqlalchemy.orm import sessionmaker
+
+from agr_literature_service.api.crud.reference_crud import create, patch, show
+from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
+from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
+
+metadata = MetaData()
+
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
+SessionLocal = sessionmaker(bind=engine, autoflush=True)
+db = SessionLocal()
+
+# Add tables/schema if not already there.
+Base.metadata.create_all(engine)
+
+# Exit if this is not a test database, Exit.
+if "literature-test" not in SQLALCHEMY_DATABASE_URL:
+    exit(-1)
+
+
+def test_reference_create_with_existing_items():
+    full_xml = {
+        "category": "research_article",
+        "abstract": "The Hippo (Hpo) pathway is a conserved tumor suppressor pathway",
+        "authors": [
+            {
+                "orcid": 'ORCID:1234-1234-1234-123X'
+            },
+            {
+                "orcid": 'ORCID:1111-2222-3333-444X'  # New
+            }
+        ],
+        "resource": 'AGR:AGR-Resource-0000000001',
+        "title": "Another title",
+        "volume": "433",
+        "open_access": True
+    }
+    assert 1 == 1
+    # process the reference.
+    reference = ReferenceSchemaPost(**full_xml)
+    res = create(db, reference)
+    assert res == 'AGR:AGR-Reference-0000000005'
+
+
+def test_patch():
+    xml = {'merged_into_reference_curie': "AGR:AGR-Reference-0000000003",
+           'resource': "AGR:AGR-Resource-0000000003"}
+    schema = ReferenceSchemaUpdate(**xml)
+    res = patch(db, 'AGR:AGR-Reference-0000000001', schema)
+    assert res == {'message': 'updated'}
+
+    # fetch the new record.
+    res = show(db, 'AGR:AGR-Reference-0000000001')
+    # assert res == "bob"
+    assert res['merged_into_id'] == 3
+    assert res['resource_curie'] == 'AGR:AGR-Resource-0000000003'

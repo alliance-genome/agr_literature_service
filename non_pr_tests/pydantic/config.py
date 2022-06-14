@@ -7,7 +7,7 @@ from pydantic import (
     Field
 )
 from os import environ
-from literature.schemas import EnvStateSchema
+from agr_literature_service.api.schemas import EnvStateSchema
 
 
 class SubModel(BaseModel):
