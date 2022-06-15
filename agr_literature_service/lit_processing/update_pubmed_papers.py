@@ -5,14 +5,11 @@ from os import environ, makedirs, path
 from dotenv import load_dotenv
 from datetime import datetime, date
 import json
-import time
 
-from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, ModModel, \
-    ModCorpusAssociationModel, ReferenceCommentAndCorrectionModel, \
+from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
+    ModModel, ModCorpusAssociationModel, ReferenceCommentAndCorrectionModel, \
     AuthorModel, MeshDetailModel, ResourceModel
 from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session
-from agr_literature_service.lit_processing.update_resource_pubmed_nlm import update_resource_pubmed_nlm
-from agr_literature_service.lit_processing.get_pubmed_xml import download_pubmed_xml
 from agr_literature_service.lit_processing.xml_to_json import generate_json
 from agr_literature_service.lit_processing.filter_dqm_md5sum import load_s3_md5data
 from agr_literature_service.lit_processing.helper_s3 import upload_xml_file_to_s3
@@ -29,20 +26,16 @@ refColName_to_update = ['title', 'volume', 'issue_name', 'page_range', 'abstract
                         'publisher', 'resource_id']
 
 field_names_to_report = refColName_to_update + ['doi', 'pmcid', 'author_name', 'journal',
-                                                'comment_erratum', 'mesh_term']
+                                                'comment_erratum', 'mesh_term',
+                                                'pmids_updated']
 
 limit = 1000
 max_rows_per_commit = 250
 download_xml_max_size = 150000
-query_cutoff = 5000
-sleep_time = 600
+query_cutoff = 500
 
 
-def update_data(mod, pmids):  # noqa: C901
-
-    ## update journal info (resource table)
-    if mod:
-        update_resource_pubmed_nlm()
+def update_data(mod, pmids, md5dict=None):  # noqa: C901
 
     db_session = create_postgres_session(False)
 
@@ -83,27 +76,18 @@ def update_data(mod, pmids):  # noqa: C901
 
     update_log = {}
     for field_name in field_names_to_report:
-        update_log[field_name] = 0
+        if field_name == 'pmids_updated':
+            update_log[field_name] = []
+        else:
+            update_log[field_name] = 0
 
-    fw.write(str(datetime.now()) + "\n")
-    fw.write("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...\n")
-    log.info(str(datetime.now()))
-    log.info("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...")
+    if md5dict is None:
+        fw.write(str(datetime.now()) + "\n")
+        fw.write("Downloading PMID_md5sum from s3...\n")
+        log.info(str(datetime.now()))
+        log.info("Downloading PMID_md5sum from s3...")
+        md5dict = load_s3_md5data(['PMID'])
 
-    if len(pmids_all) > download_xml_max_size:
-        for index in range(0, len(pmids_all), download_xml_max_size):
-            pmids_slice = pmids_all[index:index + download_xml_max_size]
-            download_pubmed_xml(pmids_slice)
-            time.sleep(sleep_time)
-    else:
-        download_pubmed_xml(pmids_all)
-
-    fw.write(str(datetime.now()) + "\n")
-    fw.write("Downloading PMID_md5sum from s3...\n")
-    log.info(str(datetime.now()))
-    log.info("Downloading PMID_md5sum from s3...")
-
-    md5dict = load_s3_md5data(['PMID'])
     old_md5sum = md5dict['PMID']
 
     ## for testing purpose, test run for SGD
@@ -141,35 +125,57 @@ def update_data(mod, pmids):  # noqa: C901
     log.info(str(datetime.now()))
     log.info("Updating database...")
 
-    pmids_updated = []
+    pmids_with_json_updated = []
     authors_with_first_or_corresponding_flag = update_database(fw, mod,
                                                                reference_id_list,
                                                                reference_id_to_pmid,
                                                                pmid_to_reference_id,
                                                                update_log, new_md5sum,
                                                                old_md5sum, json_path,
-                                                               pmids_updated)
+                                                               pmids_with_json_updated)
 
     if environ.get('ENV_STATE') and environ['ENV_STATE'] == 'prod':
         fw.write(str(datetime.now()) + "\n")
         fw.write("Uploading xml files to s3...\n")
         log.info(str(datetime.now()))
         log.info("Uploading xml files to s3...")
-        for pmid in pmids_updated:
+        for pmid in pmids_with_json_updated:
             # log.info("Uploading xml file for " + pmid + " to s3")
             upload_xml_file_to_s3(pmid, 'latest')
 
     # write updating summary
 
     fw.write(str(datetime.now()) + "\n")
-    fw.write("Updating Summary...\n")
     log.info(str(datetime.now()))
-    log.info("Updating Summary...")
+
+    if mod:
+        if mod == 'NONE':
+            fw.write("Updating Summary for pubmed papers that are not associated with a mod...\n")
+            log.info("Updating Summary for pubmed papers that are not associated with a mod...")
+        else:
+            fw.write("Updating Summary for " + mod + " pubmed papers...\n")
+            log.info("Updating Summary for " + mod + " pubmed papers...")
+    else:
+        fw.write("Updating Summary...\n")
+        log.info("Updating Summary...")
 
     for field_name in field_names_to_report:
-
+        if field_name == 'pmids_updated':
+            continue
         log.info("Paper(s) with " + field_name + " updated:" + str(update_log[field_name]))
         fw.write("Paper(s) with " + field_name + " updated:" + str(update_log[field_name]) + "\n")
+
+    pmids_updated = list(set(update_log['pmids_updated']))
+
+    if len(pmids_updated) == 0:
+        log.info("No papers updated.")
+        fw.write("No papera updated.\n")
+    else:
+        if len(pmids_updated) <= 20:
+            log.info("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the following PMID list:\n" + ", ".join(pmids_updated))
+        else:
+            log.info("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the log file for the full PMID list.")
+        fw.write("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the following PMID list:\n" + ", ".join(pmids_updated) + "\n")
 
     if len(authors_with_first_or_corresponding_flag) > 0:
 
@@ -204,7 +210,7 @@ def generate_pmids_with_info(pmids_all, old_md5sum, new_md5sum, pmid_to_referenc
     return reference_id_list
 
 
-def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, update_log, new_md5sum, old_md5sum, json_path, pmids_updated):   # noqa: C901
+def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, update_log, new_md5sum, old_md5sum, json_path, pmids_with_json_updated):   # noqa: C901
 
     ## 1. do nothing if a field has no value in pubmed xml/json
     ##    so won't delete whatever in the database
@@ -277,14 +283,14 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
                                                                            newly_added_orcid,
                                                                            authors_with_first_or_corresponding_flag,
                                                                            json_path,
-                                                                           pmids_updated,
+                                                                           pmids_with_json_updated,
                                                                            update_log,
                                                                            offset)
 
     return authors_with_first_or_corresponding_flag
 
 
-def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, authors_with_first_or_corresponding_flag, json_path, pmids_updated, update_log, offset):
+def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, authors_with_first_or_corresponding_flag, json_path, pmids_with_json_updated, update_log, offset):
 
     ## only update 3000 references per session (set in max_rows_per_db_session)
     ## just in case the database get disconnected during the update process
@@ -295,6 +301,9 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
         log.info("Getting data from Reference table...limit=" + str(limit) + ", offset=" + str(offset))
     else:
         log.info("Getting data from Reference table...")
+
+    doi_list_in_db = list(reference_id_to_doi.values())
+    pmcid_list_in_db = list(reference_id_to_pmcid.values())
 
     all = None
     if mod and len(reference_id_list) > query_cutoff:
@@ -348,7 +357,7 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
         if x.reference_id not in reference_id_list:
             continue
 
-        pmids_updated.append(pmid)
+        pmids_with_json_updated.append(pmid)
 
         i = i + 1
 
@@ -367,7 +376,10 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
         if json_data.get('doi') or json_data.get('pmc'):
             update_cross_reference(db_session, fw, pmid, x.reference_id,
                                    reference_id_to_doi.get(x.reference_id),
-                                   json_data.get('doi'), reference_id_to_pmcid.get(x.reference_id),
+                                   doi_list_in_db,
+                                   json_data.get('doi'),
+                                   reference_id_to_pmcid.get(x.reference_id),
+                                   pmcid_list_in_db,
                                    json_data.get('pmc'), update_log)
 
         ## update author table
@@ -417,7 +429,7 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
                                                                                newly_added_orcid,
                                                                                authors_with_first_or_corresponding_flag,
                                                                                json_path,
-                                                                               pmids_updated,
+                                                                               pmids_with_json_updated,
                                                                                update_log,
                                                                                offset)
 
@@ -500,12 +512,10 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
                 update_log[colName] = update_log[colName] + 1
                 fw.write("PMID:" + str(pmid) + ": " + colName + " is updated from '" + str(old_value) + "' to '" + str(new_value) + "'\n")
 
-        if has_update > 0:
-            x.date_updated = date.today()
-            db_session.add(x)
-
     if has_update:
+        x.date_updated = date.today()
         db_session.add(x)
+        update_log['pmids_updated'].append(pmid)
         log.info(str(count) + " PMID:" + str(pmid) + " Reference table has been updated")
         fw.write("PMID:" + str(pmid) + " Reference table has been updated\n")
     else:
@@ -550,6 +560,7 @@ def update_authors(db_session, fw, pmid, reference_id, author_list_in_db, author
         return author_list_with_first_or_corresponding_author
 
     update_log['author_name'] = update_log['author_name'] + 1
+    update_log['pmids_updated'].append(pmid)
 
     ## deleting authors from database for the given pmid
     for x in db_session.query(AuthorModel).filter_by(reference_id=reference_id).order_by(AuthorModel.order).all():
@@ -640,9 +651,11 @@ def update_comment_corrections(db_session, fw, pmid, reference_id, pmid_to_refer
             (reference_id_from, reference_id_to) = key
             update_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
             update_log['comment_erratum'] = update_log['comment_erratum'] + 1
+            update_log['pmids_updated'].append(pmid)
         else:
             insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
             update_log['comment_erratum'] = update_log['comment_erratum'] + 1
+            update_log['pmids_updated'].append(pmid)
 
     for key in reference_ids_to_comment_correction_type:
         if key in new_reference_ids_to_comment_correction_type:
@@ -652,6 +665,7 @@ def update_comment_corrections(db_session, fw, pmid, reference_id, pmid_to_refer
             ## only remove the ones that are associated with given PMIDs
             delete_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
             update_log['comment_erratum'] = update_log['comment_erratum'] + 1
+            update_log['pmids_updated'].append(pmid)
 
 
 def insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):
@@ -723,6 +737,7 @@ def update_mesh_terms(db_session, fw, pmid, reference_id, mesh_terms_in_db, mesh
             delete_mesh_term(db_session, fw, pmid, reference_id, m)
 
     update_log['mesh_term'] = update_log['mesh_term'] + 1
+    update_log['pmids_updated'].append(pmid)
 
 
 def insert_mesh_term(db_session, fw, pmid, reference_id, terms):
@@ -761,22 +776,24 @@ def delete_mesh_term(db_session, fw, pmid, reference_id, terms):
         fw.write("PMID:" + str(pmid) + ": DELETE mesh term: " + str(terms) + " failed: " + str(e) + "\n")
 
 
-def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_json, pmcid_db, pmcid_json, update_log):
+def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_in_db, doi_json, pmcid_db, pmcid_list_in_db, pmcid_json, update_log):
 
     if doi_json is None and pmcid_json is None:
         return
 
     ## take care of DOI
-
-    if doi_json and doi_json != doi_db:
-        if doi_db is None:
-            insert_doi(db_session, fw, pmid, reference_id, doi_json)
-        else:
-            update_doi(db_session, fw, pmid, reference_id, doi_db, doi_json)
-        update_log['doi'] = update_log['doi'] + 1
+    if doi_json and doi_db is None and doi_json in doi_list_in_db:
+        fw.write("PMID:" + str(pmid) + ": DOI:" + doi_json + " is in the database for another paper.\n")
+    else:
+        if doi_json and doi_json != doi_db:
+            if doi_db is None:
+                insert_doi(db_session, fw, pmid, reference_id, doi_json)
+            else:
+                update_doi(db_session, fw, pmid, reference_id, doi_db, doi_json)
+            update_log['doi'] = update_log['doi'] + 1
+            update_log['pmids_updated'].append(pmid)
 
     ## take care of PMCID
-
     if pmcid_json:
         if pmcid_json.startswith('PMC'):
             if not pmcid_json.replace('PMC', '').isdigit():
@@ -790,12 +807,16 @@ def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_json,
     if pmcid_db and pmcid_db == pmcid_json:
         return
 
-    if pmcid_db:
-        update_pmcid(db_session, fw, pmid, reference_id, pmcid_db, pmcid_json)
+    if pmcid_json and pmcid_db is None and pmcid_json in pmcid_list_in_db:
+        fw.write("PMID:" + str(pmid) + ": PMC:" + pmcid_json + " is in the database for another paper.\n")
     else:
-        insert_pmcid(db_session, fw, pmid, reference_id, pmcid_json)
+        if pmcid_db:
+            update_pmcid(db_session, fw, pmid, reference_id, pmcid_db, pmcid_json)
+        else:
+            insert_pmcid(db_session, fw, pmid, reference_id, pmcid_json)
 
-    update_log['pmcid'] = update_log['pmcid'] + 1
+        update_log['pmcid'] = update_log['pmcid'] + 1
+        update_log['pmids_updated'].append(pmid)
 
 
 def update_doi(db_session, fw, pmid, reference_id, old_doi, new_doi):
