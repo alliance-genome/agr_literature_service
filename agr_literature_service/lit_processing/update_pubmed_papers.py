@@ -111,18 +111,18 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
     old_md5sum = md5dict['PMID']
 
     ## for testing purpose, test run for SGD
-    # old_md5sum.pop('8460134')
-    # old_md5sum.pop('9489999')
-    # old_md5sum.pop('9334203')
-    # old_md5sum.pop('2506425')
-    # old_md5sum.pop('10525964')
+    old_md5sum.pop('8460134')
+    old_md5sum.pop('9489999')
+    old_md5sum.pop('9334203')
+    old_md5sum.pop('2506425')
+    old_md5sum.pop('10525964')
     ## for testing purpose, test run for WB
-    # old_md5sum.pop('15279955')
-    # old_md5sum.pop('15302406')
-    # old_md5sum.pop('19167330')
-    # old_md5sum.pop('18931687')
-    # old_md5sum.pop('19116311')
-    # old_md5sum.pop('17276139')
+    old_md5sum.pop('15279955')
+    old_md5sum.pop('15302406')
+    old_md5sum.pop('19167330')
+    old_md5sum.pop('18931687')
+    old_md5sum.pop('19116311')
+    old_md5sum.pop('17276139')
     ## end testing
 
     fw.write(str(datetime.now()) + "\n")
@@ -194,7 +194,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
         if len(pmids_updated) <= 20:
             log.info("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the following PMID list:\n" + ", ".join(pmids_updated))
         else:
-            log.info("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the log file for the full PMID list.")
+            log.info("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the log file for the full PMID list and update details.")
         fw.write("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the following PMID list:\n" + ", ".join(pmids_updated) + "\n")
 
     if len(authors_with_first_or_corresponding_flag) > 0:
