@@ -20,7 +20,7 @@ sleep_time = 60
 def update_all_data():
 
     ## take 18 sec
-    log.info("Updating resource: ", datetime.now())
+    log.info("Updating resource: " + str(datetime.now()))
     try:
         update_resource_pubmed_nlm()
     except Exception as e:
@@ -28,7 +28,7 @@ def update_all_data():
         return
 
     ## take 8 sec
-    log.info("Retrieving all pmids: ", datetime.now())
+    log.info("Retrieving all pmids: " + str(datetime.now()))
     try:
         pmids_all = retrieve_all_pmids()
         pmids_all.sort()
@@ -37,7 +37,7 @@ def update_all_data():
         return
 
     ## take 2hrs
-    log.info("Downloading all xml files: ", datetime.now())
+    log.info("Downloading all xml files: " + str(datetime.now()))
     try:
         download_all_xml_files(pmids_all)
     except Exception as e:
@@ -46,9 +46,9 @@ def update_all_data():
 
     for mod in ['WB', 'ZFIN', 'FB', 'SGD', 'RGD', 'MGI', 'NONE']:
         if mod == 'NONE':
-            log.info("Updating pubmed papers that are not associated with a mod: ", datetime.now())
+            log.info("Updating pubmed papers that are not associated with a mod: " + str(datetime.now()))
         else:
-            log.info("Updating pubmed papers for " + mod + ": ", datetime.now())
+            log.info("Updating pubmed papers for " + mod + ": " + str(datetime.now()))
         md5dict = load_s3_md5data(['PMID'])
         try:
             update_data(mod, None, md5dict)
