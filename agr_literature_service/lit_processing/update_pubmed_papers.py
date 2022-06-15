@@ -5,11 +5,14 @@ from os import environ, makedirs, path
 from dotenv import load_dotenv
 from datetime import datetime, date
 import json
+import time
 
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
     ModModel, ModCorpusAssociationModel, ReferenceCommentAndCorrectionModel, \
     AuthorModel, MeshDetailModel, ResourceModel
 from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session
+from agr_literature_service.lit_processing.update_resource_pubmed_nlm import update_resource_pubmed_nlm
+from agr_literature_service.lit_processing.get_pubmed_xml import download_pubmed_xml
 from agr_literature_service.lit_processing.xml_to_json import generate_json
 from agr_literature_service.lit_processing.filter_dqm_md5sum import load_s3_md5data
 from agr_literature_service.lit_processing.helper_s3 import upload_xml_file_to_s3
@@ -33,9 +36,13 @@ limit = 1000
 max_rows_per_commit = 250
 download_xml_max_size = 150000
 query_cutoff = 500
+sleep_time = 60
 
 
 def update_data(mod, pmids, md5dict=None):  # noqa: C901
+
+    if md5dict is None and mod:
+        update_resource_pubmed_nlm
 
     db_session = create_postgres_session(False)
 
@@ -82,6 +89,19 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
             update_log[field_name] = 0
 
     if md5dict is None:
+        fw.write(str(datetime.now()) + "\n")
+        fw.write("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...\n")
+        log.info(str(datetime.now()))
+        log.info("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...")
+
+        if len(pmids_all) > download_xml_max_size:
+            for index in range(0, len(pmids_all), download_xml_max_size):
+                pmids_slice = pmids_all[index:index + download_xml_max_size]
+                download_pubmed_xml(pmids_slice)
+                time.sleep(sleep_time)
+        else:
+            download_pubmed_xml(pmids_all)
+
         fw.write(str(datetime.now()) + "\n")
         fw.write("Downloading PMID_md5sum from s3...\n")
         log.info(str(datetime.now()))
