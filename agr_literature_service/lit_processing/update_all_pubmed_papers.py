@@ -6,7 +6,7 @@ from agr_literature_service.api.models import CrossReferenceModel
 from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session
 from agr_literature_service.lit_processing.update_resource_pubmed_nlm import update_resource_pubmed_nlm
 from agr_literature_service.lit_processing.get_pubmed_xml import download_pubmed_xml
-from agr_literature_service.lit_processing.update_mod_pubmed_papers import update_data
+from agr_literature_service.lit_processing.update_pubmed_papers import update_data
 from agr_literature_service.lit_processing.filter_dqm_md5sum import load_s3_md5data, save_s3_md5data
 
 logging.basicConfig(format='%(message)s')
