@@ -48,7 +48,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
 
     datestamp = str(date.today()).replace("-", "")
 
-    (xml_path, json_path, old_xml_path, old_json_path, log_path) = set_paths()
+    (xml_path, json_path, old_xml_path, old_json_path, log_path, log_url) = set_paths()
 
     log_file = log_path + "update_pubmed_papers_"
     if mod:
@@ -202,6 +202,8 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
             log.info("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the following PMID list:\n" + ", ".join(pmids_updated))
         else:
             log.info("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the log file for the full PMID list and update details.")
+            if log_url:
+                log.info("The log files are available at: " + log_url)
         fw.write("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the following PMID list:\n" + ", ".join(pmids_updated) + "\n")
 
     if len(authors_with_first_or_corresponding_flag) > 0:
@@ -921,7 +923,11 @@ def set_paths():
     old_xml_path = base_path + "pubmed_xml/old/"
     old_json_path = base_path + "pubmed_json/old/"
     log_path = base_path + 'pubmed_search_logs/'
-
+    if environ.get('LOG_PATH'):
+        log_path = environ['LOG_PATH']
+    log_url = None
+    if environ.get('LOG_URL'):
+        log_url = environ['LOG_URL']
     if not path.exists(xml_path):
         makedirs(xml_path)
     if not path.exists(json_path):
@@ -933,7 +939,7 @@ def set_paths():
     if not path.exists(log_path):
         makedirs(log_path)
 
-    return (xml_path, json_path, old_xml_path, old_json_path, log_path)
+    return (xml_path, json_path, old_xml_path, old_json_path, log_path, log_url)
 
 
 def get_reference_id_by_pmid(db_session, pmid):
