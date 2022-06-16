@@ -111,18 +111,18 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
     old_md5sum = md5dict['PMID']
 
     ## for testing purpose, test run for SGD
-    old_md5sum.pop('8460134')
-    old_md5sum.pop('9489999')
-    old_md5sum.pop('9334203')
-    old_md5sum.pop('2506425')
-    old_md5sum.pop('10525964')
+    #old_md5sum.pop('8460134')
+    #old_md5sum.pop('9489999')
+    #old_md5sum.pop('9334203')
+    #old_md5sum.pop('2506425')
+    #old_md5sum.pop('10525964')
     ## for testing purpose, test run for WB
-    old_md5sum.pop('15279955')
-    old_md5sum.pop('15302406')
-    old_md5sum.pop('19167330')
-    old_md5sum.pop('18931687')
-    old_md5sum.pop('19116311')
-    old_md5sum.pop('17276139')
+    #old_md5sum.pop('15279955')
+    #old_md5sum.pop('15302406')
+    #old_md5sum.pop('19167330')
+    #old_md5sum.pop('18931687')
+    #old_md5sum.pop('19116311')
+    #old_md5sum.pop('17276139')
     ## end testing
 
     fw.write(str(datetime.now()) + "\n")
@@ -140,6 +140,10 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
     else:
         reference_id_list = list(reference_id_to_pmid.keys())
 
+    if len(reference_id_list) == 0:
+        log.info("No new update in PubMed.")
+        return
+        
     fw.write(str(datetime.now()) + "\n")
     fw.write("Updating database...\n")
     log.info(str(datetime.now()))
@@ -191,7 +195,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
         log.info("No papers updated.")
         fw.write("No papera updated.\n")
     else:
-        if len(pmids_updated) <= 20:
+        if len(pmids_updated) <= 100:
             log.info("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the following PMID list:\n" + ", ".join(pmids_updated))
         else:
             log.info("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the log file for the full PMID list and update details.")
@@ -212,7 +216,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
     fw.close()
 
     log.info(str(datetime.now()))
-    log.info("DONE!")
+    log.info("DONE!\n\n")
 
 
 def generate_pmids_with_info(pmids_all, old_md5sum, new_md5sum, pmid_to_reference_id):
@@ -690,6 +694,11 @@ def update_comment_corrections(db_session, fw, pmid, reference_id, pmid_to_refer
 
 def insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):
 
+    ## check to see if any newly added ones matches this entry
+    rows = db_session.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to).all()
+    if len(rows) > 0:
+        return
+    
     data = {"reference_id_from": reference_id_from,
             "reference_id_to": reference_id_to,
             "reference_comment_and_correction_type": type}
