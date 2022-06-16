@@ -36,7 +36,7 @@ def update_all_data():
         log.info("Error occurred when retrieving pmid list from database.\n" + str(e))
         return
 
-    ## take 2hrs
+    ## take 1 to 2hrs
     log.info("Downloading all xml files: " + str(datetime.now()))
     try:
         download_all_xml_files(pmids_all)
