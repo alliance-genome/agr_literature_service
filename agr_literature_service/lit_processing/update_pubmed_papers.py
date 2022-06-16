@@ -60,7 +60,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
 
     fw.write(str(datetime.now()) + "\n")
     fw.write("Getting data from the database...\n")
-    log.info(str(datetime.now()))
+    # log.info(str(datetime.now()))
     log.info("Getting data from the database...")
 
     pmid_to_reference_id = {}
@@ -91,7 +91,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
     if md5dict is None:
         fw.write(str(datetime.now()) + "\n")
         fw.write("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...\n")
-        log.info(str(datetime.now()))
+        # log.info(str(datetime.now()))
         log.info("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...")
 
         if len(pmids_all) > download_xml_max_size:
@@ -104,7 +104,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
 
         fw.write(str(datetime.now()) + "\n")
         fw.write("Downloading PMID_md5sum from s3...\n")
-        log.info(str(datetime.now()))
+        # log.info(str(datetime.now()))
         log.info("Downloading PMID_md5sum from s3...")
         md5dict = load_s3_md5data(['PMID'])
 
@@ -127,7 +127,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
 
     fw.write(str(datetime.now()) + "\n")
     fw.write("Generating json files...\n")
-    log.info(str(datetime.now()))
+    # log.info(str(datetime.now()))
     log.info("Generating json files...")
 
     generate_json(pmids_all, [])
@@ -149,7 +149,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
 
     fw.write(str(datetime.now()) + "\n")
     fw.write("Updating database...\n")
-    log.info(str(datetime.now()))
+    # log.info(str(datetime.now()))
     log.info("Updating database...")
 
     pmids_with_json_updated = []
@@ -164,7 +164,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
     if environ.get('ENV_STATE') and environ['ENV_STATE'] == 'prod':
         fw.write(str(datetime.now()) + "\n")
         fw.write("Uploading xml files to s3...\n")
-        log.info(str(datetime.now()))
+        # log.info(str(datetime.now()))
         log.info("Uploading xml files to s3...")
         for pmid in pmids_with_json_updated:
             # log.info("Uploading xml file for " + pmid + " to s3")
@@ -173,7 +173,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
     # write updating summary
 
     fw.write(str(datetime.now()) + "\n")
-    log.info(str(datetime.now()))
+    # log.info(str(datetime.now()))
 
     if mod:
         if mod == 'NONE':
@@ -220,7 +220,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
     fw.write("DONE!\n")
     fw.close()
 
-    log.info(str(datetime.now()))
+    # log.info(str(datetime.now()))
     log.info("DONE!\n\n")
 
 
