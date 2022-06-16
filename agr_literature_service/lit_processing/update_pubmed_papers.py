@@ -178,13 +178,13 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
     if mod:
         if mod == 'NONE':
             fw.write("Updating Summary for pubmed papers that are not associated with a mod...\n")
-            log.info("Updating Summary for pubmed papers that are not associated with a mod...")
+            log.info("\nUpdating Summary for pubmed papers that are not associated with a mod...\n")
         else:
             fw.write("Updating Summary for " + mod + " pubmed papers...\n")
-            log.info("Updating Summary for " + mod + " pubmed papers...")
+            log.info("\nUpdating Summary for " + mod + " pubmed papers...\n")
     else:
         fw.write("Updating Summary...\n")
-        log.info("Updating Summary...")
+        log.info("\nUpdating Summary...\n")
 
     for field_name in field_names_to_report:
         if field_name == 'pmids_updated':
@@ -199,16 +199,16 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
         fw.write("No papera updated.\n")
     else:
         if len(pmids_updated) <= 100:
-            log.info("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the following PMID list:\n" + ", ".join(pmids_updated))
+            log.info("\nTotal " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the following PMID list:\n" + ", ".join(pmids_updated))
         else:
-            log.info("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the log file for the full PMID list and update details.")
+            log.info("\nTotal " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the log file for the full PMID list and update details.")
             if log_url:
-                log.info("The log files are available at: " + log_url)
+                log.info("\nThe log files are available at: " + log_url)
         fw.write("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the following PMID list:\n" + ", ".join(pmids_updated) + "\n")
 
     if len(authors_with_first_or_corresponding_flag) > 0:
 
-        log.info("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in ABC database")
+        log.info("\nFollowing PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in ABC database")
         fw.write("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in ABC database\n")
 
         for x in authors_with_first_or_corresponding_flag:

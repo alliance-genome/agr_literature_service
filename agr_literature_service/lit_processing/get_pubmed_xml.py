@@ -162,7 +162,7 @@ def download_pubmed_xml(pmids_wanted):
                         md5dict[pmid] = md5sum
 
                 if len(pmids_slice) == pmids_slice_size:
-                    logger.info("waiting to process more pmids")
+                    # logger.info("waiting to process more pmids")
                     time.sleep(5)
         except requests.exceptions.RequestException as e:
             logger.info("requests failure with input %s %s", pmids_joined, e)
