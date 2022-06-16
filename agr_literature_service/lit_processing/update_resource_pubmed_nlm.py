@@ -1,4 +1,3 @@
-
 import logging
 import logging.config
 import sys
@@ -35,11 +34,13 @@ def update_resource_pubmed_nlm():
     resources_to_create = dict()
 
     for nlm in pubmed_by_nlm:
+        # if 'NLM' in xref_ref and nlm in xref_ref['NLM'] and xref_ref['NLM'][nlm] is not None:
+        #      logger.info(f"{nlm} already {xref_ref['NLM'][nlm]}")
+        # else.info(f"create {nlm}")
+        #    resources_to_create[nlm] = pubmed_by_nlm[nlm]
         if 'NLM' in xref_ref and nlm in xref_ref['NLM'] and xref_ref['NLM'][nlm] is not None:
-            logger.info(f"{nlm} already {xref_ref['NLM'][nlm]}")
-        else:
-            logger.info(f"create {nlm}")
-            resources_to_create[nlm] = pubmed_by_nlm[nlm]
+            continue
+        resources_to_create[nlm] = pubmed_by_nlm[nlm]
 
     base_path = environ.get('XML_PATH', "")
     json_storage_path = base_path + 'sanitized_resource_json/'
