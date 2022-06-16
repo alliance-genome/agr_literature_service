@@ -325,6 +325,31 @@ services:
     command:
       /setup.sh
 
+  dbz_tables_aggregator:
+    restart: always
+    build:
+      context: .
+      dockerfile: docker/debezium_tables_aggregator.dockerfile
+    environment:
+      - JAVA_MAIN_CLASS=io.debezium.examples.aggregation.StreamingAggregatesDDDLit
+      - PARENT_TOPIC=abc.public.reference
+      - CHILDREN_TOPIC=abc.public.cross_reference
+      - BOOTSTRAP_SERVERS=dbz_kafka:9092
+    depends_on:
+      - dbz_connector
+    networks:
+      - agr-literature
+    command: >
+      /bin/bash -c "
+        while ! curl -f -s -X GET http://dbz_connector:8083/connectors/postgres-source;
+        do
+          echo 'Waiting for source connector to be deployed';
+          sleep 1;
+        done;
+        echo 'Source connector deployed!';
+        /opt/tables_aggregator/run-aggregator.sh
+      "
+
 volumes:
   agr-literature-pg-data:
   agr-literature-redis-data:
