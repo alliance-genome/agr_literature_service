@@ -111,18 +111,18 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
     old_md5sum = md5dict['PMID']
 
     ## for testing purpose, test run for SGD
-    #old_md5sum.pop('8460134')
-    #old_md5sum.pop('9489999')
-    #old_md5sum.pop('9334203')
-    #old_md5sum.pop('2506425')
-    #old_md5sum.pop('10525964')
+    # old_md5sum.pop('8460134')
+    # old_md5sum.pop('9489999')
+    # old_md5sum.pop('9334203')
+    # old_md5sum.pop('2506425')
+    # old_md5sum.pop('10525964')
     ## for testing purpose, test run for WB
-    #old_md5sum.pop('15279955')
-    #old_md5sum.pop('15302406')
-    #old_md5sum.pop('19167330')
-    #old_md5sum.pop('18931687')
-    #old_md5sum.pop('19116311')
-    #old_md5sum.pop('17276139')
+    # old_md5sum.pop('15279955')
+    # old_md5sum.pop('15302406')
+    # old_md5sum.pop('19167330')
+    # old_md5sum.pop('18931687')
+    # old_md5sum.pop('19116311')
+    # old_md5sum.pop('17276139')
     ## end testing
 
     fw.write(str(datetime.now()) + "\n")
@@ -142,8 +142,11 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
 
     if len(reference_id_list) == 0:
         log.info("No new update in PubMed.")
+        fw.write("No new update in PubMed.\n")
+        log.info("DONE!\n\n")
+        fw.write("DONE!\n")
         return
-        
+
     fw.write(str(datetime.now()) + "\n")
     fw.write("Updating database...\n")
     log.info(str(datetime.now()))
@@ -698,7 +701,7 @@ def insert_comment_correction(db_session, fw, pmid, reference_id_from, reference
     rows = db_session.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to).all()
     if len(rows) > 0:
         return
-    
+
     data = {"reference_id_from": reference_id_from,
             "reference_id_to": reference_id_to,
             "reference_comment_and_correction_type": type}
