@@ -646,8 +646,8 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
     for unknown_article_id_type in unknown_article_id_types:
         logger.info("unknown_article_id_type %s", unknown_article_id_type)
 
-    for ref_type in ref_types_set:
-        logger.info("ref_type %s", ref_type)
+    # for ref_type in ref_types_set:
+    #    logger.info("ref_type %s", ref_type)
 
     new_pmids = sorted(new_pmids_set)
     # for pmid in new_pmids:
