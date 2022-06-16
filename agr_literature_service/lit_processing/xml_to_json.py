@@ -650,8 +650,8 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
         logger.info("ref_type %s", ref_type)
 
     new_pmids = sorted(new_pmids_set)
-    for pmid in new_pmids:
-        logger.info("new_pmid %s", pmid)
+    # for pmid in new_pmids:
+    #    logger.info("new_pmid %s", pmid)
 
     return new_pmids
 
