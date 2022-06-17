@@ -893,8 +893,12 @@ def close_no_update(fw, mod, email_subject, email_recipients, sender_email, repl
 
     log.info("No new update in PubMed.")
     fw.write("No new update in PubMed.\n")
-    log.info("DONE!\n\n")
+    log.info("DONE!\n")
     fw.write("DONE!\n")
+
+    if mod is None:
+        return
+
     email_message = None
     if mod:
         if mod == "NONE":
@@ -906,7 +910,6 @@ def close_no_update(fw, mod, email_subject, email_recipients, sender_email, repl
     email_message = "<strong>" + email_message + "</strong>"
 
     (status, message) = send_email(email_subject, email_recipients, email_message, sender_email, reply_to)
-
     if status == 'error':
         fw.write("Failed sending email to slack: " + message + "\n")
         log.info("Failed sending email to slack: " + message + "\n")
@@ -932,7 +935,7 @@ def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag,
             continue
         log.info("Paper(s) with " + field_name + " updated:" + str(update_log[field_name]))
         fw.write("Paper(s) with " + field_name + " updated:" + str(update_log[field_name]) + "\n")
-        email_message = email_message + "Paper(s) with " + field_name + " updated:" + str(update_log[field_name]) + "<br>"
+        email_message = email_message + "Paper(s) with <b>" + field_name + "</b> updated:" + str(update_log[field_name]) + "<br>"
 
     pmids_updated = list(set(update_log['pmids_updated']))
 
@@ -940,9 +943,9 @@ def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag,
         email_message = email_message + "<strong>No papers updated.</strong><p>"
     else:
         if len(pmids_updated) <= 100:
-            email_message = email_message + "<strong>Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated</strong>. See the following updated PMID list:<br>" + ", ".join(pmids_updated) + "<p>"
+            email_message = email_message + "<strong>Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated</strong>. PMID(s):<br>" + ", ".join(pmids_updated) + "<p>"
         else:
-            email_message = email_message + "<strong>Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated</strong>. See log file for the full updated PMID list and update details.<p>"
+            email_message = email_message + "<strong>Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated</strong>. PMID(s):<br>" + ", ".join(pmids_updated[0:100]) + "<br>See log file for the full updated PMID list and update details.<p>"
         if log_url:
             email_message = email_message + "<b>The log files are available at: </b>" + log_url + "<p>"
 
@@ -950,21 +953,22 @@ def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag,
 
     if len(authors_with_first_or_corresponding_flag) > 0:
 
-        log.info("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in ABC database")
-        fw.write("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in ABC database\n")
-        email_message = email_message + "<p>Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in ABC database<p>"
+        log.info("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database")
+        fw.write("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database\n")
+        email_message = email_message + "Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database<p>"
 
         for x in authors_with_first_or_corresponding_flag:
             (pmid, name, first_author, corresponding_author) = x
             log.info("PMID:" + str(pmid) + ": name = " + name + ", " + first_author + ", " + corresponding_author)
             fw.write("PMID:" + str(pmid) + ": name = " + name + ", " + first_author + ", " + corresponding_author + "\n")
-            email_message = email_message + "PMID:" + str(pmid) + ": name = " + name + ", " + first_author + ", " + corresponding_author + "<br>"
+            email_message = email_message + "PMID:" + str(pmid) + ": name =" + name + ", first_author=" + first_author + ", corresponding_author=" + corresponding_author + "<br>"
 
-    email_message = email_message + "DONE!<p><p>"
-    (status, message) = send_email(email_subject, email_recipients, email_message, sender_email, reply_to)
-    if status == 'error':
-        fw.write("Failed sending email to slack: " + message + "\n")
-        log.info("Failed sending email to slack: " + message + "\n")
+    if mod:
+        email_message = email_message + "DONE!<p>"
+        (status, message) = send_email(email_subject, email_recipients, email_message, sender_email, reply_to)
+        if status == 'error':
+            fw.write("Failed sending email to slack: " + message + "\n")
+            log.info("Failed sending email to slack: " + message + "\n")
 
 
 def generate_pmids_with_info(pmids_all, old_md5sum, new_md5sum, pmid_to_reference_id):
