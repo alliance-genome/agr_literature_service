@@ -167,6 +167,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
         fw.write("Uploading xml files to s3...\n")
         log.info("Uploading xml files to s3...")
         for pmid in pmids_with_json_updated:
+            log.info("uploading xml file for PMID:" + pmid + " to s3")
             upload_xml_file_to_s3(pmid, 'latest')
 
     log.info("DONE!\n\n")
