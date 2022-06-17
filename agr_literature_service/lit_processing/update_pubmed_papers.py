@@ -16,7 +16,7 @@ from agr_literature_service.lit_processing.get_pubmed_xml import download_pubmed
 from agr_literature_service.lit_processing.xml_to_json import generate_json
 from agr_literature_service.lit_processing.filter_dqm_md5sum import load_s3_md5data
 from agr_literature_service.lit_processing.helper_s3 import upload_xml_file_to_s3
-from agr_literature_service.lit_processing.helper import send_email
+from agr_literature_service.lit_processing.helper_email import send_email
 
 logging.basicConfig(format='%(message)s')
 log = logging.getLogger()
@@ -936,6 +936,8 @@ def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag,
         log.info("Paper(s) with " + field_name + " updated:" + str(update_log[field_name]))
         fw.write("Paper(s) with " + field_name + " updated:" + str(update_log[field_name]) + "\n")
         email_message = email_message + "Paper(s) with <b>" + field_name + "</b> updated:" + str(update_log[field_name]) + "<br>"
+        if field_name == 'author_name':
+            email_message = email_message + "<br>"
 
     pmids_updated = list(set(update_log['pmids_updated']))
 
