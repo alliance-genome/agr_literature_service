@@ -143,7 +143,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
         reference_id_list = list(reference_id_to_pmid.keys())
 
     if len(reference_id_list) == 0:
-        close_no_update(fw, email_subject, email_recipients, sender_email, reply_to)
+        close_no_update(fw, mod, email_subject, email_recipients, sender_email, reply_to)
         return
 
     fw.write(str(datetime.now()) + "\n")
@@ -159,7 +159,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
                                                                old_md5sum, json_path,
                                                                pmids_with_json_updated)
 
-    write_summary(fw, update_log, authors_with_first_or_corresponding_flag, log_url, email_subject,
+    write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, log_url, email_subject,
                   email_recipients, sender_email, reply_to)
 
     if environ.get('ENV_STATE') and environ['ENV_STATE'] == 'prod':
@@ -888,7 +888,7 @@ def set_paths():
             email_recipients, sender_email, reply_to)
 
 
-def close_no_update(fw, email_subject, email_recipients, sender_email, reply_to):
+def close_no_update(fw, mod, email_subject, email_recipients, sender_email, reply_to):
 
     log.info("No new update in PubMed.")
     fw.write("No new update in PubMed.\n")
@@ -911,7 +911,7 @@ def close_no_update(fw, email_subject, email_recipients, sender_email, reply_to)
         log.info("Failed sending email to slack: " + message + "\n")
 
 
-def write_summary(fw, update_log, authors_with_first_or_corresponding_flag, log_url, email_subject, email_recipients, sender_email, reply_to):
+def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, log_url, email_subject, email_recipients, sender_email, reply_to):
 
     message = None
     if mod:
