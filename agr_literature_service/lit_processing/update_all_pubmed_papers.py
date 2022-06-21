@@ -1,6 +1,9 @@
 import logging
 from datetime import datetime
 import time
+from dotenv import load_dotenv
+from os import environ, makedirs, path, rename
+import shutil
 
 from agr_literature_service.api.models import CrossReferenceModel
 from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session
@@ -59,6 +62,25 @@ def update_all_data():
 
 
 def download_all_xml_files(pmids_all):
+
+    load_dotenv()
+    base_path = environ.get('XML_PATH', "")
+    xml_path = base_path + "pubmed_xml/"
+    json_path = base_path + "pubmed_json/"
+    old_xml_path = base_path + "pubmed_xml_old/"
+    old_json_path = base_path + "pubmed_json_old/"
+    try:
+        if path.exists(old_xml_path):
+            shutil.rmtree(old_xml_path)
+        if path.exists(old_json_path):
+            shutil.rmtree(old_json_path)
+    except OSError as e:
+        print("Error deleting old xml/json: %s" % (e.strerror))
+
+    rename(xml_path, old_xml_path)
+    rename(json_path, old_json_path)
+    makedirs(xml_path)
+    makedirs(json_path)
 
     for index in range(0, len(pmids_all), download_xml_max_size):
         pmids_slice = pmids_all[index:index + download_xml_max_size]
