@@ -1,7 +1,7 @@
 from sqlalchemy import or_
 import argparse
 import logging
-from os import environ, makedirs, path
+from os import environ, makedirs, path, system, chdir
 from dotenv import load_dotenv
 from datetime import datetime, date
 import json
@@ -159,7 +159,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
                                                                old_md5sum, json_path,
                                                                pmids_with_json_updated)
 
-    write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, log_url, email_subject,
+    write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, log_url, log_path, email_subject,
                   email_recipients, sender_email, reply_to)
 
     if environ.get('ENV_STATE') and environ['ENV_STATE'] == 'prod':
@@ -915,7 +915,7 @@ def close_no_update(fw, mod, email_subject, email_recipients, sender_email, repl
         log.info("Failed sending email to slack: " + message + "\n")
 
 
-def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, log_url, email_subject, email_recipients, sender_email, reply_to):
+def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, log_url, log_dir, email_subject, email_recipients, sender_email, reply_to):
 
     message = None
     if mod:
@@ -949,7 +949,7 @@ def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag,
         else:
             email_message = email_message + "<strong>Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated</strong>. PMID(s):<br>" + ", ".join(pmids_updated[0:100]) + "<br>See log file for the full updated PMID list and update details.<p>"
         if log_url:
-            email_message = email_message + "<b>The log files are available at: </b>" + log_url + "<p>"
+            email_message = email_message + "<b>The log files are available at: </b><a href=" + log_url + ">" + log_url + "</a><p>"
 
         fw.write("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the following PMID list:\n" + ", ".join(pmids_updated) + "\n")
 
@@ -971,6 +971,9 @@ def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag,
         if status == 'error':
             fw.write("Failed sending email to slack: " + message + "\n")
             log.info("Failed sending email to slack: " + message + "\n")
+        else:
+            chdir(log_dir)
+            system("/usr/bin/tree -H '.' -L 1 --noreport --charset utf-8 > index.html")
 
 
 def generate_pmids_with_info(pmids_all, old_md5sum, new_md5sum, pmid_to_reference_id):
