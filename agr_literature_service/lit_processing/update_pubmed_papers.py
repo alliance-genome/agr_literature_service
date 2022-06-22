@@ -1,14 +1,14 @@
 from sqlalchemy import or_
 import argparse
 import logging
-from os import environ, makedirs, path
+from os import environ, makedirs, path, system, chdir
 from dotenv import load_dotenv
 from datetime import datetime, date
 import json
 import time
 
-from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, ModModel, \
-    ModCorpusAssociationModel, ReferenceCommentAndCorrectionModel, \
+from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
+    ModModel, ModCorpusAssociationModel, ReferenceCommentAndCorrectionModel, \
     AuthorModel, MeshDetailModel, ResourceModel
 from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session
 from agr_literature_service.lit_processing.update_resource_pubmed_nlm import update_resource_pubmed_nlm
@@ -16,6 +16,7 @@ from agr_literature_service.lit_processing.get_pubmed_xml import download_pubmed
 from agr_literature_service.lit_processing.xml_to_json import generate_json
 from agr_literature_service.lit_processing.filter_dqm_md5sum import load_s3_md5data
 from agr_literature_service.lit_processing.helper_s3 import upload_xml_file_to_s3
+from agr_literature_service.lit_processing.helper_email import send_email
 
 logging.basicConfig(format='%(message)s')
 log = logging.getLogger()
@@ -29,26 +30,31 @@ refColName_to_update = ['title', 'volume', 'issue_name', 'page_range', 'abstract
                         'publisher', 'resource_id']
 
 field_names_to_report = refColName_to_update + ['doi', 'pmcid', 'author_name', 'journal',
-                                                'comment_erratum', 'mesh_term']
+                                                'comment_erratum', 'mesh_term',
+                                                'pmids_updated']
 
 limit = 1000
 max_rows_per_commit = 250
 download_xml_max_size = 150000
-query_cutoff = 5000
-sleep_time = 600
+query_cutoff = 500
+sleep_time = 60
 
 
-def update_data(mod, pmids):  # noqa: C901
+def update_data(mod, pmids, md5dict=None):  # noqa: C901
 
-    ## update journal info (resource table)
-    if mod:
-        update_resource_pubmed_nlm()
+    if md5dict is None and mod:
+        update_resource_pubmed_nlm
 
     db_session = create_postgres_session(False)
 
     datestamp = str(date.today()).replace("-", "")
 
-    (xml_path, json_path, old_xml_path, old_json_path, log_path) = set_paths()
+    (xml_path, json_path, old_xml_path, old_json_path, log_path, log_url,
+     email_recipients, sender_email, reply_to) = set_paths()
+
+    email_subject = "PubMed Paper Update Report"
+    if mod and mod != 'NONE':
+        email_subject = mod + " " + email_subject
 
     log_file = log_path + "update_pubmed_papers_"
     if mod:
@@ -60,7 +66,6 @@ def update_data(mod, pmids):  # noqa: C901
 
     fw.write(str(datetime.now()) + "\n")
     fw.write("Getting data from the database...\n")
-    log.info(str(datetime.now()))
     log.info("Getting data from the database...")
 
     pmid_to_reference_id = {}
@@ -83,27 +88,29 @@ def update_data(mod, pmids):  # noqa: C901
 
     update_log = {}
     for field_name in field_names_to_report:
-        update_log[field_name] = 0
+        if field_name == 'pmids_updated':
+            update_log[field_name] = []
+        else:
+            update_log[field_name] = 0
 
-    fw.write(str(datetime.now()) + "\n")
-    fw.write("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...\n")
-    log.info(str(datetime.now()))
-    log.info("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...")
+    if md5dict is None:
+        fw.write(str(datetime.now()) + "\n")
+        fw.write("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...\n")
+        log.info("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...")
 
-    if len(pmids_all) > download_xml_max_size:
-        for index in range(0, len(pmids_all), download_xml_max_size):
-            pmids_slice = pmids_all[index:index + download_xml_max_size]
-            download_pubmed_xml(pmids_slice)
-            time.sleep(sleep_time)
-    else:
-        download_pubmed_xml(pmids_all)
+        if len(pmids_all) > download_xml_max_size:
+            for index in range(0, len(pmids_all), download_xml_max_size):
+                pmids_slice = pmids_all[index:index + download_xml_max_size]
+                download_pubmed_xml(pmids_slice)
+                time.sleep(sleep_time)
+        else:
+            download_pubmed_xml(pmids_all)
 
-    fw.write(str(datetime.now()) + "\n")
-    fw.write("Downloading PMID_md5sum from s3...\n")
-    log.info(str(datetime.now()))
-    log.info("Downloading PMID_md5sum from s3...")
+        fw.write(str(datetime.now()) + "\n")
+        fw.write("Downloading PMID_md5sum from s3...\n")
+        log.info("Downloading PMID_md5sum from s3...")
+        md5dict = load_s3_md5data(['PMID'])
 
-    md5dict = load_s3_md5data(['PMID'])
     old_md5sum = md5dict['PMID']
 
     ## for testing purpose, test run for SGD
@@ -123,7 +130,6 @@ def update_data(mod, pmids):  # noqa: C901
 
     fw.write(str(datetime.now()) + "\n")
     fw.write("Generating json files...\n")
-    log.info(str(datetime.now()))
     log.info("Generating json files...")
 
     generate_json(pmids_all, [])
@@ -136,75 +142,41 @@ def update_data(mod, pmids):  # noqa: C901
     else:
         reference_id_list = list(reference_id_to_pmid.keys())
 
+    if len(reference_id_list) == 0:
+        close_no_update(fw, mod, email_subject, email_recipients, sender_email, reply_to)
+        return
+
     fw.write(str(datetime.now()) + "\n")
     fw.write("Updating database...\n")
-    log.info(str(datetime.now()))
     log.info("Updating database...")
 
-    pmids_updated = []
+    pmids_with_json_updated = []
     authors_with_first_or_corresponding_flag = update_database(fw, mod,
                                                                reference_id_list,
                                                                reference_id_to_pmid,
                                                                pmid_to_reference_id,
                                                                update_log, new_md5sum,
                                                                old_md5sum, json_path,
-                                                               pmids_updated)
+                                                               pmids_with_json_updated)
+
+    write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, log_url, log_path, email_subject,
+                  email_recipients, sender_email, reply_to)
 
     if environ.get('ENV_STATE') and environ['ENV_STATE'] == 'prod':
         fw.write(str(datetime.now()) + "\n")
         fw.write("Uploading xml files to s3...\n")
-        log.info(str(datetime.now()))
         log.info("Uploading xml files to s3...")
-        for pmid in pmids_updated:
-            # log.info("Uploading xml file for " + pmid + " to s3")
+        for pmid in pmids_with_json_updated:
+            log.info("uploading xml file for PMID:" + pmid + " to s3")
             upload_xml_file_to_s3(pmid, 'latest')
 
-    # write updating summary
-
-    fw.write(str(datetime.now()) + "\n")
-    fw.write("Updating Summary...\n")
-    log.info(str(datetime.now()))
-    log.info("Updating Summary...")
-
-    for field_name in field_names_to_report:
-
-        log.info("Paper(s) with " + field_name + " updated:" + str(update_log[field_name]))
-        fw.write("Paper(s) with " + field_name + " updated:" + str(update_log[field_name]) + "\n")
-
-    if len(authors_with_first_or_corresponding_flag) > 0:
-
-        log.info("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in ABC database")
-        fw.write("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in ABC database\n")
-
-        for x in authors_with_first_or_corresponding_flag:
-            (pmid, name, first_author, corresponding_author) = x
-            log.info("PMID:" + str(pmid) + ": name = " + name + ", " + first_author + ", " + corresponding_author)
-            fw.write("PMID:" + str(pmid) + ": name = " + name + ", " + first_author + ", " + corresponding_author + "\n")
-
+    log.info("DONE!\n\n")
     fw.write(str(datetime.now()) + "\n")
     fw.write("DONE!\n")
     fw.close()
 
-    log.info(str(datetime.now()))
-    log.info("DONE!")
 
-
-def generate_pmids_with_info(pmids_all, old_md5sum, new_md5sum, pmid_to_reference_id):
-
-    reference_id_list = []
-    for pmid in pmids_all:
-        if pmid not in new_md5sum:
-            continue
-        if pmid not in old_md5sum:
-            if pmid in pmid_to_reference_id:
-                reference_id_list.append(pmid_to_reference_id[pmid])
-        elif new_md5sum[pmid] != old_md5sum[pmid]:
-            if pmid in pmid_to_reference_id:
-                reference_id_list.append(pmid_to_reference_id[pmid])
-    return reference_id_list
-
-
-def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, update_log, new_md5sum, old_md5sum, json_path, pmids_updated):   # noqa: C901
+def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, update_log, new_md5sum, old_md5sum, json_path, pmids_with_json_updated):   # noqa: C901
 
     ## 1. do nothing if a field has no value in pubmed xml/json
     ##    so won't delete whatever in the database
@@ -277,14 +249,14 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
                                                                            newly_added_orcid,
                                                                            authors_with_first_or_corresponding_flag,
                                                                            json_path,
-                                                                           pmids_updated,
+                                                                           pmids_with_json_updated,
                                                                            update_log,
                                                                            offset)
 
     return authors_with_first_or_corresponding_flag
 
 
-def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, authors_with_first_or_corresponding_flag, json_path, pmids_updated, update_log, offset):
+def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, authors_with_first_or_corresponding_flag, json_path, pmids_with_json_updated, update_log, offset):
 
     ## only update 3000 references per session (set in max_rows_per_db_session)
     ## just in case the database get disconnected during the update process
@@ -295,6 +267,9 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
         log.info("Getting data from Reference table...limit=" + str(limit) + ", offset=" + str(offset))
     else:
         log.info("Getting data from Reference table...")
+
+    doi_list_in_db = list(reference_id_to_doi.values())
+    pmcid_list_in_db = list(reference_id_to_pmcid.values())
 
     all = None
     if mod and len(reference_id_list) > query_cutoff:
@@ -348,7 +323,7 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
         if x.reference_id not in reference_id_list:
             continue
 
-        pmids_updated.append(pmid)
+        pmids_with_json_updated.append(pmid)
 
         i = i + 1
 
@@ -367,7 +342,10 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
         if json_data.get('doi') or json_data.get('pmc'):
             update_cross_reference(db_session, fw, pmid, x.reference_id,
                                    reference_id_to_doi.get(x.reference_id),
-                                   json_data.get('doi'), reference_id_to_pmcid.get(x.reference_id),
+                                   doi_list_in_db,
+                                   json_data.get('doi'),
+                                   reference_id_to_pmcid.get(x.reference_id),
+                                   pmcid_list_in_db,
                                    json_data.get('pmc'), update_log)
 
         ## update author table
@@ -417,7 +395,7 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
                                                                                newly_added_orcid,
                                                                                authors_with_first_or_corresponding_flag,
                                                                                json_path,
-                                                                               pmids_updated,
+                                                                               pmids_with_json_updated,
                                                                                update_log,
                                                                                offset)
 
@@ -500,12 +478,10 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
                 update_log[colName] = update_log[colName] + 1
                 fw.write("PMID:" + str(pmid) + ": " + colName + " is updated from '" + str(old_value) + "' to '" + str(new_value) + "'\n")
 
-        if has_update > 0:
-            x.date_updated = date.today()
-            db_session.add(x)
-
     if has_update:
+        x.date_updated = date.today()
         db_session.add(x)
+        update_log['pmids_updated'].append(pmid)
         log.info(str(count) + " PMID:" + str(pmid) + " Reference table has been updated")
         fw.write("PMID:" + str(pmid) + " Reference table has been updated\n")
     else:
@@ -550,6 +526,7 @@ def update_authors(db_session, fw, pmid, reference_id, author_list_in_db, author
         return author_list_with_first_or_corresponding_author
 
     update_log['author_name'] = update_log['author_name'] + 1
+    update_log['pmids_updated'].append(pmid)
 
     ## deleting authors from database for the given pmid
     for x in db_session.query(AuthorModel).filter_by(reference_id=reference_id).order_by(AuthorModel.order).all():
@@ -640,9 +617,11 @@ def update_comment_corrections(db_session, fw, pmid, reference_id, pmid_to_refer
             (reference_id_from, reference_id_to) = key
             update_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
             update_log['comment_erratum'] = update_log['comment_erratum'] + 1
+            update_log['pmids_updated'].append(pmid)
         else:
             insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
             update_log['comment_erratum'] = update_log['comment_erratum'] + 1
+            update_log['pmids_updated'].append(pmid)
 
     for key in reference_ids_to_comment_correction_type:
         if key in new_reference_ids_to_comment_correction_type:
@@ -652,9 +631,15 @@ def update_comment_corrections(db_session, fw, pmid, reference_id, pmid_to_refer
             ## only remove the ones that are associated with given PMIDs
             delete_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
             update_log['comment_erratum'] = update_log['comment_erratum'] + 1
+            update_log['pmids_updated'].append(pmid)
 
 
 def insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):
+
+    ## check to see if any newly added ones matches this entry
+    rows = db_session.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to).all()
+    if len(rows) > 0:
+        return
 
     data = {"reference_id_from": reference_id_from,
             "reference_id_to": reference_id_to,
@@ -723,6 +708,7 @@ def update_mesh_terms(db_session, fw, pmid, reference_id, mesh_terms_in_db, mesh
             delete_mesh_term(db_session, fw, pmid, reference_id, m)
 
     update_log['mesh_term'] = update_log['mesh_term'] + 1
+    update_log['pmids_updated'].append(pmid)
 
 
 def insert_mesh_term(db_session, fw, pmid, reference_id, terms):
@@ -761,22 +747,24 @@ def delete_mesh_term(db_session, fw, pmid, reference_id, terms):
         fw.write("PMID:" + str(pmid) + ": DELETE mesh term: " + str(terms) + " failed: " + str(e) + "\n")
 
 
-def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_json, pmcid_db, pmcid_json, update_log):
+def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_in_db, doi_json, pmcid_db, pmcid_list_in_db, pmcid_json, update_log):
 
     if doi_json is None and pmcid_json is None:
         return
 
     ## take care of DOI
-
-    if doi_json and doi_json != doi_db:
-        if doi_db is None:
-            insert_doi(db_session, fw, pmid, reference_id, doi_json)
-        else:
-            update_doi(db_session, fw, pmid, reference_id, doi_db, doi_json)
-        update_log['doi'] = update_log['doi'] + 1
+    if doi_json and (doi_db is None or doi_json != doi_db) and doi_json in doi_list_in_db:
+        fw.write("PMID:" + str(pmid) + ": DOI:" + doi_json + " is in the database for another paper.\n")
+    else:
+        if doi_json and doi_json != doi_db:
+            if doi_db is None:
+                insert_doi(db_session, fw, pmid, reference_id, doi_json)
+            else:
+                update_doi(db_session, fw, pmid, reference_id, doi_db, doi_json)
+            update_log['doi'] = update_log['doi'] + 1
+            update_log['pmids_updated'].append(pmid)
 
     ## take care of PMCID
-
     if pmcid_json:
         if pmcid_json.startswith('PMC'):
             if not pmcid_json.replace('PMC', '').isdigit():
@@ -790,12 +778,16 @@ def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_json,
     if pmcid_db and pmcid_db == pmcid_json:
         return
 
-    if pmcid_db:
-        update_pmcid(db_session, fw, pmid, reference_id, pmcid_db, pmcid_json)
+    if pmcid_json and (pmcid_db is None or pmcid_json != pmcid_db) and pmcid_json in pmcid_list_in_db:
+        fw.write("PMID:" + str(pmid) + ": PMC:" + pmcid_json + " is in the database for another paper.\n")
     else:
-        insert_pmcid(db_session, fw, pmid, reference_id, pmcid_json)
+        if pmcid_db:
+            update_pmcid(db_session, fw, pmid, reference_id, pmcid_db, pmcid_json)
+        else:
+            insert_pmcid(db_session, fw, pmid, reference_id, pmcid_json)
 
-    update_log['pmcid'] = update_log['pmcid'] + 1
+        update_log['pmcid'] = update_log['pmcid'] + 1
+        update_log['pmids_updated'].append(pmid)
 
 
 def update_doi(db_session, fw, pmid, reference_id, old_doi, new_doi):
@@ -812,6 +804,13 @@ def update_doi(db_session, fw, pmid, reference_id, old_doi, new_doi):
 
 
 def insert_doi(db_session, fw, pmid, reference_id, doi):
+
+    ## for some reason, we need to add this check to make sure it is not in db
+    x = db_session.query(CrossReferenceModel).filter_by(curie="DOI:" + doi).one_or_none()
+    if x:
+        if x.reference_id != reference_id:
+            log.info("The DOI:" + doi + " is associated with two papers: reference_ids=" + str(reference_id) + ", " + str(x.reference_id))
+        return
 
     data = {"curie": "DOI:" + doi, "reference_id": reference_id, "is_obsolete": False}
     try:
@@ -868,7 +867,20 @@ def set_paths():
     old_xml_path = base_path + "pubmed_xml/old/"
     old_json_path = base_path + "pubmed_json/old/"
     log_path = base_path + 'pubmed_search_logs/'
-
+    if environ.get('LOG_PATH'):
+        log_path = environ['LOG_PATH']
+    log_url = None
+    if environ.get('LOG_URL'):
+        log_url = environ['LOG_URL']
+    email_recipients = None
+    if environ.get('CRONTAB_EMAIL'):
+        email_recipients = environ['CRONTAB_EMAIL']
+    sender_email = None
+    if environ.get('SENDER_EMAIL'):
+        sender_email = environ['SENDER_EMAIL']
+    reply_to = None
+    if environ.get('REPLY_TO'):
+        reply_to = environ['REPLY_TO']
     if not path.exists(xml_path):
         makedirs(xml_path)
     if not path.exists(json_path):
@@ -880,7 +892,110 @@ def set_paths():
     if not path.exists(log_path):
         makedirs(log_path)
 
-    return (xml_path, json_path, old_xml_path, old_json_path, log_path)
+    return (xml_path, json_path, old_xml_path, old_json_path, log_path, log_url,
+            email_recipients, sender_email, reply_to)
+
+
+def close_no_update(fw, mod, email_subject, email_recipients, sender_email, reply_to):
+
+    log.info("No new update in PubMed.")
+    fw.write("No new update in PubMed.\n")
+    log.info("DONE!\n")
+    fw.write("DONE!\n")
+
+    if mod is None:
+        return
+
+    email_message = None
+    if mod:
+        if mod == "NONE":
+            email_message = "No new update found in PubMed for the papers that are not associated with a mod"
+        else:
+            email_message = "No new update found in PubMed for " + mod + " papers"
+    else:
+        email_message = "No new update found in PubMed"
+    email_message = "<strong>" + email_message + "</strong>"
+
+    (status, message) = send_email(email_subject, email_recipients, email_message, sender_email, reply_to)
+    if status == 'error':
+        fw.write("Failed sending email to slack: " + message + "\n")
+        log.info("Failed sending email to slack: " + message + "\n")
+
+
+def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, log_url, log_dir, email_subject, email_recipients, sender_email, reply_to):
+
+    message = None
+    if mod:
+        if mod == 'NONE':
+            message = "Updating Summary for pubmed papers that are not associated with a mod..."
+        else:
+            message = "Updating Summary for " + mod + " pubmed papers..."
+    else:
+        message = "Updating Summary..."
+
+    fw.write(message + "\n")
+    log.info(message)
+    email_message = "<h3>" + message + "</h3>"
+
+    for field_name in field_names_to_report:
+        if field_name == 'pmids_updated':
+            continue
+        log.info("Paper(s) with " + field_name + " updated:" + str(update_log[field_name]))
+        fw.write("Paper(s) with " + field_name + " updated:" + str(update_log[field_name]) + "\n")
+        email_message = email_message + "Paper(s) with <b>" + field_name + "</b> updated:" + str(update_log[field_name]) + "<br>"
+        if field_name == 'author_name':
+            email_message = email_message + "<br>"
+
+    pmids_updated = list(set(update_log['pmids_updated']))
+
+    if len(pmids_updated) == 0:
+        email_message = email_message + "<strong>No papers updated.</strong><p>"
+    else:
+        if len(pmids_updated) <= 100:
+            email_message = email_message + "<strong>Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated</strong>. PMID(s):<br>" + ", ".join(pmids_updated) + "<p>"
+        else:
+            email_message = email_message + "<strong>Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated</strong>. PMID(s):<br>" + ", ".join(pmids_updated[0:100]) + "<br>See log file for the full updated PMID list and update details.<p>"
+        if log_url:
+            email_message = email_message + "<b>The log files are available at: </b><a href=" + log_url + ">" + log_url + "</a><p>"
+
+        fw.write("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the following PMID list:\n" + ", ".join(pmids_updated) + "\n")
+
+    if len(authors_with_first_or_corresponding_flag) > 0:
+
+        log.info("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database")
+        fw.write("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database\n")
+        email_message = email_message + "Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database<p>"
+
+        for x in authors_with_first_or_corresponding_flag:
+            (pmid, name, first_author, corresponding_author) = x
+            log.info("PMID:" + str(pmid) + ": name = " + name + ", " + first_author + ", " + corresponding_author)
+            fw.write("PMID:" + str(pmid) + ": name = " + name + ", " + first_author + ", " + corresponding_author + "\n")
+            email_message = email_message + "PMID:" + str(pmid) + ": name =" + name + ", first_author=" + first_author + ", corresponding_author=" + corresponding_author + "<br>"
+
+    if mod:
+        email_message = email_message + "DONE!<p>"
+        (status, message) = send_email(email_subject, email_recipients, email_message, sender_email, reply_to)
+        if status == 'error':
+            fw.write("Failed sending email to slack: " + message + "\n")
+            log.info("Failed sending email to slack: " + message + "\n")
+        else:
+            chdir(log_dir)
+            system("/usr/bin/tree -H '.' -L 1 --noreport --charset utf-8 > index.html")
+
+
+def generate_pmids_with_info(pmids_all, old_md5sum, new_md5sum, pmid_to_reference_id):
+
+    reference_id_list = []
+    for pmid in pmids_all:
+        if pmid not in new_md5sum:
+            continue
+        if pmid not in old_md5sum:
+            if pmid in pmid_to_reference_id:
+                reference_id_list.append(pmid_to_reference_id[pmid])
+        elif new_md5sum[pmid] != old_md5sum[pmid]:
+            if pmid in pmid_to_reference_id:
+                reference_id_list.append(pmid_to_reference_id[pmid])
+    return reference_id_list
 
 
 def get_reference_id_by_pmid(db_session, pmid):
