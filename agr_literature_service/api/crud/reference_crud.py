@@ -191,14 +191,14 @@ def patch(db: Session, curie: str, reference_update) -> dict:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Resource with curie {resource_curie} does not exist")
             reference_db_obj.resource = resource
-        elif field == "merged_into_reference_curie" and value:
-            merged_into_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == value).first()
-            if not merged_into_obj:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                    detail=f"Merged_into Reference with curie {value} does not exist")
-            reference_db_obj.merged_into_reference = merged_into_obj
-        elif field == "merged_into_reference_curie":
-            reference_db_obj.merged_into_reference = None
+        # elif field == "merged_into_reference_curie" and value:
+        #    merged_into_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == value).first()
+        #    if not merged_into_obj:
+        #        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        #                            detail=f"Merged_into Reference with curie {value} does not exist")
+        #    reference_db_obj.merged_into_reference = merged_into_obj
+        # elif field == "merged_into_reference_curie":
+        #    reference_db_obj.merged_into_reference = None
         else:
             setattr(reference_db_obj, field, value)
 
