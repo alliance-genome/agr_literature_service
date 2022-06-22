@@ -92,6 +92,8 @@ start-debezium-local:
 	sleep 10
 	docker-compose --env-file ${ENV_FILE} up -d dbz_zookeeper dbz_kafka dbz_connector
 	sleep 20
+	docker-compose --env-file ${ENV_FILE} up -d dbz_ksql_server
+	sleep 10
 	docker-compose --env-file ${ENV_FILE} up -d dbz_setup
 
 start-debezium-aws:

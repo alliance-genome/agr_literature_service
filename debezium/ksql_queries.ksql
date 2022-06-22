@@ -1,3 +1,8 @@
+{"ksql":
+
+"
+SET 'auto.offset.reset' = 'earliest';
+
 CREATE STREAM reference_from_dbz (
     reference_id bigint,
     curie string,
@@ -39,11 +44,10 @@ CREATE STREAM cross_reference_struct WITH (
     PARTITIONS = 1,
     KAFKA_TOPIC = 'cross_reference_struct'
   ) AS SELECT
-    reference_id "REFERENCE_ID",
-    '{curie: ' + curie + ', is_obsolete: ' + cast(is_obsolete as string) + '}' "CROSS_REFERENCE_STRUCT"
+    reference_id \"REFERENCE_ID\",
+    '{curie: ' + curie + ', is_obsolete: ' + cast(is_obsolete as string) + '}' \"CROSS_REFERENCE_STRUCT\"
     FROM cross_reference_from_dbz
     WHERE reference_id is not null;
-
 
 CREATE STREAM reference_repart WITH (
     REPLICAS = 1,
@@ -94,54 +98,45 @@ CREATE TABLE reference (
     key='reference_id'
   );
 
-
-CREATE TABLE cross_reference (
-    reference_id bigint,
-    cross_reference_struct string
-  ) WITH (
-    kafka_topic='cross_reference_repart',
-    value_format='json',
-    partitions=1,
-    key='reference_id'
-  );
-
-
 CREATE TABLE cross_references WITH (
     PARTITIONS = 1,
     KAFKA_TOPIC = 'cross_references'
   ) AS SELECT
-    cross_reference_repart.reference_id "REFERENCE_ID",
-    COLLECT_SET(cross_reference_repart.cross_reference_struct) "CROSS_REFERENCES"
+    cross_reference_repart.reference_id \"REFERENCE_ID\",
+    COLLECT_SET(cross_reference_repart.cross_reference_struct) \"CROSS_REFERENCES\"
     FROM cross_reference_repart cross_reference_repart
     GROUP BY cross_reference_repart.reference_id;
 
 CREATE TABLE reference_joined WITH (
     PARTITIONS = 1,
-    KAFKA_TOPIC = 'reference_joined'
+    KAFKA_TOPIC = 'reference_joined',
+    VALUE_FORMAT='json'
   ) AS SELECT
-    reference.reference_id "REFERENCE_ID",
-    reference.curie "CURIE",
-    reference.abstract "ABSTRACT",
-    reference.category "CATEGORY",
-    reference.date_arrived_in_pubmed "DATE_ARRIVED_IN_PUBMED",
-    reference.date_created "DATE_CREATED",
-    reference.date_last_modified_in_pubmed "DATE_LAST_MODIFIED_IN_PUBMED",
-    reference.date_published "DATE_PUBLISHED",
-    reference.date_updated "DATE_UPDATED",
-    reference.issue_name "ISSUE_NAME",
-    reference.keywords "KEYWORDS",
-    reference.language "LANGUAGE",
-    reference.open_access "OPEN_ACCESS",
-    reference.page_range "PAGE_RANGE",
-    reference.plain_language_abstract "PLAIN_LANGUAGE_ABSTRACT",
-    reference.publisher "PUBLISHER",
-    reference.pubmed_abstract_languages "PUBMED_ABSTRACT_LANGUAGES",
-    reference.pubmed_publication_status "PUBMED_PUBLICATION_STATUS",
-    reference.pubmed_types "PUBMED_TYPES",
-    reference.resource_id "RESOURCE_ID",
-    reference.title "TITLE",
-    reference.volume "VOLUME",
-    cross_references.cross_references "CROSS_REFERENCES"
+    reference.reference_id \"REFERENCE_ID\",
+    reference.curie \"CURIE\",
+    reference.abstract \"ABSTRACT\",
+    reference.category \"CATEGORY\",
+    reference.date_arrived_in_pubmed \"DATE_ARRIVED_IN_PUBMED\",
+    reference.date_created \"DATE_CREATED\",
+    reference.date_last_modified_in_pubmed \"DATE_LAST_MODIFIED_IN_PUBMED\",
+    reference.date_published \"DATE_PUBLISHED\",
+    reference.date_updated \"DATE_UPDATED\",
+    reference.issue_name \"ISSUE_NAME\",
+    reference.keywords \"KEYWORDS\",
+    reference.language \"LANGUAGE\",
+    reference.open_access \"OPEN_ACCESS\",
+    reference.page_range \"PAGE_RANGE\",
+    reference.plain_language_abstract \"PLAIN_LANGUAGE_ABSTRACT\",
+    reference.publisher \"PUBLISHER\",
+    reference.pubmed_abstract_languages \"PUBMED_ABSTRACT_LANGUAGES\",
+    reference.pubmed_publication_status \"PUBMED_PUBLICATION_STATUS\",
+    reference.pubmed_types \"PUBMED_TYPES\",
+    reference.resource_id \"RESOURCE_ID\",
+    reference.title \"TITLE\",
+    reference.volume \"VOLUME\",
+    cross_references.cross_references \"CROSS_REFERENCES\"
     FROM reference reference
     INNER JOIN cross_references cross_references ON
     reference.reference_id = cross_references.reference_id;
+",
+"streamsProperties": {}}
