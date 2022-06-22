@@ -805,6 +805,13 @@ def update_doi(db_session, fw, pmid, reference_id, old_doi, new_doi):
 
 def insert_doi(db_session, fw, pmid, reference_id, doi):
 
+    ## for some reason, we need to add this check to make sure it is not in db
+    x = db_session.query(CrossReferenceModel).filter_by(curie="DOI:" + doi).one_or_none()
+    if x:
+        if x.reference_id != reference_id:
+            log.info("The DOI:" + doi + " is associated with two papers: reference_ids=" + str(reference_id) + ", " + str(x.reference_id))
+        return
+
     data = {"curie": "DOI:" + doi, "reference_id": reference_id, "is_obsolete": False}
     try:
         x = CrossReferenceModel(**data)
