@@ -58,19 +58,19 @@ class ReferenceModel(Base):
         back_populates="reference_to"
     )
 
-    merged_into_id = Column(
-        Integer,
-        ForeignKey("reference.reference_id")
-    )
+    #merged_into_id = Column(
+    #    Integer,
+    #    ForeignKey("reference.reference_id")
+    #)
 
-    merged_into_reference = relationship(
-        "ReferenceModel",
-        remote_side=[reference_id]
-    )
+    #merged_into_reference = relationship(
+    #    "ReferenceModel",
+    #    remote_side=[reference_id]
+    #)
 
-    mergee_references = relationship(
-        "ReferenceModel"
-    )
+    # mergee_references = relationship(
+    #    "ReferenceModel"
+    #)
 
     resource_id = Column(
         Integer,

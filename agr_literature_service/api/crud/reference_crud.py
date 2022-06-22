@@ -305,11 +305,11 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         reference_data['authors'] = authors
         del reference_data['author']
 
-    if reference.merged_into_id:
-        reference_data["merged_into_reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == reference_data["merged_into_id"]).first()[0]
+    # if reference.merged_into_id:
+    #    reference_data["merged_into_reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == reference_data["merged_into_id"]).first()[0]
 
-    if reference.mergee_references:
-        reference_data["merged_reference_curies"] = [mergee.curie for mergee in reference.mergee_references]
+    # if reference.mergee_references:
+    #    reference_data["merged_reference_curies"] = [mergee.curie for mergee in reference.mergee_references]
 
     comment_and_corrections_data = {"to_references": [], "from_references": []}  # type: Dict[str, List[str]]
     for comment_and_correction in reference.comment_and_corrections_out:
