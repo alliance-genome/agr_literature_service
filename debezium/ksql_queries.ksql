@@ -45,7 +45,7 @@ CREATE STREAM cross_reference_struct WITH (
     KAFKA_TOPIC = 'cross_reference_struct'
   ) AS SELECT
     reference_id \"REFERENCE_ID\",
-    '{curie: ' + curie + ', is_obsolete: ' + cast(is_obsolete as string) + '}' \"CROSS_REFERENCE_STRUCT\"
+    JSON_RECORDS('{\"curie\": \"' + curie + '\", \"is_obsolete\": ' + cast(is_obsolete as string) + '}') \"CROSS_REFERENCE_STRUCT\"
     FROM cross_reference_from_dbz
     WHERE reference_id is not null;
 
@@ -69,7 +69,7 @@ CREATE STREAM cross_reference_repart WITH (
     PARTITION BY reference_id;
 
 CREATE TABLE reference (
-    reference_id bigint,
+    reference_id bigint primary key,
     curie string,
     abstract string,
     category string,
@@ -94,8 +94,7 @@ CREATE TABLE reference (
   ) WITH (
     kafka_topic='reference_repart',
     value_format='json',
-    partitions=1,
-    key='reference_id'
+    partitions=1
   );
 
 CREATE TABLE cross_references WITH (
@@ -110,7 +109,8 @@ CREATE TABLE cross_references WITH (
 CREATE TABLE reference_joined WITH (
     PARTITIONS = 1,
     KAFKA_TOPIC = 'reference_joined',
-    VALUE_FORMAT='json'
+    VALUE_FORMAT='JSON',
+    KEY_FORMAT='JSON'
   ) AS SELECT
     reference.reference_id \"reference_id\",
     reference.curie \"curie\",
@@ -136,7 +136,7 @@ CREATE TABLE reference_joined WITH (
     reference.volume \"volume\",
     cross_references.cross_references \"cross_references\"
     FROM reference reference
-    INNER JOIN cross_references cross_references ON
+    JOIN cross_references cross_references ON
     reference.reference_id = cross_references.reference_id;
 ",
 "streamsProperties": {}}

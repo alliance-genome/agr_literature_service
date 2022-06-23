@@ -328,14 +328,14 @@ services:
       /setup.sh
 
   dbz_ksql_server:
-    image: confluentinc/cp-ksql-server:5.3.8
+    image: confluentinc/ksqldb-server:0.26.0
     depends_on:
       - dbz_kafka
       - dbz_connector
     ports:
       - "8088:8088"
+    hostname: dbz_ksql_server
     environment:
-      - KSQL_CONFIG_DIR="/etc/ksql"
       - KSQL_BOOTSTRAP_SERVERS=dbz_kafka:9092
       - KSQL_HOST_NAME=dbz_ksql_server
       - KSQL_APPLICATION_ID="cp-all-in-one"
@@ -345,9 +345,13 @@ services:
       - agr-literature
 
   dbz_ksql_cli:
-    image: confluentinc/cp-ksql-cli:5.3.8
+    image: confluentinc/ksqldb-cli:0.26.0
+    depends_on:
+      - dbz_ksql_server
     networks:
       - agr-literature
+    entrypoint:
+      - /bin/bash
     tty: true
 
 volumes:
