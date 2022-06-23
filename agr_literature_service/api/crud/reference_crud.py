@@ -225,18 +225,22 @@ def show_all_references_external_ids(db: Session):
 
 def get_merged(db: Session, curie):
     reference = None
-
+    logger.debug("BOB: Looking up if '{}' is a merged entry".format(curie))
     # Is the curie in the merged set
     try:
         orc: ObsoleteReferenceModel = db.query(ObsoleteReferenceModel).filter(ObsoleteReferenceModel.curie == curie).one_or_none()
     except Exception:
+        logger.debug("BOB: No merge data found so give error message")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the id {curie} is not available")
 
     # If found in merge then get new reference.
+    logger.debug("BOB: Merge found looking up the id '{}' instead now".format(orc.new_id))
     try:
         reference = db.query(ReferenceModel).filter(ReferenceModel.reference_id == orc.new_id).one_or_none()
+        logger.debug("Lookup successfull")
     except Exception:
+        logger.debug("BOB: Lookup FAILED")
         return None
     return reference
 
