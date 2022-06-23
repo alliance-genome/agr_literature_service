@@ -5,11 +5,7 @@
     "tasks.max": "1",
     "topics": "reference_joined",
     "connection.url": "http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}",
-    "transforms": "unwrap,key,dropPrefix",
-    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
-    "transforms.unwrap.drop.tombstones": "false",
-    "transforms.key.type": "org.apache.kafka.connect.transforms.ExtractField$Key",
-    "transforms.key.field": "reference_id",
+    "transforms": "dropPrefix",
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
     "key.ignore": "false",
     "type.name": "",
@@ -22,7 +18,7 @@
     "max.buffered.records": 10000,
     "batch.size": 1500,
     "transforms.dropPrefix.type":"org.apache.kafka.connect.transforms.RegexRouter",
-    "transforms.dropPrefix.regex":"abc\\.public\\.reference",
+    "transforms.dropPrefix.regex":"reference_joined",
     "transforms.dropPrefix.replacement":"${DEBEZIUM_INDEX_NAME}",
     "auto.create.indices.at.start": "false"
   }
