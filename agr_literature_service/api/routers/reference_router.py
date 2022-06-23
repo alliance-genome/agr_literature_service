@@ -107,4 +107,4 @@ def merge_references(old_curie: str,
                      user: OktaUser = db_user,
                      db: Session = db_session):
     set_global_user_id(db, user.id)
-    return reference_crud.merge(db, old_curie, new_curie)
+    return reference_crud.merge_references(db, old_curie, new_curie)
