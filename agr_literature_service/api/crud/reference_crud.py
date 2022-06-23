@@ -192,14 +192,6 @@ def patch(db: Session, curie: str, reference_update) -> dict:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Resource with curie {resource_curie} does not exist")
             reference_db_obj.resource = resource
-        # elif field == "merged_into_reference_curie" and value:
-        #    merged_into_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == value).first()
-        #    if not merged_into_obj:
-        #        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        #                            detail=f"Merged_into Reference with curie {value} does not exist")
-        #    reference_db_obj.merged_into_reference = merged_into_obj
-        # elif field == "merged_into_reference_curie":
-        #    reference_db_obj.merged_into_reference = None
         else:
             setattr(reference_db_obj, field, value)
 
@@ -236,7 +228,7 @@ def get_merged(db: Session, curie):
 
     # Is the curie in the merged set
     try:
-        orc = db.query(ObsoleteReferenceModel).filter(ObsoleteReferenceModel.curie == curie).one_or_none()
+        orc: ObsoleteReferenceModel = db.query(ObsoleteReferenceModel).filter(ObsoleteReferenceModel.curie == curie).one_or_none()
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the id {curie} is not available")
@@ -261,7 +253,7 @@ def show(db: Session, curie: str, http_request=True):  # noqa
     try:
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one_or_none()
     except Exception:
-        reference = get_merged(curie)
+        reference = get_merged(db, curie)
 
     if not reference:
         if http_request:
@@ -360,6 +352,11 @@ def merge_references(db: Session,
                      old_curie: str,
                      new_curie: str):
     """
+    :param db:
+    :param old_curie:
+    :param new_curie:
+    :return:
+
     Add merge details to obsolete_reference_curie table.
     Then delete old_curie.
     """
