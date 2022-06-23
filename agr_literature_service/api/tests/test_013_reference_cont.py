@@ -1,7 +1,7 @@
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import sessionmaker
 
-from agr_literature_service.api.crud.reference_crud import create
+from agr_literature_service.api.crud.reference_crud import create, show, merge_references
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.schemas import ReferenceSchemaPost
@@ -20,10 +20,10 @@ if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
 
-def test_reference_create_with_existing_items():
+def test_reference_merging():
     full_xml = {
         "category": "research_article",
-        "abstract": "The Hippo (Hpo) pathway is a conserved tumor suppressor pathway",
+        "abstract": "013 - abs A",
         "authors": [
             {
                 "orcid": 'ORCID:1234-1234-1234-123X'
@@ -34,25 +34,32 @@ def test_reference_create_with_existing_items():
         ],
         "resource": 'AGR:AGR-Resource-0000000001',
         "title": "Another title",
-        "volume": "433",
+        "volume": "013a",
         "open_access": True
     }
-    assert 1 == 1
-    # process the reference.
-    reference = ReferenceSchemaPost(**full_xml)
-    res = create(db, reference)
-    assert res == 'AGR:AGR-Reference-0000000005'
+    # process the references
+    ref1 = ReferenceSchemaPost(**full_xml)
+    res1 = create(db, ref1)
 
+    full_xml['volume'] = '013b'
+    full_xml['abstract'] = "013 - abs B"
+    ref2 = ReferenceSchemaPost(**full_xml)
+    res2 = create(db, ref2)
 
-# def test_patch():
-#    xml = {'merged_into_reference_curie': "AGR:AGR-Reference-0000000003",
-#           'resource': "AGR:AGR-Resource-0000000003"}
-#    schema = ReferenceSchemaUpdate(**xml)
-#    res = patch(db, 'AGR:AGR-Reference-0000000001', schema)
-#    assert res == {'message': 'updated'}
-#
-#    # fetch the new record.
-#    res = show(db, 'AGR:AGR-Reference-0000000001')
-#    # assert res == "bob"
-#    assert res['merged_into_id'] == 3
-#    assert res['resource_curie'] == 'AGR:AGR-Resource-0000000003'
+    full_xml['volume'] = '013c'
+    full_xml['abstract'] = "013 - abs C"
+    ref3 = ReferenceSchemaPost(**full_xml)
+    res3 = create(db, ref3)
+
+    # merge 1 into 2
+    merge_references(db, res1, res2)
+
+    # merge 2 into 3
+    merge_references(db, res2, res3)
+
+    # So now if we look up res1 we should get res3
+    # and if we lookup res2 we should get res3
+    res = show(db, res1)
+    assert res['curie'] == res3
+    res = show(db, res2)
+    assert res['curie'] == res3
