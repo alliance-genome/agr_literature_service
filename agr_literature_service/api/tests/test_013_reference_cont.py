@@ -1,10 +1,10 @@
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import sessionmaker
 
-from agr_literature_service.api.crud.reference_crud import create, show, merge_references
+from agr_literature_service.api.crud.reference_crud import create, show, merge_references, patch
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.database.base import Base
-from agr_literature_service.api.schemas import ReferenceSchemaPost
+from agr_literature_service.api.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
 
 metadata = MetaData()
 
@@ -63,3 +63,15 @@ def test_reference_merging():
     assert res['curie'] == res3
     res = show(db, res2)
     assert res['curie'] == res3
+
+
+def test_patch():
+    xml = {'resource': "AGR:AGR-Resource-0000000003"}
+    schema = ReferenceSchemaUpdate(**xml)
+    res = patch(db, 'AGR:AGR-Reference-0000000001', schema)
+    assert res == {'message': 'updated'}
+
+    # fetch the new record.
+    res = show(db, 'AGR:AGR-Reference-0000000001')
+
+    assert res['resource_curie'] == 'AGR:AGR-Resource-0000000003'
