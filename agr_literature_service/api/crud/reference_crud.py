@@ -12,6 +12,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import ARRAY, Boolean, String, func
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast
+from sqlalchemy.orm.exc import NoResultFound
 
 from agr_literature_service.api.crud import (cross_reference_crud,
                                              reference_comment_and_correction_crud)
@@ -28,18 +29,36 @@ from agr_literature_service.api.crud.mod_corpus_association_crud import create a
 logger = logging.getLogger(__name__)
 
 
-def create_next_curie(curie) -> str:
+def get_next_curie(db: Session) -> str:
     """
 
-    :param curie:
+    :param db:
     :return:
     """
+    last_curie = db.query(ReferenceModel.curie).order_by(sqlalchemy.desc(ReferenceModel.curie)).first()
 
-    curie_parts = curie.rsplit("-", 1)
+    if not last_curie:
+        last_curie = "AGR:AGR-Reference-0000000000"
+    else:
+        last_curie = last_curie[0]
+
+    curie_parts = last_curie.rsplit("-", 1)
     number_part = curie_parts[1]
-    number = int(number_part) + 1
+    number = int(number_part)
 
-    return "-".join([curie_parts[0], str(number).rjust(10, "0")])
+    # So we need to check that a later one was not obsoleted as we
+    # do not want to use that curie then.
+    checked = False 
+    while not checked:
+        number += 1
+        new_curie = "-".join([curie_parts[0], str(number).rjust(10, "0")])
+        try:
+            db.query(ObsoleteReferenceModel).filter(ObsoleteReferenceModel.curie == new_curie).one()
+        except NoResultFound:
+            checked = True
+    logger.debug("created new curie {new_curie}")
+
+    return new_curie
 
 
 def create(db: Session, reference: ReferenceSchemaPost): # noqa
@@ -66,15 +85,7 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"CrossReference with id {cross_reference.curie} already exists")
     logger.debug("done x ref")
-    last_curie = db.query(ReferenceModel.curie).order_by(sqlalchemy.desc(ReferenceModel.curie)).first()
-
-    if not last_curie:
-        last_curie = "AGR:AGR-Reference-0000000000"
-    else:
-        last_curie = last_curie[0]
-    logger.debug("done last curie")
-
-    curie = create_next_curie(last_curie)
+    curie = get_next_curie(db)
     reference_data["curie"] = curie
 
     for field, value in vars(reference).items():
