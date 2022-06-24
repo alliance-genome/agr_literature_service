@@ -48,7 +48,7 @@ def get_next_curie(db: Session) -> str:
 
     # So we need to check that a later one was not obsoleted as we
     # do not want to use that curie then.
-    checked = False 
+    checked = False
     while not checked:
         number += 1
         new_curie = "-".join([curie_parts[0], str(number).rjust(10, "0")])
