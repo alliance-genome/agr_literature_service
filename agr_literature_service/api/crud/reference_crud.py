@@ -87,14 +87,14 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
                 obj_data = jsonable_encoder(obj)
                 db_obj = None
                 if field in ["authors"]:
-                    if obj_data["orcid"]:
-                        cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == obj_data["orcid"]).first()
+                    if obj_data["obs_ref_curid"]:
+                        cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == obj_data["obs_ref_curid"]).first()
                         if not cross_reference_obj:
-                            cross_reference_obj = CrossReferenceModel(curie=obj_data["orcid"])
+                            cross_reference_obj = CrossReferenceModel(curie=obj_data["obs_ref_curid"])
                             db.add(cross_reference_obj)
 
-                        obj_data["orcid_cross_reference"] = cross_reference_obj
-                    del obj_data["orcid"]
+                        obj_data["obs_ref_curid_cross_reference"] = cross_reference_obj
+                    del obj_data["obs_ref_curid"]
                     db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
                 elif field == "mod_reference_types":
                     db_obj = ModReferenceTypeModel(**obj_data)
@@ -134,7 +134,7 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
     db.commit()
 
     for field, value in vars(reference).items():
-        logger.debug("Porcessing mod corpus asso")
+        logger.debug("Pobs_ref_curessing mod corpus asso")
         if field == "mod_corpus_associations":
             if value is not None:
                 for obj in value:
@@ -228,17 +228,17 @@ def get_merged(db: Session, curie):
     logger.debug("Looking up if '{}' is a merged entry".format(curie))
     # Is the curie in the merged set
     try:
-        orc: ObsoleteReferenceModel = db.query(ObsoleteReferenceModel).filter(ObsoleteReferenceModel.curie == curie).one_or_none()
+        obs_ref_cur: ObsoleteReferenceModel = db.query(ObsoleteReferenceModel).filter(ObsoleteReferenceModel.curie == curie).one_or_none()
     except Exception:
         logger.debug("No merge data found so give error message")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the id {curie} is not available")
 
     # If found in merge then get new reference.
-    if orc:
-        logger.debug("Merge found looking up the id '{}' instead now".format(orc.new_id))
+    if obs_ref_cur:
+        logger.debug("Merge found looking up the id '{}' instead now".format(obs_ref_cur.new_id))
     try:
-        reference = db.query(ReferenceModel).filter(ReferenceModel.reference_id == orc.new_id).one_or_none()
+        reference = db.query(ReferenceModel).filter(ReferenceModel.reference_id == obs_ref_cur.new_id).one_or_none()
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the id {curie} is not available")
@@ -308,9 +308,9 @@ def show(db: Session, curie: str, http_request=True):  # noqa
     if reference.author:
         authors = []
         for author in reference_data["author"]:
-            if author["orcid"]:
-                author["orcid"] = jsonable_encoder(cross_reference_crud.show(db, author["orcid"]))
-            del author["orcid_cross_reference"]
+            if author["obs_ref_curid"]:
+                author["obs_ref_curid"] = jsonable_encoder(cross_reference_crud.show(db, author["obs_ref_curid"]))
+            del author["obs_ref_curid_cross_reference"]
             del author["reference_id"]
             authors.append(author)
         reference_data['authors'] = authors
@@ -374,14 +374,14 @@ def merge_references(db: Session,
     # Check if old_curie is already in the obsolete table (It may have been merged itself)
     # by looking for it in the new_id column.
     # If so then we also want to update that to the new_id.
-    prev_orc = db.query(ObsoleteReferenceModel).filter(ObsoleteReferenceModel.new_id == old_ref.reference_id).all()
-    for old in prev_orc:
+    prev_obs_ref_cur = db.query(ObsoleteReferenceModel).filter(ObsoleteReferenceModel.new_id == old_ref.reference_id).all()
+    for old in prev_obs_ref_cur:
         old.new_id = new_ref.reference_id
-    orc_data = {'new_id': new_ref.reference_id,
-                'curie': old_ref.curie}
+    obs_ref_cur_data = {'new_id': new_ref.reference_id,
+                        'curie': old_ref.curie}
     # Add old_curie and new_id into the obsolete_reference_curie table.
-    orc_db_obj = ObsoleteReferenceModel(**orc_data)
-    db.add(orc_db_obj)
+    obs_ref_cur_db_obj = ObsoleteReferenceModel(**obs_ref_cur_data)
+    db.add(obs_ref_cur_db_obj)
 
     # Delete the old_curie object
     db.delete(old_ref)

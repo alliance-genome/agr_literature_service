@@ -43,48 +43,46 @@ def test_reference_merging():
     # process the references
     ref1 = ReferenceSchemaPost(**full_xml)
     print(ref1)
-    res1 = create(db, ref1)
-    # res1 = router_create(ref1)
-    bob = show(db, res1)
-    print(bob)
+    ref_obj = create(db, ref1)
+    # ref_obj = router_create(ref1)
 
     full_xml['volume'] = '013b'
     full_xml['abstract'] = "013 - abs B"
     ref2 = ReferenceSchemaPost(**full_xml)
-    res2 = create(db, ref2)
+    ref2_obj = create(db, ref2)
 
     full_xml['volume'] = '013c'
     full_xml['abstract'] = "013 - abs C"
     ref3 = ReferenceSchemaPost(**full_xml)
-    res3 = create(db, ref3)
+    ref3_obj = create(db, ref3)
 
-    # update res1 with a different category
+    # update ref_obj with a different category
     # This is just to test the transactions and versions
     xml = {'category': "other"}
     schema = ReferenceSchemaUpdate(**xml)
-    res = patch(db, res1, schema)
+    res = patch(db, ref_obj, schema)
     assert res == {'message': 'updated'}
     schema = ReferenceSchemaUpdate(**xml)
-    res = patch(db, res3, schema)
+    res = patch(db, ref3_obj, schema)
     assert res == {'message': 'updated'}
 
     # fetch the new record.
-    res = show(db, res1)
+    res = show(db, ref_obj)
 
     assert res['category'] == 'other'
 
     # merge 1 into 2
-    merge_references(db, res1, res2)
+    merge_references(db, ref_obj, ref2_obj)
 
     # merge 2 into 3
-    merge_references(db, res2, res3)
+    merge_references(db, ref2_obj, ref3_obj)
 
-    # So now if we look up res1 we should get res3
-    # and if we lookup res2 we should get res3
-    res = show(db, res1)
-    assert res['curie'] == res3
-    res = show(db, res2)
-    assert res['curie'] == res3
+    # So now if we look up ref_obj we should get ref3_obj
+    # and if we lookup ref2_obj we should get ref3_obj
+    res = show(db, ref_obj)
+    assert res['curie'] == ref3_obj
+    res = show(db, ref2_obj)
+    assert res['curie'] == ref3_obj
 
     ##########################################################################
     # The following are really examples of continuum and not testing the code
@@ -97,7 +95,7 @@ def test_reference_merging():
              FROM reference_version
                WHERE curie = '{}'
                ORDER BY transaction_id
-        """.format(res1)
+        """.format(ref_obj)
 
     with engine.connect() as con:
         rs = con.execute(sql)
@@ -123,7 +121,7 @@ def test_reference_merging():
     ######################
     # 2) version traversal
     ######################
-    ref = db.query(ReferenceModel).filter(ReferenceModel.curie == res3).first()
+    ref = db.query(ReferenceModel).filter(ReferenceModel.curie == ref3_obj).first()
     first_ver = ref.versions[0]
     # lower case now???
     assert first_ver.category == 'research_article'

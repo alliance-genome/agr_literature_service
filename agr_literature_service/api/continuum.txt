@@ -1,5 +1,5 @@
 Contiuum keeps track of all the changes to tables if it is set for that table.
-It does this by storing the whole values and wether they changed or not in the <table>_version table.
+It does this by storing the whole values and whether they changed or not in the <table>_version table.
 There is also a transactions table that had the transaction_id a date and remote address and user_id.
 NOTE: currently remote address and user id are not populated?? We probably need to link the user id somehow.
 
@@ -29,7 +29,7 @@ select * from transaction where id in (42186, 911163, 911164);
  2021-11-09 19:00:45.400051 | 911163 |             | 
  2021-11-09 19:01:10.881227 | 911164 |             | 
 
- Not sure why we have no users currently but maybe that was becouse i did the changes directly in sql.
+ Not sure why we have no users currently but maybe that was because i did the changes directly in sql.
 
 There are several plugins available see https://sqlalchemy-continuum.readthedocs.io/en/latest/plugins.html
 Also see test_013_reference_cont.py for examples.
