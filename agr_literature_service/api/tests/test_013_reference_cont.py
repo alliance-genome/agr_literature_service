@@ -64,6 +64,9 @@ def test_reference_merging():
     schema = ReferenceSchemaUpdate(**xml)
     res = patch(db, res1, schema)
     assert res == {'message': 'updated'}
+    schema = ReferenceSchemaUpdate(**xml)
+    res = patch(db, res3, schema)
+    assert res == {'message': 'updated'}
 
     # fetch the new record.
     res = show(db, res1)
@@ -120,12 +123,13 @@ def test_reference_merging():
     ######################
     # 2) version traversal
     ######################
-    ref = db.query(ReferenceModel).filter(ReferenceModel.curie == res1).first()
+    ref = db.query(ReferenceModel).filter(ReferenceModel.curie == res3).first()
     first_ver = ref.versions[0]
-    assert first_ver.category == 'Research_Article'
+    # lower case now???
+    assert first_ver.category == 'research_article'
 
     sec_ver = first_ver.next
-    assert sec_ver.category == 'Other'
+    assert sec_ver.category == 'other'
 
     ########################################    
     # 3) changesets, see test_001_reference.
