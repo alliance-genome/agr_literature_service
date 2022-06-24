@@ -258,10 +258,10 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one()
     except Exception:
         reference = get_merged(db, curie)
-        logger.warning("Found from merged '{}'".format(reference))
+        logger.debug("Found from merged '{}'".format(reference))
 
     if not reference:
-        logger.warning("Reference is null for {}?".format(curie))
+        logger.warning("Reference not found for {}?".format(curie))
         if http_request:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f"Reference with the id {curie} is not available")
@@ -381,7 +381,6 @@ def merge_references(db: Session,
                 'curie': old_ref.curie}
     # Add old_curie and new_id into the obsolete_reference_curie table.
     orc_db_obj = ObsoleteReferenceModel(**orc_data)
-    logger.warning("have model, save to db")
     db.add(orc_db_obj)
 
     # Delete the old_curie object
