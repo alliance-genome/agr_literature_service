@@ -225,23 +225,21 @@ def show_all_references_external_ids(db: Session):
 
 def get_merged(db: Session, curie):
     reference = None
-    logger.warning("BOB: Looking up if '{}' is a merged entry".format(curie))
+    logger.debug("Looking up if '{}' is a merged entry".format(curie))
     # Is the curie in the merged set
     try:
         orc: ObsoleteReferenceModel = db.query(ObsoleteReferenceModel).filter(ObsoleteReferenceModel.curie == curie).one_or_none()
     except Exception:
-        logger.warning("BOB: No merge data found so give error message")
+        logger.debug("No merge data found so give error message")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the id {curie} is not available")
 
     # If found in merge then get new reference.
     if orc:
-        logger.warn("BOB: Merge found looking up the id '{}' instead now".format(orc.new_id))
+        logger.debug("Merge found looking up the id '{}' instead now".format(orc.new_id))
     try:
         reference = db.query(ReferenceModel).filter(ReferenceModel.reference_id == orc.new_id).one_or_none()
-        logger.warning("Lookup successfull")
     except Exception:
-        logger.warning("BOB: Lookup FAILED")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the id {curie} is not available")
     return reference
@@ -255,14 +253,12 @@ def show(db: Session, curie: str, http_request=True):  # noqa
     :param http_request:
     :return:
     """
-    logger.warning("BOB: Looking up {}".format(curie))
     reference = None
     try:
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one()
-        logger.warning("BOB: '{}' Found")
     except Exception:
         reference = get_merged(db, curie)
-        logger.warning("BOB: found from merged '{}'".format(reference))
+        logger.warning("Found from merged '{}'".format(reference))
 
     if not reference:
         logger.warning("Reference is null for {}?".format(curie))

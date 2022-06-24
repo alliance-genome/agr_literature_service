@@ -1,10 +1,13 @@
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy_continuum import Operation
 
 from agr_literature_service.api.crud.reference_crud import create, show, merge_references, patch
+# from agr_literature_service.api.routers.reference_router import create as router_create
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
+from agr_literature_service.api.models import ReferenceModel
 
 metadata = MetaData()
 
@@ -39,7 +42,11 @@ def test_reference_merging():
     }
     # process the references
     ref1 = ReferenceSchemaPost(**full_xml)
+    print(ref1)
     res1 = create(db, ref1)
+    # res1 = router_create(ref1)
+    bob = show(db, res1)
+    print(bob)
 
     full_xml['volume'] = '013b'
     full_xml['abstract'] = "013 - abs B"
@@ -50,6 +57,18 @@ def test_reference_merging():
     full_xml['abstract'] = "013 - abs C"
     ref3 = ReferenceSchemaPost(**full_xml)
     res3 = create(db, ref3)
+
+    # update res1 with a different category
+    # This is just to test the transactions and versions
+    xml = {'category': "other"}
+    schema = ReferenceSchemaUpdate(**xml)
+    res = patch(db, res1, schema)
+    assert res == {'message': 'updated'}
+
+    # fetch the new record.
+    res = show(db, res1)
+
+    assert res['category'] == 'other'
 
     # merge 1 into 2
     merge_references(db, res1, res2)
@@ -64,14 +83,50 @@ def test_reference_merging():
     res = show(db, res2)
     assert res['curie'] == res3
 
+    ##########################################################################
+    # The following are really examples of continuum and not testing the code
+    ##########################################################################
 
-def test_patch():
-    xml = {'resource': "AGR:AGR-Resource-0000000003"}
-    schema = ReferenceSchemaUpdate(**xml)
-    res = patch(db, 'AGR:AGR-Reference-0000000001', schema)
-    assert res == {'message': 'updated'}
+    #####################################
+    # 1) Manually examine the _version table
+    #####################################
+    sql = """SELECT transaction_id, operation_type, end_transaction_id, category, category_mod
+             FROM reference_version
+               WHERE curie = '{}'
+               ORDER BY transaction_id
+        """.format(res1)
 
-    # fetch the new record.
-    res = show(db, 'AGR:AGR-Reference-0000000001')
+    with engine.connect() as con:
+        rs = con.execute(sql)
+        # (33, 1, 36, 'Research_Article', True)
+        # (36, 1, 37, 'Other', True)
+        # (37, 2, None, 'Other', True)
 
-    assert res['resource_curie'] == 'AGR:AGR-Resource-0000000003'
+        print("insert: {}, update: {}, delete: {}".format(Operation.INSERT, Operation.UPDATE, Operation.DELETE))
+        results = []
+        for row in rs:
+            print(row)
+            results.append(row)
+
+        # last transaction check.
+        assert results[0][2] == results[1][0]
+
+        # final Transaction_id is none
+        assert results[2][2] == None
+
+        # check category changed
+        assert results[0][3] != results[1][3]
+
+    ######################
+    # 2) version traversal
+    ######################
+    ref = db.query(ReferenceModel).filter(ReferenceModel.curie == res1).first()
+    first_ver = ref.versions[0]
+    assert first_ver.category == 'Research_Article'
+
+    sec_ver = first_ver.next
+    assert sec_ver.category == 'Other'
+
+    ########################################    
+    # 3) changesets, see test_001_reference.
+    ########################################
