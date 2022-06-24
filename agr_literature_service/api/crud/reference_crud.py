@@ -80,21 +80,21 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
     for field, value in vars(reference).items():
         if value is None:
             continue
-        logger.debug("processing {} {}".format(field, value))
+        logger.debug("processing {field} {value}")
         if field in list_fields:
             db_objs = []
             for obj in value:
                 obj_data = jsonable_encoder(obj)
                 db_obj = None
                 if field in ["authors"]:
-                    if obj_data["obs_ref_curid"]:
-                        cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == obj_data["obs_ref_curid"]).first()
+                    if obj_data["orcid"]:
+                        cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == obj_data["orcid"]).first()
                         if not cross_reference_obj:
-                            cross_reference_obj = CrossReferenceModel(curie=obj_data["obs_ref_curid"])
+                            cross_reference_obj = CrossReferenceModel(curie=obj_data["orcid"])
                             db.add(cross_reference_obj)
 
-                        obj_data["obs_ref_curid_cross_reference"] = cross_reference_obj
-                    del obj_data["obs_ref_curid"]
+                        obj_data["orcid_cross_reference"] = cross_reference_obj
+                    del obj_data["orcid"]
                     db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
                 elif field == "mod_reference_types":
                     db_obj = ModReferenceTypeModel(**obj_data)
@@ -134,7 +134,7 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
     db.commit()
 
     for field, value in vars(reference).items():
-        logger.debug("Pobs_ref_curessing mod corpus asso")
+        logger.debug("Porcessing mod corpus asso")
         if field == "mod_corpus_associations":
             if value is not None:
                 for obj in value:
@@ -308,9 +308,9 @@ def show(db: Session, curie: str, http_request=True):  # noqa
     if reference.author:
         authors = []
         for author in reference_data["author"]:
-            if author["obs_ref_curid"]:
-                author["obs_ref_curid"] = jsonable_encoder(cross_reference_crud.show(db, author["obs_ref_curid"]))
-            del author["obs_ref_curid_cross_reference"]
+            if author["orcid"]:
+                author["orcid"] = jsonable_encoder(cross_reference_crud.show(db, author["orcid"]))
+            del author["orcid_cross_reference"]
             del author["reference_id"]
             authors.append(author)
         reference_data['authors'] = authors
