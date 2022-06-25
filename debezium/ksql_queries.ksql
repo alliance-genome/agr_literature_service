@@ -42,8 +42,8 @@ CREATE TABLE cross_reference (
   );
 
 CREATE TABLE cross_references AS
-    SELECT reference_id "REFERENCE_ID",
-    collect_list(map('curie':=curie, 'is_obsolete':=cast(is_obsolete as string))) "CROSS_REFERENCES"
+    SELECT reference_id \"REFERENCE_ID\",
+    collect_list(map('curie':=curie, 'is_obsolete':=cast(is_obsolete as string))) \"CROSS_REFERENCES\"
     FROM cross_reference
     GROUP BY reference_id
     EMIT CHANGES;
