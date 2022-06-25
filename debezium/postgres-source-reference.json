@@ -1,5 +1,5 @@
 {
-  "name": "postgres-source",
+  "name": "postgres-source-reference",
   "config": {
     "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
     "tasks.max": "1",
@@ -9,13 +9,15 @@
     "database.password": "${PSQL_PASSWORD}",
     "database.dbname" : "${PSQL_DATABASE}",
     "database.server.name": "abc",
-    "table.include.list": "public.reference,public.cross_reference",
+    "table.include.list": "public.reference,public",
     "database.history.kafka.bootstrap.servers": "dbz_kafka:9092",
     "decimal.handling.mode" : "string",
     "poll.interval.ms": "100",
-    "transforms": "unwrap",
-    "transforms.unwrap.type":"io.debezium.transforms.ExtractNewRecordState",
-    "transforms.unwrap.drop.tombstones":"false",
+    "transforms": "extractKey,extractValue",
+    "transforms.extractKey.field": "reference_id",
+    "transforms.extractKey.type": "org.apache.kafka.connect.transforms.ExtractField$Key",
+    "transforms.extractValue.field": "after",
+    "transforms.extractValue.type": "org.apache.kafka.connect.transforms.ExtractField$Value",
     "plugin.name": "pgoutput"
   }
 }

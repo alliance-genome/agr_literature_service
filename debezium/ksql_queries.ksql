@@ -3,8 +3,8 @@
 "
 SET 'auto.offset.reset' = 'earliest';
 
-CREATE STREAM reference_from_dbz (
-    reference_id bigint,
+CREATE TABLE reference (
+    reference_id string PRIMARY KEY,
     curie string,
     abstract string,
     category string,
@@ -31,8 +31,9 @@ CREATE STREAM reference_from_dbz (
     VALUE_FORMAT='json'
   );
 
-CREATE STREAM cross_reference_from_dbz (
-    reference_id bigint,
+CREATE TABLE cross_reference (
+    ROWKEY string PRIMARY KEY,
+    reference_id string,
     curie string,
     is_obsolete boolean
   ) WITH (
@@ -40,71 +41,12 @@ CREATE STREAM cross_reference_from_dbz (
     VALUE_FORMAT='json'
   );
 
-CREATE STREAM cross_reference_struct WITH (
-    PARTITIONS = 1,
-    KAFKA_TOPIC = 'cross_reference_struct'
-  ) AS SELECT
-    reference_id \"REFERENCE_ID\",
-    JSON_RECORDS('{\"curie\": \"' + curie + '\", \"is_obsolete\": ' + cast(is_obsolete as string) + '}') \"CROSS_REFERENCE_STRUCT\"
-    FROM cross_reference_from_dbz
-    WHERE reference_id is not null;
-
-CREATE STREAM reference_repart WITH (
-    REPLICAS = 1,
-    PARTITIONS = 1,
-    VALUE_FORMAT = 'json',
-    KAFKA_TOPIC = 'reference_repart'
-  ) AS SELECT
-    *
-    FROM reference_from_dbz
-    PARTITION BY reference_id;
-
-CREATE STREAM cross_reference_repart WITH (
-    PARTITIONS = 1,
-    VALUE_FORMAT = 'json',
-    KAFKA_TOPIC = 'cross_reference_repart'
-  ) AS SELECT
-    *
-    FROM cross_reference_struct
-    PARTITION BY reference_id;
-
-CREATE TABLE reference (
-    reference_id bigint primary key,
-    curie string,
-    abstract string,
-    category string,
-    date_arrived_in_pubmed string,
-    date_created bigint,
-    date_last_modified_in_pubmed string,
-    date_published string,
-    date_updated bigint,
-    issue_name string,
-    keywords array<string>,
-    language string,
-    open_access boolean,
-    page_range string,
-    plain_language_abstract string,
-    publisher string,
-    pubmed_abstract_languages string,
-    pubmed_publication_status string,
-    pubmed_types array<string>,
-    resource_id bigint,
-    title string,
-    volume string
-  ) WITH (
-    kafka_topic='reference_repart',
-    value_format='json',
-    partitions=1
-  );
-
-CREATE TABLE cross_references WITH (
-    PARTITIONS = 1,
-    KAFKA_TOPIC = 'cross_references'
-  ) AS SELECT
-    cross_reference_repart.reference_id \"REFERENCE_ID\",
-    COLLECT_SET(cross_reference_repart.cross_reference_struct) \"CROSS_REFERENCES\"
-    FROM cross_reference_repart cross_reference_repart
-    GROUP BY cross_reference_repart.reference_id;
+CREATE TABLE cross_references AS
+    SELECT reference_id "REFERENCE_ID",
+    collect_list(map('curie':=curie, 'is_obsolete':=cast(is_obsolete as string))) "CROSS_REFERENCES"
+    FROM cross_reference
+    GROUP BY reference_id
+    EMIT CHANGES;
 
 CREATE TABLE reference_joined WITH (
     PARTITIONS = 1,
