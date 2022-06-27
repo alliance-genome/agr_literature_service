@@ -3,6 +3,8 @@
   "config": {
     "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
     "tasks.max": "1",
+    "slot.name": "debezium_cross_reference",
+    "publication.name": "debezium_cross_reference",
     "database.hostname": "${PSQL_HOST}",
     "database.port": "${PSQL_PORT}",
     "database.user": "${PSQL_USERNAME}",
