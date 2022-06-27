@@ -16,6 +16,7 @@ from agr_literature_service.api.models.resource_descriptor_models import (
     ResourceDescriptorModel, ResourceDescriptorPageModel)
 from agr_literature_service.api.models.resource_model import ResourceModel
 from agr_literature_service.api.models.user_model import UserModel
+from agr_literature_service.api.models.obsolete_model import ObsoleteReferenceModel
 
 
 def initialize():
