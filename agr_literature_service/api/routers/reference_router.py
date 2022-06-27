@@ -101,7 +101,7 @@ def show_versions(curie: str,
 
 
 @router.post('/merge/{old_curie}/{new_curie}',
-             status_code=200)
+             status_code=201)
 def merge_references(old_curie: str,
                      new_curie: str,
                      user: OktaUser = db_user,
