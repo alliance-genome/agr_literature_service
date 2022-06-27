@@ -101,14 +101,14 @@ def dump_data(mod, ondemand):  # noqa: C901
                                              resource_id_to_journal,
                                              json_path + json_file, datestamp)
     except Exception as e:
-        print("Error occurred when retrieving data from Reference data and generating json file: " + str(e))
+        log.info("Error occurred when retrieving data from Reference data and generating json file: " + str(e))
         return
 
     log.info("Uploading json file to s3...")
     try:
         upload_json_file_to_s3(json_path, json_file, datestamp, ondemand)
     except Exception as e:
-        print("Error occurred when uploading json file to s3: " + str(e))
+        log.info("Error occurred when uploading json file to s3: " + str(e))
         return
 
     log.info("DONE!")
@@ -123,7 +123,7 @@ def generate_json_file(metaData, data, filename_with_path):
         fw.write(json.dumps(jsonData, indent=4, sort_keys=True))
         fw.close()
     except Exception as e:
-        print("Error when generating", filename_with_path, ": " + str(e))
+        log.info("Error when generating", filename_with_path, ": " + str(e))
         exit()
 
 
@@ -225,7 +225,7 @@ def get_reference_data_and_generate_json(mod_id, mod, reference_id_to_source, re
             i = 0
             db_session.close()
             json_file = json_file_with_path + "_" + str(j)
-            print("generating", json_file + ": data size=", len(data))
+            log.info("generating", json_file + ": data size=", len(data))
             generate_json_file(metaData, data, json_file)
             data = []
             j += 1
@@ -233,7 +233,7 @@ def get_reference_data_and_generate_json(mod_id, mod, reference_id_to_source, re
 
         offset = index * limit
 
-        print("offset=", offset, "data=", len(data))
+        log.info("offs=", offset, "data=", len(data))
 
         all = db_session.query(
             ReferenceModel
@@ -253,9 +253,9 @@ def get_reference_data_and_generate_json(mod_id, mod, reference_id_to_source, re
             ## finished retrieving all data from database
             if len(data) > 0:
                 json_file = json_file_with_path + "_" + str(j)
-                print("generating", json_file + ": data size=", len(data))
+                log.info("generating", json_file + ": data size=", len(data))
                 generate_json_file(metaData, data, json_file)
-            print("concatenating", j + 1, "small json files to a single json file:", json_file_with_path)
+            log.info("concatenating", j + 1, "small json files to a single json file:", json_file_with_path)
             concatenate_json_files(json_file_with_path, j + 1)
             return
 
@@ -266,7 +266,7 @@ def get_reference_data_and_generate_json(mod_id, mod, reference_id_to_source, re
             ref_data.append(x)
             i += 1
             if i % 50 == 0:
-                print(i, x.curie)
+                log.info(i, x.curie)
 
         generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_comment_correction_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, data)
 
