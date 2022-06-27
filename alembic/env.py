@@ -30,7 +30,7 @@ fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
 
-import literature.models  # noqa
+import agr_literature_service.api.models  # noqa
 configure_mappers()
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

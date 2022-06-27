@@ -98,3 +98,13 @@ def show(curie: str,
 def show_versions(curie: str,
                   db: Session = db_session):
     return reference_crud.show_changesets(db, curie)
+
+
+@router.post('/merge/{old_curie}/{new_curie}',
+             status_code=201)
+def merge_references(old_curie: str,
+                     new_curie: str,
+                     user: OktaUser = db_user,
+                     db: Session = db_session):
+    set_global_user_id(db, user.id)
+    return reference_crud.merge_references(db, old_curie, new_curie)

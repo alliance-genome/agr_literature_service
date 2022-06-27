@@ -30,7 +30,6 @@ class ReferenceSchemaPost(BaseModel):
     page_range: Optional[str] = None
     abstract: Optional[str] = None
     keywords: Optional[List[str]] = None
-    merged_into_reference_curie: Optional[str] = None
     pubmed_types: Optional[List[str]] = None
     mod_reference_types: Optional[List[ModReferenceTypeSchemaCreate]] = None
     mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaCreate]] = None
@@ -72,7 +71,6 @@ class ReferenceSchemaUpdate(BaseModel):
     page_range: Optional[str] = None
     abstract: Optional[str] = None
     keywords: Optional[List[str]] = None
-    merged_into_reference_curie: Optional[str] = None
     pubmed_types: Optional[List[str]] = None
     pubmed_abstract_languages: Optional[List[str]] = None
     pubmed_publication_status: Optional[PubMedPublicationStatus] = None
@@ -121,8 +119,6 @@ class ReferenceSchemaShow(BaseModelShow):
     page_range: Optional[str] = None
     abstract: Optional[str] = None
     keywords: Optional[List[str]] = None
-    merged_into_reference_curie: Optional[str] = None
-    mergee_reference_curies: Optional[List[str]] = None
     pubmed_types: Optional[List[str]] = None
     mod_reference_types: Optional[List[ModReferenceTypeSchemaRelated]] = None
     mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaRelated]] = None

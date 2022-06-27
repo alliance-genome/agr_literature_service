@@ -13,7 +13,7 @@ echo "Done"
 
 # Unset exit on error so we guarantee to shutdown docker-compose
 set +e
-test_cmd="export ENV_STATE=test; pytest --cov --cov-fail-under=80 -vv --cov-report html $@"
+test_cmd="export ENV_STATE=test; pytest --cov --cov-fail-under=70 -vv --cov-report html $@"
 echo "Running \`$test_cmd\`"
 docker run -it --rm \
 		--network=agr_literature_service_agr-literature-test \
