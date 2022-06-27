@@ -512,3 +512,42 @@ You will need access to the alliance AWS (for downloading agr_literature_dev).
 
 # start the tests
 make run-test-bash
+
+
+### continuum notes.
+
+Contiuum keeps track of all the changes to tables if it is set for that table.
+It does this by storing the whole values and whether they changed or not in the <table>_version table.
+There is also a transactions table that had the transaction_id a date and remote address and user_id.
+NOTE: currently remote address and user id are not populated?? We probably need to link the user id somehow.
+
+So if we pretend that reference only has a category just to keep things simple. 
+So if we create a reference with a category of 'Reseach_Article' and then change it to 'other' and 
+then change it back again and finally delete it then we will get the following:-
+
+Select transaction_id, operation_type, end_transaction_id, category, category_mod from reference_version where curie = 'AGR:AGR-Reference-0000000001' order by transaction_id;;
+ transaction_id | operation_type | end_transaction_id |     category     | category_mod 
+----------------+----------------+--------------------+------------------+--------------
+          42186 |              0 |             911163 | Research_Article | t
+         911163 |              1 |             911164 | Other            | t
+         911164 |              1 |                    | Research_Article | t
+
+If there is no end_transaction_id then it is the current version. 
+operation types:
+ 0) created
+ 1) updated
+ 2) deleted
+
+To see the dates of these we look at the transaction table:-
+
+select * from transaction where id in (42186, 911163, 911164);
+         issued_at          |   id   | remote_addr | user_id 
+----------------------------+--------+-------------+---------
+ 2021-11-05 19:37:17.998725 |  42186 |             | 
+ 2021-11-09 19:00:45.400051 | 911163 |             | 
+ 2021-11-09 19:01:10.881227 | 911164 |             | 
+
+ We have no users currently because i did the changes directly in sql.
+
+There are several plugins available see https://sqlalchemy-continuum.readthedocs.io/en/latest/plugins.html
+Also see test_013_reference_cont.py for examples.
