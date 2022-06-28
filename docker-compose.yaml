@@ -310,6 +310,8 @@ services:
       DEBEZIUM_CONNECTOR_HOST: "${DEBEZIUM_CONNECTOR_HOST}"
       DEBEZIUM_CONNECTOR_PORT: "${DEBEZIUM_CONNECTOR_PORT}"
       DEBEZIUM_INDEX_NAME: "${DEBEZIUM_INDEX_NAME}"
+      DEBEZIUM_KSQLDB_HOST: "${DEBEZIUM_KSQLDB_HOST}"
+      DEBEZIUM_KSQLDB_PORT: "${DEBEZIUM_KSQLDB_PORT}"
       PSQL_USERNAME: "${PSQL_USERNAME}"
       PSQL_PASSWORD: "${PSQL_PASSWORD}"
       PSQL_HOST: "${PSQL_HOST}"
@@ -324,6 +326,40 @@ services:
       - agr-literature
     command:
       /setup.sh
+
+  dbz_ksql_server:
+    image: confluentinc/ksqldb-server:0.26.0
+    depends_on:
+      - dbz_kafka
+      - dbz_connector
+    ports:
+      - "8088:8088"
+    hostname: dbz_ksql_server
+    environment:
+      - KSQL_BOOTSTRAP_SERVERS=dbz_kafka:9092
+      - KSQL_HOST_NAME=dbz_ksql_server
+      - KSQL_APPLICATION_ID="cp-all-in-one"
+      - KSQL_LISTENERS=http://0.0.0.0:8088
+      - KSQL_CACHE_MAX_BYTES_BUFFERING=0
+    networks:
+      - agr-literature
+
+  # KSQLDB client for manual queries during development
+  #
+  # To start it:
+  # - start the docker-compose service: $ docker-compose up -d dbz_ksql_cli
+  # - run bash on the container: $ docker exec -it agr-literature-main_dbz_ksql_cli_1 bash
+  # - determine the server IP address (for some reason this version of ksqldb cli does not work with host names): $ ping dbz_ksql_server
+  # - start the ksql client connecting to the server: $ ksql http://<ksqldb_server_ip>:8088
+  dbz_ksql_cli:
+    image: confluentinc/ksqldb-cli:0.26.0
+    depends_on:
+      - dbz_ksql_server
+    networks:
+      - agr-literature
+    entrypoint:
+      - /bin/bash
+    tty: true
 
 volumes:
   agr-literature-pg-data:

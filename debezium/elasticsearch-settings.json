@@ -199,6 +199,19 @@
             "ignore_above": 256
           }
         }
+      },
+      "cross_references.curie": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "cross_references.is_obsolete": {
+        "type": "boolean"
       }
     }
   }

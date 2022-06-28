@@ -1,0 +1,84 @@
+{"ksql":
+
+"
+SET 'auto.offset.reset' = 'earliest';
+
+CREATE TABLE reference (
+    reference_id string PRIMARY KEY,
+    curie string,
+    abstract string,
+    category string,
+    date_arrived_in_pubmed string,
+    date_created bigint,
+    date_last_modified_in_pubmed string,
+    date_published string,
+    date_updated bigint,
+    issue_name string,
+    keywords array<string>,
+    language string,
+    open_access boolean,
+    page_range string,
+    plain_language_abstract string,
+    publisher string,
+    pubmed_abstract_languages array<string>,
+    pubmed_publication_status string,
+    pubmed_types array<string>,
+    resource_id bigint,
+    title string,
+    volume string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.reference',
+    VALUE_FORMAT='json'
+  );
+
+CREATE TABLE cross_reference (
+    ROWKEY string PRIMARY KEY,
+    reference_id string,
+    curie string,
+    is_obsolete boolean
+  ) WITH (
+    KAFKA_TOPIC='abc.public.cross_reference',
+    VALUE_FORMAT='json'
+  );
+
+CREATE TABLE cross_references AS
+    SELECT reference_id \"REFERENCE_ID\",
+    collect_list(map('curie':=curie, 'is_obsolete':=cast(is_obsolete as string))) \"CROSS_REFERENCES\"
+    FROM cross_reference
+    GROUP BY reference_id
+    EMIT CHANGES;
+
+CREATE TABLE reference_joined WITH (
+    PARTITIONS = 1,
+    KAFKA_TOPIC = 'reference_joined',
+    VALUE_FORMAT='JSON',
+    KEY_FORMAT='JSON'
+  ) AS SELECT
+    reference.reference_id \"reference_id\",
+    reference.curie \"curie\",
+    reference.abstract \"abstract\",
+    reference.category \"category\",
+    reference.date_arrived_in_pubmed \"date_arrived_in_pubmed\",
+    reference.date_created \"date_created\",
+    reference.date_last_modified_in_pubmed \"date_last_modified_in_pubmed\",
+    reference.date_published \"date_published\",
+    reference.date_updated \"date_updated\",
+    reference.issue_name \"issue_name\",
+    reference.keywords \"keywords\",
+    reference.language \"language\",
+    reference.open_access \"open_access\",
+    reference.page_range \"page_range\",
+    reference.plain_language_abstract \"plain_language_abstract\",
+    reference.publisher \"publisher\",
+    reference.pubmed_abstract_languages \"pubmed_abstract_languages\",
+    reference.pubmed_publication_status \"pubmed_publication_status\",
+    reference.pubmed_types \"pubmed_types\",
+    reference.resource_id \"resource_id\",
+    reference.title \"title\",
+    reference.volume \"volume\",
+    cross_references.cross_references \"cross_references\"
+    FROM reference reference
+    JOIN cross_references cross_references ON
+    reference.reference_id = cross_references.reference_id;
+",
+"streamsProperties": {}}
