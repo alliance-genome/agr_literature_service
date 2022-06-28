@@ -123,7 +123,7 @@ def generate_json_file(metaData, data, filename_with_path):
         fw.write(json.dumps(jsonData, indent=4, sort_keys=True))
         fw.close()
     except Exception as e:
-        log.info("Error when generating", filename_with_path, ": " + str(e))
+        log.info("Error when generating " + filename_with_path + ": " + str(e))
         exit()
 
 
@@ -225,7 +225,7 @@ def get_reference_data_and_generate_json(mod_id, mod, reference_id_to_source, re
             i = 0
             db_session.close()
             json_file = json_file_with_path + "_" + str(j)
-            log.info("generating", json_file + ": data size=", len(data))
+            log.info("generating " + json_file + ": data size=" + str(len(data)))
             generate_json_file(metaData, data, json_file)
             data = []
             j += 1
@@ -233,7 +233,7 @@ def get_reference_data_and_generate_json(mod_id, mod, reference_id_to_source, re
 
         offset = index * limit
 
-        log.info("offs=", offset, "data=", len(data))
+        log.info("offs=" + str(offset) + ", data=" + str(len(data)))
 
         all = db_session.query(
             ReferenceModel
@@ -253,9 +253,9 @@ def get_reference_data_and_generate_json(mod_id, mod, reference_id_to_source, re
             ## finished retrieving all data from database
             if len(data) > 0:
                 json_file = json_file_with_path + "_" + str(j)
-                log.info("generating", json_file + ": data size=", len(data))
+                log.info("generating " + json_file + ": data size=" + str(len(data)))
                 generate_json_file(metaData, data, json_file)
-            log.info("concatenating", j + 1, "small json files to a single json file:", json_file_with_path)
+            log.info("concatenating " + str(j + 1) + " small json files to a single json file: " + json_file_with_path)
             concatenate_json_files(json_file_with_path, j + 1)
             return
 
@@ -266,7 +266,7 @@ def get_reference_data_and_generate_json(mod_id, mod, reference_id_to_source, re
             ref_data.append(x)
             i += 1
             if i % 50 == 0:
-                log.info(i, x.curie)
+                log.info(str(i) + " " + x.curie)
 
         generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_comment_correction_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, data)
 
@@ -351,39 +351,6 @@ def get_cross_reference_data(db_session, mod_id):
             data = reference_id_to_xrefs[x.reference_id]
         row = {"curie": x.curie,
                "is_obsolete": x.is_obsolete}
-        if x.curie.startswith('PMID:'):
-            row['pages'] = x.pages
-            row['url'] = "https://www.ncbi.nlm.nih.gov/pubmed/" + x.curie.replace("PMID:", "")
-        elif x.curie.startswith('PMCID:'):
-            row['pages'] = x.pages
-            row['url'] = "https://www.ncbi.nlm.nih.gov/pmc/" + x.curie.replace("PMCID:", "")
-        elif x.curie.startswith('DOI:'):
-            row['pages'] = x.pages
-            row['url'] = "https://doi.org/doi:" + x.curie.replace("DOI:", "")
-        elif x.curie.startswith('SGD:'):
-            row['pages'] = [{"name": "reference",
-                             "url": "https://www.yeastgenome.org/reference/" + x.curie.replace("SGD:", "")}]
-            row['url'] = "https://www.yeastgenome.org/reference/" + x.curie.replace("SGD:", "")
-        elif x.curie.startswith('WB:'):
-            row['pages'] = [{"name": "reference",
-                             "url": "https://www.wormbase.org/db/get?name=" + x.curie.replace("WB:", "") + ";class=Paper"}]
-            row['url'] = "https://www.wormbase.org/db/get?name=" + x.curie.replace("WB:", "")
-        elif x.curie.startswith('MGI:'):
-            row['pages'] = [{"name": "reference",
-                             "url": "http://www.informatics.jax.org/reference/" + x.curie}]
-            row['url'] = "http://www.informatics.jax.org/"
-        elif x.curie.startswith('FB:'):
-            row['pages'] = [{"name": "reference",
-                             "url": "https://flybase.org/reports/" + x.curie.replace("FB:", "") + ".html"}]
-            row['url'] = "https://flybase.org/reports/" + x.curie.replace("FB:", "") + ".html"
-        elif x.curie.startswith('ZFIN:'):
-            row['pages'] = [{"name": "reference",
-                             "url": "https://zfin.org/" + x.curie.replace("ZFIN:", "")}]
-            row['url'] = "https://zfin.org/" + x.curie.replace("ZFIN:", "")
-        elif x.curie.startswith('RGD:'):
-            row['pages'] = [{"name": "reference",
-                             "url": "https://rgd.mcw.edu/rgdweb/report/reference/main.html?id=" + x.curie}]
-            row['url'] = "https://rgd.mcw.edu/rgdweb/elasticResults.html?term=" + x.curie
         data.append(row)
         reference_id_to_xrefs[x.reference_id] = data
         if x.curie.startswith('PMID:'):
@@ -403,25 +370,13 @@ def get_author_data(db_session, mod_id):
         data = []
         if x.reference_id in reference_id_to_authors:
             data = reference_id_to_authors[x.reference_id]
-        orcid = x.orcid
-        if x.orcid and x.orcid in orcid_to_cross_ref:
-            (pages, is_obsolete) = orcid_to_cross_ref[x.orcid]
-            orcid = {"curie": x.orcid,
-                     "url": "https://orcid.org/" + x.orcid.replace("ORCID:", ""),
-                     "pages": pages,
-                     "is_obsolete": is_obsolete}
-        elif x.orcid:
-            orcid = {"curie": x.orcid,
-                     "url": "https://orcid.org/" + x.orcid.replace("ORCID:", ""),
-                     "pages": None,
-                     "is_obsolete": False}
         data.append({"author_id": x.author_id,
                      "name": x.name,
                      "first_name": x.first_name,
                      "last_name": x.last_name,
                      "order": x.order,
                      "affilliation": x.affiliations if x.affiliations else [],
-                     "orcid": orcid,
+                     "orcid": x.orcid,
                      "first_author": x.first_author,
                      "corresponding_author": x.corresponding_author})
         reference_id_to_authors[x.reference_id] = data
@@ -454,9 +409,14 @@ def get_comment_correction_data(db_session, reference_id_to_pmid):
             pmid = reference_id_to_pmid[x.reference_id_from]
         else:
             pmid = get_pmid_for_reference_id(db_session, x.reference_id_from)
+        ref_curie = get_reference_curie_for_reference_id(db_session, x.reference_id_from)
+
         if pmid:
-            data[type_db] = "PMID:" + pmid
+            data[type_db] = {"PMID": "PMID:" + pmid,
+                             "reference_curie": ref_curie}
             reference_id_to_comment_correction_data[x.reference_id_from] = data
+        elif ref_curie:
+            data[type_db] = {"reference_curie": ref_curie}
 
         ## for reference_id_to
         data = {}
@@ -467,12 +427,18 @@ def get_comment_correction_data(db_session, reference_id_to_pmid):
             pmid = reference_id_to_pmid[x.reference_id_to]
         else:
             pmid = get_pmid_for_reference_id(db_session, x.reference_id_to)
-        if pmid:
-            type = type_mapping.get(type_db)
-            if type is None:
-                log.info(type_db + " is not in type_mapping.")
-            if type:
-                data[type] = "PMID:" + pmid
+        ref_curie = get_reference_curie_for_reference_id(db_session, x.reference_id_to)
+
+        type = type_mapping.get(type_db)
+        if type is None:
+            log.info(type_db + " is not in type_mapping.")
+        else:
+            if pmid:
+                data[type] = {"PMID": "PMID:" + pmid,
+                              "reference_curie": ref_curie}
+                reference_id_to_comment_correction_data[x.reference_id_to] = data
+            elif ref_curie:
+                data[type] = {"reference_curie": ref_curie}
                 reference_id_to_comment_correction_data[x.reference_id_to] = data
 
     return reference_id_to_comment_correction_data
@@ -481,6 +447,15 @@ def get_comment_correction_data(db_session, reference_id_to_pmid):
 def get_pmid_for_reference_id(db_session, reference_id):
 
     x = db_session.query(CrossReferenceModel).filter_by(reference_id=reference_id).filter(CrossReferenceModel.curie.like('PMID:%')).one_or_none()
+    if x:
+        return x.curie
+    else:
+        return None
+
+
+def get_reference_curie_for_reference_id(db_session, reference_id):
+
+    x = db_session.query(ReferenceModel).filter_by(reference_id=reference_id).one_or_none()
     if x:
         return x.curie
     else:
