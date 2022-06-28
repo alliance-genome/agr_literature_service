@@ -47,7 +47,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
 
     db_session = create_postgres_session(False)
 
-    datestamp = str(date.today()).replace("-", "")
+    # datestamp = str(date.today()).replace("-", "")
 
     (xml_path, json_path, old_xml_path, old_json_path, log_path, log_url,
      email_recipients, sender_email, reply_to) = set_paths()
@@ -58,9 +58,11 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
 
     log_file = log_path + "update_pubmed_papers_"
     if mod:
-        log_file = log_file + mod + "_" + datestamp + ".log"
+        # log_file = log_file + mod + "_" + datestamp + ".log"
+        log_file = log_file + mod + ".log"
     else:
-        log_file = log_file + datestamp + ".log"
+        # log_file = log_file + datestamp + ".log"
+        log_file = log_file + ".log"
 
     fw = open(log_file, "w")
 
@@ -143,7 +145,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
         reference_id_list = list(reference_id_to_pmid.keys())
 
     if len(reference_id_list) == 0:
-        close_no_update(fw, mod, email_subject, email_recipients, sender_email, reply_to)
+        close_no_update(fw, mod, email_subject, email_recipients, sender_email, reply_to, log_path)
         return
 
     fw.write(str(datetime.now()) + "\n")
@@ -586,10 +588,10 @@ def update_comment_corrections(db_session, fw, pmid, reference_id, pmid_to_refer
     for type in comment_correction_in_json:
         other_pmids = comment_correction_in_json[type]
         other_reference_ids = []
-        for pmid in other_pmids:
-            other_reference_id = pmid_to_reference_id.get(pmid)
+        for this_pmid in other_pmids:
+            other_reference_id = pmid_to_reference_id.get(this_pmid)
             if other_reference_id is None:
-                other_reference_id = get_reference_id_by_pmid(db_session, pmid)
+                other_reference_id = get_reference_id_by_pmid(db_session, this_pmid)
                 if other_reference_id is None:
                     continue
             other_reference_ids.append(other_reference_id)
@@ -836,6 +838,13 @@ def update_pmcid(db_session, fw, pmid, reference_id, old_pmcid, new_pmcid):
 
 def insert_pmcid(db_session, fw, pmid, reference_id, pmcid):
 
+    ## for some reason, we need to add this check to make sure it is not in db
+    x = db_session.query(CrossReferenceModel).filter_by(curie="PMCID:" + pmcid).one_or_none()
+    if x:
+        if x.reference_id != reference_id:
+            log.info("The PMCID:" + pmcid + " is associated with two papers: reference_ids=" + str(reference_id) + ", " + str(x.reference_id))
+        return
+
     data = {"curie": "PMCID:" + pmcid, "reference_id": reference_id, "is_obsolete": False}
     try:
         x = CrossReferenceModel(**data)
@@ -868,10 +877,10 @@ def set_paths():
     old_json_path = base_path + "pubmed_json/old/"
     log_path = base_path + 'pubmed_search_logs/'
     if environ.get('LOG_PATH'):
-        log_path = environ['LOG_PATH']
+        log_path = environ['LOG_PATH'] + 'pubmed_update/'
     log_url = None
     if environ.get('LOG_URL'):
-        log_url = environ['LOG_URL']
+        log_url = environ['LOG_URL'] + 'pubmed_update/'
     email_recipients = None
     if environ.get('CRONTAB_EMAIL'):
         email_recipients = environ['CRONTAB_EMAIL']
@@ -896,7 +905,7 @@ def set_paths():
             email_recipients, sender_email, reply_to)
 
 
-def close_no_update(fw, mod, email_subject, email_recipients, sender_email, reply_to):
+def close_no_update(fw, mod, email_subject, email_recipients, sender_email, reply_to, log_dir):
 
     log.info("No new update in PubMed.")
     fw.write("No new update in PubMed.\n")
@@ -920,6 +929,9 @@ def close_no_update(fw, mod, email_subject, email_recipients, sender_email, repl
     if status == 'error':
         fw.write("Failed sending email to slack: " + message + "\n")
         log.info("Failed sending email to slack: " + message + "\n")
+    else:
+        chdir(log_dir)
+        system("/usr/bin/tree -H '.' -L 1 --noreport --charset utf-8 > index.html")
 
 
 def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, log_url, log_dir, email_subject, email_recipients, sender_email, reply_to):
