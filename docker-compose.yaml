@@ -344,6 +344,13 @@ services:
     networks:
       - agr-literature
 
+  # KSQLDB client for manual queries during development
+  #
+  # To start it:
+  # - start the docker-compose service: $ docker-compose up -d dbz_ksql_cli
+  # - run bash on the container: $ docker exec -it agr-literature-main_dbz_ksql_cli_1 bash
+  # - determine the server IP address (for some reason this version of ksqldb cli does not work with host names): $ ping dbz_ksql_server
+  # - start the ksql client connecting to the server: $ ksql http://<ksqldb_server_ip>:8088
   dbz_ksql_cli:
     image: confluentinc/ksqldb-cli:0.26.0
     depends_on:
