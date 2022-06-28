@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime
 import time
 from dotenv import load_dotenv
 from os import environ, makedirs, path, rename
@@ -23,7 +22,7 @@ sleep_time = 60
 def update_all_data():
 
     ## take 18 sec
-    log.info("Updating resource: " + str(datetime.now()))
+    log.info("Updating resource:")
     try:
         update_resource_pubmed_nlm()
     except Exception as e:
@@ -31,7 +30,7 @@ def update_all_data():
         return
 
     ## take 8 sec
-    log.info("Retrieving all pmids: " + str(datetime.now()))
+    log.info("Retrieving all pmids:")
     try:
         pmids_all = retrieve_all_pmids()
         pmids_all.sort()
@@ -40,7 +39,7 @@ def update_all_data():
         return
 
     ## take 1 to 2hrs
-    log.info("Downloading all xml files: " + str(datetime.now()))
+    log.info("Downloading all xml files:")
     try:
         download_all_xml_files(pmids_all)
     except Exception as e:
@@ -49,9 +48,9 @@ def update_all_data():
 
     for mod in ['WB', 'ZFIN', 'FB', 'SGD', 'RGD', 'MGI', 'NONE']:
         if mod == 'NONE':
-            log.info("Updating pubmed papers that are not associated with a mod: " + str(datetime.now()))
+            log.info("Updating pubmed papers that are not associated with a mod:")
         else:
-            log.info("Updating pubmed papers for " + mod + ": " + str(datetime.now()))
+            log.info("Updating pubmed papers for " + mod + ":")
         md5dict = load_s3_md5data(['PMID'])
         try:
             update_data(mod, None, md5dict)
