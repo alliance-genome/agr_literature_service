@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import cross_reference_crud, reference_crud
+from agr_literature_service.api.s3 import download
 from agr_literature_service.api.deps import s3_auth
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (ReferenceSchemaPost, ReferenceSchemaShow,
@@ -69,6 +70,13 @@ async def patch(curie: str,
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)
     return reference_crud.patch(db, curie, patch)
+
+
+@router.get('/dumps/latest/{mod}',
+            status_code=200)
+def download_data(mod: str):
+
+    return download.get_json_file_from_s3(mod)
 
 
 @router.get('/by_cross_reference/{curie:path}',
