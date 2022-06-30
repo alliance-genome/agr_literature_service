@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, Security, status
+from fastapi import (APIRouter, Depends, HTTPException, Response,
+                     Security, status)
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
+
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import cross_reference_crud, reference_crud
 from agr_literature_service.api.s3 import download
@@ -72,9 +74,9 @@ async def patch(curie: str,
 
 @router.get('/dumps/latest/{mod}',
             status_code=200)
-def download_data((mod: str,
-                   user: OktaUser = db_user,
-                   db: Session = db_session):
+def download_data(mod: str,
+                  user: OktaUser = db_user,
+                  db: Session = db_session):
 
     set_global_user_id(db, user.id)
     return download.get_json_file_from_s3(mod)
