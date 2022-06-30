@@ -69,5 +69,6 @@ from agr_literature_service.api.schemas.reference_schemas import ReferenceSchema
 from agr_literature_service.api.schemas.reference_schemas import ReferenceSchemaUpdate
 from agr_literature_service.api.schemas.reference_schemas import ReferenceSchemaShow
 from agr_literature_service.api.schemas.reference_schemas import ReferenceSchemaNeedReviewShow
+from agr_literature_service.api.schemas.reference_tag_schemas import ReferenceTagSchemaUpdate
 
 from agr_literature_service.api.schemas.search_schemas import FacetsOptionsSchema

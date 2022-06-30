@@ -24,6 +24,7 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ResourceModel)
 from agr_literature_service.api.schemas import ReferenceSchemaPost
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
+from agr_literature_service.api.crud.reference_tag_crud import patch as patch_reference_tag
 
 
 logger = logging.getLogger(__name__)
@@ -71,8 +72,8 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
 
     logger.debug("creating reference")
     logger.debug(reference)
-    add_separately_fields = ["mod_corpus_associations"]
-    list_fields = ["authors", "mod_reference_types", "tags", "mesh_terms", "cross_references"]
+    add_separately_fields = ["mod_corpus_associations", "tags"]
+    list_fields = ["authors", "mod_reference_types", "mesh_terms", "cross_references"]
     remap = {'authors': 'author',
              'mesh_terms': 'mesh_term',
              'cross_references': 'cross_reference',
@@ -156,6 +157,7 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
                     except HTTPException:
                         logger.warning("skipping mod corpus association to a mod that is already associated to "
                                        "the reference")
+
     logger.debug("returning successfully?")
     return curie
 
@@ -203,6 +205,15 @@ def patch(db: Session, curie: str, reference_update) -> dict:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Resource with curie {resource_curie} does not exist")
             reference_db_obj.resource = resource
+        if field == "tags" and value:
+            for obj in value:
+                obj_data = jsonable_encoder(obj)
+                obj_data["reference_curie"] = curie
+                try:
+                    patch_reference_tag(db, obj_data)
+                except HTTPException:
+                    logger.warning("skipping tag to a mod that is already associated to "
+                                   "the reference")
         else:
             setattr(reference_db_obj, field, value)
 
@@ -310,6 +321,16 @@ def show(db: Session, curie: str, http_request=True):  # noqa
             del reference_data["mod_corpus_association"][i]["mod_id"]
         reference_data["mod_corpus_associations"] = reference_data["mod_corpus_association"]
         del reference_data["mod_corpus_association"]
+
+    if reference.tag:
+        for i in range(len(reference_data["tag"])):
+            del reference_data["tag"][i]["reference_id"]
+            reference_data["tag"][i]["mod_abbreviation"] = reference_data[
+                "tag"][i]["mod"]["abbreviation"]
+            del reference_data["tag"][i]["mod"]
+            del reference_data["tag"][i]["mod_id"]
+        reference_data["tags"] = reference_data["tag"]
+        del reference_data["tags"]
 
     if reference.mesh_term:
         for mesh_term in reference_data["mesh_term"]:

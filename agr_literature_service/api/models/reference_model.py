@@ -104,6 +104,13 @@ class ReferenceModel(Base):
         cascade="all, delete, delete-orphan"
     )
 
+    tag = relationship(
+        "ReferenceTagModel",
+        lazy="joined",
+        back_populates="reference",
+        cascade="all, delete, delete-orphan"
+    )
+
     date_published = Column(
         String(),
         unique=False,

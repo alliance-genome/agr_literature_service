@@ -129,6 +129,6 @@ def test_reference_merging():
     sec_ver = first_ver.next
     assert sec_ver.category == 'other'
 
-    ########################################    
+    ########################################
     # 3) changesets, see test_001_reference.
     ########################################

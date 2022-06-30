@@ -12,6 +12,7 @@ from agr_literature_service.api.models.mod_corpus_association_model import ModCo
 from agr_literature_service.api.models.reference_comment_and_correction_model import \
     ReferenceCommentAndCorrectionModel
 from agr_literature_service.api.models.reference_model import ReferenceModel
+from agr_literature_service.api.models.reference_tag_model import ReferenceTagModel
 from agr_literature_service.api.models.resource_descriptor_models import (
     ResourceDescriptorModel, ResourceDescriptorPageModel)
 from agr_literature_service.api.models.resource_model import ResourceModel
