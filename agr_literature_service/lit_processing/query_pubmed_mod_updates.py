@@ -526,7 +526,8 @@ if __name__ == "__main__":
     parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
     parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
     ##########
-    parser.add_argument('-m', '--mod', action='store', help='which mod, use all or leave blank for all')
+    parser.add_argument('-m', '--mods', action='store', help='which mod, use all or leave blank for all', nargs='+',
+                        default=['all'])
     parser.add_argument('-b', '--reldate', action='store', help='how far back to search pubmed in days for each MOD')
     args = vars(parser.parse_args())
     # pmids_wanted = []
@@ -537,7 +538,7 @@ if __name__ == "__main__":
     ## usage: query_pubmed_mod_updates.py -b 14
     ## usage: query_pubmed_mod_updates.py
 
-    mod = args['mod'] if args['mod'] else 'all'
     reldate = args['reldate'] if args['reldate'] else None
 
-    query_pubmed_mod_updates(mod, reldate)
+    for mod in args['mods']:
+        query_pubmed_mod_updates(mod, reldate)
