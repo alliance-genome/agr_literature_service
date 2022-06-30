@@ -185,6 +185,36 @@ services:
     depends_on:
       - api
 
+  automated_scripts:
+    restart: always
+    build:
+      context: .
+      dockerfile: docker/automated_scripts.dockerfile
+      args:
+        REG: ${REG}
+        ALLIANCE_RELEASE: ${ALLIANCE_RELEASE}
+    environment:
+      PYTHONPATH: "/usr/src/app"
+      XML_PATH: "/usr/src/app/agr_literature_service/lit_processing/"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
+      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
+      ENV_STATE: "${ENV_STATE}"
+      HOST: "${HOST}"
+      OKTA_DOMAIN: "${OKTA_DOMAIN}"
+      OKTA_API_AUDIENCE: "${OKTA_API_AUDIENCE}"
+      PSQL_USERNAME: "${PSQL_USERNAME}"
+      PSQL_PASSWORD: "${PSQL_PASSWORD}"
+      PSQL_HOST: "${PSQL_HOST}"
+      PSQL_PORT: "${PSQL_PORT}"
+      PSQL_DATABASE: "${PSQL_DATABASE}"
+      RESOURCE_DESCRIPTOR_URL: "${RESOURCE_DESCRIPTOR_URL}"
+      REG: "${REG}"
+    volumes:
+      - /var/log/agr_literature_service/automated_scripts:/var/log
+      - /etc/localtime:/etc/localtime:ro
+
   test_runner:
     build:
       context: .
