@@ -4,7 +4,7 @@ import logging.config
 import re
 import time
 import urllib
-from os import environ, makedirs, path
+from os import environ, makedirs, path, system, chdir
 from typing import List, Set, Dict, Tuple, Union
 import json
 
@@ -26,6 +26,7 @@ from agr_literature_service.api.models import ReferenceModel, CrossReferenceMode
 from helper_sqlalchemy import sqlalchemy_load_ref_xref
 from agr_literature_service.api.crud.cross_reference_crud import create
 from agr_literature_service.api.schemas import CrossReferenceSchemaPost
+from agr_literature_service.lit_processing.helper_email import send_email
 
 load_dotenv()
 
@@ -223,7 +224,10 @@ def query_mods(input_mod, reldate):
     pmids_posted = set()     # type: Set
     logger.info("Starting query mods")
     sleep_delay = 1
+    pmids4mod = {}
+    pmids4mod['all'] = set()
     for mod in mods_to_query:
+        pmids4mod[mod] = set()
         logger.info(f"Processing {mod}")
         fp_pmids = set()     # type: Set
         if mod in mod_false_positive_file:
@@ -261,6 +265,9 @@ def query_mods(input_mod, reldate):
             # logger.info(pmids_joined)
             # logger.info(len(pmids_wanted))
             for pmid in pmids_wanted:
+                if pmid in pmids4mod['all']:
+                    # the same paper already added during seacrh for other mod papers
+                    pmids4mod[mod].add(pmid)
                 if pmid in pmid_curie_mod_dict:
                     agr_curie = pmid_curie_mod_dict[pmid][0]
                     in_corpus = pmid_curie_mod_dict[pmid][1]
@@ -288,11 +295,14 @@ def query_mods(input_mod, reldate):
         download_pubmed_xml(pmids_to_process)
         generate_json(pmids_to_process, [])
 
-        check_handle_duplicate(db_session, pmids_to_process, xref_ref,
-                               ref_xref_valid, ref_xref_obsolete)
+        (log_path, log_url) = check_handle_duplicate(db_session, mod, pmids_to_process,
+                                                     xref_ref, ref_xref_valid,
+                                                     ref_xref_obsolete)
 
         for pmid in pmids_to_process:
             pmids_posted.add(pmid)
+            pmids4mod[mod].add(pmid)
+            pmids4mod['all'].add(pmid)
 
         inject_object = {}
         mod_corpus_associations = [{"modAbbreviation": mod, "modCorpusSortSource": "mod_pubmed_search", "corpus": None}]
@@ -312,6 +322,9 @@ def query_mods(input_mod, reldate):
             # logger.info(f"upload {pmid} to s3")
             upload_xml_file_to_s3(pmid)
 
+    logger.info("Sending Report")
+    send_loading_report(pmids4mod, mods_to_query, log_path, log_url)
+
     # do not need to recursively process downloading errata and corrections, but if they exist, connect them.
     # take list of pmids that were posted to the database, look at their .json for corrections and connect to existing abc references.
     logger.info("pmids process comments corrections")
@@ -321,7 +334,70 @@ def query_mods(input_mod, reldate):
     logger.info("end query_mods")
 
 
-def check_handle_duplicate(db_session, pmids, xref_ref, ref_xref_valid, ref_xref_obsolete):
+def send_loading_report(pmids4mod, mods, log_path, log_url):
+
+    email_recipients = None
+    if environ.get('CRONTAB_EMAIL'):
+        email_recipients = environ['CRONTAB_EMAIL']
+    sender_email = None
+    if environ.get('SENDER_EMAIL'):
+        sender_email = environ['SENDER_EMAIL']
+    reply_to = sender_email
+    if environ.get('REPLY_TO'):
+        reply_to = environ['REPLY_TO']
+    if email_recipients is None or sender_email is None:
+        return
+
+    all_pmids = pmids4mod.get('all')
+    if all_pmids is None:
+        return
+
+    email_subject = "PubMed Paper Search Report"
+    email_message = ""
+
+    if len(all_pmids) == 0:
+
+        email_message = "No new papers from PubMed Search"
+
+    else:
+
+        log_file = log_path + "new_papers.log"
+        fw = open(log_file, "w")
+        message = "Total " + str(len(all_pmids)) + " new PubMed paper(s) have been added into database"
+        fw.write(message + "\n\n")
+        email_message = "<h3>" + message + "</h3>"
+
+        for mod in mods:
+            pmids = pmids4mod.get(mod)
+            if pmids is None:
+                continue
+            email_message = email_message + "<strong>" + mod + "</strong>" + ": " + str(len(pmids)) + "<br>"
+            fw.write(mod + ": " + str(len(pmids)) + "\n")
+
+        if log_url:
+            email_message = email_message + "<p>Log file(s) are available at " + "<a href=" + log_url + ">" + log_url + "</a><p>"
+        else:
+            email_message = email_message + "<p>Log file(s) are available at " + log_path
+
+        fw.write("\n")
+        for mod in mods:
+            pmids = pmids4mod.get(mod)
+            if pmids is None:
+                continue
+            pmids_to_report = list(map(lambda x: 'PMID:' + x, pmids))
+            fw.write("New papers for " + mod + ":\n")
+            fw.write("\n".join(pmids_to_report) + "\n\n")
+
+    (status, message) = send_email(email_subject, email_recipients,
+                                   email_message, sender_email, reply_to)
+    if status == 'error':
+        logger.info("Failed sending email to slack: " + message + "\n")
+    else:
+        chdir(log_path)
+        system("/usr/bin/tree -H '.' -L 1 --noreport --charset utf-8 > index.html")
+
+
+def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref_xref_obsolete):
 
     # check for papers with same doi in the database
     # print ("ref_xref_valid=", str(ref_xref_valid['AGR:AGR-Reference-0000167781']))
@@ -331,10 +407,15 @@ def check_handle_duplicate(db_session, pmids, xref_ref, ref_xref_valid, ref_xref
 
     from datetime import datetime
     json_path = base_path + "pubmed_json/"
-    log_path = base_path + "report_files/"
+    log_path = base_path + 'pubmed_search_logs/'
+    log_url = None
+    if environ.get('LOG_PATH'):
+        log_path = environ['LOG_PATH'] + 'pubmed_search/'
+        if environ.get('LOG_URL'):
+            log_url = environ['LOG_URL'] + 'pubmed_search/'
     if not path.exists(log_path):
         makedirs(log_path)
-    log_file = log_path + "duplicate_rows.log"
+    log_file = log_path + "duplicate_rows_" + mod + ".log"
     fw = None
     if path.exists(log_file):
         fw = open(log_file, "a")
@@ -373,6 +454,8 @@ def check_handle_duplicate(db_session, pmids, xref_ref, ref_xref_valid, ref_xref
                 fw.write(str(datetime.now()) + ": " + doi + " for PMID:" + pmid + " is associated with PMID(s) in the database: " + ",".join(found_pmids_for_this_doi) + "\n")
             pmids.remove(pmid)
     fw.close()
+
+    return (log_path, log_url)
 
 
 def post_mca_to_existing_references(agr_curies_to_corpus, mod):
