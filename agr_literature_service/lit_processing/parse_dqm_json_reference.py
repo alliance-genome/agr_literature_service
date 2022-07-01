@@ -61,8 +61,8 @@ def generate_pmid_data(input_path, output_directory, input_mod):      # noqa: C9
     logger.info("generating pmid sets from dqm data")
 
     # RGD should be first in mods list.  if conflicting allianceCategories the later mod gets priority
-    mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB']
-    # mods = ['SGD']
+    mods = ['RGD', 'MGI', 'XB', 'SGD', 'FB', 'ZFIN', 'WB']
+    # mods = ['XB']
 
     if input_mod in mods:
         mods = [input_mod]
@@ -260,6 +260,7 @@ def populate_expected_cross_reference_type():
     expected_cross_reference_type.add('ISBN:'.lower())
     expected_cross_reference_type.add('FB:FBrf'.lower())
     expected_cross_reference_type.add('ZFIN:ZDB-PUB-'.lower())
+    expected_cross_reference_type.add('Xenbase:XB-ART-'.lower())
 
     # when getting pubmed data and merging mod cross references, was excluding these types, but
     # now merging so long as the type does not already exist from pubmed (mods have DOIs not in PubMed)
@@ -274,6 +275,7 @@ def populate_expected_cross_reference_type():
     exclude_cross_reference_type.add('WB:WBTransgene'.lower())
     exclude_cross_reference_type.add('WB:WBGene'.lower())
     exclude_cross_reference_type.add('WB:WBVar'.lower())
+    exclude_cross_reference_type.add('Xenbase:XB-GENEPAGE-'.lower())
 
     return expected_cross_reference_type, exclude_cross_reference_type, pubmed_not_dqm_cross_reference_type
 
@@ -439,7 +441,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
     # mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
     # RGD should be first in mods list.  if conflicting allianceCategories the later mod gets priority
     # mods = ['RGD', 'SGD', 'FB', 'MGI', 'ZFIN', 'WB']
-    mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB']
+    mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB', 'XB']
     if input_mod in mods:
         mods = [input_mod]
 
@@ -515,6 +517,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
     # fb resource data to primary key off of nlm
     # fb_resource_abbreviation_to_nlm = dict()
 
+#     counter = 0
     sanitized_pubmed_multi_mod_data = []
     unmerged_pubmed_data = dict()			# pubmed data by pmid and mod that needs some fields merged
     for mod in mods:
@@ -533,6 +536,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
         sanitized_pubmod_data = []
         sanitized_pubmed_single_mod_data = []
         for entry in entries:
+#             counter = counter + 1
+#             if counter > 3:
+#                 continue
             is_pubmod = True
             pmid = None
             update_primary_id = False
@@ -561,10 +567,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                 expected_cross_references = []
                 dqm_xrefs = dict()
                 for cross_reference in entry['crossReferences']:
+
                     prefix, identifier, separator = split_identifier(cross_reference["id"])
-                    if prefix not in dqm_xrefs:
-                        dqm_xrefs[prefix] = set()
-                    dqm_xrefs[prefix].add(identifier)
                     if 'pages' in cross_reference:
                         if len(cross_reference["pages"]) > 1:
                             fh_mod_report[mod].write("mod %s primaryId %s has cross reference identifier %s with multiple web pages %s\n" % (mod, primary_id, cross_reference["id"], cross_reference["pages"]))
@@ -583,17 +587,26 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
                             # logger.debug("mod %s primaryId %s has cross reference %s without pages", mod, primary_id, cross_reference["id"])
 
                     id = cross_reference['id']
+
+#                     logger.info(f"xref id {id}")
                     cross_ref_type_group = re.search(r"^([^0-9]+)[0-9]", id)
                     if cross_ref_type_group is not None:
+#                         logger.info(f"xref id {cross_ref_type_group[1].lower()}")
                         if cross_ref_type_group[1].lower() not in expected_cross_reference_type:
+#                             logger.info(f"xref id {id} not in expected_cross_reference_type")
                             if cross_ref_type_group[1] in cross_reference_types[mod]:
                                 cross_reference_types[mod][cross_ref_type_group[1]].append(primary_id + ' ' + id)
                             else:
                                 cross_reference_types[mod][cross_ref_type_group[1]] = [primary_id + ' ' + id]
                             # cross_reference_types[mod].add(cross_ref_type_group[1])
                         if cross_ref_type_group[1].lower() not in exclude_cross_reference_type:
+                            if prefix not in dqm_xrefs:
+                                dqm_xrefs[prefix] = set()
+                            dqm_xrefs[prefix].add(identifier)
+#                             logger.info(f"xref id {id} not in exclude_cross_reference_type")
                             expected_cross_references.append(cross_reference)
                 entry['crossReferences'] = expected_cross_references
+#                 logger.info(f"expected {expected_cross_references}")
                 for prefix in dqm_xrefs:
                     if len(dqm_xrefs[prefix]) > 1:
                         too_many_xref_per_type_failure = True
