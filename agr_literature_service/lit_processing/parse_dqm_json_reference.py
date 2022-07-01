@@ -570,6 +570,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
 
                     prefix, identifier, separator = split_identifier(cross_reference["id"])
                     if 'pages' in cross_reference:
+                        # temporary for Xenbase, remove when they fix their data.
+                        if cross_reference["pages"][0] == 'literature':
+                            cross_reference["pages"][0] = 'reference'
                         if len(cross_reference["pages"]) > 1:
                             fh_mod_report[mod].write("mod %s primaryId %s has cross reference identifier %s with multiple web pages %s\n" % (mod, primary_id, cross_reference["id"], cross_reference["pages"]))
                             # logger.info("mod %s primaryId %s has cross reference identifier %s with web pages %s", mod, primary_id, cross_reference["id"], cross_reference["pages"])
