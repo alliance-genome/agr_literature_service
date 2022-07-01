@@ -517,7 +517,6 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
     # fb resource data to primary key off of nlm
     # fb_resource_abbreviation_to_nlm = dict()
 
-#     counter = 0
     sanitized_pubmed_multi_mod_data = []
     unmerged_pubmed_data = dict()			# pubmed data by pmid and mod that needs some fields merged
     for mod in mods:
@@ -536,9 +535,6 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
         sanitized_pubmod_data = []
         sanitized_pubmed_single_mod_data = []
         for entry in entries:
-#             counter = counter + 1
-#             if counter > 3:
-#                 continue
             is_pubmod = True
             pmid = None
             update_primary_id = False
@@ -591,12 +587,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
 
                     id = cross_reference['id']
 
-#                     logger.info(f"xref id {id}")
                     cross_ref_type_group = re.search(r"^([^0-9]+)[0-9]", id)
                     if cross_ref_type_group is not None:
-#                         logger.info(f"xref id {cross_ref_type_group[1].lower()}")
                         if cross_ref_type_group[1].lower() not in expected_cross_reference_type:
-#                             logger.info(f"xref id {id} not in expected_cross_reference_type")
                             if cross_ref_type_group[1] in cross_reference_types[mod]:
                                 cross_reference_types[mod][cross_ref_type_group[1]].append(primary_id + ' ' + id)
                             else:
