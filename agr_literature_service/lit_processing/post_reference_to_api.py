@@ -110,7 +110,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
 
     subkeys_to_remove['mesh_terms'] = {'referenceId'}
     subkeys_to_remove['tags'] = {'referenceId'}
-    subkeys_to_remove['authors'] = {'referenceId', 'firstinit', 'firstInit', 'crossReferences', 'collectivename'}
+    subkeys_to_remove['authors'] = {'referenceId', 'firstinit', 'firstInit', 'crossReferences', 'collectivename', 'middleNames'}
 
     remap_subkeys['mesh_terms'] = dict()
     remap_subkeys['mesh_terms']['meshHeadingTerm'] = 'heading_term'
