@@ -90,6 +90,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
     remap_keys = dict()
     remap_keys['datePublished'] = 'date_published'
     remap_keys['dateArrivedInPubmed'] = 'date_arrived_in_pubmed'
+    remap_keys['dateArrivedInPubMed'] = 'date_arrived_in_pubmed'
     remap_keys['dateLastModified'] = 'date_last_modified_in_pubmed'
     remap_keys['crossReferences'] = 'cross_references'
     remap_keys['issueName'] = 'issue_name'
@@ -109,7 +110,7 @@ def post_references(input_file, check_file_flag):      # noqa: C901
 
     subkeys_to_remove['mesh_terms'] = {'referenceId'}
     subkeys_to_remove['tags'] = {'referenceId'}
-    subkeys_to_remove['authors'] = {'referenceId', 'firstinit', 'firstInit', 'crossReferences', 'collectivename'}
+    subkeys_to_remove['authors'] = {'referenceId', 'firstinit', 'firstInit', 'crossReferences', 'collectivename', 'middleNames'}
 
     remap_subkeys['mesh_terms'] = dict()
     remap_subkeys['mesh_terms']['meshHeadingTerm'] = 'heading_term'
