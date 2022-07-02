@@ -50,7 +50,7 @@ def patch(db: Session, reference_tag: ReferenceTagSchemaUpdate) -> int:
     # It already exists do just update the value
     if reference_tag_db_obj:
         reference_tag_db_obj.value = reference_tag_data["value"]
-        return
+        return reference_tag_db_obj.reference_tag_id
 
     # New reference tag
     reference_tag_data["reference"] = reference
