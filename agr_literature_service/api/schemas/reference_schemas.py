@@ -78,6 +78,7 @@ class ReferenceSchemaUpdate(BaseModel):
     issue_name: Optional[str] = None
     resource: Optional[str] = None
     open_access: Optional[bool] = False
+    tags: Optional[List[dict]] = None
 
     @validator('title')
     def title_is_some(cls, v: str) -> str:
@@ -131,6 +132,7 @@ class ReferenceSchemaShow(BaseModelShow):
     authors: Optional[List[AuthorSchemaShow]] = None
     comment_and_corrections: CommentAndCorrectionSchemaRelations
     open_access: Optional[bool] = None
+    tags: Optional[List[dict]] = None
 
 
 class ReferenceSchemaNeedReviewShow(BaseModel):

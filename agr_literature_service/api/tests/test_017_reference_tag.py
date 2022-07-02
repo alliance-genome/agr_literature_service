@@ -3,12 +3,13 @@ from sqlalchemy.orm import sessionmaker
 
 from agr_literature_service.api.crud.reference_tag_crud import patch
 from agr_literature_service.api.crud.mod_crud import create as mod_create
-from agr_literature_service.api.crud.reference_crud import show, create as ref_create
+from agr_literature_service.api.crud.reference_crud import show, create as ref_create, patch as ref_patch
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models import ModModel, ReferenceModel
 from agr_literature_service.api.models.reference_tag_model import ReferenceTagModel
 from agr_literature_service.api.schemas import ReferenceSchemaPost
+from agr_literature_service.api.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
 
 metadata = MetaData()
 
@@ -73,7 +74,21 @@ def test_patch_ref_tag():
     res = patch(db, data)
     assert res
     res = show(db, ref_curie)
+    print(res)
+    assert res['tags'][0]['tag_type'] == test_source
+    assert res['tags'][0]['value'] == 'Test1'
 
+    # Change the value BUT go via the reference
+    data['value'] = 'new_val'
+    ref_json = {
+        'reference_curie': res['curie'],
+        'tags': data
+    }
+    update_schema = ReferenceSchemaUpdate(title="new title", category="book", language="New", tags=[data])
+    ref_patch(db, ref_curie, update_schema)
+    res = show(db, ref_curie)
+    print(res)
+    assert res['tags'][0]['value'] == 'new_val'
 
 # def test_destroy_mca():
 #

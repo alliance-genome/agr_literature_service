@@ -157,6 +157,17 @@ def create(db: Session, reference: ReferenceSchemaPost): # noqa
                     except HTTPException:
                         logger.warning("skipping mod corpus association to a mod that is already associated to "
                                        "the reference")
+        logger.debug("Reference tags")
+        if field == "tags":
+            if value is not None:
+                for obj in value:
+                    obj_data = jsonable_encoder(obj)
+                    obj_data["reference_curie"] = curie
+                    try:
+                        patch_reference_tag(db, obj_data)
+                    except HTTPException:
+                        logger.warning("skipping mod corpus association to a mod that is already associated to "
+                                       "the reference")
 
     logger.debug("returning successfully?")
     return curie
@@ -330,7 +341,7 @@ def show(db: Session, curie: str, http_request=True):  # noqa
             del reference_data["tag"][i]["mod"]
             del reference_data["tag"][i]["mod_id"]
         reference_data["tags"] = reference_data["tag"]
-        del reference_data["tags"]
+        del reference_data["tag"]
 
     if reference.mesh_term:
         for mesh_term in reference_data["mesh_term"]:
