@@ -1,4 +1,5 @@
 
+import sys
 import gzip
 import hashlib
 import io
@@ -17,9 +18,11 @@ load_dotenv()
 # pipenv run python get_dqm_data.py
 
 
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../logging.conf')
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
+                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
+                    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
 
 base_path = environ.get('XML_PATH', "")
 storage_path = base_path + 'dqm_data/'
