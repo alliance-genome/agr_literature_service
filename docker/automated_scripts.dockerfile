@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y cron git
 WORKDIR /usr/src/app/
 
 ADD requirements.txt .
-ADD agr_literature_service .
+ADD agr_literature_service agr_literature_service
 ADD crontab /etc/cron.d/automate_scripts_crontab
 
 RUN pip3 install -r requirements.txt
