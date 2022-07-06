@@ -15,6 +15,7 @@ class GlobalConfig(BaseSettings):
     ENV_STATE: EnvStateSchema = Field(..., env="ENV_STATE")
     HOST: Optional[str] = Field(..., env="HOST")
     PROD_HOST: Optional[str] = Field(..., env="HOST")
+    BUCKET_NAME: str = Field(..., default="agr-literature", env="BUCKET_NAME")
 
     # AWS Creds
     AWS_SECRET_ACCESS_KEY: Optional[str] = Field(..., env="AWS_SECRET_ACCESS_KEY")
