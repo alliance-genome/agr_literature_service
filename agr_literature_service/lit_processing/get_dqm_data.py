@@ -61,13 +61,13 @@ def download_dqm_json():
     if not path.exists(storage_path):
         makedirs(storage_path)
 
-    mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
+    mods = ['SGD', 'RGD', 'FB', 'XB', 'WB', 'MGI', 'ZFIN']
     datatypes = ['REFERENCE', 'REF-EXCHANGE', 'RESOURCE']
-#     mods = ['WB']
+#     mods = ['XB']
 #     datatypes = ['RESOURCE']
 #     mods = ['WB', 'FB']
 #     datatypes = ['REFERENCE']
-    release = '5.2.0'
+    release = '5.2.1'
     for datatype in datatypes:
         for mod in mods:
             url = 'https://fms.alliancegenome.org/api/datafile/by/' + release + '/' + datatype + '/' + mod + '?latest=true'
