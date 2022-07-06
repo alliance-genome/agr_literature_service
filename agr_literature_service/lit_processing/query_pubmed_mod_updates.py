@@ -367,12 +367,16 @@ def send_loading_report(pmids4mod, mods, log_path, log_url):
         fw.write(message + "\n\n")
         email_message = "<h3>" + message + "</h3>"
 
+        rows = ""
         for mod in mods:
             pmids = pmids4mod.get(mod)
             if pmids is None:
                 continue
-            email_message = email_message + "<strong>" + mod + "</strong>" + ": " + str(len(pmids)) + "<br>"
+            # email_message = email_message + "<strong>" + mod + "</strong>" + " : " + str(len(pmids)) + "<br>"
+            rows = rows + "<tr><th>" + mod + "</th><td>" + str(len(pmids)) + "</td></tr>"
             fw.write(mod + ": " + str(len(pmids)) + "\n")
+
+        email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
 
         if log_url:
             email_message = email_message + "<p>Log file(s) are available at " + "<a href=" + log_url + ">" + log_url + "</a><p>"
