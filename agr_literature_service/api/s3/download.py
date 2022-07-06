@@ -4,6 +4,7 @@ from fastapi.encoders import jsonable_encoder
 from os import environ, getcwd
 from agr_literature_service.lit_processing.helper_s3 import download_file_from_s3
 from fastapi.responses import FileResponse
+from agr_literature_service.api.config import config
 
 
 def download_file_from_bucket(s3_client, bucket, folder, object_name=None):
@@ -30,7 +31,7 @@ def get_json_file_from_s3(mod):
     env_state = environ.get('ENV_STATE', 'develop')
     if env_state == 'build':
         env_state = 'develop'
-    bucketname = environ.get('BUCKET_NAME', 'agr-literature')
+    bucketname = config.BUCKET_NAME
     json_file = 'reference_' + mod + '.json'
     s3_file_location = env_state + '/reference/dumps/latest/' + json_file
 
