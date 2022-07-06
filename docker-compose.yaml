@@ -216,6 +216,9 @@ services:
       CRONTAB_EMAIL: "${CRONTAB_EMAIL}"
       SENDER_EMAIL: "${SENDER_EMAIL}"
       REPLY_TO: "${REPLY_TO}"
+      ELASTICSEARCH_HOST: "${ELASTICSEARCH_HOST}"
+      ELASTICSEARCH_PORT: "${ELASTICSEARCH_PORT}"
+      ELASTICSEARCH_INDEX: "${ELASTICSEARCH_INDEX}"
     volumes:
       - "${LOG_PATH}:/var/log/automated_scripts"
       - /etc/localtime:/etc/localtime:ro
