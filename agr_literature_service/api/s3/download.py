@@ -30,7 +30,7 @@ def get_json_file_from_s3(mod):
     env_state = environ.get('ENV_STATE', 'develop')
     if env_state == 'build':
         env_state = 'develop'
-    bucketname = 'agr-literature'
+    bucketname = environ.get('BUCKET_NAME', 'agr-literature')
     json_file = 'reference_' + mod + '.json'
     s3_file_location = env_state + '/reference/dumps/latest/' + json_file
 
