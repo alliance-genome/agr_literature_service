@@ -211,13 +211,13 @@ services:
       PSQL_DATABASE: "${PSQL_DATABASE}"
       RESOURCE_DESCRIPTOR_URL: "${RESOURCE_DESCRIPTOR_URL}"
       REG: "${REG}"
-      LOG_PATH: "${LOG_PATH}"
+      LOG_PATH: "/var/log/automated_scripts"
       LOG_URL: "${LOG_URL}"
       CRONTAB_EMAIL: "${CRONTAB_EMAIL}"
       SENDER_EMAIL: "${SENDER_EMAIL}"
       REPLY_TO: "${REPLY_TO}"
     volumes:
-      - /var/log/agr_literature_service/automated_scripts:/var/log
+      - "${LOG_PATH}:/var/log/automated_scripts"
       - /etc/localtime:/etc/localtime:ro
 
   test_runner:
