@@ -144,6 +144,8 @@ services:
       - agr-literature
     volumes:
       - agr-logs:/logs
+    depends_on:
+      - postgres
     ports:
       - "${API_PORT}:8080"
 
