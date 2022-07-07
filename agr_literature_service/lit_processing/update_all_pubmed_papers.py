@@ -65,7 +65,11 @@ def download_all_xml_files(pmids_all):
     load_dotenv()
     base_path = environ.get('XML_PATH', "")
     xml_path = base_path + "pubmed_xml/"
+    if not path.exists(xml_path):
+        makedirs(xml_path)
     json_path = base_path + "pubmed_json/"
+    if not path.exists(json_path):
+        makedirs(json_path)
     old_xml_path = base_path + "pubmed_xml_old/"
     old_json_path = base_path + "pubmed_json_old/"
     try:

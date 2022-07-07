@@ -50,7 +50,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
     # datestamp = str(date.today()).replace("-", "")
 
     (xml_path, json_path, old_xml_path, old_json_path, log_path, log_url,
-     email_recipients, sender_email, reply_to) = set_paths()
+     email_recipients, sender_email, sender_password, reply_to) = set_paths()
 
     email_subject = "PubMed Paper Update Report"
     if mod and mod != 'NONE':
@@ -145,7 +145,8 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
         reference_id_list = list(reference_id_to_pmid.keys())
 
     if len(reference_id_list) == 0:
-        close_no_update(fw, mod, email_subject, email_recipients, sender_email, reply_to, log_path)
+        close_no_update(fw, mod, email_subject, email_recipients, sender_email,
+                        sender_password, reply_to, log_path)
         return
 
     fw.write(str(datetime.now()) + "\n")
@@ -162,7 +163,7 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
                                                                pmids_with_json_updated)
 
     write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, log_url, log_path, email_subject,
-                  email_recipients, sender_email, reply_to)
+                  email_recipients, sender_email, sender_password, reply_to)
 
     if environ.get('ENV_STATE') and environ['ENV_STATE'] == 'prod':
         fw.write(str(datetime.now()) + "\n")
@@ -887,7 +888,10 @@ def set_paths():
     sender_email = None
     if environ.get('SENDER_EMAIL'):
         sender_email = environ['SENDER_EMAIL']
-    reply_to = None
+    sender_password = None
+    if environ.get('SENDER_PASSWORD'):
+        sender_password = environ['SENDER_PASSWORD']
+    reply_to = sender_email
     if environ.get('REPLY_TO'):
         reply_to = environ['REPLY_TO']
     if not path.exists(xml_path):
@@ -902,10 +906,10 @@ def set_paths():
         makedirs(log_path)
 
     return (xml_path, json_path, old_xml_path, old_json_path, log_path, log_url,
-            email_recipients, sender_email, reply_to)
+            email_recipients, sender_email, sender_password, reply_to)
 
 
-def close_no_update(fw, mod, email_subject, email_recipients, sender_email, reply_to, log_dir):
+def close_no_update(fw, mod, email_subject, email_recipients, sender_email, sender_password, reply_to, log_dir):
 
     log.info("No new update in PubMed.")
     fw.write("No new update in PubMed.\n")
@@ -925,7 +929,8 @@ def close_no_update(fw, mod, email_subject, email_recipients, sender_email, repl
         email_message = "No new update found in PubMed"
     email_message = "<strong>" + email_message + "</strong>"
 
-    (status, message) = send_email(email_subject, email_recipients, email_message, sender_email, reply_to)
+    (status, message) = send_email(email_subject, email_recipients, email_message, sender_email,
+                                   sender_password, reply_to)
     if status == 'error':
         fw.write("Failed sending email to slack: " + message + "\n")
         log.info("Failed sending email to slack: " + message + "\n")
@@ -934,7 +939,7 @@ def close_no_update(fw, mod, email_subject, email_recipients, sender_email, repl
         system("/usr/bin/tree -H '.' -L 1 --noreport --charset utf-8 > index.html")
 
 
-def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, log_url, log_dir, email_subject, email_recipients, sender_email, reply_to):
+def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, log_url, log_dir, email_subject, email_recipients, sender_email, sender_password, reply_to):
 
     message = None
     if mod:
@@ -986,7 +991,8 @@ def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag,
 
     if mod:
         email_message = email_message + "DONE!<p>"
-        (status, message) = send_email(email_subject, email_recipients, email_message, sender_email, reply_to)
+        (status, message) = send_email(email_subject, email_recipients, email_message,
+                                       sender_email, sender_password, reply_to)
         if status == 'error':
             fw.write("Failed sending email to slack: " + message + "\n")
             log.info("Failed sending email to slack: " + message + "\n")
