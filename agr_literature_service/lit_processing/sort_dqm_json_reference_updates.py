@@ -206,12 +206,12 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     token = get_authentication_token()
     headers = generate_headers(token)
 
-    mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB']
+    mods = ['RGD', 'MGI', 'XB', 'SGD', 'FB', 'ZFIN', 'WB']
     if input_mod in mods:
         mods = [input_mod]
 
     # these tags are allowed from dqms, but we don't want them in the database
-    dqm_keys_to_remove = {'tags', 'issueDate', 'dateLastModified', 'keywords', 'citation'}
+    dqm_keys_to_remove = {'tags', 'issueDate', 'dateArrivedInPubmed', 'dateLastModified', 'keywords', 'citation'}
 
     # to debug, save 9 seconds per run by generating xref mappings only once and load from flatfile
     # generate_cross_references_file('reference')
