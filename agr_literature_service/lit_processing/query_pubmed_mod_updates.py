@@ -342,6 +342,9 @@ def send_loading_report(pmids4mod, mods, log_path, log_url):
     sender_email = None
     if environ.get('SENDER_EMAIL'):
         sender_email = environ['SENDER_EMAIL']
+    sender_password = None
+    if environ.get('SENDER_PASSWORD'):
+        sender_password = environ['SENDER_PASSWORD']
     reply_to = sender_email
     if environ.get('REPLY_TO'):
         reply_to = environ['REPLY_TO']
@@ -393,7 +396,7 @@ def send_loading_report(pmids4mod, mods, log_path, log_url):
             fw.write("\n".join(pmids_to_report) + "\n\n")
 
     (status, message) = send_email(email_subject, email_recipients,
-                                   email_message, sender_email, reply_to)
+                                   email_message, sender_email, sender_password, reply_to)
     if status == 'error':
         logger.info("Failed sending email to slack: " + message + "\n")
     else:

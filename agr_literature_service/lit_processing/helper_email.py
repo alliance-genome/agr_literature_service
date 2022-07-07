@@ -3,18 +3,20 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 
-def send_email(subject, recipients, msg, sender_email, reply_to):
+def send_email(subject, recipients, msg, sender_email, sender_password, reply_to):
 
     try:
         message = MIMEMultipart("alternative")
         message["Subject"] = subject
         message["From"] = sender_email
+        message["To"] = recipients
         message.add_header('reply-to', reply_to)
         html_message = MIMEText(msg, "html")
         message.attach(html_message)
 
-        server = smtplib.SMTP("localhost", 25)
-        any_recipients_error = server.sendmail(sender_email, recipients, message.as_string())
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
+        server.login(sender_email, sender_password)
+        any_recipients_error = server.send_message(message)
         server.quit()
 
         if(len(any_recipients_error) > 0):
