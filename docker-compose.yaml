@@ -219,6 +219,8 @@ services:
       ELASTICSEARCH_HOST: "${ELASTICSEARCH_HOST}"
       ELASTICSEARCH_PORT: "${ELASTICSEARCH_PORT}"
       ELASTICSEARCH_INDEX: "${ELASTICSEARCH_INDEX}"
+      API_PORT: "${API_PORT}"
+      API_SERVER: "${API_SERVER}"
     volumes:
       - "${LOG_PATH}:/var/log/automated_scripts"
       - /etc/localtime:/etc/localtime:ro
