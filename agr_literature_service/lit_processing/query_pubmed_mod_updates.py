@@ -414,15 +414,9 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref
     log_path = base_path + 'pubmed_search_logs/'
     log_url = None
     if environ.get('LOG_PATH'):
-        if environ['LOG_PATH'].endswith('/'):
-            log_path = environ['LOG_PATH'] + 'pubmed_search/'
-        else:
-            log_path = environ['LOG_PATH'] + '/pubmed_search/'
+        log_path = path.join(environ['LOG_PATH'], 'pubmed_search/')
         if environ.get('LOG_URL'):
-            if environ['LOG_URL'].endswith('/'):
-                log_url = environ['LOG_URL'] + 'pubmed_search/'
-            else:
-                log_url = environ['LOG_URL'] + '/pubmed_search/'
+            log_url = path.join(environ['LOG_URL'], 'pubmed_search/')
     if not path.exists(log_path):
         makedirs(log_path)
     log_file = log_path + "duplicate_rows_" + mod + ".log"

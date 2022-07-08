@@ -878,16 +878,10 @@ def set_paths():
     old_json_path = base_path + "pubmed_json/old/"
     log_path = base_path + 'pubmed_search_logs/'
     if environ.get('LOG_PATH'):
-        if environ['LOG_PATH'].endswith('/'):
-            log_path = environ['LOG_PATH'] + 'pubmed_update/'
-        else:
-            log_path = environ['LOG_PATH'] + '/pubmed_update/'
+        log_path = path.join(environ['LOG_PATH'], 'pubmed_update/')
     log_url = None
     if environ.get('LOG_URL'):
-        if environ['LOG_URL'].endswith('/'):
-            log_url = environ['LOG_URL'] + 'pubmed_update/'
-        else:
-            log_url = environ['LOG_URL'] + '/pubmed_update/'
+        log_url = path.join(environ['LOG_URL'], 'pubmed_update/')
     email_recipients = None
     if environ.get('CRONTAB_EMAIL'):
         email_recipients = environ['CRONTAB_EMAIL']
