@@ -1,7 +1,7 @@
 from sqlalchemy import or_
 import argparse
 import logging
-from os import environ, makedirs, path, system, chdir
+from os import environ, makedirs, path
 from dotenv import load_dotenv
 from datetime import datetime, date
 import json
@@ -878,10 +878,10 @@ def set_paths():
     old_json_path = base_path + "pubmed_json/old/"
     log_path = base_path + 'pubmed_search_logs/'
     if environ.get('LOG_PATH'):
-        log_path = environ['LOG_PATH'] + 'pubmed_update/'
+        log_path = path.join(environ['LOG_PATH'], 'pubmed_update/')
     log_url = None
     if environ.get('LOG_URL'):
-        log_url = environ['LOG_URL'] + 'pubmed_update/'
+        log_url = path.join(environ['LOG_URL'], 'pubmed_update/')
     email_recipients = None
     if environ.get('CRONTAB_EMAIL'):
         email_recipients = environ['CRONTAB_EMAIL']
@@ -934,9 +934,6 @@ def close_no_update(fw, mod, email_subject, email_recipients, sender_email, send
     if status == 'error':
         fw.write("Failed sending email to slack: " + message + "\n")
         log.info("Failed sending email to slack: " + message + "\n")
-    else:
-        chdir(log_dir)
-        system("/usr/bin/tree -H '.' -L 1 --noreport --charset utf-8 > index.html")
 
 
 def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, log_url, log_dir, email_subject, email_recipients, sender_email, sender_password, reply_to):
@@ -996,9 +993,6 @@ def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag,
         if status == 'error':
             fw.write("Failed sending email to slack: " + message + "\n")
             log.info("Failed sending email to slack: " + message + "\n")
-        else:
-            chdir(log_dir)
-            system("/usr/bin/tree -H '.' -L 1 --noreport --charset utf-8 > index.html")
 
 
 def generate_pmids_with_info(pmids_all, old_md5sum, new_md5sum, pmid_to_reference_id):
