@@ -358,11 +358,6 @@ services:
       PSQL_HOST: "${PSQL_HOST}"
       PSQL_PORT: "${PSQL_PORT}"
       PSQL_DATABASE: "${PSQL_DATABASE}"
-    volumes:
-      - "./debezium/elasticsearch-sink.json:/elasticsearch-sink.json"
-      - "./debezium/postgres-source.json:/postgres-source.json"
-      - "./debezium/elasticsearch-settings.json:/elasticsearch-settings.json"
-      - "./debezium/setup.sh:/setup.sh"
     networks:
       - agr-literature
     command:
