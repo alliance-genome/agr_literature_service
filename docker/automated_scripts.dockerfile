@@ -3,7 +3,7 @@ ARG ALLIANCE_RELEASE
 
 FROM ${REG}/agr_base_linux_env:${ALLIANCE_RELEASE}
 
-RUN apt-get update && apt-get install -y cron git tree
+RUN apt-get update && apt-get install -y cron git
 
 WORKDIR /usr/src/app/
 
