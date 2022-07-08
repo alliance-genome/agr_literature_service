@@ -41,11 +41,59 @@ CREATE TABLE cross_reference (
     VALUE_FORMAT='json'
   );
 
+CREATE TABLE author (
+    ROWKEY string PRIMARY KEY,
+    reference_id string,
+    orcid string,
+    first_name string,
+    last_name string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.author',
+    VALUE_FORMAT='json'
+  );
+
 CREATE TABLE cross_references AS
     SELECT reference_id \"REFERENCE_ID\",
     collect_list(map('curie':=curie, 'is_obsolete':=cast(is_obsolete as string))) \"CROSS_REFERENCES\"
     FROM cross_reference
     GROUP BY reference_id
+    EMIT CHANGES;
+
+CREATE TABLE authors AS
+    SELECT reference_id \"REFERENCE_ID\",
+    collect_list(map('name':=concat_ws(' ', first_name, last_name), 'orcid':=orcid)) \"AUTHORS\"
+    FROM author
+    GROUP BY reference_id
+    EMIT CHANGES;
+
+CREATE TABLE reference_xref AS
+    SELECT
+    reference.reference_id \"REFERENCE_ID\",
+    reference.curie,
+    reference.abstract,
+    reference.category,
+    reference.date_arrived_in_pubmed,
+    reference.date_created,
+    reference.date_last_modified_in_pubmed,
+    reference.date_published,
+    reference.date_updated,
+    reference.issue_name,
+    reference.keywords,
+    reference.language,
+    reference.open_access,
+    reference.page_range,
+    reference.plain_language_abstract,
+    reference.publisher,
+    reference.pubmed_abstract_languages,
+    reference.pubmed_publication_status,
+    reference.pubmed_types,
+    reference.resource_id,
+    reference.title,
+    reference.volume,
+    cross_references.cross_references
+    FROM reference reference
+    JOIN cross_references cross_references ON
+    reference.reference_id = cross_references.reference_id
     EMIT CHANGES;
 
 CREATE TABLE reference_joined WITH (
@@ -54,31 +102,32 @@ CREATE TABLE reference_joined WITH (
     VALUE_FORMAT='JSON',
     KEY_FORMAT='JSON'
   ) AS SELECT
-    reference.reference_id \"reference_id\",
-    reference.curie \"curie\",
-    reference.abstract \"abstract\",
-    reference.category \"category\",
-    reference.date_arrived_in_pubmed \"date_arrived_in_pubmed\",
-    reference.date_created \"date_created\",
-    reference.date_last_modified_in_pubmed \"date_last_modified_in_pubmed\",
-    reference.date_published \"date_published\",
-    reference.date_updated \"date_updated\",
-    reference.issue_name \"issue_name\",
-    reference.keywords \"keywords\",
-    reference.language \"language\",
-    reference.open_access \"open_access\",
-    reference.page_range \"page_range\",
-    reference.plain_language_abstract \"plain_language_abstract\",
-    reference.publisher \"publisher\",
-    reference.pubmed_abstract_languages \"pubmed_abstract_languages\",
-    reference.pubmed_publication_status \"pubmed_publication_status\",
-    reference.pubmed_types \"pubmed_types\",
-    reference.resource_id \"resource_id\",
-    reference.title \"title\",
-    reference.volume \"volume\",
-    cross_references.cross_references \"cross_references\"
-    FROM reference reference
-    JOIN cross_references cross_references ON
-    reference.reference_id = cross_references.reference_id;
+    reference_xref.reference_id \"reference_id\",
+    reference_xref.curie \"curie\",
+    reference_xref.abstract \"abstract\",
+    reference_xref.category \"category\",
+    reference_xref.date_arrived_in_pubmed \"date_arrived_in_pubmed\",
+    reference_xref.date_created \"date_created\",
+    reference_xref.date_last_modified_in_pubmed \"date_last_modified_in_pubmed\",
+    reference_xref.date_published \"date_published\",
+    reference_xref.date_updated \"date_updated\",
+    reference_xref.issue_name \"issue_name\",
+    reference_xref.keywords \"keywords\",
+    reference_xref.language \"language\",
+    reference_xref.open_access \"open_access\",
+    reference_xref.page_range \"page_range\",
+    reference_xref.plain_language_abstract \"plain_language_abstract\",
+    reference_xref.publisher \"publisher\",
+    reference_xref.pubmed_abstract_languages \"pubmed_abstract_languages\",
+    reference_xref.pubmed_publication_status \"pubmed_publication_status\",
+    reference_xref.pubmed_types \"pubmed_types\",
+    reference_xref.resource_id \"resource_id\",
+    reference_xref.title \"title\",
+    reference_xref.volume \"volume\",
+    reference_xref.cross_references \"cross_references\",
+    authors.authors \"authors\"
+    FROM reference_xref reference_xref
+    JOIN authors authors ON
+    reference_xref.reference_id = authors.reference_id;
 ",
 "streamsProperties": {}}
