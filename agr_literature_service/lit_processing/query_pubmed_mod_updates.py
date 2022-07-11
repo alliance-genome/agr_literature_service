@@ -4,7 +4,7 @@ import logging.config
 import re
 import time
 import urllib
-from os import environ, makedirs, path, system, chdir
+from os import environ, makedirs, path
 from typing import List, Set, Dict, Tuple, Union
 import json
 
@@ -399,9 +399,6 @@ def send_loading_report(pmids4mod, mods, log_path, log_url):
                                    email_message, sender_email, sender_password, reply_to)
     if status == 'error':
         logger.info("Failed sending email to slack: " + message + "\n")
-    else:
-        chdir(log_path)
-        system("/usr/bin/tree -H '.' -L 1 --noreport --charset utf-8 > index.html")
 
 
 def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref_xref_obsolete):
@@ -417,9 +414,9 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref
     log_path = base_path + 'pubmed_search_logs/'
     log_url = None
     if environ.get('LOG_PATH'):
-        log_path = environ['LOG_PATH'] + 'pubmed_search/'
+        log_path = path.join(environ['LOG_PATH'], 'pubmed_search/')
         if environ.get('LOG_URL'):
-            log_url = environ['LOG_URL'] + 'pubmed_search/'
+            log_url = path.join(environ['LOG_URL'], 'pubmed_search/')
     if not path.exists(log_path):
         makedirs(log_path)
     log_file = log_path + "duplicate_rows_" + mod + ".log"

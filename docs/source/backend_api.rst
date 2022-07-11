@@ -10,7 +10,6 @@ The backend API stack has these dependencies
 
 - `Postgres`_
 - `ElasticSearch`_
-- `Redis`_
 - `RESTful`_
 
 Spin up stack
@@ -249,7 +248,6 @@ Current docker-compose file
 
     volumes:
       agr-literature-pg-data:
-      agr-literature-redis-data:
       agr-literature-pgadmin-data:
       agr-literature-es-data:
 
@@ -262,5 +260,4 @@ Current docker-compose file
 
 .. _Postgres: https://www.postgresql.org
 .. _Elasticsearch: https://www.elastic.co/elasticsearch/
-.. _Redis: https://redis.com
 .. _RESTful: https://flask-restful.readthedocs.io/en/latest/quickstart.html
