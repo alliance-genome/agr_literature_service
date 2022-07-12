@@ -356,6 +356,15 @@ services:
       - /bin/bash
     tty: true
 
+  jenkins:
+    image: jenkins/jenkins:2.346.1-lts-jdk11
+    volumes:
+      - /usr/share/jenkins_home:/var/jenkins_home
+    ports:
+      - "49001:8080"
+      - "50000:50000"
+    restart: on-failure
+
 volumes:
   agr-literature-pg-data:
   agr-literature-pgadmin-data:
