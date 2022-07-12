@@ -396,7 +396,7 @@ def send_loading_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod
         if rows != '':
             email_message = email_message + "<p><strong>Following new PMID(s) are not added to ABC from PubMed Search</strong><p>"
             email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
-            
+
         if log_url:
             email_message = email_message + "<p>Log file(s) are available at " + "<a href=" + log_url + ">" + log_url + "</a><p>"
         else:
