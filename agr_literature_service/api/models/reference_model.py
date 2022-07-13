@@ -54,8 +54,13 @@ class ReferenceModel(Base):
     comment_and_corrections_in = relationship(
         "ReferenceCommentAndCorrectionModel",
         foreign_keys="ReferenceCommentAndCorrectionModel.reference_id_to",
-
         back_populates="reference_to"
+    )
+
+    obsolete_reference = relationship(
+        "ObsoleteReferenceModel",
+        foreign_keys="ObsoleteReferenceModel.new_id",
+        lazy="joined"
     )
 
     resource_id = Column(
