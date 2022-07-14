@@ -303,8 +303,8 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         reference_data['mod_reference_types'] = mrt
         # del reference_data['mod_reference_type']
 
-    reference_data["obsolete_reference"] = [obs_reference["curie"] for obs_reference in
-                                            reference_data["obsolete_reference"]]
+    reference_data["obsolete_references"] = [obs_reference["curie"] for obs_reference in
+                                             reference_data["obsolete_reference"]]
 
     if reference.mod_corpus_association:
         for i in range(len(reference_data["mod_corpus_association"])):
