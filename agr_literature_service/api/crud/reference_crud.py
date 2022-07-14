@@ -401,6 +401,8 @@ def merge_references(db: Session,
     # Add old_curie and new_id into the obsolete_reference_curie table.
     obs_ref_cur_db_obj = ObsoleteReferenceModel(**obs_ref_cur_data)
     db.add(obs_ref_cur_db_obj)
+    # Commit remapping in obsolete_reference_curie to avoid deleting them when deleting old_ref
+    db.commit()
 
     # Delete the old_curie object
     db.delete(old_ref)
