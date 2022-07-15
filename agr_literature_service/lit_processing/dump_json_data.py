@@ -496,28 +496,12 @@ def get_journal_data(db_session):
     return resource_id_to_journal
 
 
-def print_usage():
-
-    print("Usage: python dump_json_data.py -m [SGD|WB|FB|ZFIN|MGI|RGD|XB]")
-    print("Usage: python dump_json_data.py -m [SGD|WB|FB|ZFIN|MGI|RGD|XB] -o")
-    print("Usage example: python dump_json_data.py -m SGD")
-    print("Usage example: python dump_json_data.py -m SGD -o")
-
-
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-m', '--mod', action='store', help='which mod, [SGD|WB|FB|ZFIN|MGI|RGD|XB|NONE]')
+    parser.add_argument('-m', '--mod', action='store', type=str, help='MOD to dump',
+                        choices=['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB'], required=True)
     parser.add_argument('-o', '--ondemand', action='store_true', help="by curator's request")
 
     args = vars(parser.parse_args())
-    mod = args['mod'] if args.get('mod') else None
-
-    ## set mod to NONE to only update the papers that are not associated with a MOD
-    if mod:
-        if mod in ['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB']:
-            dump_data(mod, args['ondemand'])
-        else:
-            print_usage()
-    else:
-        print_usage()
+    dump_data(args['mod'], args['ondemand'])
