@@ -56,7 +56,7 @@ def dump_data(mod, ondemand):  # noqa: C901
 
     reference_id_to_xrefs = get_cross_reference_data(db_session, mod_id)
 
-    engine = create_postgres_engine()
+    engine = create_postgres_engine(False)
     db_connection = engine.connect()
 
     log.info("Getting author data from the database...")
@@ -214,7 +214,7 @@ def get_reference_data_and_generate_json(mod_id, mod, reference_id_to_xrefs, ref
 
     data = []
 
-    engine = create_postgres_engine()
+    engine = create_postgres_engine(False)
     db_connection = engine.connect()
 
     i = 0
