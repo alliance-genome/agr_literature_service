@@ -8,7 +8,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 
-def create_postgres_session(verbose):
+def create_postgres_engine():
+    
     """Connect to database."""
     USER = environ.get('PSQL_USERNAME', 'postgres')
     PASSWORD = environ.get('PSQL_PASSWORD', 'postgres')
@@ -17,9 +18,16 @@ def create_postgres_session(verbose):
 
     DB = environ.get('PSQL_DATABASE', 'literature')
 
-    # Create our SQL Alchemy engine from our environmental variables.
+    # Create our SQL Alchemy engine from our environmental variables.                                               
     engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
     engine = create_engine(engine_var)
+
+    return engine
+
+
+def create_postgres_session(verbose):
+
+    engine = create_postgres_engine()
 
     Session = sessionmaker(bind=engine)
     session = Session()
