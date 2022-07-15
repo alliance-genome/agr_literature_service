@@ -10,7 +10,7 @@ log.setLevel(logging.INFO)
 
 def dump_all_data():
 
-    for mod in ['WB', 'ZFIN', 'FB', 'SGD', 'RGD', 'MGI']:
+    for mod in ['WB', 'XB', 'ZFIN', 'FB', 'SGD', 'RGD', 'MGI']:
         log.info("Dumping json data for " + mod)
         try:
             dump_data(mod, None)

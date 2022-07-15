@@ -1,7 +1,7 @@
 """
 obsolete_model.py
 
-Presently just for the merging and obsoletion of references. Other taabkes may be added later.
+Presently just for the merging and obsoletion of references. Other tables may be added later.
 If a reference is made obsolete and not merged then the new_id will be null.
 ===============
 """
@@ -14,12 +14,12 @@ from agr_literature_service.api.database.base import Base
 
 class ObsoleteReferenceModel(Base):
     """
-       curie and new_id names choosen so that if resource and person or others are added
+       curie and new_id names chosen so that if resource and person or others are added
        then we can use existing code, by passing the class to the method, as all other
        fields will be the same.
        NOTE: If x is merged into y and then y is merged into z at a later date then
              the curie for x should now point to the new_id of z and not y.
-             If we need to work out what happended then the version table will tell us.
+             If we need to work out what happened then the version table will tell us.
              Similarly for z being obsoleted. (x, y and z should have new_id of null)
     """
     __tablename__ = "obsolete_reference_curie"
