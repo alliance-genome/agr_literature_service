@@ -7,7 +7,6 @@ import json
 
 from agr_literature_service.api.models import CrossReferenceModel, \
     ReferenceModel, ModModel, ModCorpusAssociationModel, \
-    ReferenceCommentAndCorrectionModel, AuthorModel, MeshDetailModel, \
     ResourceModel, ModReferenceTypeModel
 from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session, \
     create_postgres_engine
@@ -34,7 +33,7 @@ loop_count = 700
 def dump_data(mod, ondemand):  # noqa: C901
 
     db_session = create_postgres_session(False)
-    
+
     json_file = "reference" + "_" + mod + ".json"
 
     datestamp = str(date.today()).replace("-", "")
@@ -67,7 +66,7 @@ def dump_data(mod, ondemand):  # noqa: C901
     log.info("Getting comment/correction data from the database...")
 
     reference_id_to_comment_correction_data = get_comment_correction_data(db_connection)
-    
+
     mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db_session.query(ModModel).all()])
 
     log.info("Getting mod reference type data from the database...")
@@ -89,7 +88,7 @@ def dump_data(mod, ondemand):  # noqa: C901
     db_session.close()
     db_connection.close()
     engine.dispose()
-        
+
     log.info("Getting data from Reference table and generating json file...")
     try:
         get_reference_data_and_generate_json(mod_id, mod, reference_id_to_xrefs,
@@ -217,7 +216,7 @@ def get_reference_data_and_generate_json(mod_id, mod, reference_id_to_xrefs, ref
 
     engine = create_postgres_engine()
     db_connection = engine.connect()
-        
+
     i = 0
     j = 0
     for index in range(loop_count):
@@ -266,7 +265,7 @@ def get_reference_data_and_generate_json(mod_id, mod, reference_id_to_xrefs, ref
             log.info("concatenating " + str(j + 1) + " small json files to a single json file: " + json_file_with_path)
             concatenate_json_files(json_file_with_path, j + 1)
             return
-    
+
         count_index = generate_json_data(rows, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_comment_correction_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, data)
         i += count_index
 
@@ -278,7 +277,7 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
 
     i = 0
     for x in ref_data:
-        
+
         i += 1
 
         reference_id = x[0]
@@ -286,7 +285,7 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
 
         if i % 100 == 0:
             log.info(str(i) + " " + x[1])
-        
+
         row = {'reference_id': x[0],
                'curie': x[1],
                'resource_id': x[2],
@@ -309,7 +308,7 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
                'date_updated': str(x[19]),
                'date_created': str(x[20]),
                'open_access': x[21]}
-        
+
         row['authors'] = reference_id_to_authors.get(reference_id, [])
 
         row['cross_references'] = reference_id_to_xrefs.get(reference_id, [])
@@ -329,7 +328,7 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
         else:
             row['resource_curie'] = None
             row['resource_title'] = None
-                        
+
         data.append(row)
 
     return i
@@ -364,7 +363,7 @@ def get_cross_reference_data(db_session, mod_id):
                "is_obsolete": x.is_obsolete}
         data.append(row)
         reference_id_to_xrefs[x.reference_id] = data
-        
+
     return reference_id_to_xrefs
 
 
@@ -390,12 +389,12 @@ def get_author_data(db_connection, mod_id):
                      "date_updated": str(x[10]),
                      "date_created": str(x[11])})
         reference_id_to_authors[reference_id] = data
-    
+
     return reference_id_to_authors
 
 
 def get_comment_correction_data(db_connection):
-    
+
     reference_id_to_comment_correction_data = {}
 
     type_mapping = {'ErratumFor': 'ErratumIn',
@@ -420,7 +419,7 @@ def get_comment_correction_data(db_connection):
         type_db = type_db.replace("ReferenceCommentAndCorrectionType.", "")
         reference_id_from = x[1]
         reference_id_to = x[2]
-        
+
         ## for reference_id_from
         data = {}
         if reference_id_from in reference_id_to_comment_correction_data:
@@ -429,7 +428,7 @@ def get_comment_correction_data(db_connection):
         data[type_db] = {"PMID": "PMID:" + pmid,
                          "reference_curie": ref_curie}
         reference_id_to_comment_correction_data[reference_id_from] = data
-        
+
         ## for reference_id_to
         data = {}
         if reference_id_to in reference_id_to_comment_correction_data:
@@ -450,7 +449,7 @@ def get_comment_correction_data(db_connection):
 def get_mesh_term_data(db_connection, mod_id):
 
     reference_id_to_mesh_terms = {}
-    
+
     mesh_limit = 1000000
     for index in range(10):
         offset = index * mesh_limit
