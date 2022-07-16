@@ -42,7 +42,7 @@ sleep_time = 60
 
 
 def update_data(mod, pmids, md5dict=None, newly_added_pmids=None):  # noqa: C901
-    
+
     if md5dict is None and mod:
         update_resource_pubmed_nlm
 
@@ -1008,7 +1008,7 @@ def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag,
             fw.write("PMID:" + str(pmid) + "\n")
             email_message = email_message + "PMID:" + str(pmid) + "<br>"
         email_message = email_message + "<p>"
-        
+
     if mod:
         email_message = email_message + "DONE!<p>"
         (status, message) = send_email(email_subject, email_recipients, email_message,
@@ -1226,16 +1226,13 @@ def get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    
     group = parser.add_mutually_exclusive_group()
 
     group.add_argument('-m', '--mod', action='store', type=str, help='MOD to update',
-                        choices=['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB', 'NONE'])
+                       choices=['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB', 'NONE'])
     group.add_argument('-p', '--pmids', action='store', help="a list of '|' delimited pmid list")
 
     args = vars(parser.parse_args())
     if not any(args.values()):
         parser.error('No arguments provided.')
     update_data(args['mod'], args['pmids'])
-
-           
