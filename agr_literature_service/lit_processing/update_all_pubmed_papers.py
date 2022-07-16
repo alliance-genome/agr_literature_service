@@ -4,12 +4,13 @@ from dotenv import load_dotenv
 from os import environ, makedirs, path
 import shutil
 
-from agr_literature_service.api.models import CrossReferenceModel
+from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel
 from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session
 from agr_literature_service.lit_processing.update_resource_pubmed_nlm import update_resource_pubmed_nlm
 from agr_literature_service.lit_processing.get_pubmed_xml import download_pubmed_xml
 from agr_literature_service.lit_processing.update_pubmed_papers import update_data
 from agr_literature_service.lit_processing.filter_dqm_md5sum import load_s3_md5data, save_s3_md5data
+from datetime import datetime, timedelta
 
 logging.basicConfig(format='%(message)s')
 log = logging.getLogger()
@@ -29,14 +30,28 @@ def update_all_data():
         log.info("Error occurred when updating resource info.\n" + str(e))
         return
 
+    db_session = create_postgres_session(False)
+
     ## take 8 sec
     log.info("Retrieving all pmids:")
     try:
-        pmids_all = retrieve_all_pmids()
+        pmids_all = retrieve_all_pmids(db_session)
         pmids_all.sort()
     except Exception as e:
         log.info("Error occurred when retrieving pmid list from database.\n" + str(e))
+        db_session.close()
         return
+
+    log.info("Retrieving recently added pmids:")
+    pmids_new = []
+    try:
+        pmids_new = retrieve_newly_added_pmids(db_session)
+    except Exception as e:
+        log.info("Error occurred when retrieving new pmid list from database.\n" + str(e))
+        db_session.close()
+        return
+
+    db_session.close()
 
     ## take 1 to 2hrs
     log.info("Downloading all xml files:")
@@ -53,7 +68,7 @@ def update_all_data():
             log.info("Updating pubmed papers for " + mod + ":")
         md5dict = load_s3_md5data(['PMID'])
         try:
-            update_data(mod, None, md5dict)
+            update_data(mod, None, md5dict, pmids_new)
         except Exception as e:
             log.info("Error occurred when updating pubmed papers for " + mod + "\n" + str(e))
             save_s3_md5data(md5dict, ['PMID'])
@@ -84,17 +99,25 @@ def download_all_xml_files(pmids_all):
         time.sleep(sleep_time)
 
 
-def retrieve_all_pmids():
+def retrieve_newly_added_pmids(db_session):
 
-    db_session = create_postgres_session(False)
+    pmids_new = []
+
+    filter_after = datetime.today() - timedelta(days=90)
+
+    for x in db_session.query(CrossReferenceModel).join(ReferenceModel.cross_reference).filter(CrossReferenceModel.curie.like('PMID:%')).filter(ReferenceModel.date_created >= filter_after).all():
+        pmids_new.append(x.curie.replace('PMID:', ''))
+
+    return pmids_new
+
+
+def retrieve_all_pmids(db_session):
 
     pmids = []
     for x in db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie.like('PMID:%')).all():
         if x.is_obsolete:
             continue
         pmids.append(x.curie.replace("PMID:", ""))
-
-    db_session.close()
 
     return pmids
 

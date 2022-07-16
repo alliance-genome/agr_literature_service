@@ -13,6 +13,7 @@ from agr_literature_service.api.models import CrossReferenceModel, ReferenceMode
 from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session
 from agr_literature_service.lit_processing.update_resource_pubmed_nlm import update_resource_pubmed_nlm
 from agr_literature_service.lit_processing.get_pubmed_xml import download_pubmed_xml
+### fix here
 from agr_literature_service.lit_processing.xml_to_json import generate_json
 from agr_literature_service.lit_processing.filter_dqm_md5sum import load_s3_md5data
 from agr_literature_service.lit_processing.helper_s3 import upload_xml_file_to_s3
@@ -40,8 +41,8 @@ query_cutoff = 500
 sleep_time = 60
 
 
-def update_data(mod, pmids, md5dict=None):  # noqa: C901
-
+def update_data(mod, pmids, md5dict=None, newly_added_pmids=None):  # noqa: C901
+    
     if md5dict is None and mod:
         update_resource_pubmed_nlm
 
@@ -134,7 +135,13 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
     fw.write("Generating json files...\n")
     log.info("Generating json files...")
 
-    generate_json(pmids_all, [])
+    not_found_xml_list = []
+    generate_json(pmids_all, [], not_found_xml_list)
+
+    if newly_added_pmids:
+        for pmid in newly_added_pmids:
+            if pmid in not_found_xml_list:
+                not_found_xml_list.remove(pmid)
 
     new_md5sum = get_md5sum(json_path)
 
@@ -162,7 +169,8 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
                                                                old_md5sum, json_path,
                                                                pmids_with_json_updated)
 
-    write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, log_url, log_path, email_subject,
+    write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag,
+                  not_found_xml_list, log_url, log_path, email_subject,
                   email_recipients, sender_email, sender_password, reply_to)
 
     if environ.get('ENV_STATE') and environ['ENV_STATE'] == 'prod':
@@ -936,7 +944,7 @@ def close_no_update(fw, mod, email_subject, email_recipients, sender_email, send
         log.info("Failed sending email to slack: " + message + "\n")
 
 
-def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, log_url, log_dir, email_subject, email_recipients, sender_email, sender_password, reply_to):
+def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, not_found_xml_list, log_url, log_dir, email_subject, email_recipients, sender_email, sender_password, reply_to):
 
     message = None
     if mod:
@@ -986,6 +994,21 @@ def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag,
             fw.write("PMID:" + str(pmid) + ": name = " + name + ", " + first_author + ", " + corresponding_author + "\n")
             email_message = email_message + "PMID:" + str(pmid) + ": name =" + name + ", first_author=" + first_author + ", corresponding_author=" + corresponding_author + "<br>"
 
+    if len(not_found_xml_list) > 0:
+        i = 0
+        for pmid in not_found_xml_list:
+            if not str(pmid).isdigit():
+                continue
+            if i == 0:
+                log.info("Following PMID(s) are missing while updating pubmed data")
+                fw.write("Following PMID(s) are missing while updating pubmed data")
+                email_message = email_message + "<p>Following PMID(s) are missing while updating pubmed data:<p>"
+            i += 1
+            log.info("PMID:" + str(pmid))
+            fw.write("PMID:" + str(pmid) + "\n")
+            email_message = email_message + "PMID:" + str(pmid) + "<br>"
+        email_message = email_message + "<p>"
+        
     if mod:
         email_message = email_message + "DONE!<p>"
         (status, message) = send_email(email_subject, email_recipients, email_message,
@@ -1203,14 +1226,16 @@ def get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-
+    
     group = parser.add_mutually_exclusive_group()
 
     group.add_argument('-m', '--mod', action='store', type=str, help='MOD to update',
-                       choices=['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB', 'NONE'])
+                        choices=['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB', 'NONE'])
     group.add_argument('-p', '--pmids', action='store', help="a list of '|' delimited pmid list")
 
     args = vars(parser.parse_args())
     if not any(args.values()):
         parser.error('No arguments provided.')
     update_data(args['mod'], args['pmids'])
+
+           
