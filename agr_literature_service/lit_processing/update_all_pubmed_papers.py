@@ -1,7 +1,7 @@
 import logging
 import time
 from dotenv import load_dotenv
-from os import environ, makedirs, path, rename
+from os import environ, makedirs, path
 import shutil
 
 from agr_literature_service.api.models import CrossReferenceModel
@@ -46,7 +46,7 @@ def update_all_data():
         log.info("Error occurred when downloading the xml files from PubMed.\n" + str(e))
         return
 
-    for mod in ['WB', 'ZFIN', 'FB', 'SGD', 'RGD', 'MGI', 'NONE']:
+    for mod in ['WB', 'ZFIN', 'XB', 'FB', 'SGD', 'RGD', 'MGI', 'NONE']:
         if mod == 'NONE':
             log.info("Updating pubmed papers that are not associated with a mod:")
         else:
@@ -65,23 +65,16 @@ def download_all_xml_files(pmids_all):
     load_dotenv()
     base_path = environ.get('XML_PATH', "")
     xml_path = base_path + "pubmed_xml/"
-    if not path.exists(xml_path):
-        makedirs(xml_path)
     json_path = base_path + "pubmed_json/"
-    if not path.exists(json_path):
-        makedirs(json_path)
-    old_xml_path = base_path + "pubmed_xml_old/"
-    old_json_path = base_path + "pubmed_json_old/"
+
     try:
-        if path.exists(old_xml_path):
-            shutil.rmtree(old_xml_path)
-        if path.exists(old_json_path):
-            shutil.rmtree(old_json_path)
+        if path.exists(xml_path):
+            shutil.rmtree(xml_path)
+        if path.exists(json_path):
+            shutil.rmtree(json_path)
     except OSError as e:
         print("Error deleting old xml/json: %s" % (e.strerror))
 
-    rename(xml_path, old_xml_path)
-    rename(json_path, old_json_path)
     makedirs(xml_path)
     makedirs(json_path)
 

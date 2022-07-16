@@ -1203,24 +1203,14 @@ def get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-m', '--mod', action='store', help='which mod, [SGD|WB|FB|ZFIN|MGI|RGD][NONE]')
-    parser.add_argument('-p', '--pmids', action='store', help="a list of '|' delimited pmid list")
+
+    group = parser.add_mutually_exclusive_group()
+
+    group.add_argument('-m', '--mod', action='store', type=str, help='MOD to update',
+                       choices=['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB', 'NONE'])
+    group.add_argument('-p', '--pmids', action='store', help="a list of '|' delimited pmid list")
 
     args = vars(parser.parse_args())
-    mod = args['mod'] if args.get('mod') else None
-    pmids = args['pmids'] if args.get('pmids') else None
-
-    ## set mod to NONE to only update the papers that are not associated with a MOD
-    if mod:
-        if mod in ['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'NONE']:
-            update_data(mod, pmids)
-        else:
-            print("Usage:         update_pubmed_papers.py -m [SGD|WB|FB|ZFIN|MGI|RGD|NONE]")
-            print("Usage example: update_pubmed_papers.py -m SGD")
-    elif pmids:
-        update_data(mod, pmids)
-    else:
-        print("Usage:         update_pubmed_papers.py -m [SGD|WB|FB|ZFIN|MGI|RGD|NONE]")
-        print("Usage:         update_pubmed_papers.py -p PMID_LIST")
-        print("Usage example: update_pubmed_papers.py -m SGD")
-        print("Usage example: update_pubmed_papers.py -p 10022942|9922370")
+    if not any(args.values()):
+        parser.error('No arguments provided.')
+    update_data(args['mod'], args['pmids'])
