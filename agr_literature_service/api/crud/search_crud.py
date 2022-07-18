@@ -82,10 +82,10 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         for facet_field, facet_list_values in facets_values.items():
             if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
                 es_body["query"]["bool"]["filter"]["bool"]["must"] = []
-            es_body["query"]["bool"]["filter"]["bool"]["must"].append({"bool": {"should": []}})
+            es_body["query"]["bool"]["filter"]["bool"]["must"].append({"bool": {"must": []}})
             for facet_value in facet_list_values:
-                es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["should"].append({"term": {}})
-                es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["should"][-1]["term"][facet_field] = facet_value
+                es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"].append({"term": {}})
+                es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
     else:
         del es_body["query"]["bool"]["filter"]
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
