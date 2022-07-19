@@ -33,8 +33,8 @@ refColName_to_update = ['title', 'volume', 'issue_name', 'page_range', 'abstract
 field_names_to_report = refColName_to_update + ['doi', 'pmcid', 'author_name', 'journal',
                                                 'comment_erratum', 'mesh_term',
                                                 'pmids_updated']
-
-limit = 1000
+# limit = 1000
+limit = 500
 max_rows_per_commit = 250
 download_xml_max_size = 150000
 query_cutoff = 500
