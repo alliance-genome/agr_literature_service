@@ -392,9 +392,9 @@ def send_loading_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod
             not_loaded_pmids = not_loaded_pmids4mod[mod]
             for not_loaded_pmid_row in not_loaded_pmids:
                 (pmid_new, doi, pmid_in_db) = not_loaded_pmid_row
-                rows = rows + "<tr><th width='80'>" + mod + ":</th><td><b>PMID:" + pmid_new + "</b> is not added since its DOI:" + doi + " already exists. This DOI is associated with PMID:" + pmid_in_db + " in the database.</td></tr>"
+                rows = rows + "<tr><th width='80'>" + mod + ":</th><td><b>PMID:" + pmid_new + "</b> was not added since its DOI:" + doi + " already exists. This DOI is associated with PMID:" + pmid_in_db + " in the database.</td></tr>"
         if rows != '':
-            email_message = email_message + "<p><strong>Following new PMID(s) are not added to ABC from PubMed Search</strong><p>"
+            email_message = email_message + "<p><strong>Following new PMID(s) were not added to ABC from PubMed Search</strong><p>"
             email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
 
         if log_url:
