@@ -31,7 +31,7 @@ limit = 500
 loop_count = 700
 
 
-def dump_data(mod, email, ondemand, api_url=None):  # noqa: C901
+def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
 
     db_session = create_postgres_session(False)
 
@@ -122,7 +122,9 @@ def dump_data(mod, email, ondemand, api_url=None):  # noqa: C901
 
     if ondemand:
         log.info("Sending email...")
-        send_email_report("SUCCESS", email, mod, filename, api_url)
+        ui_url = path.join(ui_root_url, filename)
+        email_message = "The file " + filename + " is ready for <a href=" + ui_url + ">download</a>"
+        send_email_report("SUCCESS", email, mod, email_message)
 
     log.info("DONE!")
 
@@ -378,7 +380,7 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
     return i
 
 
-def send_email_report(status, email, mod, filenameOrMsg, api_url=None):
+def send_email_report(status, email, mod, email_message):
 
     email_recipients = email
     if email_recipients is None:
@@ -401,15 +403,8 @@ def send_email_report(status, email, mod, filenameOrMsg, api_url=None):
     email_message = None
     if status == 'SUCCESS':
         email_subject = "The " + mod + " Reference json file is ready for download"
-        ## will fix the following to point to UI page, get URL from root url for .env
-        if api_url:
-            api_url = path.join(api_url, 'reference/dumps/' + filenameOrMsg)
-            email_message = "The file " + filenameOrMsg + " is ready at <a href=" + api_url + ">Here</a>"
-        else:
-            email_message = "The file " + filenameOrMsg + " is ready at s3 reference/dumps/ondemand/"
     else:
         email_subject = "Error Report for " + mod + " Reference download"
-        email_message = filenameOrMsg
 
     (status, message) = send_email(email_subject, email_recipients, email_message,
                                    sender_email, sender_password, reply_to)
