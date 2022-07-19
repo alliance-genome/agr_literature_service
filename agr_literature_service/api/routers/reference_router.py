@@ -1,4 +1,3 @@
-import ctypes
 from os import environ
 from fastapi import (APIRouter, Depends, HTTPException, Response,
                      Security, status)
@@ -35,6 +34,7 @@ s3_session = Depends(s3_auth)
 
 running_processes_dumps_ondemand = Manager().dict()
 lock_dumps_ondemand = Lock()
+
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
@@ -82,8 +82,8 @@ async def patch(curie: str,
 @router.get('/dumps/latest/{mod}',
             status_code=200)
 def download_data_by_mod(mod: str,
-                  user: OktaUser = db_user,
-                  db: Session = db_session):
+                         user: OktaUser = db_user,
+                         db: Session = db_session):
 
     set_global_user_id(db, user.id)
     return download.get_json_file(mod)
@@ -129,8 +129,8 @@ def generate_data_ondemand(mod: str,
         lock_dumps_ondemand.acquire()
         if process_name in running_processes_dumps_ondemand:
             return {
-                "message": "You have already submitted a request for generating " + mod +
-                           " Reference json file so no need to submit again."
+                "message": "You have already submitted a request for generating " + mod + " Reference json file so no "
+                                                                                          "need to submit again."
             }
         else:
             running_processes_dumps_ondemand[process_name] = 1
@@ -139,8 +139,8 @@ def generate_data_ondemand(mod: str,
                               environ.get('API_URL')))
             p.start()
             return {
-                "message": "Generating " + mod +
-                           " Reference json file now. An email will be sent to you shortly when the json file is ready."
+                "message": "Generating " + mod + " Reference json file now. An email will be sent to you shortly when "
+                                                 "the json file is ready."
             }
     finally:
         lock_dumps_ondemand.release()
