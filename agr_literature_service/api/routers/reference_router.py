@@ -74,12 +74,22 @@ async def patch(curie: str,
 
 @router.get('/dumps/latest/{mod}',
             status_code=200)
-def download_data(mod: str,
-                  user: OktaUser = db_user,
-                  db: Session = db_session):
+def download_data_by_mod(mod: str,
+                         user: OktaUser = db_user,
+                         db: Session = db_session):
 
     set_global_user_id(db, user.id)
-    return download.get_json_file_from_s3(mod)
+    return download.get_json_file(mod)
+
+
+@router.get('/dumps/{filename}',
+            status_code=200)
+def download_data_by_filename(filename: str,
+                              user: OktaUser = db_user,
+                              db: Session = db_session):
+
+    set_global_user_id(db, user.id)
+    return download.get_json_file(None, filename)
 
 
 @router.get('/by_cross_reference/{curie:path}',
