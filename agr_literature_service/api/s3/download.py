@@ -1,7 +1,7 @@
 from botocore.exceptions import ClientError
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
-from os import environ, getcwd
+from os import environ, getcwd, path
 from agr_literature_service.lit_processing.helper_s3 import download_file_from_s3
 from fastapi.responses import FileResponse
 from agr_literature_service.api.config import config
@@ -26,14 +26,22 @@ def download_file_from_bucket(s3_client, bucket, folder, object_name=None):
                             detail=jsonable_encoder(e))
 
 
-def get_json_file_from_s3(mod):
+def get_json_file(mod, json_file=None):
 
+    subDir = None
+    if json_file:
+        file_with_path = path.join(environ.get('XML_PATH'), "json_data/" + json_file)
+        if path.exists(file_with_path):
+            return FileResponse(path=file_with_path, filename=json_file, media_type='application/json')
+        subDir = 'ondemand/'
+    else:
+        json_file = 'reference_' + mod + '.json'
+        subDir = 'latest/'
     env_state = environ.get('ENV_STATE', 'develop')
     if env_state == 'build':
         env_state = 'develop'
     bucketname = config.BUCKET_NAME
-    json_file = 'reference_' + mod + '.json'
-    s3_file_location = env_state + '/reference/dumps/latest/' + json_file
+    s3_file_location = env_state + '/reference/dumps/' + subDir + json_file
 
     try:
         # not sure where to put the file downloaded from s3 in the docker container
@@ -45,5 +53,5 @@ def get_json_file_from_s3(mod):
         raise HTTPException(status_code=e.response['Error']['Code'],
                             detail=f"Error occurred when retrieving the json file from s3 {s3_file_location}")
 
-    file_path = getcwd() + "/" + json_file
-    return FileResponse(path=file_path, filename=json_file, media_type='application/json')
+    file_with_path = getcwd() + "/" + json_file
+    return FileResponse(path=file_with_path, filename=json_file, media_type='application/json')
