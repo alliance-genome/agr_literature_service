@@ -99,8 +99,8 @@ def download_data_by_filename(filename: str,
     return download.get_json_file(None, filename)
 
 
-def dump_data_process_wrapper(running_processes_dict, lock: Lock, mod: str, email: str, ondemand: int, api_url: str):
-    dump_data(mod=mod, email=email, ondemand=ondemand, api_url=api_url)
+def dump_data_process_wrapper(running_processes_dict, lock, mod: str, email: str, ondemand: int, api_url: str):
+    dump_data(mod=mod, email=email, ondemand=ondemand, ui_root_url=api_url)
     try:
         lock.acquire()
         if '@' not in email:
