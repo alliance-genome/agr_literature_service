@@ -400,7 +400,6 @@ def send_email_report(status, email, mod, email_message):
         reply_to = environ['REPLY_TO']
 
     email_subject = None
-    email_message = None
     if status == 'SUCCESS':
         email_subject = "The " + mod + " Reference json file is ready for download"
     else:
@@ -409,7 +408,7 @@ def send_email_report(status, email, mod, email_message):
     (status, message) = send_email(email_subject, email_recipients, email_message,
                                    sender_email, sender_password, reply_to)
     if status == 'error':
-        log.info("Failed sending email to slack: " + message + "\n")
+        log.info("Failed sending email to " + email_recipients + ": " + message + "\n")
 
 
 def get_mod_corpus_association_data(db_session, mod_id_to_mod):
