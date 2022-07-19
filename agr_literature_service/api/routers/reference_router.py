@@ -111,26 +111,34 @@ def dump_data_process_wrapper(running_processes_dict, lock, mod: str, email: str
         lock.release()
 
 
-@router.get('/dumps/ondemand/{mod}',
-            status_code=200)
-def generate_data_ondemand(mod: str,
+# @router.get('/dumps/ondemand/{mod}/{email}/{ui_root_url}',
+#            status_code=200)
+@router.post('/dumps/ondemand/',
+             status_code=201,
+             response_model=str))
+def generate_data_ondemand(request,
                            user: OktaUser = db_user,
                            db: Session = db_session):
 
     set_global_user_id(db, user.id)
-    email = get_global_user_id()
 
+    #params = request.json_body
+    #mod = params.get('mod')
+    #email = params.get('email')
+    #ui_root_url = params.get('ui_root_url')
+    mod = request.POST['mod']
+    email = request.POST['email']
+    ui_root_url = request.POST['ui_root_url']
     # for testing purpose
     if '@' not in email:
         email = 'sweng@stanford.edu'
 
-    process_name = mod + "|" + email
+    process_name = email
     try:
         lock_dumps_ondemand.acquire()
         if process_name in running_processes_dumps_ondemand:
             return {
-                "message": "You have already submitted a request for generating " + mod + " Reference json file so no "
-                                                                                          "need to submit again."
+                "message": "Your file is getting generated, no need to submit the request again."
             }
         else:
             running_processes_dumps_ondemand[process_name] = 1
@@ -139,8 +147,7 @@ def generate_data_ondemand(mod: str,
                               environ.get('API_URL')))
             p.start()
             return {
-                "message": "Generating " + mod + " Reference json file now. An email will be sent to you shortly when "
-                                                 "the json file is ready."
+                "message": "Generating a new reference file for " + mod + ". A download link will be emailed to " + email + "."
             }
     finally:
         lock_dumps_ondemand.release()
