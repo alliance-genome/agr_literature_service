@@ -400,7 +400,6 @@ def send_email_report(status, email, mod, email_message):
         reply_to = environ['REPLY_TO']
 
     email_subject = None
-    email_message = None
     if status == 'SUCCESS':
         email_subject = "The " + mod + " Reference json file is ready for download"
     else:
@@ -409,7 +408,7 @@ def send_email_report(status, email, mod, email_message):
     (status, message) = send_email(email_subject, email_recipients, email_message,
                                    sender_email, sender_password, reply_to)
     if status == 'error':
-        log.info("Failed sending email to slack: " + message + "\n")
+        log.info("Failed sending email to " + email_recipients + ": " + message + "\n")
 
 
 def get_mod_corpus_association_data(db_session, mod_id_to_mod):
@@ -591,4 +590,6 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--ondemand', action='store_true', help="by curator's request")
 
     args = vars(parser.parse_args())
-    dump_data(args['mod'], args['email'], args['ondemand'])
+    # dump_data(args['mod'], args['email'], args['ondemand'])
+    ui_root_url = "https://dev4006-literature-rest.alliancegenome.org/reference/dumps/"
+    dump_data(args['mod'], args['email'], args['ondemand'], ui_root_url)
