@@ -1,6 +1,6 @@
 import argparse
 import logging
-from os import environ, makedirs, path, rename, remove, getcwd, listdir
+from os import environ, makedirs, path, rename, remove
 from dotenv import load_dotenv
 from datetime import datetime, date
 import json
@@ -31,8 +31,8 @@ limit = 500
 loop_count = 700
 
 
-def dump_data(mod, email, ondemand, api_url=None):  # noqa: C901
-    
+def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
+
     db_session = create_postgres_session(False)
 
     json_file = "reference" + "_" + mod + ".json"
@@ -41,25 +41,12 @@ def dump_data(mod, email, ondemand, api_url=None):  # noqa: C901
     if ondemand:
         # 2022-06-23 18:27:28.150889 => 20220623T18:27:28
         datestamp = str(datetime.now()).replace('-', '').replace(' ', 'T').split('.')[0]
+        json_file = "reference" + "_" + mod + "_" + datestamp + ".json"
 
     base_path = environ.get('XML_PATH', "")
     json_path = base_path + "json_data/"
     if not path.exists(json_path):
         makedirs(json_path)
-    # json_path = environ.get('LOG_PATH')
-    # json_path = getcwd() + '/'
-
-    # f = open(json_path + 'test.json', 'w')
-    # f.write("HELLO WORLD!")
-    # f.close()
-    
-    # file_list = 'HELLO'
-    # for filename in listdir(json_path):
-    #    file_list = file_list + ' | ' + filename
-    # return file_list
-    
-    # return (json_path, path.isdir(json_path))
-
 
     m = db_session.query(ModModel).filter_by(abbreviation=mod).one_or_none()
     if m is None:
@@ -103,7 +90,7 @@ def dump_data(mod, email, ondemand, api_url=None):  # noqa: C901
     db_session.close()
     db_connection.close()
     engine.dispose()
-    
+
     log.info("Getting data from Reference table and generating json file...")
     try:
         get_reference_data_and_generate_json(mod_id, mod, reference_id_to_xrefs,
@@ -114,12 +101,12 @@ def dump_data(mod, email, ondemand, api_url=None):  # noqa: C901
                                              reference_id_to_mod_corpus_data,
                                              resource_id_to_journal,
                                              json_path + json_file, datestamp)
-    
+
     except Exception as e:
         error_msg = "Error occurred when retrieving data from Reference data and generating json file: " + str(e)
         log.info(error_msg)
         if ondemand:
-            send_email_report("ERROR", email, mod, error_msg) 
+            send_email_report("ERROR", email, mod, error_msg)
         return
 
     log.info("Uploading json file to s3...")
@@ -135,8 +122,10 @@ def dump_data(mod, email, ondemand, api_url=None):  # noqa: C901
 
     if ondemand:
         log.info("Sending email...")
-        send_email_report("SUCCESS", email, mod, filename, api_url)        
-        
+        ui_url = path.join(ui_root_url, filename)
+        email_message = "The file " + filename + " is ready for <a href=" + ui_url + ">download</a>"
+        send_email_report("SUCCESS", email, mod, email_message)
+
     log.info("DONE!")
 
 
@@ -161,12 +150,12 @@ def upload_json_file_to_s3(json_path, json_file, datestamp, ondemand):
     if env_state == 'test':
         return None
 
-    json_file_with_datestamp = json_file.replace('.json', '_' + datestamp + '.json')
-    
     if ondemand:
-        s3_filename = ondemand_bucket.replace('develop', env_state) + json_file_with_datestamp
+        s3_filename = ondemand_bucket.replace('develop', env_state) + json_file
         upload_file_to_s3(json_path + json_file, s3_bucket, s3_filename)
-        return json_file_with_datestamp
+        return json_file
+
+    json_file_with_datestamp = json_file.replace('.json', '_' + datestamp + '.json')
 
     ## upload file to recent bucket
     s3_filename = recent_bucket.replace('develop', env_state) + json_file_with_datestamp
@@ -184,7 +173,7 @@ def upload_json_file_to_s3(json_path, json_file, datestamp, ondemand):
 
     return None
 
-        
+
 def concatenate_json_files(json_file, index):
 
     if index == 1:
@@ -281,7 +270,7 @@ def get_reference_data_and_generate_json(mod_id, mod, reference_id_to_xrefs, ref
             db_connection.close()
             json_file = json_file_with_path + "_" + str(j)
             log.info("generating " + json_file + ": data size=" + str(len(data)))
-            generate_json_file(metaData, data, json_file)            
+            generate_json_file(metaData, data, json_file)
             data = []
             j += 1
             db_connection = engine.connect()
@@ -391,7 +380,7 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
     return i
 
 
-def send_email_report(status, email, mod, filenameOrMsg, api_url=None):
+def send_email_report(status, email, mod, email_message):
 
     email_recipients = email
     if email_recipients is None:
@@ -399,7 +388,7 @@ def send_email_report(status, email, mod, filenameOrMsg, api_url=None):
             email_recipients = environ['CRONTAB_EMAIL']
         else:
             return
-        
+
     sender_email = None
     if environ.get('SENDER_EMAIL'):
         sender_email = environ['SENDER_EMAIL']
@@ -411,25 +400,17 @@ def send_email_report(status, email, mod, filenameOrMsg, api_url=None):
         reply_to = environ['REPLY_TO']
 
     email_subject = None
-    email_message = None
     if status == 'SUCCESS':
         email_subject = "The " + mod + " Reference json file is ready for download"
-        ## will fix the following to point to UI page, get URL from root url for .env
-        if api_url:
-            api_url = path.join(api_url, 'reference/dumps/' + filenameOrMsg) 
-            email_message = "The file " + filenameOrMsg + " is ready at <a href=" + api_url + ">Here</a>"
-        else:
-            email_message = "The file " + filenameOrMsg + " is ready at s3 reference/dumps/ondemand/" 
     else:
         email_subject = "Error Report for " + mod + " Reference download"
-        email_message = filenameOrMsg
-    
+
     (status, message) = send_email(email_subject, email_recipients, email_message,
                                    sender_email, sender_password, reply_to)
     if status == 'error':
-        log.info("Failed sending email to slack: " + message + "\n")
+        log.info("Failed sending email to " + email_recipients + ": " + message + "\n")
 
-    
+
 def get_mod_corpus_association_data(db_session, mod_id_to_mod):
 
     reference_id_to_mod_corpus_data = {}
@@ -472,7 +453,7 @@ def get_author_data(db_connection, mod_id):
         offset = index * author_limit
         # rs = db_connection.execute('select a.* from author a, mod_corpus_association mca where a.reference_id = mca.reference_id and mca.mod_id = ' + str(mod_id) + ' order by a.reference_id, a.order limit ' + str(author_limit) + ' offset ' + str(offset))
         # to avoid column order change etc
-        rs = db_connection.execute('select a.author_id, a.reference_id, a.orcid, a.first_author, a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, a.last_name, a.date_updated, a.date_created from author a, mod_corpus_association mca where a.reference_id = mca.reference_id and mca.mod_id = ' + str(mod_id) + ' order by a.reference_id, a.order limit ' + str(author_limit) + ' offset ' + str(offset)) 
+        rs = db_connection.execute('select a.author_id, a.reference_id, a.orcid, a.first_author, a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, a.last_name, a.date_updated, a.date_created from author a, mod_corpus_association mca where a.reference_id = mca.reference_id and mca.mod_id = ' + str(mod_id) + ' order by a.reference_id, a.order limit ' + str(author_limit) + ' offset ' + str(offset))
         rows = rs.fetchall()
         if len(rows) == 0:
             break
@@ -607,6 +588,6 @@ if __name__ == "__main__":
                         choices=['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB'], required=True)
     parser.add_argument('-e', '--email', action='store', type=str, help="Email address to send file")
     parser.add_argument('-o', '--ondemand', action='store_true', help="by curator's request")
-    
+
     args = vars(parser.parse_args())
     dump_data(args['mod'], args['email'], args['ondemand'])
