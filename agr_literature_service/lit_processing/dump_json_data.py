@@ -590,6 +590,4 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--ondemand', action='store_true', help="by curator's request")
 
     args = vars(parser.parse_args())
-    # dump_data(args['mod'], args['email'], args['ondemand'])
-    ui_root_url = "https://dev4006-literature-rest.alliancegenome.org/reference/dumps/"
-    dump_data(args['mod'], args['email'], args['ondemand'], ui_root_url)
+    dump_data(args['mod'], args['email'], args['ondemand'])
