@@ -1,3 +1,5 @@
+import threading
+from os import environ
 from fastapi import (APIRouter, Depends, HTTPException, Response,
                      Security, status)
 from fastapi_okta import OktaUser
@@ -10,11 +12,12 @@ from agr_literature_service.api.deps import s3_auth
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (ReferenceSchemaPost, ReferenceSchemaShow,
                                                 ReferenceSchemaUpdate, ResponseMessageSchema)
-from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.user import set_global_user_id, get_global_user_id
 
 import logging
 
 from agr_literature_service.lit_processing.process_single_pmid import process_pmid
+from agr_literature_service.lit_processing.dump_json_data import dump_data
 
 logger = logging.getLogger(__name__)
 
@@ -74,12 +77,51 @@ async def patch(curie: str,
 
 @router.get('/dumps/latest/{mod}',
             status_code=200)
-def download_data(mod: str,
+def download_data_by_mod(mod: str,
                   user: OktaUser = db_user,
                   db: Session = db_session):
 
     set_global_user_id(db, user.id)
-    return download.get_json_file_from_s3(mod)
+    return download.get_json_file(mod)
+
+
+@router.get('/dumps/{filename}',
+            status_code=200)
+def download_data_by_filename(filename: str,
+                              user: OktaUser = db_user,
+                              db: Session = db_session):
+
+    set_global_user_id(db, user.id)
+    return download.get_json_file(None, filename)
+
+
+@router.get('/dumps/ondemand/{mod}',
+            status_code=200)
+def generate_data_ondemand(mod: str,
+                           user: OktaUser = db_user,
+                           db: Session = db_session):
+
+    set_global_user_id(db, user.id)
+
+    my_threads = []
+    for t in threading.enumerate():
+        my_threads.append(t.name)
+
+    email = get_global_user_id()
+
+    # for testing purpose
+    if '@' not in email:
+        email = 'sweng@stanford.edu'
+
+    thread_name = mod + "|" + email
+    if thread_name in my_threads:
+        return {"message": "You have already submitted a request for generating " + mod + " Reference json file so no need to submit again."}
+
+    t = threading.Thread(daemon=True, target=dump_data(mod, email, 1, environ.get('API_URL')))
+    threading.current_thread().name = thread_name
+    t.start()
+
+    return {"message": "Generating " + mod + " Reference json file now. An email will be sent to you shortly when the json file is ready."}
 
 
 @router.get('/by_cross_reference/{curie:path}',
