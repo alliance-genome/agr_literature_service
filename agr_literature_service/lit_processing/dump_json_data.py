@@ -406,7 +406,7 @@ def send_email_report(status, email, mod, email_message):
         email_subject = "Error Report for " + mod + " Reference download"
 
     (email_status, message) = send_email(email_subject, email_recipients, email_message,
-                                   sender_email, sender_password, reply_to)
+                                         sender_email, sender_password, reply_to)
     if email_status == 'error':
         log.info("Failed sending email to " + email_recipients + ": " + message + "\n")
 
