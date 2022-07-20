@@ -3,7 +3,6 @@ from fastapi import (APIRouter, Depends, HTTPException, Response,
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 from multiprocessing import Process, Manager, Lock
-from pydantic import BaseModel
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import cross_reference_crud, reference_crud
