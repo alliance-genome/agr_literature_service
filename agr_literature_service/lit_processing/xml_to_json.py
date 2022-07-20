@@ -238,7 +238,7 @@ def generate_json(pmids, previous_pmids, not_found_xml=None):      # noqa: C901
         # filename = get_path_from_pmid(pmid, 'xml')
         if not path.exists(filename):
             if not_found_xml is not None:
-                not_found_xml.append(pmid)
+                not_found_xml.add(pmid)
             continue
         # logger.info("processing %s", filename)
         with open(filename) as xml_file:
