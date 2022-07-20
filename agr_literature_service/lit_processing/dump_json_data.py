@@ -39,8 +39,8 @@ def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
 
     datestamp = str(date.today()).replace("-", "")
     if ondemand:
-        # 2022-06-23 18:27:28.150889 => 20220623T18:27:28
-        datestamp = str(datetime.now()).replace('-', '').replace(' ', 'T').split('.')[0]
+        # 2022-06-23 18:27:28.150889 => 20220623T182728
+        datestamp = str(datetime.now()).replace('-', '').replace(':', '').replace(' ', 'T').split('.')[0]
         json_file = "reference" + "_" + mod + "_" + datestamp + ".json"
 
     base_path = environ.get('XML_PATH', "")
