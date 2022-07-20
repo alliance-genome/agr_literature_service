@@ -203,7 +203,7 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
     fw.write("Getting author info from database...\n")
     log.info("Getting author info from database...")
     reference_id_to_authors = get_author_data(db_connection, mod, reference_id_list)
-
+    
     ## ORCID ID => is_obsolete
     fw.write("Getting ORCID info from database...\n")
     log.info("Getting ORCID info from database...")
@@ -219,7 +219,7 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
     fw.write("Getting mesh_term info from database...\n")
     log.info("Getting mesh_term info from database...")
     reference_id_to_mesh_terms = get_mesh_term_data(db_connection, mod, reference_id_list)
-
+    
     ## reference_id => doi, reference_id =>pmcid
     fw.write("Getting DOI/PMCID info from database...\n")
     log.info("Getting DOI/PMCID info from database...")
@@ -1060,12 +1060,12 @@ def get_orcid_data(db_session):
 def get_author_data(db_connection, mod, reference_id_list):
 
     reference_id_to_authors = {}
-
+    
     if mod and len(reference_id_list) > query_cutoff:
         author_limit = 500000
         for index in range(500):
             offset = index * author_limit
-            rs = db_connection.execute('select a.reference_id, a.orcid, a.first_author, a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, a.last_name from author a, mod_corpus_association mca, mod m where a.reference_id = mca.reference_id and mca.mod_id = m.mod_id and m.abbreviation = ' + mod + ' order by a.reference_id, a.order limit ' + str(author_limit) + ' offset ' + str(offset))
+            rs = db_connection.execute("select a.reference_id, a.orcid, a.first_author, a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, a.last_name from author a, mod_corpus_association mca, mod m where a.reference_id = mca.reference_id and mca.mod_id = m.mod_id and m.abbreviation = '" + mod + "' order by a.reference_id, a.order limit " + str(author_limit) + " offset " + str(offset))
             rows = rs.fetchall()
             if len(rows) == 0:
                 break
@@ -1079,14 +1079,15 @@ def get_author_data(db_connection, mod, reference_id_list):
                                 "order": x[3],
                                 "corresponding_author": x[4],
                                 "name": x[5],
-                                "affilliations": x[6] if x[6] else [],
+                                "affiliations": x[6] if x[6] else [],
                                 "first_name": x[7],
                                 "last_name": x[8]})
                 reference_id_to_authors[reference_id] = authors
     elif reference_id_list and len(reference_id_list) > 0:
-        raw_sql = "SELECT reference_id, orcid, first_author, order, corresponding_author, name, affiliations, first_name, last_name FROM author WHERE reference_id IN %s"
-        params = [(reference_id_list,)]
-        rs = db_connection.execute(raw_sql, params)
+        # name & order are keywords in postgres so have use alias 'a' for table name
+        ref_ids = ", ".join([str(x) for x in reference_id_list])            
+        raw_sql = "SELECT a.reference_id, a.orcid, a.first_author, a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, a.last_name FROM author a WHERE reference_id IN (" + ref_ids + ") order by a.reference_id, a.order"
+        rs = db_connection.execute(raw_sql)
         rows = rs.fetchall()
         for x in rows:
             authors = []
@@ -1098,7 +1099,7 @@ def get_author_data(db_connection, mod, reference_id_list):
                             "order": x[3],
                             "corresponding_author": x[4],
                             "name": x[5],
-                            "affilliations": x[6] if x[6] else [],
+                            "affiliations": x[6] if x[6] else [],
                             "first_name": x[7],
                             "last_name": x[8]})
             reference_id_to_authors[reference_id] = authors
@@ -1115,7 +1116,7 @@ def get_mesh_term_data(db_connection, mod, reference_id_list):
         mesh_limit = 1000000
         for index in range(50):
             offset = index * mesh_limit
-            rs = db_connection.execute('select md.reference_id, md.heading_term, md.qualifier_term from mesh_detail md, mod_corpus_association mca, mod m where md.reference_id = mca.reference_id and mca.mod_id = m.mod_id and m.abbreviation = ' + mod + ' order by md.mesh_detail_id limit ' + str(mesh_limit) + ' offset ' + str(offset))
+            rs = db_connection.execute("select md.reference_id, md.heading_term, md.qualifier_term from mesh_detail md, mod_corpus_association mca, mod m where md.reference_id = mca.reference_id and mca.mod_id = m.mod_id and m.abbreviation = '" + mod + "' order by md.mesh_detail_id limit " + str(mesh_limit) + " offset " + str(offset))
             rows = rs.fetchall()
             if len(rows) == 0:
                 break
@@ -1128,9 +1129,9 @@ def get_mesh_term_data(db_connection, mod, reference_id_list):
                 mesh_terms.append((x[1], qualifier_term))
                 reference_id_to_mesh_terms[reference_id] = mesh_terms
     elif reference_id_list and len(reference_id_list) > 0:
-        raw_sql = "SELECT reference_id, heading_term, qualifier_term FROM mesh_detail WHERE reference_id IN %s"
-        params = [(reference_id_list,)]
-        rs = db_connection.execute(raw_sql, params)
+        ref_ids = ", ".join([str(x) for x in reference_id_list])
+        raw_sql = "SELECT reference_id, heading_term, qualifier_term FROM mesh_detail WHERE reference_id IN (" + ref_ids + ")"
+        rs = db_connection.execute(raw_sql)
         rows = rs.fetchall()
         for x in rows:
             reference_id = x[0]
