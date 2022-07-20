@@ -1,9 +1,9 @@
-from os import environ
 from fastapi import (APIRouter, Depends, HTTPException, Response,
                      Security, status)
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 from multiprocessing import Process, Manager, Lock
+from pydantic import BaseModel
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import cross_reference_crud, reference_crud
@@ -12,7 +12,7 @@ from agr_literature_service.api.deps import s3_auth
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (ReferenceSchemaPost, ReferenceSchemaShow,
                                                 ReferenceSchemaUpdate, ResponseMessageSchema)
-from agr_literature_service.api.user import set_global_user_id, get_global_user_id
+from agr_literature_service.api.user import set_global_user_id
 
 import logging
 
@@ -103,35 +103,29 @@ def dump_data_process_wrapper(running_processes_dict, lock, mod: str, email: str
     dump_data(mod=mod, email=email, ondemand=ondemand, ui_root_url=api_url)
     try:
         lock.acquire()
-        if '@' not in email:
-            email = 'sweng@stanford.edu'
-        process_name = mod + "|" + email
+        process_name = email
         del running_processes_dict[process_name]
     finally:
         lock.release()
 
 
-# @router.get('/dumps/ondemand/{mod}/{email}/{ui_root_url}',
-#            status_code=200)
-@router.post('/dumps/ondemand/',
-             status_code=201,
-             response_model=str))
-def generate_data_ondemand(request,
+class Info(BaseModel):
+    mod : str
+    email : str
+    ui_root_url : str
+
+
+@router.post('/dumps/ondemand',
+             status_code=201)
+def generate_data_ondemand(info: Info,
                            user: OktaUser = db_user,
                            db: Session = db_session):
 
     set_global_user_id(db, user.id)
 
-    #params = request.json_body
-    #mod = params.get('mod')
-    #email = params.get('email')
-    #ui_root_url = params.get('ui_root_url')
-    mod = request.POST['mod']
-    email = request.POST['email']
-    ui_root_url = request.POST['ui_root_url']
-    # for testing purpose
-    if '@' not in email:
-        email = 'sweng@stanford.edu'
+    mod = info.mod
+    email = info.email
+    ui_root_url = info.ui_root_url
 
     process_name = email
     try:
@@ -144,7 +138,7 @@ def generate_data_ondemand(request,
             running_processes_dumps_ondemand[process_name] = 1
             p = Process(target=dump_data_process_wrapper,
                         args=(running_processes_dumps_ondemand, lock_dumps_ondemand, mod, email, 1,
-                              environ.get('API_URL')))
+                              ui_root_url))
             p.start()
             return {
                 "message": "Generating a new reference file for " + mod + ". A download link will be emailed to " + email + "."
