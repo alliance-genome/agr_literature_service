@@ -117,15 +117,13 @@ class Info(BaseModel):
 
 @router.post('/dumps/ondemand',
              status_code=201)
-def generate_data_ondemand(info: Info,
+def generate_data_ondemand(mod: str,
+                           email: str,
+                           ui_root_url: str,
                            user: OktaUser = db_user,
                            db: Session = db_session):
 
     set_global_user_id(db, user.id)
-
-    mod = info.mod
-    email = info.email
-    ui_root_url = info.ui_root_url
 
     process_name = email
     try:
