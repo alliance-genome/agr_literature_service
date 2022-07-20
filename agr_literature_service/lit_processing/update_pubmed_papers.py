@@ -137,12 +137,12 @@ def update_data(mod, pmids, md5dict=None, newly_added_pmids=None):  # noqa: C901
 
     not_found_xml_set = set()
     generate_json(pmids_all, [], not_found_xml_set)
-    
+
     if newly_added_pmids:
-        for pmid in newly_added_pmids:  
+        for pmid in newly_added_pmids:
             not_found_xml_set.discard(pmid)
-    not_found_xml_list =list(not_found_xml_set)
-    
+    not_found_xml_list = list(not_found_xml_set)
+
     new_md5sum = get_md5sum(json_path)
 
     reference_id_list = []
@@ -203,7 +203,7 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
     fw.write("Getting author info from database...\n")
     log.info("Getting author info from database...")
     reference_id_to_authors = get_author_data(db_connection, mod, reference_id_list)
-    
+
     ## ORCID ID => is_obsolete
     fw.write("Getting ORCID info from database...\n")
     log.info("Getting ORCID info from database...")
@@ -219,7 +219,7 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
     fw.write("Getting mesh_term info from database...\n")
     log.info("Getting mesh_term info from database...")
     reference_id_to_mesh_terms = get_mesh_term_data(db_connection, mod, reference_id_list)
-    
+
     ## reference_id => doi, reference_id =>pmcid
     fw.write("Getting DOI/PMCID info from database...\n")
     log.info("Getting DOI/PMCID info from database...")
@@ -1058,7 +1058,7 @@ def get_orcid_data(db_session):
 
 
 def adding_author_row(x, reference_id_to_authors):
-    
+
     authors = []
     reference_id = x[0]
     if reference_id in reference_id_to_authors:
@@ -1077,7 +1077,7 @@ def adding_author_row(x, reference_id_to_authors):
 def get_author_data(db_connection, mod, reference_id_list):
 
     reference_id_to_authors = {}
-    
+
     if mod and len(reference_id_list) > query_cutoff:
         author_limit = 500000
         for index in range(500):
@@ -1090,7 +1090,7 @@ def get_author_data(db_connection, mod, reference_id_list):
                 adding_author_row(x, reference_id_to_authors)
     elif reference_id_list and len(reference_id_list) > 0:
         # name & order are keywords in postgres so have use alias 'a' for table name
-        ref_ids = ", ".join([str(x) for x in reference_id_list])            
+        ref_ids = ", ".join([str(x) for x in reference_id_list])
         raw_sql = "SELECT a.reference_id, a.orcid, a.first_author, a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, a.last_name FROM author a WHERE reference_id IN (" + ref_ids + ") order by a.reference_id, a.order"
         rs = db_connection.execute(raw_sql)
         rows = rs.fetchall()
