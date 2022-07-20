@@ -109,12 +109,6 @@ def dump_data_process_wrapper(running_processes_dict, lock, mod: str, email: str
         lock.release()
 
 
-class Info(BaseModel):
-    mod : str
-    email : str
-    ui_root_url : str
-
-
 @router.post('/dumps/ondemand',
              status_code=201)
 def generate_data_ondemand(mod: str,
