@@ -11,6 +11,7 @@ from agr_literature_service.api.models import CrossReferenceModel, \
 from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session, \
     create_postgres_engine
 from agr_literature_service.lit_processing.helper_s3 import upload_file_to_s3
+from agr_literature_service.lit_processing.helper_email import send_email
 
 logging.basicConfig(format='%(message)s')
 log = logging.getLogger()
@@ -30,7 +31,7 @@ limit = 500
 loop_count = 700
 
 
-def dump_data(mod, ondemand):  # noqa: C901
+def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
 
     db_session = create_postgres_session(False)
 
@@ -40,6 +41,7 @@ def dump_data(mod, ondemand):  # noqa: C901
     if ondemand:
         # 2022-06-23 18:27:28.150889 => 20220623T18:27:28
         datestamp = str(datetime.now()).replace('-', '').replace(' ', 'T').split('.')[0]
+        json_file = "reference" + "_" + mod + "_" + datestamp + ".json"
 
     base_path = environ.get('XML_PATH', "")
     json_path = base_path + "json_data/"
@@ -99,16 +101,30 @@ def dump_data(mod, ondemand):  # noqa: C901
                                              reference_id_to_mod_corpus_data,
                                              resource_id_to_journal,
                                              json_path + json_file, datestamp)
+
     except Exception as e:
-        log.info("Error occurred when retrieving data from Reference data and generating json file: " + str(e))
+        error_msg = "Error occurred when retrieving data from Reference data and generating json file: " + str(e)
+        log.info(error_msg)
+        if ondemand:
+            send_email_report("ERROR", email, mod, error_msg)
         return
 
     log.info("Uploading json file to s3...")
+    filename = None
     try:
-        upload_json_file_to_s3(json_path, json_file, datestamp, ondemand)
+        filename = upload_json_file_to_s3(json_path, json_file, datestamp, ondemand)
     except Exception as e:
-        log.info("Error occurred when uploading json file to s3: " + str(e))
+        error_msg = "Error occurred when uploading json file to s3: " + str(e)
+        log.info(error_msg)
+        if ondemand:
+            send_email_report("ERROR", email, mod, error_msg)
         return
+
+    if ondemand:
+        log.info("Sending email...")
+        ui_url = path.join(ui_root_url, filename)
+        email_message = "The file " + filename + " is ready for <a href=" + ui_url + ">download</a>"
+        send_email_report("SUCCESS", email, mod, email_message)
 
     log.info("DONE!")
 
@@ -132,14 +148,14 @@ def upload_json_file_to_s3(json_path, json_file, datestamp, ondemand):
     if env_state == 'build':
         env_state = 'develop'
     if env_state == 'test':
-        return
-
-    json_file_with_datestamp = json_file.replace('.json', '_' + datestamp + '.json')
+        return None
 
     if ondemand:
-        s3_filename = ondemand_bucket.replace('develop', env_state) + json_file_with_datestamp
+        s3_filename = ondemand_bucket.replace('develop', env_state) + json_file
         upload_file_to_s3(json_path + json_file, s3_bucket, s3_filename)
-        return
+        return json_file
+
+    json_file_with_datestamp = json_file.replace('.json', '_' + datestamp + '.json')
 
     ## upload file to recent bucket
     s3_filename = recent_bucket.replace('develop', env_state) + json_file_with_datestamp
@@ -154,6 +170,8 @@ def upload_json_file_to_s3(json_path, json_file, datestamp, ondemand):
     if todayDate.day == 1:
         s3_filename = monthly_bucket.replace('develop', env_state) + json_file_with_datestamp
         upload_file_to_s3(json_path + json_file, s3_bucket, s3_filename, 'GLACIER_IR')
+
+    return None
 
 
 def concatenate_json_files(json_file, index):
@@ -208,6 +226,32 @@ def get_meta_data(mod, datestamp):
     }
 
 
+def get_reference_col_names():
+
+    return ['reference_id',
+            'curie',
+            'resource_id',
+            'title',
+            'language',
+            'date_published',
+            'date_arrived_in_pubmed',
+            'date_last_modified_in_pubmed',
+            'volume',
+            'plain_language_abstract',
+            'pubmed_abstract_languages',
+            'page_range',
+            'abstract',
+            'keywords',
+            'pubmed_types',
+            'publisher',
+            'category',
+            'pubmed_publication_status',
+            'issue_name',
+            'date_updated',
+            'date_created',
+            'open_access']
+
+
 def get_reference_data_and_generate_json(mod_id, mod, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_comment_correction_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, json_file_with_path, datestamp):
 
     metaData = get_meta_data(mod, datestamp)
@@ -251,9 +295,11 @@ def get_reference_data_and_generate_json(mod_id, mod, reference_id_to_xrefs, ref
         # 924511
         rs = None
         if mod in ['WB', 'XB', 'ZFIN', 'SGD', 'RGD', 'FB']:
-            rs = db_connection.execute('select * from reference where reference_id in (select reference_id from mod_corpus_association where mod_id = ' + str(mod_id) + ' and corpus is True) order by reference_id limit ' + str(limit) + ' offset ' + str(offset))
+            refColNmList = ", ".join(get_reference_col_names())
+            rs = db_connection.execute('select ' + refColNmList + ' from reference where reference_id in (select reference_id from mod_corpus_association where mod_id = ' + str(mod_id) + ' and corpus is True) order by reference_id limit ' + str(limit) + ' offset ' + str(offset))
         else:
-            rs = db_connection.execute('select r.* from reference r, mod_corpus_association m where r.reference_id = m.reference_id and m.mod_id = ' + str(mod_id) + ' and corpus is True order by reference_id limit ' + str(limit) + ' offset ' + str(offset))
+            refColNmList = "r." + ", r.".join(get_reference_col_names())
+            rs = db_connection.execute('select ' + refColNmList + ' from reference r, mod_corpus_association m where r.reference_id = m.reference_id and m.mod_id = ' + str(mod_id) + ' and corpus is True order by reference_id limit ' + str(limit) + ' offset ' + str(offset))
 
         rows = rs.fetchall()
         if len(rows) == 0:
@@ -334,6 +380,37 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
     return i
 
 
+def send_email_report(status, email, mod, email_message):
+
+    email_recipients = email
+    if email_recipients is None:
+        if environ.get('CRONTAB_EMAIL'):
+            email_recipients = environ['CRONTAB_EMAIL']
+        else:
+            return
+
+    sender_email = None
+    if environ.get('SENDER_EMAIL'):
+        sender_email = environ['SENDER_EMAIL']
+    sender_password = None
+    if environ.get('SENDER_PASSWORD'):
+        sender_password = environ['SENDER_PASSWORD']
+    reply_to = sender_email
+    if environ.get('REPLY_TO'):
+        reply_to = environ['REPLY_TO']
+
+    email_subject = None
+    if status == 'SUCCESS':
+        email_subject = "The " + mod + " Reference json file is ready for download"
+    else:
+        email_subject = "Error Report for " + mod + " Reference download"
+
+    (email_status, message) = send_email(email_subject, email_recipients, email_message,
+                                         sender_email, sender_password, reply_to)
+    if email_status == 'error':
+        log.info("Failed sending email to " + email_recipients + ": " + message + "\n")
+
+
 def get_mod_corpus_association_data(db_session, mod_id_to_mod):
 
     reference_id_to_mod_corpus_data = {}
@@ -371,24 +448,32 @@ def get_author_data(db_connection, mod_id):
 
     reference_id_to_authors = {}
 
-    rs = db_connection.execute('select a.* from author a, mod_corpus_association mca where a.reference_id = mca.reference_id and mca.mod_id = ' + str(mod_id) + ' order by a.reference_id, a.order')
-    for x in rs:
-        data = []
-        reference_id = x[1]
-        if reference_id in reference_id_to_authors:
-            data = reference_id_to_authors[reference_id]
-        data.append({"author_id": x[0],
-                     "orcid": x[2],
-                     "first_author": x[3],
-                     "order": x[4],
-                     "corresponding_author": x[5],
-                     "name": x[6],
-                     "affilliation": x[7] if x[7] else [],
-                     "first_name": x[8],
-                     "last_name": x[9],
-                     "date_updated": str(x[10]),
-                     "date_created": str(x[11])})
-        reference_id_to_authors[reference_id] = data
+    author_limit = 500000
+    for index in range(100):
+        offset = index * author_limit
+        # rs = db_connection.execute('select a.* from author a, mod_corpus_association mca where a.reference_id = mca.reference_id and mca.mod_id = ' + str(mod_id) + ' order by a.reference_id, a.order limit ' + str(author_limit) + ' offset ' + str(offset))
+        # to avoid column order change etc
+        rs = db_connection.execute('select a.author_id, a.reference_id, a.orcid, a.first_author, a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, a.last_name, a.date_updated, a.date_created from author a, mod_corpus_association mca where a.reference_id = mca.reference_id and mca.mod_id = ' + str(mod_id) + ' order by a.reference_id, a.order limit ' + str(author_limit) + ' offset ' + str(offset))
+        rows = rs.fetchall()
+        if len(rows) == 0:
+            break
+        for x in rows:
+            data = []
+            reference_id = x[1]
+            if reference_id in reference_id_to_authors:
+                data = reference_id_to_authors[reference_id]
+            data.append({"author_id": x[0],
+                         "orcid": x[2],
+                         "first_author": x[3],
+                         "order": x[4],
+                         "corresponding_author": x[5],
+                         "name": x[6],
+                         "affilliations": x[7] if x[7] else [],
+                         "first_name": x[8],
+                         "last_name": x[9],
+                         "date_updated": str(x[10]),
+                         "date_created": str(x[11])})
+            reference_id_to_authors[reference_id] = data
 
     return reference_id_to_authors
 
@@ -411,21 +496,21 @@ def get_comment_correction_data(db_connection):
         if x[1].startswith('PMID:'):
             reference_id_to_curies[x[0]] = (x[1], x[2])
 
-    rs = db_connection.execute("select * from reference_comments_and_corrections")
+    rs = db_connection.execute("select reference_id_from, reference_id_to, reference_comment_and_correction_type from reference_comments_and_corrections")
 
     for x in rs:
 
-        type_db = x[3]
+        type_db = x[2]
         type_db = type_db.replace("ReferenceCommentAndCorrectionType.", "")
-        reference_id_from = x[1]
-        reference_id_to = x[2]
+        reference_id_from = x[0]
+        reference_id_to = x[1]
 
         ## for reference_id_from
         data = {}
         if reference_id_from in reference_id_to_comment_correction_data:
             data = reference_id_to_comment_correction_data[reference_id_from]
         (pmid, ref_curie) = reference_id_to_curies[reference_id_from]
-        data[type_db] = {"PMID": "PMID:" + pmid,
+        data[type_db] = {"PMID": pmid,
                          "reference_curie": ref_curie}
         reference_id_to_comment_correction_data[reference_id_from] = data
 
@@ -439,7 +524,7 @@ def get_comment_correction_data(db_connection):
         if type is None:
             log.info(type_db + " is not in type_mapping.")
         else:
-            data[type] = {"PMID": "PMID:" + pmid,
+            data[type] = {"PMID": pmid,
                           "reference_curie": ref_curie}
             reference_id_to_comment_correction_data[reference_id_to] = data
 
@@ -451,9 +536,9 @@ def get_mesh_term_data(db_connection, mod_id):
     reference_id_to_mesh_terms = {}
 
     mesh_limit = 1000000
-    for index in range(10):
+    for index in range(50):
         offset = index * mesh_limit
-        rs = db_connection.execute('select md.* from mesh_detail md, mod_corpus_association mca where md.reference_id = mca.reference_id and mca.mod_id = ' + str(mod_id) + ' order by md.mesh_detail_id limit ' + str(mesh_limit) + ' offset ' + str(offset))
+        rs = db_connection.execute('select md.mesh_detail_id, md.reference_id, md.heading_term, md.qualifier_term from mesh_detail md, mod_corpus_association mca where md.reference_id = mca.reference_id and mca.mod_id = ' + str(mod_id) + ' order by md.mesh_detail_id limit ' + str(mesh_limit) + ' offset ' + str(offset))
         rows = rs.fetchall()
         if len(rows) == 0:
             break
@@ -501,7 +586,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--mod', action='store', type=str, help='MOD to dump',
                         choices=['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB'], required=True)
+    parser.add_argument('-e', '--email', action='store', type=str, help="Email address to send file")
     parser.add_argument('-o', '--ondemand', action='store_true', help="by curator's request")
 
     args = vars(parser.parse_args())
-    dump_data(args['mod'], args['ondemand'])
+    dump_data(args['mod'], args['email'], args['ondemand'])
