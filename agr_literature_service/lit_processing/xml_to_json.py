@@ -211,7 +211,7 @@ def get_alliance_category_from_pubmed_types(pubmed_types):     # noqa: C901
     return 'Other'
 
 
-def generate_json(pmids, previous_pmids):      # noqa: C901
+def generate_json(pmids, previous_pmids, not_found_xml=None):      # noqa: C901
     """
 
     :param pmids:
@@ -237,6 +237,8 @@ def generate_json(pmids, previous_pmids):      # noqa: C901
         # if getting pmids from directories split into multiple sub-subdirectories
         # filename = get_path_from_pmid(pmid, 'xml')
         if not path.exists(filename):
+            if not_found_xml is not None:
+                not_found_xml.add(pmid)
             continue
         # logger.info("processing %s", filename)
         with open(filename) as xml_file:

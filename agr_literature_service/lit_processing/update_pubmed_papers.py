@@ -10,7 +10,8 @@ import time
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
     ModModel, ModCorpusAssociationModel, ReferenceCommentAndCorrectionModel, \
     AuthorModel, MeshDetailModel, ResourceModel
-from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session
+from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session, \
+    create_postgres_engine
 from agr_literature_service.lit_processing.update_resource_pubmed_nlm import update_resource_pubmed_nlm
 from agr_literature_service.lit_processing.get_pubmed_xml import download_pubmed_xml
 from agr_literature_service.lit_processing.xml_to_json import generate_json
@@ -32,15 +33,15 @@ refColName_to_update = ['title', 'volume', 'issue_name', 'page_range', 'abstract
 field_names_to_report = refColName_to_update + ['doi', 'pmcid', 'author_name', 'journal',
                                                 'comment_erratum', 'mesh_term',
                                                 'pmids_updated']
-
-limit = 1000
+# limit = 1000
+limit = 500
 max_rows_per_commit = 250
 download_xml_max_size = 150000
 query_cutoff = 500
 sleep_time = 60
 
 
-def update_data(mod, pmids, md5dict=None):  # noqa: C901
+def update_data(mod, pmids, md5dict=None, newly_added_pmids=None):  # noqa: C901
 
     if md5dict is None and mod:
         update_resource_pubmed_nlm
@@ -134,7 +135,13 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
     fw.write("Generating json files...\n")
     log.info("Generating json files...")
 
-    generate_json(pmids_all, [])
+    not_found_xml_set = set()
+    generate_json(pmids_all, [], not_found_xml_set)
+
+    if newly_added_pmids:
+        for pmid in newly_added_pmids:
+            not_found_xml_set.discard(pmid)
+    not_found_xml_list = list(not_found_xml_set)
 
     new_md5sum = get_md5sum(json_path)
 
@@ -162,7 +169,8 @@ def update_data(mod, pmids, md5dict=None):  # noqa: C901
                                                                old_md5sum, json_path,
                                                                pmids_with_json_updated)
 
-    write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, log_url, log_path, email_subject,
+    write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag,
+                  not_found_xml_list, log_url, log_path, email_subject,
                   email_recipients, sender_email, sender_password, reply_to)
 
     if environ.get('ENV_STATE') and environ['ENV_STATE'] == 'prod':
@@ -188,10 +196,13 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
     ## start a database session
     db_session = create_postgres_session(False)
 
+    engine = create_postgres_engine(False)
+    db_connection = engine.connect()
+
     ## reference_id => a list of author name in order
     fw.write("Getting author info from database...\n")
     log.info("Getting author info from database...")
-    reference_id_to_authors = get_author_data(db_session, mod, reference_id_list)
+    reference_id_to_authors = get_author_data(db_connection, mod, reference_id_list)
 
     ## ORCID ID => is_obsolete
     fw.write("Getting ORCID info from database...\n")
@@ -207,7 +218,7 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
     ## reference_id => a list of mesh_terms in order
     fw.write("Getting mesh_term info from database...\n")
     log.info("Getting mesh_term info from database...")
-    reference_id_to_mesh_terms = get_mesh_term_data(db_session, mod, reference_id_list)
+    reference_id_to_mesh_terms = get_mesh_term_data(db_connection, mod, reference_id_list)
 
     ## reference_id => doi, reference_id =>pmcid
     fw.write("Getting DOI/PMCID info from database...\n")
@@ -226,6 +237,8 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
     (resource_id_to_issn, resource_id_to_nlm) = get_cross_reference_data_for_resource(db_session)
 
     db_session.close()
+    db_connection.close()
+    engine.dispose()
 
     newly_added_orcid = []
     count = 0
@@ -506,11 +519,11 @@ def update_authors(db_session, fw, pmid, reference_id, author_list_in_db, author
     author_list_with_first_or_corresponding_author = []
     if author_list_in_db:
         for x in author_list_in_db:
-            if x.first_author or x.corresponding_author:
-                author_list_with_first_or_corresponding_author.append((pmid, x.name, "first_author = " + str(x.first_author), "corresponding_author = " + str(x.corresponding_author)))
-            affiliations = x.affiliations if x.affiliations else []
-            orcid = x.orcid if x.orcid else ''
-            authors_in_db.append((x.name, x.first_name, x.last_name, x.order, '|'.join(affiliations), orcid))
+            if x['first_author'] or x['corresponding_author']:
+                author_list_with_first_or_corresponding_author.append((pmid, x['name'], "first_author = " + str(x['first_author']), "corresponding_author = " + str(x['corresponding_author'])))
+            affiliations = x['affiliations'] if x['affiliations'] else []
+            orcid = x['orcid'] if x['orcid'] else ''
+            authors_in_db.append((x['name'], x['first_name'], x['last_name'], x['order'], '|'.join(affiliations), orcid))
 
     authors_in_json = []
     for x in author_list_in_json:
@@ -936,7 +949,7 @@ def close_no_update(fw, mod, email_subject, email_recipients, sender_email, send
         log.info("Failed sending email to slack: " + message + "\n")
 
 
-def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, log_url, log_dir, email_subject, email_recipients, sender_email, sender_password, reply_to):
+def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, not_found_xml_list, log_url, log_dir, email_subject, email_recipients, sender_email, sender_password, reply_to):
 
     message = None
     if mod:
@@ -986,6 +999,21 @@ def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag,
             fw.write("PMID:" + str(pmid) + ": name = " + name + ", " + first_author + ", " + corresponding_author + "\n")
             email_message = email_message + "PMID:" + str(pmid) + ": name =" + name + ", first_author=" + first_author + ", corresponding_author=" + corresponding_author + "<br>"
 
+    if len(not_found_xml_list) > 0:
+        i = 0
+        for pmid in not_found_xml_list:
+            if not str(pmid).isdigit():
+                continue
+            if i == 0:
+                log.info("Following PMID(s) are missing while updating pubmed data")
+                fw.write("Following PMID(s) are missing while updating pubmed data")
+                email_message = email_message + "<p>Following PMID(s) are missing while updating pubmed data:<p>"
+            i += 1
+            log.info("PMID:" + str(pmid))
+            fw.write("PMID:" + str(pmid) + "\n")
+            email_message = email_message + "PMID:" + str(pmid) + "<br>"
+        email_message = email_message + "<p>"
+
     if mod:
         email_message = email_message + "DONE!<p>"
         (status, message) = send_email(email_subject, email_recipients, email_message,
@@ -1029,72 +1057,83 @@ def get_orcid_data(db_session):
     return orcid_dict
 
 
-def get_author_data(db_session, mod, reference_id_list):
+def adding_author_row(x, reference_id_to_authors):
+
+    authors = []
+    reference_id = x[0]
+    if reference_id in reference_id_to_authors:
+        authors = reference_id_to_authors[reference_id]
+    authors.append({"orcid": x[1],
+                    "first_author": x[2],
+                    "order": x[3],
+                    "corresponding_author": x[4],
+                    "name": x[5],
+                    "affiliations": x[6] if x[6] else [],
+                    "first_name": x[7],
+                    "last_name": x[8]})
+    reference_id_to_authors[reference_id] = authors
+
+
+def get_author_data(db_connection, mod, reference_id_list):
 
     reference_id_to_authors = {}
 
-    allAuthors = None
     if mod and len(reference_id_list) > query_cutoff:
-        allAuthors = db_session.query(AuthorModel).join(ReferenceModel.author).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).order_by(AuthorModel.reference_id, AuthorModel.order).all()
+        author_limit = 500000
+        for index in range(500):
+            offset = index * author_limit
+            rs = db_connection.execute("select a.reference_id, a.orcid, a.first_author, a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, a.last_name from author a, mod_corpus_association mca, mod m where a.reference_id = mca.reference_id and mca.mod_id = m.mod_id and m.abbreviation = '" + mod + "' order by a.reference_id, a.order limit " + str(author_limit) + " offset " + str(offset))
+            rows = rs.fetchall()
+            if len(rows) == 0:
+                break
+            for x in rows:
+                adding_author_row(x, reference_id_to_authors)
     elif reference_id_list and len(reference_id_list) > 0:
-        allAuthors = db_session.query(AuthorModel).filter(AuthorModel.reference_id.in_(reference_id_list)).all()
-
-    if allAuthors is None:
-        return reference_id_to_authors
-
-    for x in allAuthors:
-        authors = []
-        if x.reference_id in reference_id_to_authors:
-            authors = reference_id_to_authors[x.reference_id]
-        authors.append(x)
-        reference_id_to_authors[x.reference_id] = authors
+        # name & order are keywords in postgres so have use alias 'a' for table name
+        ref_ids = ", ".join([str(x) for x in reference_id_list])
+        raw_sql = "SELECT a.reference_id, a.orcid, a.first_author, a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, a.last_name FROM author a WHERE reference_id IN (" + ref_ids + ") order by a.reference_id, a.order"
+        rs = db_connection.execute(raw_sql)
+        rows = rs.fetchall()
+        for x in rows:
+            adding_author_row(x, reference_id_to_authors)
 
     return reference_id_to_authors
 
 
-def get_mesh_term_data(db_session, mod, reference_id_list):
+def adding_mesh_term_row(x, reference_id_to_mesh_terms):
+
+    reference_id = x[0]
+    mesh_terms = []
+    if reference_id in reference_id_to_mesh_terms:
+        mesh_terms = reference_id_to_mesh_terms[reference_id]
+    qualifier_term = x[2] if x[2] else ''
+    mesh_terms.append((x[1], qualifier_term))
+    reference_id_to_mesh_terms[reference_id] = mesh_terms
+
+
+def get_mesh_term_data(db_connection, mod, reference_id_list):
 
     reference_id_to_mesh_terms = {}
 
     if mod and len(reference_id_list) > query_cutoff:
         # the query is taking too long to return so break up to query database
         # multiple times to keep session alive
-        limit = 1000000
-        for index in range(10):
-            offset = index * limit
-            all = db_session.query(MeshDetailModel).join(
-                ReferenceModel.mesh_term
-            ).outerjoin(
-                ReferenceModel.mod_corpus_association
-            ).outerjoin(
-                ModCorpusAssociationModel.mod
-            ).filter(
-                ModModel.abbreviation == mod
-            ).order_by(
-                MeshDetailModel.mesh_detail_id
-            ).limit(
-                limit
-            ).offset(
-                offset
-            ).all()
-
-            if len(all) == 0:
+        mesh_limit = 1000000
+        for index in range(50):
+            offset = index * mesh_limit
+            rs = db_connection.execute("select md.reference_id, md.heading_term, md.qualifier_term from mesh_detail md, mod_corpus_association mca, mod m where md.reference_id = mca.reference_id and mca.mod_id = m.mod_id and m.abbreviation = '" + mod + "' order by md.mesh_detail_id limit " + str(mesh_limit) + " offset " + str(offset))
+            rows = rs.fetchall()
+            if len(rows) == 0:
                 break
-            for x in all:
-                mesh_terms = []
-                if x.reference_id in reference_id_to_mesh_terms:
-                    mesh_terms = reference_id_to_mesh_terms[x.reference_id]
-                qualifier_term = x.qualifier_term if x.qualifier_term else ''
-                mesh_terms.append((x.heading_term, qualifier_term))
-                reference_id_to_mesh_terms[x.reference_id] = mesh_terms
+            for x in rows:
+                adding_mesh_term_row(x, reference_id_to_mesh_terms)
     elif reference_id_list and len(reference_id_list) > 0:
-        for x in db_session.query(MeshDetailModel).filter(MeshDetailModel.reference_id.in_(reference_id_list)).all():
-            mesh_terms = []
-            if x.reference_id in reference_id_to_mesh_terms:
-                mesh_terms = reference_id_to_mesh_terms[x.reference_id]
-            qualifier_term = x.qualifier_term if x.qualifier_term else ''
-            mesh_terms.append((x.heading_term, qualifier_term))
-            reference_id_to_mesh_terms[x.reference_id] = mesh_terms
+        ref_ids = ", ".join([str(x) for x in reference_id_list])
+        raw_sql = "SELECT reference_id, heading_term, qualifier_term FROM mesh_detail WHERE reference_id IN (" + ref_ids + ")"
+        rs = db_connection.execute(raw_sql)
+        rows = rs.fetchall()
+        for x in rows:
+            adding_mesh_term_row(x, reference_id_to_mesh_terms)
 
     return reference_id_to_mesh_terms
 
@@ -1203,7 +1242,6 @@ def get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-
     group = parser.add_mutually_exclusive_group()
 
     group.add_argument('-m', '--mod', action='store', type=str, help='MOD to update',

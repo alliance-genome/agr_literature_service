@@ -98,6 +98,12 @@ services:
       ELASTICSEARCH_HOST: "${ELASTICSEARCH_HOST}"
       ELASTICSEARCH_PORT: "${ELASTICSEARCH_PORT}"
       ELASTICSEARCH_INDEX: "${ELASTICSEARCH_INDEX}"
+      LOG_PATH: "${LOG_PATH}"
+      LOG_URL: "${LOG_URL}"
+      CRONTAB_EMAIL: "${CRONTAB_EMAIL}"
+      SENDER_EMAIL: "${SENDER_EMAIL}"
+      SENDER_PASSWORD: "${SENDER_PASSWORD}"
+      REPLY_TO: "${REPLY_TO}"
     hostname: literature_api
     networks:
       - agr-literature
