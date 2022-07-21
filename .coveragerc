@@ -1,5 +1,7 @@
 [run]
 source = agr_literature_service/api
+# routers NOT tested here. just method calls.
+omit = agr_literature_service/api/routers/*
 
 [report]
 exclude_lines =

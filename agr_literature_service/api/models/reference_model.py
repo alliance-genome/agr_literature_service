@@ -218,6 +218,12 @@ class ReferenceModel(Base):
         default=False
     )
 
+    citation = Column(
+        String(),
+        unique=False,
+        nullable=True
+    )
+
     def __str__(self):
         """
         Overwrite the default output.
