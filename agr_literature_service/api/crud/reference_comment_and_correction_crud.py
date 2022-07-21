@@ -88,7 +88,7 @@ def patch(db: Session, reference_comment_and_correction_id: int, reference_comme
                             detail=f"Reference Comment And Correction with reference_comment_and_correction_id "
                                    f"{reference_comment_and_correction_id} not found")
 
-    for field, value in reference_comment_and_correction_update.dict().items():
+    for field, value in reference_comment_and_correction_update.items():
         if field == "reference_curie_to" and value:
             reference_curie_to = value
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_to).first()

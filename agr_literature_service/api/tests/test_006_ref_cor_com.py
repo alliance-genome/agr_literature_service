@@ -80,8 +80,7 @@ def test_patch_rcc():
            'reference_curie_to': "AGR:AGR-Reference-0000000001",
            'reference_comment_and_correction_type': "ReprintOf"}
 
-    schema = ReferenceCommentAndCorrectionSchemaPatch(**xml)
-    res = patch(db, rcc_obj.reference_comment_and_correction_id, schema)
+    res = patch(db, rcc_obj.reference_comment_and_correction_id, xml)
     assert res == {"message": "updated"}
 
     rcc_obj: ReferenceCommentAndCorrectionModel = db.query(ReferenceCommentAndCorrectionModel).\
