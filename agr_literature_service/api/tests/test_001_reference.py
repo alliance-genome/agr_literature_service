@@ -106,7 +106,7 @@ def test_update_reference():
     assert res['abstract'] is None
 
     # Do we have a new citation
-    assert res['citation'] == ", ()    (new title.): "
+    assert res['citation'] == ", () new title.   (): "
 
 
 def test_changesets():
@@ -124,7 +124,7 @@ def test_changesets():
             assert transaction['changeset']['title'][1] == "new title"
             assert transaction['changeset']['category'][1] == "book"
         else:
-            assert transaction['changeset']['citation'][0] == ", ()    (Bob.): "
+            assert transaction['changeset']['citation'][0] == ", () Bob.   (): "
             assert transaction['changeset']['citation'][1] == ", ()    (new title.): "
 
 
@@ -215,7 +215,7 @@ def test_reference_large():
     author = db.query(AuthorModel).filter(AuthorModel.name == "S. Wu").one()
     assert author.first_name == 'S.'
 
-    assert res['citation'] == "S. Wu; D. Wu, () 538--541 433  (Some test 001 title.): "
+    assert res['citation'] == "S. Wu; D. Wu, () Some test 001 title.  433 (): 538--541"
 
     assert res['cross_references'][0]['curie'] == 'FB:FBrf0221304'
 
