@@ -10,10 +10,10 @@ log.setLevel(logging.INFO)
 
 def dump_all_data():
 
-    for mod in ['WB', 'ZFIN', 'FB', 'SGD', 'RGD', 'MGI']:
+    for mod in ['WB', 'XB', 'ZFIN', 'FB', 'SGD', 'RGD', 'MGI']:
         log.info("Dumping json data for " + mod)
         try:
-            dump_data(mod, None)
+            dump_data(mod, None, None)
         except Exception as e:
             log.info("Error occurred when dumping json data for " + mod + ": " + str(e))
         time.sleep(5)

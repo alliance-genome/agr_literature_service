@@ -224,6 +224,7 @@ def query_mods(input_mod, reldate):
     pmids_posted = set()     # type: Set
     logger.info("Starting query mods")
     sleep_delay = 1
+    not_loaded_pmids4mod = {}
     pmids4mod = {}
     pmids4mod['all'] = set()
     for mod in mods_to_query:
@@ -295,10 +296,13 @@ def query_mods(input_mod, reldate):
         download_pubmed_xml(pmids_to_process)
         generate_json(pmids_to_process, [])
 
-        (log_path, log_url) = check_handle_duplicate(db_session, mod, pmids_to_process,
-                                                     xref_ref, ref_xref_valid,
-                                                     ref_xref_obsolete)
+        (log_path, log_url, not_loaded_pmids) = check_handle_duplicate(db_session, mod,
+                                                                       pmids_to_process,
+                                                                       xref_ref,
+                                                                       ref_xref_valid,
+                                                                       ref_xref_obsolete)
 
+        not_loaded_pmids4mod[mod] = not_loaded_pmids
         for pmid in pmids_to_process:
             pmids_posted.add(pmid)
             pmids4mod[mod].add(pmid)
@@ -323,7 +327,7 @@ def query_mods(input_mod, reldate):
             upload_xml_file_to_s3(pmid)
 
     logger.info("Sending Report")
-    send_loading_report(pmids4mod, mods_to_query, log_path, log_url)
+    send_loading_report(pmids4mod, mods_to_query, log_path, log_url, not_loaded_pmids4mod)
 
     # do not need to recursively process downloading errata and corrections, but if they exist, connect them.
     # take list of pmids that were posted to the database, look at their .json for corrections and connect to existing abc references.
@@ -334,7 +338,7 @@ def query_mods(input_mod, reldate):
     logger.info("end query_mods")
 
 
-def send_loading_report(pmids4mod, mods, log_path, log_url):
+def send_loading_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod):
 
     email_recipients = None
     if environ.get('CRONTAB_EMAIL'):
@@ -376,10 +380,22 @@ def send_loading_report(pmids4mod, mods, log_path, log_url):
             if pmids is None:
                 continue
             # email_message = email_message + "<strong>" + mod + "</strong>" + " : " + str(len(pmids)) + "<br>"
-            rows = rows + "<tr><th>" + mod + "</th><td>" + str(len(pmids)) + "</td></tr>"
+            rows = rows + "<tr><th width='80'>" + mod + ":</th><td>" + str(len(pmids)) + "</td></tr>"
             fw.write(mod + ": " + str(len(pmids)) + "\n")
 
         email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
+
+        rows = ''
+        for mod in mods:
+            if mod not in not_loaded_pmids4mod:
+                continue
+            not_loaded_pmids = not_loaded_pmids4mod[mod]
+            for not_loaded_pmid_row in not_loaded_pmids:
+                (pmid_new, doi, pmid_in_db) = not_loaded_pmid_row
+                rows = rows + "<tr><th width='80'>" + mod + ":</th><td><b>PMID:" + pmid_new + "</b> was not added since its DOI:" + doi + " already exists. This DOI is associated with PMID:" + pmid_in_db + " in the database.</td></tr>"
+        if rows != '':
+            email_message = email_message + "<p><strong>Following new PMID(s) were not added to ABC from PubMed Search</strong><p>"
+            email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
 
         if log_url:
             email_message = email_message + "<p>Log file(s) are available at " + "<a href=" + log_url + ">" + log_url + "</a><p>"
@@ -425,6 +441,7 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref
         fw = open(log_file, "a")
     else:
         fw = open(log_file, "w")
+    not_loaded_pmids = []
     for pmid in pmids:
         json_file = json_path + pmid + ".json"
         f = open(json_file)
@@ -456,10 +473,11 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref
                     logger.info(str(datetime.now()) + ": adding " + pmid + " to the row with " + doi + " is failed: " + str(e) + "\n")
             else:
                 fw.write(str(datetime.now()) + ": " + doi + " for PMID:" + pmid + " is associated with PMID(s) in the database: " + ",".join(found_pmids_for_this_doi) + "\n")
+                not_loaded_pmids.append((pmid, doi, ",".join(found_pmids_for_this_doi)))
             pmids.remove(pmid)
     fw.close()
 
-    return (log_path, log_url)
+    return (log_path, log_url, not_loaded_pmids)
 
 
 def post_mca_to_existing_references(agr_curies_to_corpus, mod):

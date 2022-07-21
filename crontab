@@ -1,3 +1,4 @@
 SHELL=/bin/bash
 BASH_ENV=/container.env
 0 7 * * * python3 /usr/src/app/agr_literature_service/lit_processing/query_pubmed_mod_updates.py >> /var/log/automated_scripts/query_pubmed_mod_updates.log 2>&1
+0 10 * * 6 python3 /usr/src/app/agr_literature_service/lit_processing/update_all_pubmed_papers.py >> /var/log/automated_scripts/update_all_pubmed_papers.log 2>&1
