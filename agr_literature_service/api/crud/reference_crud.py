@@ -418,8 +418,8 @@ def merge_references(db: Session,
     return new_curie
 
 
-def get_citation_from_args(authorNames: str, year: str, issue: str, volume: str,
-                           journal: str, page_range: str, title: str):
+def get_citation_from_args(authorNames: str, year: str, title: str, journal: str,
+                           volume: str, issue: str, page_range: str):
     # Create the citation from the args given.
     citation = "{}, ({}) {} {} {} ({}): {}".\
         format(authorNames, year, title,
