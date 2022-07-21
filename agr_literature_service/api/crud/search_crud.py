@@ -50,6 +50,22 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "field": "pubmed_publication_status.keyword",
                     "size": facets_limits["pubmed_publication_status.keyword"] if "pubmed_publication_status.keyword" in facets_limits else 10
                 }
+            },
+            "mods_in_corpus.keyword": {
+                "terms": {
+                    "field": "mods_in_corpus.keyword",
+                    "min_doc_count": 0,
+                    "size": facets_limits[
+                        "mods_in_corpus.keyword"] if "mods_in_corpus.keyword" in facets_limits else 10
+                }
+            },
+            "mods_needs_review.keyword": {
+                "terms": {
+                    "field": "mods_needs_review.keyword",
+                    "min_doc_count": 0,
+                    "size": facets_limits[
+                        "mods_needs_review.keyword"] if "mods_needs_review.keyword" in facets_limits else 10
+                }
             }
         },
         "size": size_result_count,
@@ -66,10 +82,10 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         for facet_field, facet_list_values in facets_values.items():
             if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
                 es_body["query"]["bool"]["filter"]["bool"]["must"] = []
-            es_body["query"]["bool"]["filter"]["bool"]["must"].append({"bool": {"should": []}})
+            es_body["query"]["bool"]["filter"]["bool"]["must"].append({"bool": {"must": []}})
             for facet_value in facet_list_values:
-                es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["should"].append({"term": {}})
-                es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["should"][-1]["term"][facet_field] = facet_value
+                es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"].append({"term": {}})
+                es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
     else:
         del es_body["query"]["bool"]["filter"]
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)

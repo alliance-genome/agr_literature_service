@@ -98,13 +98,17 @@ services:
       ELASTICSEARCH_HOST: "${ELASTICSEARCH_HOST}"
       ELASTICSEARCH_PORT: "${ELASTICSEARCH_PORT}"
       ELASTICSEARCH_INDEX: "${ELASTICSEARCH_INDEX}"
+      LOG_PATH: "${LOG_PATH}"
+      LOG_URL: "${LOG_URL}"
+      CRONTAB_EMAIL: "${CRONTAB_EMAIL}"
+      SENDER_EMAIL: "${SENDER_EMAIL}"
+      SENDER_PASSWORD: "${SENDER_PASSWORD}"
+      REPLY_TO: "${REPLY_TO}"
     hostname: literature_api
     networks:
       - agr-literature
     volumes:
       - agr-logs:/logs
-    depends_on:
-      - postgres
     ports:
       - "${API_PORT}:8080"
 
@@ -263,8 +267,6 @@ services:
     volumes:
       - agr-logs:/logs
       - .:/usr/local/bin/src/literature
-    depends_on:
-      - postgres
 
   dbz_zookeeper:
     image: quay.io/debezium/zookeeper:${DEBEZIUM_VERSION}
@@ -355,6 +357,17 @@ services:
     entrypoint:
       - /bin/bash
     tty: true
+
+  jenkins:
+    image: jenkins/jenkins:2.346.1-lts-jdk11
+    volumes:
+      - /usr/share/jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+    ports:
+      - "49001:8080"
+      - "50000:50000"
+    restart: on-failure
 
 volumes:
   agr-literature-pg-data:
