@@ -16,3 +16,6 @@ src/xml_processing/pmids_by_mods
 agr_literature_service/lit_processing/pmids_not_found
 
 src/xml_processing/code/venv/
+*.coverage
+.idea/*
+.vscode/*
