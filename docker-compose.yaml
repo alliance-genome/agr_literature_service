@@ -109,8 +109,6 @@ services:
       - agr-literature
     volumes:
       - agr-logs:/logs
-    depends_on:
-      - postgres
     ports:
       - "${API_PORT}:8080"
 
@@ -269,8 +267,6 @@ services:
     volumes:
       - agr-logs:/logs
       - .:/usr/local/bin/src/literature
-    depends_on:
-      - postgres
 
   dbz_zookeeper:
     image: quay.io/debezium/zookeeper:${DEBEZIUM_VERSION}
