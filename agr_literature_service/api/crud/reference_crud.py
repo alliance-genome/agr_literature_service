@@ -505,3 +505,4 @@ def update_citation(db: Session, curie: str):  # noqa
     if new_citation != reference.citation:
         reference.citation = new_citation
         db.commit()
+    
