@@ -125,7 +125,7 @@ def test_changesets():
             assert transaction['changeset']['category'][1] == "book"
         else:
             assert transaction['changeset']['citation'][0] == ", () Bob.   (): "
-            assert transaction['changeset']['citation'][1] == ", ()    (new title.): "
+            assert transaction['changeset']['citation'][1] == ", () new title.   (): "
 
 
 def test_delete_Reference():
