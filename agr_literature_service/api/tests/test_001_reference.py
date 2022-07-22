@@ -215,7 +215,7 @@ def test_reference_large():
     author = db.query(AuthorModel).filter(AuthorModel.name == "S. Wu").one()
     assert author.first_name == 'S.'
 
-    assert res['citation'] == "S. Wu; D. Wu, () Some test 001 title.  433 (): 538--541"
+    assert res['citation'] == "D. Wu; S. Wu, () Some test 001 title.  433 (): 538--541"
 
     assert res['cross_references'][0]['curie'] == 'FB:FBrf0221304'
 
