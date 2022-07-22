@@ -40,6 +40,7 @@ class ReferenceSchemaPost(BaseModel):
     authors: Optional[List[AuthorSchemaPost]] = None
     resource: Optional[str] = None
     open_access: Optional[bool] = None
+    citation: Optional[str] = None
 
     class Config():
         orm_mode = True
@@ -132,6 +133,7 @@ class ReferenceSchemaShow(BaseModelShow):
     authors: Optional[List[AuthorSchemaShow]] = None
     comment_and_corrections: CommentAndCorrectionSchemaRelations
     open_access: Optional[bool] = None
+    citation: Optional[str] = None
 
 
 class ReferenceSchemaNeedReviewShow(BaseModel):

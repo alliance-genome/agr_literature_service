@@ -5,6 +5,7 @@ reference_crud.py
 import logging
 from datetime import datetime
 from typing import Any, Dict, List
+import re
 
 import sqlalchemy
 from fastapi import HTTPException, status
@@ -78,6 +79,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
              'cross_references': 'cross_reference',
              'mod_reference_types': 'mod_reference_type'}
     reference_data = {}  # type: Dict[str, Any]
+    authorNames = ''
 
     if reference.cross_references:
         for cross_reference in reference.cross_references:
@@ -108,6 +110,8 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                         obj_data["orcid_cross_reference"] = cross_reference_obj
                     del obj_data["orcid"]
                     db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
+                    if db_obj.name:
+                        authorNames += db_obj.name + '; '
                 elif field == "mod_reference_types":
                     db_obj = ModReferenceTypeModel(**obj_data)
                 elif field == "mesh_terms":
@@ -139,6 +143,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
         logger.debug("finished processing {} {}".format(field, value))
 
     logger.debug("add reference")
+    reference_data['citation'] = citation_from_data(reference_data, authorNames)
     reference_db_obj = ReferenceModel(**reference_data)
     logger.debug("have model, save to db")
     db.add(reference_db_obj)
@@ -207,6 +212,8 @@ def patch(db: Session, curie: str, reference_update) -> dict:
         else:
             setattr(reference_db_obj, field, value)
 
+    # currently do not update citation on patches. code will call update_citation seperately when all done
+    # reference_db_obj.citation = get_citation_from_obj(db, reference_db_obj)
     reference_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
 
@@ -409,3 +416,92 @@ def merge_references(db: Session,
     db.delete(old_ref)
     db.commit()
     return new_curie
+
+
+def get_citation_from_args(authorNames: str, year: str, title: str, journal: str,
+                           volume: str, issue: str, page_range: str):
+    # Create the citation from the args given.
+    citation = "{}, ({}) {} {} {} ({}): {}".\
+        format(authorNames, year, title,
+               journal, volume, issue, page_range)
+    return citation
+
+
+def author_order_sort(author: AuthorModel):
+    return author.order
+
+
+def citation_from_data(reference_data, authorNames):
+    authorNames = authorNames[:-2]  # remove last '; '
+    year = ''
+    issue = ''
+    volume = ''
+    journal = ''
+    page_range = ''
+    title = ''
+    if 'resource' in reference_data and reference_data["resource"].title:
+        journal = reference_data["resource"].title
+    if 'published_date' in reference_data:
+        year = re.search(r"(\d{4})", reference_data['date_published'])
+        if not year:
+            year = ''
+    if 'issue' in reference_data and reference_data['issue']:
+        issue = reference_data['issue']
+    if 'page_range' in reference_data and reference_data['page_range']:
+        page_range = reference_data['page_range']
+    if 'title' in reference_data and reference_data['title']:
+        title = reference_data['title']
+        if not re.search('[.]$', title):
+            title = title + '.'
+    if 'volume' in reference_data and reference_data['volume']:
+        volume = reference_data['volume']
+    return get_citation_from_args(authorNames, year, title, journal, volume, issue, page_range)
+
+
+def get_citation_from_obj(db: Session, ref_db_obj: ReferenceModel):
+
+    # Authors, (year) title.   Journal  volume (issue): page_range
+    year = ''
+    if ref_db_obj.date_published:
+        year_re_result = re.search(r"(\d{4})", ref_db_obj.date_published)
+        if year_re_result:
+            year = year_re_result.group(1)
+
+    title = ref_db_obj.title or ''
+    if not re.search('[.]$', title):
+        title = title + '.'
+
+    authorNames = ''
+    for author in db.query(AuthorModel).filter_by(reference_id=ref_db_obj.reference_id).order_by(AuthorModel.order).all():
+        if author.name:
+            authorNames += author.name + "; "
+    authorNames = authorNames[:-2]  # remove last ';'
+
+    journal = ''
+    if ref_db_obj.resource and ref_db_obj.resource.title:
+        journal = ref_db_obj.resource.title
+
+    citation = get_citation_from_args(authorNames, year, title, journal,
+                                      ref_db_obj.volume or '',
+                                      ref_db_obj.issue_name or '',
+                                      ref_db_obj.page_range or '')
+    return citation
+
+
+def update_citation(db: Session, curie: str):  # noqa
+    """
+    :param db:
+    :param curie:
+    :param http_request:
+    :return:
+    """
+    try:
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one()
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Reference with the id {curie} is not available")
+
+    new_citation = get_citation_from_obj(db, reference)
+    if new_citation != reference.citation:
+        reference.citation = new_citation
+        db.commit()

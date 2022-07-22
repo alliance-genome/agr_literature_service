@@ -5,7 +5,7 @@ from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import sessionmaker
 
 from agr_literature_service.api.crud.reference_crud import (
-    create, destroy, patch, show, show_changesets)
+    create, destroy, patch, show, show_changesets, update_citation)
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models import AuthorModel, CrossReferenceModel
@@ -85,8 +85,8 @@ def test_update_reference():
     update_schema = ReferenceSchemaUpdate(title="new title", category="book", language="New")
     patch(db, 'AGR:AGR-Reference-0000000001', update_schema)
 
-    # res = patch(db, 'AGR:AGR-Reference-0000000001', {'title': "new title", 'category': "book"})
-    # assert res == {'message': 'updated'}
+    # Update the citation
+    update_citation(db, 'AGR:AGR-Reference-0000000001')
 
     # fetch the new record.
     res = show(db, 'AGR:AGR-Reference-0000000001')
@@ -105,21 +105,27 @@ def test_update_reference():
     #       In this case abstract is None
     assert res['abstract'] is None
 
+    # Do we have a new citation
+    assert res['citation'] == ", () new title.   (): "
+
 
 def test_changesets():
     res = show_changesets(db, 'AGR:AGR-Reference-0000000001')
 
     # title            : None -> bob -> 'new title'
     # catergory        : None -> thesis -> book
-    for transaction in res:
+    for i, transaction in enumerate(res):
         print(transaction)
-        if not transaction['changeset']['title'][0]:
+        if i == 0:
             assert transaction['changeset']['reference_id'][1] == 1
             assert transaction['changeset']['title'][1] == "Bob"
             assert transaction['changeset']['category'][1] == "thesis"
-        else:
+        elif i == 1:
             assert transaction['changeset']['title'][1] == "new title"
             assert transaction['changeset']['category'][1] == "book"
+        else:
+            assert transaction['changeset']['citation'][0] == ", () Bob.   (): "
+            assert transaction['changeset']['citation'][1] == ", () new title.   (): "
 
 
 def test_delete_Reference():
@@ -178,7 +184,7 @@ def test_reference_large():
         "language": "English",
         "page_range": "538--541",
         # "primary_id": "PMID:23524264",
-        "title": "A conserved serine residue regulates the stability of Drosophila Salvador",
+        "title": "Some test 001 title",
         "volume": "433",
         "open_access": True
     }
@@ -209,7 +215,7 @@ def test_reference_large():
     author = db.query(AuthorModel).filter(AuthorModel.name == "S. Wu").one()
     assert author.first_name == 'S.'
 
-    assert "citation" not in res
+    assert res['citation'] == "S. Wu; D. Wu, () Some test 001 title.  433 (): 538--541"
 
     assert res['cross_references'][0]['curie'] == 'FB:FBrf0221304'
 
@@ -224,6 +230,6 @@ def test_reference_large():
     assert res["issue_name"] == "4"
     assert res["language"] == "English"
     assert res["page_range"] == "538--541"
-    assert res["title"] == "A conserved serine residue regulates the stability of Drosophila Salvador"
+    assert res["title"] == "Some test 001 title"
     assert res["volume"] == "433"
     assert res['open_access']
