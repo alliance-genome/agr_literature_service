@@ -79,7 +79,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
              'cross_references': 'cross_reference',
              'mod_reference_types': 'mod_reference_type'}
     reference_data = {}  # type: Dict[str, Any]
-    authorNames = ''
+    author_names_order = []
 
     if reference.cross_references:
         for cross_reference in reference.cross_references:
@@ -111,7 +111,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     del obj_data["orcid"]
                     db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
                     if db_obj.name:
-                        authorNames += db_obj.name + '; '
+                        author_names_order.append((db_obj.name, db_obj.order))
                 elif field == "mod_reference_types":
                     db_obj = ModReferenceTypeModel(**obj_data)
                 elif field == "mesh_terms":
@@ -143,7 +143,9 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
         logger.debug("finished processing {} {}".format(field, value))
 
     logger.debug("add reference")
-    reference_data['citation'] = citation_from_data(reference_data, authorNames)
+    reference_data['citation'] = citation_from_data(reference_data,
+                                                    "; ".join([x[0] for x in sorted(author_names_order,
+                                                                                    key=lambda x: x[1])]))
     reference_db_obj = ReferenceModel(**reference_data)
     logger.debug("have model, save to db")
     db.add(reference_db_obj)
