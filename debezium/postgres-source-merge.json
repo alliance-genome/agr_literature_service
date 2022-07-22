@@ -1,0 +1,25 @@
+{
+  "name": "postgres-source-merge",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    "slot.name": "debezium_merge",
+    "publication.name": "debezium_merge",
+    "database.hostname": "${PSQL_HOST}",
+    "database.port": "${PSQL_PORT}",
+    "database.user": "${PSQL_USERNAME}",
+    "database.password": "${PSQL_PASSWORD}",
+    "database.dbname" : "${PSQL_DATABASE}",
+    "database.server.name": "abc",
+    "table.include.list": "public.obsolete_reference_curie",
+    "database.history.kafka.bootstrap.servers": "dbz_kafka:9092",
+    "decimal.handling.mode" : "string",
+    "poll.interval.ms": "100",
+    "transforms": "extractKey,extractValue",
+    "transforms.extractKey.field": "obsolete_id",
+    "transforms.extractKey.type": "org.apache.kafka.connect.transforms.ExtractField$Key",
+    "transforms.extractValue.field": "after",
+    "transforms.extractValue.type": "org.apache.kafka.connect.transforms.ExtractField$Value",
+    "plugin.name": "pgoutput"
+  }
+}

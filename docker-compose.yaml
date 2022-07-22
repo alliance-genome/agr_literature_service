@@ -345,7 +345,7 @@ services:
   #
   # To start it:
   # - start the docker-compose service: $ docker-compose up -d dbz_ksql_cli
-  # - run bash on the container: $ docker exec -it agr-literature-main_dbz_ksql_cli_1 bash
+  # - run bash on the container: $ docker exec -it agr-literature-main-dbz_ksql_cli-1 bash
   # - determine the server IP address (for some reason this version of ksqldb cli does not work with host names): $ ping dbz_ksql_server
   # - start the ksql client connecting to the server: $ ksql http://<ksqldb_server_ip>:8088
   dbz_ksql_cli:
