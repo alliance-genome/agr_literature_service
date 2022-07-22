@@ -434,7 +434,8 @@ def author_order_sort(author: AuthorModel):
 
 
 def citation_from_data(reference_data, authorNames):
-    authorNames = authorNames[:-2]  # remove last '; '
+    if authorNames.endswith("; "):
+        authorNames = authorNames[:-2]  # remove last '; '
     year = ''
     issue = ''
     volume = ''
