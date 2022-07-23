@@ -509,24 +509,26 @@ def get_comment_correction_data(db_connection):
         data = {}
         if reference_id_from in reference_id_to_comment_correction_data:
             data = reference_id_to_comment_correction_data[reference_id_from]
-        (pmid, ref_curie) = reference_id_to_curies[reference_id_from]
-        data[type_db] = {"PMID": pmid,
-                         "reference_curie": ref_curie}
-        reference_id_to_comment_correction_data[reference_id_from] = data
+        if reference_id_from in reference_id_to_curies:
+            (pmid, ref_curie) = reference_id_to_curies[reference_id_from]
+            data[type_db] = {"PMID": pmid,
+                             "reference_curie": ref_curie}
+            reference_id_to_comment_correction_data[reference_id_from] = data
 
         ## for reference_id_to
         data = {}
         if reference_id_to in reference_id_to_comment_correction_data:
             data = reference_id_to_comment_correction_data[reference_id_to]
 
-        (pmid, ref_curie) = reference_id_to_curies[reference_id_to]
-        type = type_mapping.get(type_db)
-        if type is None:
-            log.info(type_db + " is not in type_mapping.")
-        else:
-            data[type] = {"PMID": pmid,
-                          "reference_curie": ref_curie}
-            reference_id_to_comment_correction_data[reference_id_to] = data
+        if reference_id_to in reference_id_to_curies:
+            (pmid, ref_curie) = reference_id_to_curies[reference_id_to]
+            type = type_mapping.get(type_db)
+            if type is None:
+                log.info(type_db + " is not in type_mapping.")
+            else:
+                data[type] = {"PMID": pmid,
+                              "reference_curie": ref_curie}
+                reference_id_to_comment_correction_data[reference_id_to] = data
 
     return reference_id_to_comment_correction_data
 
