@@ -40,7 +40,7 @@ def main():
 
     descending = db.query(ReferenceModel).order_by(ReferenceModel.reference_id.desc())
     last_ref = descending.first()
-    print("Last referecne_id is : {}".format(last_ref.reference_id))
+    print("Last reference_id is : {}".format(last_ref.reference_id))
     okay = True
     while last_seen <= last_ref.reference_id and okay:
         ref_query = db.query(ReferenceModel).order_by(ReferenceModel.reference_id).offset(offset).limit(batch_size).all()
