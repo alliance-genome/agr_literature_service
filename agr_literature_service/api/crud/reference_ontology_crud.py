@@ -199,4 +199,3 @@ def show_changesets(db: Session, reference_ontology_id: int):
                         "changeset": version.changeset})
 
     return history
-

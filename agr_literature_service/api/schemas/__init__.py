@@ -88,4 +88,3 @@ from agr_literature_service.api.schemas.reference_schemas import (
     ReferenceSchemaNeedReviewShow)
 
 from agr_literature_service.api.schemas.search_schemas import FacetsOptionsSchema
-

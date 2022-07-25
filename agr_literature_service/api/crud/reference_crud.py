@@ -152,7 +152,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
     db.commit()
 
     for field, value in vars(reference).items():
-        logger.debug("Porcessing mod corpus asso")
+        logger.debug("Processing mod corpus asso")
         if field == "mod_corpus_associations":
             if value is not None:
                 for obj in value:
@@ -172,7 +172,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                         create_reference_ontology(db, obj_data)
                     except HTTPException:
                         logger.warning("skipping ontology to a mod that is already associated to "
-                                       "the reference")            
+                                       "the reference")
     logger.debug("returning successfully?")
     return curie
 
