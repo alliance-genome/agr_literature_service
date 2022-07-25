@@ -297,6 +297,7 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         else:
             return None
 
+    print("REF: {}".format(reference))
     reference_data = jsonable_encoder(reference)
     if reference.resource_id:
         reference_data["resource_curie"] = \
