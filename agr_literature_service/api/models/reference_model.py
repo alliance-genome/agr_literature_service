@@ -224,6 +224,12 @@ class ReferenceModel(Base):
         nullable=True
     )
 
+    ontology = relationship(
+        "ReferenceOntologyModel",
+        foreign_keys="ReferenceOntologyModel.reference_id",
+        back_populates="reference"
+    )
+
     def __str__(self):
         """
         Overwrite the default output.
