@@ -26,6 +26,7 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
 from agr_literature_service.api.schemas import ReferenceSchemaPost
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.reference_ontology_crud import create as create_reference_ontology
+from agr_literature_service.api.crud.reference_ontology_crud import show as show_ontology
 
 logger = logging.getLogger(__name__)
 
@@ -314,6 +315,8 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         reference_data["cross_references"] = cross_references
         # del reference_data["cross_reference"]
 
+    # So this wierd we check reference.mod_reference_type BUT
+    # use reference_data["mod_corpus_association"]
     if reference.mod_reference_type:
         mrt = []
         for mod_reference_type in reference_data["mod_reference_type"]:
@@ -336,17 +339,13 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         reference_data["mod_corpus_associations"] = reference_data["mod_corpus_association"]
         del reference_data["mod_corpus_association"]
 
+    reference_data['ontologys'] = []
     if reference.ontology:
         print("REF ONT: {}".format(reference.ontology))
         print("data is: {}".format(reference_data))
-        for i in range(len(reference_data["ontology"])):
-            del reference_data["ontology"][i]["reference_id"]
-            reference_data["ontology"][i]["mod_abbreviation"] = reference_data[
-                "ontology"][i]["mod"]["abbreviation"]
-            del reference_data["ontology"][i]["mod"]
-            del reference_data["ontology"][i]["mod_id"]
-        reference_data["ontologys"] = reference_data["ontology"]
-        del reference_data["ontology"]
+        for ont in reference.ontology:
+            ont_json = show_ontology(db, ont.reference_ontology_id)
+            reference_data["ontologys"].append(ont_json)
     else:
         print("No ontologys")
 
