@@ -11,6 +11,9 @@ from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models import AuthorModel, CrossReferenceModel
 from agr_literature_service.api.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
 
+from agr_literature_service.api.crud.mod_crud import create as mod_create
+from agr_literature_service.api.crud.user_crud import create as user_create
+
 metadata = MetaData()
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
@@ -180,14 +183,42 @@ def test_reference_large():
                 ]
             }
         ],
+        "ontologys": [
+            {
+                "ontology_id": "Ontology1",
+                "mod_abbreviation": "RGD_ont",
+                "created_by": "Bob"
+            },
+            {
+                "ontology_id": "Ontology2",
+                "mod_abbreviation": "FB_ont",
+                "created_by": "Bob"
+            }
+        ],
         "issue_name": "4",
         "language": "English",
         "page_range": "538--541",
-        # "primary_id": "PMID:23524264",
         "title": "Some test 001 title",
         "volume": "433",
         "open_access": True
     }
+    # add User "Bob"
+    user_create(db, "Bob")
+
+    # add mods
+    data = {
+        "abbreviation": 'FB_ont',
+        "short_name": "FlyBase",
+        "full_name": "Test genome database ont1"
+    }
+    res = mod_create(db, data)
+
+    data = {
+        "abbreviation": 'RGD_ont',
+        "short_name": "Rat",
+        "full_name": "Test genome database ont2"
+    }
+    res = mod_create(db, data)
 
     # process the reference.
     reference = ReferenceSchemaPost(**full_xml)
@@ -233,3 +264,13 @@ def test_reference_large():
     assert res["title"] == "Some test 001 title"
     assert res["volume"] == "433"
     assert res['open_access']
+
+    print("BOB................")
+    print(res)
+    for ont in res["ontologys"]:
+        if ont['mod_abbreviation'] == "RGD_ont":
+            assert ont['ontology'] == "Ontology1"
+        elif ont['mod_abbreviation'] == "FB_ont":
+            assert ont['ontology'] == "Ontology2"
+        else:
+            assert 1 == 0  # Not RGD or FB ?

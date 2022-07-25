@@ -25,6 +25,7 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ResourceModel)
 from agr_literature_service.api.schemas import ReferenceSchemaPost
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
+from agr_literature_service.api.crud.reference_ontology_crud import create as create_reference_ontology
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
 
     logger.debug("creating reference")
     logger.debug(reference)
-    add_separately_fields = ["mod_corpus_associations"]
+    add_separately_fields = ["mod_corpus_associations", "ontologys"]
     list_fields = ["authors", "mod_reference_types", "tags", "mesh_terms", "cross_references"]
     remap = {'authors': 'author',
              'mesh_terms': 'mesh_term',
@@ -162,6 +163,16 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     except HTTPException:
                         logger.warning("skipping mod corpus association to a mod that is already associated to "
                                        "the reference")
+        elif field == "ontologys":
+            if value is not None:
+                for obj in value:
+                    obj_data = jsonable_encoder(obj)
+                    obj_data["reference_curie"] = curie
+                    try:
+                        create_reference_ontology(db, obj_data)
+                    except HTTPException:
+                        logger.warning("skipping ontology to a mod that is already associated to "
+                                       "the reference")            
     logger.debug("returning successfully?")
     return curie
 
@@ -323,6 +334,19 @@ def show(db: Session, curie: str, http_request=True):  # noqa
             del reference_data["mod_corpus_association"][i]["mod_id"]
         reference_data["mod_corpus_associations"] = reference_data["mod_corpus_association"]
         del reference_data["mod_corpus_association"]
+
+    if reference.ontology:
+        print(reference.ontology)
+        for i in range(len(reference_data["ontology"])):
+            del reference_data["ontology"][i]["reference_id"]
+            reference_data["ontology"][i]["mod_abbreviation"] = reference_data[
+                "ontology"][i]["mod"]["abbreviation"]
+            del reference_data["ontology"][i]["mod"]
+            del reference_data["ontology"][i]["mod_id"]
+        reference_data["ontologys"] = reference_data["ontology"]
+        del reference_data["ontology"]
+    else:
+        print("No ontologys")
 
     if reference.mesh_term:
         for mesh_term in reference_data["mesh_term"]:

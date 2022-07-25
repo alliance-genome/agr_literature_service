@@ -40,11 +40,11 @@ class ReferenceOntologyModel(Base):
     reference = relationship(
         "ReferenceModel",
         foreign_keys="ReferenceOntologyModel.reference_id",
-        back_populates="reference"
+        back_populates="ontology"
     )
 
 # ontology node term-id - string from A api.
-    ontology = Column(
+    ontology_id = Column(
         String(),
         unique=False,
         nullable=False
@@ -74,13 +74,13 @@ class ReferenceOntologyModel(Base):
 # created by - id from users table
 # updated by - id from users table
     created_by = Column(
-        Integer,
-        ForeignKey("user.user_id"),
+        String,
+        ForeignKey("users.id"),
         nullable=False
     )
 
     updated_by = Column(
-        Integer,
-        ForeignKey("user.user_id"),
+        String,
+        ForeignKey("users.id"),
         nullable=True
     )

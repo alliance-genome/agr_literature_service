@@ -2,23 +2,27 @@ from agr_literature_service.api.schemas.base_schemas import BaseModelShow
 
 from agr_literature_service.api.schemas.env_state_schemas import EnvStateSchema
 
-from agr_literature_service.api.schemas.cross_reference_schemas import CrossReferenceSchemaRelated
-from agr_literature_service.api.schemas.cross_reference_schemas import CrossReferenceSchemaUpdate
-from agr_literature_service.api.schemas.cross_reference_schemas import CrossReferenceSchemaShow
-from agr_literature_service.api.schemas.cross_reference_schemas import CrossReferenceSchema
-from agr_literature_service.api.schemas.cross_reference_schemas import CrossReferenceSchemaPost
+from agr_literature_service.api.schemas.cross_reference_schemas import (
+    CrossReferenceSchemaRelated,
+    CrossReferenceSchemaUpdate,
+    CrossReferenceSchemaShow,
+    CrossReferenceSchema,
+    CrossReferenceSchemaPost)
 
-from agr_literature_service.api.schemas.author_schemas import AuthorSchemaPost
-from agr_literature_service.api.schemas.author_schemas import AuthorSchemaShow
-from agr_literature_service.api.schemas.author_schemas import AuthorSchemaCreate
+from agr_literature_service.api.schemas.author_schemas import (
+    AuthorSchemaPost,
+    AuthorSchemaShow,
+    AuthorSchemaCreate)
 
-from agr_literature_service.api.schemas.editor_schemas import EditorSchemaPost
-from agr_literature_service.api.schemas.editor_schemas import EditorSchemaShow
-from agr_literature_service.api.schemas.editor_schemas import EditorSchemaCreate
+from agr_literature_service.api.schemas.editor_schemas import (
+    EditorSchemaPost,
+    EditorSchemaShow,
+    EditorSchemaCreate)
 
-from agr_literature_service.api.schemas.resource_schemas import ResourceSchemaPost
-from agr_literature_service.api.schemas.resource_schemas import ResourceSchemaShow
-from agr_literature_service.api.schemas.resource_schemas import ResourceSchemaUpdate
+from agr_literature_service.api.schemas.resource_schemas import (
+    ResourceSchemaPost,
+    ResourceSchemaShow,
+    ResourceSchemaUpdate)
 
 from agr_literature_service.api.schemas.response_message_schemas import ResponseMessageSchema
 
@@ -32,42 +36,56 @@ from agr_literature_service.api.schemas.reference_category_schemas import Refere
 
 from agr_literature_service.api.schemas.file_category_schemas import FileCategories
 
-from agr_literature_service.api.schemas.mesh_detail_schemas import MeshDetailSchemaShow
-from agr_literature_service.api.schemas.mesh_detail_schemas import MeshDetailSchemaUpdate
-from agr_literature_service.api.schemas.mesh_detail_schemas import MeshDetailSchemaCreate
-from agr_literature_service.api.schemas.mesh_detail_schemas import MeshDetailSchemaPost
-from agr_literature_service.api.schemas.mesh_detail_schemas import MeshDetailSchemaRelated
+from agr_literature_service.api.schemas.mesh_detail_schemas import (
+    MeshDetailSchemaShow,
+    MeshDetailSchemaUpdate,
+    MeshDetailSchemaCreate,
+    MeshDetailSchemaPost,
+    MeshDetailSchemaRelated)
 
-from agr_literature_service.api.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaShow
-from agr_literature_service.api.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaUpdate
-from agr_literature_service.api.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaCreate
-from agr_literature_service.api.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaPost
-from agr_literature_service.api.schemas.mod_reference_type_schemas import ModReferenceTypeSchemaRelated
+from agr_literature_service.api.schemas.mod_reference_type_schemas import (
+    ModReferenceTypeSchemaShow,
+    ModReferenceTypeSchemaUpdate,
+    ModReferenceTypeSchemaCreate,
+    ModReferenceTypeSchemaPost,
+    ModReferenceTypeSchemaRelated)
 
 from agr_literature_service.api.schemas.mod_corpus_sort_source_type import ModCorpusSortSourceType
 
-from agr_literature_service.api.schemas.mod_corpus_association_schemas import ModCorpusAssociationSchemaCreate
-from agr_literature_service.api.schemas.mod_corpus_association_schemas import ModCorpusAssociationSchemaPost
-from agr_literature_service.api.schemas.mod_corpus_association_schemas import ModCorpusAssociationSchemaShow
-from agr_literature_service.api.schemas.mod_corpus_association_schemas import ModCorpusAssociationSchemaUpdate
-from agr_literature_service.api.schemas.mod_corpus_association_schemas import ModCorpusAssociationSchemaRelated
-from agr_literature_service.api.schemas.mod_corpus_association_schemas import ModCorpusAssociationSchemaShowID
+from agr_literature_service.api.schemas.mod_corpus_association_schemas import (
+    ModCorpusAssociationSchemaCreate,
+    ModCorpusAssociationSchemaPost,
+    ModCorpusAssociationSchemaShow,
+    ModCorpusAssociationSchemaUpdate,
+    ModCorpusAssociationSchemaRelated,
+    ModCorpusAssociationSchemaShowID)
 
 
-from agr_literature_service.api.schemas.mod_schemas import ModSchemaUpdate
-from agr_literature_service.api.schemas.mod_schemas import ModSchemaPost
-from agr_literature_service.api.schemas.mod_schemas import ModSchemaShow
-from agr_literature_service.api.schemas.mod_schemas import ModSchemaCreate
+from agr_literature_service.api.schemas.mod_schemas import (
+    ModSchemaUpdate,
+    ModSchemaPost,
+    ModSchemaShow,
+    ModSchemaCreate)
 
 from agr_literature_service.api.schemas.reference_comment_and_correction_type import ReferenceCommentAndCorrectionType
-from agr_literature_service.api.schemas.reference_comment_and_correction_schemas import ReferenceCommentAndCorrectionSchemaShow
-from agr_literature_service.api.schemas.reference_comment_and_correction_schemas import ReferenceCommentAndCorrectionSchemaPost
-from agr_literature_service.api.schemas.reference_comment_and_correction_schemas import ReferenceCommentAndCorrectionSchemaPatch
-from agr_literature_service.api.schemas.reference_comment_and_correction_schemas import ReferenceCommentAndCorrectionSchemaRelated
 
-from agr_literature_service.api.schemas.reference_schemas import ReferenceSchemaPost
-from agr_literature_service.api.schemas.reference_schemas import ReferenceSchemaUpdate
-from agr_literature_service.api.schemas.reference_schemas import ReferenceSchemaShow
-from agr_literature_service.api.schemas.reference_schemas import ReferenceSchemaNeedReviewShow
+from agr_literature_service.api.schemas.reference_comment_and_correction_schemas import (
+    ReferenceCommentAndCorrectionSchemaShow,
+    ReferenceCommentAndCorrectionSchemaPost,
+    ReferenceCommentAndCorrectionSchemaPatch,
+    ReferenceCommentAndCorrectionSchemaRelated)
+
+from agr_literature_service.api.schemas.reference_ontology_schemas import (
+    ReferenceOntologySchemaCreate,
+    ReferenceOntologySchemaShow,
+    ReferenceOntologySchemaRelated,
+    ReferenceOntologySchemaUpdate)
+
+from agr_literature_service.api.schemas.reference_schemas import (
+    ReferenceSchemaPost,
+    ReferenceSchemaUpdate,
+    ReferenceSchemaShow,
+    ReferenceSchemaNeedReviewShow)
 
 from agr_literature_service.api.schemas.search_schemas import FacetsOptionsSchema
+

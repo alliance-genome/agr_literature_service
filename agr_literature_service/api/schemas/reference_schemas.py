@@ -12,7 +12,9 @@ from agr_literature_service.api.schemas import (AuthorSchemaPost, AuthorSchemaSh
                                                 ModCorpusAssociationSchemaCreate,
                                                 PubMedPublicationStatus, ReferenceCategory,
                                                 ReferenceCommentAndCorrectionSchemaRelated,
-                                                ModCorpusAssociationSchemaRelated)
+                                                ModCorpusAssociationSchemaRelated,
+                                                ReferenceOntologySchemaCreate,
+                                                ReferenceOntologySchemaRelated)
 
 
 class ReferenceSchemaPost(BaseModel):
@@ -41,6 +43,7 @@ class ReferenceSchemaPost(BaseModel):
     resource: Optional[str] = None
     open_access: Optional[bool] = None
     citation: Optional[str] = None
+    ontologys: Optional[List[ReferenceOntologySchemaCreate]] = None
 
     class Config():
         orm_mode = True
@@ -134,6 +137,7 @@ class ReferenceSchemaShow(BaseModelShow):
     comment_and_corrections: CommentAndCorrectionSchemaRelations
     open_access: Optional[bool] = None
     citation: Optional[str] = None
+    ontologys: Optional[List[ReferenceOntologySchemaRelated]] = None
 
 
 class ReferenceSchemaNeedReviewShow(BaseModel):
