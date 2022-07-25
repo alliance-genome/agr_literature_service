@@ -269,8 +269,8 @@ def test_reference_large():
     print(res)
     for ont in res["ontologys"]:
         if ont['mod_abbreviation'] == "RGD_ont":
-            assert ont['ontology'] == "Ontology1"
+            assert ont['ontology_id'] == "Ontology1"
         elif ont['mod_abbreviation'] == "FB_ont":
-            assert ont['ontology'] == "Ontology2"
+            assert ont['ontology_id'] == "Ontology2"
         else:
             assert 1 == 0  # Not RGD or FB ?
