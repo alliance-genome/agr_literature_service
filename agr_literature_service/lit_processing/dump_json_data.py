@@ -122,7 +122,7 @@ def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
 
     if ondemand:
         log.info("Sending email...")
-        ui_url = ui_root_url + filename
+        ui_url = str(ui_root_url) + filename
         email_message = "The file " + filename + " is ready for <a href=" + ui_url + ">download</a>"
         send_email_report("SUCCESS", email, mod, email_message)
 
@@ -509,24 +509,26 @@ def get_comment_correction_data(db_connection):
         data = {}
         if reference_id_from in reference_id_to_comment_correction_data:
             data = reference_id_to_comment_correction_data[reference_id_from]
-        (pmid, ref_curie) = reference_id_to_curies[reference_id_from]
-        data[type_db] = {"PMID": pmid,
-                         "reference_curie": ref_curie}
-        reference_id_to_comment_correction_data[reference_id_from] = data
+        if reference_id_from in reference_id_to_curies:
+            (pmid, ref_curie) = reference_id_to_curies[reference_id_from]
+            data[type_db] = {"PMID": pmid,
+                             "reference_curie": ref_curie}
+            reference_id_to_comment_correction_data[reference_id_from] = data
 
         ## for reference_id_to
         data = {}
         if reference_id_to in reference_id_to_comment_correction_data:
             data = reference_id_to_comment_correction_data[reference_id_to]
 
-        (pmid, ref_curie) = reference_id_to_curies[reference_id_to]
-        type = type_mapping.get(type_db)
-        if type is None:
-            log.info(type_db + " is not in type_mapping.")
-        else:
-            data[type] = {"PMID": pmid,
-                          "reference_curie": ref_curie}
-            reference_id_to_comment_correction_data[reference_id_to] = data
+        if reference_id_to in reference_id_to_curies:
+            (pmid, ref_curie) = reference_id_to_curies[reference_id_to]
+            type = type_mapping.get(type_db)
+            if type is None:
+                log.info(type_db + " is not in type_mapping.")
+            else:
+                data[type] = {"PMID": pmid,
+                              "reference_curie": ref_curie}
+                reference_id_to_comment_correction_data[reference_id_to] = data
 
     return reference_id_to_comment_correction_data
 

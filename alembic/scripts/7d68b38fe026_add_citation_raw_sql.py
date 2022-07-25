@@ -88,7 +88,8 @@ def get_author_data():
             reference_id = x[0]
             if reference_id in reference_id_to_authors:
                 data = reference_id_to_authors[reference_id]
-            data.append(x[1])
+            if x[1]:
+                data.append(x[1])
             reference_id_to_authors[reference_id] = data
 
     db_connection.close()
