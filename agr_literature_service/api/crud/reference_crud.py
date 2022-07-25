@@ -336,7 +336,8 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         del reference_data["mod_corpus_association"]
 
     if reference.ontology:
-        print(reference.ontology)
+        print("REF ONT: {}".format(reference.ontology))
+        print("data is: {}".format(reference_data))
         for i in range(len(reference_data["ontology"])):
             del reference_data["ontology"][i]["reference_id"]
             reference_data["ontology"][i]["mod_abbreviation"] = reference_data[
