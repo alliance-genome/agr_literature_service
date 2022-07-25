@@ -118,6 +118,11 @@ def generate_data_ondemand(mod: str,
 
     set_global_user_id(db, user.id)
 
+    if mod is None or email is None or ui_root_url is None:
+        return {
+            "message": "You need to be logged in order to download files."
+        }
+
     process_name = email
     try:
         lock_dumps_ondemand.acquire()
