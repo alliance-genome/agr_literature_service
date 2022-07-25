@@ -352,7 +352,8 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
         new_resource_id = None
         journal_title = None
         if json_data.get('journal'):
-            (new_resource_id, journal_title) = journal_to_resource_id.get(json_data.get('journal'))
+            if json_data.get('journal') in journal_to_resource_id:
+                (new_resource_id, journal_title) = journal_to_resource_id[json_data.get('journal')]
 
         update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id,
                                journal_title, reference_id_to_authors.get(x.reference_id),
