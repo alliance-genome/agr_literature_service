@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from datetime import datetime, date
 import json
 import time
-import re
 
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
     ModModel, ModCorpusAssociationModel, ReferenceCommentAndCorrectionModel, \
@@ -425,22 +424,13 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
 
 def create_new_citation(authors, date_published, title, journal, volume, issue, page_range):
 
-    year = ''
-    if date_published:
-        year_re_result = re.search(r"(\d{4})", date_published)
-        if year_re_result:
-            year = year_re_result.group(1)
-
     author_list = []
     if authors:
         for x in authors:
             if x['name']:
                 author_list.append(x['name'])
-    authorNames = ''
-    if len(author_list) > 0:
-        authorNames = "; ".join(author_list)
 
-    citation = get_citation_from_args(authorNames, year, title, journal, volume, issue, page_range)
+    citation = get_citation_from_args(author_list, date_published, title, journal, volume, issue, page_range)
 
     return citation
 
