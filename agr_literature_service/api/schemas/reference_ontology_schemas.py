@@ -19,7 +19,7 @@ class ReferenceOntologySchemaShow(BaseModelShow):
 
 
 class ReferenceOntologySchemaRelated(BaseModel):
-    reference_ontology_id: int
+    reference_ontology_id: Optional[int]
     date_created: str
     ontology_id: str
     mod_abbreviation: str

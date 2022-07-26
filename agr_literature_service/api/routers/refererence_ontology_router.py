@@ -7,6 +7,7 @@ from agr_literature_service.api.crud import reference_ontology_crud
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (ReferenceOntologySchemaShow,
                                                 ReferenceOntologySchemaUpdate,
+                                                ReferenceOntologySchemaCreate,
                                                 ResponseMessageSchema)
 from agr_literature_service.api.user import set_global_user_id
 
@@ -24,7 +25,7 @@ db_user = Security(auth.get_user)
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              response_model=str)
-def create(request: ReferenceOntologySchemaUpdate,
+def create(request: ReferenceOntologySchemaCreate,
            user: OktaUser = db_user,
            db: Session = db_session):
     set_global_user_id(db, user.id)
