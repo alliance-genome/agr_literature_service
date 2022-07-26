@@ -22,7 +22,6 @@ def create(db: Session, reference_ontology: ReferenceOntologySchemaCreate) -> in
     """
 
     reference_ontology_data = jsonable_encoder(reference_ontology)
-    print("Create: {}".format(reference_ontology_data))
     reference_curie = reference_ontology_data["reference_curie"]
     del reference_ontology_data["reference_curie"]
     mod_abbreviation = reference_ontology_data["mod_abbreviation"]
@@ -43,7 +42,6 @@ def create(db: Session, reference_ontology: ReferenceOntologySchemaCreate) -> in
         ReferenceOntologyModel.mod_id == mod.mod_id).filter(
         ReferenceOntologyModel.ontology_id == ontology_id).first()
     if reference_ontology_db_obj:
-        print("Exists already?: {}".format(reference_ontology_db_obj))
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"ReferenceOntology with the reference_curie {reference_curie} "
                                    f"and mod_abbreviation {mod_abbreviation} and "
@@ -53,12 +51,10 @@ def create(db: Session, reference_ontology: ReferenceOntologySchemaCreate) -> in
 
     reference_ontology_data["reference_id"] = reference.reference_id
     reference_ontology_data["mod_id"] = mod.mod_id
-    print("Sending data to Model: {}".format(reference_ontology_data))
     db_obj = ReferenceOntologyModel(**reference_ontology_data)
     db_obj.reference = reference
     db_obj.mod = mod
     db.add(db_obj)
-    print("Added to db: {}".format(db_obj))
     db.commit()
 
     return db_obj.reference_ontology_id

@@ -183,7 +183,7 @@ def test_reference_large():
                 ]
             }
         ],
-        "ontologys": [
+        "ontologies": [
             {
                 "ontology_id": "Ontology1",
                 "mod_abbreviation": "RGD_ont",
@@ -267,7 +267,7 @@ def test_reference_large():
 
     print("BOB................")
     print(res)
-    for ont in res["ontologys"]:
+    for ont in res["ontologies"]:
         if ont['mod_abbreviation'] == "RGD_ont":
             assert ont['ontology_id'] == "Ontology1"
         elif ont['mod_abbreviation'] == "FB_ont":

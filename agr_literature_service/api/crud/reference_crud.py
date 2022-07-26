@@ -74,7 +74,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
 
     logger.debug("creating reference")
     logger.debug(reference)
-    add_separately_fields = ["mod_corpus_associations", "ontologys"]
+    add_separately_fields = ["mod_corpus_associations", "ontologies"]
     list_fields = ["authors", "mod_reference_types", "tags", "mesh_terms", "cross_references"]
     remap = {'authors': 'author',
              'mesh_terms': 'mesh_term',
@@ -164,7 +164,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     except HTTPException:
                         logger.warning("skipping mod corpus association to a mod that is already associated to "
                                        "the reference")
-        elif field == "ontologys":
+        elif field == "ontologies":
             if value is not None:
                 for obj in value:
                     obj_data = jsonable_encoder(obj)
@@ -339,15 +339,15 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         reference_data["mod_corpus_associations"] = reference_data["mod_corpus_association"]
         del reference_data["mod_corpus_association"]
 
-    reference_data['ontologys'] = []
+    reference_data['ontologies'] = []
     if reference.ontology:
         print("REF ONT: {}".format(reference.ontology))
         print("data is: {}".format(reference_data))
         for ont in reference.ontology:
             ont_json = show_ontology(db, ont.reference_ontology_id)
-            reference_data["ontologys"].append(ont_json)
+            reference_data["ontologies"].append(ont_json)
     else:
-        print("No ontologys")
+        print("No ontologies")
 
     if reference.mesh_term:
         for mesh_term in reference_data["mesh_term"]:

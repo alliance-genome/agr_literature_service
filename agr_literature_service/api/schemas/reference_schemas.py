@@ -43,7 +43,7 @@ class ReferenceSchemaPost(BaseModel):
     resource: Optional[str] = None
     open_access: Optional[bool] = None
     citation: Optional[str] = None
-    ontologys: Optional[List[ReferenceOntologySchemaRelated]] = None
+    ontologies: Optional[List[ReferenceOntologySchemaRelated]] = None
 
     class Config():
         orm_mode = True
@@ -137,7 +137,7 @@ class ReferenceSchemaShow(BaseModelShow):
     comment_and_corrections: CommentAndCorrectionSchemaRelations
     open_access: Optional[bool] = None
     citation: Optional[str] = None
-    ontologys: Optional[List[ReferenceOntologySchemaRelated]] = None
+    ontologies: Optional[List[ReferenceOntologySchemaRelated]] = None
 
 
 class ReferenceSchemaNeedReviewShow(BaseModel):

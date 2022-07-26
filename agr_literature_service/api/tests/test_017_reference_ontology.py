@@ -10,8 +10,7 @@ from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models import (ReferenceOntologyModel,
                                                ReferenceModel)
-from agr_literature_service.api.schemas import (ReferenceOntologySchemaCreate,
-                                                ReferenceOntologySchemaUpdate)
+from agr_literature_service.api.schemas import ReferenceOntologySchemaCreate
 from agr_literature_service.api.crud.mod_crud import create as mod_create
 from agr_literature_service.api.crud.user_crud import create as user_create
 
@@ -29,6 +28,7 @@ if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
 fb_mod = None
+
 
 def test_initialise():
     global fb_mod
