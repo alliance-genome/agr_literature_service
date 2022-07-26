@@ -300,7 +300,6 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         else:
             return None
 
-    print("REF: {}".format(reference))
     reference_data = jsonable_encoder(reference)
     if reference.resource_id:
         reference_data["resource_curie"] = \
@@ -317,8 +316,6 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         reference_data["cross_references"] = cross_references
         # del reference_data["cross_reference"]
 
-    # So this wierd we check reference.mod_reference_type BUT
-    # use reference_data["mod_corpus_association"]
     if reference.mod_reference_type:
         mrt = []
         for mod_reference_type in reference_data["mod_reference_type"]:
@@ -331,6 +328,8 @@ def show(db: Session, curie: str, http_request=True):  # noqa
                                              reference_data["obsolete_reference"]]
     del reference_data["obsolete_reference"]
 
+    # So thisis wierd, we check reference.mod_corpus_association BUT
+    # use reference_data["mod_corpus_association"]
     if reference.mod_corpus_association:
         for i in range(len(reference_data["mod_corpus_association"])):
             del reference_data["mod_corpus_association"][i]["reference_id"]
@@ -343,13 +342,9 @@ def show(db: Session, curie: str, http_request=True):  # noqa
 
     reference_data['ontologies'] = []
     if reference.ontology:
-        print("REF ONT: {}".format(reference.ontology))
-        print("data is: {}".format(reference_data))
         for ont in reference.ontology:
             ont_json = show_ontology(db, ont.reference_ontology_id)
             reference_data["ontologies"].append(ont_json)
-    else:
-        print("No ontologies")
 
     if reference.mesh_term:
         for mesh_term in reference_data["mesh_term"]:
