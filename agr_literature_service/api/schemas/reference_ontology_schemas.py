@@ -20,10 +20,10 @@ class ReferenceOntologySchemaShow(BaseModelShow):
 
 class ReferenceOntologySchemaRelated(BaseModel):
     reference_ontology_id: Optional[int]
-    date_created: str
+    date_created: Optional[str]
     ontology_id: str
     mod_abbreviation: str
-    date_updated: str
+    date_updated: Optional[str]
 
     class Config():
         orm_mode = True
