@@ -35,15 +35,15 @@ def main():
     seen = {}
     i = 0
     last_seen = 0
-    batch_size = 1000
+    offset = 0
+    batch_size = 100
 
     descending = db.query(ReferenceModel).order_by(ReferenceModel.reference_id.desc())
     last_ref = descending.first()
-    print("Last referecne_id is : {}".format(last_ref.reference_id))
+    print("Last reference_id is : {}".format(last_ref.reference_id))
     okay = True
     while last_seen <= last_ref.reference_id and okay:
-        ref_query = db.query(ReferenceModel).filter(ReferenceModel.reference_id > last_seen,
-                                                    ReferenceModel.reference_id < (last_seen + batch_size)).order_by(ReferenceModel.reference_id).all()
+        ref_query = db.query(ReferenceModel).order_by(ReferenceModel.reference_id).offset(offset).limit(batch_size).all()
         okay = False
         for reference in ref_query:
             citation = reference_crud.get_citation_from_obj(db, reference)
@@ -56,8 +56,9 @@ def main():
                 print("{} Done already??".format(reference.curie))
                 exit(-1)
             seen[reference.curie] = 1
+            offset = offset + 1
             i = i + 1
-            if i > 1000:
+            if i > batch_size:
                 i = 0
                 print("{} {}".format(last_seen, datetime.datetime.now()))
             last_seen = reference.reference_id

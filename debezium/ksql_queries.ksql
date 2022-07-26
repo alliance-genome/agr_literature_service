@@ -25,7 +25,8 @@ CREATE TABLE reference (
     pubmed_types array<string>,
     resource_id bigint,
     title string,
-    volume string
+    volume string,
+    citation string
   ) WITH (
     KAFKA_TOPIC='abc.public.reference',
     VALUE_FORMAT='json'
@@ -129,6 +130,7 @@ CREATE TABLE reference_xref AS
     reference.resource_id,
     reference.title,
     reference.volume,
+    reference.citation,
     cross_references.cross_references
     FROM reference reference
     LEFT OUTER JOIN cross_references cross_references ON
@@ -159,6 +161,7 @@ CREATE TABLE reference_xref_author AS
     reference_xref.resource_id,
     reference_xref.title,
     reference_xref.volume,
+    reference_xref.citation,
     reference_xref.cross_references,
     authors.authors
     FROM reference_xref reference_xref
@@ -190,6 +193,7 @@ CREATE TABLE reference_xref_author_mods_in_corpus AS
     reference_xref_author.resource_id,
     reference_xref_author.title,
     reference_xref_author.volume,
+    reference_xref_author.citation,
     reference_xref_author.cross_references,
     reference_xref_author.authors,
     mods_in_corpus.mods_in_corpus
@@ -226,6 +230,7 @@ CREATE TABLE reference_joined WITH (
     reference_xref_author_mods_in_corpus.resource_id \"resource_id\",
     reference_xref_author_mods_in_corpus.title \"title\",
     reference_xref_author_mods_in_corpus.volume \"volume\",
+    reference_xref_author_mods_in_corpus.citation \"citation\",
     reference_xref_author_mods_in_corpus.cross_references \"cross_references\",
     reference_xref_author_mods_in_corpus.authors \"authors\",
     reference_xref_author_mods_in_corpus.mods_in_corpus \"mods_in_corpus\",
