@@ -84,7 +84,6 @@ def test_create_ref_ont():
            'created_by': "017_Bob"}
     ref_ont_schema = ReferenceOntologySchemaCreate(**xml)
     res = create(db, ref_ont_schema)
-    assert res == 1
 
     # check results in database
     ref_ont_obj = db.query(ReferenceOntologyModel).\
@@ -131,11 +130,8 @@ def test_changesets():
     ref_ont_obj: ReferenceOntologyModel = db.query(ReferenceOntologyModel).\
         join(ReferenceModel,
              ReferenceOntologyModel.reference_id == ReferenceModel.reference_id).\
-        filter(ReferenceModel.curie == "AGR:AGR-Reference-0000000003").one()
+        filter(ReferenceModel.curie == "AGR:AGR-Reference-0000000001").one()
     res = show_changesets(db, ref_ont_obj.reference_ontology_id)
-
-    # reference_id_from      : None -> 1 -> 3
-    # reference_id_to        : None -> 3 -> 1
 
     for transaction in res:
         print(transaction)
