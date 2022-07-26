@@ -151,10 +151,8 @@ def show_by_reference_mod_abbreviation(db: Session, reference_curie: str, mod_ab
 
     :param db:
     :param reference_ontology_id:
-    :return:
+    :return: list of id's (int)
     """
-    print("No idea where this is getting called")
-    return 200
     mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
     if not mod:
@@ -164,16 +162,18 @@ def show_by_reference_mod_abbreviation(db: Session, reference_curie: str, mod_ab
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the curie {reference_curie} is not available")
     else:
-        reference_ontology_db_obj = db.query(ReferenceOntologyModel).filter(
+        reference_ontology_list = db.query(ReferenceOntologyModel).filter(
             ReferenceOntologyModel.reference_id == reference.reference_id).filter(
-            ReferenceOntologyModel.mod_id == mod.mod_id).first()
-        if not reference_ontology_db_obj:
+            ReferenceOntologyModel.mod_id == mod.mod_id).all()
+        if not reference_ontology_list:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f"ReferenceOntology with the reference_curie {reference_curie} "
-                                       f"and mod_abbreviation {mod_abbreviation} is not available")
+                                       f"and mod_abbreviation {mod_abbreviation} are not available")
         else:
-            return reference_ontology_db_obj.reference_ontology_id
-    return 200
+            ont_list = []
+            for ref_ont in reference_ontology_list:
+                ont_list.append(ref_ont.reference_ontology_id)
+            return ont_list
 
 
 def show_changesets(db: Session, reference_ontology_id: int):
