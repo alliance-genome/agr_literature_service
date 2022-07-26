@@ -59,7 +59,7 @@ class ReferenceOntologyModel(Base):
 
     mod = relationship(
         "ModModel",
-        foreign_keys="ModModel.mod_id",
+        foreign_keys="ReferenceOntologyModel.mod_id",
         back_populates="ontology"
     )
 
