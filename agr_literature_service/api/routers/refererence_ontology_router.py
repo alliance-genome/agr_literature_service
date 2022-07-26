@@ -5,9 +5,8 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import reference_ontology_crud
 from agr_literature_service.api.routers.authentication import auth
-from agr_literature_service.api.schemas import (ReferenceOntologySchemaPatch,
-                                                ReferenceOntologySchemaPost,
-                                                ReferenceOntologySchemaShow,
+from agr_literature_service.api.schemas import (ReferenceOntologySchemaShow,
+                                                ReferenceOntologySchemaUpdate,
                                                 ResponseMessageSchema)
 from agr_literature_service.api.user import set_global_user_id
 
@@ -47,7 +46,7 @@ def destroy(reference_ontology_id: int,
               status_code=status.HTTP_202_ACCEPTED,
               response_model=ResponseMessageSchema)
 async def patch(reference_ontology_id: int,
-                request: ReferenceOntologySchemaPatch,
+                request: ReferenceOntologySchemaUpdate,
                 user: OktaUser = db_user,
                 db: Session = db_session):
     set_global_user_id(db, user.id)

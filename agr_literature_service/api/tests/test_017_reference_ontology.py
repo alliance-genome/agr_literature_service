@@ -92,7 +92,7 @@ def test_create_ref_ont():
              ReferenceOntologyModel.reference_id == ReferenceModel.reference_id).\
         filter(ReferenceModel.curie == "AGR:AGR-Reference-0000000001").one()
     assert ref_ont_obj.ontology_id == "ont1"
-    assert ref_ont_obj.created_by.user_id == "017_Bob"
+    assert ref_ont_obj.created_by == "017_Bob"
     assert ref_ont_obj.mod.abbreviation == "017_FB"
 
 
@@ -122,15 +122,15 @@ def test_show_ref_ont():
     res = show(db, ref_ont_obj.reference_ontology_id)
 
     assert res['reference_curie'] == "AGR:AGR-Reference-0000000001"
-    assert res['ontologys'][0]['ontology_id'] == 'ont test patch'
-    assert res['ontologys'][0]['mod_abbreviation'] == '017_FB'
-    assert res['ontologys'][0]['created_by'] == '017_Bob'
+    assert res['ontology_id'] == 'ont test patch'
+    assert res['mod_abbreviation'] == '017_FB'
+    assert res['created_by'] == '017_Bob'
 
 
 def test_changesets():
     ref_ont_obj: ReferenceOntologyModel = db.query(ReferenceOntologyModel).\
         join(ReferenceModel,
-             ReferenceOntologyModel.reference_id_from == ReferenceModel.reference_id).\
+             ReferenceOntologyModel.reference_id == ReferenceModel.reference_id).\
         filter(ReferenceModel.curie == "AGR:AGR-Reference-0000000003").one()
     res = show_changesets(db, ref_ont_obj.reference_ontology_id)
 
@@ -139,8 +139,8 @@ def test_changesets():
 
     for transaction in res:
         print(transaction)
-        if not transaction['changeset']['reference_id_from'][0]:
-            assert transaction['changeset']['reference_id_from'][1] == 1
+        if not transaction['changeset']['reference_id'][0]:
+            assert transaction['changeset']['reference_id'][1] == 1
             assert transaction['changeset']['reference_id_to'][1] == 3
             assert transaction['changeset']['reference_ontology_type'][1] == "CommentOn"
         else:
@@ -152,7 +152,7 @@ def test_changesets():
 def test_destroy_ref_ont():
     ref_ont_obj: ReferenceOntologyModel = db.query(ReferenceOntologyModel).\
         join(ReferenceModel,
-             ReferenceOntologyModel.reference_id_from == ReferenceModel.reference_id).\
+             ReferenceOntologyModel.reference_id == ReferenceModel.reference_id).\
         filter(ReferenceModel.curie == "AGR:AGR-Reference-0000000001").one()
     destroy(db, ref_ont_obj.reference_ontology_id)
 
