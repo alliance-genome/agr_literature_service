@@ -146,7 +146,7 @@ def show(db: Session, reference_ontology_id: int):
     return reference_ontology_data
 
 
-def show_by_reference_mod_abbreviation(db: Session, reference_curie: str, mod_abbreviation: str) -> int:
+def show_by_reference_mod_abbreviation(db: Session, reference_curie: str, mod_abbreviation: str) -> list:
     """
 
     :param db:

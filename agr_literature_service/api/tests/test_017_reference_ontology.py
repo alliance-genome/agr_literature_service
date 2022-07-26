@@ -28,23 +28,25 @@ Base.metadata.create_all(engine)
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
-# add User "017 Bob"
-user_create(db, "017_Bob")
 
-# add mods
-data = {
-    "abbreviation": '017_FB',
-    "short_name": "017_FB",
-    "full_name": "017_ont_1"
-}
-res = mod_create(db, data)
+def test_initilaise():
+    # add User "017 Bob"
+    user_create(db, "017_Bob")
 
-data = {
-    "abbreviation": '017_RGD',
-    "short_name": "017_Rat",
-    "full_name": "017_ont_2"
-}
-res = mod_create(db, data)
+    # add mods
+    data = {
+        "abbreviation": '017_FB',
+        "short_name": "017_FB",
+        "full_name": "017_ont_1"
+    }
+    mod_create(db, data)
+
+    data = {
+        "abbreviation": '017_RGD',
+        "short_name": "017_Rat",
+        "full_name": "017_ont_2"
+    }
+    mod_create(db, data)
 
 
 def test_get_bad_ref_ont():

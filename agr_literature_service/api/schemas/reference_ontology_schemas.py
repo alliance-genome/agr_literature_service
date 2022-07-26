@@ -4,6 +4,7 @@ from agr_literature_service.api.schemas import BaseModelShow
 
 
 class ReferenceOntologySchemaCreate(BaseModel):
+    reference_curie: str
     ontology_id: str
     mod_abbreviation: str
     created_by: str
