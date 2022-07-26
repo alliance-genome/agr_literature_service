@@ -135,7 +135,7 @@ def test_changesets():
     res = show_changesets(db, ref_ont_obj.reference_ontology_id)
 
     for transaction in res:
-        print(transaction)
+        print("Test changesets 017: {}".format(transaction))
         if not transaction['changeset']['reference_ontology_id'][0]:
             assert transaction['changeset']['reference_ontology_id'][1] == 3
             assert transaction['changeset']['mod_id'][1] == 5
