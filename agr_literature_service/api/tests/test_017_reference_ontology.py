@@ -83,7 +83,7 @@ def test_create_ref_ont():
            'ontology_id': "ont1",
            'created_by': "017_Bob"}
     ref_ont_schema = ReferenceOntologySchemaCreate(**xml)
-    res = create(db, ref_ont_schema)
+    create(db, ref_ont_schema)
 
     # check results in database
     ref_ont_obj = db.query(ReferenceOntologyModel).\
@@ -102,7 +102,8 @@ def test_patch_ref_ont():
         filter(ReferenceModel.curie == "AGR:AGR-Reference-0000000001").one()
 
     # change ontology
-    xml = {'ontology_id': 'ont test patch'}
+    xml = {'ontology_id': 'ont test patch',
+           'mod_abbreviation': "017_RGD"}
 
     res = patch(db, ref_ont_obj.reference_ontology_id, xml)
     assert res == {"message": "updated"}
@@ -135,14 +136,12 @@ def test_changesets():
 
     for transaction in res:
         print(transaction)
-        if not transaction['changeset']['reference_id'][0]:
-            assert transaction['changeset']['reference_id'][1] == 1
-            assert transaction['changeset']['reference_id_to'][1] == 3
-            assert transaction['changeset']['reference_ontology_type'][1] == "CommentOn"
+        if not transaction['changeset']['reference_ontology_id'][0]:
+            assert transaction['changeset']['reference_ontology_id'][1] == 3
+            assert transaction['changeset']['mod_id'][1] == 5
         else:
-            assert transaction['changeset']['reference_id_from'][1] == 3
-            assert transaction['changeset']['reference_id_to'][1] == 1
-            assert transaction['changeset']['reference_ontology_type'][1] == "ReprintOf"
+            assert transaction['changeset']['reference_ontology_id'][1] == 3
+            assert transaction['changeset']['mod_id'][1] == 1
 
 
 def test_destroy_ref_ont():

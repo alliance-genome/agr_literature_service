@@ -57,6 +57,12 @@ class ReferenceOntologyModel(Base):
         nullable=True
     )
 
+    mod = relationship(
+        "ModModel",
+        foreign_keys="ModModel.mod_id",
+        back_populates="ontology"
+    )
+
 # date created - timestamp
 # date updated - timestamp
     date_created = Column(
