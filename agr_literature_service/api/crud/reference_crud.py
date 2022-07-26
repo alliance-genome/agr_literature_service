@@ -420,8 +420,16 @@ def merge_references(db: Session,
     return new_curie
 
 
-def get_citation_from_args(authorNames: str, year: str, title: str, journal: str,
-                           volume: str, issue: str, page_range: str):
+def get_citation_from_args(authorNames, year, title, journal, volume, issue, page_range):
+
+    if type(authorNames) == list:
+        authorNames = "; ".join(authorNames)
+
+    if year is not None and not str(year).isdigit():
+        year_re_result = re.search(r"(\d{4})", year)
+        if year_re_result:
+            year = year_re_result.group(1)
+
     # Create the citation from the args given.
     citation = "{}, ({}) {} {} {} ({}): {}".\
         format(authorNames, year, title,
