@@ -24,6 +24,7 @@ class ReferenceOntologySchemaRelated(BaseModel):
     ontology_id: str
     mod_abbreviation: str
     date_updated: Optional[str]
+    created_by: Optional[str]
 
     class Config():
         orm_mode = True
