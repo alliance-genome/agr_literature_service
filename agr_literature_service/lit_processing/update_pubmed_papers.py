@@ -10,6 +10,7 @@ import time
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
     ModModel, ModCorpusAssociationModel, ReferenceCommentAndCorrectionModel, \
     AuthorModel, MeshDetailModel, ResourceModel
+from agr_literature_service.api.crud.reference_crud import get_citation_from_args
 from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session, \
     create_postgres_engine
 from agr_literature_service.lit_processing.update_resource_pubmed_nlm import update_resource_pubmed_nlm
@@ -23,9 +24,9 @@ logging.basicConfig(format='%(message)s')
 log = logging.getLogger()
 log.setLevel(logging.INFO)
 
-refColName_to_update = ['title', 'volume', 'issue_name', 'page_range', 'abstract',
-                        'pubmed_types', 'pubmed_publication_status', 'keywords',
-                        'category', 'plain_language_abstract',
+refColName_to_update = ['title', 'volume', 'issue_name', 'page_range', 'citation',
+                        'abstract', 'pubmed_types', 'pubmed_publication_status',
+                        'keywords', 'category', 'plain_language_abstract',
                         'pubmed_abstract_languages', 'language', 'date_published',
                         'date_arrived_in_pubmed', 'date_last_modified_in_pubmed',
                         'publisher', 'resource_id']
@@ -348,10 +349,13 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
         f.close()
 
         new_resource_id = None
+        journal_title = None
         if json_data.get('journal'):
-            new_resource_id = journal_to_resource_id.get(json_data.get('journal'))
+            if json_data.get('journal') in journal_to_resource_id:
+                (new_resource_id, journal_title) = journal_to_resource_id[json_data.get('journal')]
 
         update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id,
+                               journal_title, reference_id_to_authors.get(x.reference_id),
                                update_log, count)
 
         ## update cross_reference table for reference
@@ -418,7 +422,20 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
     return authors_with_first_or_corresponding_flag
 
 
-def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, update_log, count):   # noqa: C901
+def create_new_citation(authors, date_published, title, journal, volume, issue, page_range):
+
+    author_list = []
+    if authors:
+        for x in authors:
+            if x['name']:
+                author_list.append(x['name'])
+
+    citation = get_citation_from_args(author_list, date_published, title, journal, volume, issue, page_range)
+
+    return citation
+
+
+def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, journal_title, authors, update_log, count):   # noqa: C901
 
     colName_to_json_key = {'issue_name': 'issueName',
                            'page_range': 'pages',
@@ -432,6 +449,16 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
 
     has_update = 0
     for colName in refColName_to_update:
+        if colName == 'citation':
+            new_citation = create_new_citation(authors, str(x.date_published), x.title, journal_title,
+                                               x.volume, x.issue_name, x.page_range)
+            # print("PMID:" + str(pmid) + ": old citation: " + x.citation)
+            # print("PMID:" + str(pmid) + ": new citation: " + new_citation)
+            if x.citation != new_citation:
+                fw.write("PMID:" + str(pmid) + ": " + x.citation + " to " + new_citation + "\n")
+                x.citation = new_citation
+                has_update = has_update + 1
+                update_log['citation'] = update_log['citation'] + 1
         if colName == 'resource_id' and new_resource_id and new_resource_id != x.resource_id:
             x.resource_id = new_resource_id
             has_update = has_update + 1
@@ -1200,7 +1227,7 @@ def get_journal_data(db_session):
     journal_to_resource_id = {}
 
     for x in db_session.query(ResourceModel).all():
-        journal_to_resource_id[x.iso_abbreviation] = x.resource_id
+        journal_to_resource_id[x.iso_abbreviation] = (x.resource_id, x.title)
 
     return journal_to_resource_id
 
@@ -1212,6 +1239,8 @@ def get_reference_ids_by_pmids(db_session, pmids, pmid_to_reference_id, referenc
         pmid_list.append('PMID:' + pmid)
 
     for x in db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie.in_(pmid_list)).all():
+        if x.is_obsolete is True:
+            continue
         pmid = x.curie.replace('PMID:', '')
         pmid_to_reference_id[pmid] = x.reference_id
         reference_id_to_pmid[x.reference_id] = pmid
@@ -1234,6 +1263,8 @@ def get_pmid_to_reference_id_for_papers_not_associated_with_mod(db_session, pmid
 def get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id_to_pmid):
 
     for x in db_session.query(CrossReferenceModel).join(ReferenceModel.cross_reference).filter(CrossReferenceModel.curie.like('PMID:%')).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).all():
+        if x.is_obsolete is True:
+            continue
         pmid = x.curie.replace('PMID:', '')
         pmid_to_reference_id[pmid] = x.reference_id
         reference_id_to_pmid[x.reference_id] = pmid

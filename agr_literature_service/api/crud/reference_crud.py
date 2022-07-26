@@ -79,7 +79,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
              'cross_references': 'cross_reference',
              'mod_reference_types': 'mod_reference_type'}
     reference_data = {}  # type: Dict[str, Any]
-    authorNames = ''
+    author_names_order = []
 
     if reference.cross_references:
         for cross_reference in reference.cross_references:
@@ -111,7 +111,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     del obj_data["orcid"]
                     db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
                     if db_obj.name:
-                        authorNames += db_obj.name + '; '
+                        author_names_order.append((db_obj.name, db_obj.order))
                 elif field == "mod_reference_types":
                     db_obj = ModReferenceTypeModel(**obj_data)
                 elif field == "mesh_terms":
@@ -143,7 +143,9 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
         logger.debug("finished processing {} {}".format(field, value))
 
     logger.debug("add reference")
-    reference_data['citation'] = citation_from_data(reference_data, authorNames)
+    reference_data['citation'] = citation_from_data(reference_data,
+                                                    "; ".join([x[0] for x in sorted(author_names_order,
+                                                                                    key=lambda x: x[1])]))
     reference_db_obj = ReferenceModel(**reference_data)
     logger.debug("have model, save to db")
     db.add(reference_db_obj)
@@ -418,8 +420,16 @@ def merge_references(db: Session,
     return new_curie
 
 
-def get_citation_from_args(authorNames: str, year: str, title: str, journal: str,
-                           volume: str, issue: str, page_range: str):
+def get_citation_from_args(authorNames, year, title, journal, volume, issue, page_range):
+
+    if type(authorNames) == list:
+        authorNames = "; ".join(authorNames)
+
+    if year is not None and not str(year).isdigit():
+        year_re_result = re.search(r"(\d{4})", year)
+        if year_re_result:
+            year = year_re_result.group(1)
+
     # Create the citation from the args given.
     citation = "{}, ({}) {} {} {} ({}): {}".\
         format(authorNames, year, title,
@@ -432,7 +442,8 @@ def author_order_sort(author: AuthorModel):
 
 
 def citation_from_data(reference_data, authorNames):
-    authorNames = authorNames[:-2]  # remove last '; '
+    if authorNames.endswith("; "):
+        authorNames = authorNames[:-2]  # remove last '; '
     year = ''
     issue = ''
     volume = ''
