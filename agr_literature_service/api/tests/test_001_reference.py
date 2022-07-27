@@ -185,12 +185,12 @@ def test_reference_large():
         ],
         "ontologies": [
             {
-                "ontology_id": "Ontology1",
+                "workflow_tag_id": "workflow_tag1",
                 "mod_abbreviation": "RGD_ont",
                 "created_by": "Bob"
             },
             {
-                "ontology_id": "Ontology2",
+                "workflow_tag_id": "workflow_tag2",
                 "mod_abbreviation": "FB_ont",
                 "created_by": "Bob"
             }
@@ -269,8 +269,8 @@ def test_reference_large():
     print(res)
     for ont in res["ontologies"]:
         if ont['mod_abbreviation'] == "RGD_ont":
-            assert ont['ontology_id'] == "Ontology1"
+            assert ont['workflow_tag_id'] == "workflow_tag1"
         elif ont['mod_abbreviation'] == "FB_ont":
-            assert ont['ontology_id'] == "Ontology2"
+            assert ont['workflow_tag_id'] == "workflow_tag2"
         else:
             assert 1 == 0  # Not RGD or FB ?

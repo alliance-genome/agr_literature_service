@@ -1,5 +1,5 @@
 """
-reference_ontology_model.py
+workflow_tag_model.py
 ==================
 """
 
@@ -19,11 +19,11 @@ from agr_literature_service.api.database.versioning import enable_versioning
 enable_versioning()
 
 
-class ReferenceOntologyModel(Base):
-    __tablename__ = "reference_ontology"
+class WorkflowTagModel(Base):
+    __tablename__ = "workflow_tag"
     __versioned__: Dict = {}
 
-    reference_ontology_id = Column(
+    reference_workflow_tag_id = Column(
         Integer,
         primary_key=True,
         autoincrement=True
@@ -39,12 +39,12 @@ class ReferenceOntologyModel(Base):
 
     reference = relationship(
         "ReferenceModel",
-        foreign_keys="ReferenceOntologyModel.reference_id",
-        back_populates="ontology"
+        foreign_keys="WorkflowTagModel.reference_id",
+        back_populates="workflow_tag"
     )
 
-# ontology node term-id - string from A api.
-    ontology_id = Column(
+# workflow_tag node term-id - string from A api.
+    workflow_tag_id = Column(
         String(),
         unique=False,
         nullable=False

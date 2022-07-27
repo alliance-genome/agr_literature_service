@@ -75,11 +75,11 @@ from agr_literature_service.api.schemas.reference_comment_and_correction_schemas
     ReferenceCommentAndCorrectionSchemaPatch,
     ReferenceCommentAndCorrectionSchemaRelated)
 
-from agr_literature_service.api.schemas.reference_ontology_schemas import (
-    ReferenceOntologySchemaCreate,
-    ReferenceOntologySchemaShow,
-    ReferenceOntologySchemaRelated,
-    ReferenceOntologySchemaUpdate)
+from agr_literature_service.api.schemas.workflow_tag_schemas import (
+    WorkflowTagSchemaCreate,
+    WorkflowTagSchemaShow,
+    WorkflowTagSchemaRelated,
+    WorkflowTagSchemaUpdate)
 
 from agr_literature_service.api.schemas.reference_schemas import (
     ReferenceSchemaPost,

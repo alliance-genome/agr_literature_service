@@ -224,9 +224,9 @@ class ReferenceModel(Base):
         nullable=True
     )
 
-    ontology = relationship(
-        "ReferenceOntologyModel",
-        foreign_keys="ReferenceOntologyModel.reference_id",
+    workflow_tag = relationship(
+        "WorkflowTagModel",
+        foreign_keys="WorkflowTagModel.reference_id",
         back_populates="reference"
     )
 

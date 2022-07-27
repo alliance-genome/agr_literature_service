@@ -25,8 +25,8 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ResourceModel)
 from agr_literature_service.api.schemas import ReferenceSchemaPost
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
-from agr_literature_service.api.crud.reference_ontology_crud import create as create_reference_ontology
-from agr_literature_service.api.crud.reference_ontology_crud import show as show_ontology
+from agr_literature_service.api.crud.workflow_tag_crud import create as create_workflow_tag
+from agr_literature_service.api.crud.workflow_tag_crud import show as show_workflow_tag
 
 logger = logging.getLogger(__name__)
 
@@ -172,9 +172,9 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     obj_data = jsonable_encoder(obj)
                     obj_data["reference_curie"] = curie
                     try:
-                        create_reference_ontology(db, obj_data)
+                        create_workflow_tag(db, obj_data)
                     except HTTPException:
-                        logger.warning("skipping ontology to a mod that is already associated to "
+                        logger.warning("skipping workflow_tag to a mod that is already associated to "
                                        "the reference")
     logger.debug("returning successfully?")
     return curie
@@ -341,9 +341,9 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         del reference_data["mod_corpus_association"]
 
     reference_data['ontologies'] = []
-    if reference.ontology:
-        for ont in reference.ontology:
-            ont_json = show_ontology(db, ont.reference_ontology_id)
+    if reference.workflow_tag:
+        for ont in reference.workflow_tag:
+            ont_json = show_workflow_tag(db, ont.reference_workflow_tag_id)
             reference_data["ontologies"].append(ont_json)
 
     if reference.mesh_term:
