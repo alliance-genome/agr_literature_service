@@ -183,7 +183,7 @@ def test_reference_large():
                 ]
             }
         ],
-        "ontologies": [
+        "workflow_tags": [
             {
                 "workflow_tag_id": "workflow_tag1",
                 "mod_abbreviation": "RGD_ont",
@@ -267,7 +267,7 @@ def test_reference_large():
 
     print("BOB................")
     print(res)
-    for ont in res["ontologies"]:
+    for ont in res["workflow_tags"]:
         if ont['mod_abbreviation'] == "RGD_ont":
             assert ont['workflow_tag_id'] == "workflow_tag1"
         elif ont['mod_abbreviation'] == "FB_ont":

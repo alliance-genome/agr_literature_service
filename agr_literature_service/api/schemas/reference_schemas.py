@@ -43,7 +43,7 @@ class ReferenceSchemaPost(BaseModel):
     resource: Optional[str] = None
     open_access: Optional[bool] = None
     citation: Optional[str] = None
-    ontologies: Optional[List[WorkflowTagSchemaRelated]] = None
+    workflow_tags: Optional[List[WorkflowTagSchemaRelated]] = None
 
     class Config():
         orm_mode = True
@@ -137,7 +137,7 @@ class ReferenceSchemaShow(BaseModelShow):
     comment_and_corrections: CommentAndCorrectionSchemaRelations
     open_access: Optional[bool] = None
     citation: Optional[str] = None
-    ontologies: Optional[List[WorkflowTagSchemaRelated]] = None
+    workflow_tags: Optional[List[WorkflowTagSchemaRelated]] = None
 
 
 class ReferenceSchemaNeedReviewShow(BaseModel):
