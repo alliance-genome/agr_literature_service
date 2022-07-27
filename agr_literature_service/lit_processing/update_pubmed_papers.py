@@ -439,6 +439,7 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
 
     colName_to_json_key = {'issue_name': 'issueName',
                            'page_range': 'pages',
+                           'date_published': 'datePublished',
                            'pubmed_publication_status': 'publicationStatus',
                            'date_last_modified_in_pubmed': 'dateLastModified',
                            'date_arrived_in_pubmed': 'dateArrivedInPubmed',
@@ -450,16 +451,20 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
     has_update = 0
     for colName in refColName_to_update:
         if colName == 'citation':
-            new_citation = create_new_citation(authors, str(x.date_published), x.title, journal_title,
-                                               x.volume, x.issue_name, x.page_range)
+            new_citation = create_new_citation(authors, str(json_data.get('datePublished', '')),
+                                               json_data.get('title', ''),
+                                               journal_title,
+                                               json_data.get('volume', ''),
+                                               json_data.get('issueName', ''),
+                                               json_data.get('pages', ''))
             # print("PMID:" + str(pmid) + ": old citation: " + x.citation)
             # print("PMID:" + str(pmid) + ": new citation: " + new_citation)
             if x.citation != new_citation:
-                fw.write("PMID:" + str(pmid) + ": " + x.citation + " to " + new_citation + "\n")
+                fw.write("PMID:" + str(pmid) + ": citation is updated from " + x.citation + " to " + new_citation + "\n")
                 x.citation = new_citation
                 has_update = has_update + 1
                 update_log['citation'] = update_log['citation'] + 1
-        if colName == 'resource_id' and new_resource_id and new_resource_id != x.resource_id:
+        elif colName == 'resource_id' and new_resource_id and new_resource_id != x.resource_id:
             x.resource_id = new_resource_id
             has_update = has_update + 1
             update_log['journal'] = update_log['journal'] + 1
@@ -515,7 +520,7 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
                 continue
             if colName == 'pubmed_publication_status' and old_value:
                 old_value = old_value.replace("PubMedPublicationStatus.", "")
-            if new_value != old_value:
+            if str(new_value) != str(old_value):
                 setattr(x, colName, new_value)
                 has_update = has_update + 1
                 update_log[colName] = update_log[colName] + 1
