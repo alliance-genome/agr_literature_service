@@ -14,6 +14,7 @@ from fastapi.encoders import jsonable_encoder
 from agr_literature_service.lit_processing.filter_dqm_md5sum import load_s3_md5data, generate_new_md5, save_s3_md5data
 
 from agr_literature_service.api.models import ReferenceModel
+from agr_literature_service.api.crud.reference_crud import update_citation
 
 from agr_literature_service.lit_processing.helper_file_processing import (compare_authors_or_editors,
                                                                           split_identifier, write_json)
@@ -262,7 +263,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
         filename = report_file_path + mod + '_updates'
         fh_mod_report.setdefault(mod, open(filename, 'w'))
         references_to_create = []
-
+        curies_for_citation_update = []
         logger.info("loading old md5")
         old_md5dict = load_s3_md5data([mod])
 
@@ -369,6 +370,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
             elif len(agrs_found) == 1:
                 # logger.info("Normal %s", entry['primaryId'])
                 agr = agrs_found.pop()
+                curies_for_citation_update.append(agr)
                 agr_url = url_ref_curie_prefix + agr
                 flag_aggregate_biblio = False
                 flag_aggregate_mod_specific = False
@@ -550,6 +552,13 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
             save_s3_md5data(merge_md5dict, [mod])
 
         fh_mod_report[mod].close()
+
+        ## update citations
+        db_session = create_postgres_session(False)
+        for curie in curies_for_citation_update:
+            logger.info("Update citation for curie:" + curie)
+            update_citation(db_session, curie)
+        db_session.close()
 
 
 def read_pmid_file(local_path):
