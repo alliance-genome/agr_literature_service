@@ -25,6 +25,8 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ResourceModel)
 from agr_literature_service.api.schemas import ReferenceSchemaPost
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
+from agr_literature_service.api.crud.workflow_tag_crud import create as create_workflow_tag
+from agr_literature_service.api.crud.workflow_tag_crud import show as show_workflow_tag
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +74,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
 
     logger.debug("creating reference")
     logger.debug(reference)
-    add_separately_fields = ["mod_corpus_associations"]
+    add_separately_fields = ["mod_corpus_associations", "workflow_tags"]
     list_fields = ["authors", "mod_reference_types", "tags", "mesh_terms", "cross_references"]
     remap = {'authors': 'author',
              'mesh_terms': 'mesh_term',
@@ -153,7 +155,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
     db.commit()
 
     for field, value in vars(reference).items():
-        logger.debug("Porcessing mod corpus asso")
+        logger.debug("Processing mod corpus asso")
         if field == "mod_corpus_associations":
             if value is not None:
                 for obj in value:
@@ -163,6 +165,16 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                         create_mod_corpus_association(db, obj_data)
                     except HTTPException:
                         logger.warning("skipping mod corpus association to a mod that is already associated to "
+                                       "the reference")
+        elif field == "workflow_tags":
+            if value is not None:
+                for obj in value:
+                    obj_data = jsonable_encoder(obj)
+                    obj_data["reference_curie"] = curie
+                    try:
+                        create_workflow_tag(db, obj_data)
+                    except HTTPException:
+                        logger.warning("skipping workflow_tag to a mod that is already associated to "
                                        "the reference")
     logger.debug("returning successfully?")
     return curie
@@ -316,6 +328,8 @@ def show(db: Session, curie: str, http_request=True):  # noqa
                                              reference_data["obsolete_reference"]]
     del reference_data["obsolete_reference"]
 
+    # So thisis wierd, we check reference.mod_corpus_association BUT
+    # use reference_data["mod_corpus_association"]
     if reference.mod_corpus_association:
         for i in range(len(reference_data["mod_corpus_association"])):
             del reference_data["mod_corpus_association"][i]["reference_id"]
@@ -325,6 +339,12 @@ def show(db: Session, curie: str, http_request=True):  # noqa
             del reference_data["mod_corpus_association"][i]["mod_id"]
         reference_data["mod_corpus_associations"] = reference_data["mod_corpus_association"]
         del reference_data["mod_corpus_association"]
+
+    reference_data['workflow_tags'] = []
+    if reference.workflow_tag:
+        for ont in reference.workflow_tag:
+            ont_json = show_workflow_tag(db, ont.reference_workflow_tag_id)
+            reference_data["workflow_tags"].append(ont_json)
 
     if reference.mesh_term:
         for mesh_term in reference_data["mesh_term"]:

@@ -1,0 +1,70 @@
+from fastapi import APIRouter, Depends, Response, Security, status
+from fastapi_okta import OktaUser
+from sqlalchemy.orm import Session
+
+from agr_literature_service.api import database
+from agr_literature_service.api.crud import workflow_tag_crud
+from agr_literature_service.api.routers.authentication import auth
+from agr_literature_service.api.schemas import (WorkflowTagSchemaShow,
+                                                WorkflowTagSchemaUpdate,
+                                                WorkflowTagSchemaCreate,
+                                                ResponseMessageSchema)
+from agr_literature_service.api.user import set_global_user_id
+
+router = APIRouter(
+    prefix="/workflow_tag",
+    tags=['Workflow Tag']
+)
+
+
+get_db = database.get_db
+db_session: Session = Depends(get_db)
+db_user = Security(auth.get_user)
+
+
+@router.post('/',
+             status_code=status.HTTP_201_CREATED,
+             response_model=str)
+def create(request: WorkflowTagSchemaCreate,
+           user: OktaUser = db_user,
+           db: Session = db_session):
+    set_global_user_id(db, user.id)
+    return workflow_tag_crud.create(db, request)
+
+
+@router.delete('/{workflow_tag_id}',
+               status_code=status.HTTP_204_NO_CONTENT)
+def destroy(workflow_tag_id: int,
+            user: OktaUser = db_user,
+            db: Session = db_session):
+    set_global_user_id(db, user.id)
+    workflow_tag_crud.destroy(db, workflow_tag_id)
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch('/{workflow_tag_id}',
+              status_code=status.HTTP_202_ACCEPTED,
+              response_model=ResponseMessageSchema)
+async def patch(workflow_tag_id: int,
+                request: WorkflowTagSchemaUpdate,
+                user: OktaUser = db_user,
+                db: Session = db_session):
+    set_global_user_id(db, user.id)
+    patch = request.dict(exclude_unset=True)
+    return workflow_tag_crud.patch(db, workflow_tag_id, patch)
+
+
+@router.get('/{workflow_tag_id}',
+            response_model=WorkflowTagSchemaShow,
+            status_code=200)
+def show(workflow_tag_id: int,
+         db: Session = db_session):
+    return workflow_tag_crud.show(db, workflow_tag_id)
+
+
+@router.get('/{workflow_tag_id}/versions',
+            status_code=200)
+def show_versions(workflow_tag_id: int,
+                  db: Session = db_session):
+    return workflow_tag_crud.show_changesets(db, workflow_tag_id)

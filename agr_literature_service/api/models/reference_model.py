@@ -224,6 +224,12 @@ class ReferenceModel(Base):
         nullable=True
     )
 
+    workflow_tag = relationship(
+        "WorkflowTagModel",
+        foreign_keys="WorkflowTagModel.reference_id",
+        back_populates="reference"
+    )
+
     def __str__(self):
         """
         Overwrite the default output.
