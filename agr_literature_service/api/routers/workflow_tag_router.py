@@ -32,13 +32,13 @@ def create(request: WorkflowTagSchemaCreate,
     return workflow_tag_crud.create(db, request)
 
 
-@router.delete('/{workflow_tag_id}',
+@router.delete('/{reference_workflow_tag_id}',
                status_code=status.HTTP_204_NO_CONTENT)
-def destroy(workflow_tag_id: int,
+def destroy(reference_workflow_tag_id: int,
             user: OktaUser = db_user,
             db: Session = db_session):
     set_global_user_id(db, user.id)
-    workflow_tag_crud.destroy(db, workflow_tag_id)
+    workflow_tag_crud.destroy(db, reference_workflow_tag_id)
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -55,16 +55,16 @@ async def patch(workflow_tag_id: int,
     return workflow_tag_crud.patch(db, workflow_tag_id, patch)
 
 
-@router.get('/{workflow_tag_id}',
+@router.get('/{reference_workflow_tag_id}',
             response_model=WorkflowTagSchemaShow,
             status_code=200)
-def show(workflow_tag_id: int,
+def show(reference_workflow_tag_id: int,
          db: Session = db_session):
-    return workflow_tag_crud.show(db, workflow_tag_id)
+    return workflow_tag_crud.show(db, reference_workflow_tag_id)
 
 
-@router.get('/{workflow_tag_id}/versions',
+@router.get('/{reference_workflow_tag_id}/versions',
             status_code=200)
-def show_versions(workflow_tag_id: int,
+def show_versions(reference_workflow_tag_id: int,
                   db: Session = db_session):
-    return workflow_tag_crud.show_changesets(db, workflow_tag_id)
+    return workflow_tag_crud.show_changesets(db, reference_workflow_tag_id)

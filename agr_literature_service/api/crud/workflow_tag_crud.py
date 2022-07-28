@@ -3,14 +3,13 @@ workflow_tag_crud.py
 ===========================
 """
 
-from datetime import datetime
-
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, ModModel
 from agr_literature_service.api.schemas import WorkflowTagSchemaCreate
+from agr_literature_service.api.crud.utils import add_default_update_keys, add_default_create_keys
 
 
 def create(db: Session, workflow_tag: WorkflowTagSchemaCreate) -> int:
@@ -22,6 +21,8 @@ def create(db: Session, workflow_tag: WorkflowTagSchemaCreate) -> int:
     """
 
     workflow_tag_data = jsonable_encoder(workflow_tag)
+    add_default_create_keys(workflow_tag_data)
+
     reference_curie = workflow_tag_data["reference_curie"]
     del workflow_tag_data["reference_curie"]
     mod_abbreviation = workflow_tag_data["mod_abbreviation"]
@@ -89,6 +90,8 @@ def patch(db: Session, reference_workflow_tag_id: int, workflow_tag_update):
     :return:
     """
     workflow_tag_data = jsonable_encoder(workflow_tag_update)
+
+    add_default_update_keys(workflow_tag_data)
     workflow_tag_db_obj = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == reference_workflow_tag_id).first()
     if not workflow_tag_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -114,7 +117,6 @@ def patch(db: Session, reference_workflow_tag_id: int, workflow_tag_update):
         else:
             setattr(workflow_tag_db_obj, field, value)
 
-    workflow_tag_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
 
     return {"message": "updated"}
