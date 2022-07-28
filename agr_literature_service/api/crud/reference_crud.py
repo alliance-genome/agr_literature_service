@@ -175,7 +175,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     obj_data["reference_curie"] = curie
                     try:
                         if "reference_workflow_tag_id" in obj_data and obj_data["reference_workflow_tag_id"]:
-                            update_workflow_tag(db, obj_data)
+                            update_workflow_tag(db, obj_data["reference_workflow_tag_id"], obj_data)
                         else:
                             create_workflow_tag(db, obj_data)
                     except HTTPException:
