@@ -21,7 +21,7 @@ def create(db: Session, workflow_tag: WorkflowTagSchemaCreate) -> int:
     """
 
     workflow_tag_data = jsonable_encoder(workflow_tag)
-    add_default_create_keys(workflow_tag_data)
+    add_default_create_keys(db, workflow_tag_data)
 
     reference_curie = workflow_tag_data["reference_curie"]
     del workflow_tag_data["reference_curie"]
