@@ -60,7 +60,7 @@ def create(db: Session, workflow_tag: WorkflowTagSchemaCreate) -> int:
     db.add(db_obj)
     db.commit()
 
-    return db_obj.workflow_tag_id
+    return db_obj.reference_workflow_tag_id
 
 
 def destroy(db: Session, reference_workflow_tag_id: int) -> None:

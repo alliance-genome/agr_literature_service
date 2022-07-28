@@ -43,16 +43,16 @@ def destroy(reference_workflow_tag_id: int,
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.patch('/{workflow_tag_id}',
+@router.patch('/{reference_workflow_tag_id}',
               status_code=status.HTTP_202_ACCEPTED,
               response_model=ResponseMessageSchema)
-async def patch(workflow_tag_id: int,
+async def patch(reference_workflow_tag_id: int,
                 request: WorkflowTagSchemaUpdate,
                 user: OktaUser = db_user,
                 db: Session = db_session):
     set_global_user_id(db, user.id)
     patch = request.dict(exclude_unset=True)
-    return workflow_tag_crud.patch(db, workflow_tag_id, patch)
+    return workflow_tag_crud.patch(db, reference_workflow_tag_id, patch)
 
 
 @router.get('/{reference_workflow_tag_id}',
