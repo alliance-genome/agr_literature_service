@@ -4,12 +4,10 @@ from os import environ, makedirs, path, rename, remove
 from dotenv import load_dotenv
 from datetime import datetime, date
 import json
+import gzip
+import shutil
 
-from agr_literature_service.api.models import CrossReferenceModel, \
-    ReferenceModel, ModModel, ModCorpusAssociationModel, \
-    ResourceModel, ModReferenceTypeModel
-from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session, \
-    create_postgres_engine
+from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_engine
 from agr_literature_service.lit_processing.helper_s3 import upload_file_to_s3
 from agr_literature_service.lit_processing.helper_email import send_email
 
@@ -33,8 +31,6 @@ loop_count = 700
 
 def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
 
-    db_session = create_postgres_session(False)
-
     json_file = "reference" + "_" + mod + ".json"
 
     datestamp = str(date.today()).replace("-", "")
@@ -48,57 +44,23 @@ def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
     if not path.exists(json_path):
         makedirs(json_path)
 
-    m = db_session.query(ModModel).filter_by(abbreviation=mod).one_or_none()
-    if m is None:
-        log.info("Unknown mod name: " + mod)
-        return
-    mod_id = m.mod_id
-
-    log.info("Getting cross_reference data from the database...")
-
-    reference_id_to_xrefs = get_cross_reference_data(db_session, mod_id)
-
     engine = create_postgres_engine(False)
     db_connection = engine.connect()
-
-    log.info("Getting author data from the database...")
-
-    reference_id_to_authors = get_author_data(db_connection, mod_id)
 
     log.info("Getting comment/correction data from the database...")
 
     reference_id_to_comment_correction_data = get_comment_correction_data(db_connection)
 
-    mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db_session.query(ModModel).all()])
-
-    log.info("Getting mod reference type data from the database...")
-
-    reference_id_to_mod_reference_types = get_mod_reference_type_data(db_session)
-
-    log.info("Getting mod_corpus_association data from the database...")
-    reference_id_to_mod_corpus_data = get_mod_corpus_association_data(db_session,
-                                                                      mod_id_to_mod)
-
     log.info("Getting journal data from the database...")
 
-    resource_id_to_journal = get_journal_data(db_session)
+    resource_id_to_journal = get_journal_data(db_connection)
 
-    log.info("Getting mesh term data from the database...")
-
-    reference_id_to_mesh_terms = get_mesh_term_data(db_connection, mod_id)
-
-    db_session.close()
     db_connection.close()
     engine.dispose()
 
     log.info("Getting data from Reference table and generating json file...")
     try:
-        get_reference_data_and_generate_json(mod_id, mod, reference_id_to_xrefs,
-                                             reference_id_to_authors,
-                                             reference_id_to_comment_correction_data,
-                                             reference_id_to_mod_reference_types,
-                                             reference_id_to_mesh_terms,
-                                             reference_id_to_mod_corpus_data,
+        get_reference_data_and_generate_json(mod, reference_id_to_comment_correction_data,
                                              resource_id_to_journal,
                                              json_path + json_file, datestamp)
 
@@ -150,26 +112,34 @@ def upload_json_file_to_s3(json_path, json_file, datestamp, ondemand):
     if env_state == 'test':
         return None
 
-    if ondemand:
-        s3_filename = ondemand_bucket.replace('develop', env_state) + json_file
-        upload_file_to_s3(json_path + json_file, s3_bucket, s3_filename)
-        return json_file
+    gzip_json_file = json_file + ".gz"
 
-    json_file_with_datestamp = json_file.replace('.json', '_' + datestamp + '.json')
+    with open(json_path + json_file, 'rb') as f_in, gzip.open(json_path + gzip_json_file, 'wb') as f_out:
+        shutil.copyfileobj(f_in, f_out)
+
+    if ondemand:
+        s3_filename = ondemand_bucket.replace('develop', env_state) + gzip_json_file
+        upload_file_to_s3(json_path + gzip_json_file, s3_bucket, s3_filename)
+        return gzip_json_file
+
+    gzip_json_file_with_datestamp = gzip_json_file.replace('.json.gz', '_' + datestamp + '.json.gz')
 
     ## upload file to recent bucket
-    s3_filename = recent_bucket.replace('develop', env_state) + json_file_with_datestamp
-    upload_file_to_s3(json_path + json_file, s3_bucket, s3_filename)
+    s3_filename = recent_bucket.replace('develop', env_state) + gzip_json_file_with_datestamp
+    upload_file_to_s3(json_path + gzip_json_file, s3_bucket, s3_filename)
 
     ## upload file to latest bucket
-    s3_filename = latest_bucket.replace('develop', env_state) + json_file
-    upload_file_to_s3(json_path + json_file, s3_bucket, s3_filename)
+    s3_filename = latest_bucket.replace('develop', env_state) + gzip_json_file
+    upload_file_to_s3(json_path + gzip_json_file, s3_bucket, s3_filename)
 
     ## upload file to monthly bucket if it is first day of the month
     todayDate = date.today()
     if todayDate.day == 1:
-        s3_filename = monthly_bucket.replace('develop', env_state) + json_file_with_datestamp
-        upload_file_to_s3(json_path + json_file, s3_bucket, s3_filename, 'GLACIER_IR')
+        s3_filename = monthly_bucket.replace('develop', env_state) + gzip_json_file_with_datestamp
+        upload_file_to_s3(json_path + gzip_json_file, s3_bucket, s3_filename, 'GLACIER_IR')
+
+    remove(json_path + json_file)
+    remove(json_path + gzip_json_file)
 
     return None
 
@@ -252,7 +222,7 @@ def get_reference_col_names():
             'open_access']
 
 
-def get_reference_data_and_generate_json(mod_id, mod, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_comment_correction_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, json_file_with_path, datestamp):
+def get_reference_data_and_generate_json(mod, reference_id_to_comment_correction_data, resource_id_to_journal, json_file_with_path, datestamp):
 
     metaData = get_meta_data(mod, datestamp)
 
@@ -260,6 +230,10 @@ def get_reference_data_and_generate_json(mod_id, mod, reference_id_to_xrefs, ref
 
     engine = create_postgres_engine(False)
     db_connection = engine.connect()
+
+    rs = db_connection.execute("SELECT mod_id FROM mod where abbreviation = '" + mod + "'")
+    rows = rs.fetchall()
+    mod_id = rows[0][0]
 
     i = 0
     j = 0
@@ -279,20 +253,6 @@ def get_reference_data_and_generate_json(mod_id, mod, reference_id_to_xrefs, ref
 
         log.info("offs=" + str(offset) + ", data=" + str(len(data)))
 
-        # all = db_session.query(
-        #    ReferenceModel
-        # ).join(
-        #    ReferenceModel.mod_corpus_association
-        # ).filter(
-        #    ModCorpusAssociationModel.mod_id == mod_id
-        # ).order_by(
-        #    ReferenceModel.reference_id
-        # ).offset(
-        #    offset
-        # ).limit(
-        #    limit
-        # ).all()
-        # 924511
         rs = None
         if mod in ['WB', 'XB', 'ZFIN', 'SGD', 'RGD', 'FB']:
             refColNmList = ", ".join(get_reference_col_names())
@@ -311,6 +271,18 @@ def get_reference_data_and_generate_json(mod_id, mod, reference_id_to_xrefs, ref
             log.info("concatenating " + str(j + 1) + " small json files to a single json file: " + json_file_with_path)
             concatenate_json_files(json_file_with_path, j + 1)
             return
+
+        reference_id_list = []
+        for x in rows:
+            reference_id_list.append(x[0])
+
+        ref_ids = ", ".join([str(x) for x in reference_id_list])
+
+        reference_id_to_xrefs = get_cross_reference_data(db_connection, ref_ids)
+        reference_id_to_authors = get_author_data(db_connection, ref_ids)
+        reference_id_to_mesh_terms = get_mesh_term_data(db_connection, ref_ids)
+        reference_id_to_mod_corpus_data = get_mod_corpus_association_data(db_connection, ref_ids)
+        reference_id_to_mod_reference_types = get_mod_reference_type_data(db_connection, ref_ids)
 
         count_index = generate_json_data(rows, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_comment_correction_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, data)
         i += count_index
@@ -411,69 +383,76 @@ def send_email_report(status, email, mod, email_message):
         log.info("Failed sending email to " + email_recipients + ": " + message + "\n")
 
 
-def get_mod_corpus_association_data(db_session, mod_id_to_mod):
+def get_mod_corpus_association_data(db_connection, ref_ids):
 
     reference_id_to_mod_corpus_data = {}
-    for x in db_session.query(ModCorpusAssociationModel).all():
+
+    rs = db_connection.execute("SELECT mca.reference_id, mca.mod_corpus_association_id, m.abbreviation, mca.corpus, mca.mod_corpus_sort_source, mca.date_created, mca.date_updated FROM mod_corpus_association mca, mod m WHERE m.mod_id = mca.mod_id and mca.reference_id IN (" + ref_ids + ")")
+
+    rows = rs.fetchall()
+
+    for x in rows:
         data = []
-        if x.reference_id in reference_id_to_mod_corpus_data:
-            data = reference_id_to_mod_corpus_data[x.reference_id]
-        data.append({"mod_corpus_association_id": x.mod_corpus_association_id,
-                     "mod_abbreviation": mod_id_to_mod[x.mod_id],
-                     "corpus": x.corpus,
-                     "mod_corpus_sort_source": x.mod_corpus_sort_source,
-                     "date_created": str(x.date_created),
-                     "date_updated": str(x.date_updated)})
-        reference_id_to_mod_corpus_data[x.reference_id] = data
+        reference_id = x[0]
+        if reference_id in reference_id_to_mod_corpus_data:
+            data = reference_id_to_mod_corpus_data[reference_id]
+        data.append({"mod_corpus_association_id": x[1],
+                     "mod_abbreviation": x[2],
+                     "corpus": x[3],
+                     "mod_corpus_sort_source": x[4],
+                     "date_created": str(x[5]),
+                     "date_updated": str(x[6])})
+        reference_id_to_mod_corpus_data[reference_id] = data
 
     return reference_id_to_mod_corpus_data
 
 
-def get_cross_reference_data(db_session, mod_id):
+def get_cross_reference_data(db_connection, ref_ids):
 
     reference_id_to_xrefs = {}
-    for x in db_session.query(CrossReferenceModel).join(ReferenceModel.cross_reference).outerjoin(ReferenceModel.mod_corpus_association).filter(ModCorpusAssociationModel.mod_id == mod_id).all():
+
+    rs = db_connection.execute("SELECT reference_id, curie, is_obsolete FROM cross_reference WHERE reference_id IN (" + ref_ids + ")")
+
+    rows = rs.fetchall()
+
+    for x in rows:
         data = []
-        if x.reference_id in reference_id_to_xrefs:
-            data = reference_id_to_xrefs[x.reference_id]
-        row = {"curie": x.curie,
-               "is_obsolete": x.is_obsolete}
+        reference_id = x[0]
+        if reference_id in reference_id_to_xrefs:
+            data = reference_id_to_xrefs[reference_id]
+        row = {"curie": x[1],
+               "is_obsolete": x[2]}
         data.append(row)
-        reference_id_to_xrefs[x.reference_id] = data
+        reference_id_to_xrefs[reference_id] = data
 
     return reference_id_to_xrefs
 
 
-def get_author_data(db_connection, mod_id):
+def get_author_data(db_connection, ref_ids):
 
     reference_id_to_authors = {}
 
-    author_limit = 500000
-    for index in range(100):
-        offset = index * author_limit
-        # rs = db_connection.execute('select a.* from author a, mod_corpus_association mca where a.reference_id = mca.reference_id and mca.mod_id = ' + str(mod_id) + ' order by a.reference_id, a.order limit ' + str(author_limit) + ' offset ' + str(offset))
-        # to avoid column order change etc
-        rs = db_connection.execute('select a.author_id, a.reference_id, a.orcid, a.first_author, a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, a.last_name, a.date_updated, a.date_created from author a, mod_corpus_association mca where a.reference_id = mca.reference_id and mca.mod_id = ' + str(mod_id) + ' order by a.reference_id, a.order limit ' + str(author_limit) + ' offset ' + str(offset))
-        rows = rs.fetchall()
-        if len(rows) == 0:
-            break
-        for x in rows:
-            data = []
-            reference_id = x[1]
-            if reference_id in reference_id_to_authors:
-                data = reference_id_to_authors[reference_id]
-            data.append({"author_id": x[0],
-                         "orcid": x[2],
-                         "first_author": x[3],
-                         "order": x[4],
-                         "corresponding_author": x[5],
-                         "name": x[6],
-                         "affilliations": x[7] if x[7] else [],
-                         "first_name": x[8],
-                         "last_name": x[9],
-                         "date_updated": str(x[10]),
-                         "date_created": str(x[11])})
-            reference_id_to_authors[reference_id] = data
+    rs = db_connection.execute("SELECT a.author_id, a.reference_id, a.orcid, a.first_author, a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, a.last_name, a.date_updated, a.date_created FROM author a WHERE reference_id IN (" + ref_ids + ") order by a.reference_id, a.order")
+
+    rows = rs.fetchall()
+
+    for x in rows:
+        data = []
+        reference_id = x[1]
+        if reference_id in reference_id_to_authors:
+            data = reference_id_to_authors[reference_id]
+        data.append({"author_id": x[0],
+                     "orcid": x[2],
+                     "first_author": x[3],
+                     "order": x[4],
+                     "corresponding_author": x[5],
+                     "name": x[6],
+                     "affilliations": x[7] if x[7] else [],
+                     "first_name": x[8],
+                     "last_name": x[9],
+                     "date_updated": str(x[10]),
+                     "date_created": str(x[11])})
+        reference_id_to_authors[reference_id] = data
 
     return reference_id_to_authors
 
@@ -533,52 +512,58 @@ def get_comment_correction_data(db_connection):
     return reference_id_to_comment_correction_data
 
 
-def get_mesh_term_data(db_connection, mod_id):
+def get_mesh_term_data(db_connection, ref_ids):
 
     reference_id_to_mesh_terms = {}
 
-    mesh_limit = 1000000
-    for index in range(50):
-        offset = index * mesh_limit
-        rs = db_connection.execute('select md.mesh_detail_id, md.reference_id, md.heading_term, md.qualifier_term from mesh_detail md, mod_corpus_association mca where md.reference_id = mca.reference_id and mca.mod_id = ' + str(mod_id) + ' order by md.mesh_detail_id limit ' + str(mesh_limit) + ' offset ' + str(offset))
-        rows = rs.fetchall()
-        if len(rows) == 0:
-            break
-        for x in rows:
-            reference_id = x[1]
-            data = []
-            if reference_id in reference_id_to_mesh_terms:
-                data = reference_id_to_mesh_terms[reference_id]
-            data.append({"heading_term": x[2],
-                         "qualifier_term": x[3],
-                         "mesh_detail_id": x[0]})
-            reference_id_to_mesh_terms[reference_id] = data
+    rs = db_connection.execute("SELECT mesh_detail_id, reference_id, heading_term, qualifier_term FROM mesh_detail WHERE reference_id IN (" + ref_ids + ") order by reference_id, mesh_detail_id")
+
+    rows = rs.fetchall()
+
+    for x in rows:
+        reference_id = x[1]
+        data = []
+        if reference_id in reference_id_to_mesh_terms:
+            data = reference_id_to_mesh_terms[reference_id]
+        data.append({"heading_term": x[2],
+                     "qualifier_term": x[3],
+                     "mesh_detail_id": x[0]})
+        reference_id_to_mesh_terms[reference_id] = data
 
     return reference_id_to_mesh_terms
 
 
-def get_mod_reference_type_data(db_session):
+def get_mod_reference_type_data(db_connection, ref_ids):
 
     reference_id_to_mod_reference_types = {}
 
-    for x in db_session.query(ModReferenceTypeModel).all():
+    rs = db_connection.execute("SELECT mod_reference_type_id, reference_id, reference_type, source FROM mod_reference_type WHERE reference_id IN (" + ref_ids + ")")
+
+    rows = rs.fetchall()
+
+    for x in rows:
+        reference_id = x[1]
         data = []
-        if x.reference_id in reference_id_to_mod_reference_types:
-            data = reference_id_to_mod_reference_types[x.reference_id]
-        data.append({"reference_type": x.reference_type,
-                     "source": x.source,
-                     "mod_reference_type_id": x.mod_reference_type_id})
-        reference_id_to_mod_reference_types[x.reference_id] = data
+        if reference_id in reference_id_to_mod_reference_types:
+            data = reference_id_to_mod_reference_types[reference_id]
+        data.append({"reference_type": x[2],
+                     "source": x[3],
+                     "mod_reference_type_id": x[0]})
+        reference_id_to_mod_reference_types[reference_id] = data
 
     return reference_id_to_mod_reference_types
 
 
-def get_journal_data(db_session):
+def get_journal_data(db_connection):
 
     resource_id_to_journal = {}
 
-    for x in db_session.query(ResourceModel).all():
-        resource_id_to_journal[x.resource_id] = (x.curie, x.title)
+    rs = db_connection.execute("SELECT resource_id, curie, title FROM resource")
+
+    rows = rs.fetchall()
+
+    for x in rows:
+        resource_id_to_journal[x[0]] = (x[1], x[2])
 
     return resource_id_to_journal
 
