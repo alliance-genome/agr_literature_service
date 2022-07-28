@@ -13,17 +13,22 @@ def add_default_update_keys(schema_dict):
 
 
 def add_default_create_keys(db, schema_dict):
-    if "created_by" not in schema_dict:
+    if not schema_dict["created_by"]:
         id = get_global_user_id()
+        if not id:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"User with id {id} does not exist")
         # sanity check for now
         try:
-            user = db.query(UserModel).filter(UserModel.user_id == id).first()
+            user = db.query(UserModel).filter(UserModel.id == id).first()
             if not user:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"User with id {id} does not exist")
         except BaseException:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"User with id {id} does not exist")
-        schema_dict["created_by"] = get_global_user_id()
+
+        schema_dict["created_by"] = id
+
     if "created_date" not in schema_dict:
         schema_dict["date_created"] = datetime.utcnow()
