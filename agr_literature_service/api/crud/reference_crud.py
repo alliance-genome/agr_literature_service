@@ -25,7 +25,9 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ResourceModel)
 from agr_literature_service.api.schemas import ReferenceSchemaPost
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
-from agr_literature_service.api.crud.workflow_tag_crud import create as create_workflow_tag
+from agr_literature_service.api.crud.workflow_tag_crud import (
+    create as create_workflow_tag,
+    patch as update_workflow_tag)
 from agr_literature_service.api.crud.workflow_tag_crud import show as show_workflow_tag
 
 logger = logging.getLogger(__name__)
@@ -172,7 +174,10 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     obj_data = jsonable_encoder(obj)
                     obj_data["reference_curie"] = curie
                     try:
-                        create_workflow_tag(db, obj_data)
+                        if "reference_workflow_tag_id" in obj_data and obj_data["reference_workflow_tag_id"]:
+                            update_workflow_tag(db, obj_data["reference_workflow_tag_id"], obj_data)
+                        else:
+                            create_workflow_tag(db, obj_data)
                     except HTTPException:
                         logger.warning("skipping workflow_tag to a mod that is already associated to "
                                        "the reference")

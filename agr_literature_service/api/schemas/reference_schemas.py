@@ -42,7 +42,6 @@ class ReferenceSchemaPost(BaseModel):
     authors: Optional[List[AuthorSchemaPost]] = None
     resource: Optional[str] = None
     open_access: Optional[bool] = None
-    citation: Optional[str] = None
     workflow_tags: Optional[List[WorkflowTagSchemaRelated]] = None
 
     class Config():

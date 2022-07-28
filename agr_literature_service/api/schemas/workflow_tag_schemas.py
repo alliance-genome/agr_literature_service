@@ -7,15 +7,11 @@ class WorkflowTagSchemaCreate(BaseModel):
     reference_curie: str
     workflow_tag_id: str
     mod_abbreviation: str
-    created_by: str
+    created_by: Optional[str]
 
 
 class WorkflowTagSchemaShow(BaseModelShow):
     reference_workflow_tag_id: int
-    mod_abbreviation: str
-    reference_curie: str
-    workflow_tag_id: str
-    created_by: str
 
 
 class WorkflowTagSchemaRelated(BaseModel):
@@ -32,6 +28,7 @@ class WorkflowTagSchemaRelated(BaseModel):
 
 
 class WorkflowTagSchemaUpdate(BaseModel):
+    reference_workflow_tag_id: int
     reference_curie: Optional[str] = None
     mod_abbreviation: Optional[str] = None
     workflow_tag_id: Optional[str] = None
