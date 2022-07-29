@@ -32,10 +32,11 @@ def get_json_file(mod, json_file=None):
     if json_file:
         file_with_path = path.join(environ.get('XML_PATH'), "json_data/" + json_file)
         if path.exists(file_with_path):
-            return FileResponse(path=file_with_path, filename=json_file, media_type='application/json')
+            # return FileResponse(path=file_with_path, filename=json_file, media_type='application/json')
+            return FileResponse(path=file_with_path, filename=json_file, media_type='application/gzip')
         subDir = 'ondemand/'
     else:
-        json_file = 'reference_' + mod + '.json'
+        json_file = 'reference_' + mod + '.json.gz'
         subDir = 'latest/'
     env_state = environ.get('ENV_STATE', 'develop')
     if env_state == 'build':
@@ -54,4 +55,4 @@ def get_json_file(mod, json_file=None):
                             detail=f"Error occurred when retrieving the json file from s3 {s3_file_location}")
 
     file_with_path = getcwd() + "/" + json_file
-    return FileResponse(path=file_with_path, filename=json_file, media_type='application/json')
+    return FileResponse(path=file_with_path, filename=json_file, media_type='application/gzip')
