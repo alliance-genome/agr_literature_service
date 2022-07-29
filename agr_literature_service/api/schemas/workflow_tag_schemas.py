@@ -15,9 +15,9 @@ class WorkflowTagSchemaShow(BaseModelShow):
     reference_curie: str
     workflow_tag_id: str
     mod_abbreviation: str
-    date_created: Optional[str]
+    date_created: str
     date_updated: Optional[str]
-    created_by: Optional[str]
+    created_by: str
     updated_by: Optional[str]
 
 
@@ -38,6 +38,8 @@ class WorkflowTagSchemaUpdate(BaseModel):
     reference_curie: Optional[str] = None
     mod_abbreviation: Optional[str] = None
     workflow_tag_id: Optional[str] = None
+    date_updated: Optional[str] = None
+    updated_by: Optional[str] = None
 
     class Config():
         orm_mode = True
