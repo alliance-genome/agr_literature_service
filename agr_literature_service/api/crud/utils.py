@@ -6,9 +6,9 @@ from agr_literature_service.api.models import UserModel
 
 
 def add_default_update_keys(schema_dict):
-    if "updated_by" not in schema_dict:
+    if not schema_dict["updated_by"]:
         schema_dict["updated_by"] = get_global_user_id()
-    if "updated_date" not in schema_dict:
+    if not schema_dict["updated_date"]:
         schema_dict["date_updated"] = datetime.utcnow()
 
 

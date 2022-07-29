@@ -67,8 +67,7 @@ class WorkflowTagModel(Base):
 
     date_updated = Column(
         DateTime,
-        nullable=True,
-        default=datetime.utcnow
+        nullable=True
     )
 
 # created by - id from users table

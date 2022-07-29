@@ -136,12 +136,13 @@ def show(db: Session, reference_workflow_tag_id: int):
                             detail=f"WorkflowTag with the workflow_tag_id {reference_workflow_tag_id} is not available")
 
     workflow_tag_data = jsonable_encoder(workflow_tag)
+
     if workflow_tag_data["reference_id"]:
         workflow_tag_data["reference_curie"] = db.query(ReferenceModel).filter(ReferenceModel.reference_id == workflow_tag_data["reference_id"]).first().curie
-    del workflow_tag_data["reference_id"]
+    # del workflow_tag_data["reference_id"]
     if workflow_tag_data["mod_id"]:
         workflow_tag_data["mod_abbreviation"] = db.query(ModModel).filter(ModModel.mod_id == workflow_tag_data["mod_id"]).first().abbreviation
-    del workflow_tag_data["mod_id"]
+    # del workflow_tag_data["mod_id"]
 
     return workflow_tag_data
 
