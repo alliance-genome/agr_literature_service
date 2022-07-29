@@ -56,7 +56,7 @@ async def patch(reference_workflow_tag_id: int,
 
 
 @router.get('/{reference_workflow_tag_id}',
-            # response_model=WorkflowTagSchemaShow,
+            response_model=WorkflowTagSchemaShow,
             status_code=200)
 def show(reference_workflow_tag_id: int,
          db: Session = db_session):
