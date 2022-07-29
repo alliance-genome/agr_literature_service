@@ -21,7 +21,7 @@ def create(db: Session, workflow_tag: WorkflowTagSchemaCreate) -> int:
     """
 
     workflow_tag_data = jsonable_encoder(workflow_tag)
-    add_default_create_keys(workflow_tag_data)
+    add_default_create_keys(db, workflow_tag_data)
 
     reference_curie = workflow_tag_data["reference_curie"]
     del workflow_tag_data["reference_curie"]
@@ -60,7 +60,7 @@ def create(db: Session, workflow_tag: WorkflowTagSchemaCreate) -> int:
     db.add(db_obj)
     db.commit()
 
-    return db_obj.workflow_tag_id
+    return db_obj.reference_workflow_tag_id
 
 
 def destroy(db: Session, reference_workflow_tag_id: int) -> None:
@@ -136,12 +136,13 @@ def show(db: Session, reference_workflow_tag_id: int):
                             detail=f"WorkflowTag with the workflow_tag_id {reference_workflow_tag_id} is not available")
 
     workflow_tag_data = jsonable_encoder(workflow_tag)
+
     if workflow_tag_data["reference_id"]:
         workflow_tag_data["reference_curie"] = db.query(ReferenceModel).filter(ReferenceModel.reference_id == workflow_tag_data["reference_id"]).first().curie
-    del workflow_tag_data["reference_id"]
+    # del workflow_tag_data["reference_id"]
     if workflow_tag_data["mod_id"]:
         workflow_tag_data["mod_abbreviation"] = db.query(ModModel).filter(ModModel.mod_id == workflow_tag_data["mod_id"]).first().abbreviation
-    del workflow_tag_data["mod_id"]
+    # del workflow_tag_data["mod_id"]
 
     return workflow_tag_data
 

@@ -181,7 +181,6 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     except HTTPException:
                         logger.warning("skipping workflow_tag to a mod that is already associated to "
                                        "the reference")
-    logger.debug("returning successfully?")
     return curie
 
 
