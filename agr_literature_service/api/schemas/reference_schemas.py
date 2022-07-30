@@ -13,7 +13,7 @@ from agr_literature_service.api.schemas import (AuthorSchemaPost, AuthorSchemaSh
                                                 PubMedPublicationStatus, ReferenceCategory,
                                                 ReferenceCommentAndCorrectionSchemaRelated,
                                                 ModCorpusAssociationSchemaRelated,
-                                                # WorkflowTagSchemaCreate,
+                                                WorkflowTagSchemaShow,
                                                 WorkflowTagSchemaRelated)
 
 
@@ -136,7 +136,7 @@ class ReferenceSchemaShow(BaseModelShow):
     comment_and_corrections: CommentAndCorrectionSchemaRelations
     open_access: Optional[bool] = None
     citation: Optional[str] = None
-    workflow_tags: Optional[List[WorkflowTagSchemaRelated]] = None
+    workflow_tags: Optional[List[WorkflowTagSchemaShow]] = None
 
 
 class ReferenceSchemaNeedReviewShow(BaseModel):
