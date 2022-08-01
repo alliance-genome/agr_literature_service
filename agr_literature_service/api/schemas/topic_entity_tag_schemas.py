@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 
 class TopicEntityTagPropSchemaCreate(BaseModel):
-    topic_entity_tag_id: Optional[int] = None  # crated on the fly so not needed here
+    topic_entity_tag_id: Optional[int] = None  # created on the fly so not needed here
     qualifier: str
     date_created: Optional[str]
     date_updated: Optional[str]

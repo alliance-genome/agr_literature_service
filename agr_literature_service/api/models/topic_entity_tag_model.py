@@ -37,8 +37,8 @@ class TopicEntityTagModel(Base):
 
     reference = relationship(
         "ReferenceModel",
-        foreign_keys="TopicEntityTag.reference_id",
-        back_populates="topic_entity_tag"
+        foreign_keys="TopicEntityTagModel.reference_id",
+        back_populates="topic_entity_tags"
     )
 
     # Obtained from A-Team ontology node term-id
@@ -89,6 +89,11 @@ class TopicEntityTagModel(Base):
         nullable=True
     )
 
+    # props = relationship(
+    #    "TopicEntityTagPropModel",
+    #    foreign_keys="TopicEntityTagModel.topic_entity_tag_id"
+    # )
+
 # date created - timestamp
 # date updated - timestamp
     date_created = Column(
@@ -130,15 +135,9 @@ class TopicEntityTagPropModel(Base):
 
     topic_entity_tag_id = Column(
         Integer,
-        ForeignKey("topic_entity_tag.topic_entity_tagid"),
+        ForeignKey("topic_entity_tag.topic_entity_tag_id"),
         index=True,
         nullable=False
-    )
-
-    prop = relationship(
-        "TopicEntityTagModel",
-        foreign_keys="TopicEntityTag.topic_entity_tag_id",
-        back_populates="topic_entity_tag_prop"
     )
 
     # Obtained from A-Team ontology qualifier
