@@ -14,7 +14,7 @@ class WorkflowTagSchemaShow(BaseModelShow):
     reference_workflow_tag_id: int
     reference_curie: str
     workflow_tag_id: str
-    mod_abbreviation: str
+    mod_abbreviation: Optional[str]
     date_created: str
     date_updated: Optional[str]
     created_by: str
