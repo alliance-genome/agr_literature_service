@@ -81,6 +81,13 @@ from agr_literature_service.api.schemas.workflow_tag_schemas import (
     WorkflowTagSchemaRelated,
     WorkflowTagSchemaUpdate)
 
+from agr_literature_service.api.schemas.topic_entity_tag_schemas import (
+    TopicEntityTagPropSchemaCreate,
+    TopicEntityTagPropSchemaShow,
+    TopicEntityTagSchemaCreate,
+    TopicEntityTagSchemaShow
+)
+
 from agr_literature_service.api.schemas.reference_schemas import (
     ReferenceSchemaPost,
     ReferenceSchemaUpdate,
