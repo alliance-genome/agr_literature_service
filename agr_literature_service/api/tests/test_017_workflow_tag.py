@@ -110,6 +110,11 @@ def test_good_blank_args():
     assert ref_ont_obj.created_by == "017_Bob"
     assert ref_ont_obj.mod_id == None
 
+    res = show(db, ref_ont_obj.reference_workflow_tag_id)
+    assert res["workflow_tag_id"] == "ont tgma"
+    assert res["created_by"] == "017_Bob"
+    assert res["mod_abbreviation"] == ""
+
 
 def test_create_ref_ont():
     global fb_mod
