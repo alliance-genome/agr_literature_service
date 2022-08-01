@@ -142,6 +142,8 @@ def show(db: Session, reference_workflow_tag_id: int):
     del workflow_tag_data["reference_id"]
     if workflow_tag_data["mod_id"]:
         workflow_tag_data["mod_abbreviation"] = db.query(ModModel).filter(ModModel.mod_id == workflow_tag_data["mod_id"]).first().abbreviation
+    else:
+        workflow_tag_data["mod_abbreviation"] = ""
     del workflow_tag_data["mod_id"]
 
     return workflow_tag_data
