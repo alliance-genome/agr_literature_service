@@ -21,6 +21,11 @@ class TopicEntityTagPropSchemaShow(BaseModel):
     updated_by: Optional[str]
 
 
+class TopicEntityTagPropSchemaUpdate(BaseModel):
+    qualifier: str
+    topic_entity_tag_prop_id: int
+
+
 class TopicEntityTagSchemaCreate(BaseModel):
     reference_curie: str
     topic: str
@@ -35,6 +40,22 @@ class TopicEntityTagSchemaCreate(BaseModel):
     created_by: Optional[str]
     updated_by: Optional[str]
     props: Optional[List[TopicEntityTagPropSchemaCreate]] = None
+
+
+class TopicEntityTagSchemaUpdate(BaseModel):
+    reference_curie: Optional[str] = None
+    topic: Optional[str] = ""
+    entity_type: Optional[str] = ""
+    alliance_entity: Optional[str] = None
+    mod_entity: Optional[str] = None
+    new_entity: Optional[str]
+    species_id: Optional[int]
+    note: Optional[str]
+    date_created: Optional[str]
+    date_updated: Optional[str]
+    created_by: Optional[str]
+    updated_by: Optional[str]
+    props: Optional[List[TopicEntityTagPropSchemaUpdate]]
 
 
 class TopicEntityTagSchemaShow(BaseModel):

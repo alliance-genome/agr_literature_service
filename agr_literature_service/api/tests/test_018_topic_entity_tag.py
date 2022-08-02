@@ -5,14 +5,16 @@ from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import sessionmaker
 
 from agr_literature_service.api.crud.topic_entity_tag_crud import (
-    create
+    create, show, patch
     # create, destroy, patch, show, show_changesets)
 )
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models import (TopicEntityTagModel,
                                                TopicEntityTagPropModel)
-from agr_literature_service.api.schemas import TopicEntityTagSchemaCreate
+from agr_literature_service.api.schemas import (
+    TopicEntityTagSchemaCreate,
+    TopicEntityTagSchemaUpdate)
 from agr_literature_service.api.crud.mod_crud import create as mod_create
 from agr_literature_service.api.crud.user_crud import create as user_create
 from agr_literature_service.api.crud.reference_crud import create as reference_create
@@ -103,6 +105,12 @@ def test_good_create_with_props():
             assert "Diff qualifier" == prop.qualifier
     assert count == 2
 
+    res = show(db, tet_id)
+    assert res["topic"] == "Topic1"
+    assert res["props"][0]["qualifier"] == 'Quali1'
+    assert res["props"][0]["created_by"] == '018_Bob'
+    assert res["props"][1]["qualifier"] == 'Quali2'
+
 
 def test_create_bad():
     xml = {
@@ -148,3 +156,52 @@ def test_create_bad():
         schema = TopicEntityTagSchemaCreate(**xml)
         create(db, schema)
     assert "value_error.missing" in str(excinfo)
+
+
+def test_patch_with_props():
+    xml = {
+        "reference_curie": refs[1],
+        "topic": "Topic2",
+        "entity_type": "Gene2",
+        "alliance_entity": "Bob_gene_name 2",
+        "species_id": 2345,
+        "note": "Some Note",
+        "created_by": "018_Bob",
+        "props": [{"qualifier": "Quali1"},
+                  {"qualifier": "Quali2"}]
+    }
+    schema = TopicEntityTagSchemaCreate(**xml)
+
+    tet_id = create(db, schema)
+    res = show(db, tet_id)
+    assert res["reference_curie"] == refs[1]
+
+    # change the reference
+    xml = {
+        "reference_curie": refs[0],
+    }
+    schema = TopicEntityTagSchemaUpdate(**xml)
+    patch(db, tet_id, schema)
+
+    res = show(db, tet_id)
+    assert res["reference_curie"] == refs[0]
+
+    # Change the note
+    xml = {
+        "note": ""
+    }
+    schema = TopicEntityTagSchemaUpdate(**xml)
+    patch(db, tet_id, schema)
+
+    res = show(db, tet_id)
+    assert res["note"] == ""
+
+   # Change the note
+    xml = {
+        "note": None
+    }
+    schema = TopicEntityTagSchemaUpdate(**xml)
+    patch(db, tet_id, schema)
+
+    res = show(db, tet_id)
+    assert res["note"] == None

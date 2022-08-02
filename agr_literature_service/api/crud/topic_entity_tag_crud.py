@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
     TopicEntityTagPropModel,
-    ModModel,
     ReferenceModel
 )
 from agr_literature_service.api.schemas import TopicEntityTagSchemaCreate
@@ -97,9 +96,17 @@ def show(db: Session, topic_entity_tag_id: int):
 
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
 
-    if topic_entity_tag_data["mod_id"]:
-        topic_entity_tag_data["mod_abbreviation"] = db.query(ModModel).filter(ModModel.mod_id == topic_entity_tag_data["mod_id"]).first().abbreviation
-    del topic_entity_tag_data["mod_id"]
+    if topic_entity_tag_data["reference_id"]:
+        topic_entity_tag_data["reference_curie"] = db.query(ReferenceModel).filter(ReferenceModel.reference_id == topic_entity_tag_data["reference_id"]).first().curie
+        del topic_entity_tag_data["reference_id"]
+
+    props = db.query(TopicEntityTagPropModel).filter(TopicEntityTagPropModel.topic_entity_tag_id == topic_entity_tag_id).all()
+    topic_entity_tag_data["props"] = []
+    prop: TopicEntityTagPropModel
+    for prop in props:
+        prop_data = jsonable_encoder(prop)
+        topic_entity_tag_data["props"].append(prop_data)
+    return topic_entity_tag_data
 
 
 def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
@@ -111,6 +118,9 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
     :return:
     """
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag_update)
+    print(topic_entity_tag_update.__fields_set__)
+    for bob in topic_entity_tag_update.__fields_set__:
+        print("Bob is :{}".format(bob))
 
     add_default_update_keys(topic_entity_tag_data)
     topic_entity_tag_db_obj = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
@@ -118,5 +128,28 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entity_tag with topic_entity_tag_id {topic_entity_tag_id} not found")
 
-    for field, value in topic_entity_tag_data.items():
+    #### for field, value in topic_entity_tag_data.items():
+    # Loop ONLY on the fields that were passed to patch before pydantic
+    # added a bunch of fileds with None values etc.
+    for field in topic_entity_tag_update.__fields_set__:    
+        value = topic_entity_tag_data[field]
         print(field, value)
+        if field == "reference_curie":
+            if value is not None:
+                reference_curie = value
+                new_reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
+                if not new_reference:
+                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                        detail=f"Reference with curie {reference_curie} does not exist")
+                topic_entity_tag_db_obj.reference = new_reference
+        elif field == "props" and value:
+            for prop in value:
+                add_default_update_keys(prop)
+                prop_obj = db.query(TopicEntityTagPropModel).filter(TopicEntityTagPropModel.topic_entity_tag_id == prop["topic_entity_tag_id"]).one()
+                if prop_obj.qualifier != prop["qualifier"]:
+                    prop_obj.qualifier = prop["qualifier"]
+                    prop.updated_by = prop["updated_by"]
+                    prop.date_updated = prop["date_updated"]
+                    db.commit()
+        else:
+            setattr(topic_entity_tag_db_obj, field, value)

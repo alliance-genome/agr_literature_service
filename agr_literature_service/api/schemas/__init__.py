@@ -85,7 +85,8 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import (
     TopicEntityTagPropSchemaCreate,
     TopicEntityTagPropSchemaShow,
     TopicEntityTagSchemaCreate,
-    TopicEntityTagSchemaShow
+    TopicEntityTagSchemaShow,
+    TopicEntityTagSchemaUpdate
 )
 
 from agr_literature_service.api.schemas.reference_schemas import (
