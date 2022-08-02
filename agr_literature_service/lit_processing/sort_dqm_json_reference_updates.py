@@ -307,16 +307,16 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
             if 'primaryId' not in entry or entry['primaryId'] is None:
                 continue
 
-            # dbid = None
-            # ## grab all MOD IDs (eg, SGDID) from qdm submission and save them in memory (in hash dqm)
-            # if 'crossReferences' in entry:
-            #    for cross_reference in entry['crossReferences']:
-            #        if "id" in cross_reference:
-            #            items = cross_reference['id'].split(":")
-            #            if items[0] in dqm:
-            #                dqm[items[0]].add(items[1])
-            #                dbid = cross_reference['id']
-            #                break
+            dbid = None
+            ## grab all MOD IDs (eg, SGDID) from qdm submission and save them in memory (in hash dqm)
+            if 'crossReferences' in entry:
+                for cross_reference in entry['crossReferences']:
+                    if "id" in cross_reference:
+                        items = cross_reference['id'].split(":")
+                        if items[0] in dqm:
+                            dqm[items[0]].add(items[1])
+                            dbid = cross_reference['id']
+                            break
             ## end grabbing all MOD IDs section
 
             primary_id = entry['primaryId']
@@ -360,10 +360,10 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                         # logger.info("append xref %s", cross_reference["id"])
                         if "pages" in cross_reference:
                             xref_to_pages[cross_reference["id"]] = cross_reference["pages"]
-                        items = cross_reference['id'].split(":")
-                        if items[0] in dqm:
-                            dqm[items[0]].add(items[1])
-                            dbid = cross_reference['id']
+                        # items = cross_reference['id'].split(":")
+                        # if items[0] in dqm:
+                        #    dqm[items[0]].add(items[1])
+                        #    dbid = cross_reference['id']
             if entry['primaryId'] not in xrefs:
                 xrefs.append(entry['primaryId'])
                 # logger.info("append primaryId %s", entry['primaryId'])
@@ -476,22 +476,22 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
         save_new_references_to_file(references_to_create, mod)
 
-        # ## check all db agrId->modId, check each dqm mod still had modId
-        # for agr in ref_xref_valid:
-        #    agr_url = url_ref_curie_prefix + agr
-        #    for prefix in ref_xref_valid[agr]:
-        #        if prefix in mods:
-        #            # for identifier in ref_xref_valid[agr][prefix]:
-        #            identifier = ref_xref_valid[agr][prefix]
-        #            ident_found = False
-        #            if prefix in dqm:
-        #                if identifier in dqm[prefix]:
-        #                    ident_found = True
-        #            if not ident_found:
-        #                # logger.info("Notify curator %s %s %s not in dqm submission", agr_url, prefix, identifier)
-        #                fh_mod_report[mod].write("%s %s %s not in dqm submission\n" % (agr_url, prefix, identifier))
-        #                dbid = prefix + ":" + identifier
-        #                # report3[mod].append((dbid, dbid + " is not in the dqm submission"))
+        ## check all db agrId->modId, check each dqm mod still had modId
+        for agr in ref_xref_valid:
+            agr_url = url_ref_curie_prefix + agr
+            for prefix in ref_xref_valid[agr]:
+                if prefix in mods:
+                    # for identifier in ref_xref_valid[agr][prefix]:
+                    identifier = ref_xref_valid[agr][prefix]
+                    ident_found = False
+                    if prefix in dqm:
+                        if identifier in dqm[prefix]:
+                            ident_found = True
+                    if not ident_found:
+                        # logger.info("Notify curator %s %s %s not in dqm submission", agr_url, prefix, identifier)
+                        fh_mod_report[mod].write("%s %s %s not in dqm submission\n" % (agr_url, prefix, identifier))
+                        dbid = prefix + ":" + identifier
+                        # report3[mod].append((dbid, dbid + " is not in the dqm submission"))
 
         for agr in xrefs_to_add:
             agr_url = url_ref_curie_prefix + agr
