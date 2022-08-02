@@ -1,5 +1,9 @@
 from agr_literature_service.lit_processing.helper_file_processing import split_identifier
+
 from os import environ
+
+from agr_literature_service.api.models import ReferenceModel, CrossReferenceModel, ResourceModel
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -35,34 +39,41 @@ def create_postgres_session(verbose):
     return session
 
 
-def sqlalchemy_load_ref_xref(datatype, mod=None):
+def sqlalchemy_load_ref_xref(datatype):
     ref_xref_valid = dict()
     ref_xref_obsolete = dict()
     xref_ref = dict()
+    # db_session = next(get_db())
+    db_session = create_postgres_session(False)
 
-    engine = create_postgres_engine(False)
-    db_connection = engine.connect()
-
-    rows = None
+    query = None
     if datatype == 'reference':
-        if mod is not None:
-            rs = db_connection.execute("SELECT r.curie, cr.curie, cr.is_obsolete FROM reference r, cross_reference cr, mod_corpus_association mca, mod m WHERE r.reference_id = cr.reference_id and r.reference_id = mca.reference_id and mca.mod_id = m.mod_id and m.abbreviation = '" + mod + "'")
-
-            rows = rs.fetchall()
-        else:
-            rs = db_connection.execute("SELECT r.curie, cr.curie, cr.is_obsolete FROM reference r, cross_reference cr WHERE r.reference_id = cr.reference_id")
-
-            rows = rs.fetchall()
+        # 14 seconds to load all xref through sqlalchemy
+        query = db_session.query(
+            ReferenceModel.curie,
+            CrossReferenceModel.curie,
+            CrossReferenceModel.is_obsolete
+        ).join(
+            ReferenceModel.cross_reference
+        ).filter(
+            CrossReferenceModel.reference_id.isnot(None)
+        )
 
     elif datatype == 'resource':
-        rs = db_connection.execute("SELECT r.curie, cr.curie, cr.is_obsolete FROM resource r, cross_reference cr WHERE r.resource_id = cr.resource_id")
+        query = db_session.query(
+            ResourceModel.curie,
+            CrossReferenceModel.curie,
+            CrossReferenceModel.is_obsolete
+        ).join(
+            ResourceModel.cross_reference
+        ).filter(
+            CrossReferenceModel.resource_id.isnot(None)
+        )
 
-        rows = rs.fetchall()
-
-    if rows is not None:
-
-        for result in rows:
-
+    if query is not None:
+        results = query.all()
+        for result in results:
+            # print(result)
             agr = result[0]
             xref = result[1]
             is_obsolete = result[2]

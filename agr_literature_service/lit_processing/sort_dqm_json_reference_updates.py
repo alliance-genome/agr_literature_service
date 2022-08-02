@@ -270,8 +270,6 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     # report3 = {}
     for mod in sorted(mods):
 
-        # xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference', mod)
-
         report[mod] = []
         # report2[mod] = []
         # report3[mod] = []
