@@ -257,10 +257,10 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     aggregate_mod_biblio_all = dict()
 
     fh_mod_report = dict()
-    report_file_path = None
+    report_file_path = ''
     if environ.get('LOG_PATH'):
         report_file_path = path.join(environ['LOG_PATH'], 'dqm_load/')
-    if not path.exists(report_file_path):
+    if report_file_path and not path.exists(report_file_path):
         makedirs(report_file_path)
 
     xref_to_pages = dict()
