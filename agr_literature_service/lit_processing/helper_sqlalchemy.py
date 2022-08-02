@@ -55,7 +55,7 @@ def sqlalchemy_load_ref_xref(datatype, mod=None):
             rows = rs.fetchall()
 
     elif datatype == 'resource':
-        rs = db_connection.execute("SELECT r.curie, cr.curie, cr.cr.is_obsolete FROM resource r, cross_reference cr WHERE r.resource_id = cr.resource_id")
+        rs = db_connection.execute("SELECT r.curie, cr.curie, cr.is_obsolete FROM resource r, cross_reference cr WHERE r.resource_id = cr.resource_id")
 
         rows = rs.fetchall()
 
