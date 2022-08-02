@@ -11,8 +11,7 @@ from agr_literature_service.api.crud.topic_entity_tag_crud import (
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models import (TopicEntityTagModel,
-                                               TopicEntityTagPropModel,
-                                               ReferenceModel)
+                                               TopicEntityTagPropModel)
 from agr_literature_service.api.schemas import TopicEntityTagSchemaCreate
 from agr_literature_service.api.crud.mod_crud import create as mod_create
 from agr_literature_service.api.crud.user_crud import create as user_create
@@ -65,7 +64,7 @@ def test_initialise():
     refs.append(res)
 
 
-def test_good_with_props():
+def test_good_create_with_props():
     xml = {
         "reference_curie": refs[0],
         "topic": "Topic1",
@@ -93,7 +92,7 @@ def test_good_with_props():
 
     props = db.query(TopicEntityTagPropModel).\
         filter(TopicEntityTagPropModel.topic_entity_tag_id == tet_id).all()
- 
+
     count = 0
     for prop in props:
         if prop.qualifier == 'Quali1':
@@ -103,3 +102,49 @@ def test_good_with_props():
         else:
             assert "Diff qualifier" == prop.qualifier
     assert count == 2
+
+
+def test_create_bad():
+    xml = {
+        "reference_curie": refs[0],
+        "topic": "Topic1",
+        "entity_type": "Gene",
+        "species_id": 1234,
+        "created_by": "018_Bob",
+    }
+    # No Entitys
+    with pytest.raises(HTTPException) as excinfo:
+        schema = TopicEntityTagSchemaCreate(**xml)
+        create(db, schema)
+    assert "One of the XXXX_entity's MUST be set" in str(excinfo)
+
+    # More than one Entity
+    xml["alliance_entity"] = "Bob_gene_name 1"
+    xml["mod_entity"] = "Bob_gene_name 2"
+    with pytest.raises(HTTPException) as excinfo:
+        schema = TopicEntityTagSchemaCreate(**xml)
+        create(db, schema)
+    assert "ONLY one of the XXXX_entity's MUST be set" in str(excinfo)
+
+    # No curie
+    del xml["mod_entity"]
+    del xml["reference_curie"]
+    with pytest.raises(ValidationError) as excinfo:
+        schema = TopicEntityTagSchemaCreate(**xml)
+        create(db, schema)
+    assert "value_error.missing" in str(excinfo)
+
+    # Bad curie
+    xml["reference_curie"] = "BADCURIE"
+    with pytest.raises(HTTPException) as excinfo:
+        schema = TopicEntityTagSchemaCreate(**xml)
+        create(db, schema)
+    assert "Reference with curie BADCURIE does not exist" in str(excinfo)
+
+    # No species
+    del xml["species_id"]
+    xml["reference_curie"] = refs[0]
+    with pytest.raises(ValidationError) as excinfo:
+        schema = TopicEntityTagSchemaCreate(**xml)
+        create(db, schema)
+    assert "value_error.missing" in str(excinfo)
