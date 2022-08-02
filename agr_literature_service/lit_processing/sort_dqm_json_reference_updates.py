@@ -352,7 +352,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
             dqm_xrefs = dict()
             xrefs = []
             agrs_found = set()
-            dbid = None
+            # dbid = None
             if 'crossReferences' in entry:
                 for cross_reference in entry['crossReferences']:
                     if "id" in cross_reference:
