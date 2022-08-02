@@ -118,9 +118,6 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
     :return:
     """
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag_update)
-    print(topic_entity_tag_update.__fields_set__)
-    for bob in topic_entity_tag_update.__fields_set__:
-        print("Bob is :{}".format(bob))
 
     add_default_update_keys(topic_entity_tag_data)
     topic_entity_tag_db_obj = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
@@ -128,12 +125,10 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entity_tag with topic_entity_tag_id {topic_entity_tag_id} not found")
 
-    #### for field, value in topic_entity_tag_data.items():
     # Loop ONLY on the fields that were passed to patch before pydantic
     # added a bunch of fileds with None values etc.
-    for field in topic_entity_tag_update.__fields_set__:    
+    for field in topic_entity_tag_update.__fields_set__:
         value = topic_entity_tag_data[field]
-        print(field, value)
         if field == "reference_curie":
             if value is not None:
                 reference_curie = value
