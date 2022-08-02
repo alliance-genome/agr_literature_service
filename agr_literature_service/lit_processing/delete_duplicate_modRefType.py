@@ -24,7 +24,7 @@ for index in range(loop_count):
 
     offset = index * limit
 
-    rs = db_connection.execute('SELECT mod_reference_type_id, reference_id, reference_type, source FROM mod_reference_type order by reference_id limit ' + str(limit) + ' offset ' + str(offset))
+    rs = db_connection.execute('SELECT mod_reference_type_id, reference_id, reference_type, source FROM mod_reference_type order by reference_id, mod_reference_type_id limit ' + str(limit) + ' offset ' + str(offset))
 
     rows = rs.fetchall()
 
