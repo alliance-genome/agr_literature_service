@@ -207,6 +207,23 @@ def test_patch_with_props():
     res = show(db, tet_id)
     assert res["note"] == None
     assert res['updated_by'] == "018_Bob"
+    assert res["props"][0]["qualifier"] == 'Quali1'
+    assert res["props"][1]["qualifier"] == 'Quali2'
+
+    # change the prop?
+    xml = {
+        "updated_by": "018_Bob",
+        "props": [{"qualifier": "Quali3",
+                   "topic_entity_tag_prop_id": res["props"][0]["topic_entity_tag_prop_id"]},
+                  {"qualifier": "Quali4",
+                   "topic_entity_tag_prop_id": res["props"][1]["topic_entity_tag_prop_id"]}]
+    }
+    schema = TopicEntityTagSchemaUpdate(**xml)
+    patch(db, tet_id, schema)
+
+    res = show(db, tet_id)
+    assert res["props"][0]["qualifier"] == 'Quali3'
+    assert res["props"][1]["qualifier"] == 'Quali4'
 
 
 def test_delete_with_props():

@@ -71,4 +71,4 @@ class TopicEntityTagSchemaShow(BaseModel):
     date_updated: Optional[str]
     created_by: str
     updated_by: Optional[str]
-    props: Optional[List[TopicEntityTagPropSchemaCreate]] = None
+    props: Optional[List[TopicEntityTagPropSchemaShow]] = None

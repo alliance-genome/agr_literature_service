@@ -138,12 +138,14 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
                 topic_entity_tag_db_obj.reference = new_reference
         elif field == "props" and value:
             for prop in value:
+                if "updated_by" in topic_entity_tag_data:
+                    prop["updated_by"] = topic_entity_tag_data["updated_by"]
                 add_default_update_keys(db, prop)
-                prop_obj = db.query(TopicEntityTagPropModel).filter(TopicEntityTagPropModel.topic_entity_tag_id == prop["topic_entity_tag_id"]).one()
+                prop_obj = db.query(TopicEntityTagPropModel).filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == prop["topic_entity_tag_prop_id"]).one()
                 if prop_obj.qualifier != prop["qualifier"]:
                     prop_obj.qualifier = prop["qualifier"]
-                    prop.updated_by = prop["updated_by"]
-                    prop.date_updated = prop["date_updated"]
+                    prop_obj.updated_by = prop["updated_by"]
+                    prop_obj.date_updated = prop["date_updated"]
                     db.commit()
         else:
             setattr(topic_entity_tag_db_obj, field, value)
@@ -161,7 +163,7 @@ def destroy(db: Session, topic_entity_tag_id: int):
     topic_entity_tag = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
     if not topic_entity_tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} is not available")
+                            detail=f"topic_entity_tag with the topic_entity_tag_id {topic_entity_tag_id} is not available")
     db.delete(topic_entity_tag)
     db.commit()
 
