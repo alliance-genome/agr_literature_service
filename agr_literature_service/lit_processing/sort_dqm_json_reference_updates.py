@@ -22,7 +22,7 @@ from agr_literature_service.lit_processing.helper_post_to_api import (generate_h
                                                                       process_api_request)
 from agr_literature_service.lit_processing.helper_sqlalchemy import (create_postgres_session,
                                                                      sqlalchemy_load_ref_xref)
-
+from agr_literature_service.lit_processing.helper_email import send_email
 
 from agr_literature_service.lit_processing.parse_dqm_json_reference import (generate_pmid_data,
                                                                             aggregate_dqm_with_pubmed)
@@ -244,7 +244,11 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
     dqm = dict()
     for mod in mods:
-        dqm[mod] = set()
+        if mod == 'XB':
+            prefix = "Xenbase"
+        else:
+            prefix = mod
+        dqm[prefix] = set()
 
     # filename = input_path + '/REFERENCE_' + mod + '.json'
 
@@ -253,14 +257,23 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     aggregate_mod_biblio_all = dict()
 
     fh_mod_report = dict()
-    report_file_path = base_path + 'report_files/'
-    if not path.exists(report_file_path):
+    report_file_path = ''
+    if environ.get('LOG_PATH'):
+        report_file_path = path.join(environ['LOG_PATH'], 'dqm_load/')
+    if report_file_path and not path.exists(report_file_path):
         makedirs(report_file_path)
 
     xref_to_pages = dict()
     # for mod in sorted(files_to_process):
+    report = {}
+    # report2 = {}
+    # report3 = {}
     for mod in sorted(mods):
-        filename = report_file_path + mod + '_updates'
+
+        report[mod] = []
+        # report2[mod] = []
+        # report3[mod] = []
+        filename = report_file_path + mod + '_dqm_loading.log'
         fh_mod_report.setdefault(mod, open(filename, 'w'))
         references_to_create = []
         curies_for_citation_update = []
@@ -293,6 +306,19 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
             if 'primaryId' not in entry or entry['primaryId'] is None:
                 continue
+
+            dbid = None
+            ## grab all MOD IDs (eg, SGDID) from qdm submission and save them in memory (in hash dqm)
+            if 'crossReferences' in entry:
+                for cross_reference in entry['crossReferences']:
+                    if "id" in cross_reference:
+                        items = cross_reference['id'].split(":")
+                        if items[0] in dqm:
+                            dqm[items[0]].add(items[1])
+                            dbid = cross_reference['id']
+                            break
+            ## end grabbing all MOD IDs section
+
             primary_id = entry['primaryId']
             old_md5 = 'none'
             if mod in old_md5dict and primary_id in old_md5dict[mod] and old_md5dict[mod][primary_id] is not None:
@@ -326,6 +352,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
             dqm_xrefs = dict()
             xrefs = []
             agrs_found = set()
+            # dbid = None
             if 'crossReferences' in entry:
                 for cross_reference in entry['crossReferences']:
                     if "id" in cross_reference:
@@ -333,6 +360,10 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                         # logger.info("append xref %s", cross_reference["id"])
                         if "pages" in cross_reference:
                             xref_to_pages[cross_reference["id"]] = cross_reference["pages"]
+                        # items = cross_reference['id'].split(":")
+                        # if items[0] in dqm:
+                        #    dqm[items[0]].add(items[1])
+                        #    dbid = cross_reference['id']
             if entry['primaryId'] not in xrefs:
                 xrefs.append(entry['primaryId'])
                 # logger.info("append primaryId %s", entry['primaryId'])
@@ -345,8 +376,6 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     if identifier in xref_ref[prefix]:
                         agr = xref_ref[prefix][identifier]
                         agrs_found.add(agr)
-                if prefix in mods:
-                    dqm[prefix].add(identifier)
 
             flag_dqm_prefix_fail = False
             for prefix in dqm_xrefs:
@@ -354,6 +383,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     flag_dqm_prefix_fail = True
                     # logger.info("Notify curator, filename %s, dqm %s has too many identifiers for %s %s", filename, entry['primaryId'], prefix, ', '.join(sorted(dqm_xrefs[prefix])))
                     fh_mod_report[mod].write("dqm %s has too many identifiers for %s %s\n" % (entry['primaryId'], prefix, ', '.join(sorted(dqm_xrefs[prefix]))))
+                    report[mod].append((dbid, str(len(dqm_xrefs[prefix])) + prefix + " : " + ', '.join(sorted(dqm_xrefs[prefix])) + " in dqm file"))
+
             if flag_dqm_prefix_fail:
                 continue
 
@@ -404,10 +435,13 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                         if dqm_xref_obsolete_found:
                             # logger.info("Notify curator dqm has obsolete xref %s %s in agr %s", prefix, ident, agr_url)
                             fh_mod_report[mod].write("dqm has obsolete xref %s %s in agr %s\n" % (prefix, ident, agr_url))
+                            report[mod].append((dbid, prefix + ":" + ident + " from dqm file is obsolete"))
+
                         if not dqm_xref_valid_found:
                             if agr_had_prefix:
                                 # logger.info("Notify curator, %s had %s %s, dqm submitted %s", agr_url, prefix, ref_xref_valid[agr][prefix], ident)
-                                fh_mod_report[mod].write("%s had %s %s, dqm submitted %s\n" % (agr_url, prefix, ref_xref_valid[agr][prefix], ident))
+                                fh_mod_report[mod].write("%s had %s:%s, dqm submitted %s:%s\n" % (agr_url, prefix, ref_xref_valid[agr][prefix], prefix, ident))
+                                report[mod].append((dbid, prefix + ":" + ref_xref_valid[agr][prefix] + " in the database doesn't match " + prefix + ":" + ident + " from dqm file"))
                             elif not dqm_xref_obsolete_found:
                                 if agr not in xrefs_to_add:
                                     xrefs_to_add[agr] = dict()
@@ -433,14 +467,16 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     if 'PMID' in ref_xref_valid[agr]:
                         # logger.info("Notify curator %s has PMID %s, dqm %s does not", agr, ref_xref_valid[agr]['PMID'], entry['primaryId'])
                         fh_mod_report[mod].write("%s has PMID %s, dqm %s does not\n" % (agr_url, ref_xref_valid[agr]['PMID'], entry['primaryId']))
+                        # report2[mod].append((dbid, "PMID:" + ref_xref_valid[agr]['PMID'] + " is in the database, but no PMID for this paper in dqm file"))
                 if 'DOI' not in dqm_xrefs:
                     if 'DOI' in ref_xref_valid[agr]:
                         # logger.info("Notify curator %s has DOI %s, dqm %s does not", agr, ref_xref_valid[agr]['DOI'], entry['primaryId'])
                         fh_mod_report[mod].write("%s has DOI %s, dqm %s does not\n" % (agr_url, ref_xref_valid[agr]['DOI'], entry['primaryId']))
+                        # report2[mod].append((dbid, "DOI:" + ref_xref_valid[agr]['DOI'] + " is in the database, but no DOI for this paper in dqm file"))
 
         save_new_references_to_file(references_to_create, mod)
 
-        # check all db agrId->modId, check each dqm mod still had modId
+        ## check all db agrId->modId, check each dqm mod still had modId
         for agr in ref_xref_valid:
             agr_url = url_ref_curie_prefix + agr
             for prefix in ref_xref_valid[agr]:
@@ -451,11 +487,11 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     if prefix in dqm:
                         if identifier in dqm[prefix]:
                             ident_found = True
-                    # FIX, these do not exclude entries that have been skipped because the md5 didn't change,
-                    # maybe this doesn't make sense to output anymore
                     if not ident_found:
                         # logger.info("Notify curator %s %s %s not in dqm submission", agr_url, prefix, identifier)
                         fh_mod_report[mod].write("%s %s %s not in dqm submission\n" % (agr_url, prefix, identifier))
+                        dbid = prefix + ":" + identifier
+                        # report3[mod].append((dbid, dbid + " is not in the dqm submission"))
 
         for agr in xrefs_to_add:
             agr_url = url_ref_curie_prefix + agr
@@ -468,6 +504,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                     conflict_string = ', '.join(conflict_list)
                     # logger.info("Notify curator %s %s has multiple identifiers from dqms %s", agr_url, prefix, conflict_string)
                     fh_mod_report[mod].write("%s %s has multiple identifiers from dqms %s\n" % (agr_url, prefix, conflict_string))
+                    report[mod].append((dbid, "This paper has multiple identifiers from dqm file: " + conflict_string))
                 elif len(xrefs_to_add[agr][prefix]) == 1:
                     for ident in xrefs_to_add[agr][prefix]:
                         xref_id = prefix + ':' + ident
@@ -560,6 +597,57 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
             update_citation(db_session, curie)
         db_session.close()
 
+        # rows_to_report = report[mod] + report2[mod] + report3[mod]
+        send_loading_report(mod, report[mod], report_file_path)
+
+
+def send_loading_report(mod, rows_to_report, log_path):
+
+    email_recipients = None
+    if environ.get('CRONTAB_EMAIL'):
+        email_recipients = environ['CRONTAB_EMAIL']
+    sender_email = None
+    if environ.get('SENDER_EMAIL'):
+        sender_email = environ['SENDER_EMAIL']
+    sender_password = None
+    if environ.get('SENDER_PASSWORD'):
+        sender_password = environ['SENDER_PASSWORD']
+    reply_to = sender_email
+    if environ.get('REPLY_TO'):
+        reply_to = environ['REPLY_TO']
+    log_url = None
+    if environ.get('LOG_URL'):
+        log_url = environ['LOG_URL'] + "dqm_load/"
+    if email_recipients is None or sender_email is None:
+        return
+
+    email_subject = mod + " DQM Loading Report"
+    email_message = "<h3>" + mod + " DQM Loading Report</h3>"
+
+    if len(rows_to_report) > 0:
+        rows = ''
+        i = 0
+        (dbid, error) = rows_to_report[0]
+        width = len(dbid) * 11
+
+        for x in rows_to_report:
+            i += 1
+            if i >= 15:
+                break
+            (dbid, error) = x
+            rows = rows + "<tr><th style='text-align:left' width='" + str(width) + "'>" + dbid + ":</th><td>" + error + "</td></tr>"
+        email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
+
+    if log_url:
+        email_message = email_message + "<p>Loading log file is available at " + "<a href=" + log_url + ">" + log_url + "</a><p>"
+    else:
+        email_message = email_message + "<p>Loading log file is available at " + log_path
+
+    (status, message) = send_email(email_subject, email_recipients,
+                                   email_message, sender_email, sender_password, reply_to)
+    if status == 'error':
+        logger.info("Failed sending email to slack: " + message + "\n")
+
 
 def read_pmid_file(local_path):
     pmids_wanted = []
@@ -650,8 +738,8 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
         verbose = False
         # api_server = environ.get('API_SERVER', 'localhost')
         # 10000 freezes the server, 1000 works
-        size_per_batch = 1000
-        # size_per_batch = 3
+        # size_per_batch = 1000
+        size_per_batch = 200
         while start_index < curies_count:
             for batch_size in [size_per_batch]:
                 start_index, db_dict = batch_alchemy(curies, db_dict, batch_size, count_start=start_index, verbose=verbose)
@@ -834,7 +922,9 @@ def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):
         ref_type = mrt['referenceType']
         if source not in dqm_mrt_data:
             dqm_mrt_data[source] = []
-        dqm_mrt_data[source].append(ref_type)
+        # just in case there is any duplicate in dqm
+        if ref_type not in dqm_mrt_data[source]:
+            dqm_mrt_data[source].append(ref_type)
 
     db_mod_ref_types = []
     if 'mod_reference_types' in db_entry:
@@ -846,47 +936,50 @@ def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):
     # logger.info("Action : aggregate PMID mod data %s was %s now %s", agr, db_mod_ref_types_json, dqm_mod_ref_types_json)
 
     db_mrt_data = dict()
+    to_delete_duplicate_rows = []
     for mrt in db_mod_ref_types:
         source = mrt['source']
         ref_type = mrt['reference_type']
         mrt_id = mrt['mod_reference_type_id']
         if source not in db_mrt_data:
             db_mrt_data[source] = dict()
-        db_mrt_data[source][ref_type] = mrt_id
+        if ref_type not in db_mrt_data[source]:
+            db_mrt_data[source][ref_type] = mrt_id
+        else:
+            to_delete_duplicate_rows.append((mrt_id, ref_type))
 
     # live_changes = False
     # try AGR:AGR-Reference-0000382879	WBPaper00000292
     for mod in dqm_mrt_data:
         lc_dqm = [x.lower() for x in dqm_mrt_data[mod]]
-        for dqm_mrt in dqm_mrt_data[mod]:
-            create_it = True
-            if mod in db_mrt_data:
-                for db_mrt in db_mrt_data[mod]:
-                    if db_mrt.lower() in lc_dqm:
-                        create_it = False
-            if create_it:
-                logger.info("add %s %s to %s", mod, dqm_mrt, agr)
+        lc_db = []
+        if mod in db_mrt_data:
+            lc_db = [x.lower() for x in db_mrt_data[mod].keys()]
+        for ref_type in dqm_mrt_data[mod]:
+            if ref_type.lower() not in lc_db:
+                ## insert it
+                logger.info("add %s %s to %s", mod, ref_type, agr)
                 url = 'http://' + api_server + ':' + api_port + '/reference/mod_reference_type/'
                 new_entry = dict()
-                new_entry["reference_type"] = dqm_mrt
+                new_entry["reference_type"] = ref_type
                 new_entry["source"] = mod
                 new_entry["reference_curie"] = agr
                 headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
-                # process_post_tuple = process_post('POST', url, headers, new_entry, agr, mapping_fh, error_fh)    # noqa: F841
-        if mod in db_mrt_data:
-            lc_db_dict = {x.lower(): x for x in db_mrt_data[mod]}
-            lc_db = set(lc_db_dict.keys())
-            for db_mrt in db_mrt_data[mod]:
-                delete_it = True
-                for dqm_mrt in dqm_mrt_data[mod]:
-                    if dqm_mrt.lower() in lc_db:
-                        delete_it = False
-                if delete_it:
-                    mod_reference_type_id = str(db_mrt_data[mod][db_mrt])
-                    logger.info("remove %s %s from %s via %s", mod, db_mrt, agr, mod_reference_type_id)
-                    url = 'http://' + api_server + ':' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
-                    headers = generic_api_delete(live_changes, url, headers, None, agr, None, None)
-                    # process_post_tuple = process_post('DELETE', url, headers, None, agr, mapping_fh, error_fh)    # noqa: F841
+        if len(lc_db) == 0:
+            continue
+        for ref_type in db_mrt_data[mod]:
+            if ref_type.lower() not in lc_dqm:
+                mod_reference_type_id = db_mrt_data[mod][ref_type]
+                if mod_reference_type_id not in to_delete_duplicate_rows:
+                    to_delete_duplicate_rows.append((mod_reference_type_id, ref_type))
+
+    for row in to_delete_duplicate_rows:
+        (mod_reference_type_id, ref_type) = row
+        mod_reference_type_id = str(mod_reference_type_id)
+        logger.info("remove %s %s from %s via %s", mod, ref_type, agr, mod_reference_type_id)
+        url = 'http://' + api_server + ':' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
+        headers = generic_api_delete(live_changes, url, headers, None, agr, None, None)
+
     return headers
 
 
