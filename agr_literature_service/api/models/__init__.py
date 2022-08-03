@@ -22,6 +22,7 @@ from agr_literature_service.api.models.topic_entity_tag_model import (
     TopicEntityTagModel,
     TopicEntityTagPropModel
 )
+from agr_literature_service.api.models.mod_taxon_model import ModTaxonModel
 
 
 def initialize():

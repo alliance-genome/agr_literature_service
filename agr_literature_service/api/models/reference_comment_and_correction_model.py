@@ -6,7 +6,7 @@ reference_comment_and_correction_model.py
 
 from typing import Dict
 
-from sqlalchemy import Column, Enum, ForeignKey, Integer  # , UniqueConstraint
+from sqlalchemy import Column, Enum, ForeignKey, Integer, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -58,4 +58,4 @@ class ReferenceCommentAndCorrectionModel(Base):
         unique=False,
         nullable=False
     )
-    # UniqueConstraint('reference_id_from', 'reference_id_to', 'reference_comment_and_correction_type', name='rccm_uniq')
+    UniqueConstraint('reference_id_from', 'reference_id_to', 'reference_comment_and_correction_type', name='rccm_uniq')

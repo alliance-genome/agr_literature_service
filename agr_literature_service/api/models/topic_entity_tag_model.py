@@ -4,20 +4,19 @@ topic_entity_tag_model.py
 """
 
 
-from datetime import datetime
 from typing import Dict
 
-import pytz
-from sqlalchemy import (Column, DateTime, ForeignKey, Integer, String)
+from sqlalchemy import (Column, ForeignKey, Integer, String)
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
+from agr_literature_service.api.models.audited_model import AuditedModel
 
 enable_versioning()
 
 
-class TopicEntityTagModel(Base):
+class TopicEntityTagModel(AuditedModel, Base):
     __tablename__ = "topic_entity_tag"
     __versioned__: Dict = {}
 
@@ -89,36 +88,8 @@ class TopicEntityTagModel(Base):
         nullable=True
     )
 
-# date created - timestamp
-# date updated - timestamp
-    date_created = Column(
-        DateTime,
-        nullable=False,
-        default=datetime.now(tz=pytz.timezone("UTC"))
-    )
 
-    date_updated = Column(
-        DateTime,
-        nullable=True,
-        default=datetime.utcnow
-    )
-
-# created by - id from users table
-# updated by - id from users table
-    created_by = Column(
-        String,
-        ForeignKey("users.id"),
-        nullable=False
-    )
-
-    updated_by = Column(
-        String,
-        ForeignKey("users.id"),
-        nullable=True
-    )
-
-
-class TopicEntityTagPropModel(Base):
+class TopicEntityTagPropModel(AuditedModel, Base):
     __tablename__ = "topic_entity_tag_prop"
     __versioned__: Dict = {}
 
@@ -140,32 +111,4 @@ class TopicEntityTagPropModel(Base):
         String(),
         unique=False,
         nullable=False
-    )
-
-# date created - timestamp
-# date updated - timestamp
-    date_created = Column(
-        DateTime,
-        nullable=False,
-        default=datetime.now(tz=pytz.timezone("UTC"))
-    )
-
-    date_updated = Column(
-        DateTime,
-        nullable=True,
-        default=datetime.utcnow
-    )
-
-# created by - id from users table
-# updated by - id from users table
-    created_by = Column(
-        String,
-        ForeignKey("users.id"),
-        nullable=False
-    )
-
-    updated_by = Column(
-        String,
-        ForeignKey("users.id"),
-        nullable=True
     )
