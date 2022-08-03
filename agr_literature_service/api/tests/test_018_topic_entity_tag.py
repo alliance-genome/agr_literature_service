@@ -3,10 +3,10 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm.exc import NoResultFound
 
 from agr_literature_service.api.crud.topic_entity_tag_crud import (
-    create, show, patch
-    # create, destroy, patch, show, show_changesets)
+    create, show, patch, destroy
 )
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.database.base import Base
@@ -58,12 +58,10 @@ def test_initialise():
     }
     mod_create(db, data)
 
-    reference = ReferenceSchemaPost(title="Bob 018 1", category="thesis", abstract="3", language="MadeUp")
-    res = reference_create(db, reference)
-    refs.append(res)
-    reference = ReferenceSchemaPost(title="Bob 018 2", category="thesis", abstract="3", language="MadeUp")
-    res = reference_create(db, reference)
-    refs.append(res)
+    for title in ['Bob 018 1', 'Bob 018 2', 'Bob 018 3']:
+        reference = ReferenceSchemaPost(title=title, category="thesis", abstract="3", language="MadeUp")
+        res = reference_create(db, reference)
+        refs.append(res)
 
 
 def test_good_create_with_props():
@@ -72,7 +70,7 @@ def test_good_create_with_props():
         "topic": "Topic1",
         "entity_type": "Gene",
         "alliance_entity": "Bob_gene_name",
-        "species_id": 1234,
+        "taxon": 1234,
         "note": "Some Note",
         "created_by": "018_Bob",
         "props": [{"qualifier": "Quali1"},
@@ -89,7 +87,7 @@ def test_good_create_with_props():
     assert tet_obj.topic == "Topic1"
     assert tet_obj.entity_type == "Gene"
     assert tet_obj.alliance_entity == "Bob_gene_name"
-    assert tet_obj.species_id == 1234
+    assert tet_obj.taxon == 1234
     assert tet_obj.note == "Some Note"
 
     props = db.query(TopicEntityTagPropModel).\
@@ -117,7 +115,7 @@ def test_create_bad():
         "reference_curie": refs[0],
         "topic": "Topic1",
         "entity_type": "Gene",
-        "species_id": 1234,
+        "taxon": 1234,
         "created_by": "018_Bob",
     }
     # No Entitys
@@ -150,7 +148,7 @@ def test_create_bad():
     assert "Reference with curie BADCURIE does not exist" in str(excinfo)
 
     # No species
-    del xml["species_id"]
+    del xml["taxon"]
     xml["reference_curie"] = refs[0]
     with pytest.raises(ValidationError) as excinfo:
         schema = TopicEntityTagSchemaCreate(**xml)
@@ -164,7 +162,7 @@ def test_patch_with_props():
         "topic": "Topic2",
         "entity_type": "Gene2",
         "alliance_entity": "Bob_gene_name 2",
-        "species_id": 2345,
+        "taxon": 2345,
         "note": "Some Note",
         "created_by": "018_Bob",
         "props": [{"qualifier": "Quali1"},
@@ -196,7 +194,7 @@ def test_patch_with_props():
     res = show(db, tet_id)
     assert res["note"] == ""
 
-   # Change the note
+    # Change the note
     xml = {
         "note": None
     }
@@ -205,3 +203,34 @@ def test_patch_with_props():
 
     res = show(db, tet_id)
     assert res["note"] == None
+
+
+def test_delete_with_props():
+    xml = {
+        "reference_curie": refs[2],
+        "topic": "Topic3",
+        "entity_type": "Gene3",
+        "alliance_entity": "Bob_gene_name 3",
+        "taxon": 3456,
+        "note": "Some Note or other",
+        "created_by": "018_Bob",
+        "props": [{"qualifier": "Quali5"},
+                  {"qualifier": "Quali6"}]
+    }
+    schema = TopicEntityTagSchemaCreate(**xml)
+    tet_id = create(db, schema)
+    res = show(db, tet_id)
+
+    assert res["props"][0]["qualifier"] == "Quali5"
+    p1_id = res["props"][0]["topic_entity_tag_prop_id"]
+
+    # Delete the topic entity tag
+    destroy(db, tet_id)
+
+    # Make sure it is no longer there
+    with pytest.raises(NoResultFound):
+        db.query(TopicEntityTagModel).filter(TopicEntityTagModel.topic_entity_tag_id == tet_id).one()
+
+    # Check the prop is no longer there.
+    with pytest.raises(NoResultFound):
+        db.query(TopicEntityTagPropModel).filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == p1_id).one()

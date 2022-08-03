@@ -25,7 +25,7 @@ class ModSpeciesModel(Base):
     )
 
     # taxon_id
-    species_id = Column(
+    taxon = Column(
         Integer(),
         unique=True,
         nullable=False

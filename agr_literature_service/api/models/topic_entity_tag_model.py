@@ -77,7 +77,7 @@ class TopicEntityTagModel(Base):
     )
 
     # Taxon_id
-    species_id = Column(
+    taxon = Column(
         Integer(),
         unique=False,
         nullable=False
@@ -88,11 +88,6 @@ class TopicEntityTagModel(Base):
         unique=False,
         nullable=True
     )
-
-    # props = relationship(
-    #    "TopicEntityTagPropModel",
-    #    foreign_keys="TopicEntityTagModel.topic_entity_tag_id"
-    # )
 
 # date created - timestamp
 # date updated - timestamp
@@ -135,7 +130,7 @@ class TopicEntityTagPropModel(Base):
 
     topic_entity_tag_id = Column(
         Integer,
-        ForeignKey("topic_entity_tag.topic_entity_tag_id"),
+        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )

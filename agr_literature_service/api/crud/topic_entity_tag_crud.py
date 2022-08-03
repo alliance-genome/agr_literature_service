@@ -126,7 +126,7 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
                             detail=f"topic_entity_tag with topic_entity_tag_id {topic_entity_tag_id} not found")
 
     # Loop ONLY on the fields that were passed to patch before pydantic
-    # added a bunch of fileds with None values etc.
+    # added a bunch of fields with None values etc.
     for field in topic_entity_tag_update.__fields_set__:
         value = topic_entity_tag_data[field]
         if field == "reference_curie":
@@ -148,3 +148,16 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
                     db.commit()
         else:
             setattr(topic_entity_tag_db_obj, field, value)
+    return {"message": "updated"}
+
+
+def destroy(db: Session, topic_entity_tag_id: int):
+
+    topic_entity_tag = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
+    if not topic_entity_tag:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} is not available")
+    db.delete(topic_entity_tag)
+    db.commit()
+
+    return None

@@ -33,7 +33,7 @@ class TopicEntityTagSchemaCreate(BaseModel):
     alliance_entity: Optional[str] = None
     mod_entity: Optional[str] = None
     new_entity: Optional[str] = None
-    species_id: int
+    taxon: int
     note: Optional[str]
     date_created: Optional[str]
     date_updated: Optional[str]
@@ -49,7 +49,7 @@ class TopicEntityTagSchemaUpdate(BaseModel):
     alliance_entity: Optional[str] = None
     mod_entity: Optional[str] = None
     new_entity: Optional[str]
-    species_id: Optional[int]
+    taxon: Optional[int]
     note: Optional[str]
     date_created: Optional[str]
     date_updated: Optional[str]
@@ -65,7 +65,7 @@ class TopicEntityTagSchemaShow(BaseModel):
     alliance_entity: Optional[str] = None
     mod_entity: Optional[str] = None
     new_entity: Optional[str] = None
-    species_id: int
+    taxon: int
     note: Optional[str]
     date_created: str
     date_updated: Optional[str]
