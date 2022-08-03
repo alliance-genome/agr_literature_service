@@ -177,6 +177,7 @@ def test_patch_with_props():
     # change the reference
     xml = {
         "reference_curie": refs[0],
+        "updated_by": "018_Bob"
     }
     schema = TopicEntityTagSchemaUpdate(**xml)
     patch(db, tet_id, schema)
@@ -186,7 +187,8 @@ def test_patch_with_props():
 
     # Change the note
     xml = {
-        "note": ""
+        "note": "",
+        "updated_by": "018_Bob"
     }
     schema = TopicEntityTagSchemaUpdate(**xml)
     patch(db, tet_id, schema)
@@ -196,13 +198,15 @@ def test_patch_with_props():
 
     # Change the note
     xml = {
-        "note": None
+        "note": None,
+        "updated_by": "018_Bob"
     }
     schema = TopicEntityTagSchemaUpdate(**xml)
     patch(db, tet_id, schema)
 
     res = show(db, tet_id)
     assert res["note"] == None
+    assert res['updated_by'] == "018_Bob"
 
 
 def test_delete_with_props():

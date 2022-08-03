@@ -145,6 +145,7 @@ def test_patch_ref_ont():
 
     # change workflow_tag
     xml = {'workflow_tag_id': 'ont test patch',
+           'updated_by': '017_Bob',
            'mod_abbreviation': "017_RGD"}
 
     res = patch(db, ref_ont_obj.reference_workflow_tag_id, xml)

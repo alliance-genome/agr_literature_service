@@ -118,8 +118,7 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
     :return:
     """
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag_update)
-
-    add_default_update_keys(topic_entity_tag_data)
+    add_default_update_keys(db, topic_entity_tag_data)
     topic_entity_tag_db_obj = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
     if not topic_entity_tag_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -139,7 +138,7 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
                 topic_entity_tag_db_obj.reference = new_reference
         elif field == "props" and value:
             for prop in value:
-                add_default_update_keys(prop)
+                add_default_update_keys(db, prop)
                 prop_obj = db.query(TopicEntityTagPropModel).filter(TopicEntityTagPropModel.topic_entity_tag_id == prop["topic_entity_tag_id"]).one()
                 if prop_obj.qualifier != prop["qualifier"]:
                     prop_obj.qualifier = prop["qualifier"]
@@ -148,6 +147,12 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
                     db.commit()
         else:
             setattr(topic_entity_tag_db_obj, field, value)
+
+    # Becouse we added updated fields after pydantic they are not in the changed fields list
+    # So we want to do these separately now.
+    for field in ['updated_by', 'date_updated']:
+        setattr(topic_entity_tag_db_obj, field, topic_entity_tag_data[field])
+    db.commit()
     return {"message": "updated"}
 
 

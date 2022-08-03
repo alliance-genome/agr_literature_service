@@ -51,8 +51,7 @@ async def patch(topic_entity_tag_id: int,
                 user: OktaUser = db_user,
                 db: Session = db_session):
     set_global_user_id(db, user.id)
-    patch = request.dict(exclude_unset=True)
-    return topic_entity_tag_crud.patch(db, topic_entity_tag_id, patch)
+    return topic_entity_tag_crud.patch(db, topic_entity_tag_id, request)
 
 
 @router.get('/{topic_entity_tag_id}',
