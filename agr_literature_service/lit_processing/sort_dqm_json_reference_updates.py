@@ -927,8 +927,8 @@ def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):
             dqm_mrt_data[source].append(ref_type)
 
     db_mod_ref_types = []
-    if 'mod_reference_types' in db_entry:
-        db_mod_ref_types = db_entry['mod_reference_types']
+    if 'mod_reference_type' in db_entry:
+        db_mod_ref_types = db_entry['mod_reference_type']
 
     # for debugging changes
     # dqm_mod_ref_types_json = json.dumps(dqm_mod_ref_types, indent=4)
