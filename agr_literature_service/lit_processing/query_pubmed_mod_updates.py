@@ -206,19 +206,21 @@ def query_mods(input_mod, reldate):
         'FB': '&reldate=365',
         'ZFIN': '&reldate=730',
         'SGD': '&reldate=200',
-        'WB': '&reldate=1825'
+        'WB': '&reldate=1825',
+        'XB': '&reldate=365'
     }
     mod_false_positive_file = {
         'FB': 'FB_false_positive_pmids.txt',
         'WB': 'WB_false_positive_pmids.txt',
-        'SGD': 'SGD_false_positive_pmids.txt'
+        'SGD': 'SGD_false_positive_pmids.txt',
+        'XB': 'XB_false_positive_pmids.txt'
     }
     # source of WB FP file: https://tazendra.caltech.edu/~postgres/agr/lit/WB_false_positive_pmids
 
     # retrieve all cross_reference info from database
     xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
     db_session = next(get_db())
-    mods_to_query = ['ZFIN', 'WB', 'FB', 'SGD']
+    mods_to_query = ['ZFIN', 'WB', 'FB', 'SGD', 'XB']
     if input_mod in mods_to_query:
         mods_to_query = [input_mod]
     pmids_posted = set()     # type: Set
@@ -327,7 +329,7 @@ def query_mods(input_mod, reldate):
             upload_xml_file_to_s3(pmid)
 
     logger.info("Sending Report")
-    send_loading_report(pmids4mod, mods_to_query, log_path, log_url, not_loaded_pmids4mod)
+    send_loading_report(pmids4mod, mods_to_query, log_path, log_url, not_loaded_pmids4mod, json_filepath)
 
     # do not need to recursively process downloading errata and corrections, but if they exist, connect them.
     # take list of pmids that were posted to the database, look at their .json for corrections and connect to existing abc references.
@@ -338,7 +340,31 @@ def query_mods(input_mod, reldate):
     logger.info("end query_mods")
 
 
-def send_loading_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod):
+def clean_up_pmid_list(pmids4mod, json_file):
+
+    f = open(json_file)
+    json_data = json.load(f)
+    f.close()
+
+    is_new_pmid = {}
+
+    for x in json_data:
+        if x.get('crossReferences'):
+            for c in x['crossReferences']:
+                if c['id'].startswith('PMID:'):
+                    pmid = c['id'].replace('PMID:', '')
+                    is_new_pmid[pmid] = 1
+
+    for mod in pmids4mod:
+        new_pmids = []
+        for pmid in pmids4mod[mod]:
+            if pmid not in is_new_pmid:
+                continue
+            new_pmids.append(pmid)
+        pmids4mod[mod] = new_pmids
+
+
+def send_loading_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod, json_file):  # noqa: C901
 
     email_recipients = None
     if environ.get('CRONTAB_EMAIL'):
@@ -361,6 +387,10 @@ def send_loading_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod
 
     email_subject = "PubMed Paper Search Report"
     email_message = ""
+
+    if len(all_pmids) > 0:
+        clean_up_pmid_list(pmids4mod, json_file)
+        all_pmids = pmids4mod.get('all')
 
     if len(all_pmids) == 0:
 
