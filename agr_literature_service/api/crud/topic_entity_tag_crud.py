@@ -12,7 +12,11 @@ from agr_literature_service.api.models import (
     TopicEntityTagPropModel,
     ReferenceModel
 )
-from agr_literature_service.api.schemas import TopicEntityTagSchemaCreate
+from agr_literature_service.api.schemas import (
+    TopicEntityTagSchemaCreate,
+    TopicEntityTagPropSchemaCreate,
+    TopicEntityTagPropSchemaUpdate
+)
 from agr_literature_service.api.crud.utils import add_default_update_keys, add_default_create_keys
 
 
@@ -168,3 +172,66 @@ def destroy(db: Session, topic_entity_tag_id: int):
     db.commit()
 
     return None
+
+
+def create_prop(db: Session, topic_entity_tag_prop: TopicEntityTagPropSchemaCreate) -> int:
+    """
+    Create a new topic_entity_tag
+    :param db:
+    :param topic_entity_tag:
+    :return:
+    """
+
+    topic_entity_tag_prop_data = jsonable_encoder(topic_entity_tag_prop)
+    add_default_create_keys(db, topic_entity_tag_prop_data)
+    topic_entity_tag = db.query(TopicEntityTagModel).\
+        filter(TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_prop_data["topic_entity_tag_id"]).first()
+    if not topic_entity_tag:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_prop_data['topic_entity_tag_id']} is not available")
+
+    db_obj = TopicEntityTagPropModel(**topic_entity_tag_prop_data)
+    db.add(db_obj)
+    db.commit()
+    return db_obj.topic_entity_tag_prop_id
+
+
+def delete_prop(db: Session, topic_entity_tag_prop_id: int):
+    topic_entity_tag_prop = db.query(TopicEntityTagPropModel).\
+        filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == topic_entity_tag_prop_id).first()
+    if not topic_entity_tag_prop:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"topic_entity_tag_prop with the topic_entity_tag_id {topic_entity_tag_prop_id} is not available")
+
+    db.delete(topic_entity_tag_prop)
+    db.commit()
+
+    return None
+
+
+def update_prop(db: Session, topic_entity_tag_prop_id: int, topic_entity_tag_prop: TopicEntityTagPropSchemaUpdate):
+    prop_data = jsonable_encoder(topic_entity_tag_prop)
+    add_default_update_keys(db, prop_data)
+    prop_obj = db.query(TopicEntityTagPropModel).\
+        filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == topic_entity_tag_prop_id).first()
+    if not prop_obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"topic_entity_tag_prop with the topic_entity_tag_prop_id {topic_entity_tag_prop_id} is not available")
+
+    for field, value in prop_data.items():
+        print("Updating {} {} for {}".format(field, value, prop_obj))
+        if value:
+            setattr(prop_obj, field, value)
+    db.commit()
+    return {"message": "updated"}
+
+
+def show_prop(db: Session, topic_entity_tag_prop_id: int):
+    prop = db.query(TopicEntityTagPropModel).\
+        filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == topic_entity_tag_prop_id).first()
+    if not prop:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"topic_entity_tag_prop with the topic_entity_tag_id {topic_entity_tag_prop_id} is not available")
+
+    prop_data = jsonable_encoder(prop)
+    return prop_data

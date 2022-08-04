@@ -23,7 +23,7 @@ class TopicEntityTagPropSchemaShow(BaseModel):
 
 class TopicEntityTagPropSchemaUpdate(BaseModel):
     qualifier: str
-    topic_entity_tag_prop_id: int
+    topic_entity_tag_prop_id: Optional[int]
 
 
 class TopicEntityTagSchemaCreate(BaseModel):
@@ -33,7 +33,7 @@ class TopicEntityTagSchemaCreate(BaseModel):
     alliance_entity: Optional[str] = None
     mod_entity: Optional[str] = None
     new_entity: Optional[str] = None
-    taxon: int
+    taxon: str
     note: Optional[str]
     date_created: Optional[str]
     date_updated: Optional[str]
@@ -49,7 +49,7 @@ class TopicEntityTagSchemaUpdate(BaseModel):
     alliance_entity: Optional[str] = None
     mod_entity: Optional[str] = None
     new_entity: Optional[str]
-    taxon: Optional[int]
+    taxon: Optional[str]
     note: Optional[str]
     date_created: Optional[str]
     date_updated: Optional[str]
@@ -59,13 +59,14 @@ class TopicEntityTagSchemaUpdate(BaseModel):
 
 
 class TopicEntityTagSchemaShow(BaseModel):
+    topic_entity_tag_id: int
     reference_curie: str
     topic: str
     entity_type: str
     alliance_entity: Optional[str] = None
     mod_entity: Optional[str] = None
     new_entity: Optional[str] = None
-    taxon: int
+    taxon: str
     note: Optional[str]
     date_created: str
     date_updated: Optional[str]

@@ -77,7 +77,7 @@ class TopicEntityTagModel(AuditedModel, Base):
 
     # Taxon_id
     taxon = Column(
-        Integer(),
+        String(),
         unique=False,
         nullable=False
     )

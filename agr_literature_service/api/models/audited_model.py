@@ -19,16 +19,13 @@ class AuditedModel(object):
 
     date_updated = Column(
         DateTime,
-        nullable=True
+        nullable=True,
+        default=datetime.now(tz=pytz.timezone("UTC"))
     )
 
     # created by - id from users table
     # updated by - id from users table
-    # created_by = Column(
-    #    String,
-    #    ForeignKey("users.id"),
-    #    nullable=False
-    # )
+
     @declared_attr
     def created_by(cls):
         return Column('created_by', ForeignKey('users.id'))
@@ -36,8 +33,3 @@ class AuditedModel(object):
     @declared_attr
     def updated_by(cls):
         return Column('updated_by', ForeignKey('users.id'))
-    # updated_by = Column(
-    #     String,
-    #    ForeignKey("users.id"),
-    #    nullable=True
-    # )

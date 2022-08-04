@@ -6,7 +6,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.exc import NoResultFound
 
 from agr_literature_service.api.crud.topic_entity_tag_crud import (
-    create, show, patch, destroy
+    create, show, patch, destroy,
+    create_prop, show_prop, update_prop, delete_prop
 )
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.database.base import Base
@@ -14,11 +15,14 @@ from agr_literature_service.api.models import (TopicEntityTagModel,
                                                TopicEntityTagPropModel)
 from agr_literature_service.api.schemas import (
     TopicEntityTagSchemaCreate,
-    TopicEntityTagSchemaUpdate)
+    TopicEntityTagSchemaUpdate,
+    TopicEntityTagPropSchemaCreate,
+    TopicEntityTagPropSchemaUpdate)
 from agr_literature_service.api.crud.mod_crud import create as mod_create
 from agr_literature_service.api.crud.user_crud import create as user_create
 from agr_literature_service.api.crud.reference_crud import create as reference_create
 from agr_literature_service.api.schemas import ReferenceSchemaPost
+from agr_literature_service.api.user import set_global_user_id
 
 metadata = MetaData()
 
@@ -40,8 +44,12 @@ refs = []
 def test_initialise():
     global fb_mod
     global refs
-    # add User "017 Bob"
-    user_create(db, "018_Bob")
+
+    # add User "018_Bob"
+    user = user_create(db, "018_Bob")
+    # By adding set_global_user_id here we do not need to pass the 
+    # created_by and updated_by dict elements to the schema validators.
+    set_global_user_id(db, user.id)
 
     # add mods
     data = {
@@ -58,6 +66,7 @@ def test_initialise():
     }
     mod_create(db, data)
 
+    # Add references.
     for title in ['Bob 018 1', 'Bob 018 2', 'Bob 018 3']:
         reference = ReferenceSchemaPost(title=title, category="thesis", abstract="3", language="MadeUp")
         res = reference_create(db, reference)
@@ -70,7 +79,7 @@ def test_good_create_with_props():
         "topic": "Topic1",
         "entity_type": "Gene",
         "alliance_entity": "Bob_gene_name",
-        "taxon": 1234,
+        "taxon": "NCBITaxon:1234",
         "note": "Some Note",
         "created_by": "018_Bob",
         "props": [{"qualifier": "Quali1"},
@@ -87,7 +96,7 @@ def test_good_create_with_props():
     assert tet_obj.topic == "Topic1"
     assert tet_obj.entity_type == "Gene"
     assert tet_obj.alliance_entity == "Bob_gene_name"
-    assert tet_obj.taxon == 1234
+    assert tet_obj.taxon == "NCBITaxon:1234"
     assert tet_obj.note == "Some Note"
 
     props = db.query(TopicEntityTagPropModel).\
@@ -115,7 +124,7 @@ def test_create_bad():
         "reference_curie": refs[0],
         "topic": "Topic1",
         "entity_type": "Gene",
-        "taxon": 1234,
+        "taxon": "NCBITaxon:1234",
         "created_by": "018_Bob",
     }
     # No Entitys
@@ -162,7 +171,7 @@ def test_patch_with_props():
         "topic": "Topic2",
         "entity_type": "Gene2",
         "alliance_entity": "Bob_gene_name 2",
-        "taxon": 2345,
+        "taxon": "NCBITaxon:2345",
         "note": "Some Note",
         "created_by": "018_Bob",
         "props": [{"qualifier": "Quali1"},
@@ -205,7 +214,7 @@ def test_patch_with_props():
     patch(db, tet_id, schema)
 
     res = show(db, tet_id)
-    assert res["note"] == None
+    assert not res["note"]
     assert res['updated_by'] == "018_Bob"
     assert res["props"][0]["qualifier"] == 'Quali1'
     assert res["props"][1]["qualifier"] == 'Quali2'
@@ -232,7 +241,7 @@ def test_delete_with_props():
         "topic": "Topic3",
         "entity_type": "Gene3",
         "alliance_entity": "Bob_gene_name 3",
-        "taxon": 3456,
+        "taxon": "NCBITaxon:3456",
         "note": "Some Note or other",
         "created_by": "018_Bob",
         "props": [{"qualifier": "Quali5"},
@@ -255,3 +264,63 @@ def test_delete_with_props():
     # Check the prop is no longer there.
     with pytest.raises(NoResultFound):
         db.query(TopicEntityTagPropModel).filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == p1_id).one()
+
+
+def test_props():
+    xml = {
+        "reference_curie": refs[0],
+        "topic": "Topicpropadd",
+        "entity_type": "Gene",
+        "alliance_entity": "tgcnp",
+        "taxon": "NCBITaxon:1234",
+        "note": "Some other Note",
+        "created_by": "018_Bob",
+    }
+    schema = TopicEntityTagSchemaCreate(**xml)
+    tet_id = create(db, schema)
+
+    # Create the prop
+    prop_xml = {
+        "qualifier": "New Q1",
+        "topic_entity_tag_id": tet_id
+    }
+    schema = TopicEntityTagPropSchemaCreate(**prop_xml)
+    tetp_id = create_prop(db, schema)
+
+    res = show(db, tet_id)
+
+    assert res["props"][0]["qualifier"] == "New Q1"
+    assert res["props"][0]["topic_entity_tag_prop_id"] == tetp_id
+
+    # show the prop
+    res = show_prop(db, tetp_id)
+    assert res["qualifier"] == "New Q1"
+    assert res["topic_entity_tag_prop_id"] == tetp_id
+
+    # Update the prop
+    update_xml = {
+        "qualifier": "Another Q"
+    }
+    schema = TopicEntityTagPropSchemaUpdate(**update_xml)
+    update_prop(db, tetp_id, schema)
+
+    res = show_prop(db, tetp_id)
+    assert res["qualifier"] == "Another Q"
+    assert res["topic_entity_tag_prop_id"] == tetp_id
+
+    # delete the prop
+    delete_prop(db, tetp_id)
+
+    # check it is not there via sql alchemy
+    with pytest.raises(NoResultFound):
+        db.query(TopicEntityTagPropModel).filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == tetp_id).one()
+
+    # check with show
+    with pytest.raises(HTTPException) as excinfo:
+        show_prop(db, tetp_id)
+    assert "topic_entity_tag_prop with the topic_entity_tag_id {} is not available".format(tetp_id) in str(excinfo)
+
+    # try deleting again.
+    with pytest.raises(HTTPException) as excinfo:
+        delete_prop(db, tetp_id)
+    assert "topic_entity_tag_prop with the topic_entity_tag_id {} is not available".format(tetp_id) in str(excinfo)
