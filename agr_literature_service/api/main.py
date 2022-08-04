@@ -22,7 +22,8 @@ from agr_literature_service.api.routers import (author_router, bulk_downloads_ro
                                                 reference_comment_and_correction_router,
                                                 reference_router, resource_descriptor_router,
                                                 resource_router, search_router,
-                                                workflow_tag_router, topic_entity_tag_router)
+                                                workflow_tag_router, topic_entity_tag_router,
+                                                topic_entity_tag_prop_router)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-p', '--port', type=int, help='Port to run the server on', default=8080, nargs='?')
@@ -90,6 +91,7 @@ app.include_router(mod_corpus_association_router.router)
 app.include_router(search_router.router)
 app.include_router(workflow_tag_router.router)
 app.include_router(topic_entity_tag_router.router)
+app.include_router(topic_entity_tag_prop_router.router)
 
 app.add_api_route("/health", health([is_database_online]))
 
