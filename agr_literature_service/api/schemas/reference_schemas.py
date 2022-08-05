@@ -14,7 +14,8 @@ from agr_literature_service.api.schemas import (AuthorSchemaPost, AuthorSchemaSh
                                                 ReferenceCommentAndCorrectionSchemaRelated,
                                                 ModCorpusAssociationSchemaRelated,
                                                 WorkflowTagSchemaShow,
-                                                WorkflowTagSchemaRelated)
+                                                WorkflowTagSchemaRelated,
+                                                TopicEntityTagSchemaShow)
 
 
 class ReferenceSchemaPost(BaseModel):
@@ -137,6 +138,7 @@ class ReferenceSchemaShow(BaseModelShow):
     open_access: Optional[bool] = None
     citation: Optional[str] = None
     workflow_tags: Optional[List[WorkflowTagSchemaShow]] = None
+    topic_entity_tag: Optional[List[TopicEntityTagSchemaShow]] = None
 
 
 class ReferenceSchemaNeedReviewShow(BaseModel):

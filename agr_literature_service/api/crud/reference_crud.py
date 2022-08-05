@@ -27,9 +27,10 @@ from agr_literature_service.api.schemas import ReferenceSchemaPost
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.workflow_tag_crud import (
     create as create_workflow_tag,
-    patch as update_workflow_tag)
-from agr_literature_service.api.crud.workflow_tag_crud import show as show_workflow_tag
-
+    patch as update_workflow_tag,
+    show as show_workflow_tag
+)
+from agr_literature_service.api.crud.topic_entity_tag_crud import show as show_topic_entity_tag
 logger = logging.getLogger(__name__)
 
 
@@ -349,6 +350,12 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         for ont in reference.workflow_tag:
             ont_json = show_workflow_tag(db, ont.reference_workflow_tag_id)
             reference_data["workflow_tags"].append(ont_json)
+
+    reference_data["topic_entity_tags"] = []
+    if reference.topic_entity_tags:
+        for tet in reference.topic_entity_tags:
+            tet_json = show_topic_entity_tag(db, tet.topic_entity_tag_id)
+            reference_data["topic_entity_tags"].append(tet_json)
 
     if reference.mesh_term:
         for mesh_term in reference_data["mesh_term"]:

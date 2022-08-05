@@ -20,7 +20,9 @@ from agr_literature_service.api.schemas import (
     TopicEntityTagPropSchemaUpdate)
 from agr_literature_service.api.crud.mod_crud import create as mod_create
 from agr_literature_service.api.crud.user_crud import create as user_create
-from agr_literature_service.api.crud.reference_crud import create as reference_create
+from agr_literature_service.api.crud.reference_crud import (
+    create as reference_create,
+    show as reference_show)
 from agr_literature_service.api.schemas import ReferenceSchemaPost
 from agr_literature_service.api.user import set_global_user_id
 
@@ -47,7 +49,7 @@ def test_initialise():
 
     # add User "018_Bob"
     user = user_create(db, "018_Bob")
-    # By adding set_global_user_id here we do not need to pass the 
+    # By adding set_global_user_id here we do not need to pass the
     # created_by and updated_by dict elements to the schema validators.
     set_global_user_id(db, user.id)
 
@@ -324,3 +326,8 @@ def test_props():
     with pytest.raises(HTTPException) as excinfo:
         delete_prop(db, tetp_id)
     assert "topic_entity_tag_prop with the topic_entity_tag_id {} is not available".format(tetp_id) in str(excinfo)
+
+    # Now lets check via the reference
+    res = reference_show(db, refs[0])
+    print(res["topic_entity_tags"])
+    assert res["topic_entity_tags"][0]["props"][0]["topic_entity_tag_prop_id"] != 0
