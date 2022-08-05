@@ -20,6 +20,7 @@ enable_versioning()
 class ReferenceCommentAndCorrectionModel(Base):
     __tablename__ = "reference_comments_and_corrections"
     __versioned__: Dict = {}
+    __table_args__ = (UniqueConstraint('reference_id_from', 'reference_id_to', 'reference_comment_and_correction_type', name='rccm_uniq'),)
 
     reference_comment_and_correction_id = Column(
         Integer,
@@ -58,4 +59,3 @@ class ReferenceCommentAndCorrectionModel(Base):
         unique=False,
         nullable=False
     )
-    UniqueConstraint('reference_id_from', 'reference_id_to', 'reference_comment_and_correction_type', name='rccm_uniq')
