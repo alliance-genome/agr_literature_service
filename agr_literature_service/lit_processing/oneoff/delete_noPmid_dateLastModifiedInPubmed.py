@@ -45,6 +45,7 @@ for x in rows:
                 remove_count = remove_count + 1
                 logger.info(f"Remove dlmip {y.date_last_modified_in_pubmed} from reference_id {x[0]}")
                 y.date_last_modified_in_pubmed = None
+                db_session.add(y)
         except Exception as e:
             logger.info("Error occurred when deleting dlmip from " + str(x[0]) + " " + str(e))
         # if try_count > 2:
