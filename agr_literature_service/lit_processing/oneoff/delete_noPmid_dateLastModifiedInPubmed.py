@@ -46,10 +46,19 @@ for x in rows:
                 logger.info(f"Remove dlmip {y.date_last_modified_in_pubmed} from reference_id {x[0]}")
                 y.date_last_modified_in_pubmed = None
                 db_session.add(y)
+                if remove_count % 100 == 0:
+                    db_session.commit()
+                if remove_count % 1000 == 0:
+                    db_connection.close()
+# this might help ?
+#                     engine.dispose()
+#                     engine = create_postgres_engine(False)
+                    db_connection = engine.connect()
+
         except Exception as e:
             logger.info("Error occurred when deleting dlmip from " + str(x[0]) + " " + str(e))
-        # if try_count > 2:
-        #     break
+#         if try_count > 1000:
+#             break
 
 logger.info(str(try_count) + " references to try to remove dlmip")
 logger.info(str(try_count) + " references removed dlmip")
