@@ -307,8 +307,6 @@ def query_mods(input_mod, reldate):
         not_loaded_pmids4mod[mod] = not_loaded_pmids
         for pmid in pmids_to_process:
             pmids_posted.add(pmid)
-            pmids4mod[mod].add(pmid)
-            pmids4mod['all'].add(pmid)
 
         inject_object = {}
         mod_corpus_associations = [{"modAbbreviation": mod, "modCorpusSortSource": "mod_pubmed_search", "corpus": None}]
@@ -328,8 +326,10 @@ def query_mods(input_mod, reldate):
             # logger.info(f"upload {pmid} to s3")
             upload_xml_file_to_s3(pmid)
 
+        set_pmid_list(mod, pmids4mod, json_filepath)
+
     logger.info("Sending Report")
-    send_loading_report(pmids4mod, mods_to_query, log_path, log_url, not_loaded_pmids4mod, json_filepath)
+    send_loading_report(pmids4mod, mods_to_query, log_path, log_url, not_loaded_pmids4mod)
 
     # do not need to recursively process downloading errata and corrections, but if they exist, connect them.
     # take list of pmids that were posted to the database, look at their .json for corrections and connect to existing abc references.
@@ -340,31 +340,22 @@ def query_mods(input_mod, reldate):
     logger.info("end query_mods")
 
 
-def clean_up_pmid_list(pmids4mod, json_file):
+def set_pmid_list(mod, pmids4mod, json_file):
 
     f = open(json_file)
     json_data = json.load(f)
     f.close()
-
-    is_new_pmid = {}
 
     for x in json_data:
         if x.get('crossReferences'):
             for c in x['crossReferences']:
                 if c['id'].startswith('PMID:'):
                     pmid = c['id'].replace('PMID:', '')
-                    is_new_pmid[pmid] = 1
-
-    for mod in pmids4mod:
-        new_pmids = []
-        for pmid in pmids4mod[mod]:
-            if pmid not in is_new_pmid:
-                continue
-            new_pmids.append(pmid)
-        pmids4mod[mod] = new_pmids
+                    pmids4mod['all'].add(pmid)
+                    pmids4mod[mod].add(pmid)
 
 
-def send_loading_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod, json_file):  # noqa: C901
+def send_loading_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod):
 
     email_recipients = None
     if environ.get('CRONTAB_EMAIL'):
@@ -387,10 +378,6 @@ def send_loading_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod
 
     email_subject = "PubMed Paper Search Report"
     email_message = ""
-
-    if len(all_pmids) > 0:
-        clean_up_pmid_list(pmids4mod, json_file)
-        all_pmids = pmids4mod.get('all')
 
     if len(all_pmids) == 0:
 
