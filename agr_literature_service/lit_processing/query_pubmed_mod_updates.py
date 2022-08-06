@@ -316,7 +316,7 @@ def query_mods(input_mod, reldate):
 
         # generate json to post for these pmids and inject data not from pubmed
         sanitize_pubmed_json_list(pmids_to_process, [inject_object])
-        
+
         # post generated json to api
         json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_PMID.json'
         process_results = post_references(json_filepath, 'no_file_check')
@@ -327,7 +327,7 @@ def query_mods(input_mod, reldate):
             upload_xml_file_to_s3(pmid)
 
         set_pmid_list(mod, pmids4mod, json_filepath)
-            
+
     logger.info("Sending Report")
     send_loading_report(pmids4mod, mods_to_query, log_path, log_url, not_loaded_pmids4mod)
 
