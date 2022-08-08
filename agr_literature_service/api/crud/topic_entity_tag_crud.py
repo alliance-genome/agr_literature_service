@@ -145,7 +145,14 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
                 if "updated_by" in topic_entity_tag_data:
                     prop["updated_by"] = topic_entity_tag_data["updated_by"]
                 add_default_update_keys(db, prop)
-                prop_obj = db.query(TopicEntityTagPropModel).filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == prop["topic_entity_tag_prop_id"]).one()
+                if "topic_entity_tag_prop_id" not in prop or not prop["topic_entity_tag_prop_id"]:
+                    xml = {"topic_entity_tag_id": topic_entity_tag_db_obj.topic_entity_tag_id,
+                           "qualifier": prop['qualifier'],
+                           "created_by": topic_entity_tag_data["created_by"]}
+                    add_default_create_keys(db, xml)
+                    prop_obj = TopicEntityTagPropModel(**xml)
+                else:
+                    prop_obj = db.query(TopicEntityTagPropModel).filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == prop["topic_entity_tag_prop_id"]).one()
                 if prop_obj.qualifier != prop["qualifier"]:
                     prop_obj.qualifier = prop["qualifier"]
                     prop_obj.updated_by = prop["updated_by"]

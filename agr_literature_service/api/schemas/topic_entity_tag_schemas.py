@@ -23,7 +23,7 @@ class TopicEntityTagPropSchemaShow(BaseModel):
 
 class TopicEntityTagPropSchemaUpdate(BaseModel):
     qualifier: str
-    topic_entity_tag_prop_id: Optional[int]
+    topic_entity_tag_prop_id: Optional[int] = 0
 
 
 class TopicEntityTagSchemaCreate(BaseModel):
