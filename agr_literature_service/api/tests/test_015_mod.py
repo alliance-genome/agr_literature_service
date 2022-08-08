@@ -31,7 +31,7 @@ def test_get_bad_mod():
 def test_create_mod():
 
     data = {
-        "abbreviation": 'AtDB',
+        "abbreviation": '0015_AtDB',
         "short_name": "AtDB",
         "full_name": "Test genome database"
     }
@@ -39,8 +39,8 @@ def test_create_mod():
     res = create(db, data)
     assert res
 
-    mod = db.query(ModModel).filter_by(abbreviation="AtDB").one()
-    assert mod.short_name == "0015_AtDB"
+    mod = db.query(ModModel).filter_by(abbreviation="0015_AtDB").one()
+    assert mod.short_name == "AtDB"
     assert mod.full_name == "Test genome database"
 
 
