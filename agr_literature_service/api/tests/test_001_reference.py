@@ -28,12 +28,6 @@ Base.metadata.create_all(engine)
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
-db.execute('delete from cross_reference')
-db.execute('delete from author')
-db.execute('delete from editor')
-db.execute('delete from "reference"')
-db.execute('delete from resource')
-
 fb_mod = None
 refs = []
 

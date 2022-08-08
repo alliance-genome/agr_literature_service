@@ -3,11 +3,14 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy_continuum import Operation
 
 from agr_literature_service.api.crud.reference_crud import create, show, merge_references, patch
-# from agr_literature_service.api.routers.reference_router import create as router_create
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.database.base import Base
-from agr_literature_service.api.schemas import ReferenceSchemaPost, ReferenceSchemaUpdate
+from agr_literature_service.api.schemas import (
+    ReferenceSchemaPost, ReferenceSchemaUpdate, ResourceSchemaPost)
 from agr_literature_service.api.models import ReferenceModel
+from agr_literature_service.api.crud.user_crud import create as user_create
+from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.crud.resource_crud import create as resource_create
 
 metadata = MetaData()
 
@@ -22,8 +25,26 @@ Base.metadata.create_all(engine)
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
+ress = []
+
+
+def test_initialise():
+    global refs
+
+    # add User "013_Bob"
+    user = user_create(db, "013_Bob")
+    # By adding set_global_user_id here we do not need to pass the
+    # created_by and updated_by dict elements to the schema validators.
+    set_global_user_id(db, user.id)
+
+    # Add resources.
+    for title in ['Bob 013 1', 'Bob 013 2', 'Bob 013 3']:
+        Resource = ResourceSchemaPost(title=title, abstract="3", open_access=True)
+        ress.append(resource_create(db, Resource))
+
 
 def test_reference_merging():
+    global ress
     full_xml = {
         "category": "research_article",
         "abstract": "013 - abs A",
@@ -35,7 +56,7 @@ def test_reference_merging():
                 "orcid": 'ORCID:1111-2222-3333-444X'  # New
             }
         ],
-        "resource": 'AGR:AGR-Resource-0000000001',
+        "resource": ress[0],
         "title": "Another title",
         "volume": "013a",
         "open_access": True
@@ -113,7 +134,7 @@ def test_reference_merging():
         assert results[0][2] == results[1][0]
 
         # final Transaction_id is none
-        assert results[2][2] == None
+        assert results[2][2] is None
 
         # check category changed
         assert results[0][3] != results[1][3]
@@ -129,6 +150,6 @@ def test_reference_merging():
     sec_ver = first_ver.next
     assert sec_ver.category == 'other'
 
-    ########################################    
+    ########################################
     # 3) changesets, see test_001_reference.
     ########################################
