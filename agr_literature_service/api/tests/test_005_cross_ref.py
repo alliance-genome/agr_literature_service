@@ -3,14 +3,21 @@ from fastapi import HTTPException
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import sessionmaker
 
-from agr_literature_service.api.crud.cross_reference_crud import (create, destroy, patch, show,
-                                                  show_changesets)
+from agr_literature_service.api.crud.cross_reference_crud import (
+    create, destroy, patch, show, show_changesets)
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 # from agr_literature_service.api import models
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models import CrossReferenceModel
 from agr_literature_service.api.schemas import (CrossReferenceSchemaPost,
-                                                CrossReferenceSchemaUpdate)
+                                                CrossReferenceSchemaUpdate,
+                                                ReferenceSchemaPost,
+                                                ResourceSchemaPost)
+from agr_literature_service.api.crud.mod_crud import create as mod_create
+from agr_literature_service.api.crud.user_crud import create as user_create
+from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.crud.reference_crud import create as reference_create
+from agr_literature_service.api.crud.resource_crud import create as resource_create
 
 metadata = MetaData()
 
@@ -25,6 +32,46 @@ Base.metadata.create_all(engine)
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
+# (refs, ress, fb_mod) = initialise(db, '005')
+refs = []
+ress = []
+fb_mod = []
+
+
+def test_initialise():
+    global fb_mod
+    global refs
+
+    # add User "005_Bob"
+    user = user_create(db, "005_Bob")
+    # By adding set_global_user_id here we do not need to pass the
+    # created_by and updated_by dict elements to the schema validators.
+    set_global_user_id(db, user.id)
+
+    # add mods
+    data = {
+        "abbreviation": '005_FB',
+        "short_name": "005_FB",
+        "full_name": "005_ont_1"
+    }
+    fb_mod = mod_create(db, data)
+
+    data = {
+        "abbreviation": '005_RGD',
+        "short_name": "005_Rat",
+        "full_name": "005_ont_2"
+    }
+    mod_create(db, data)
+
+    # Add references.
+    for title in ['Bob 005 1', 'Bob 005 2', 'Bob 005 3']:
+        reference = ReferenceSchemaPost(title=title, category="thesis", abstract="3", language="MadeUp")
+        res = reference_create(db, reference)
+        refs.append(res)
+
+        Resource = ResourceSchemaPost(title=title, abstract="3", open_access=True)
+        ress.append(resource_create(db, Resource))
+
 
 def test_get_bad_xref():
 
@@ -33,11 +80,13 @@ def test_get_bad_xref():
 
 
 def test_create_xref():
+    global refs
+    global ress
 
     db.execute("INSERT INTO resource_descriptors  (db_prefix, name, default_url) VALUES ('XREF', 'Madeup', 'http://www.bob.com/[%s]')")
     db.commit()
 
-    xml = {"curie": 'XREF:123456', "reference_curie": 'AGR:AGR-Reference-0000000001', "pages": ["reference"]}
+    xml = {"curie": 'XREF:123456', "reference_curie": refs[0], "pages": ["reference"]}
     xref_schema = CrossReferenceSchemaPost(**xml)
     res = create(db, xref_schema)
     assert res
@@ -45,12 +94,12 @@ def test_create_xref():
     # check db for xref
     xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "XREF:123456").one()
     assert xref.curie == "XREF:123456"
-    assert xref.reference.curie == 'AGR:AGR-Reference-0000000001'
+    assert xref.reference.curie == refs[0]
     # what has it stored for pages?
     assert xref.pages == ["reference"]
 
     # Now do a resource one
-    xml = {"curie": 'XREF:anoth', "resource_curie": 'AGR:AGR-Resource-0000000001'}
+    xml = {"curie": 'XREF:anoth', "resource_curie": ress[0]}
     xref_schema = CrossReferenceSchemaPost(**xml)
     res = create(db, xref_schema)
     assert res
@@ -59,7 +108,7 @@ def test_create_xref():
     xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "XREF:anoth").one()
     assert xref.curie == "XREF:anoth"
     assert not xref.reference
-    assert xref.resource.curie == 'AGR:AGR-Resource-0000000001'
+    assert xref.resource.curie == ress[0]
 
     xml = {"curie": 'XREF:no_ref_res'}
     with pytest.raises(HTTPException):
@@ -68,21 +117,22 @@ def test_create_xref():
 
 
 def test_create_again_bad():
+    global refs
     with pytest.raises(HTTPException):
-        xml = {"curie": 'XREF:123456', "reference_curie": 'AGR:AGR-Reference-0000000001'}
+        xml = {"curie": 'XREF:123456', "reference_curie": refs[0]}
         create(db, xml)
 
 
 def test_show_xref():
     res = show(db, "XREF:123456")
     assert res['curie'] == "XREF:123456"
-    assert res['reference_curie'] == 'AGR:AGR-Reference-0000000001'
+    assert res['reference_curie'] == refs[0]
 
 
 def test_patch_xref():
     xref_schema = CrossReferenceSchemaUpdate(is_obsolete=True,
                                              pages=["different"],
-                                             reference_curie="AGR:AGR-Reference-0000000001")
+                                             reference_curie=refs[0])
     res = patch(db, "XREF:123456", xref_schema)
     assert res['message'] == "updated"
     xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "XREF:123456").one()

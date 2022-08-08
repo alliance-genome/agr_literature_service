@@ -138,7 +138,7 @@ class ReferenceSchemaShow(BaseModelShow):
     open_access: Optional[bool] = None
     citation: Optional[str] = None
     workflow_tags: Optional[List[WorkflowTagSchemaShow]] = None
-    topic_entity_tag: Optional[List[TopicEntityTagSchemaShow]] = None
+    topic_entity_tags: Optional[List[TopicEntityTagSchemaShow]] = None
 
 
 class ReferenceSchemaNeedReviewShow(BaseModel):
