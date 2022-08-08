@@ -188,7 +188,10 @@ def test_patch_with_props():
     # change the reference
     xml = {
         "reference_curie": refs[0],
-        "updated_by": "018_Bob"
+        "updated_by": "018_Bob",
+        "props": [
+            {"qualifier": "NEW one"}
+        ]
     }
     schema = TopicEntityTagSchemaUpdate(**xml)
     patch(db, tet_id, schema)
@@ -220,6 +223,7 @@ def test_patch_with_props():
     assert res['updated_by'] == "018_Bob"
     assert res["props"][0]["qualifier"] == 'Quali1'
     assert res["props"][1]["qualifier"] == 'Quali2'
+    assert res["props"][2]["qualifier"] == 'NEW one'
 
     # change the prop?
     xml = {

@@ -151,6 +151,7 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
                            "created_by": topic_entity_tag_data["created_by"]}
                     add_default_create_keys(db, xml)
                     prop_obj = TopicEntityTagPropModel(**xml)
+                    db.add(prop_obj)
                 else:
                     prop_obj = db.query(TopicEntityTagPropModel).filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == prop["topic_entity_tag_prop_id"]).one()
                 if prop_obj.qualifier != prop["qualifier"]:

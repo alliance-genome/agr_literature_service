@@ -25,6 +25,16 @@ class TopicEntityTagPropSchemaUpdate(BaseModel):
     qualifier: str
     topic_entity_tag_prop_id: Optional[int] = 0
 
+    class Config():
+        orm_mode = True
+        extra = "forbid"
+        schema_extra = {
+            "example": {
+                "topic_entity_tag_prop_id": 1,
+                "qualifier": "Q1"
+            }
+        }
+
 
 class TopicEntityTagSchemaCreate(BaseModel):
     reference_curie: str
