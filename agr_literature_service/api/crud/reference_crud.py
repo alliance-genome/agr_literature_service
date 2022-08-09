@@ -454,24 +454,17 @@ def merge_comments_and_corrections(db, old_reference_id, new_reference_id, old_c
         for x in db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=old_reference_id).all():
             y = db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=new_reference_id, reference_id_to=x.reference_id_to, reference_comment_and_correction_type=x.reference_comment_and_correction_type).one_or_none()
             if y is None:
-                ## insert new row for new paper
-                data = {'reference_id_from': new_reference_id,
-                        'reference_id_to': x.reference_id_to,
-                        'reference_comment_and_correction_type': x.reference_comment_and_correction_type}
-                rcc_obj = ReferenceCommentAndCorrectionModel(**data)
-                db.add(rcc_obj)
-
-            ## delete old row for obsolete paper
-            db.delete(x)
+                x.reference_id_from = new_reference_id
+                db.add(x)
+            else:
+                db.delete(x)
         for x in db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_to=old_reference_id).all():
             y = db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=x.reference_id_from, reference_id_to=new_reference_id, reference_comment_and_correction_type=x.reference_comment_and_correction_type).one_or_none()
             if y is None:
-                data = {'reference_id_from': x.reference_id_from,
-                        'reference_id_to': new_reference_id,
-                        'reference_comment_and_correction_type': x.reference_comment_and_correction_type}
-                rcc_obj = ReferenceCommentAndCorrectionModel(**data)
-                db.add(rcc_obj)
-            db.delete(x)
+                x.reference_id_to = new_reference_id
+                db.add(x)
+            else:
+                db.delete(x)
     except Exception as e:
         logger.warning("An error occurred when tranferring the comments/corrections from " + old_curie + " to " + new_curie + " : " + str(e))
 
