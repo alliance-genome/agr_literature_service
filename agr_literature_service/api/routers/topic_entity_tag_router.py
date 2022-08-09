@@ -1,0 +1,62 @@
+from fastapi import APIRouter, Depends, Response, Security, status
+from fastapi_okta import OktaUser
+from sqlalchemy.orm import Session
+
+from agr_literature_service.api import database
+from agr_literature_service.api.crud import topic_entity_tag_crud
+from agr_literature_service.api.routers.authentication import auth
+from agr_literature_service.api.schemas import (TopicEntityTagSchemaShow,
+                                                TopicEntityTagSchemaUpdate,
+                                                TopicEntityTagSchemaCreate,
+                                                ResponseMessageSchema)
+from agr_literature_service.api.user import set_global_user_id
+
+router = APIRouter(
+    prefix="/topic_entity_tag",
+    tags=['Topic Entity Tag']
+)
+
+
+get_db = database.get_db
+db_session: Session = Depends(get_db)
+db_user = Security(auth.get_user)
+
+
+@router.post('/',
+             status_code=status.HTTP_201_CREATED,
+             response_model=str)
+def create(request: TopicEntityTagSchemaCreate,
+           user: OktaUser = db_user,
+           db: Session = db_session):
+    set_global_user_id(db, user.id)
+    return topic_entity_tag_crud.create(db, request)
+
+
+@router.delete('/{topic_entity_tag_id}',
+               status_code=status.HTTP_204_NO_CONTENT)
+def destroy(topic_entity_tag_id: int,
+            user: OktaUser = db_user,
+            db: Session = db_session):
+    set_global_user_id(db, user.id)
+    topic_entity_tag_crud.destroy(db, topic_entity_tag_id)
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch('/{topic_entity_tag_id}',
+              status_code=status.HTTP_202_ACCEPTED,
+              response_model=ResponseMessageSchema)
+async def patch(topic_entity_tag_id: int,
+                request: TopicEntityTagSchemaUpdate,
+                user: OktaUser = db_user,
+                db: Session = db_session):
+    set_global_user_id(db, user.id)
+    return topic_entity_tag_crud.patch(db, topic_entity_tag_id, request)
+
+
+@router.get('/{topic_entity_tag_id}',
+            response_model=TopicEntityTagSchemaShow,
+            status_code=200)
+def show(topic_entity_tag_id: int,
+         db: Session = db_session):
+    return topic_entity_tag_crud.show(db, topic_entity_tag_id)

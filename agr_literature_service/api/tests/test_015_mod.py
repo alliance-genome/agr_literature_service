@@ -21,8 +21,6 @@ Base.metadata.create_all(engine)
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
-db.execute('delete from mod')
-
 
 def test_get_bad_mod():
 
@@ -33,7 +31,7 @@ def test_get_bad_mod():
 def test_create_mod():
 
     data = {
-        "abbreviation": 'AtDB',
+        "abbreviation": '0015_AtDB',
         "short_name": "AtDB",
         "full_name": "Test genome database"
     }
@@ -41,29 +39,29 @@ def test_create_mod():
     res = create(db, data)
     assert res
 
-    mod = db.query(ModModel).filter_by(abbreviation="AtDB").one()
+    mod = db.query(ModModel).filter_by(abbreviation="0015_AtDB").one()
     assert mod.short_name == "AtDB"
     assert mod.full_name == "Test genome database"
 
 
 def test_update_mod():
 
-    data = {"abbreviation": "AtDB",
+    data = {"abbreviation": "0015_AtDB",
             "short_name": "AtDB2",
             "full_name": "Test genome database2"}
 
-    mod = db.query(ModModel).filter_by(abbreviation="AtDB").one()
+    mod = db.query(ModModel).filter_by(abbreviation="0015_AtDB").one()
     res = patch(db, mod.mod_id, data)
     assert res
 
-    mod2 = db.query(ModModel).filter_by(abbreviation="AtDB").one()
+    mod2 = db.query(ModModel).filter_by(abbreviation="0015_AtDB").one()
     assert mod.mod_id == mod2.mod_id
     assert mod2.full_name == "Test genome database2"
 
 
 def test_show_mod():
 
-    mod = db.query(ModModel).filter_by(abbreviation="AtDB").one()
+    mod = db.query(ModModel).filter_by(abbreviation="0015_AtDB").one()
     res = show(db, mod.abbreviation)
 
     assert res["full_name"] == "Test genome database2"
@@ -71,13 +69,13 @@ def test_show_mod():
 
 def test_changesets():
 
-    mod = db.query(ModModel).filter_by(abbreviation="AtDB").one()
+    mod = db.query(ModModel).filter_by(abbreviation="0015_AtDB").one()
     show_changesets(db, mod.mod_id)
 
 
 def test_destroy_mod():
 
-    mod = db.query(ModModel).filter_by(abbreviation="AtDB").one()
+    mod = db.query(ModModel).filter_by(abbreviation="0015_AtDB").one()
     destroy(db, mod.mod_id)
 
     # it should now give an error on lookup.

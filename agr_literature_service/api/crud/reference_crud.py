@@ -27,9 +27,14 @@ from agr_literature_service.api.schemas import ReferenceSchemaPost
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.workflow_tag_crud import (
     create as create_workflow_tag,
-    patch as update_workflow_tag)
-from agr_literature_service.api.crud.workflow_tag_crud import show as show_workflow_tag
-
+    patch as update_workflow_tag,
+    show as show_workflow_tag
+)
+from agr_literature_service.api.crud.topic_entity_tag_crud import (
+    show as show_topic_entity_tag,
+    patch as update_topic_entity_tag,
+    create as create_topic_entity_tag
+)
 logger = logging.getLogger(__name__)
 
 
@@ -76,7 +81,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
 
     logger.debug("creating reference")
     logger.debug(reference)
-    add_separately_fields = ["mod_corpus_associations", "workflow_tags"]
+    add_separately_fields = ["mod_corpus_associations", "workflow_tags", "topic_entity_tags"]
     list_fields = ["authors", "mod_reference_types", "tags", "mesh_terms", "cross_references"]
     remap = {'authors': 'author',
              'mesh_terms': 'mesh_term',
@@ -155,7 +160,6 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
     db.add(reference_db_obj)
     logger.debug("saved")
     db.commit()
-
     for field, value in vars(reference).items():
         logger.debug("Processing mod corpus asso")
         if field == "mod_corpus_associations":
@@ -180,6 +184,19 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                             create_workflow_tag(db, obj_data)
                     except HTTPException:
                         logger.warning("skipping workflow_tag to a mod that is already associated to "
+                                       "the reference")
+        elif field == "topic_entity_tags":
+            if value is not None:
+                for obj in value:
+                    obj_data = jsonable_encoder(obj)
+                    obj_data["reference_curie"] = curie
+                    try:
+                        if "reference_topic_entity_tag_id" in obj_data and obj_data["reference_topic_entity_tag_id"]:
+                            update_topic_entity_tag(db, obj_data["reference_topic_entity_tag_id"], obj_data)
+                        else:
+                            create_topic_entity_tag(db, obj_data)
+                    except HTTPException:
+                        logger.warning("skipping topic_entity_tag as that is already associated to "
                                        "the reference")
     return curie
 
@@ -349,6 +366,12 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         for ont in reference.workflow_tag:
             ont_json = show_workflow_tag(db, ont.reference_workflow_tag_id)
             reference_data["workflow_tags"].append(ont_json)
+
+    reference_data["topic_entity_tags"] = []
+    if reference.topic_entity_tags:
+        for tet in reference.topic_entity_tags:
+            tet_json = show_topic_entity_tag(db, tet.topic_entity_tag_id)
+            reference_data["topic_entity_tags"].append(tet_json)
 
     if reference.mesh_term:
         for mesh_term in reference_data["mesh_term"]:

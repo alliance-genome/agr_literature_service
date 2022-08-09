@@ -230,6 +230,12 @@ class ReferenceModel(Base):
         back_populates="reference"
     )
 
+    topic_entity_tags = relationship(
+        "TopicEntityTagModel",
+        foreign_keys="TopicEntityTagModel.reference_id",
+        back_populates="reference"
+    )
+
     def __str__(self):
         """
         Overwrite the default output.

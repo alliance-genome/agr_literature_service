@@ -10,8 +10,14 @@ from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models import (ReferenceCommentAndCorrectionModel,
                                                ReferenceModel)
-from agr_literature_service.api.schemas import (ReferenceCommentAndCorrectionSchemaPatch,
-                                                ReferenceCommentAndCorrectionSchemaPost)
+from agr_literature_service.api.schemas import (ReferenceCommentAndCorrectionSchemaPost)
+from agr_literature_service.api.schemas import ReferenceSchemaPost
+
+from agr_literature_service.api.crud.mod_crud import create as mod_create
+from agr_literature_service.api.crud.user_crud import create as user_create
+from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.crud.reference_crud import (
+    create as reference_create)
 
 metadata = MetaData()
 
@@ -26,6 +32,41 @@ Base.metadata.create_all(engine)
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
+fb_mod = None
+refs = []
+
+
+def test_initialise():
+    global fb_mod
+    global refs
+
+    # add User "006_Bob"
+    user = user_create(db, "006_Bob")
+    # By adding set_global_user_id here we do not need to pass the
+    # created_by and updated_by dict elements to the schema validators.
+    set_global_user_id(db, user.id)
+
+    # add mods
+    data = {
+        "abbreviation": '006_FB',
+        "short_name": "006_FB",
+        "full_name": "006_ont_1"
+    }
+    fb_mod = mod_create(db, data)
+
+    data = {
+        "abbreviation": '006_RGD',
+        "short_name": "006_Rat",
+        "full_name": "006_ont_2"
+    }
+    mod_create(db, data)
+
+    # Add references.
+    for title in ['Bob 006 1', 'Bob 006 2', 'Bob 006 3']:
+        reference = ReferenceSchemaPost(title=title, category="thesis", abstract="3", language="MadeUp")
+        res = reference_create(db, reference)
+        refs.append(res)
+
 
 def test_get_bad_rcc():
     with pytest.raises(HTTPException):
@@ -33,28 +74,30 @@ def test_get_bad_rcc():
 
 
 def test_bad_missing_args():
-    xml = {'reference_curie_from': "AGR:AGR-Reference-0000000001",
+    global refs
+    xml = {'reference_curie_from': refs[0],
            'reference_comment_and_correction_type': "CommentOn"}
     with pytest.raises(ValidationError):  # ref_cur_to missing
         rcc_schema = ReferenceCommentAndCorrectionSchemaPost(**xml)
         create(db, rcc_schema)
 
-    xml = {'reference_curie_to': "AGR:AGR-Reference-0000000001",
+    xml = {'reference_curie_to': refs[0],
            'reference_comment_and_correction_type': "CommentOn"}
     with pytest.raises(ValidationError):  # ref_cur_to missing
         rcc_schema = ReferenceCommentAndCorrectionSchemaPost(**xml)
         create(db, rcc_schema)
 
-    xml = {'reference_curie_from': "AGR:AGR-Reference-0000000001",
-           'reference_curie_to': "AGR:AGR-Reference-0000000003"}
+    xml = {'reference_curie_from': refs[0],
+           'reference_curie_to': refs[1]}
     with pytest.raises(ValidationError):  # ref_cur_to missing
         rcc_schema = ReferenceCommentAndCorrectionSchemaPost(**xml)
         create(db, rcc_schema)
 
 
 def test_create_rcc():
-    xml = {'reference_curie_from': "AGR:AGR-Reference-0000000001",
-           'reference_curie_to': "AGR:AGR-Reference-0000000003",
+    global refs
+    xml = {'reference_curie_from': refs[0],
+           'reference_curie_to': refs[1],
            'reference_comment_and_correction_type': "CommentOn"}
     rcc_schema = ReferenceCommentAndCorrectionSchemaPost(**xml)
     res = create(db, rcc_schema)
@@ -64,20 +107,21 @@ def test_create_rcc():
     rcc_obj = db.query(ReferenceCommentAndCorrectionModel).\
         join(ReferenceModel,
              ReferenceCommentAndCorrectionModel.reference_id_from == ReferenceModel.reference_id).\
-        filter(ReferenceModel.curie == "AGR:AGR-Reference-0000000001").one()
-    assert rcc_obj.reference_to.curie == "AGR:AGR-Reference-0000000003"
+        filter(ReferenceModel.curie == refs[0]).one()
+    assert rcc_obj.reference_to.curie == refs[1]
     assert rcc_obj.reference_comment_and_correction_type == "CommentOn"
 
 
 def test_patch_rcc():
+    global refs
     rcc_obj: ReferenceCommentAndCorrectionModel = db.query(ReferenceCommentAndCorrectionModel).\
         join(ReferenceModel,
              ReferenceCommentAndCorrectionModel.reference_id_from == ReferenceModel.reference_id).\
-        filter(ReferenceModel.curie == "AGR:AGR-Reference-0000000001").one()
+        filter(ReferenceModel.curie == refs[0]).one()
 
     # swap to and from and change correction type
-    xml = {'reference_curie_from': "AGR:AGR-Reference-0000000003",
-           'reference_curie_to': "AGR:AGR-Reference-0000000001",
+    xml = {'reference_curie_from': refs[1],
+           'reference_curie_to': refs[0],
            'reference_comment_and_correction_type': "ReprintOf"}
 
     res = patch(db, rcc_obj.reference_comment_and_correction_id, xml)
@@ -85,50 +129,55 @@ def test_patch_rcc():
 
     rcc_obj: ReferenceCommentAndCorrectionModel = db.query(ReferenceCommentAndCorrectionModel).\
         filter(ReferenceCommentAndCorrectionModel.reference_comment_and_correction_id == rcc_obj.reference_comment_and_correction_id).one()
-    assert rcc_obj.reference_to.curie == "AGR:AGR-Reference-0000000001"
-    assert rcc_obj.reference_from.curie == "AGR:AGR-Reference-0000000003"
+    assert rcc_obj.reference_to.curie == refs[0]
+    assert rcc_obj.reference_from.curie == refs[1]
     assert rcc_obj.reference_comment_and_correction_type == "ReprintOf"
 
 
 def test_show_rcc():
+    global refs
     rcc_obj: ReferenceCommentAndCorrectionModel = db.query(ReferenceCommentAndCorrectionModel).\
         join(ReferenceModel,
              ReferenceCommentAndCorrectionModel.reference_id_from == ReferenceModel.reference_id).\
-        filter(ReferenceModel.curie == "AGR:AGR-Reference-0000000003").one()
+        filter(ReferenceModel.curie == refs[1]).one()
     res = show(db, rcc_obj.reference_comment_and_correction_id)
 
-    assert res['reference_curie_to'] == "AGR:AGR-Reference-0000000001"
-    assert res['reference_curie_from'] == 'AGR:AGR-Reference-0000000003'
+    assert res['reference_curie_to'] == refs[0]
+    assert res['reference_curie_from'] == refs[1]
     assert res['reference_comment_and_correction_type'] == "ReprintOf"
 
 
 def test_changesets():
+    global refs
     rcc_obj: ReferenceCommentAndCorrectionModel = db.query(ReferenceCommentAndCorrectionModel).\
         join(ReferenceModel,
              ReferenceCommentAndCorrectionModel.reference_id_from == ReferenceModel.reference_id).\
-        filter(ReferenceModel.curie == "AGR:AGR-Reference-0000000003").one()
+        filter(ReferenceModel.curie == refs[1]).one()
     res = show_changesets(db, rcc_obj.reference_comment_and_correction_id)
 
-    # reference_id_from      : None -> 1 -> 3
-    # reference_id_to        : None -> 3 -> 1
-
+    # reference_id_from      : None -> orig -> new
+    from_id = db.query(ReferenceModel).filter(ReferenceModel.curie == refs[0]).one().reference_id
+    # reference_id_to        : None -> new -> orig
+    to_id = db.query(ReferenceModel).filter(ReferenceModel.curie == refs[1]).one().reference_id
     for transaction in res:
         print(transaction)
+        print("from {}, to {}".format(from_id, to_id))
         if not transaction['changeset']['reference_id_from'][0]:
-            assert transaction['changeset']['reference_id_from'][1] == 1
-            assert transaction['changeset']['reference_id_to'][1] == 3
+            assert transaction['changeset']['reference_id_from'][1] == from_id
+            assert transaction['changeset']['reference_id_to'][1] == to_id
             assert transaction['changeset']['reference_comment_and_correction_type'][1] == "CommentOn"
         else:
-            assert transaction['changeset']['reference_id_from'][1] == 3
-            assert transaction['changeset']['reference_id_to'][1] == 1
+            assert transaction['changeset']['reference_id_from'][1] == to_id
+            assert transaction['changeset']['reference_id_to'][1] == from_id
             assert transaction['changeset']['reference_comment_and_correction_type'][1] == "ReprintOf"
 
 
 def test_destroy_rcc():
+    global refs
     rcc_obj: ReferenceCommentAndCorrectionModel = db.query(ReferenceCommentAndCorrectionModel).\
         join(ReferenceModel,
              ReferenceCommentAndCorrectionModel.reference_id_from == ReferenceModel.reference_id).\
-        filter(ReferenceModel.curie == "AGR:AGR-Reference-0000000003").one()
+        filter(ReferenceModel.curie == refs[1]).one()
     destroy(db, rcc_obj.reference_comment_and_correction_id)
 
     # It should now give an error on lookup.

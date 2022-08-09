@@ -108,7 +108,7 @@ def test_good_blank_args():
         filter(ReferenceModel.curie == refs[1]).one()
     assert ref_ont_obj.workflow_tag_id == "ont tgma"
     assert ref_ont_obj.created_by == "017_Bob"
-    assert ref_ont_obj.mod_id == None
+    assert not ref_ont_obj.mod_id
 
     res = show(db, ref_ont_obj.reference_workflow_tag_id)
     assert res["workflow_tag_id"] == "ont tgma"
@@ -145,6 +145,7 @@ def test_patch_ref_ont():
 
     # change workflow_tag
     xml = {'workflow_tag_id': 'ont test patch',
+           'updated_by': '017_Bob',
            'mod_abbreviation': "017_RGD"}
 
     res = patch(db, ref_ont_obj.reference_workflow_tag_id, xml)
@@ -180,7 +181,7 @@ def test_changesets():
         print("Test changesets 017: {}".format(transaction))
         if 'reference_workflow_tag_id' in transaction['changeset']:
             assert transaction['changeset']['workflow_tag_id'][1] == 'ont1'
-            assert transaction['changeset']['mod_id'][0] == None
+            assert not transaction['changeset']['mod_id'][0]
         else:
             assert transaction['changeset']['workflow_tag_id'][0] == 'ont1'
             assert transaction['changeset']['workflow_tag_id'][1] == 'ont test patch'

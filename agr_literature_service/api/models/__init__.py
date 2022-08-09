@@ -18,6 +18,11 @@ from agr_literature_service.api.models.resource_model import ResourceModel
 from agr_literature_service.api.models.user_model import UserModel
 from agr_literature_service.api.models.obsolete_model import ObsoleteReferenceModel
 from agr_literature_service.api.models.workflow_tag_model import WorkflowTagModel
+from agr_literature_service.api.models.topic_entity_tag_model import (
+    TopicEntityTagModel,
+    TopicEntityTagPropModel
+)
+from agr_literature_service.api.models.mod_taxon_model import ModTaxonModel
 
 
 def initialize():
