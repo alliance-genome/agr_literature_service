@@ -21,6 +21,7 @@ from agr_literature_service.api.crud.reference_resource import create_obj
 from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                MeshDetailModel, ModReferenceTypeModel,
                                                ObsoleteReferenceModel,
+                                               ReferenceCommentAndCorrectionModel,
                                                ReferenceModel,
                                                ResourceModel)
 from agr_literature_service.api.schemas import ReferenceSchemaPost
@@ -423,6 +424,9 @@ def merge_references(db: Session,
     old_ref = db.query(ReferenceModel).filter(ReferenceModel.curie == old_curie).first()
     new_ref = db.query(ReferenceModel).filter(ReferenceModel.curie == new_curie).first()
 
+    merge_comments_and_corrections(db, old_ref.reference_id, new_ref.reference_id,
+                                   old_curie, new_curie)
+
     # Check if old_curie is already in the obsolete table (It may have been merged itself)
     # by looking for it in the new_id column.
     # If so then we also want to update that to the new_id.
@@ -442,6 +446,34 @@ def merge_references(db: Session,
     db.delete(old_ref)
     db.commit()
     return new_curie
+
+
+def merge_comments_and_corrections(db, old_reference_id, new_reference_id, old_curie, new_curie):
+
+    try:
+        for x in db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=old_reference_id).all():
+            y = db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=new_reference_id, reference_id_to=x.reference_id_to, reference_comment_and_correction_type=x.reference_comment_and_correction_type).one_or_none()
+            if y is None:
+                ## insert new row for new paper
+                data = {'reference_id_from': new_reference_id,
+                        'reference_id_to': x.reference_id_to,
+                        'reference_comment_and_correction_type': x.reference_comment_and_correction_type}
+                rcc_obj = ReferenceCommentAndCorrectionModel(**data)
+                db.add(rcc_obj)
+
+            ## delete old row for obsolete paper
+            db.delete(x)
+        for x in db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_to=old_reference_id).all():
+            y = db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=x.reference_id_from, reference_id_to=new_reference_id, reference_comment_and_correction_type=x.reference_comment_and_correction_type).one_or_none()
+            if y is None:
+                data = {'reference_id_from': x.reference_id_from,
+                        'reference_id_to': new_reference_id,
+                        'reference_comment_and_correction_type': x.reference_comment_and_correction_type}
+                rcc_obj = ReferenceCommentAndCorrectionModel(**data)
+                db.add(rcc_obj)
+            db.delete(x)
+    except Exception as e:
+        logger.warning("An error occurred when tranferring the comments/corrections from " + old_curie + " to " + new_curie + " : " + str(e))
 
 
 def get_citation_from_args(authorNames, year, title, journal, volume, issue, page_range):
