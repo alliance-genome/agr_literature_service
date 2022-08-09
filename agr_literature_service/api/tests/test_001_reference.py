@@ -232,6 +232,15 @@ def test_reference_large():
                 "created_by": "001_Bob"
             }
         ],
+        "topic_entity_tags": [
+            {
+                "topic": "string",
+                "entity_type": "string",
+                "alliance_entity": "string",
+                "taxon": "string",
+                "note": "string"
+            }
+        ],
         "issue_name": "4",
         "language": "English",
         "page_range": "538--541",

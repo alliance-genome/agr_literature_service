@@ -52,6 +52,22 @@ class TopicEntityTagSchemaCreate(BaseModel):
     props: Optional[List[TopicEntityTagPropSchemaCreate]] = None
 
 
+class TopicEntityTagSchemaRelated(BaseModel):
+    reference_curie: Optional[str]
+    topic: str
+    entity_type: str
+    alliance_entity: Optional[str] = None
+    mod_entity: Optional[str] = None
+    new_entity: Optional[str] = None
+    taxon: str
+    note: Optional[str]
+    date_created: Optional[str]
+    date_updated: Optional[str]
+    created_by: Optional[str]
+    updated_by: Optional[str]
+    props: Optional[List[TopicEntityTagPropSchemaCreate]] = None
+
+
 class TopicEntityTagSchemaUpdate(BaseModel):
     reference_curie: Optional[str] = None
     topic: Optional[str] = ""

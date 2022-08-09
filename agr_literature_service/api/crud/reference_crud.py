@@ -30,7 +30,11 @@ from agr_literature_service.api.crud.workflow_tag_crud import (
     patch as update_workflow_tag,
     show as show_workflow_tag
 )
-from agr_literature_service.api.crud.topic_entity_tag_crud import show as show_topic_entity_tag
+from agr_literature_service.api.crud.topic_entity_tag_crud import (
+    show as show_topic_entity_tag,
+    patch as update_topic_entity_tag,
+    create as create_topic_entity_tag
+)
 logger = logging.getLogger(__name__)
 
 
@@ -77,7 +81,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
 
     logger.debug("creating reference")
     logger.debug(reference)
-    add_separately_fields = ["mod_corpus_associations", "workflow_tags"]
+    add_separately_fields = ["mod_corpus_associations", "workflow_tags", "topic_entity_tags"]
     list_fields = ["authors", "mod_reference_types", "tags", "mesh_terms", "cross_references"]
     remap = {'authors': 'author',
              'mesh_terms': 'mesh_term',
@@ -156,7 +160,6 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
     db.add(reference_db_obj)
     logger.debug("saved")
     db.commit()
-
     for field, value in vars(reference).items():
         logger.debug("Processing mod corpus asso")
         if field == "mod_corpus_associations":
@@ -181,6 +184,19 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                             create_workflow_tag(db, obj_data)
                     except HTTPException:
                         logger.warning("skipping workflow_tag to a mod that is already associated to "
+                                       "the reference")
+        elif field == "topic_entity_tags":
+            if value is not None:
+                for obj in value:
+                    obj_data = jsonable_encoder(obj)
+                    obj_data["reference_curie"] = curie
+                    try:
+                        if "reference_topic_entity_tag_id" in obj_data and obj_data["reference_topic_entity_tag_id"]:
+                            update_topic_entity_tag(db, obj_data["reference_topic_entity_tag_id"], obj_data)
+                        else:
+                            create_topic_entity_tag(db, obj_data)
+                    except HTTPException:
+                        logger.warning("skipping topic_entity_tag as that is already associated to "
                                        "the reference")
     return curie
 

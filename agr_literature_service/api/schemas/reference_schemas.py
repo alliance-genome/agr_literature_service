@@ -16,6 +16,7 @@ from agr_literature_service.api.schemas import (AuthorSchemaPost, AuthorSchemaSh
                                                 WorkflowTagSchemaShow,
                                                 WorkflowTagSchemaRelated,
                                                 TopicEntityTagSchemaShow)
+from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated
 
 
 class ReferenceSchemaPost(BaseModel):
@@ -44,6 +45,7 @@ class ReferenceSchemaPost(BaseModel):
     resource: Optional[str] = None
     open_access: Optional[bool] = None
     workflow_tags: Optional[List[WorkflowTagSchemaRelated]] = None
+    topic_entity_tags: Optional[List[TopicEntityTagSchemaRelated]] = None
 
     class Config():
         orm_mode = True
