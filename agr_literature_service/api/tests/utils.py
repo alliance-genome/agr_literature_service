@@ -25,7 +25,8 @@ def initialise(db: Session, test_str: str):
         "short_name": "{}_FB".format(test_str),
         "full_name": "{}_ont_1".format(test_str)
     }
-    mod_create(db, data)
+
+    mod_create(db, data)  # type: ignore 
     mods.append('{}_FB'.format(test_str))
 
     data = {
@@ -33,7 +34,7 @@ def initialise(db: Session, test_str: str):
         "short_name": "{}_Rat".format(test_str),
         "full_name": "{}_ont_2".format(test_str)
     }
-    mod_create(db, data)
+    mod_create(db, data)  # type: ignore
     mods.append('{}_RGD'.format(test_str))
 
     # Add references and resource

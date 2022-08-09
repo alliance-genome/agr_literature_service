@@ -26,11 +26,6 @@ Base.metadata.create_all(engine)
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
-# (refs, ress, fb_mod) = initialise(db, '005')
-refs = []
-ress = []
-fb_mod = []
-
 
 (refs, ress, mods, okta_user) = utils.initialise(db, '005')
 
