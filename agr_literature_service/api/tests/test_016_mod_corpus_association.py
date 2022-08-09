@@ -25,7 +25,7 @@ if "literature-test" not in SQLALCHEMY_DATABASE_URL:
 test_source = 'Mod_pubmed_search'
 test_source2 = 'Assigned_for_review'
 
-(refs, ress, mods) = utils.initialise(db, '016')
+(refs, ress, mods, okta_user) = utils.initialise(db, '016')
 
 
 def get_ids():

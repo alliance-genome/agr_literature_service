@@ -23,7 +23,7 @@ Base.metadata.create_all(engine)
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
-(refs, ress, mods) = utils.initialise(db, '013')
+(refs, ress, mods, okta_user) = utils.initialise(db, '013')
 
 
 def test_reference_merging():

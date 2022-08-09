@@ -16,6 +16,7 @@ def initialise(db: Session, test_str: str):
     # By adding set_global_user_id here we do not need to pass the
     # created_by and updated_by dict elements to the schema validators.
     set_global_user_id(db, user.id)
+    okta_user = user.id
 
     # add mods
     mods = []
@@ -24,14 +25,16 @@ def initialise(db: Session, test_str: str):
         "short_name": "{}_FB".format(test_str),
         "full_name": "{}_ont_1".format(test_str)
     }
-    mods.append(mod_create(db, data))
+    mod_create(db, data)
+    mods.append('{}_FB'.format(test_str))
 
     data = {
         "abbreviation": '{}_RGD'.format(test_str),
         "short_name": "{}_Rat".format(test_str),
         "full_name": "{}_ont_2".format(test_str)
     }
-    mods.append(mod_create(db, data))
+    mod_create(db, data)
+    mods.append('{}_RGD'.format(test_str))
 
     # Add references and resource
     refs = []
@@ -44,4 +47,4 @@ def initialise(db: Session, test_str: str):
         resource = ResourceSchemaPost(title=title, abstract="3", open_access=True)
         res = resource_create(db, resource)
         ress.append(res)
-    return (refs, ress, mods)
+    return (refs, ress, mods, okta_user)

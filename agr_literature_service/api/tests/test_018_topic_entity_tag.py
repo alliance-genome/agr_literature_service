@@ -36,7 +36,7 @@ if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
 
-(refs, ress, mods) = utils.initialise(db, '018')
+(refs, ress, mods, okta_user) = utils.initialise(db, '018')
 
 
 def test_good_create_with_props():

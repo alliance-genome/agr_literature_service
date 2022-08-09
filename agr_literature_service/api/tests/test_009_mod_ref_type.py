@@ -27,7 +27,7 @@ if "literature-test" not in SQLALCHEMY_DATABASE_URL:
 
 mrt_id = None
 
-(refs, ress, mods) = utils.initialise(db, '009')
+(refs, ress, mods, okta_user) = utils.initialise(db, '009')
 
 
 def test_get_bad_mrt():

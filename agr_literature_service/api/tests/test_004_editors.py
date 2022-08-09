@@ -28,7 +28,7 @@ if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
 
-(refs, ress, mods) = utils.initialise(db, '004')
+(refs, ress, mods, okta_user) = utils.initialise(db, '004')
 
 
 def test_get_bad_editor():

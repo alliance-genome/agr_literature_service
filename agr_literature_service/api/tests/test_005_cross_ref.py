@@ -32,7 +32,7 @@ ress = []
 fb_mod = []
 
 
-(refs, ress, mods) = utils.initialise(db, '005')
+(refs, ress, mods, okta_user) = utils.initialise(db, '005')
 
 
 def test_get_bad_xref():
