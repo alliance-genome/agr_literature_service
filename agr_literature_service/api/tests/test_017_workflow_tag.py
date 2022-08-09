@@ -11,10 +11,7 @@ from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models import (WorkflowTagModel,
                                                ReferenceModel)
 from agr_literature_service.api.schemas import WorkflowTagSchemaCreate
-from agr_literature_service.api.crud.mod_crud import create as mod_create
-from agr_literature_service.api.crud.user_crud import create as user_create
-from agr_literature_service.api.crud.reference_crud import create as reference_create
-from agr_literature_service.api.schemas import ReferenceSchemaPost
+from agr_literature_service.api.tests import utils
 
 metadata = MetaData()
 
@@ -29,37 +26,8 @@ Base.metadata.create_all(engine)
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
-fb_mod = None
-refs = []
 
-
-def test_initialise():
-    global fb_mod
-    global refs
-    # add User "017 Bob"
-    user_create(db, "017_Bob")
-
-    # add mods
-    data = {
-        "abbreviation": '017_FB',
-        "short_name": "017_FB",
-        "full_name": "017_ont_1"
-    }
-    fb_mod = mod_create(db, data)
-
-    data = {
-        "abbreviation": '017_RGD',
-        "short_name": "017_Rat",
-        "full_name": "017_ont_2"
-    }
-    mod_create(db, data)
-
-    reference = ReferenceSchemaPost(title="Bob1", category="thesis", abstract="3", language="MadeUp")
-    res = reference_create(db, reference)
-    refs.append(res)
-    reference = ReferenceSchemaPost(title="Bob2", category="thesis", abstract="3", language="MadeUp")
-    res = reference_create(db, reference)
-    refs.append(res)
+(refs, ress, mods) = utils.initialise(db, '017')
 
 
 def test_get_bad_ref_ont():

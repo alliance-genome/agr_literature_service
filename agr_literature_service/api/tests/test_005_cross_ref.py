@@ -10,14 +10,8 @@ from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models import CrossReferenceModel
 from agr_literature_service.api.schemas import (CrossReferenceSchemaPost,
-                                                CrossReferenceSchemaUpdate,
-                                                ReferenceSchemaPost,
-                                                ResourceSchemaPost)
-from agr_literature_service.api.crud.mod_crud import create as mod_create
-from agr_literature_service.api.crud.user_crud import create as user_create
-from agr_literature_service.api.user import set_global_user_id
-from agr_literature_service.api.crud.reference_crud import create as reference_create
-from agr_literature_service.api.crud.resource_crud import create as resource_create
+                                                CrossReferenceSchemaUpdate)
+from agr_literature_service.api.tests import utils
 
 metadata = MetaData()
 
@@ -38,39 +32,7 @@ ress = []
 fb_mod = []
 
 
-def test_initialise():
-    global fb_mod
-    global refs
-
-    # add User "005_Bob"
-    user = user_create(db, "005_Bob")
-    # By adding set_global_user_id here we do not need to pass the
-    # created_by and updated_by dict elements to the schema validators.
-    set_global_user_id(db, user.id)
-
-    # add mods
-    data = {
-        "abbreviation": '005_FB',
-        "short_name": "005_FB",
-        "full_name": "005_ont_1"
-    }
-    fb_mod = mod_create(db, data)
-
-    data = {
-        "abbreviation": '005_RGD',
-        "short_name": "005_Rat",
-        "full_name": "005_ont_2"
-    }
-    mod_create(db, data)
-
-    # Add references.
-    for title in ['Bob 005 1', 'Bob 005 2', 'Bob 005 3']:
-        reference = ReferenceSchemaPost(title=title, category="thesis", abstract="3", language="MadeUp")
-        res = reference_create(db, reference)
-        refs.append(res)
-
-        Resource = ResourceSchemaPost(title=title, abstract="3", open_access=True)
-        ress.append(resource_create(db, Resource))
+(refs, ress, mods) = utils.initialise(db, '005')
 
 
 def test_get_bad_xref():
