@@ -6,11 +6,9 @@ from agr_literature_service.api.crud.reference_crud import create, show, merge_r
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.schemas import (
-    ReferenceSchemaPost, ReferenceSchemaUpdate, ResourceSchemaPost)
+    ReferenceSchemaPost, ReferenceSchemaUpdate)
 from agr_literature_service.api.models import ReferenceModel
-from agr_literature_service.api.crud.user_crud import create as user_create
-from agr_literature_service.api.user import set_global_user_id
-from agr_literature_service.api.crud.resource_crud import create as resource_create
+from agr_literature_service.api.tests import utils
 
 metadata = MetaData()
 
@@ -25,22 +23,7 @@ Base.metadata.create_all(engine)
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
-ress = []
-
-
-def test_initialise():
-    global refs
-
-    # add User "013_Bob"
-    user = user_create(db, "013_Bob")
-    # By adding set_global_user_id here we do not need to pass the
-    # created_by and updated_by dict elements to the schema validators.
-    set_global_user_id(db, user.id)
-
-    # Add resources.
-    for title in ['Bob 013 1', 'Bob 013 2', 'Bob 013 3']:
-        Resource = ResourceSchemaPost(title=title, abstract="3", open_access=True)
-        ress.append(resource_create(db, Resource))
+(refs, ress, mods, okta_user) = utils.initialise(db, '013')
 
 
 def test_reference_merging():

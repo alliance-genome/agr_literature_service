@@ -19,27 +19,32 @@ db = SessionLocal()
 if "literature-test" not in SQLALCHEMY_DATABASE_URL:
     exit(-1)
 
+ress = []
+
 
 def test_get_bad_Resource():
-
     with pytest.raises(HTTPException):
         show(db, "PMID:VQEVEQRVC")
 
 
 def test_create_Resource():
+    global ress
     Resource = ResourceSchemaPost(title="Bob", abstract="3", open_access=True)
     res = create(db, Resource)
-    assert res == 'AGR:AGR-Resource-0000000001'
+    ress.append(res)
+    assert res is not None
 
     Resource = ResourceSchemaPost(title="Another Bob")
     res = create(db, Resource)
-    assert res == 'AGR:AGR-Resource-0000000002'
+    ress.append(res)
+    assert res is not None
 
     # create again with same title, category
     # Apparently not a problem!!
     Resource = ResourceSchemaPost(title="Bob")
     res = create(db, Resource)
-    assert res == 'AGR:AGR-Resource-0000000003'
+    ress.append(res)
+    assert res is not None
 
     # No title
     # ResourceSchemaPost raises exception
@@ -54,9 +59,9 @@ def test_create_Resource():
 
 def test_show_Resource():
     """Test show for Resource."""
-
+    global ress
     # Lookup 1 we created earlier
-    res = show(db, 'AGR:AGR-Resource-0000000001')
+    res = show(db, ress[0])
     assert res['title'] == "Bob"
     assert res['abstract'] == '3'
 
@@ -68,12 +73,12 @@ def test_show_Resource():
 def test_update_Resource():
 
     update_schema = ResourceSchemaUpdate(title="new title")
-    res = patch(db, 'AGR:AGR-Resource-0000000001', update_schema)
+    res = patch(db, ress[0], update_schema)
 
     assert res == {'message': 'updated'}
 
     # fetch the new record.
-    res = show(db, 'AGR:AGR-Resource-0000000001')
+    res = show(db, ress[0])
 
     # do we have the new title?
     assert res['title'] == "new title"
@@ -119,11 +124,11 @@ def test_resource_create_large():
     }
     # process the resource
     resource = ResourceSchemaPost(**xml)
-    res = create(db, resource)
-    assert res == 'AGR:AGR-Resource-0000000004'
+    curie = create(db, resource)
+    assert curie is not None
 
     # fetch the new record.
-    res = show(db, 'AGR:AGR-Resource-0000000004')
+    res = show(db, curie)
 
     assert res['cross_references'][0]['curie'] == "FB:FBrf0044885"
 
@@ -143,7 +148,7 @@ def test_resource_create_large():
     assert res["abbreviation_synonyms"][0] == "Jackson, Mathews, Wickens, 1996"
     assert not res['open_access']
 
-    res = db.query(ResourceModel).filter(ResourceModel.curie == 'AGR:AGR-Resource-0000000004').one()
+    res = db.query(ResourceModel).filter(ResourceModel.curie == curie).one()
     assert res.title == "Abstracts of papers presented at the 1996 meeting"
     assert len(res.editor) == 3
     # open access defaults to False
@@ -153,12 +158,13 @@ def test_resource_create_large():
 
 
 def test_delete_Resource():
-    destroy(db, 'AGR:AGR-Resource-0000000002')
+    global ress
+    destroy(db, ress[1])
 
     # It should now give an error on lookup.
     with pytest.raises(HTTPException):
-        show(db, "AGR:AGR-Resource-0000000002")
+        show(db, ress[1])
 
     # Deleting it again should give an error as the lookup will fail.
     with pytest.raises(HTTPException):
-        destroy(db, 'AGR:AGR-Resource-0000000002')
+        destroy(db, ress[1])

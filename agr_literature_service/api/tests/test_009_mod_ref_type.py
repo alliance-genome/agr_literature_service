@@ -9,13 +9,8 @@ from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models import ModReferenceTypeModel, ReferenceModel
 from agr_literature_service.api.schemas import (ModReferenceTypeSchemaPost,
-                                                ModReferenceTypeSchemaUpdate,
-                                                ReferenceSchemaPost)
-from agr_literature_service.api.crud.mod_crud import create as mod_create
-from agr_literature_service.api.crud.user_crud import create as user_create
-from agr_literature_service.api.user import set_global_user_id
-from agr_literature_service.api.crud.reference_crud import (
-    create as reference_create)
+                                                ModReferenceTypeSchemaUpdate)
+from agr_literature_service.api.tests import utils
 
 metadata = MetaData()
 
@@ -32,40 +27,7 @@ if "literature-test" not in SQLALCHEMY_DATABASE_URL:
 
 mrt_id = None
 
-fb_mod = None
-refs = []
-
-
-def test_initialise():
-    global fb_mod
-    global refs
-
-    # add User "006_Bob"
-    user = user_create(db, "009_Bob")
-    # By adding set_global_user_id here we do not need to pass the
-    # created_by and updated_by dict elements to the schema validators.
-    set_global_user_id(db, user.id)
-
-    # add mods
-    data = {
-        "abbreviation": '009_FB',
-        "short_name": "009_FB",
-        "full_name": "009_ont_1"
-    }
-    fb_mod = mod_create(db, data)
-
-    data = {
-        "abbreviation": '009_RGD',
-        "short_name": "009_Rat",
-        "full_name": "009_ont_2"
-    }
-    mod_create(db, data)
-
-    # Add references.
-    for title in ['Bob 009 1', 'Bob 009 2', 'Bob 009 3']:
-        reference = ReferenceSchemaPost(title=title, category="thesis", abstract="3", language="MadeUp")
-        res = reference_create(db, reference)
-        refs.append(res)
+(refs, ress, mods, okta_user) = utils.initialise(db, '009')
 
 
 def test_get_bad_mrt():
