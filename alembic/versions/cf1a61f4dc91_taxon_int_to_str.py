@@ -23,6 +23,12 @@ def upgrade():
     op.execute("""
         ALTER TABLE topic_entity_tag
         ALTER COLUMN taxon TYPE VARCHAR""")
+    op.execute("""
+        ALTER TABLE mod_taxon_version
+        ALTER COLUMN taxon TYPE VARCHAR""")
+    op.execute("""
+        ALTER TABLE topic_entity_tag_version
+        ALTER COLUMN taxon TYPE VARCHAR""")
     # ### end Alembic commands ###
 
 

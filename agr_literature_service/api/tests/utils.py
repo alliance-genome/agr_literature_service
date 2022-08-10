@@ -26,7 +26,7 @@ def initialise(db: Session, test_str: str):
         "full_name": "{}_ont_1".format(test_str)
     }
 
-    mod_create(db, data)  # type: ignore 
+    mod_create(db, data)  # type: ignore
     mods.append('{}_FB'.format(test_str))
 
     data = {
