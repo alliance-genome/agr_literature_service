@@ -6,7 +6,7 @@ mod_reference_type_model.py
 
 from typing import Dict
 
-from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -19,6 +19,7 @@ enable_versioning()
 class ModReferenceTypeModel(Base):
     __tablename__ = "mod_reference_type"
     __versioned__: Dict = {}
+    __table_args__ = (UniqueConstraint('reference_id', 'reference_type', 'source', name='uniq_mrt'),)
 
     mod_reference_type_id = Column(
         Integer,

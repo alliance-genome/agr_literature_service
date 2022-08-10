@@ -91,7 +91,7 @@ def patch(db: Session, reference_workflow_tag_id: int, workflow_tag_update):
     """
     workflow_tag_data = jsonable_encoder(workflow_tag_update)
 
-    add_default_update_keys(workflow_tag_data)
+    add_default_update_keys(db, workflow_tag_data)
     workflow_tag_db_obj = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == reference_workflow_tag_id).first()
     if not workflow_tag_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
