@@ -6,7 +6,7 @@ from agr_literature_service.api.models import ReferenceModel
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import ModCorpusAssociationModel, ModModel, ResourceDescriptorModel
-from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, CrossReferenceSchemaShow
+from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, CrossReferenceSchemaShow, WorkflowTagSchemaShow
 
 from fastapi import HTTPException, status
 
@@ -121,16 +121,19 @@ def show_need_review(mod_abbreviation, count, db: Session):
         resource_descriptor_default_url.db_prefix: resource_descriptor_default_url.default_url
         for resource_descriptor_default_url in resource_descriptor_default_urls}
 
+    mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
+
     return [
         ReferenceSchemaNeedReviewShow(
             curie=reference.curie,
             title=reference.title,
             abstract=reference.abstract,
+            category=reference.category,
             mod_corpus_association_id=[mca.mod_corpus_association_id for mca in reference.mod_corpus_association if
                                        mca.mod.abbreviation == mod_abbreviation][0],
             resource_title=reference.resource.title if reference.resource else "",
             cross_references=[CrossReferenceSchemaShow(
                 curie=xref.curie, url=convert_xref_curie_to_url(xref.curie, resource_descriptor_default_urls_dict),
-                is_obsolete=xref.is_obsolete, pages=xref.pages)
-                for xref in reference.cross_reference])
+                is_obsolete=xref.is_obsolete, pages=xref.pages) for xref in reference.cross_reference],
+            workflow_tags=[WorkflowTagSchemaShow(reference_workflow_tag_id=wft.reference_workflow_tag_id, reference_curie=reference.curie, workflow_tag_id=wft.workflow_tag_id, mod_abbreviation=mod_id_to_mod[wft.mod_id], date_created=str(wft.date_created), date_updated=str(wft.date_updated), created_by=wft.created_by, updated_by=wft.updated_by) for wft in reference.workflow_tag])
         for reference in references]
