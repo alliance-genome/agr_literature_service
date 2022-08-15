@@ -151,4 +151,4 @@ class ReferenceSchemaNeedReviewShow(BaseModel):
     mod_corpus_association_id: int
     resource_title: Optional[str] = None
     cross_references: Optional[List[CrossReferenceSchemaShow]]
-    workflow_tags: Optional[List[WorkflowTagSchemaShow]]
+    workflow_tags: Optional[List] = []
