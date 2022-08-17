@@ -105,8 +105,8 @@ restart-api:
 	docker-compose --env-file ${ENV_FILE} up -d api
 
 alembic-create-migration:
-	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app alembic revision --autogenerate -m ${ALEMBIC_COMMENT}
-	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app bash -c "find alembic/versions/ -maxdepth 1 -type f | xargs -I {} chmod o+w {}"
+	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app alembic revision --autogenerate -m "${ALEMBIC_COMMENT}"
+	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app bash -c "chmod -R o+w alembic/versions"
 
 alembic-apply-latest-migration:
 	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app alembic upgrade head
