@@ -18,7 +18,7 @@ RUN apt-get -y install zsh
 
 #install posgres client
 RUN apt-get update -y
-RUN apt-get -y install gnupg2
+RUN apt-get -y install gnupg2 vim emacs-nox
 RUN wget -O ~/libreadline7.deb 'http://mirrors.kernel.org/ubuntu/pool/main/r/readline/libreadline7_7.0-3_amd64.deb'
 RUN apt-get -y install ~/libreadline7.deb
 RUN rm -f ~/libreadline7.deb
