@@ -7,6 +7,11 @@ else
 	ENV_FILE=.env
 endif
 
+ifndef ALEMBIC_COMMENT
+	ALEMBIC_COMMENT=""
+endif
+
+
 login-ecr:
 	docker run -v ~/.aws/credentials:/root/.aws/credentials --rm -it amazon/aws-cli ecr get-login-password | docker login --username AWS --password-stdin ${REG}
 
@@ -98,4 +103,11 @@ restart-api:
 	docker-compose --env-file ${ENV_FILE} build --no-cache api
 	docker-compose --env-file ${ENV_FILE} rm -s -f api
 	docker-compose --env-file ${ENV_FILE} up -d api
+
+alembic-create-migration:
+	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app alembic revision --autogenerate -m ${ALEMBIC_COMMENT}
+	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app bash -c "find alembic/versions/ -maxdepth 1 -type f | xargs -I {} chmod o+w {}"
+
+alembic-apply-latest-migration:
+	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app alembic upgrade head
 
