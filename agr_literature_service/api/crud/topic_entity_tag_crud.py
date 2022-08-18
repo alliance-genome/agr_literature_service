@@ -139,6 +139,13 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
             for prop in value:
                 if "updated_by" in topic_entity_tag_data:
                     prop["updated_by"] = topic_entity_tag_data["updated_by"]
+                else:
+                    prop["updated_by"] = topic_entity_tag_data["created_by"]
+                if "date_updated" in topic_entity_tag_data:
+                    prop["date_updated"] = topic_entity_tag_data["date_updated"]
+                else:
+                    prop["date_updated"] = topic_entity_tag_data["date_created"]
+
                 if "topic_entity_tag_prop_id" not in prop or not prop["topic_entity_tag_prop_id"]:
                     xml = {"topic_entity_tag_id": topic_entity_tag_db_obj.topic_entity_tag_id,
                            "qualifier": prop['qualifier'],
