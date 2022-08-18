@@ -13,12 +13,12 @@ from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
-
+from agr_literature_service.api.models.audited_model import AuditedModel
 
 enable_versioning()
 
 
-class AuthorModel(Base):
+class AuthorModel(Base, AuditedModel):
     __tablename__ = "author"
     __versioned__: Dict = {}
 
@@ -89,18 +89,6 @@ class AuthorModel(Base):
         String(),
         unique=False,
         nullable=True
-    )
-
-    date_updated = Column(
-        DateTime,
-        nullable=True,
-        default=datetime.utcnow
-    )
-
-    date_created = Column(
-        DateTime,
-        nullable=False,
-        default=datetime.now(tz=pytz.timezone("UTC"))
     )
 
     def __str__(self):

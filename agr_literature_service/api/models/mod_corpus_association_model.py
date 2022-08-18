@@ -13,10 +13,11 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
 
 from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.schemas import ModCorpusSortSourceType
 
 
-class ModCorpusAssociationModel(Base):
+class ModCorpusAssociationModel(AuditedModel, Base):
     __tablename__ = "mod_corpus_association"
     __versioned__: Dict = {}
 
@@ -59,18 +60,6 @@ class ModCorpusAssociationModel(Base):
         Enum(ModCorpusSortSourceType),
         unique=False,
         nullable=False
-    )
-
-    date_updated = Column(
-        DateTime,
-        nullable=True,
-        default=datetime.utcnow
-    )
-
-    date_created = Column(
-        DateTime,
-        nullable=False,
-        default=datetime.now(tz=pytz.timezone("UTC"))
     )
 
     __table_args__ = (UniqueConstraint('reference_id', 'mod_id', name='_mod_corpus_association_unique'),)
