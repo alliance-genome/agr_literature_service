@@ -4,11 +4,9 @@ reference_model.py
 """
 
 
-from datetime import datetime
 from typing import Dict
 
-import pytz
-from sqlalchemy import (ARRAY, Column, DateTime, Enum, ForeignKey, Integer,
+from sqlalchemy import (ARRAY, Column, Enum, ForeignKey, Integer,
                         String)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean

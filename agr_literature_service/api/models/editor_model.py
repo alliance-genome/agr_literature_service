@@ -4,11 +4,9 @@ editor_model.py
 """
 
 
-from datetime import datetime
 from typing import Dict
 
-import pytz
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base

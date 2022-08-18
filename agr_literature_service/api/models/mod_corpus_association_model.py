@@ -4,11 +4,9 @@ mod_corpus_association_model.py
 """
 
 
-from datetime import datetime
 from typing import Dict
 
-import pytz
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, Enum, UniqueConstraint
+from sqlalchemy import Column, ForeignKey, Integer, Enum, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
 

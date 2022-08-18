@@ -3,11 +3,9 @@ author_model.py
 ===============
 """
 
-from datetime import datetime
 from typing import Dict
 
-import pytz
-from sqlalchemy import (ARRAY, Boolean, Column, DateTime, ForeignKey, Integer,
+from sqlalchemy import (ARRAY, Boolean, Column, ForeignKey, Integer,
                         String)
 from sqlalchemy.orm import relationship
 

@@ -4,11 +4,9 @@ mod_model.py
 """
 
 
-from datetime import datetime
 from typing import Dict
 
-import pytz
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import Column, Integer, String
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel

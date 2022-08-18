@@ -4,10 +4,8 @@ resource_model.py
 """
 
 
-from datetime import datetime
 from typing import Dict
 
-import pytz
 from sqlalchemy import ARRAY, Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
