@@ -46,6 +46,8 @@ class ModCorpusAssociationSchemaRelated(BaseModel):
     mod_abbreviation: str
     date_updated: str
     corpus: Optional[bool] = None
+    updated_by: str
+    created_by: str
 
     class Config():
         orm_mode = True
