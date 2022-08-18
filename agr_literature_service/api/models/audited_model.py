@@ -2,8 +2,7 @@
 from datetime import datetime
 import pytz
 
-from sqlalchemy import (Column, ForeignKey, DateTime, String)
-# from agr_literature_service.api.database.base import Base
+from sqlalchemy import (Column, ForeignKey, DateTime)
 from sqlalchemy.ext.declarative import declared_attr
 
 from agr_literature_service.api.user import get_global_user_id
