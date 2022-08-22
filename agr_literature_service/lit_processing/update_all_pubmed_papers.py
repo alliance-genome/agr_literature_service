@@ -1,7 +1,7 @@
 import logging
 import time
 from dotenv import load_dotenv
-from os import environ, makedirs, path
+from os import environ, makedirs, path, listdir, stat, remove
 import shutil
 
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel
@@ -98,12 +98,18 @@ def download_all_xml_files(pmids_all):
         download_pubmed_xml(pmids_slice)
         time.sleep(sleep_time)
 
+    # remove empty xml file(s)
+    for filename in listdir(xml_path):
+        file = path.join(xml_path, filename)
+        if stat(file).st_size == 0:
+            remove(file)
+
 
 def retrieve_newly_added_pmids(db_session):
 
     pmids_new = []
 
-    filter_after = datetime.today() - timedelta(days=90)
+    filter_after = datetime.today() - timedelta(days=150)
 
     for x in db_session.query(CrossReferenceModel).join(ReferenceModel.cross_reference).filter(CrossReferenceModel.curie.like('PMID:%')).filter(ReferenceModel.date_created >= filter_after).all():
         pmids_new.append(x.curie.replace('PMID:', ''))
