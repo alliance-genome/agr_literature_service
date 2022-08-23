@@ -1002,8 +1002,8 @@ def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag,
         log.info("Paper(s) with " + field_name + " updated:" + str(update_log[field_name]))
         fw.write("Paper(s) with " + field_name + " updated:" + str(update_log[field_name]) + "\n")
         email_message = email_message + "Paper(s) with <b>" + field_name + "</b> updated:" + str(update_log[field_name]) + "<br>"
-        if field_name == 'author_name':
-            email_message = email_message + "<br>"
+        # if field_name == 'author_name':
+        #    email_message = email_message + "<br>"
 
     pmids_updated = list(set(update_log['pmids_updated']))
 
