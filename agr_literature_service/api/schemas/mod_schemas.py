@@ -1,6 +1,6 @@
 from typing import Optional
 from pydantic import BaseModel
-from agr_literature_service.api.schemas import BaseModelShow
+from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
 
 class ModSchemaPost(BaseModel):
@@ -13,7 +13,7 @@ class ModSchemaPost(BaseModel):
         extra = "forbid"
 
 
-class ModSchemaShow(BaseModelShow):
+class ModSchemaShow(AuditedObjectModelSchema):
     mod_id: int
     abbreviation: str
     short_name: str

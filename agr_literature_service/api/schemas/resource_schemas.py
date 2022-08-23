@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, validator
 
-from agr_literature_service.api.schemas import (BaseModelShow, CrossReferenceSchema,
+from agr_literature_service.api.schemas import (AuditedObjectModelSchema, CrossReferenceSchema,
                                                 CrossReferenceSchemaRelated, EditorSchemaPost,
                                                 EditorSchemaShow)
 
@@ -66,7 +66,7 @@ class ResourceSchemaUpdate(BaseModel):
         extra = "forbid"
 
 
-class ResourceSchemaShow(BaseModelShow):
+class ResourceSchemaShow(AuditedObjectModelSchema):
     resource_id: int
     curie: Optional[str] = None
     title: str

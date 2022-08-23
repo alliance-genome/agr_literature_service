@@ -1,7 +1,7 @@
 from typing import Optional
 
 from pydantic import BaseModel
-from agr_literature_service.api.schemas import ModCorpusSortSourceType, BaseModelShow
+from agr_literature_service.api.schemas import ModCorpusSortSourceType, AuditedObjectModelSchema
 
 
 class ModCorpusAssociationSchemaCreate(BaseModel):
@@ -31,7 +31,7 @@ class ModCorpusAssociationSchemaPost(ModCorpusAssociationSchemaCreate):
         extra = "forbid"
 
 
-class ModCorpusAssociationSchemaShow(BaseModelShow):
+class ModCorpusAssociationSchemaShow(AuditedObjectModelSchema):
     mod_corpus_association_id: int
     mod_corpus_sort_source: Optional[ModCorpusSortSourceType] = None
     mod_abbreviation: str
@@ -39,15 +39,11 @@ class ModCorpusAssociationSchemaShow(BaseModelShow):
     corpus: Optional[bool] = None
 
 
-class ModCorpusAssociationSchemaRelated(BaseModel):
+class ModCorpusAssociationSchemaRelated(AuditedObjectModelSchema):
     mod_corpus_association_id: int
-    date_created: str
     mod_corpus_sort_source: Optional[ModCorpusSortSourceType] = None
     mod_abbreviation: str
-    date_updated: str
     corpus: Optional[bool] = None
-    updated_by: str
-    created_by: str
 
     class Config():
         orm_mode = True
