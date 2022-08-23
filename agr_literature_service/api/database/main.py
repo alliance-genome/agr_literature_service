@@ -21,7 +21,7 @@ def create_all_tables():
 
 
 def create_default_user():
-    engine.connect().execute("INSERT INTO users (id) VALUES ('default_user')")
+    engine.connect().execute("INSERT INTO users (id) VALUES ('default_user') ON CONFLICT DO NOTHING")
 
 
 def get_db():
