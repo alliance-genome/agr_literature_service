@@ -21,6 +21,7 @@ from agr_literature_service.lit_processing.helper_file_processing import (compar
 from agr_literature_service.lit_processing.helper_post_to_api import (generate_headers, get_authentication_token,
                                                                       process_api_request)
 from agr_literature_service.lit_processing.helper_sqlalchemy import (create_postgres_session,
+                                                                     create_postgres_engine,
                                                                      sqlalchemy_load_ref_xref)
 from agr_literature_service.lit_processing.helper_email import send_email
 
@@ -267,12 +268,13 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     # for mod in sorted(files_to_process):
     report = {}
     # report2 = {}
-    # report3 = {}
+    missing_papers_in_mod = {}
+    missing_agr_in_mod = {}
     for mod in sorted(mods):
-
         report[mod] = []
         # report2[mod] = []
-        # report3[mod] = []
+        missing_papers_in_mod[mod] = []
+        missing_agr_in_mod[mod] = []
         filename = report_file_path + mod + '_dqm_loading.log'
         fh_mod_report.setdefault(mod, open(filename, 'w'))
         references_to_create = []
@@ -489,9 +491,13 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                             ident_found = True
                     if not ident_found:
                         # logger.info("Notify curator %s %s %s not in dqm submission", agr_url, prefix, identifier)
-                        fh_mod_report[mod].write("%s %s %s not in dqm submission\n" % (agr_url, prefix, identifier))
+                        # fh_mod_report[mod].write("%s %s %s not in dqm submission\n" % (agr_url, prefix, identifier))
                         dbid = prefix + ":" + identifier
-                        # report3[mod].append((dbid, dbid + " is not in the dqm submission"))
+                        pmid = None
+                        if 'PMID' in ref_xref_valid[agr]:
+                            pmid = "PMID:" + ref_xref_valid[agr]['PMID']
+                        missing_papers_in_mod[mod].append((dbid, agr, pmid))
+                        missing_agr_in_mod[mod].append(agr)
 
         for agr in xrefs_to_add:
             agr_url = url_ref_curie_prefix + agr
@@ -597,11 +603,36 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
             update_citation(db_session, curie)
         db_session.close()
 
-        # rows_to_report = report[mod] + report2[mod] + report3[mod]
-        send_loading_report(mod, report[mod], report_file_path)
+        # rows_to_report = report[mod] + report2[mod]
+
+        agr_to_title = get_agr_to_title_mapping(missing_agr_in_mod[mod])
+
+        send_loading_report(mod, report[mod], missing_papers_in_mod[mod], agr_to_title, report_file_path)
 
 
-def send_loading_report(mod, rows_to_report, log_path):
+def get_agr_to_title_mapping(missing_agr_list):
+
+    if len(missing_agr_list) == 0:
+        return {}
+
+    agr_list = ", ".join(["'" + x + "'" for x in missing_agr_list])
+
+    engine = create_postgres_engine(False)
+    db_connection = engine.connect()
+
+    rs = db_connection.execute("SELECT curie, title FROM reference WHERE curie IN (" + agr_list + ")")
+    rows = rs.fetchall()
+    agr_to_title = {}
+    for x in rows:
+        agr_to_title[x[0]] = x[1]
+
+    db_connection.close()
+    engine.dispose()
+
+    return agr_to_title
+
+
+def send_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_title, log_path):
 
     email_recipients = None
     if environ.get('CRONTAB_EMAIL'):
@@ -642,6 +673,48 @@ def send_loading_report(mod, rows_to_report, log_path):
         email_message = email_message + "<p>Loading log file is available at " + "<a href=" + log_url + ">" + log_url + "</a><p>"
     else:
         email_message = email_message + "<p>Loading log file is available at " + log_path
+
+    # missing_papers_in_mod, agr_to_title, log_path
+    if len(missing_papers_in_mod) > 0:
+
+        log_file = mod + "_papers_in_ABC_not_in_dqm.log"
+
+        missing_papers_in_mod_log_file = log_path + log_file
+
+        fw = open(missing_papers_in_mod_log_file, "w")
+
+        fw.write("ARG_curie\tPMID\tMOD_ID\tTitle\n")
+
+        email_message = email_message + "<p><p><b>Following papers in ABC with MOD association that are not in the current " + mod + " DQM file</b><p>"
+
+        rows = ''
+        i = 0
+        dbid_width = None
+        agr_width = 270
+        pmid_width = 140
+        for x in missing_papers_in_mod:
+            (dbid, agr_curie, pmid) = x
+            title = agr_to_title.get(agr_curie, '')
+            fw.write(agr_curie + "\t" + str(pmid) + "\t" + dbid + "\t" + title + "\n")
+            i += 1
+            if i < 6:
+                if dbid_width is None:
+                    dbid_width = len(dbid) * 11
+                rows = rows + "<tr><td style='text-align:left' width='" + str(agr_width) + "'>" + agr_curie + "</td><td width='" + str(pmid_width) + "'>" + str(pmid) + "</td><td width='" + str(dbid_width) + "'>" + dbid + "</td><td width='400'>" + title + "</td></tr>"
+
+        fw.close()
+
+        rows = "<tr><th style='text-align:left' width='" + str(agr_width) + "'>AGR curie</th><th width='" + str(pmid_width) + "'>PMID</th><th width='" + str(dbid_width) + "'>MOD ID</th><th width='400'>Title</th></tr>" + rows
+
+        email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
+
+        log_url = log_url + log_file
+        log_path = log_path + log_file
+
+        if log_url:
+            email_message = email_message + "<p>The full list of missing papers is available at " + "<a href=" + log_url + ">" + log_url + "</a><p>"
+        else:
+            email_message = email_message + "<p>The full list of missing papers is available at " + log_path
 
     (status, message) = send_email(email_subject, email_recipients,
                                    email_message, sender_email, sender_password, reply_to)
