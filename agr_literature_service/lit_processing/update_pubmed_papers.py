@@ -527,7 +527,7 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
                 fw.write("PMID:" + str(pmid) + ": " + colName + " is updated from '" + str(old_value) + "' to '" + str(new_value) + "'\n")
 
     if has_update:
-        x.date_updated = date.today()
+        # x.date_updated = date.today()
         db_session.add(x)
         update_log['pmids_updated'].append(pmid)
         log.info(str(count) + " PMID:" + str(pmid) + " Reference table has been updated")
