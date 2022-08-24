@@ -3,7 +3,7 @@ import argparse
 import logging
 from os import environ, makedirs, path
 from dotenv import load_dotenv
-from datetime import datetime, date
+from datetime import datetime
 import json
 import time
 
