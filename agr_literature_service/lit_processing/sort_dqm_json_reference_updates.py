@@ -708,12 +708,11 @@ def send_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_title
 
         email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
 
-        log_url = log_url + log_file
-        log_path = log_path + log_file
-
         if log_url:
+            log_url = log_url + log_file
             email_message = email_message + "<p>The full list of missing papers is available at " + "<a href=" + log_url + ">" + log_url + "</a><p>"
         else:
+            log_path = log_path + log_file
             email_message = email_message + "<p>The full list of missing papers is available at " + log_path
 
     (status, message) = send_email(email_subject, email_recipients,
