@@ -25,8 +25,8 @@ class GlobalConfig(BaseSettings):
     API_USERNAME: Optional[str] = None
     API_PASSWORD: Optional[str] = None
 
-    OKTA_DOMAIN: Optional[str] = Field(..., env="OKTA_DOMAIN")
-    OKTA_API_AUDIENCE: Optional[str] = Field(..., env="OKTA_API_AUDIENCE")
+    OKTA_DOMAIN: str = Field(..., env="OKTA_DOMAIN")
+    OKTA_API_AUDIENCE: str = Field(..., env="OKTA_API_AUDIENCE")
 
     PSQL_USERNAME: str = Field(..., env="PSQL_USERNAME")
     PSQL_PASSWORD: str = Field(..., env="PSQL_PASSWORD")
