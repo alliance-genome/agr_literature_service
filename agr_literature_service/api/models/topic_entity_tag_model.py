@@ -29,7 +29,7 @@ class TopicEntityTagModel(AuditedModel, Base):
 # reference id - internal reference id
     reference_id = Column(
         Integer,
-        ForeignKey("reference.reference_id"),
+        ForeignKey("reference.reference_id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
