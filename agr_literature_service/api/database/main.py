@@ -20,6 +20,10 @@ def create_all_tables():
     Base.metadata.create_all(engine)
 
 
+def create_default_user():
+    engine.connect().execute("INSERT INTO users (id) VALUES ('default_user') ON CONFLICT DO NOTHING")
+
+
 def get_db():
     db = SessionLocal()
     try:

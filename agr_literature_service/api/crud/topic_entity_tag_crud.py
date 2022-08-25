@@ -17,7 +17,6 @@ from agr_literature_service.api.schemas import (
     TopicEntityTagPropSchemaCreate,
     TopicEntityTagPropSchemaUpdate
 )
-from agr_literature_service.api.crud.utils import add_default_update_keys, add_default_create_keys
 
 
 def extra_checks(topic_entity_tag_data):
@@ -49,8 +48,6 @@ def create(db: Session, topic_entity_tag: TopicEntityTagSchemaCreate) -> int:
     """
 
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
-    add_default_create_keys(db, topic_entity_tag_data)
-
     reference_curie = topic_entity_tag_data["reference_curie"]
     del topic_entity_tag_data["reference_curie"]
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
@@ -78,7 +75,6 @@ def create(db: Session, topic_entity_tag: TopicEntityTagSchemaCreate) -> int:
         xml = {"topic_entity_tag_id": db_obj.topic_entity_tag_id,
                "qualifier": prop['qualifier'],
                "created_by": topic_entity_tag_data["created_by"]}
-        add_default_create_keys(db, xml)
         prop_obj = TopicEntityTagPropModel(**xml)
         db.add(prop_obj)
     db.commit()
@@ -122,7 +118,6 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
     :return:
     """
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag_update)
-    add_default_update_keys(db, topic_entity_tag_data)
     topic_entity_tag_db_obj = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
     if not topic_entity_tag_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -144,12 +139,17 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
             for prop in value:
                 if "updated_by" in topic_entity_tag_data:
                     prop["updated_by"] = topic_entity_tag_data["updated_by"]
-                add_default_update_keys(db, prop)
+                else:
+                    prop["updated_by"] = topic_entity_tag_data["created_by"]
+                if "date_updated" in topic_entity_tag_data:
+                    prop["date_updated"] = topic_entity_tag_data["date_updated"]
+                else:
+                    prop["date_updated"] = topic_entity_tag_data["date_created"]
+
                 if "topic_entity_tag_prop_id" not in prop or not prop["topic_entity_tag_prop_id"]:
                     xml = {"topic_entity_tag_id": topic_entity_tag_db_obj.topic_entity_tag_id,
                            "qualifier": prop['qualifier'],
                            "created_by": topic_entity_tag_data["created_by"]}
-                    add_default_create_keys(db, xml)
                     prop_obj = TopicEntityTagPropModel(**xml)
                     db.add(prop_obj)
                 else:
@@ -191,7 +191,6 @@ def create_prop(db: Session, topic_entity_tag_prop: TopicEntityTagPropSchemaCrea
     """
 
     topic_entity_tag_prop_data = jsonable_encoder(topic_entity_tag_prop)
-    add_default_create_keys(db, topic_entity_tag_prop_data)
     topic_entity_tag = db.query(TopicEntityTagModel).\
         filter(TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_prop_data["topic_entity_tag_id"]).first()
     if not topic_entity_tag:
@@ -219,7 +218,6 @@ def delete_prop(db: Session, topic_entity_tag_prop_id: int):
 
 def update_prop(db: Session, topic_entity_tag_prop_id: int, topic_entity_tag_prop: TopicEntityTagPropSchemaUpdate):
     prop_data = jsonable_encoder(topic_entity_tag_prop)
-    add_default_update_keys(db, prop_data)
     prop_obj = db.query(TopicEntityTagPropModel).\
         filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == topic_entity_tag_prop_id).first()
     if not prop_obj:

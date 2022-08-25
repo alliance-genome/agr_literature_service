@@ -1,24 +1,18 @@
 from typing import List, Optional
 from pydantic import BaseModel
 
+from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
-class TopicEntityTagPropSchemaCreate(BaseModel):
+
+class TopicEntityTagPropSchemaCreate(AuditedObjectModelSchema):
     topic_entity_tag_id: Optional[int] = None  # created on the fly so not needed here
     qualifier: str
-    date_created: Optional[str]
-    date_updated: Optional[str]
-    created_by: Optional[str]
-    updated_by: Optional[str]
 
 
-class TopicEntityTagPropSchemaShow(BaseModel):
+class TopicEntityTagPropSchemaShow(AuditedObjectModelSchema):
     topic_entity_tag_prop_id: int
     topic_entity_tag_id: int
     qualifier: str
-    date_created: str
-    date_updated: Optional[str]
-    created_by: str
-    updated_by: Optional[str]
 
 
 class TopicEntityTagPropSchemaUpdate(BaseModel):
@@ -36,7 +30,7 @@ class TopicEntityTagPropSchemaUpdate(BaseModel):
         }
 
 
-class TopicEntityTagSchemaCreate(BaseModel):
+class TopicEntityTagSchemaCreate(AuditedObjectModelSchema):
     reference_curie: str
     topic: str
     entity_type: str
@@ -45,14 +39,10 @@ class TopicEntityTagSchemaCreate(BaseModel):
     new_entity: Optional[str] = None
     taxon: str
     note: Optional[str]
-    date_created: Optional[str]
-    date_updated: Optional[str]
-    created_by: Optional[str]
-    updated_by: Optional[str]
     props: Optional[List[TopicEntityTagPropSchemaCreate]] = None
 
 
-class TopicEntityTagSchemaRelated(BaseModel):
+class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     reference_curie: Optional[str]
     topic: str
     entity_type: str
@@ -61,14 +51,10 @@ class TopicEntityTagSchemaRelated(BaseModel):
     new_entity: Optional[str] = None
     taxon: str
     note: Optional[str]
-    date_created: Optional[str]
-    date_updated: Optional[str]
-    created_by: Optional[str]
-    updated_by: Optional[str]
     props: Optional[List[TopicEntityTagPropSchemaCreate]] = None
 
 
-class TopicEntityTagSchemaUpdate(BaseModel):
+class TopicEntityTagSchemaUpdate(AuditedObjectModelSchema):
     reference_curie: Optional[str] = None
     topic: Optional[str] = ""
     entity_type: Optional[str] = ""
@@ -77,14 +63,10 @@ class TopicEntityTagSchemaUpdate(BaseModel):
     new_entity: Optional[str]
     taxon: Optional[str]
     note: Optional[str]
-    date_created: Optional[str]
-    date_updated: Optional[str]
-    created_by: Optional[str]
-    updated_by: Optional[str]
     props: Optional[List[TopicEntityTagPropSchemaUpdate]]
 
 
-class TopicEntityTagSchemaShow(BaseModel):
+class TopicEntityTagSchemaShow(AuditedObjectModelSchema):
     topic_entity_tag_id: int
     reference_curie: str
     topic: str
@@ -94,8 +76,4 @@ class TopicEntityTagSchemaShow(BaseModel):
     new_entity: Optional[str] = None
     taxon: str
     note: Optional[str]
-    date_created: str
-    date_updated: Optional[str]
-    created_by: str
-    updated_by: Optional[str]
     props: Optional[List[TopicEntityTagPropSchemaShow]] = None

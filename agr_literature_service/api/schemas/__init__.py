@@ -1,4 +1,4 @@
-from agr_literature_service.api.schemas.base_schemas import BaseModelShow
+from agr_literature_service.api.schemas.base_schemas import AuditedObjectModelSchema
 
 from agr_literature_service.api.schemas.env_state_schemas import EnvStateSchema
 
