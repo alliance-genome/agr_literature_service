@@ -1,7 +1,7 @@
 import logging
 import time
 from dotenv import load_dotenv
-from os import environ, makedirs, path
+from os import environ, makedirs, path, listdir, stat, remove
 import shutil
 
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel
@@ -88,7 +88,7 @@ def download_all_xml_files(pmids_all):
         if path.exists(json_path):
             shutil.rmtree(json_path)
     except OSError as e:
-        print("Error deleting old xml/json: %s" % (e.strerror))
+        log.info("Error deleting old xml/json: %s" % (e.strerror))
 
     makedirs(xml_path)
     makedirs(json_path)
@@ -98,12 +98,51 @@ def download_all_xml_files(pmids_all):
         download_pubmed_xml(pmids_slice)
         time.sleep(sleep_time)
 
+    # get pmids with a xml file and file size != 0
+    found_xml = get_pmids_with_xml(xml_path)
+
+    # try to download the xml files one more time for the pmids with no xml downloaded
+    # or with xml file size = 0 during previous xml download process
+    missingXmlPmidList = []
+    for pmid in pmids_all:
+        if pmid not in found_xml:
+            missingXmlPmidList.append(pmid)
+    found_xml.clear()
+
+    if len(missingXmlPmidList) > 0:
+        log.info("Downloading xml file(s) for " + str(len(missingXmlPmidList)) + " PMID(s)")
+        download_pubmed_xml(missingXmlPmidList)
+
+    remove_empty_xml_file(xml_path)
+
+
+def get_pmids_with_xml(xml_path):
+
+    found_xml = {}
+
+    for filename in listdir(xml_path):
+        file = path.join(xml_path, filename)
+        if filename.endswith('.xml') and stat(file).st_size > 0:
+            pmid = filename.replace('.xml', '')
+            found_xml[pmid] = 1
+
+    return found_xml
+
+
+def remove_empty_xml_file(xml_path):
+
+    for filename in listdir(xml_path):
+        file = path.join(xml_path, filename)
+        if stat(file).st_size == 0:
+            log.info(filename + ": file size = 0")
+            remove(file)
+
 
 def retrieve_newly_added_pmids(db_session):
 
     pmids_new = []
 
-    filter_after = datetime.today() - timedelta(days=90)
+    filter_after = datetime.today() - timedelta(days=150)
 
     for x in db_session.query(CrossReferenceModel).join(ReferenceModel.cross_reference).filter(CrossReferenceModel.curie.like('PMID:%')).filter(ReferenceModel.date_created >= filter_after).all():
         pmids_new.append(x.curie.replace('PMID:', ''))
