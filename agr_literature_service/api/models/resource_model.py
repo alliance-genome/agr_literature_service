@@ -4,22 +4,20 @@ resource_model.py
 """
 
 
-from datetime import datetime
 from typing import Dict
 
-import pytz
 from sqlalchemy import ARRAY, Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
-
+from agr_literature_service.api.models.audited_model import AuditedModel
 
 enable_versioning()
 
 
-class ResourceModel(Base):
+class ResourceModel(Base, AuditedModel):
     __versioned__: Dict = {}
     __tablename__ = "resource"
 
@@ -128,17 +126,6 @@ class ResourceModel(Base):
         String(),
         unique=False,
         nullable=True
-    )
-
-    date_updated = Column(
-        DateTime,
-        nullable=True,
-    )
-
-    date_created = Column(
-        DateTime,
-        nullable=False,
-        default=datetime.now(tz=pytz.timezone("UTC"))
     )
 
     open_access = Column(

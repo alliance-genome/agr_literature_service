@@ -2,7 +2,7 @@ from typing import Optional
 
 from pydantic import BaseModel, validator
 
-from agr_literature_service.api.schemas import BaseModelShow, CrossReferenceSchemaShow
+from agr_literature_service.api.schemas import AuditedObjectModelSchema, CrossReferenceSchemaShow
 
 
 class EditorSchemaPost(BaseModel):
@@ -35,7 +35,7 @@ class EditorSchemaPost(BaseModel):
         }
 
 
-class EditorSchemaShow(BaseModelShow):
+class EditorSchemaShow(AuditedObjectModelSchema):
     editor_id: int
     order: Optional[int] = None
 

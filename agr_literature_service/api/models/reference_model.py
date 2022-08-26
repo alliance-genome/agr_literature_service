@@ -4,16 +4,15 @@ reference_model.py
 """
 
 
-from datetime import datetime
 from typing import Dict
 
-import pytz
-from sqlalchemy import (ARRAY, Column, DateTime, Enum, ForeignKey, Integer,
+from sqlalchemy import (ARRAY, Column, Enum, ForeignKey, Integer,
                         String)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
 
 from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.schemas import PubMedPublicationStatus, ReferenceCategory
 from agr_literature_service.api.database.versioning import enable_versioning
 
@@ -21,7 +20,7 @@ from agr_literature_service.api.database.versioning import enable_versioning
 enable_versioning()
 
 
-class ReferenceModel(Base):
+class ReferenceModel(Base, AuditedModel):
     __tablename__ = "reference"
     __versioned__: Dict = {}
 
@@ -198,18 +197,6 @@ class ReferenceModel(Base):
         lazy="joined",
         back_populates="reference",
         cascade="all, delete, delete-orphan"
-    )
-
-    date_updated = Column(
-        DateTime,
-        nullable=True,
-        default=datetime.utcnow
-    )
-
-    date_created = Column(
-        DateTime,
-        nullable=False,
-        default=datetime.now(tz=pytz.timezone("UTC"))
     )
 
     open_access = Column(

@@ -4,16 +4,15 @@ mod_model.py
 """
 
 
-from datetime import datetime
 from typing import Dict
 
-import pytz
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import Column, Integer, String
 
 from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.models.audited_model import AuditedModel
 
 
-class ModModel(Base):
+class ModModel(Base, AuditedModel):
     __tablename__ = "mod"
     __versioned__: Dict = {}
 
@@ -39,16 +38,4 @@ class ModModel(Base):
         String(100),
         unique=True,
         nullable=False
-    )
-
-    date_updated = Column(
-        DateTime,
-        nullable=True,
-        default=datetime.utcnow
-    )
-
-    date_created = Column(
-        DateTime,
-        nullable=False,
-        default=datetime.now(tz=pytz.timezone("UTC"))
     )

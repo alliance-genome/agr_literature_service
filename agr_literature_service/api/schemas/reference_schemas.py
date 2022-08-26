@@ -3,7 +3,7 @@ from typing import List, Optional
 from pydantic import BaseModel, validator
 
 from agr_literature_service.api.schemas import (AuthorSchemaPost, AuthorSchemaShow,
-                                                BaseModelShow, CrossReferenceSchemaRelated,
+                                                AuditedObjectModelSchema, CrossReferenceSchemaRelated,
                                                 CrossReferenceSchemaShow,
                                                 MeshDetailSchemaCreate,
                                                 MeshDetailSchemaRelated,
@@ -107,7 +107,7 @@ class CommentAndCorrectionSchemaRelations(BaseModel):
     from_references: Optional[List[ReferenceCommentAndCorrectionSchemaRelated]] = None
 
 
-class ReferenceSchemaShow(BaseModelShow):
+class ReferenceSchemaShow(AuditedObjectModelSchema):
     reference_id: int
     curie: str
     title: str
