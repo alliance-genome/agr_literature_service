@@ -28,7 +28,7 @@ db_user = Security(auth.get_user)
 def create(request: TopicEntityTagPropSchemaCreate,
            user: OktaUser = db_user,
            db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_id(db, user.id, user.email)
     return topic_entity_tag_crud.create_prop(db, request)
 
 
@@ -37,7 +37,7 @@ def create(request: TopicEntityTagPropSchemaCreate,
 def destroy(topic_entity_tag_prop_id: int,
             user: OktaUser = db_user,
             db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_id(db, user.id, user.email)
     topic_entity_tag_crud.delete_prop(db, topic_entity_tag_prop_id)
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -50,7 +50,7 @@ async def patch(topic_entity_tag_prop_id: int,
                 request: TopicEntityTagPropSchemaUpdate,
                 user: OktaUser = db_user,
                 db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_id(db, user.id, user.email)
     return topic_entity_tag_crud.update_prop(db, topic_entity_tag_prop_id, request)
 
 

@@ -8,19 +8,30 @@ from agr_literature_service.api.models.user_model import UserModel
 user_id: Optional[str] = None
 
 
-def set_global_user_id(db: Session, id: str):
+def set_global_user_id(db: Session, id: str, email: str):
     """
 
     :param db:
     :param id:
+    :param email:
     :return:
     """
 
     global user_id
     user_id = id
+    user_email = None
+    if email != id and '@' in email:
+        user_email = email
 
-    if not db.query(UserModel).filter(UserModel.id == user_id).first():
-        user_crud.create(db, user_id)
+    x = db.query(UserModel).filter_by(id=user_id).one_or_none()
+    if x is None:
+        user_crud.create(db, user_id, user_email)
+        # should we delete old entry with email in the ID column for this okta user?
+    elif x.email != user_email:
+        x.email = user_email
+        db.add(x)
+        db.commit()
+        db.refresh(x)
 
 
 def get_global_user_id():

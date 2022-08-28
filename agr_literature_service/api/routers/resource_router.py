@@ -28,7 +28,7 @@ db_user = Security(auth.get_user)
 def create(request: ResourceSchemaPost,
            user: OktaUser = db_user,
            db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_id(db, user.id, user.email)
     return resource_crud.create(db, request)
 
 
@@ -38,7 +38,7 @@ def create(request: ResourceSchemaPost,
 def destroy(curie: str,
             user: OktaUser = db_user,
             db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_id(db, user.id, user.email)
     resource_crud.destroy(db, curie)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -50,7 +50,7 @@ def patch(curie: str,
           request: ResourceSchemaUpdate,
           user: OktaUser = db_user,
           db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_id(db, user.id, user.email)
     patch = request.dict(exclude_unset=True)
 
     return resource_crud.patch(db, curie, patch)

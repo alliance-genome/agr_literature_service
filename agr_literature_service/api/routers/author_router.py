@@ -24,7 +24,7 @@ db_user = Security(auth.get_user)
 def create(request: AuthorSchemaCreate,
            user: OktaUser = db_user,
            db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_id(db, user.id, user.email)
     return author_crud.create(db, request)
 
 
@@ -33,7 +33,7 @@ def create(request: AuthorSchemaCreate,
 def destroy(author_id: int,
             user: OktaUser = db_user,
             db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_id(db, user.id, user.email)
     author_crud.destroy(db, author_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -45,7 +45,7 @@ async def patch(author_id: int,
                 request: AuthorSchemaCreate,
                 user: OktaUser = db_user,
                 db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_id(db, user.id, user.email)
     patch = request.dict(exclude_unset=True)
     return author_crud.patch(db, author_id, patch)
 
