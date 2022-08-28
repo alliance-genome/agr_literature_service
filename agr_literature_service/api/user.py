@@ -1,5 +1,6 @@
 from typing import Optional
-from pydantic import BaseModel
+# from pydantic import BaseModel
+from fastapi_okta import OktaUser
 
 from sqlalchemy.orm import Session
 
@@ -9,7 +10,7 @@ from agr_literature_service.api.models.user_model import UserModel
 user_id: Optional[str] = None
 
 
-def set_global_user_id(db: Session, user: BaseModel):
+def set_global_user_id(db: Session, user: OktaUser):
     """
 
     :param db:
