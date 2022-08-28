@@ -26,7 +26,7 @@ db_user = Security(auth.get_user)
 def create(request: CrossReferenceSchemaPost,
            user: OktaUser = db_user,
            db: Session = db_session):
-    set_global_user_id(db, user.id, user.email)
+    set_global_user_id(db, user)
     return cross_reference_crud.create(db, request)
 
 
@@ -35,7 +35,7 @@ def create(request: CrossReferenceSchemaPost,
 def destroy(curie: str,
             user: OktaUser = db_user,
             db: Session = db_session):
-    set_global_user_id(db, user.id, user.email)
+    set_global_user_id(db, user)
     cross_reference_crud.destroy(db, curie)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -47,7 +47,7 @@ async def patch(curie: str,
                 request: CrossReferenceSchemaUpdate,
                 user: OktaUser = db_user,
                 db: Session = db_session):
-    set_global_user_id(db, user.id, user.email)
+    set_global_user_id(db, user)
     patch = request.dict(exclude_unset=True)
     return cross_reference_crud.patch(db, curie, patch)
 

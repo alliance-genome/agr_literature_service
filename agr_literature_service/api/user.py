@@ -1,4 +1,5 @@
 from typing import Optional
+from pydantic import BaseModel
 
 from sqlalchemy.orm import Session
 
@@ -8,20 +9,19 @@ from agr_literature_service.api.models.user_model import UserModel
 user_id: Optional[str] = None
 
 
-def set_global_user_id(db: Session, id: str, email: str):
+def set_global_user_id(db: Session, user: BaseModel):
     """
 
     :param db:
-    :param id:
-    :param email:
+    :param user:
     :return:
     """
 
     global user_id
-    user_id = id
+    user_id = user.id
     user_email = None
-    if email != id and '@' in email:
-        user_email = email
+    if user.email != user.id and '@' in user.email:
+        user_email = user.email
 
     x = db.query(UserModel).filter_by(id=user_id).one_or_none()
     if x is None:

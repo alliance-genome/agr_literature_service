@@ -26,7 +26,7 @@ db_user = Security(auth.get_user)
 def create(request: MeshDetailSchemaPost,
            user: OktaUser = db_user,
            db: Session = db_session):
-    set_global_user_id(db, user.id, user.email)
+    set_global_user_id(db, user)
     return mesh_detail_crud.create(db, request)
 
 
@@ -35,7 +35,7 @@ def create(request: MeshDetailSchemaPost,
 def destroy(mesh_detail_id: int,
             user: OktaUser = db_user,
             db: Session = db_session):
-    set_global_user_id(db, user.id, user.email)
+    set_global_user_id(db, user)
     mesh_detail_crud.destroy(db, mesh_detail_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -47,7 +47,7 @@ async def patch(mesh_detail_id: int,
                 request: MeshDetailSchemaUpdate,
                 user: OktaUser = db_user,
                 db: Session = db_session):
-    set_global_user_id(db, user.id, user.email)
+    set_global_user_id(db, user)
     patch = request.dict(exclude_unset=True)
     return mesh_detail_crud.patch(db, mesh_detail_id, patch)
 

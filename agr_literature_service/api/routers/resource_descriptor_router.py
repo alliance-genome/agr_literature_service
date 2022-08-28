@@ -28,5 +28,5 @@ def show(db: Session = db_session):
             status_code=status.HTTP_202_ACCEPTED)
 def update(user: OktaUser = db_user,
            db: Session = db_session):
-    set_global_user_id(db, user.id, user.email)
+    set_global_user_id(db, user)
     return resource_descriptor_crud.update(db)

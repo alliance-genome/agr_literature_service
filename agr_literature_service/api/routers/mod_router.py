@@ -26,7 +26,7 @@ db_user = Security(auth.get_user)
 def create(request: ModSchemaPost,
            user: OktaUser = db_user,
            db: Session = db_session):
-    set_global_user_id(db, user.id, user.email)
+    set_global_user_id(db, user)
     return mod_crud.create(db, request)
 
 
@@ -37,7 +37,7 @@ async def patch(mod_id: int,
                 request: ModSchemaUpdate,
                 user: OktaUser = db_user,
                 db: Session = db_session):
-    set_global_user_id(db, user.id, user.email)
+    set_global_user_id(db, user)
     patch = request.dict(exclude_unset=True)
     return mod_crud.patch(db, mod_id, patch)
 
