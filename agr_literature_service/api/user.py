@@ -10,7 +10,21 @@ from agr_literature_service.api.models.user_model import UserModel
 user_id: Optional[str] = None
 
 
-def set_global_user_id(db: Session, user: OktaUser):
+def set_global_user_id(db: Session, id: str):
+    """
+    :param db:
+    :param id:
+    :return:
+    """
+
+    global user_id
+    user_id = id
+
+    if not db.query(UserModel).filter(UserModel.id == user_id).first():
+        user_crud.create(db, user_id, None)
+
+
+def set_global_user_from_okta(db: Session, user: OktaUser):
     """
 
     :param db:
