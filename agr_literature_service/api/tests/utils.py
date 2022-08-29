@@ -15,7 +15,7 @@ def initialise(db: Session, test_str: str):
     user = user_create(db, "{}_Bob".format(test_str), None)
     # By adding set_global_user_id here we do not need to pass the
     # created_by and updated_by dict elements to the schema validators.
-    set_global_user_id(db, user)
+    set_global_user_id(db, user.id)
     okta_user = user.id
 
     # add mods
