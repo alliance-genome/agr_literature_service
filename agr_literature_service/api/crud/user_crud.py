@@ -3,9 +3,8 @@ from typing import Optional
 
 from agr_literature_service.api.models.user_model import UserModel
 
-user_email: Optional[str] = None
 
-def create(db: Session, user_id: str, user_email: Optional[str]):
+def create(db: Session, user_id: str, user_email: Optional[str] = None):
     user_obj = UserModel(id=user_id, email=user_email)
     db.add(user_obj)
     db.commit()

@@ -21,7 +21,7 @@ def set_global_user_id(db: Session, id: str):
     user_id = id
 
     if not db.query(UserModel).filter(UserModel.id == user_id).first():
-        user_crud.create(db, user_id, None)
+        user_crud.create(db, user_id)
 
 
 def set_global_user_from_okta(db: Session, user: OktaUser):
