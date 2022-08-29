@@ -33,9 +33,11 @@ def set_global_user_from_okta(db: Session, user: OktaUser):
     """
 
     global user_id
-    user_id = user.id
+    user_id = user.cid
+    if user.uid:
+        user_id = user.uid
     user_email = None
-    if user.email != user.id and '@' in user.email:
+    if user.email != user_id and '@' in user.email:
         user_email = user.email
 
     x = db.query(UserModel).filter_by(id=user_id).one_or_none()
