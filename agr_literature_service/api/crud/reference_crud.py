@@ -6,6 +6,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List
 import re
+from requests import delete
 
 import sqlalchemy
 from fastapi import HTTPException, status
@@ -366,12 +367,14 @@ def show(db: Session, curie: str, http_request=True):  # noqa
     if reference.workflow_tag:
         for ont in reference.workflow_tag:
             ont_json = show_workflow_tag(db, ont.reference_workflow_tag_id)
+            #del ont_json["reference_curie"]
             reference_data["workflow_tags"].append(ont_json)
 
     reference_data["topic_entity_tags"] = []
     if reference.topic_entity_tags:
         for tet in reference.topic_entity_tags:
             tet_json = show_topic_entity_tag(db, tet.topic_entity_tag_id)
+            #del tet_json["reference_curie"]
             reference_data["topic_entity_tags"].append(tet_json)
 
     if reference.mesh_term:

@@ -2,19 +2,27 @@ from typing import Optional
 from pydantic import BaseModel
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
-
-class WorkflowTagSchemaCreate(BaseModel):
-    reference_curie: str
+#use by reference_crud
+class WorkflowTagSchemaPost(BaseModel):
+    #reference_curie: str
     workflow_tag_id: str
     mod_abbreviation: str
     created_by: Optional[str]
 
-
-class WorkflowTagSchemaShow(AuditedObjectModelSchema):
-    reference_workflow_tag_id: int
+class WorkflowTagSchemaCreate(WorkflowTagSchemaPost):
     reference_curie: str
+    
+#used by parents, such as reference to show workflow_tag
+class WorkflowTagSchemaShowRelated(AuditedObjectModelSchema):
+    reference_workflow_tag_id: int
+    #reference_curie: str
     workflow_tag_id: str
     mod_abbreviation: Optional[str]
+
+#used by workflow_tag_crud
+class WorkflowTagSchemaShow(WorkflowTagSchemaShowRelated):
+    reference_curie: str
+
 
 
 class WorkflowTagSchemaRelated(AuditedObjectModelSchema):
