@@ -8,7 +8,7 @@ from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (CrossReferenceSchema, CrossReferenceSchemaPost,
                                                 CrossReferenceSchemaUpdate,
                                                 ResponseMessageSchema)
-from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
     prefix="/cross_reference",
@@ -26,7 +26,7 @@ db_user = Security(auth.get_user)
 def create(request: CrossReferenceSchemaPost,
            user: OktaUser = db_user,
            db: Session = db_session):
-    set_global_user_id(db, user)
+    set_global_user_from_okta(db, user)
     return cross_reference_crud.create(db, request)
 
 
@@ -35,7 +35,7 @@ def create(request: CrossReferenceSchemaPost,
 def destroy(curie: str,
             user: OktaUser = db_user,
             db: Session = db_session):
-    set_global_user_id(db, user)
+    set_global_user_from_okta(db, user)
     cross_reference_crud.destroy(db, curie)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -47,7 +47,7 @@ async def patch(curie: str,
                 request: CrossReferenceSchemaUpdate,
                 user: OktaUser = db_user,
                 db: Session = db_session):
-    set_global_user_id(db, user)
+    set_global_user_from_okta(db, user)
     patch = request.dict(exclude_unset=True)
     return cross_reference_crud.patch(db, curie, patch)
 

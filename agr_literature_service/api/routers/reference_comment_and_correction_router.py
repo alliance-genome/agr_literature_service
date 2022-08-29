@@ -9,7 +9,7 @@ from agr_literature_service.api.schemas import (ReferenceCommentAndCorrectionSch
                                                 ReferenceCommentAndCorrectionSchemaPost,
                                                 ReferenceCommentAndCorrectionSchemaShow,
                                                 ResponseMessageSchema)
-from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
     prefix="/reference_comment_and_correction",
@@ -28,7 +28,7 @@ db_user = Security(auth.get_user)
 def create(request: ReferenceCommentAndCorrectionSchemaPost,
            user: OktaUser = db_user,
            db: Session = db_session):
-    set_global_user_id(db, user)
+    set_global_user_from_okta(db, user)
     return reference_comment_and_correction_crud.create(db, request)
 
 
@@ -37,7 +37,7 @@ def create(request: ReferenceCommentAndCorrectionSchemaPost,
 def destroy(reference_comment_and_correction_id: int,
             user: OktaUser = db_user,
             db: Session = db_session):
-    set_global_user_id(db, user)
+    set_global_user_from_okta(db, user)
     reference_comment_and_correction_crud.destroy(db, reference_comment_and_correction_id)
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -50,7 +50,7 @@ async def patch(reference_comment_and_correction_id: int,
                 request: ReferenceCommentAndCorrectionSchemaPatch,
                 user: OktaUser = db_user,
                 db: Session = db_session):
-    set_global_user_id(db, user)
+    set_global_user_from_okta(db, user)
     patch = request.dict(exclude_unset=True)
     return reference_comment_and_correction_crud.patch(db, reference_comment_and_correction_id, patch)
 

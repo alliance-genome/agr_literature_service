@@ -9,7 +9,7 @@ from agr_literature_service.api.schemas import (TopicEntityTagPropSchemaShow,
                                                 TopicEntityTagPropSchemaUpdate,
                                                 TopicEntityTagPropSchemaCreate,
                                                 ResponseMessageSchema)
-from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
     prefix="/topic_entity_tag_prop",
@@ -28,7 +28,7 @@ db_user = Security(auth.get_user)
 def create(request: TopicEntityTagPropSchemaCreate,
            user: OktaUser = db_user,
            db: Session = db_session):
-    set_global_user_id(db, user)
+    set_global_user_from_okta(db, user)
     return topic_entity_tag_crud.create_prop(db, request)
 
 
@@ -37,7 +37,7 @@ def create(request: TopicEntityTagPropSchemaCreate,
 def destroy(topic_entity_tag_prop_id: int,
             user: OktaUser = db_user,
             db: Session = db_session):
-    set_global_user_id(db, user)
+    set_global_user_from_okta(db, user)
     topic_entity_tag_crud.delete_prop(db, topic_entity_tag_prop_id)
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -50,7 +50,7 @@ async def patch(topic_entity_tag_prop_id: int,
                 request: TopicEntityTagPropSchemaUpdate,
                 user: OktaUser = db_user,
                 db: Session = db_session):
-    set_global_user_id(db, user)
+    set_global_user_from_okta(db, user)
     return topic_entity_tag_crud.update_prop(db, topic_entity_tag_prop_id, request)
 
 

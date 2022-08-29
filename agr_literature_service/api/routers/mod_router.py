@@ -7,7 +7,7 @@ from agr_literature_service.api.crud import mod_crud
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (ModSchemaPost, ModSchemaShow, ModSchemaUpdate,
                                                 ResponseMessageSchema)
-from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
     prefix="/mod",
@@ -26,7 +26,7 @@ db_user = Security(auth.get_user)
 def create(request: ModSchemaPost,
            user: OktaUser = db_user,
            db: Session = db_session):
-    set_global_user_id(db, user)
+    set_global_user_from_okta(db, user)
     return mod_crud.create(db, request)
 
 
@@ -37,7 +37,7 @@ async def patch(mod_id: int,
                 request: ModSchemaUpdate,
                 user: OktaUser = db_user,
                 db: Session = db_session):
-    set_global_user_id(db, user)
+    set_global_user_from_okta(db, user)
     patch = request.dict(exclude_unset=True)
     return mod_crud.patch(db, mod_id, patch)
 

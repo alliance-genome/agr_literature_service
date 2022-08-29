@@ -9,7 +9,7 @@ from agr_literature_service.api.schemas import (ModReferenceTypeSchemaPost,
                                                 ModReferenceTypeSchemaShow,
                                                 ModReferenceTypeSchemaUpdate,
                                                 ResponseMessageSchema)
-from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
     prefix="/reference/mod_reference_type",
@@ -28,7 +28,7 @@ db_user = Security(auth.get_user)
 def create(request: ModReferenceTypeSchemaPost,
            user: OktaUser = db_user,
            db: Session = db_session):
-    set_global_user_id(db, user)
+    set_global_user_from_okta(db, user)
     return mod_reference_type_crud.create(db, request)
 
 
@@ -37,7 +37,7 @@ def create(request: ModReferenceTypeSchemaPost,
 def destroy(mod_reference_type_id: int,
             user: OktaUser = db_user,
             db: Session = db_session):
-    set_global_user_id(db, user)
+    set_global_user_from_okta(db, user)
     mod_reference_type_crud.destroy(db, mod_reference_type_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -49,7 +49,7 @@ async def patch(mod_reference_type_id: int,
                 request: ModReferenceTypeSchemaUpdate,
                 user: OktaUser = db_user,
                 db: Session = db_session):
-    set_global_user_id(db, user)
+    set_global_user_from_okta(db, user)
     patch = request.dict(exclude_unset=True)
     return mod_reference_type_crud.patch(db, mod_reference_type_id, patch)
 
