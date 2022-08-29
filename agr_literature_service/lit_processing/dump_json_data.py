@@ -84,8 +84,8 @@ def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
 
     if ondemand:
         log.info("Sending email...")
-        ui_url = str(ui_root_url) + filename
-        email_message = "The file " + filename + " is ready for <a href=" + ui_url + ">download</a>"
+        ui_url = str(ui_root_url) + str(filename)
+        email_message = "The file " + str(filename) + " is ready for <a href=" + ui_url + ">download</a>"
         send_email_report("SUCCESS", email, mod, email_message)
 
     log.info("DONE!")
