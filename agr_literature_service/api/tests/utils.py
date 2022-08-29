@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 def initialise(db: Session, test_str: str):
 
     # add User "XXX_Bob"
-    user = user_create(db, "{}_Bob".format(test_str), None)
+    user = user_create(db, "{}_Bob".format(test_str))
     # By adding set_global_user_id here we do not need to pass the
     # created_by and updated_by dict elements to the schema validators.
     set_global_user_id(db, user.id)
