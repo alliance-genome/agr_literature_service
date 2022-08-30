@@ -1,40 +1,12 @@
 import pytest
 from pydantic import ValidationError
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
 from starlette.testclient import TestClient
 from fastapi import status
 
-from agr_literature_service.api.database.base import Base
-from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models import ReferenceModel, initialize, AuthorModel, CrossReferenceModel
+from agr_literature_service.api.models import ReferenceModel, AuthorModel, CrossReferenceModel
 from agr_literature_service.api.schemas import ReferenceSchemaPost
-from agr_literature_service.lit_processing.helper_post_to_api import get_authentication_token, generate_headers
-
-
-def delete_all_table_content(engine):
-    for table in reversed(Base.metadata.sorted_tables):
-        if table != "users":
-            engine.execute(table.delete())
-
-
-@pytest.fixture()
-def db() -> Session:
-    print("***** Creating DB connection *****")
-    engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
-    initialize()
-    delete_all_table_content(engine)
-    db = sessionmaker(bind=engine, autoflush=True)()
-    yield db
-    print("***** Deleting DB connection *****")
-    delete_all_table_content(engine)
-
-
-@pytest.fixture(scope="session")
-def auth_headers():
-    print("***** Generating Okta token *****")
-    yield generate_headers(get_authentication_token())
+from .fixtures import auth_headers, db
 
 
 @pytest.fixture
