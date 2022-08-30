@@ -11,7 +11,7 @@ from agr_literature_service.api.deps import s3_auth
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (ReferenceSchemaPost, ReferenceSchemaShow,
                                                 ReferenceSchemaUpdate, ResponseMessageSchema)
-from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.user import set_global_user_from_okta
 
 import logging
 
@@ -41,7 +41,7 @@ lock_dumps_ondemand = Lock()
 def create(request: ReferenceSchemaPost,
            user: OktaUser = db_user,
            db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_from_okta(db, user)
     return reference_crud.create(db, request)
 
 
@@ -51,7 +51,7 @@ def create(request: ReferenceSchemaPost,
 def add(pubmed_id: str,
         user: OktaUser = db_user,
         db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_from_okta(db, user)
 
     return process_pmid(pubmed_id)
 
@@ -61,7 +61,7 @@ def add(pubmed_id: str,
 def destroy(curie: str,
             user: OktaUser = db_user,
             db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_from_okta(db, user)
     reference_crud.destroy(db, curie)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -73,7 +73,7 @@ async def patch(curie: str,
                 request: ReferenceSchemaUpdate,
                 user: OktaUser = db_user,
                 db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_from_okta(db, user)
     patch = request.dict(exclude_unset=True)
     return reference_crud.patch(db, curie, patch)
 
@@ -84,7 +84,7 @@ def download_data_by_mod(mod: str,
                          user: OktaUser = db_user,
                          db: Session = db_session):
 
-    set_global_user_id(db, user.id)
+    set_global_user_from_okta(db, user)
     return download.get_json_file(mod)
 
 
@@ -94,7 +94,7 @@ def download_data_by_filename(filename: str,
                               user: OktaUser = db_user,
                               db: Session = db_session):
 
-    set_global_user_id(db, user.id)
+    set_global_user_from_okta(db, user)
     return download.get_json_file(None, filename)
 
 
@@ -116,7 +116,7 @@ def generate_data_ondemand(mod: str,
                            user: OktaUser = db_user,
                            db: Session = db_session):
 
-    set_global_user_id(db, user.id)
+    set_global_user_from_okta(db, user)
 
     if mod is None or email is None or ui_root_url is None:
         return {
@@ -178,7 +178,7 @@ def merge_references(old_curie: str,
                      new_curie: str,
                      user: OktaUser = db_user,
                      db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_from_okta(db, user)
     return reference_crud.merge_references(db, old_curie, new_curie)
 
 
@@ -187,5 +187,5 @@ def merge_references(old_curie: str,
 def update_citation(curie: str,
                     user: OktaUser = db_user,
                     db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_from_okta(db, user)
     return reference_crud.update_citation(db, curie)
