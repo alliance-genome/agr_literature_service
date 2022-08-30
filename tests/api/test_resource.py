@@ -9,7 +9,7 @@ from .fixtures import auth_headers, db # noqa
 
 
 @pytest.fixture
-def create_test_resource(auth_headers):
+def create_test_resource(auth_headers): # noqa
     print("***** Adding a test resource *****")
     with TestClient(app) as client:
         resource_data = {
@@ -21,11 +21,11 @@ def create_test_resource(auth_headers):
 
 class TestResource:
 
-    def test_get_bad_resource(self, auth_headers):
+    def test_get_bad_resource(self, auth_headers): # noqa
         with TestClient(app) as client:
             client.get(url="/resource/PMID:VQEVEQRVC")
 
-    def test_create_resource(self, db, auth_headers, create_test_resource):
+    def test_create_resource(self, db, auth_headers, create_test_resource): # noqa
         with TestClient(app) as client:
             assert create_test_resource.status_code == status.HTTP_201_CREATED
             new_resource = client.post(url="/resource/", json={"title": "Another Bob"}, headers=auth_headers)
@@ -46,7 +46,7 @@ class TestResource:
             new_resource = client.post(url="/resource/", json={"title": ""}, headers=auth_headers)
             assert new_resource.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    def test_show_resource(self, db, auth_headers, create_test_resource):
+    def test_show_resource(self, db, auth_headers, create_test_resource): # noqa
         with TestClient(app) as client:
             response = client.get(url=f"/resource/{create_test_resource.json()}")
             assert response.status_code == status.HTTP_200_OK
@@ -58,7 +58,7 @@ class TestResource:
             response = client.get(url="/resource/does_not_exist")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_update_resource(self, db, auth_headers, create_test_resource):
+    def test_update_resource(self, db, auth_headers, create_test_resource): # noqa
         with TestClient(app) as client:
             response = client.patch(url=f"/resource/{create_test_resource.json()}", json={"title": "new title"},
                                     headers=auth_headers)
@@ -71,7 +71,7 @@ class TestResource:
             assert new_resource['title'] == "new title"
             assert new_resource['abstract'] == "3"
 
-    def test_resource_create_large(self, db, auth_headers):
+    def test_resource_create_large(self, db, auth_headers): # noqa
         with TestClient(app) as client:
             xml = {
                 "abbreviation_synonyms": ["Jackson, Mathews, Wickens, 1996"],
@@ -140,7 +140,7 @@ class TestResource:
 
             assert len(res.cross_reference) == 1
 
-    def test_delete_resource(self, db, auth_headers, create_test_resource):
+    def test_delete_resource(self, db, auth_headers, create_test_resource): # noqa
         with TestClient(app) as client:
             response = client.delete(url=f"/resource/{create_test_resource.json()}", headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT

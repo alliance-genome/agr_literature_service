@@ -10,7 +10,7 @@ from .fixtures import auth_headers, db # noqa
 
 
 @pytest.fixture
-def create_test_reference(auth_headers):
+def create_test_reference(auth_headers): # noqa
     print("***** Adding a test reference *****")
     with TestClient(app) as client:
         new_reference = {
@@ -25,7 +25,7 @@ def create_test_reference(auth_headers):
 
 class TestReference:
 
-    def test_create_reference(self, db, auth_headers, create_test_reference):
+    def test_create_reference(self, db, auth_headers, create_test_reference): # noqa
         with TestClient(app) as client:
             response = create_test_reference
             assert response.status_code == status.HTTP_201_CREATED
@@ -57,7 +57,7 @@ class TestReference:
             with pytest.raises(ValidationError):
                 ReferenceSchemaPost(title="", category="thesis")
 
-    def test_show_reference(self, db, auth_headers, create_test_reference):
+    def test_show_reference(self, db, auth_headers, create_test_reference): # noqa
         with TestClient(app) as client:
             get_response = client.get(url=f"/reference/{create_test_reference.json()}")
             added_ref = get_response.json()
@@ -69,7 +69,7 @@ class TestReference:
             res = client.get(url="/reference/does_not_exist")
             assert res.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_update_reference(self, db, auth_headers, create_test_reference):
+    def test_update_reference(self, db, auth_headers, create_test_reference): # noqa
         with TestClient(app) as client:
 
             # patch docs says it needs a ReferenceSchemaUpdate
@@ -89,7 +89,7 @@ class TestReference:
             # Do we have a new citation
             assert updated_ref["citation"] == ", () new title.   (): "
 
-    def test_changesets(self, db, create_test_reference, auth_headers):
+    def test_changesets(self, db, create_test_reference, auth_headers): # noqa
         with TestClient(app) as client:
             created_ref_curie = create_test_reference.json()
             # title            : None -> bob -> 'new title'
@@ -107,7 +107,7 @@ class TestReference:
             assert transactions[2]['changeset']['citation'][0] == ", () Bob.   (): "
             assert transactions[2]['changeset']['citation'][1] == ", () new title.   (): "
 
-    def test_delete_reference(self, db, auth_headers, create_test_reference):
+    def test_delete_reference(self, db, auth_headers, create_test_reference): # noqa
         with TestClient(app) as client:
             created_ref_curie = create_test_reference.json()
             delete_response = client.delete(url=f"/reference/{created_ref_curie}", headers=auth_headers)
@@ -117,7 +117,7 @@ class TestReference:
             delete_response = client.delete(url=f"/reference/{created_ref_curie}", headers=auth_headers)
             assert delete_response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_reference_large(self, db, auth_headers):
+    def test_reference_large(self, db, auth_headers): # noqa
         with TestClient(app) as client:
             full_xml = {
                 "category": "research_article",
