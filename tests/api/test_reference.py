@@ -39,7 +39,7 @@ class TestReference:
             new_reference = {
                 "title": "Bob",
                 "category": "thesis"
-                }
+            }
             response = client.post(url="/reference/", json=new_reference, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
             db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == response.json()).one()
