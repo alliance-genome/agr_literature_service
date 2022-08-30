@@ -6,7 +6,7 @@ from fastapi import status
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, CrossReferenceModel
 from agr_literature_service.api.schemas import ReferenceSchemaPost
-from .fixtures import auth_headers, db
+from .fixtures import auth_headers, db # noqa
 
 
 @pytest.fixture

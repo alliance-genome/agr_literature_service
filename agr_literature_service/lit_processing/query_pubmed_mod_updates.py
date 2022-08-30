@@ -326,7 +326,7 @@ def query_mods(input_mod, reldate):
             # logger.info(f"upload {pmid} to s3")
             upload_xml_file_to_s3(pmid)
 
-        set_pmid_list(mod, pmids4mod, json_filepath)
+        set_pmid_list(db_session, mod, pmids4mod, json_filepath)
 
     logger.info("Sending Report")
     send_loading_report(pmids4mod, mods_to_query, log_path, log_url, not_loaded_pmids4mod)
@@ -340,7 +340,7 @@ def query_mods(input_mod, reldate):
     logger.info("end query_mods")
 
 
-def set_pmid_list(mod, pmids4mod, json_file):
+def set_pmid_list(db_session, mod, pmids4mod, json_file):
 
     f = open(json_file)
     json_data = json.load(f)
@@ -350,9 +350,11 @@ def set_pmid_list(mod, pmids4mod, json_file):
         if x.get('crossReferences'):
             for c in x['crossReferences']:
                 if c['id'].startswith('PMID:'):
-                    pmid = c['id'].replace('PMID:', '')
-                    pmids4mod['all'].add(pmid)
-                    pmids4mod[mod].add(pmid)
+                    row = db_session.query(CrossReferenceModel).filter_by(curie=c['id']).one_or_none()
+                    if row:
+                        pmid = c['id'].replace('PMID:', '')
+                        pmids4mod['all'].add(pmid)
+                        pmids4mod[mod].add(pmid)
 
 
 def send_loading_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod):
