@@ -1,3 +1,5 @@
+from os import environ
+
 import pytest
 
 from agr_literature_service.api.models import initialize
@@ -9,9 +11,10 @@ from sqlalchemy.orm import sessionmaker, Session
 
 
 def delete_all_table_content(engine):
-    for table in reversed(Base.metadata.sorted_tables):
-        if table != "users":
-            engine.execute(table.delete())
+    if environ.get('TEST_DATABASE_DELETE') == "true":
+        for table in reversed(Base.metadata.sorted_tables):
+            if table != "users":
+                engine.execute(table.delete())
 
 
 @pytest.fixture()
