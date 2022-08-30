@@ -34,7 +34,7 @@ class TestAuthor:
             response = client.get(url=f"/author/{-1}")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_create_author(self, db, auth_headers, create_test_author):
+    def test_create_author(self, db, auth_headers, create_test_author): # noqa
         new_author_response, reference_curie = create_test_author
         assert new_author_response.status_code == status.HTTP_201_CREATED
         # check db for author
@@ -44,7 +44,7 @@ class TestAuthor:
         assert author.orcid == "ORCID:1234-1234-1234-123X"
         assert author.orcid_cross_reference.curie == "ORCID:1234-1234-1234-123X"
 
-    def test_update_author(self, db, auth_headers, create_test_author):
+    def test_update_author(self, db, auth_headers, create_test_author): # noqa
         with TestClient(app) as client:
             new_author_response, reference_curie = create_test_author
             xml = {'first_name': "003_TUA",
@@ -66,12 +66,12 @@ class TestAuthor:
                     assert transaction['changeset']['orcid'][0] == 'ORCID:1234-1234-1234-123X'
                     assert transaction['changeset']['orcid'][1] == 'ORCID:4321-4321-4321-321X'
 
-    def test_show_author(self, db, create_test_author):
+    def test_show_author(self, db, create_test_author): # noqa
         with TestClient(app) as client:
             response = client.get(url=f"/author/{create_test_author[0].json()}")
             assert response.json()['orcid']['curie'] == "ORCID:1234-1234-1234-123X"
 
-    def test_destroy_author(self, db, create_test_author, auth_headers):
+    def test_destroy_author(self, db, create_test_author, auth_headers): # noqa
         with TestClient(app) as client:
             response = client.delete(url=f"/author/{create_test_author[0].json()}", headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
