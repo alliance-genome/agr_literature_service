@@ -51,14 +51,12 @@ class TestReferenceCommentAndCorrection:
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_create_rcc(self, db, create_test_ref_cc): # noqa
-        with TestClient(app) as client:
-            # check results in database
-            rcc_obj = db.query(ReferenceCommentAndCorrectionModel). \
-                join(ReferenceModel,
-                     ReferenceCommentAndCorrectionModel.reference_id_from == ReferenceModel.reference_id). \
-                filter(ReferenceModel.curie == create_test_ref_cc[1]).one()
-            assert rcc_obj.reference_to.curie == create_test_ref_cc[2]
-            assert rcc_obj.reference_comment_and_correction_type == "CommentOn"
+        # check results in database
+        rcc_obj = db.query(ReferenceCommentAndCorrectionModel).join(
+            ReferenceModel, ReferenceCommentAndCorrectionModel.reference_id_from == ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == create_test_ref_cc[1]).one()
+        assert rcc_obj.reference_to.curie == create_test_ref_cc[2]
+        assert rcc_obj.reference_comment_and_correction_type == "CommentOn"
 
     def test_patch_rcc(self, db, create_test_ref_cc, auth_headers): # noqa
         with TestClient(app) as client:
@@ -73,8 +71,8 @@ class TestReferenceCommentAndCorrection:
 
             rcc_obj: ReferenceCommentAndCorrectionModel = db.query(ReferenceCommentAndCorrectionModel). \
                 filter(
-                ReferenceCommentAndCorrectionModel.reference_comment_and_correction_id ==
-                create_test_ref_cc[0].json()).one()
+                ReferenceCommentAndCorrectionModel.reference_comment_and_correction_id == create_test_ref_cc[0].
+                json()).one()
             assert rcc_obj.reference_to.curie == create_test_ref_cc[1]
             assert rcc_obj.reference_from.curie == create_test_ref_cc[2]
             assert rcc_obj.reference_comment_and_correction_type == "ReprintOf"
