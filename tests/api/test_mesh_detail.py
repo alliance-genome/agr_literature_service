@@ -1,7 +1,4 @@
-from typing import Tuple
-
 import pytest
-from requests import Response
 from starlette.testclient import TestClient
 from fastapi import status
 
