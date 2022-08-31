@@ -9,7 +9,7 @@ from .test_reference import create_test_reference # noqa
 
 
 @pytest.fixture
-def create_test_author(auth_headers, create_test_reference): # noqa
+def create_test_author(db, auth_headers, create_test_reference): # noqa
     print("***** Adding a test author *****")
     with TestClient(app) as client:
         new_author = {
@@ -63,12 +63,12 @@ class TestAuthor:
                     assert transaction['changeset']['orcid'][0] == 'ORCID:1234-1234-1234-123X'
                     assert transaction['changeset']['orcid'][1] == 'ORCID:4321-4321-4321-321X'
 
-    def test_show_author(self, db, create_test_author): # noqa
+    def test_show_author(self, create_test_author): # noqa
         with TestClient(app) as client:
             response = client.get(url=f"/author/{create_test_author[0].json()}")
             assert response.json()['orcid']['curie'] == "ORCID:1234-1234-1234-123X"
 
-    def test_destroy_author(self, db, create_test_author, auth_headers): # noqa
+    def test_destroy_author(self, create_test_author, auth_headers): # noqa
         with TestClient(app) as client:
             response = client.delete(url=f"/author/{create_test_author[0].json()}", headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT

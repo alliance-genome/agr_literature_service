@@ -9,7 +9,7 @@ from .test_resource import create_test_resource # noqa
 
 
 @pytest.fixture
-def create_test_editor(auth_headers, create_test_resource): # noqa
+def create_test_editor(db, auth_headers, create_test_resource): # noqa
     print("***** Adding a test editor *****")
     with TestClient(app) as client:
         new_editor = {

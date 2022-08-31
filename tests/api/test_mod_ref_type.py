@@ -11,8 +11,8 @@ create_test_reference2 = create_test_reference
 
 
 @pytest.fixture
-def create_test_mod_ref_type(auth_headers, create_test_reference): # noqa
-    print("***** Adding a test reference comment and correction *****")
+def create_test_mod_ref_type(db, auth_headers, create_test_reference): # noqa
+    print("***** Adding a test mod reference type *****")
     with TestClient(app) as client:
         new_mod_ref_type = {
             "reference_curie": create_test_reference.json(),

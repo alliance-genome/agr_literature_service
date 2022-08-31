@@ -11,7 +11,7 @@ create_test_reference2 = create_test_reference
 
 
 @pytest.fixture
-def create_test_ref_cc(auth_headers, create_test_reference, create_test_reference2): # noqa
+def create_test_ref_cc(db, auth_headers, create_test_reference, create_test_reference2): # noqa
     print("***** Adding a test reference comment and correction *****")
     with TestClient(app) as client:
         ref1 = create_test_reference.json()
@@ -88,7 +88,7 @@ class TestReferenceCommentAndCorrection:
             assert transactions[1]['changeset']['reference_id_to'][1] == reference1_id
             assert transactions[1]['changeset']['reference_comment_and_correction_type'][1] == "ReprintOf"
 
-    def test_show_rcc(self, db, create_test_ref_cc): # noqa
+    def test_show_rcc(self, create_test_ref_cc): # noqa
         with TestClient(app) as client:
             response = client.get(url=f"/reference_comment_and_correction/{create_test_ref_cc[0].json()}")
             res = response.json()
