@@ -5,11 +5,11 @@ from fastapi import status
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import EditorModel
 from .fixtures import auth_headers, db # noqa
-from .test_reference import create_test_reference # noqa
+from .test_resource import create_test_resource # noqa
 
 
 @pytest.fixture
-def create_test_editor(auth_headers, create_test_reference): # noqa
+def create_test_editor(auth_headers, create_test_resource): # noqa
     print("***** Adding a test editor *****")
     with TestClient(app) as client:
         new_editor = {
@@ -18,10 +18,10 @@ def create_test_editor(auth_headers, create_test_reference): # noqa
             "last_name": "string",
             "name": "003_TCU",
             "orcid": "ORCID:2345-2345-2345-234X",
-            "reference_curie": create_test_reference.json()
+            "resource_curie": create_test_resource.json()
         }
         response = client.post(url="/editor/", json=new_editor, headers=auth_headers)
-        yield response, create_test_reference.json()
+        yield response, create_test_resource.json()
 
 
 class TestEditor:
@@ -37,7 +37,7 @@ class TestEditor:
         editor = db.query(EditorModel).filter(EditorModel.name == "003_TCU").one()
         assert editor.first_name == "string"
 
-    def test_create_editor_for_ref_later(self, db, create_test_reference, auth_headers): # noqa
+    def test_create_editor_for_ref_later(self, db, create_test_resource, auth_headers): # noqa
         with TestClient(app) as client:
             xml = {
                 "order": 2,
@@ -45,7 +45,7 @@ class TestEditor:
                 "last_name": "string3",
                 "name": "Name2",
                 "orcid": "ORCID:3333-4444-5555-666X",
-                "reference_curie": create_test_reference.json()
+                "resource_curie": create_test_resource.json()
             }
             response = client.post(url="/editor/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
@@ -57,7 +57,7 @@ class TestEditor:
         with TestClient(app) as client:
             xml = {'first_name': "003_TUA",
                    'orcid': "ORCID:5432-5432-5432-432X",
-                   "reference_curie": create_test_editor[1]
+                   "resource_curie": create_test_editor[1]
                    }
             response = client.patch(url=f"/editor/{create_test_editor[0].json()}", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
@@ -68,12 +68,10 @@ class TestEditor:
             response = client.get(url=f"/editor/{create_test_editor[0].json()}/versions")
 
             # Orcid changed from None -> ORCID:2345-2345-2345-234X -> ORCID:5432-5432-5432-432X
-            for transaction in response.json():
-                if not transaction['changeset']['orcid'][0]:
-                    assert transaction['changeset']['orcid'][1] == 'ORCID:2345-2345-2345-234X'
-                else:
-                    assert transaction['changeset']['orcid'][0] == 'ORCID:2345-2345-2345-234X'
-                    assert transaction['changeset']['orcid'][1] == 'ORCID:5432-5432-5432-432X'
+            transactions = response.json()
+            assert transactions[0]['changeset']['orcid'][1] == 'ORCID:2345-2345-2345-234X'
+            assert transactions[1]['changeset']['orcid'][0] == 'ORCID:2345-2345-2345-234X'
+            assert transactions[1]['changeset']['orcid'][1] == 'ORCID:5432-5432-5432-432X'
 
     def test_show_editor(self, create_test_editor): # noqa
         with TestClient(app) as client:

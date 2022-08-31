@@ -1,3 +1,5 @@
+import copy
+
 import pytest
 from pydantic import ValidationError
 from sqlalchemy_continuum import Operation
@@ -35,7 +37,9 @@ class TestReference:
             assert db_obj.title == "Bob"
             assert db_obj.date_created is not None
             assert db_obj.date_updated is not None
-
+            response = client.get(url=f"/reference/{create_test_reference.json()}")
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json()["title"] == "Bob"
             # create again with same title, category
             # Apparently not a problem!!
             new_reference = {
@@ -51,13 +55,21 @@ class TestReference:
 
             # No title
             # ReferenceSchemaPost raises exception
-            with pytest.raises(ValidationError):
-                ReferenceSchemaPost(title=None, category="thesis")
+            wrong_reference = {
+                "title": None,
+                "category": "thesis"
+            }
+            response = client.post(url="/reference/", json=wrong_reference, headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
             # blank title
             # ReferenceSchemaPost raises exception
-            with pytest.raises(ValidationError):
-                ReferenceSchemaPost(title="", category="thesis")
+            wrong_reference = {
+                "title": "",
+                "category": "thesis"
+            }
+            response = client.post(url="/reference/", json=wrong_reference, headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_show_reference(self, db, auth_headers, create_test_reference): # noqa
         with TestClient(app) as client:
@@ -260,12 +272,12 @@ class TestReference:
             }
             response1 = client.post(url="/reference/", json=ref1_data, headers=auth_headers)
 
-            ref2_data = ref1_data.copy()
+            ref2_data = copy.deepcopy(ref1_data)
             ref2_data['volume'] = '013b'
             ref2_data['abstract'] = "013 - abs B"
             response2 = client.post(url="/reference/", json=ref2_data, headers=auth_headers)
 
-            ref3_data = ref2_data.copy()
+            ref3_data = copy.deepcopy(ref2_data)
             ref3_data['volume'] = '013c'
             ref3_data['abstract'] = "013 - abs C"
             response3 = client.post(url="/reference/", json=ref3_data, headers=auth_headers)

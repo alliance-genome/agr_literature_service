@@ -31,7 +31,7 @@ class TestAuthor:
             response = client.get(url=f"/author/{-1}")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_create_author(self, db, auth_headers, create_test_author): # noqa
+    def test_create_author(self, db, create_test_author): # noqa
         new_author_response, reference_curie = create_test_author
         assert new_author_response.status_code == status.HTTP_201_CREATED
         # check db for author
@@ -54,7 +54,7 @@ class TestAuthor:
             assert author.author_id == mod_author["author_id"]
             assert mod_author["first_name"] == "003_TUA"
             assert mod_author["orcid"]["curie"] == "ORCID:4321-4321-4321-321X"
-            res = client.get(url=f"/author/{create_test_author[0].json()}/versions").json()
+            res = client.get(url=f"/author/{new_author_response.json()}/versions").json()
             # Orcid changed from None -> ORCID:1234-1234-1234-123X -> ORCID:4321-4321-4321-321X
             for transaction in res:
                 if not transaction['changeset']['orcid'][0]:
