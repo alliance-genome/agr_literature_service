@@ -34,13 +34,13 @@ class TestEditor:
             response = client.get(url="/editor/-1")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_create_editor(self, db, create_test_editor):
+    def test_create_editor(self, db, create_test_editor): # noqa
         assert create_test_editor[0].status_code == status.HTTP_201_CREATED
         # check db for editor
         editor = db.query(EditorModel).filter(EditorModel.name == "003_TCU").one()
         assert editor.first_name == "string"
 
-    def test_create_editor_for_ref_later(self, db, create_test_reference, auth_headers):
+    def test_create_editor_for_ref_later(self, db, create_test_reference, auth_headers): # noqa
         with TestClient(app) as client:
             xml = {
                 "order": 2,
@@ -56,7 +56,7 @@ class TestEditor:
             editor = db.query(EditorModel).filter(EditorModel.name == "Name2").one()
             assert editor.first_name == "string2"
 
-    def test_patch_editor(self, db, create_test_editor, auth_headers):
+    def test_patch_editor(self, db, create_test_editor, auth_headers): # noqa
         with TestClient(app) as client:
             xml = {'first_name': "003_TUA",
                    'orcid': "ORCID:5432-5432-5432-432X",
@@ -78,12 +78,12 @@ class TestEditor:
                     assert transaction['changeset']['orcid'][0] == 'ORCID:2345-2345-2345-234X'
                     assert transaction['changeset']['orcid'][1] == 'ORCID:5432-5432-5432-432X'
 
-    def test_show_editor(self, create_test_editor):
+    def test_show_editor(self, create_test_editor): # noqa
         with TestClient(app) as client:
             response = client.get(url=f"/editor/{create_test_editor[0].json()}")
             assert response.json()['orcid'] == "ORCID:2345-2345-2345-234X"
 
-    def test_destroy_editor(self, create_test_editor, auth_headers):
+    def test_destroy_editor(self, create_test_editor, auth_headers): # noqa
         with TestClient(app) as client:
             response = client.delete(url=f"/editor/{create_test_editor[0].json()}", headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
