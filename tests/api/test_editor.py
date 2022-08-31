@@ -94,4 +94,3 @@ class TestEditor:
             # Deleting it again should give an error as the lookup will fail.
             response = client.delete(url=f"/editor/{create_test_editor[0].json()}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
-
