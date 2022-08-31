@@ -14,7 +14,7 @@ create_test_reference2 = create_test_reference
 
 
 @pytest.fixture
-def create_test_mesh_detail(auth_headers, create_test_reference) -> Tuple[Response, str]: # noqa
+def create_test_mesh_detail(auth_headers, create_test_reference): # noqa
     print("***** Adding a test mesh detail *****")
     with TestClient(app) as client:
         new_mesh_detail = {"reference_curie": create_test_reference.json(),

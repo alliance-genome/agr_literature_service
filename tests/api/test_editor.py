@@ -12,7 +12,7 @@ from .test_reference import create_test_reference # noqa
 
 
 @pytest.fixture
-def create_test_editor(auth_headers, create_test_reference) -> Tuple[Response, str]: # noqa
+def create_test_editor(auth_headers, create_test_reference): # noqa
     print("***** Adding a test editor *****")
     with TestClient(app) as client:
         new_editor = {

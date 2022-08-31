@@ -12,7 +12,7 @@ from .test_reference import create_test_reference # noqa
 
 
 @pytest.fixture
-def create_test_author(auth_headers, create_test_reference) -> Tuple[Response, str]: # noqa
+def create_test_author(auth_headers, create_test_reference): # noqa
     print("***** Adding a test author *****")
     with TestClient(app) as client:
         new_author = {

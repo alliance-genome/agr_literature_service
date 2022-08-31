@@ -13,7 +13,7 @@ from .test_resource import create_test_resource # noqa
 
 
 @pytest.fixture
-def create_test_cross_reference(db, auth_headers, create_test_reference) -> Tuple[Response, str]: # noqa
+def create_test_cross_reference(db, auth_headers, create_test_reference): # noqa
     print("***** Adding a test cross reference *****")
     with TestClient(app) as client:
         db.execute("INSERT INTO resource_descriptors (db_prefix, name, default_url) "
