@@ -1,5 +1,6 @@
 import pytest
 from pydantic import ValidationError
+from sqlalchemy_continuum import Operation
 from starlette.testclient import TestClient
 from fastapi import status
 
@@ -7,6 +8,7 @@ from agr_literature_service.api.main import app
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, CrossReferenceModel
 from agr_literature_service.api.schemas import ReferenceSchemaPost
 from .fixtures import auth_headers, db # noqa
+from .test_resource import create_test_resource # noqa
 
 
 @pytest.fixture
@@ -237,3 +239,109 @@ class TestReference:
                     assert ont['workflow_tag_id'] == "workflow_tag1"
                 else:
                     assert 1 == 0  # Not RGD or FB ?
+
+    def test_reference_merging(self, db, create_test_resource, auth_headers): # noqa
+        with TestClient(app) as client:
+            ref1_data = {
+                "category": "research_article",
+                "abstract": "013 - abs A",
+                "authors": [
+                    {
+                        "orcid": 'ORCID:1234-1234-1234-123X'
+                    },
+                    {
+                        "orcid": 'ORCID:1111-2222-3333-444X'  # New
+                    }
+                ],
+                "resource": create_test_resource.json(),
+                "title": "Another title",
+                "volume": "013a",
+                "open_access": True
+            }
+            response1 = client.post(url="/reference/", json=ref1_data, headers=auth_headers)
+
+            ref2_data = ref1_data.copy()
+            ref2_data['volume'] = '013b'
+            ref2_data['abstract'] = "013 - abs B"
+            response2 = client.post(url="/reference/", json=ref2_data, headers=auth_headers)
+
+            ref3_data = ref2_data.copy()
+            ref3_data['volume'] = '013c'
+            ref3_data['abstract'] = "013 - abs C"
+            response3 = client.post(url="/reference/", json=ref3_data, headers=auth_headers)
+
+            # update ref_obj with a different category
+            # This is just to test the transactions and versions
+            xml = {"category": "other"}
+            response_patch1 = client.patch(url=f"/reference/{response1.json()}", json=xml, headers=auth_headers)
+            assert response_patch1.status_code == status.HTTP_202_ACCEPTED
+            response_patch3 = client.patch(url=f"/reference/{response3.json()}", json=xml, headers=auth_headers)
+            assert response_patch3.status_code == status.HTTP_202_ACCEPTED
+
+            # fetch the new record.
+            res = client.get(url=f"/reference/{response1.json()}").json()
+            assert res['category'] == 'other'
+
+            # merge 1 into 2
+            response_merge1 = client.post(url=f"/reference/merge/{response1.json()}/{response2.json()}",
+                                          headers=auth_headers)
+            assert response_merge1.status_code == status.HTTP_201_CREATED
+            # merge 2 into 3
+            response_merge2 = client.post(url=f"/reference/merge/{response2.json()}/{response3.json()}",
+                                          headers=auth_headers)
+            assert response_merge2.status_code == status.HTTP_201_CREATED
+            # So now if we look up ref_obj we should get ref3_obj
+            # and if we lookup ref2_obj we should get ref3_obj
+            response_ref1 = client.get(url=f"/reference/{response1.json()}")
+            assert response_ref1.json()['curie'] == response3.json()
+            response_ref2 = client.get(url=f"/reference/{response2.json()}")
+            assert response_ref2.json()['curie'] == response3.json()
+
+            ##########################################################################
+            # The following are really examples of continuum and not testing the code
+            ##########################################################################
+
+            #####################################
+            # 1) Manually examine the _version table
+            #####################################
+            sql = """SELECT transaction_id, operation_type, end_transaction_id, category, category_mod
+                     FROM reference_version
+                       WHERE curie = '{}'
+                       ORDER BY transaction_id
+                """.format(response1.json())
+
+            rs = db.execute(sql)
+            # (33, 1, 36, 'Research_Article', True)
+            # (36, 1, 37, 'Other', True)
+            # (37, 2, None, 'Other', True)
+
+            print("insert: {}, update: {}, delete: {}".format(Operation.INSERT, Operation.UPDATE, Operation.DELETE))
+            results = []
+            for row in rs:
+                print(row)
+                results.append(row)
+
+            # last transaction check.
+            assert results[0][2] == results[1][0]
+
+            # final Transaction_id is none
+            assert results[2][2] is None
+
+            # check category changed
+            assert results[0][3] != results[1][3]
+
+            ######################
+            # 2) version traversal
+            ######################
+            ref = db.query(ReferenceModel).filter(ReferenceModel.curie == response3.json()).first()
+            first_ver = ref.versions[0]
+            # lower case now???
+            assert first_ver.category == 'research_article'
+
+            sec_ver = first_ver.next
+            assert sec_ver.category == 'other'
+
+            ########################################
+            # 3) changesets, see test_001_reference.
+            ########################################
+
