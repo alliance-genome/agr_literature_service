@@ -46,7 +46,7 @@ def initialize_elasticsearch():
 
 class TestSearch:
 
-    def test_search_references_return_facets_only(self, initialize_elasticsearch, auth_headers):
+    def test_search_references_return_facets_only(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
             facets_values = {
                 "pubmed_types.keyword": (["Journal Article", "Review"])
@@ -57,13 +57,13 @@ class TestSearch:
             assert "aggregations" in res and "pubmed_types.keyword" in res["aggregations"]
             assert len(res["aggregations"]["pubmed_types.keyword"]["buckets"]) > 0
 
-    def test_search_references_no_facets(self, initialize_elasticsearch, auth_headers):
+    def test_search_references_no_facets(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
             search_data = {"query": "cell", "facets_values": None, "return_facets_only": False}
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert len(res) > 0
 
-    def test_search_references_with_facets(self, initialize_elasticsearch, auth_headers):
+    def test_search_references_with_facets(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
             search_data = {
                 "query": "cell",
@@ -76,7 +76,7 @@ class TestSearch:
             assert "hits" in res
             assert "aggregations" in res
 
-    def test_search_result_count(self, initialize_elasticsearch, auth_headers):
+    def test_search_result_count(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
             search_data = {
                 "query": "test",
@@ -89,7 +89,7 @@ class TestSearch:
             assert "return_count" in res
             assert res["return_count"] == 1
 
-    def test_search_max_results(self, initialize_elasticsearch, auth_headers):
+    def test_search_max_results(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
             test_size = 2
             search_data = {
@@ -104,7 +104,7 @@ class TestSearch:
             assert "hits" in res
             assert len(res["hits"]) == test_size
 
-    def test_search_references_facets_limits(self, initialize_elasticsearch, auth_headers):
+    def test_search_references_facets_limits(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
             search_data = {
                 "return_facets_only": True,
@@ -115,7 +115,7 @@ class TestSearch:
             res = client.post(url="/search/references/", json={"return_facets_only": True}, headers=auth_headers).json()
             assert len(res["aggregations"]["pubmed_types.keyword"]["buckets"]) == 10
 
-    def test_search_references_empty(self, initialize_elasticsearch, auth_headers):
+    def test_search_references_empty(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
             search_data = {
                 "query": None,
