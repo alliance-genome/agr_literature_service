@@ -12,7 +12,7 @@ create_test_reference2 = create_test_reference
 
 @pytest.fixture
 def create_test_ref_cc(auth_headers, create_test_reference, create_test_reference2): # noqa
-    print("***** Adding a test reference *****")
+    print("***** Adding a test reference comment and correction *****")
     with TestClient(app) as client:
         ref1 = create_test_reference.json()
         ref2 = create_test_reference2.json()
