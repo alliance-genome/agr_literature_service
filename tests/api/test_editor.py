@@ -41,7 +41,7 @@ class TestEditor:
         editor = db.query(EditorModel).filter(EditorModel.name == "003_TCU").one()
         assert editor.first_name == "string"
 
-    def test_create_editor_for_ref_later(self, db, test_resource, auth_headers): # noqa
+    def test_create_editor_for_ref_later(self, db, test_editor, auth_headers): # noqa
         with TestClient(app) as client:
             xml = {
                 "order": 2,
@@ -49,7 +49,7 @@ class TestEditor:
                 "last_name": "string3",
                 "name": "Name2",
                 "orcid": "ORCID:3333-4444-5555-666X",
-                "resource_curie": test_resource.new_resource_curie
+                "resource_curie": test_editor.related_resource_curie
             }
             response = client.post(url="/editor/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED

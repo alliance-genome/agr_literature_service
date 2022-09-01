@@ -10,6 +10,8 @@ from agr_literature_service.api.models import TopicEntityTagModel, TopicEntityTa
 from .fixtures import auth_headers, db # noqa
 from .test_reference import test_reference # noqa
 
+test_reference2 = test_reference
+
 TestTETData = namedtuple('TestTETData', ['response', 'new_tet_id', 'related_ref_curie'])
 
 
@@ -64,10 +66,10 @@ class TestTopicEntityTag:
             assert res["props"][0]["qualifier"] == "Quali1"
             assert res["props"][1]["qualifier"] == "Quali2"
 
-    def test_create_bad(self, test_reference, auth_headers): # noqa
+    def test_create_bad(self, test_topic_entity_tag, auth_headers): # noqa
         with TestClient(app) as client:
             xml = {
-                "reference_curie": test_reference.new_ref_curie,
+                "reference_curie": test_topic_entity_tag.related_ref_curie,
                 "topic": "Topic1",
                 "entity_type": "Gene",
                 "taxon": "NCBITaxon:1234"
@@ -99,15 +101,15 @@ class TestTopicEntityTag:
             # No species
             xml5 = copy.deepcopy(xml4)
             del xml5["taxon"]
-            xml5["reference_curie"] = test_reference.new_ref_curie
+            xml5["reference_curie"] = test_topic_entity_tag.related_ref_curie
             response = client.post(url="/topic_entity_tag/", json=xml4, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    def test_patch_with_props(self, test_topic_entity_tag, test_reference, auth_headers): # noqa
+    def test_patch_with_props(self, test_topic_entity_tag, test_reference2, auth_headers): # noqa
         with TestClient(app) as client:
             # change the reference
             patch_data = {
-                "reference_curie": test_reference.new_ref_curie,
+                "reference_curie": test_reference2.new_ref_curie,
                 "props": [
                     {"qualifier": "NEW one"}
                 ]
@@ -116,7 +118,7 @@ class TestTopicEntityTag:
                                     headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
             res = client.get(url=f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}").json()
-            assert res["reference_curie"] == test_reference.new_ref_curie
+            assert res["reference_curie"] == test_reference2.new_ref_curie
 
             # Change the note
             patch_data2 = {

@@ -35,22 +35,22 @@ class TestReferenceCommentAndCorrection:
             response = client.get(url="/reference_comment_and_correction/-1")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_bad_missing_args(self, test_reference, auth_headers): # noqa
+    def test_bad_missing_args(self, test_ref_cc, auth_headers): # noqa
         with TestClient(app) as client:
-            xml = {"reference_curie_from": test_reference.new_ref_curie,
+            xml = {"reference_curie_from": test_ref_cc.ref_curie_from,
                    "reference_comment_and_correction_type": "CommentOn"
                    }
             response = client.post(url="/reference_comment_and_correction/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-            xml = {'reference_curie_to': test_reference.new_ref_curie,
+            xml = {'reference_curie_to': test_ref_cc.ref_curie_to,
                    'reference_comment_and_correction_type': "CommentOn"
                    }
             response = client.post(url="/reference_comment_and_correction/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-            xml = {'reference_curie_from': test_reference.new_ref_curie,
-                   'reference_curie_to': test_reference.new_ref_curie}
+            xml = {'reference_curie_from': test_ref_cc.ref_curie_from,
+                   'reference_curie_to': test_ref_cc.ref_curie_to}
             response = client.post(url="/reference_comment_and_correction/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 

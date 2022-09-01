@@ -34,31 +34,31 @@ class TestWorkflowTag:
             response = client.get(url="/workflow_tag/-1")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_create_bad_missing_args(self, test_reference, test_mod, auth_headers): # noqa
+    def test_create_bad_missing_args(self, test_workflow_tag, auth_headers): # noqa
         with TestClient(app) as client:
-            xml = {"reference_curie": test_reference.new_ref_curie,
+            xml = {"reference_curie": test_workflow_tag.related_ref_curie,
                    "workflow_tag_id": "ont1"
                    }
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-            xml = {"reference_curie": test_reference.new_ref_curie,
-                   "mod_abbreviation": test_mod.new_mod_abbreviation
+            xml = {"reference_curie": test_workflow_tag.related_ref_curie,
+                   "mod_abbreviation": test_workflow_tag.related_mod_abbreviation
                    }
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-            xml = {"mod_abbreviation": test_mod.new_mod_abbreviation,
+            xml = {"mod_abbreviation": test_workflow_tag.related_mod_abbreviation,
                    "workflow_tag_id": "ont1"
                    }
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    def test_good_blank_args(self, db, test_reference, auth_headers): # noqa
+    def test_good_blank_args(self, db, test_workflow_tag, auth_headers): # noqa
         with TestClient(app) as client:
             xml = {'mod_abbreviation': "",
                    'workflow_tag_id': "ont tgba",
-                   'reference_curie': test_reference.new_ref_curie}
+                   'reference_curie': test_workflow_tag.related_ref_curie}
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
 
