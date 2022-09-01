@@ -32,13 +32,13 @@ class TestMod:
             response = client.get(url="/mod/does_not_exist")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_create_mod(self, db, test_mod):
+    def test_create_mod(self, db, test_mod): # noqa
         assert test_mod.response.status_code == status.HTTP_201_CREATED
         mod = db.query(ModModel).filter_by(abbreviation=test_mod.new_mod_abbreviation).one()
         assert mod.short_name == "AtDB"
         assert mod.full_name == "Test genome database"
 
-    def test_patch_mod(self, test_mod, auth_headers):
+    def test_patch_mod(self, test_mod, auth_headers): # noqa
         with TestClient(app) as client:
             patched_data = {"abbreviation": "0015_AtDB",
                             "short_name": "AtDB2",
@@ -53,13 +53,13 @@ class TestMod:
             assert transactions[1]["changeset"]["full_name"][0] == "Test genome database"
             assert transactions[1]["changeset"]["full_name"][1] == "Test genome database2"
 
-    def test_show_mod(self, test_mod):
+    def test_show_mod(self, test_mod): # noqa
         with TestClient(app) as client:
             response = client.get(url=f"/mod/{test_mod.new_mod_abbreviation}")
             assert response.status_code == status.HTTP_200_OK
             assert response.json()["full_name"] == "Test genome database"
 
-    def test_destroy_mod(self, db, test_mod):
+    def test_destroy_mod(self, db, test_mod): # noqa
         mod = db.query(ModModel).filter_by(abbreviation=test_mod.new_mod_abbreviation).one()
         destroy_mod(db, mod.mod_id)
 
