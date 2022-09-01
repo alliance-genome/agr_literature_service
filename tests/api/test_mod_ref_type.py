@@ -9,7 +9,7 @@ from agr_literature_service.api.models import ModReferenceTypeModel
 from .fixtures import auth_headers, db # noqa
 from .test_reference import test_reference # noqa
 
-create_test_reference2 = test_reference
+test_reference2 = test_reference
 
 TestModRefTypeData = namedtuple('TestModRefTypeData', ['response', 'new_mod_ref_type_id', 'related_ref_curie'])
 
@@ -19,12 +19,12 @@ def test_mod_ref_type(db, auth_headers, test_reference): # noqa
     print("***** Adding a test mod reference type *****")
     with TestClient(app) as client:
         new_mod_ref_type = {
-            "reference_curie": test_reference.json(),
+            "reference_curie": test_reference.new_ref_curie,
             "reference_type": "string1",
             "source": "string2"
         }
         response = client.post(url="/reference/mod_reference_type/", json=new_mod_ref_type, headers=auth_headers)
-        yield TestModRefTypeData(response, response.json(), test_reference.json())
+        yield TestModRefTypeData(response, response.json(), test_reference.new_ref_curie)
 
 
 class TestModReferenceType:
@@ -43,10 +43,10 @@ class TestModReferenceType:
         assert mrt.reference.curie == test_mod_ref_type.related_ref_curie
         assert mrt.source == "string2"
 
-    def test_patch_mrt(self, test_mod_ref_type, create_test_reference2, auth_headers): # noqa
+    def test_patch_mrt(self, test_mod_ref_type, test_reference2, auth_headers): # noqa
         with TestClient(app) as client:
             patch_data = {
-                "reference_curie": create_test_reference2.json(),
+                "reference_curie": test_reference2.new_ref_curie,
                 "reference_type": "string3",
                 "source": "string4"
             }
@@ -57,11 +57,11 @@ class TestModReferenceType:
             response = client.get(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}")
             mrt = response.json()
             assert mrt["reference_type"] == "string3"
-            assert mrt["reference_curie"] == create_test_reference2.json()
+            assert mrt["reference_curie"] == test_reference2.new_ref_curie
             assert mrt["source"] == "string4"
 
             from_id = client.get(url=f"/reference/{test_mod_ref_type.related_ref_curie}").json()["reference_id"]
-            to_id = client.get(url=f"/reference/{create_test_reference2.json()}").json()["reference_id"]
+            to_id = client.get(url=f"/reference/{test_reference2.new_ref_curie}").json()["reference_id"]
 
             response = client.get(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}/versions")
             transactions = response.json()

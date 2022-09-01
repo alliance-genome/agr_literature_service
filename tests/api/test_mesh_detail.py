@@ -9,7 +9,7 @@ from agr_literature_service.api.models import MeshDetailModel
 from .fixtures import auth_headers, db # noqa
 from .test_reference import test_reference # noqa
 
-create_test_reference2 = test_reference
+test_reference2 = test_reference
 
 TestMeshData = namedtuple('TestMeshData', ['response', 'new_mesh_detail_id', 'related_ref_curie'])
 
@@ -18,12 +18,12 @@ TestMeshData = namedtuple('TestMeshData', ['response', 'new_mesh_detail_id', 're
 def test_mesh_detail(db, auth_headers, test_reference): # noqa
     print("***** Adding a test mesh detail *****")
     with TestClient(app) as client:
-        new_mesh_detail = {"reference_curie": test_reference.json(),
+        new_mesh_detail = {"reference_curie": test_reference.new_ref_curie,
                            "heading_term": "Head1",
                            "qualifier_term": "Qual1"
                            }
         response = client.post(url="/reference/mesh_detail/", json=new_mesh_detail, headers=auth_headers)
-        yield TestMeshData(response, response.json(), test_reference.json())
+        yield TestMeshData(response, response.json(), test_reference.new_ref_curie)
 
 
 class TestMeshDetail:
@@ -49,11 +49,11 @@ class TestMeshDetail:
             assert mesh_detail_obj.reference.curie == test_mesh_detail.related_ref_curie
             assert mesh_detail_obj.qualifier_term == "Qual1"
 
-    def test_patch_mesh(self, db, test_mesh_detail, create_test_reference2, auth_headers): # noqa
+    def test_patch_mesh(self, db, test_mesh_detail, test_reference2, auth_headers): # noqa
         with TestClient(app) as client:
             patched = {"heading_term": "Head2",
                        "qualifier_term": "Qual2",
-                       "reference_curie": create_test_reference2.json()
+                       "reference_curie": test_reference2.new_ref_curie
                        }
             response = client.patch(url=f"/reference/mesh_detail/{test_mesh_detail.new_mesh_detail_id}",
                                     json=patched, headers=auth_headers)
@@ -61,7 +61,7 @@ class TestMeshDetail:
             mesh_detail_obj = db.query(MeshDetailModel).filter(
                 MeshDetailModel.mesh_detail_id == test_mesh_detail.new_mesh_detail_id).one()
             assert mesh_detail_obj.heading_term == "Head2"
-            assert mesh_detail_obj.reference.curie == create_test_reference2.json()
+            assert mesh_detail_obj.reference.curie == test_reference2.new_ref_curie
             assert mesh_detail_obj.qualifier_term == "Qual2"
 
             response = client.get(url=f"/reference/mesh_detail/{test_mesh_detail.new_mesh_detail_id}/versions")
@@ -70,7 +70,7 @@ class TestMeshDetail:
             # reference_id_from      : None -> orig -> new
             from_id = client.get(url=f"/reference/{test_mesh_detail.related_ref_curie}").json()["reference_id"]
             # reference_id_to        : None -> new -> orig
-            to_id = client.get(url=f"/reference/{create_test_reference2.json()}").json()["reference_id"]
+            to_id = client.get(url=f"/reference/{test_reference2.new_ref_curie}").json()["reference_id"]
             # heading_term            : None -> Head1 -> Head2
             # qualifier_term          : None -> Qual1 -> Qual2
             for transaction in response.json():

@@ -9,17 +9,17 @@ from agr_literature_service.api.models import ReferenceModel, ReferenceCommentAn
 from .fixtures import auth_headers, db # noqa
 from .test_reference import test_reference # noqa
 
-create_test_reference2 = test_reference
+test_reference2 = test_reference
 
 TestRefComAndCorData = namedtuple('TestRefComAndCorData', ['response', 'new_rcc_id', 'ref_curie_from', 'ref_curie_to'])
 
 
 @pytest.fixture
-def test_ref_cc(db, auth_headers, test_reference, create_test_reference2): # noqa
+def test_ref_cc(db, auth_headers, test_reference, test_reference2): # noqa
     print("***** Adding a test reference comment and correction *****")
     with TestClient(app) as client:
-        ref1 = test_reference.json()
-        ref2 = create_test_reference2.json()
+        ref1 = test_reference.new_ref_curie
+        ref2 = test_reference2.new_ref_curie
         new_rcc = {"reference_curie_from": ref1,
                    "reference_curie_to": ref2,
                    "reference_comment_and_correction_type": "CommentOn"
@@ -37,20 +37,20 @@ class TestReferenceCommentAndCorrection:
 
     def test_bad_missing_args(self, test_reference, auth_headers): # noqa
         with TestClient(app) as client:
-            xml = {"reference_curie_from": test_reference.json(),
+            xml = {"reference_curie_from": test_reference.new_ref_curie,
                    "reference_comment_and_correction_type": "CommentOn"
                    }
             response = client.post(url="/reference_comment_and_correction/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-            xml = {'reference_curie_to': test_reference.json(),
+            xml = {'reference_curie_to': test_reference.new_ref_curie,
                    'reference_comment_and_correction_type': "CommentOn"
                    }
             response = client.post(url="/reference_comment_and_correction/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-            xml = {'reference_curie_from': test_reference.json(),
-                   'reference_curie_to': test_reference.json()}
+            xml = {'reference_curie_from': test_reference.new_ref_curie,
+                   'reference_curie_to': test_reference.new_ref_curie}
             response = client.post(url="/reference_comment_and_correction/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 

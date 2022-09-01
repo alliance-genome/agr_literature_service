@@ -22,10 +22,10 @@ def test_editor(db, auth_headers, test_resource): # noqa
             "last_name": "string",
             "name": "003_TCU",
             "orcid": "ORCID:2345-2345-2345-234X",
-            "resource_curie": test_resource.json()
+            "resource_curie": test_resource.new_resource_curie
         }
         response = client.post(url="/editor/", json=new_editor, headers=auth_headers)
-        yield TestEditorData(response, response.json(), test_resource.json())
+        yield TestEditorData(response, response.json(), test_resource.new_resource_curie)
 
 
 class TestEditor:
@@ -49,7 +49,7 @@ class TestEditor:
                 "last_name": "string3",
                 "name": "Name2",
                 "orcid": "ORCID:3333-4444-5555-666X",
-                "resource_curie": test_resource.json()
+                "resource_curie": test_resource.new_resource_curie
             }
             response = client.post(url="/editor/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED

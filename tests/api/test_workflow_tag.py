@@ -18,12 +18,12 @@ TestWTData = namedtuple('TestWTData', ['response', 'new_wt_id', 'related_ref_cur
 def test_workflow_tag(db, auth_headers, test_reference, test_mod): # noqa
     print("***** Adding a test workflow tag *****")
     with TestClient(app) as client:
-        new_wt = {"reference_curie": test_reference.json(),
+        new_wt = {"reference_curie": test_reference.new_ref_curie,
                   "mod_abbreviation": test_mod.new_mod_abbreviation,
                   "workflow_tag_id": "ont1",
                   }
         response = client.post(url="/workflow_tag/", json=new_wt, headers=auth_headers)
-        yield TestWTData(response, response.json(), test_reference.json(), test_mod.new_mod_id,
+        yield TestWTData(response, response.json(), test_reference.new_ref_curie, test_mod.new_mod_id,
                          test_mod.new_mod_abbreviation)
 
 
@@ -36,13 +36,13 @@ class TestWorkflowTag:
 
     def test_create_bad_missing_args(self, test_reference, test_mod, auth_headers): # noqa
         with TestClient(app) as client:
-            xml = {"reference_curie": test_reference.json(),
+            xml = {"reference_curie": test_reference.new_ref_curie,
                    "workflow_tag_id": "ont1"
                    }
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-            xml = {"reference_curie": test_reference.json(),
+            xml = {"reference_curie": test_reference.new_ref_curie,
                    "mod_abbreviation": test_mod.new_mod_abbreviation
                    }
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
@@ -58,7 +58,7 @@ class TestWorkflowTag:
         with TestClient(app) as client:
             xml = {'mod_abbreviation': "",
                    'workflow_tag_id': "ont tgba",
-                   'reference_curie': test_reference.json()}
+                   'reference_curie': test_reference.new_ref_curie}
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
 

@@ -22,11 +22,11 @@ def test_cross_reference(db, auth_headers, test_reference): # noqa
         db.commit()
         new_cross_ref = {
             "curie": "XREF:123456",
-            "reference_curie": test_reference.json(),
+            "reference_curie": test_reference.new_ref_curie,
             "pages": ["reference"]
         }
         response = client.post(url="/cross_reference/", json=new_cross_ref, headers=auth_headers)
-        yield TestXrefData(response, test_reference.json())
+        yield TestXrefData(response, test_reference.new_ref_curie)
 
 
 class TestCrossRef:
@@ -47,7 +47,7 @@ class TestCrossRef:
             assert xref.pages == ["reference"]
 
             # Now do a resource one
-            new_cross_ref = {"curie": 'XREF:anoth', "resource_curie": test_resource.json()}
+            new_cross_ref = {"curie": 'XREF:anoth', "resource_curie": test_resource.new_resource_curie}
             response = client.post(url="/cross_reference/", json=new_cross_ref, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
 
@@ -55,7 +55,7 @@ class TestCrossRef:
             xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "XREF:anoth").one()
             assert xref.curie == "XREF:anoth"
             assert not xref.reference
-            assert xref.resource.curie == test_resource.json()
+            assert xref.resource.curie == test_resource.new_resource_curie
 
             response = client.post(url="/cross_reference/", json={"curie": 'XREF:no_ref_res'}, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

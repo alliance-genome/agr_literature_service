@@ -18,7 +18,7 @@ def test_topic_entity_tag(db, auth_headers, test_reference): # noqa
     print("***** Adding a test workflow tag *****")
     with TestClient(app) as client:
         new_tet = {
-            "reference_curie": test_reference.json(),
+            "reference_curie": test_reference.new_ref_curie,
             "topic": "Topic1",
             "entity_type": "Gene",
             "alliance_entity": "Bob_gene_name",
@@ -28,7 +28,7 @@ def test_topic_entity_tag(db, auth_headers, test_reference): # noqa
                       {"qualifier": "Quali2"}]
         }
         response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
-        yield TestTETData(response, response.json(), test_reference.json())
+        yield TestTETData(response, response.json(), test_reference.new_ref_curie)
 
 
 class TestTopicEntityTag:
@@ -67,7 +67,7 @@ class TestTopicEntityTag:
     def test_create_bad(self, test_reference, auth_headers): # noqa
         with TestClient(app) as client:
             xml = {
-                "reference_curie": test_reference.json(),
+                "reference_curie": test_reference.new_ref_curie,
                 "topic": "Topic1",
                 "entity_type": "Gene",
                 "taxon": "NCBITaxon:1234"
@@ -99,7 +99,7 @@ class TestTopicEntityTag:
             # No species
             xml5 = copy.deepcopy(xml4)
             del xml5["taxon"]
-            xml5["reference_curie"] = test_reference.json()
+            xml5["reference_curie"] = test_reference.new_ref_curie
             response = client.post(url="/topic_entity_tag/", json=xml4, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
@@ -107,7 +107,7 @@ class TestTopicEntityTag:
         with TestClient(app) as client:
             # change the reference
             patch_data = {
-                "reference_curie": test_reference.json(),
+                "reference_curie": test_reference.new_ref_curie,
                 "props": [
                     {"qualifier": "NEW one"}
                 ]
@@ -116,7 +116,7 @@ class TestTopicEntityTag:
                                     headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
             res = client.get(url=f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}").json()
-            assert res["reference_curie"] == test_reference.json()
+            assert res["reference_curie"] == test_reference.new_ref_curie
 
             # Change the note
             patch_data2 = {

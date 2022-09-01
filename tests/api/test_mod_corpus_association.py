@@ -8,8 +8,6 @@ from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 from collections import namedtuple
 
-create_test_reference2 = test_reference
-
 TestMCAData = namedtuple('TestMCAData', ['response', 'new_mca_id', 'related_ref_curie'])
 
 
@@ -21,11 +19,11 @@ def test_mca(db, auth_headers, test_reference, test_mod): # noqa
         mod_abbreviation = mod_response.json()["abbreviation"]
         new_mca = {
             "mod_abbreviation": mod_abbreviation,
-            "reference_curie": test_reference.json(),
+            "reference_curie": test_reference.new_ref_curie,
             "mod_corpus_sort_source": 'mod_pubmed_search'
         }
         response = client.post(url="/reference/mod_corpus_association/", json=new_mca, headers=auth_headers)
-        yield TestMCAData(response, response.json(), test_reference.json())
+        yield TestMCAData(response, response.json(), test_reference.new_ref_curie)
 
 
 class TestModCorpusAssociation:

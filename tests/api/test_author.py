@@ -22,10 +22,10 @@ def test_author(db, auth_headers, test_reference): # noqa
             "last_name": "string",
             "name": "003_TCU",
             "orcid": "ORCID:1234-1234-1234-123X",
-            "reference_curie": test_reference.json()
+            "reference_curie": test_reference.new_ref_curie
         }
         response = client.post(url="/author/", json=new_author, headers=auth_headers)
-        yield TestAuthorData(response, response.json(), test_reference.json())
+        yield TestAuthorData(response, response.json(), test_reference.new_ref_curie)
 
 
 class TestAuthor:
