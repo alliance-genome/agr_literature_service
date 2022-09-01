@@ -19,12 +19,12 @@ def test_mca(db, auth_headers, test_reference, test_mod): # noqa
     with TestClient(app) as client:
         mod_response = client.get(url=f"/mod/{test_mod.new_mod_abbreviation}")
         mod_abbreviation = mod_response.json()["abbreviation"]
-        new_mcc = {
+        new_mca = {
             "mod_abbreviation": mod_abbreviation,
             "reference_curie": test_reference.json(),
             "mod_corpus_sort_source": 'mod_pubmed_search'
         }
-        response = client.post(url="/reference/mod_corpus_association/", json=new_mcc, headers=auth_headers)
+        response = client.post(url="/reference/mod_corpus_association/", json=new_mca, headers=auth_headers)
         yield TestMCAData(response, response.json(), test_reference.json())
 
 
