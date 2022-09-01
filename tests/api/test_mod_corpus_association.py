@@ -8,6 +8,8 @@ from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 from collections import namedtuple
 
+test_reference2 = test_reference
+
 TestMCAData = namedtuple('TestMCAData', ['response', 'new_mca_id', 'related_ref_curie'])
 
 
@@ -60,6 +62,15 @@ class TestModCorpusAssociation:
                                   f"{test_mca.new_mca_id}").json()["mod_corpus_sort_source"] == "assigned_for_review"
 
             # add changeset tests
+
+    def test_change_reference_mca(self, test_mca, auth_headers, test_reference2):  # noqa
+        with TestClient(app) as client:
+            patched_data = {"reference_curie": test_reference2.new_ref_curie}
+            patch_response = client.patch(url=f"/reference/mod_corpus_association/{test_mca.new_mca_id}",
+                                          json=patched_data, headers=auth_headers)
+            assert patch_response.status_code == status.HTTP_202_ACCEPTED
+            test_mca_response = client.get(url=f"/reference/mod_corpus_association/{test_mca.new_mca_id}")
+            assert test_mca_response.json()["reference_curie"] == test_reference2.new_ref_curie
 
     def test_show_mca(self, test_mca): # noqa
         with TestClient(app) as client:
