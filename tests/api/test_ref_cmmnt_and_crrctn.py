@@ -69,7 +69,7 @@ class TestReferenceCommentAndCorrection:
                    'reference_curie_to': test_ref_cc.ref_curie_from,
                    'reference_comment_and_correction_type': "ReprintOf"
                    }
-            response = client.patch(url=f"reference_comment_and_correction/{test_ref_cc.new_rcc_id}",
+            response = client.patch(url=f"/reference_comment_and_correction/{test_ref_cc.new_rcc_id}",
                                     json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
 
@@ -80,10 +80,10 @@ class TestReferenceCommentAndCorrection:
             assert rcc_obj.reference_from.curie == test_ref_cc.ref_curie_to
             assert rcc_obj.reference_comment_and_correction_type == "ReprintOf"
 
-            response = client.get(url=f"reference_comment_and_correction/{test_ref_cc.new_rcc_id}/versions")
+            response = client.get(url=f"/reference_comment_and_correction/{test_ref_cc.new_rcc_id}/versions")
             transactions = response.json()
-            reference1_id = client.get(url=f"reference/{test_ref_cc.ref_curie_from}").json()["reference_id"]
-            reference2_id = client.get(url=f"reference/{test_ref_cc.ref_curie_to}").json()["reference_id"]
+            reference1_id = client.get(url=f"/reference/{test_ref_cc.ref_curie_from}").json()["reference_id"]
+            reference2_id = client.get(url=f"/reference/{test_ref_cc.ref_curie_to}").json()["reference_id"]
             assert transactions[0]['changeset']['reference_id_from'][1] == reference1_id
             assert transactions[0]['changeset']['reference_id_to'][1] == reference2_id
             assert transactions[0]['changeset']['reference_comment_and_correction_type'][1] == "CommentOn"
