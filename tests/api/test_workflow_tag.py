@@ -34,7 +34,7 @@ class TestWorkflowTag:
             response = client.get(url="/workflow_tag/-1")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_create_bad_missing_args(self, test_reference, test_mod, auth_headers):
+    def test_create_bad_missing_args(self, test_reference, test_mod, auth_headers): # noqa
         with TestClient(app) as client:
             xml = {"reference_curie": test_reference.json(),
                    "workflow_tag_id": "ont1"
@@ -54,7 +54,7 @@ class TestWorkflowTag:
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    def test_good_blank_args(self, db, test_reference, auth_headers):
+    def test_good_blank_args(self, db, test_reference, auth_headers): # noqa
         with TestClient(app) as client:
             xml = {'mod_abbreviation': "",
                    'workflow_tag_id': "ont tgba",
@@ -75,7 +75,7 @@ class TestWorkflowTag:
             # assert res["created_by"] == okta_user
             assert res["mod_abbreviation"] == ""
 
-    def test_create_ref_ont(self, db, test_workflow_tag):
+    def test_create_ref_ont(self, db, test_workflow_tag): # noqa
         assert test_workflow_tag.response.status_code == status.HTTP_201_CREATED
         # check results in database
         ref_ont_obj = db.query(WorkflowTagModel). \
@@ -84,7 +84,7 @@ class TestWorkflowTag:
             filter(ReferenceModel.curie == test_workflow_tag.related_ref_curie).one()
         assert ref_ont_obj.workflow_tag_id == "ont1"
 
-    def test_patch_ref_ont(self, db, test_workflow_tag, auth_headers):
+    def test_patch_ref_ont(self, db, test_workflow_tag, auth_headers): # noqa
         with TestClient(app) as client:
             # change workflow_tag
             xml = {"workflow_tag_id": "ont test patch",
@@ -104,7 +104,7 @@ class TestWorkflowTag:
             assert transactions[1]['changeset']['workflow_tag_id'][0] == 'ont1'
             assert transactions[1]['changeset']['workflow_tag_id'][1] == 'ont test patch'
 
-    def test_show_ref_ont(self, test_workflow_tag):
+    def test_show_ref_ont(self, test_workflow_tag): # noqa
         with TestClient(app) as client:
             response = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}")
             assert response.status_code == status.HTTP_200_OK
@@ -113,7 +113,7 @@ class TestWorkflowTag:
             assert res['workflow_tag_id'] == 'ont1'
             assert res['mod_abbreviation'] == test_workflow_tag.related_mod_abbreviation
 
-    def test_destroy_ref_ont(self, test_workflow_tag, auth_headers):
+    def test_destroy_ref_ont(self, test_workflow_tag, auth_headers): # noqa
         with TestClient(app) as client:
             response = client.delete(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
