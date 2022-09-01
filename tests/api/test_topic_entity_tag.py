@@ -152,8 +152,8 @@ class TestTopicEntityTag:
                                     headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
             res = client.get(url=f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}").json()
-            assert res["props"][1]["qualifier"] == "Quali3"
-            assert res["props"][2]["qualifier"] == "Quali4"
+            assert res["props"][0]["qualifier"] == "Quali3"
+            assert res["props"][1]["qualifier"] == "Quali4"
 
     def test_delete_with_props(self, test_topic_entity_tag, auth_headers): # noqa
         with TestClient(app) as client:
