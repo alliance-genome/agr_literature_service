@@ -1,14 +1,12 @@
 import copy
 
 import pytest
-from pydantic import ValidationError
 from sqlalchemy_continuum import Operation
 from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, CrossReferenceModel
-from agr_literature_service.api.schemas import ReferenceSchemaPost
 from .fixtures import auth_headers, db # noqa
 from .test_resource import test_resource # noqa
 
