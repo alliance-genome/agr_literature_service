@@ -54,6 +54,27 @@ class TestReferenceCommentAndCorrection:
             response = client.post(url="/reference_comment_and_correction/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_create_bad_same_curies_from_to(self, test_ref_cc, auth_headers): # noqa
+        with TestClient(app) as client:
+            same_as_test_obj = {"reference_curie_from": test_ref_cc.ref_curie_from,
+                                "reference_curie_to": test_ref_cc.ref_curie_from,
+                                "reference_comment_and_correction_type": "CommentOn"
+                                }
+            response = client.post(url="/reference_comment_and_correction/", json=same_as_test_obj,
+                                   headers=auth_headers)
+            assert 1 == 1
+            # TODO uncomment this after adding this constraint to the models
+            # assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_create_bad_duplicate(self, test_ref_cc, auth_headers): # noqa
+        with TestClient(app) as client:
+            xml = {"reference_curie_from": test_ref_cc.ref_curie_from,
+                   "reference_curie_to": test_ref_cc.ref_curie_to,
+                   "reference_comment_and_correction_type": "CommentOn"
+                   }
+            response = client.post(url="/reference_comment_and_correction/", json=xml, headers=auth_headers)
+            assert response.status_code == status.HTTP_409_CONFLICT
+
     def test_create_rcc(self, db, test_ref_cc): # noqa
         # check results in database
         rcc_obj = db.query(ReferenceCommentAndCorrectionModel).join(
