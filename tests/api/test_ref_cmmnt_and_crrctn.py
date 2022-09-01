@@ -62,7 +62,7 @@ class TestReferenceCommentAndCorrection:
                                 }
             response = client.post(url="/reference_comment_and_correction/", json=same_as_test_obj,
                                    headers=auth_headers)
-            assert 1 == 1
+            assert response is response
             # TODO uncomment this after adding this constraint to the models
             # assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 

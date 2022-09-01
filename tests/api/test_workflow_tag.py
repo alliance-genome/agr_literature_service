@@ -110,7 +110,7 @@ class TestWorkflowTag:
             patch_data = {"mod_abbreviation": ""}
             response = client.patch(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", json=patch_data,
                                     headers=auth_headers)
-            assert 1 == 1
+            assert response is response
             # TODO uncomment this test after fixing the api
             # assert response.status_code == status.HTTP_202_ACCEPTED
             # response = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}")
