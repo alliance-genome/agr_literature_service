@@ -10,11 +10,11 @@ from agr_literature_service.api.main import app
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, CrossReferenceModel
 from agr_literature_service.api.schemas import ReferenceSchemaPost
 from .fixtures import auth_headers, db # noqa
-from .test_resource import create_test_resource # noqa
+from .test_resource import test_resource # noqa
 
 
 @pytest.fixture
-def create_test_reference(db, auth_headers): # noqa
+def test_reference(db, auth_headers): # noqa
     print("***** Adding a test reference *****")
     with TestClient(app) as client:
         new_reference = {
@@ -29,15 +29,15 @@ def create_test_reference(db, auth_headers): # noqa
 
 class TestReference:
 
-    def test_create_reference(self, db, auth_headers, create_test_reference): # noqa
+    def test_create_reference(self, db, auth_headers, test_reference): # noqa
         with TestClient(app) as client:
-            response = create_test_reference
+            response = test_reference
             assert response.status_code == status.HTTP_201_CREATED
             db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == response.json()).one()
             assert db_obj.title == "Bob"
             assert db_obj.date_created is not None
             assert db_obj.date_updated is not None
-            response = client.get(url=f"/reference/{create_test_reference.json()}")
+            response = client.get(url=f"/reference/{test_reference.json()}")
             assert response.status_code == status.HTTP_200_OK
             assert response.json()["title"] == "Bob"
             # create again with same title, category
@@ -71,9 +71,9 @@ class TestReference:
             response = client.post(url="/reference/", json=wrong_reference, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    def test_show_reference(self, auth_headers, create_test_reference): # noqa
+    def test_show_reference(self, auth_headers, test_reference): # noqa
         with TestClient(app) as client:
-            get_response = client.get(url=f"/reference/{create_test_reference.json()}")
+            get_response = client.get(url=f"/reference/{test_reference.json()}")
             added_ref = get_response.json()
             assert added_ref["title"] == "Bob"
             assert added_ref["category"] == 'thesis'
@@ -83,13 +83,13 @@ class TestReference:
             res = client.get(url="/reference/does_not_exist")
             assert res.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_update_reference(self, auth_headers, create_test_reference): # noqa
+    def test_update_reference(self, auth_headers, test_reference): # noqa
         with TestClient(app) as client:
 
             # patch docs says it needs a ReferenceSchemaUpdate
             # but does not work with this.
             # with pytest.raises(AttributeError):
-            created_ref_curie = create_test_reference.json()
+            created_ref_curie = test_reference.json()
             updated_fields = {"title": "new title", "category": "book", "language": "New"}
             response = client.patch(url=f"/reference/{created_ref_curie}", json=updated_fields, headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
@@ -103,9 +103,9 @@ class TestReference:
             # Do we have a new citation
             assert updated_ref["citation"] == ", () new title.   (): "
 
-    def test_changesets(self, create_test_reference, auth_headers): # noqa
+    def test_changesets(self, test_reference, auth_headers): # noqa
         with TestClient(app) as client:
-            created_ref_curie = create_test_reference.json()
+            created_ref_curie = test_reference.json()
             # title            : None -> bob -> 'new title'
             # catergory        : None -> thesis -> book
             updated_fields = {"title": "new title", "category": "book", "language": "New"}
@@ -121,9 +121,9 @@ class TestReference:
             assert transactions[2]['changeset']['citation'][0] == ", () Bob.   (): "
             assert transactions[2]['changeset']['citation'][1] == ", () new title.   (): "
 
-    def test_delete_reference(self, auth_headers, create_test_reference): # noqa
+    def test_delete_reference(self, auth_headers, test_reference): # noqa
         with TestClient(app) as client:
-            created_ref_curie = create_test_reference.json()
+            created_ref_curie = test_reference.json()
             delete_response = client.delete(url=f"/reference/{created_ref_curie}", headers=auth_headers)
             assert delete_response.status_code == status.HTTP_204_NO_CONTENT
             get_response = client.get(url=f"/reference/{created_ref_curie}")
@@ -252,7 +252,7 @@ class TestReference:
                 else:
                     assert 1 == 0  # Not RGD or FB ?
 
-    def test_reference_merging(self, db, create_test_resource, auth_headers): # noqa
+    def test_reference_merging(self, db, test_resource, auth_headers): # noqa
         with TestClient(app) as client:
             ref1_data = {
                 "category": "research_article",
@@ -265,7 +265,7 @@ class TestReference:
                         "orcid": 'ORCID:1111-2222-3333-444X'  # New
                     }
                 ],
-                "resource": create_test_resource.json(),
+                "resource": test_resource.json(),
                 "title": "Another title",
                 "volume": "013a",
                 "open_access": True

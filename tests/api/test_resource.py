@@ -9,7 +9,7 @@ from .fixtures import auth_headers, db # noqa
 
 
 @pytest.fixture
-def create_test_resource(db, auth_headers): # noqa
+def test_resource(db, auth_headers): # noqa
     print("***** Adding a test resource *****")
     with TestClient(app) as client:
         resource_data = {
@@ -25,9 +25,9 @@ class TestResource:
         with TestClient(app) as client:
             client.get(url="/resource/PMID:VQEVEQRVC")
 
-    def test_create_resource(self, auth_headers, create_test_resource): # noqa
+    def test_create_resource(self, auth_headers, test_resource): # noqa
         with TestClient(app) as client:
-            assert create_test_resource.status_code == status.HTTP_201_CREATED
+            assert test_resource.status_code == status.HTTP_201_CREATED
             new_resource = client.post(url="/resource/", json={"title": "Another Bob"}, headers=auth_headers)
             assert new_resource.status_code == status.HTTP_201_CREATED
 
@@ -46,9 +46,9 @@ class TestResource:
             new_resource = client.post(url="/resource/", json={"title": ""}, headers=auth_headers)
             assert new_resource.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    def test_show_resource(self, auth_headers, create_test_resource): # noqa
+    def test_show_resource(self, auth_headers, test_resource): # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/resource/{create_test_resource.json()}")
+            response = client.get(url=f"/resource/{test_resource.json()}")
             assert response.status_code == status.HTTP_200_OK
             resource = response.json()
             assert resource['title'] == "Bob"
@@ -58,14 +58,14 @@ class TestResource:
             response = client.get(url="/resource/does_not_exist")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_update_resource(self, auth_headers, create_test_resource): # noqa
+    def test_update_resource(self, auth_headers, test_resource): # noqa
         with TestClient(app) as client:
-            response = client.patch(url=f"/resource/{create_test_resource.json()}", json={"title": "new title"},
+            response = client.patch(url=f"/resource/{test_resource.json()}", json={"title": "new title"},
                                     headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
 
             # fetch the new record.
-            new_resource = client.get(url=f"/resource/{create_test_resource.json()}").json()
+            new_resource = client.get(url=f"/resource/{test_resource.json()}").json()
 
             # do we have the new title?
             assert new_resource['title'] == "new title"
@@ -140,14 +140,14 @@ class TestResource:
 
             assert len(res.cross_reference) == 1
 
-    def test_delete_resource(self, auth_headers, create_test_resource): # noqa
+    def test_delete_resource(self, auth_headers, test_resource): # noqa
         with TestClient(app) as client:
-            response = client.delete(url=f"/resource/{create_test_resource.json()}", headers=auth_headers)
+            response = client.delete(url=f"/resource/{test_resource.json()}", headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
             # It should now give an error on lookup.
-            response = client.get(url=f"/resource/{create_test_resource.json()}")
+            response = client.get(url=f"/resource/{test_resource.json()}")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
             # Deleting it again should give an error as the lookup will fail.
-            response = client.delete(url=f"/resource/{create_test_resource.json()}", headers=auth_headers)
+            response = client.delete(url=f"/resource/{test_resource.json()}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
