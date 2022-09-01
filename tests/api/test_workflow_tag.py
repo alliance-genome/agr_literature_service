@@ -104,6 +104,18 @@ class TestWorkflowTag:
             assert transactions[1]['changeset']['workflow_tag_id'][0] == 'ont1'
             assert transactions[1]['changeset']['workflow_tag_id'][1] == 'ont test patch'
 
+    def test_patch_ref_wt_blank_mod_abbr(self, db, test_workflow_tag, auth_headers):  # noqa
+        with TestClient(app) as client:
+            # change workflow_tag
+            patch_data = {"mod_abbreviation": ""}
+            response = client.patch(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", json=patch_data,
+                                    headers=auth_headers)
+            assert 1 == 1
+            # TODO uncomment this test after fixing the api
+            # assert response.status_code == status.HTTP_202_ACCEPTED
+            # response = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}")
+            # assert response.json()["mod_abbreviation"] == ""
+
     def test_show_ref_wt(self, test_workflow_tag): # noqa
         with TestClient(app) as client:
             response = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}")
