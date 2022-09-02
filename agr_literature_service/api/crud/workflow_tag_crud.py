@@ -108,7 +108,7 @@ def patch(db: Session, reference_workflow_tag_id: int, workflow_tag_update):
                 if not new_mod:
                     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                         detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
-                workflow_tag_db_obj.mod = new_mod
+                workflow_tag_db_obj.mod_id = new_mod.mod_id
         else:
             setattr(workflow_tag_db_obj, field, value)
 

@@ -7,7 +7,7 @@ class WorkflowTagSchemaPost(BaseModel):
     #reference_curie: str
     workflow_tag_id: str
     mod_abbreviation: str
-    created_by: Optional[str]
+    #created_by: Optional[str]
 
 class WorkflowTagSchemaCreate(WorkflowTagSchemaPost):
     reference_curie: str
@@ -35,7 +35,7 @@ class WorkflowTagSchemaRelated(AuditedObjectModelSchema):
         extra = "forbid"
 
 
-class WorkflowTagSchemaUpdate(AuditedObjectModelSchema):
+class WorkflowTagSchemaUpdate(BaseModel):
     reference_curie: Optional[str] = None
     mod_abbreviation: Optional[str] = None
     workflow_tag_id: Optional[str] = None

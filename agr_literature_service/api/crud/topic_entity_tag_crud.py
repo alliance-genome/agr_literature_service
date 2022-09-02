@@ -46,16 +46,18 @@ def create(db: Session, topic_entity_tag: TopicEntityTagSchemaCreate) -> int:
     :param topic_entity_tag:
     :return:
     """
-
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
     reference_curie = topic_entity_tag_data["reference_curie"]
-    del topic_entity_tag_data["reference_curie"]
+    if "reference_curie" in topic_entity_tag_data and topic_entity_tag_data["reference_curie"]:
+        del topic_entity_tag_data["reference_curie"]
+    else:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"reference_curie not within  topic_entity_tag_data")                       
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Reference with curie {reference_curie} does not exist")
     topic_entity_tag_data["reference_id"] = reference.reference_id
-
     (okay, details) = extra_checks(topic_entity_tag_data)
     if not okay:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -67,14 +69,12 @@ def create(db: Session, topic_entity_tag: TopicEntityTagSchemaCreate) -> int:
         del topic_entity_tag_data["props"]
     elif "props" in topic_entity_tag_data:
         del topic_entity_tag_data["props"]
-
     db_obj = TopicEntityTagModel(**topic_entity_tag_data)
     db.add(db_obj)
     db.commit()
     for prop in props:
         xml = {"topic_entity_tag_id": db_obj.topic_entity_tag_id,
-               "qualifier": prop['qualifier'],
-               "created_by": topic_entity_tag_data["created_by"]}
+               "qualifier": prop['qualifier']}
         prop_obj = TopicEntityTagPropModel(**xml)
         db.add(prop_obj)
     db.commit()
@@ -122,7 +122,6 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
     if not topic_entity_tag_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entity_tag with topic_entity_tag_id {topic_entity_tag_id} not found")
-
     # Loop ONLY on the fields that were passed to patch before pydantic
     # added a bunch of fields with None values etc.
     for field in topic_entity_tag_update.__fields_set__:
@@ -135,37 +134,10 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
                     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                         detail=f"Reference with curie {reference_curie} does not exist")
                 topic_entity_tag_db_obj.reference = new_reference
-        elif field == "props" and value:
-            for prop in value:
-                if "updated_by" in topic_entity_tag_data:
-                    prop["updated_by"] = topic_entity_tag_data["updated_by"]
-                else:
-                    prop["updated_by"] = topic_entity_tag_data["created_by"]
-                if "date_updated" in topic_entity_tag_data:
-                    prop["date_updated"] = topic_entity_tag_data["date_updated"]
-                else:
-                    prop["date_updated"] = topic_entity_tag_data["date_created"]
-
-                if "topic_entity_tag_prop_id" not in prop or not prop["topic_entity_tag_prop_id"]:
-                    xml = {"topic_entity_tag_id": topic_entity_tag_db_obj.topic_entity_tag_id,
-                           "qualifier": prop['qualifier'],
-                           "created_by": topic_entity_tag_data["created_by"]}
-                    prop_obj = TopicEntityTagPropModel(**xml)
-                    db.add(prop_obj)
-                else:
-                    prop_obj = db.query(TopicEntityTagPropModel).filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == prop["topic_entity_tag_prop_id"]).one()
-                if prop_obj.qualifier != prop["qualifier"]:
-                    prop_obj.qualifier = prop["qualifier"]
-                    prop_obj.updated_by = prop["updated_by"]
-                    prop_obj.date_updated = prop["date_updated"]
-                    db.commit()
         else:
             setattr(topic_entity_tag_db_obj, field, value)
-
     # Becouse we added updated fields after pydantic they are not in the changed fields list
     # So we want to do these separately now.
-    for field in ['updated_by', 'date_updated']:
-        setattr(topic_entity_tag_db_obj, field, topic_entity_tag_data[field])
     db.commit()
     return {"message": "updated"}
 

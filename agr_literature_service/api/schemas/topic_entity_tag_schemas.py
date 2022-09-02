@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 #use by topic_entity_tag_crud.create
-class TopicEntityTagPropSchemaPost(AuditedObjectModelSchema):
+class TopicEntityTagPropSchemaPost(BaseModel):
     qualifier: str
 
 #use by topic_entity_tag_crud.create_prop
@@ -35,7 +35,7 @@ class TopicEntityTagPropSchemaUpdate(BaseModel):
         }
 
 #use by reference_crud
-class TopicEntityTagSchemaPost(AuditedObjectModelSchema):
+class TopicEntityTagSchemaPost(BaseModel):
     topic: str
     entity_type: str
     alliance_entity: Optional[str] = None
@@ -64,7 +64,7 @@ class TopicEntityTagSchemaShowRelated(AuditedObjectModelSchema):
     props: Optional[List[TopicEntityTagPropSchemaShowRelated]] = None
 
 
-class TopicEntityTagSchemaUpdate(AuditedObjectModelSchema):
+class TopicEntityTagSchemaUpdate(BaseModel):
     reference_curie: Optional[str] = None
     topic: Optional[str] = ""
     entity_type: Optional[str] = ""
