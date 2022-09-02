@@ -19,6 +19,7 @@ from agr_literature_service.lit_processing.xml_to_json import generate_json
 from agr_literature_service.lit_processing.filter_dqm_md5sum import load_s3_md5data
 from agr_literature_service.lit_processing.helper_s3 import upload_xml_file_to_s3
 from agr_literature_service.lit_processing.helper_email import send_email
+from agr_literature_service.api.user import set_global_user_id
 
 logging.basicConfig(format='%(message)s')
 log = logging.getLogger()
@@ -48,6 +49,9 @@ def update_data(mod, pmids, md5dict=None, newly_added_pmids=None):  # noqa: C901
         update_resource_pubmed_nlm
 
     db_session = create_postgres_session(False)
+
+    scriptNm = path.basename(__file__).replace(".py", "")
+    set_global_user_id(db_session, scriptNm)
 
     # datestamp = str(date.today()).replace("-", "")
 
