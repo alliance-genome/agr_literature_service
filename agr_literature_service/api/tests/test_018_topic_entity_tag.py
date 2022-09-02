@@ -186,7 +186,7 @@ def test_delete_with_props():
         "entity_type": "Gene3",
         "alliance_entity": "Bob_gene_name 3",
         "taxon": "NCBITaxon:3456",
-        "note": "Some Note or other"
+        "note": "Some Note or other",
         "props": [{"qualifier": "Quali5"},
                   {"qualifier": "Quali6"}]
     }
