@@ -42,22 +42,19 @@ def test_bad_missing_args():
     global refs
 
     xml = {'reference_curie': refs[0],
-           'workflow_tag_id': "ont1",
-           'created_by': "017_Bob"}
+           'workflow_tag_id': "ont1"}
     with pytest.raises(ValidationError):  # mod_abbr missing
         ref_ont_schema = WorkflowTagSchemaCreate(**xml)
         create(db, ref_ont_schema)
 
     xml = {'reference_curie': refs[0],
-           'mod_abbreviation': "017_FB",
-           'created_by': "017_Bob"}
+           'mod_abbreviation': "017_FB"}
     with pytest.raises(ValidationError):  # workflow_tag_id missing
         ref_ont_schema = WorkflowTagSchemaCreate(**xml)
         create(db, ref_ont_schema)
 
     xml = {'mod_abbreviation': "017_FB",
-           'workflow_tag_id': "ont1",
-           'created_by': "017_Bob"}
+           'workflow_tag_id': "ont1"}
     with pytest.raises(ValidationError):  # ref_cur missing
         ref_ont_schema = WorkflowTagSchemaCreate(**xml)
         create(db, ref_ont_schema)

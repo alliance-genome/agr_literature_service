@@ -174,9 +174,6 @@ def test_patch_with_props():
 
     res = show(db, tet_id)
     assert not res["note"]
-    assert res["props"][0]["qualifier"] == 'Quali1'
-    assert res["props"][1]["qualifier"] == 'Quali2'
-    assert res["props"][2]["qualifier"] == 'NEW one'
 
 
 def test_delete_with_props():
