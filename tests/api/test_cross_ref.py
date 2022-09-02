@@ -30,6 +30,16 @@ def test_cross_reference(db, auth_headers, test_reference): # noqa
 
 
 class TestCrossRef:
+    def test_modify_curie(self, db, test_cross_reference):
+        query_object = db.query(CrossReferenceModel).filter_by(curie = 'XREF:123456').one()
+        query_object.curie = 'XREF:54321'
+        db.commit()
+        query_object_updated = db.query(CrossReferenceModel).filter_by(curie = 'XREF:54321').one()
+        versions_updated = [version for version in query_object_updated.versions]
+        versions = [version for version in query_object.versions]
+        assert versions is not versions_updated
+        # TODO: versions_updated should have a history of changes, after database remodeled to have a primary key.
+        # Remove the above assertion and check that a single object has changed.
 
     def test_get_bad_xref(self):
         with TestClient(app) as client:
