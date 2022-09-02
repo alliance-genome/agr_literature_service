@@ -96,8 +96,7 @@ def test_create_ref_ont():
     global refs
     xml = {'reference_curie': refs[0],
            'mod_abbreviation': mods[0],
-           'workflow_tag_id': "ont1",
-           'created_by': "017_Bob"}
+           'workflow_tag_id': "ont1"}
     ref_ont_schema = WorkflowTagSchemaCreate(**xml)
     create(db, ref_ont_schema)
 
@@ -107,7 +106,6 @@ def test_create_ref_ont():
              WorkflowTagModel.reference_id == ReferenceModel.reference_id).\
         filter(ReferenceModel.curie == refs[0]).one()
     assert ref_ont_obj.workflow_tag_id == "ont1"
-    assert ref_ont_obj.created_by == "017_Bob"
 
 
 def test_patch_ref_ont():
@@ -120,7 +118,6 @@ def test_patch_ref_ont():
 
     # change workflow_tag
     xml = {'workflow_tag_id': 'ont test patch',
-           'updated_by': '017_Bob',
            'mod_abbreviation': mods[1]}
 
     res = patch(db, ref_ont_obj.reference_workflow_tag_id, xml)
@@ -144,7 +141,7 @@ def test_show_ref_ont():
     assert res['reference_curie'] == refs[0]
     assert res['workflow_tag_id'] == 'ont test patch'
     assert res['mod_abbreviation'] == mods[0]
-    assert res['created_by'] == '017_Bob'
+
 
 
 def test_changesets():

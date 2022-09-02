@@ -52,7 +52,7 @@ def create(db: Session, topic_entity_tag: TopicEntityTagSchemaCreate) -> int:
         del topic_entity_tag_data["reference_curie"]
     else:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"reference_curie not within  topic_entity_tag_data")                       
+                            detail="reference_curie not within  topic_entity_tag_data")
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

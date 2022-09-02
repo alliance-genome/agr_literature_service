@@ -13,7 +13,7 @@ from agr_literature_service.api.schemas import (AuthorSchemaPost, AuthorSchemaSh
                                                 PubMedPublicationStatus, ReferenceCategory,
                                                 ReferenceCommentAndCorrectionSchemaRelated,
                                                 ModCorpusAssociationSchemaRelated)
-from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagSchemaPost, WorkflowTagSchemaShowRelated                                         
+from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagSchemaPost, WorkflowTagSchemaShowRelated
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost, TopicEntityTagSchemaShowRelated
 
 

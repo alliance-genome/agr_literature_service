@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List
 import re
-from requests import delete
+
 
 import sqlalchemy
 from fastapi import HTTPException, status
@@ -338,14 +338,12 @@ def show(db: Session, curie: str, http_request=True):  # noqa
             cross_references.append(cross_reference_show)
         reference_data["cross_references"] = cross_references
 
-
     if reference.mod_reference_type:
         mrt = []
         for mod_reference_type in reference_data["mod_reference_type"]:
             del mod_reference_type["reference_id"]
             mrt.append(mod_reference_type)
         reference_data['mod_reference_types'] = mrt
-
 
     reference_data["obsolete_references"] = [obs_reference["curie"] for obs_reference in
                                              reference_data["obsolete_reference"]]

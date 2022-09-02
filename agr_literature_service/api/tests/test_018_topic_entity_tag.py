@@ -47,7 +47,6 @@ def test_good_create_with_props():
         "alliance_entity": "Bob_gene_name",
         "taxon": "NCBITaxon:1234",
         "note": "Some Note",
-        "created_by": "018_Bob",
         "props": [{"qualifier": "Quali1"},
                   {"qualifier": "Quali2"}]
     }
@@ -90,8 +89,7 @@ def test_create_bad():
         "reference_curie": refs[0],
         "topic": "Topic1",
         "entity_type": "Gene",
-        "taxon": "NCBITaxon:1234",
-        "created_by": "018_Bob",
+        "taxon": "NCBITaxon:1234"
     }
     # No Entitys
     with pytest.raises(HTTPException) as excinfo:
@@ -131,6 +129,7 @@ def test_create_bad():
     assert "value_error.missing" in str(excinfo)
 
 
+# no loing allow update with props for topic_entity_tag, use topic_entity_tag_prop.patch instead
 def test_patch_with_props():
     xml = {
         "reference_curie": refs[1],
@@ -138,9 +137,7 @@ def test_patch_with_props():
         "entity_type": "Gene2",
         "alliance_entity": "Bob_gene_name 2",
         "taxon": "NCBITaxon:2345",
-        "note": "Some Note",
-        "props": [{"qualifier": "Quali1"},
-                  {"qualifier": "Quali2"}]
+        "note": "Some Note"
     }
     schema = TopicEntityTagSchemaCreate(**xml)
 
@@ -150,10 +147,7 @@ def test_patch_with_props():
 
     # change the reference
     xml = {
-        "reference_curie": refs[0],
-        "props": [
-            {"qualifier": "NEW one"}
-        ]
+        "reference_curie": refs[0]
     }
     schema = TopicEntityTagSchemaUpdate(**xml)
     patch(db, tet_id, schema)
@@ -173,33 +167,16 @@ def test_patch_with_props():
 
     # Change the note
     xml = {
-        "note": None,
-        "updated_by": "018_Bob"
+        "note": None
     }
     schema = TopicEntityTagSchemaUpdate(**xml)
     patch(db, tet_id, schema)
 
     res = show(db, tet_id)
     assert not res["note"]
-    assert res['updated_by'] == "018_Bob"
     assert res["props"][0]["qualifier"] == 'Quali1'
     assert res["props"][1]["qualifier"] == 'Quali2'
     assert res["props"][2]["qualifier"] == 'NEW one'
-
-    # change the prop?
-    xml = {
-        "updated_by": "018_Bob",
-        "props": [{"qualifier": "Quali3",
-                   "topic_entity_tag_prop_id": res["props"][0]["topic_entity_tag_prop_id"]},
-                  {"qualifier": "Quali4",
-                   "topic_entity_tag_prop_id": res["props"][1]["topic_entity_tag_prop_id"]}]
-    }
-    schema = TopicEntityTagSchemaUpdate(**xml)
-    patch(db, tet_id, schema)
-
-    res = show(db, tet_id)
-    assert res["props"][0]["qualifier"] == 'Quali3'
-    assert res["props"][1]["qualifier"] == 'Quali4'
 
 
 def test_delete_with_props():
@@ -209,8 +186,7 @@ def test_delete_with_props():
         "entity_type": "Gene3",
         "alliance_entity": "Bob_gene_name 3",
         "taxon": "NCBITaxon:3456",
-        "note": "Some Note or other",
-        "created_by": "018_Bob",
+        "note": "Some Note or other"
         "props": [{"qualifier": "Quali5"},
                   {"qualifier": "Quali6"}]
     }
@@ -240,8 +216,7 @@ def test_props():
         "entity_type": "Gene",
         "alliance_entity": "tgcnp",
         "taxon": "NCBITaxon:1234",
-        "note": "Some other Note",
-        "created_by": "018_Bob",
+        "note": "Some other Note"
     }
     schema = TopicEntityTagSchemaCreate(**xml)
     tet_id = create(db, schema)
