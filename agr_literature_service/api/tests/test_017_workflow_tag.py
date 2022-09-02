@@ -137,7 +137,7 @@ def test_show_ref_ont():
 
     assert res['reference_curie'] == refs[0]
     assert res['workflow_tag_id'] == 'ont test patch'
-    assert res['mod_abbreviation'] == mods[0]
+    assert res['mod_abbreviation'] == mods[1]
 
 
 
