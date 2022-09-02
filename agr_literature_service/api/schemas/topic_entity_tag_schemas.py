@@ -8,7 +8,6 @@ class TopicEntityTagPropSchemaPost(BaseModel):
 
 #use by topic_entity_tag_crud.create_prop
 class TopicEntityTagPropSchemaCreate(TopicEntityTagPropSchemaPost):
-    #topic_entity_tag_id: Optional[int] = None  # created on the fly so not needed here
     topic_entity_tag_id: int #required as here topic_entity_tag_prop created separate from topic_entity_tag
 
 #use by topic_entity_tag_crud.show, topic_enty_tag_prop as children of topic_entity_tag
@@ -23,7 +22,6 @@ class TopicEntityTagPropSchemaShow(TopicEntityTagPropSchemaShowRelated):
 
 class TopicEntityTagPropSchemaUpdate(BaseModel):
     qualifier: str
-    #topic_entity_tag_prop_id: Optional[int] = 0
 
     class Config():
         orm_mode = True
@@ -47,13 +45,10 @@ class TopicEntityTagSchemaPost(BaseModel):
 
 #use by topic_entity_tag_crud
 class TopicEntityTagSchemaCreate(TopicEntityTagSchemaPost):
-    reference_curie: str
-     
-
+    reference_curie: str     
 
 class TopicEntityTagSchemaShowRelated(AuditedObjectModelSchema):
     topic_entity_tag_id: int
-    #reference_curie: Optional[str]
     topic: str
     entity_type: str
     alliance_entity: Optional[str] = None
@@ -62,7 +57,6 @@ class TopicEntityTagSchemaShowRelated(AuditedObjectModelSchema):
     taxon: str
     note: Optional[str]
     props: Optional[List[TopicEntityTagPropSchemaShowRelated]] = None
-
 
 class TopicEntityTagSchemaUpdate(BaseModel):
     reference_curie: Optional[str] = None
@@ -73,8 +67,6 @@ class TopicEntityTagSchemaUpdate(BaseModel):
     new_entity: Optional[str]
     taxon: Optional[str]
     note: Optional[str]
-    #props: Optional[List[TopicEntityTagPropSchemaUpdate]]
-
 
 class TopicEntityTagSchemaShow(AuditedObjectModelSchema):
     topic_entity_tag_id: int

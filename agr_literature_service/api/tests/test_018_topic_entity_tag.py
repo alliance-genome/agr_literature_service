@@ -139,7 +139,6 @@ def test_patch_with_props():
         "alliance_entity": "Bob_gene_name 2",
         "taxon": "NCBITaxon:2345",
         "note": "Some Note",
-        "created_by": "018_Bob",
         "props": [{"qualifier": "Quali1"},
                   {"qualifier": "Quali2"}]
     }
@@ -152,7 +151,6 @@ def test_patch_with_props():
     # change the reference
     xml = {
         "reference_curie": refs[0],
-        "updated_by": "018_Bob",
         "props": [
             {"qualifier": "NEW one"}
         ]
@@ -165,8 +163,7 @@ def test_patch_with_props():
 
     # Change the note
     xml = {
-        "note": "",
-        "updated_by": "018_Bob"
+        "note": ""
     }
     schema = TopicEntityTagSchemaUpdate(**xml)
     patch(db, tet_id, schema)
