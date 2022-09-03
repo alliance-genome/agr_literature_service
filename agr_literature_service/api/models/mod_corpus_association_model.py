@@ -11,8 +11,11 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
 
 from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.database.versioning import enable_versioning
 from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.schemas import ModCorpusSortSourceType
+
+enable_versioning()
 
 
 class ModCorpusAssociationModel(AuditedModel, Base):

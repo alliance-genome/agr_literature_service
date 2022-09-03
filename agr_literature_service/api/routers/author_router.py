@@ -7,7 +7,7 @@ from agr_literature_service.api.crud import author_crud
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (AuthorSchemaCreate, AuthorSchemaShow,
                                                 ResponseMessageSchema)
-from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
     prefix="/author",
@@ -24,7 +24,7 @@ db_user = Security(auth.get_user)
 def create(request: AuthorSchemaCreate,
            user: OktaUser = db_user,
            db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_from_okta(db, user)
     return author_crud.create(db, request)
 
 
@@ -33,7 +33,7 @@ def create(request: AuthorSchemaCreate,
 def destroy(author_id: int,
             user: OktaUser = db_user,
             db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_from_okta(db, user)
     author_crud.destroy(db, author_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -45,7 +45,7 @@ async def patch(author_id: int,
                 request: AuthorSchemaCreate,
                 user: OktaUser = db_user,
                 db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_from_okta(db, user)
     patch = request.dict(exclude_unset=True)
     return author_crud.patch(db, author_id, patch)
 

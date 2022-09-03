@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import resource_descriptor_crud
 from agr_literature_service.api.routers.authentication import auth
-from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
     prefix="/resource_descriptor",
@@ -28,5 +28,5 @@ def show(db: Session = db_session):
             status_code=status.HTTP_202_ACCEPTED)
 def update(user: OktaUser = db_user,
            db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_from_okta(db, user)
     return resource_descriptor_crud.update(db)

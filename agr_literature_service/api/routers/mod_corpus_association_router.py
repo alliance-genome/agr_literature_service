@@ -9,7 +9,7 @@ from agr_literature_service.api.schemas import (ModCorpusAssociationSchemaPost,
                                                 ModCorpusAssociationSchemaShow,
                                                 ModCorpusAssociationSchemaUpdate,
                                                 ResponseMessageSchema)
-from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.user import set_global_user_from_okta
 import logging
 import logging.config
 router = APIRouter(
@@ -29,7 +29,7 @@ db_user = Security(auth.get_user)
 def create(request: ModCorpusAssociationSchemaPost,
            user: OktaUser = db_user,
            db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_from_okta(db, user)
     return mod_corpus_association_crud.create(db, request)
 
 
@@ -38,7 +38,7 @@ def create(request: ModCorpusAssociationSchemaPost,
 def destroy(mod_corpus_association_id: int,
             user: OktaUser = db_user,
             db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_from_okta(db, user)
     mod_corpus_association_crud.destroy(db, mod_corpus_association_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -50,7 +50,7 @@ async def patch(mod_corpus_association_id: int,
                 request: ModCorpusAssociationSchemaUpdate,
                 user: OktaUser = db_user,
                 db: Session = db_session):
-    set_global_user_id(db, user.id)
+    set_global_user_from_okta(db, user)
     patch = request.dict(exclude_unset=True)
     return mod_corpus_association_crud.patch(db, mod_corpus_association_id, patch)
 
