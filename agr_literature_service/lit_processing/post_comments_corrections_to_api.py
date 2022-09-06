@@ -4,13 +4,10 @@ import json
 import logging
 import logging.config
 from os import environ
-from typing import List, Dict
 
-from agr_literature_service.lit_processing.helper_post_to_api import (generate_headers, get_authentication_token,
-                                                                      process_api_request)
-
-from agr_literature_service.api.database.main import get_db
-from agr_literature_service.api.models import ReferenceModel, CrossReferenceModel
+from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session
+from agr_literature_service.api.models import ReferenceModel, CrossReferenceModel,\
+    ReferenceCommentAndCorrectionModel
 
 # pipenv run python post_comments_corrections_to_api.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/all_pmids > log_post_comments_corrections_to_api
 # enter a file of pmids as an argument, sanitize, post to api
@@ -24,8 +21,8 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 
-def get_pmid_to_reference(pmids: List[str]):
-    db_session = next(get_db())
+def get_pmid_to_reference(db_session, pmids):
+
     query = db_session.query(
         CrossReferenceModel.curie,
         ReferenceModel.curie
@@ -34,13 +31,17 @@ def get_pmid_to_reference(pmids: List[str]):
     ).filter(
         CrossReferenceModel.curie.in_(pmids)
     )
+
     results = query.all()
-    pmid_curie_dict: Dict[str, str] = {}
+
+    pmid_curie_dict = {}
+
     for result in results:
         if result[0] not in pmid_curie_dict or pmid_curie_dict[result[0]] is None:
             pmid_curie_dict[result[0]] = result[1]
     # json_object = json.dumps(pmid_curie_dict, indent=4)
     # print(json_object)
+
     return pmid_curie_dict
 
 
@@ -52,12 +53,6 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
     """
 
     logger.info(pmids_wanted)
-
-    api_port = environ.get('API_PORT')
-    base_path = environ.get('XML_PATH')
-
-    token = get_authentication_token()
-    headers = generate_headers(token)
 
     allowed_com_cor_types = ['CommentOn', 'ErratumFor', 'ExpressionOfConcernFor', 'ReprintOf',
                              'RepublishedFrom', 'RetractionOf', 'UpdateOf']
@@ -101,10 +96,11 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
     reference_to_curie = dict()
 
     # generating only needed pmid mappings of xref to reference curie through sqlalchemy
-    reference_to_curie = get_pmid_to_reference(list(pmids_in_xml))
 
-    api_server = environ.get('API_SERVER', 'localhost')
-    url = 'http://' + api_server + ':' + api_port + '/reference_comment_and_correction/'
+    db_session = create_postgres_session(False)
+
+    reference_to_curie = get_pmid_to_reference(db_session, list(pmids_in_xml))
+
     mappings = sorted(mappings_set)
     # counter = 0
     for mapping in mappings:
@@ -132,27 +128,21 @@ def post_comments_corrections(pmids_wanted):      # noqa: C901
             # json_object = json.dumps(new_entry, indent=4)
             # print(json_object)
 
-            api_response_tuple = process_api_request('POST', url, headers, new_entry, primary_pmid, None, None)
-            headers = api_response_tuple[0]
-            response_text = api_response_tuple[1]
-            response_status_code = api_response_tuple[2]
-            log_info = api_response_tuple[3]
-            response_dict = json.loads(response_text)
+            try:
+                x = ReferenceCommentAndCorrectionModel(**new_entry)
+                db_session.add(x)
+                logger.info("The comment/correction row has been added into database for PMID " + str(primary_pmid))
+            except Exception as e:
+                logger.info("An error occurred when adding a comment/correction row into database for PMID " + str(primary_pmid) + " " + str(e))
 
-            if log_info:
-                logger.info(log_info)
-
-            if (response_status_code == 201):
-                logger.info("%s\t%s\t%s\t%s\t%s\ttext %s\tstatus_code %s", primary_pmid, primary_curie, secondary_pmid, secondary_curie, com_cor_type, response_text, response_status_code)
-            else:
-                logger.info("api error %s primary pmid %s message %s", str(response_status_code), primary_pmid, response_dict['detail'])
+    db_session.commit()
+    db_session.close()
 
 
 if __name__ == "__main__":
     """
     call main start function
     """
-
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--generate-pmid-data', action='store_true', help='generate pmid outputs')
     parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
