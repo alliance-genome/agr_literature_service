@@ -107,7 +107,7 @@ def generate_pmid_data(input_path, output_directory, input_mod):      # noqa: C9
             prefix, identifier, separator = split_identifier(entry['primaryId'])
             if prefix == 'PMID':
                 pmid = identifier
-            elif prefix in mods:
+            elif prefix in mods or prefix == 'Xenbase':
                 if 'crossReferences' in entry:
                     for cross_reference in entry['crossReferences']:
                         prefix_xref, identifier_xref, separator_xref = split_identifier(cross_reference['id'])
@@ -428,10 +428,16 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
     # assigns PMID to primaryId and to authors's referenceId.
     # if any reference's author doesn't have author Rank, assign authorRank based on array order.
     cross_ref_no_pages_ok_fields = ['DOI', 'PMID', 'PMC', 'PMCID', 'ISBN']
-    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
+    pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'datePublished',
+                   'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher',
+                   'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReferences',
+                   'publicationStatus', 'commentsCorrections', 'allianceCategory', 'journal']
     # single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher']
-    single_value_fields = ['volume', 'title', 'pages', 'issueName', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'publicationStatus']
-    replace_value_fields = ['authors', 'pubMedType', 'meshTerms']
+    single_value_fields = ['volume', 'title', 'pages', 'issueName', 'datePublished',
+                           'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher',
+                           'plainLanguageAbstract', 'pubmedAbstractLanguages',
+                           'publicationStatus', 'allianceCategory', 'journal']
+    replace_value_fields = ['authors', 'pubMedType', 'meshTerms', 'crossReferences', 'commentsCorrections']
     # date_fields = ['issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified']
     # datePublished is a string, not a proper date field
     date_fields = ['dateArrivedInPubmed', 'dateLastModified']
