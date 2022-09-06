@@ -1,16 +1,16 @@
 import argparse
-import json
 import logging
 import logging.config
 from os import environ, path
-
 import requests
 
+from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session
 from agr_literature_service.lit_processing.get_pubmed_xml import download_pubmed_xml
-from agr_literature_service.lit_processing.post_reference_to_api import post_references
+from agr_literature_service.lit_processing.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.sanitize_pubmed_json import sanitize_pubmed_json_list
 from agr_literature_service.lit_processing.xml_to_json import generate_json
 from agr_literature_service.lit_processing.helper_s3 import upload_xml_file_to_s3
+from agr_literature_service.api.user import set_global_user_id
 
 # pipenv run python process_single_pmid.py -c 12345678
 # enter a single pmid as an argument, download xml, convert to json, sanitize, post to api
@@ -50,25 +50,6 @@ def check_pmid_cross_reference(pmid):
     return process_results
 
 
-def output_message_json(process_results):
-    """
-
-    :param process_results:
-    :return:
-    """
-
-    process_result = dict()
-    if process_results:
-        process_result = process_results.pop()
-        process_result['status_code'] = int(process_result['status_code'])
-        if process_result['text'].startswith('"') and process_result['text'].endswith('"'):
-            process_result['text'] = process_result['text'][1:-1]
-    else:
-        process_result['text'] = 'Failure processing POST to API'
-        process_result['status_code'] = 999
-    return json.dumps(process_result)
-
-
 def process_pmid(pmid):
     """
 
@@ -85,9 +66,8 @@ def process_pmid(pmid):
         sanitize_pubmed_json_list(pmids_wanted, [])
         # json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_' + pmid + '.json'
         json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_PMID.json'
-        process_results = post_references(json_filepath, 'no_file_check')
+        post_references(json_filepath)
         upload_xml_file_to_s3(pmid)
-    return output_message_json(process_results)
 
 
 if __name__ == "__main__":
@@ -110,6 +90,12 @@ if __name__ == "__main__":
 
     else:
         logger.info("Must enter a PMID through command line")
+
+    if len(pmids_wanted) > 0:
+        db_session = create_postgres_session(False)
+        scriptNm = path.basename(__file__).replace(".py", "")
+        set_global_user_id(db_session, scriptNm)
+        db_session.close()
 
     for pmid in pmids_wanted:
         process_pmid(pmid)
