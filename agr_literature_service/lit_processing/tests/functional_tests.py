@@ -680,8 +680,8 @@ if __name__ == "__main__":
     # run this once after data is loaded
     # generate_cross_references_file('reference')
 
-    test_load_references()
-    test_update_references()
+    # test_load_references()
+    # test_update_references()
     test_pubmed_types_to_category_mapping()
     test_first_corresponding_author_flag()
 
