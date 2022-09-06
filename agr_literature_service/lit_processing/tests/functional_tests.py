@@ -84,7 +84,7 @@ def test_update_references():
     for entry in sample_json['data']:
         agr, agr_found = resolve_dqm_to_agr(entry, xref_ref)
         if not agr_found:
-            # assert 'doi_conflict' in entry['update_check']
+            assert 'doi_conflict' in entry['update_check']
             continue
         if agr not in agr_wanted:
             agr_wanted[agr] = dict()
@@ -129,7 +129,7 @@ def test_load_references():
             logger.debug("entry is {}".format(entry))
             logger.debug(entry['load_check'])
             logger.debug(agr)
-            # assert 'doi_conflict' in entry['load_check']
+            assert 'doi_conflict' in entry['load_check']
             continue
         if agr not in agr_wanted:
             agr_wanted[agr] = dict()
