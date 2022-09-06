@@ -10,6 +10,9 @@ from typing import Dict
 from sqlalchemy import Column, ForeignKey, Integer, String
 
 from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.database.versioning import enable_versioning
+
+enable_versioning()
 
 
 class ObsoleteReferenceModel(Base):

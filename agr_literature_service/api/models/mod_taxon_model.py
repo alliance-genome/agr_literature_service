@@ -6,7 +6,10 @@ mod_taxon_model.py
 from typing import Dict
 from sqlalchemy import (Column, Integer, String, ForeignKey)
 from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.database.versioning import enable_versioning
 from agr_literature_service.api.models.audited_model import AuditedModel
+
+enable_versioning()
 
 
 class ModTaxonModel(AuditedModel, Base):
