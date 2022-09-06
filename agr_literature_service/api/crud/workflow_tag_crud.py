@@ -5,7 +5,6 @@ workflow_tag_crud.py
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import null
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, ModModel
