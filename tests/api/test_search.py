@@ -19,8 +19,8 @@ def initialize_elasticsearch():
         "pubmed_types": ["Journal Article", "Review"],
         "abstract": "Really quite a lot of great information in this article",
         "date_published": "1901",
-        "authors" : [{name: "John Q Public", orcid: null}, {name: "Socrates", orcid: null}],
-        "cross_references": [{curie: "FB:FBrf0000001", is_obsolete: "false"},{curie: "FB:FBrf0000002", is_obsolete: "true"}]
+        "authors" : [{"name": "John Q Public", "orcid": "null"}, {"name": "Socrates", "orcid": "null"}],
+        "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"},{"curie": "FB:FBrf0000002", "is_obsolete": "true"}]
     }
     doc2 = {
         "curie": "AGR:AGR-Reference-0000000002",
@@ -28,8 +28,8 @@ def initialize_elasticsearch():
         "pubmed_types": ["Book"],
         "abstract": "Its really worth reading this article",
         "date_published": "2022",
-        "authors" : [{name: "Jane Doe", orcid: null}],
-        "cross_references": [{curie: "PMID:0000001", is_obsolete: "false"}]
+        "authors" : [{"name": "Jane Doe", "orcid": "null"}],
+        "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}]
     }
     doc3 = {
         "curie": "AGR:AGR-Reference-0000000003",
@@ -37,8 +37,8 @@ def initialize_elasticsearch():
         "pubmed_types": ["Book", "Abstract", "Category1", "Category2", "Category3"],
         "abstract": "A book written about science",
         "date_published": "1950-06-03",
-        "authors" : [{name: "Sam", orcid: null}, {name: "Plato", orcid: null}],
-        "cross_references": [{curie: "FB:FBrf0000001", is_obsolete: "false"},{curie: "SGD:S000000123", is_obsolete: "true"}]
+        "authors" : [{"name": "Sam", "orcid": "null"}, {"name": "Plato", "orcid": "null"}],
+        "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"},{"curie": "SGD:S000000123", "is_obsolete": "true"}]
     }
     doc4 = {
         "curie": "AGR:AGR-Reference-0000000004",
@@ -46,8 +46,8 @@ def initialize_elasticsearch():
         "pubmed_types": ["Book", "Category4", "Test", "category5", "Category6", "Category7"],
         "abstract": "The other book written about science",
         "date_published": "2010",
-        "authors" : [{name: "Euphrates", orcid: null}, {name: "Aristotle", orcid: null}],
-        "cross_references": [{curie: "MGI:12345", is_obsolete: "false"}]
+        "authors" : [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
+        "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}]
     }
     es.index(index="references_index", id=1, body=doc1)
     es.index(index="references_index", id=2, body=doc2)
