@@ -20,7 +20,7 @@ def initialize_elasticsearch():
         "abstract": "Really quite a lot of great information in this article",
         "date_published": "1901",
         "authors" : [{"name": "John Q Public", "orcid": "null"}, {"name": "Socrates", "orcid": "null"}],
-        "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"},{"curie": "FB:FBrf0000002", "is_obsolete": "true"}]
+        "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}]
     }
     doc2 = {
         "curie": "AGR:AGR-Reference-0000000002",
@@ -38,7 +38,7 @@ def initialize_elasticsearch():
         "abstract": "A book written about science",
         "date_published": "1950-06-03",
         "authors" : [{"name": "Sam", "orcid": "null"}, {"name": "Plato", "orcid": "null"}],
-        "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"},{"curie": "SGD:S000000123", "is_obsolete": "true"}]
+        "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "SGD:S000000123", "is_obsolete": "true"}]
     }
     doc4 = {
         "curie": "AGR:AGR-Reference-0000000004",
