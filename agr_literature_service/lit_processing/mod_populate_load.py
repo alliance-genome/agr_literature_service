@@ -1,14 +1,10 @@
-
 import logging
 import logging.config
-from os import environ, path
+from os import path
 
-from agr_literature_service.lit_processing.helper_post_to_api import (generate_headers, get_authentication_token,
-                                                                      process_api_request)
-
-# post to api data for eight mods
-# python mod_populate_load.py
-
+from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session
+from agr_literature_service.api.models import ModModel
+from agr_literature_service.api.user import set_global_user_id
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../logging.conf')
 logging.config.fileConfig(log_file_path)
@@ -17,17 +13,17 @@ logger = logging.getLogger('literature logger')
 
 def post_mods():      # noqa: C901
     """
-
     :return:
     """
 
-    api_port = environ.get('API_PORT')
-    base_path = environ.get('XML_PATH')
+    db_session = create_postgres_session(False)
+    scriptNm = path.basename(__file__).replace(".py", "")
+    set_global_user_id(db_session, scriptNm)
 
-    token = get_authentication_token()
-    headers = generate_headers(token)
-    api_server = environ.get('API_SERVER', 'localhost')
-    url = 'http://' + api_server + ':' + api_port + '/reference/'
+    # test mod:
+    # {"abbreviation": "AtDB",
+    # "short_name": "AtDB2",
+    # "full_name": "AtDB test full name"}
 
     mod_data = [{"abbreviation": "FB",
                  "short_name": "FlyBase",
@@ -54,34 +50,34 @@ def post_mods():      # noqa: C901
                  "short_name": "GOC",
                  "full_name": "Gene Ontology Consortium"}]
 
-    process_results = []
-    errors_in_posting_mod_file = base_path + 'errors_in_posting_mod'
-    with open(errors_in_posting_mod_file, 'a') as error_fh:
-        for new_entry in mod_data:
-            # output what is sent to API after converting file data
-            # json_object = json.dumps(new_entry, indent=4)
-            # print(json_object)
+    for data in mod_data:
 
-            url = 'http://' + api_server + ':' + api_port + '/mod/'
-            api_response_tuple = process_api_request('POST', url, headers, new_entry, new_entry['abbreviation'], None, None)
-            headers = api_response_tuple[0]
-            response_text = api_response_tuple[1]
-            response_status_code = api_response_tuple[2]
-            log_info = api_response_tuple[3]
+        x = db_session.query(ModModel).filter_by(abbreviation=data["abbreviation"]).one_or_none()
 
-            if (response_status_code == 201):
-                process_result = dict()
-                process_result['text'] = response_text
-                process_result['status_code'] = response_status_code
-                process_results.append(process_result)
-                logger.info("%s\t%s", new_entry['abbreviation'], response_text)
-                if log_info:
-                    logger.info(log_info)
-            else:
-                logger.info("api error %s primaryId %s message %s", str(response_status_code), new_entry['abbreviation'], response_text)
-                error_fh.write("api error %s primaryId %s message %s\n" % (str(response_status_code), new_entry['abbreviation'], response_text))
-        error_fh.close
-    return process_results
+        if x is None:
+
+            try:
+                x = ModModel(**data)
+                db_session.add(x)
+                logger.info("Insert " + data["abbreviation"] + " info into Mod table.")
+            except Exception as e:
+                logger.info("An error occurred when inserting " + data["abbreviation"] + " info into Mod table. " + str(e))
+
+        elif x.short_name == data["short_name"] and x.full_name == data["full_name"]:
+            continue
+        else:
+            try:
+                if x.short_name != data["short_name"]:
+                    x.short_name = data["short_name"]
+                if x.full_name != data["full_name"]:
+                    x.full_name = data["full_name"]
+                db_session.add(x)
+                logger.info("Mod info for " + data["abbreviation"] + " has been updated.")
+            except Exception as e:
+                logger.info("An error occurred when updating Mod info for " + data["abbreviation"] + ". " + str(e))
+
+    db_session.commit()
+    logger.info("DONE!")
 
 
 if __name__ == "__main__":
