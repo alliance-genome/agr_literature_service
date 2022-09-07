@@ -8,10 +8,10 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, ModModel
-from agr_literature_service.api.schemas import WorkflowTagSchemaCreate
+from agr_literature_service.api.schemas import WorkflowTagSchemaPost
 
 
-def create(db: Session, workflow_tag: WorkflowTagSchemaCreate) -> int:
+def create(db: Session, workflow_tag: WorkflowTagSchemaPost) -> int:
     """
     Create a new workflow_tag
     :param db:

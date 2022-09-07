@@ -78,14 +78,17 @@ from agr_literature_service.api.schemas.reference_comment_and_correction_schemas
 from agr_literature_service.api.schemas.workflow_tag_schemas import (
     WorkflowTagSchemaCreate,
     WorkflowTagSchemaShow,
+    WorkflowTagSchemaPost,
     WorkflowTagSchemaRelated,
     WorkflowTagSchemaUpdate)
 
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (
     TopicEntityTagPropSchemaCreate,
+    TopicEntityTagPropSchemaPost,
     TopicEntityTagPropSchemaShow,
     TopicEntityTagPropSchemaUpdate,
     TopicEntityTagSchemaCreate,
+    TopicEntityTagSchemaPost,
     TopicEntityTagSchemaShow,
     TopicEntityTagSchemaUpdate
 )

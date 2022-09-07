@@ -13,10 +13,10 @@ from agr_literature_service.api.models import (
     ReferenceModel
 )
 from agr_literature_service.api.schemas import (
-    TopicEntityTagSchemaCreate,
-    TopicEntityTagPropSchemaCreate,
+    TopicEntityTagPropSchemaPost,
     TopicEntityTagPropSchemaUpdate
 )
+from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
 
 
 def extra_checks(topic_entity_tag_data):
@@ -39,7 +39,7 @@ def extra_checks(topic_entity_tag_data):
     return (okay, details)
 
 
-def create(db: Session, topic_entity_tag: TopicEntityTagSchemaCreate) -> int:
+def create(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
     """
     Create a new topic_entity_tag
     :param db:
@@ -154,7 +154,7 @@ def destroy(db: Session, topic_entity_tag_id: int):
     return None
 
 
-def create_prop(db: Session, topic_entity_tag_prop: TopicEntityTagPropSchemaCreate) -> int:
+def create_prop(db: Session, topic_entity_tag_prop: TopicEntityTagPropSchemaPost) -> int:
     """
     Create a new topic_entity_tag
     :param db:

@@ -13,8 +13,8 @@ from agr_literature_service.api.schemas import (AuthorSchemaPost, AuthorSchemaSh
                                                 PubMedPublicationStatus, ReferenceCategory,
                                                 ReferenceCommentAndCorrectionSchemaRelated,
                                                 ModCorpusAssociationSchemaRelated)
-from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagSchemaPost, WorkflowTagSchemaShowRelated
-from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost, TopicEntityTagSchemaShowRelated
+from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagSchemaCreate, WorkflowTagSchemaRelated
+from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaCreate, TopicEntityTagSchemaRelated
 
 
 class ReferenceSchemaPost(BaseModel):
@@ -42,8 +42,8 @@ class ReferenceSchemaPost(BaseModel):
     authors: Optional[List[AuthorSchemaPost]] = None
     resource: Optional[str] = None
     open_access: Optional[bool] = None
-    workflow_tags: Optional[List[WorkflowTagSchemaPost]] = None
-    topic_entity_tags: Optional[List[TopicEntityTagSchemaPost]] = None
+    workflow_tags: Optional[List[WorkflowTagSchemaCreate]] = None
+    topic_entity_tags: Optional[List[TopicEntityTagSchemaCreate]] = None
 
     class Config():
         orm_mode = True
@@ -137,8 +137,8 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     comment_and_corrections: CommentAndCorrectionSchemaRelations
     open_access: Optional[bool] = None
     citation: Optional[str] = None
-    workflow_tags: Optional[List[WorkflowTagSchemaShowRelated]] = None
-    topic_entity_tags: Optional[List[TopicEntityTagSchemaShowRelated]] = None
+    workflow_tags: Optional[List[WorkflowTagSchemaRelated]] = None
+    topic_entity_tags: Optional[List[TopicEntityTagSchemaRelated]] = None
 
 
 class ReferenceSchemaNeedReviewShow(BaseModel):
