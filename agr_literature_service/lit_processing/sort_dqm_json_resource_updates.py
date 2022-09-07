@@ -4,20 +4,19 @@ import logging.config
 import warnings
 from os import environ, makedirs, path
 
-import requests
 from dotenv import load_dotenv
+from fastapi.encoders import jsonable_encoder
 
-from agr_literature_service.lit_processing.helper_sqlalchemy import sqlalchemy_load_ref_xref
+from agr_literature_service.api.models import ResourceModel, CrossReferenceModel
+from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session,\
+    sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.helper_file_processing import (compare_authors_or_editors,
                                                                           save_resource_file, split_identifier)
-from agr_literature_service.lit_processing.helper_post_to_api import (generate_headers, get_authentication_token,
-                                                                      process_api_request)
+from agr_literature_service.api.user import set_global_user_id
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
-
-api_server = environ.get('API_SERVER', 'localhost')
 
 # pipenv run python sort_dqm_json_resource_updates.py
 
@@ -36,6 +35,8 @@ api_server = environ.get('API_SERVER', 'localhost')
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../logging.conf')
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
+
+batch_size_for_commit = 250
 
 
 def load_sanitized_resource(datatype):
@@ -61,23 +62,27 @@ def load_sanitized_resource(datatype):
 
 def update_sanitized_resources(datatype):
     """
-    datatype is a MOD or NLM.  sort against resource_curie_to_xref from get_datatypes_cross_references.py query of database.  sort into resources to update, or to create: saving those to sanitized_resource_json_updates/ to post to db with post_resource_to_api.py
+    datatype is a MOD or NLM.  sort against resource_curie_to_xref from
+    get_datatypes_cross_references.py query of database.  sort into resources to
+    update, or to create: saving those to sanitized_resource_json_updates/ to post
+    to db with post_resource_to_api.py
 
     :param datatype:
     :return:
     """
 
+    db_session = create_postgres_session(False)
+
+    scriptNm = path.basename(__file__).replace(".py", "")
+    set_global_user_id(db_session, scriptNm)
+
     logger.info("update_sanitized_resources for %s", datatype)
 
     base_path = environ.get('XML_PATH')
-    api_port = environ.get('API_PORT')    # noqa: F841
 
     json_storage_path = base_path + 'sanitized_resource_json_updates/'
     if not path.exists(json_storage_path):
         makedirs(json_storage_path)
-
-    token = get_authentication_token()
-    headers = generate_headers(token)
 
     xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
     sanitized_resources = load_sanitized_resource(datatype)
@@ -113,22 +118,27 @@ def update_sanitized_resources(datatype):
     if resources_to_create:
         save_resource_file(json_storage_path, resources_to_create, datatype)  # this needs to post_resource_to_api, figure out appending to resource_primary_id_to_curie
 
-    update_resources(live_changes, headers, resources_to_update)
+    update_resources(db_session, live_changes, resources_to_update)
+
+    db_session.close()
 
 
-def update_resources(live_changes, headers, resources_to_update):
+def update_resources(db_session, live_changes, resources_to_update):
     """
-    Get the resource from the API, compare to the new resource data.  Patch simple and list fields.  Add new cross_references and track other cases until curators tell us what reports they want.
+    Get the resource from the database, compare to the new resource data.
+    Patch simple and list fields.  Add new cross_references and track other
+    cases until curators tell us what reports they want.
     This takes 11 minutes to query 34284 resources one by one through the API
 
     :param live_changes:
-    :param headers:
     :param resources_to_update:
     :return:
     """
 
-    # pubmed_fields = ['isoAbbreviation', 'crossReferences', 'onlineISSN', 'medlineAbbreviation', 'printISSN', 'title', 'primaryId', 'nlm']
-    # keys_to_remove = {'nlm', 'primaryId', 'crossReferences'}   # these are all the nlm, which is the key to find this, so it cannot change
+    # pubmed_fields = ['isoAbbreviation', 'crossReferences', 'onlineISSN',
+    # 'medlineAbbreviation', 'printISSN', 'title', 'primaryId', 'nlm']
+    # keys_to_remove = {'nlm', 'primaryId', 'crossReferences'}
+    # these are all the nlm, which is the key to find this, so it cannot change
     remap_keys = dict()
     remap_keys['isoAbbreviation'] = 'iso_abbreviation'
     remap_keys['medlineAbbreviation'] = 'medline_abbreviation'
@@ -151,18 +161,26 @@ def update_resources(live_changes, headers, resources_to_update):
     # remap_cross_references_keys['id'] = 'curie'
 
     # no one is sending abstractOrSummary / 'abstract', 'summary' ; titleSynonyms ; copyrightDate data
-    simple_fields = ['title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN', 'publisher', 'pages']
+    simple_fields = ['title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN',
+                     'publisher', 'pages']
     list_fields = ['abbreviationSynonyms', 'titleSynonyms', 'volumes']
     # complex_fields = ['crossReferences', 'editorsOrAuthors']
     # TODO deal with editors, example AGR:AGR-Resource-0000034288     FB:FBmultipub_7448
 
     xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
 
-    api_port = environ.get('API_PORT')
-
     counter = 0
     max_counter = 10000000
     # max_counter = 1
+
+    # agr_to_resource_obj = dict([(x.curie, x) for x in db_session.query(ResourceModel).all()])
+    agr_to_resource_dict = {}
+    for x in db_session.query(ResourceModel).all():
+        agr = x.curie
+        json_data = jsonable_encoder(x)
+        agr_to_resource_dict[x.curie] = json_data
+
+    i = 0
 
     for agr in resources_to_update:
         counter = counter + 1
@@ -173,16 +191,19 @@ def update_resources(live_changes, headers, resources_to_update):
         # if agr != 'AGR:AGR-Resource-0000015274':
         #     continue
 
+        if i > batch_size_for_commit:
+            i = 0
+            if live_changes:
+                db_session.commit()
+            else:
+                db_session.rollback()
+
         dqm_entry = resources_to_update[agr]
+        db_entry = agr_to_resource_dict[agr]
+
         # logger.info("pm title %s", dqm_entry['title'])   # for debugging which reference was found
         # logger.info("%s", dqm_entry)
 #         live_changes = True
-
-        url = 'http://' + api_server + ':' + api_port + '/resource/' + agr
-        logger.info("get AGR resource info from database %s", url)
-        get_return = requests.get(url)
-        db_entry = json.loads(get_return.text)
-        # logger.info("db title %s", db_entry['title'])   # for debugging which reference was found
 
         update_json = dict()
         for field_camel in simple_fields:
@@ -202,7 +223,8 @@ def update_resources(live_changes, headers, resources_to_update):
                 logger.info("patch %s field %s from db %s to dqm %s", agr, list_changed[3], list_changed[2], list_changed[1])
                 update_json[list_changed[3]] = list_changed[1]
         if 'crossReferences' in dqm_entry:
-            headers = compare_xref(agr, dqm_entry, xref_ref, ref_xref_valid, ref_xref_obsolete, headers, live_changes)
+            compare_xref(db_session, agr, db_entry['resource_id'], dqm_entry, xref_ref, ref_xref_valid,
+                         ref_xref_obsolete)
         editors_changed = compare_authors_or_editors(db_entry, dqm_entry, 'editors')
         # editor API needs updates.  reference_curie required to post reference authors but for some reason resource_curie not allowed here, cannot connect new editor to resource if resource_curie is not passed in
         if editors_changed[0]:
@@ -221,43 +243,17 @@ def update_resources(live_changes, headers, resources_to_update):
         #        editor_post_url = 'http://localhost:' + api_port + '/editor/'
         #        headers = generic_api_post(live_changes, editor_post_url, headers, create_dict, agr, None, None)
         if update_json:
-            # for debugging changes
-            # update_text = json.dumps(update_json, indent=4)
-            # print('update ' + update_text)
-            headers = generic_api_patch(live_changes, url, headers, update_json, agr, None, None)
+            i += 1
+            try:
+                db_session.query(ResourceModel).filter_by(curie=agr).update(update_json)
+                logger.info("The resource row for curie = " + agr + " has been updated.")
+            except Exception as e:
+                logger.info("An error occurred when updating resource row for curie = " + agr + " " + str(e))
 
-
-# these are the same as in  sort_dqm_json_reference_updates.py  but not sure I'll want different logging or response handling later
-def generic_api_post(live_changes, url, headers, new_entry, agr, mapping_fh, error_fh):
     if live_changes:
-        api_response_tuple = process_api_request('POST', url, headers, new_entry, agr, mapping_fh, error_fh)
-        headers = api_response_tuple[0]
-        response_text = api_response_tuple[1]
-        response_status_code = api_response_tuple[2]
-        log_info = api_response_tuple[3]
-        if log_info:
-            logger.info(log_info)
-        if response_status_code == 201:
-            response_dict = json.loads(response_text)
-            response_dict = str(response_dict).replace('"', '')
-            logger.info("%s\t%s", agr, response_dict)
-    return headers
-
-
-def generic_api_patch(live_changes, url, headers, update_json, agr, mapping_fh, error_fh):
-    if live_changes:
-        api_response_tuple = process_api_request('PATCH', url, headers, update_json, agr, mapping_fh, error_fh)
-        headers = api_response_tuple[0]
-        response_text = api_response_tuple[1]
-        response_status_code = api_response_tuple[2]
-        log_info = api_response_tuple[3]
-        if log_info:
-            logger.info(log_info)
-        if response_status_code == 202:
-            response_dict = json.loads(response_text)
-            response_dict = str(response_dict).replace('"', '')
-            logger.info("%s\t%s", agr, response_dict)
-    return headers
+        db_session.commit()
+    else:
+        db_session.rollback()
 
 
 def camel_to_snake(field_camel, remap_keys):
@@ -274,11 +270,19 @@ def camel_to_snake(field_camel, remap_keys):
     return field_snake
 
 
-def compare_xref(agr, dqm_entry, xref_ref, ref_xref_valid, ref_xref_obsolete, headers, live_changes):
+def compare_xref(db_session, agr, resource_id, dqm_entry, xref_ref, ref_xref_valid, ref_xref_obsolete):
     """
-    We're running dqm resource updates mod by mod instead of aggregating all their data into one entry and comparing that to the database.  Since we cannot track which mod submission an xref went into the database with, we cannot tell which ones should be removed.  For example, if for a given resource FB sends an ISSN and ZFIN sends an ISBN, when running the ZFIN update it will see that the database has an ISSN that ZFIN doesn't have, so it will create notification about things that ZFIN doesn't necessarily care about.  For that reason we're only doing addition of xrefs, and removals will have to be done at ABC through the UI.
+    We're running dqm resource updates mod by mod instead of aggregating all their data into
+    one entry and comparing that to the database.  Since we cannot track which mod submission
+    an xref went into the database with, we cannot tell which ones should be removed.
+    For example, if for a given resource FB sends an ISSN and ZFIN sends an ISBN, when running
+    the ZFIN update it will see that the database has an ISSN that ZFIN doesn't have, so it
+    will create notification about things that ZFIN doesn't necessarily care about.
+    For that reason we're only doing of xrefs, and removals will have to be done at ABC
+    through the UI.
 
     :param agr:
+    :param resource_id
     :param dqm_entry:
     :param xref_ref:
     :param ref_xref_valid:
@@ -288,8 +292,8 @@ def compare_xref(agr, dqm_entry, xref_ref, ref_xref_valid, ref_xref_obsolete, he
     :return:
     """
 
-    api_port = environ.get('API_PORT')
-    url = 'http://' + api_server + ':' + api_port + '/cross_reference/'
+    # api_port = environ.get('API_PORT')
+    # url = 'http://' + api_server + ':' + api_port + '/cross_reference/'
 
     for xref in dqm_entry['crossReferences']:
         curie = xref['id']
@@ -304,7 +308,8 @@ def compare_xref(agr, dqm_entry, xref_ref, ref_xref_valid, ref_xref_obsolete, he
             # logger.info("GOOD1: cross_reference %s good in %s", curie, agr)
         elif agr_db_from_xref != '':
             pass
-            # these are probably useful to curators, have conflicts of xref mapping to different agr resources before and after
+            # these are probably useful to curators, have conflicts of xref mapping to
+            # different agr resources before and after
             # logger.info("REMAP: cross_reference %s already exists in %s", curie, agr_db_from_xref)
         else:
             dqm_xref_obsolete_found = False
@@ -324,27 +329,15 @@ def compare_xref(agr, dqm_entry, xref_ref, ref_xref_valid, ref_xref_obsolete, he
                         pass
                         # logger.info("RENAMED: cross_reference %s prefix %s was %s new dqm value %s in %s", curie, prefix, ref_xref_valid[agr][prefix], identifier, agr)
                 else:
-                    logger.info("CREATE: add cross_reference %s to %s", curie, agr)
-                    new_entry = dict()
-                    new_entry['curie'] = curie
-                    new_entry['resource_curie'] = agr
-                    if 'pages' in xref:
-                        new_entry['pages'] = xref['pages']
-                    # live_changes = True
-                    if live_changes:
-                        # logger.info("CREATE: %s %s", url, new_entry)
-                        api_response_tuple = process_api_request('POST', url, headers, new_entry, curie, None, None)
-                        headers = api_response_tuple[0]
-                        response_text = api_response_tuple[1]
-                        response_status_code = api_response_tuple[2]
-                        log_info = api_response_tuple[3]
-                        if log_info:
-                            logger.info(log_info)
-                        if response_status_code == 201:
-                            response_dict = json.loads(response_text)
-                            response_dict = str(response_dict).replace('"', '')
-                            logger.info("%s\t%s", agr, response_dict)
-    return headers
+                    try:
+                        logger.info("CREATE: add cross_reference %s to %s", curie, agr)
+                        x = CrossReferenceModel(curie=curie,
+                                                resource_id=resource_id,
+                                                pages=xref.get('pages', []))
+                        db_session.add(x)
+                        logger.info("The cross_reference row for curie = " + curie + " and resource_curie = " + agr + " has been added into database.")
+                    except Exception as e:
+                        logger.info("An error occurred when adding cross_reference row for curie = " + curie + " and resource_curie = " + agr + " " + str(e))
 
 
 def compare_list(db_entry, dqm_entry, field_camel, remap_keys):
@@ -375,31 +368,32 @@ def compare_list(db_entry, dqm_entry, field_camel, remap_keys):
         return True, dqm_values, db_values, field_snake
 
 
-def test_get_from_list():
-    """
-    To test making a GET on :4005 to get multiple references at once vs one-by-one.  It's just as slow, but leaving it in to test future different methods for getting data from database
-    20 seconds for 1000 resources
-    13.5 minutes for all 42513 resources
-
-    :return:
-    """
-
-    print('json_data')
-    method = 'GET'
-    headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
-    json_data = []
-    # for i in range(1, 1001):
-    for i in range(1, 42514):
-        agr_id = 'AGR:AGR-Resource-' + str(i).zfill(10)
-        url = 'http://dev.alliancegenome.org:4005/resource/' + agr_id
-        print(url)
-        request_return = requests.request(method, url=url, headers=headers, json=json_data)
-        process_text = str(request_return.text)
-        print(process_text)
-    # print(json_data)
+# def test_get_from_list():
+#    """
+#    To test making a GET on :4005 to get multiple references at once vs
+#    one-by-one.  It's just as slow, but leaving it in to test future different
+#    methods for getting data from database
+#    20 seconds for 1000 resources
+#    13.5 minutes for all 42513 resources
+#    :return:
+#    """
+#
+#    print('json_data')
+#    method = 'GET'
+#    headers = {
+#        'Content-Type': 'application/json',
+#        'Accept': 'application/json'
+#    }
+#    json_data = []
+#    # for i in range(1, 1001):
+#    for i in range(1, 42514):
+#        agr_id = 'AGR:AGR-Resource-' + str(i).zfill(10)
+#        url = 'http://dev.alliancegenome.org:4005/resource/' + agr_id
+#        print(url)
+#        request_return = requests.request(method, url=url, headers=headers, json=json_data)
+#        process_text = str(request_return.text)
+#        print(process_text)
+#    # print(json_data)
 
 
 if __name__ == "__main__":
