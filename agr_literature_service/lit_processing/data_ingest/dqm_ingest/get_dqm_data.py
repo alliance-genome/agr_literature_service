@@ -25,6 +25,7 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 base_path = environ.get('XML_PATH', "")
+fms_release = environ.get('ALLIANCE_FMS_RELEASE', '')
 storage_path = base_path + 'dqm_data/'
 
 
@@ -70,10 +71,9 @@ def download_dqm_json():
 #     datatypes = ['RESOURCE']
 #     mods = ['WB', 'FB']
 #     datatypes = ['REFERENCE']
-    release = '5.2.1'
     for datatype in datatypes:
         for mod in mods:
-            url = 'https://fms.alliancegenome.org/api/datafile/by/' + release + '/' + datatype + '/' + mod + '?latest=true'
+            url = 'https://fms.alliancegenome.org/api/datafile/by/' + fms_release + '/' + datatype + '/' + mod + '?latest=true'
             response = urllib.request.urlopen(url)
             data = json.loads(response.read())
 #             data = ''
