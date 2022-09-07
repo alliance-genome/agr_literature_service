@@ -5,44 +5,38 @@ import logging
 import logging.config
 import warnings
 from os import environ, makedirs, path
-
-import requests
 from dotenv import load_dotenv
-
 from fastapi.encoders import jsonable_encoder
 
-from agr_literature_service.lit_processing.filter_dqm_md5sum import load_s3_md5data, generate_new_md5, save_s3_md5data
-
-from agr_literature_service.api.models import ReferenceModel
-from agr_literature_service.api.crud.reference_crud import update_citation
-
-from agr_literature_service.lit_processing.helper_file_processing import (compare_authors_or_editors,
-                                                                          split_identifier, write_json)
-from agr_literature_service.lit_processing.helper_post_to_api import (generate_headers, get_authentication_token,
-                                                                      process_api_request)
-from agr_literature_service.lit_processing.helper_sqlalchemy import (create_postgres_session,
-                                                                     create_postgres_engine,
-                                                                     sqlalchemy_load_ref_xref)
+from agr_literature_service.lit_processing.filter_dqm_md5sum import load_s3_md5data,\
+    generate_new_md5, save_s3_md5data
+from agr_literature_service.api.models import ReferenceModel, ModReferenceTypeModel,\
+    ModCorpusAssociationModel, AuthorModel, CrossReferenceModel, ModModel
+from agr_literature_service.lit_processing.helper_file_processing import compare_authors_or_editors,\
+    split_identifier, write_json
+from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session,\
+    create_postgres_engine, sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.helper_email import send_email
-
-from agr_literature_service.lit_processing.parse_dqm_json_reference import (generate_pmid_data,
-                                                                            aggregate_dqm_with_pubmed)
+from agr_literature_service.lit_processing.parse_dqm_json_reference import generate_pmid_data,\
+    aggregate_dqm_with_pubmed
 from agr_literature_service.lit_processing.get_pubmed_xml import download_pubmed_xml
 from agr_literature_service.lit_processing.xml_to_json import generate_json
-from agr_literature_service.lit_processing.post_reference_to_api import post_references
-from agr_literature_service.lit_processing.post_comments_corrections_to_api import post_comments_corrections
+from agr_literature_service.lit_processing.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.update_resource_pubmed_nlm import update_resource_pubmed_nlm
 from agr_literature_service.lit_processing.get_dqm_data import download_dqm_json
+from agr_literature_service.api.user import set_global_user_id
 
 # For WB needing 57578 references checked for updating,
 # It would take 48 hours to query the database through the API one by one.
 # It takes 24 minutes to query in batches of 1000 through batch alchemy.
 
-
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
-api_server = environ.get('API_SERVER', 'localhost')
+
+# live_change = True
+live_change = False  # for testing purpose
+batch_size_for_commit = 250
 
 # pipenv run python sort_dqm_json_reference_updates.py -f dqm_data -m WB
 
@@ -185,17 +179,23 @@ def filter_from_md5sum(mod):
 def sort_dqm_references(input_path, input_mod):      # noqa: C901
     """
 
-# TODO
-# DATA  WBPaper00061683 was primaryId in 2021 11 04, became PMID:34345807 in 2022 04 25 update, check that can be found via xref and associated
+    # TODO
+    # DATA  WBPaper00061683 was primaryId in 2021 11 04, became PMID:34345807
+    # in 2022 04 25 update, check that can be found via xref and associated
 
     :param input_path:
     :param input_mod:
     :return:
     """
 
+    db_session = create_postgres_session(False)
+    scriptNm = path.basename(__file__).replace(".py", "")
+    set_global_user_id(db_session, scriptNm)
+    mod_to_mod_id = dict([(x.abbreviation, x.mod_id) for x in db_session.query(ModModel).all()])
+    db_session.close()
+
     base_path = environ.get('XML_PATH')
-    api_port = environ.get('API_PORT')    # noqa: F841
-    # url_ref_curie_prefix = 'https://dev' + api_port + '-literature-rest.alliancegenome.org/reference/'
+
     url_ref_curie_prefix = make_url_ref_curie_prefix()
 
     # download the dqm file(s) from mod(s)
@@ -205,8 +205,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
         download_dqm_json()
         # to pull in new journal info from pubmed
         update_resource_pubmed_nlm()
-    token = get_authentication_token()
-    headers = generate_headers(token)
+    # token = get_authentication_token()
+    # headers = generate_headers(token)
 
     mods = ['RGD', 'MGI', 'XB', 'SGD', 'FB', 'ZFIN', 'WB']
     if input_mod in mods:
@@ -238,11 +238,6 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
     pmids_not_found = load_pmids_not_found()
 
-    # make this True for live changes
-#     live_changes = False
-# PUT THIS BACK
-    live_changes = True
-
     dqm = dict()
     for mod in mods:
         if mod == 'XB':
@@ -253,9 +248,9 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
     # filename = input_path + '/REFERENCE_' + mod + '.json'
 
-    xrefs_to_add = dict()
-    aggregate_mod_specific_fields_only = dict()
-    aggregate_mod_biblio_all = dict()
+    # xrefs_to_add = dict()
+    # aggregate_mod_specific_fields_only = dict()
+    # aggregate_mod_biblio_all = dict()
 
     fh_mod_report = dict()
     report_file_path = ''
@@ -264,13 +259,20 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     if report_file_path and not path.exists(report_file_path):
         makedirs(report_file_path)
 
-    xref_to_pages = dict()
+    # xref_to_pages = dict()
     # for mod in sorted(files_to_process):
     report = {}
     # report2 = {}
     missing_papers_in_mod = {}
     missing_agr_in_mod = {}
+
     for mod in sorted(mods):
+
+        xrefs_to_add = dict()
+        aggregate_mod_specific_fields_only = dict()
+        aggregate_mod_biblio_all = dict()
+        xref_to_pages = dict()
+
         report[mod] = []
         # report2[mod] = []
         missing_papers_in_mod[mod] = []
@@ -278,7 +280,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
         filename = report_file_path + mod + '_dqm_loading.log'
         fh_mod_report.setdefault(mod, open(filename, 'w'))
         references_to_create = []
-        curies_for_citation_update = []
+        cross_reference_to_add = []
+        agr_list_for_cross_refs_to_add = []
         logger.info("loading old md5")
         old_md5dict = load_s3_md5data([mod])
 
@@ -300,7 +303,6 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
         counter = 0
         # max_counter = 1
         max_counter = 100000000
-#         max_counter = 10
         for entry in entries:
             counter = counter + 1
             if counter > max_counter:
@@ -342,7 +344,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
             else:
                 logger.info(f"primaryId {primary_id} has changed")
 
-            # inject the mod corpus association data because if it came from that mod dqm file it should have this entry
+            # inject the mod corpus association data because if it came from
+            # that mod dqm file it should have this entry
             mod_corpus_associations = [{"mod_abbreviation": mod, "mod_corpus_sort_source": "dqm_files", "corpus": True}]
             entry['mod_corpus_associations'] = mod_corpus_associations
 
@@ -403,7 +406,6 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
             elif len(agrs_found) == 1:
                 # logger.info("Normal %s", entry['primaryId'])
                 agr = agrs_found.pop()
-                curies_for_citation_update.append(agr)
                 agr_url = url_ref_curie_prefix + agr
                 flag_aggregate_biblio = False
                 flag_aggregate_mod_specific = False
@@ -476,6 +478,8 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                         fh_mod_report[mod].write("%s has DOI %s, dqm %s does not\n" % (agr_url, ref_xref_valid[agr]['DOI'], entry['primaryId']))
                         # report2[mod].append((dbid, "DOI:" + ref_xref_valid[agr]['DOI'] + " is in the database, but no DOI for this paper in dqm file"))
 
+        ## save all new papers (both pubmed and non-pubmed) to a json file
+        ## an example json file: lit_processing/dqm_data_updates_new/REFERENCE_SGD.json
         save_new_references_to_file(references_to_create, mod)
 
         ## check all db agrId->modId, check each dqm mod still had modId
@@ -519,14 +523,18 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
                         new_entry["reference_curie"] = agr
                         if xref_id in xref_to_pages:
                             new_entry["pages"] = xref_to_pages[xref_id]
-                        if live_changes:
-                            logger.info(f"add validated dqm xref {xref_id} to agr {agr}")
-                            url = 'http://' + api_server + ':' + api_port + '/cross_reference/'
-                            headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
+                        agr_list_for_cross_refs_to_add.append(agr)
+                        cross_reference_to_add.append(new_entry)
 
-        # these take hours for each mod, process about 200 references per minute
-        headers = update_db_entries(headers, aggregate_mod_specific_fields_only, live_changes, fh_mod_report[mod], 'mod_specific_fields_only')
-        headers = update_db_entries(headers, aggregate_mod_biblio_all, live_changes, fh_mod_report[mod], 'mod_biblio_all')
+        ## update references with md5sum changed
+        update_db_entries(mod_to_mod_id, aggregate_mod_specific_fields_only,
+                          fh_mod_report[mod], 'mod_specific_fields_only')
+
+        update_db_entries(mod_to_mod_id, aggregate_mod_biblio_all, fh_mod_report[mod],
+                          'mod_biblio_all')
+
+        ## add new cross_reference XREF IDs
+        add_cross_references(cross_reference_to_add, agr_list_for_cross_refs_to_add)
 
         output_directory_name = 'process_dqm_update_' + mod
         output_directory_path = base_path + output_directory_name
@@ -536,11 +544,12 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
             makedirs(output_directory_path + '/inputs')
 
         # get list of pmids to process from dqm papers filtered down to references_to_create
-        # equivalent to
-        # python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -p
+        # equivalent to python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -p
+        # create a file of the pmids (stored in output_directory_name + '/inputs/alliance_pmids)
+        # from this newly generated json file (eg, dqm_data_updates_new/REFERENCE_SGD.json)
         generate_pmid_data('dqm_data_updates_new/', output_directory_name + '/', mod)
 
-        # read list of pmids to process from file
+        # read list of new pmids to process from file (alliance_pmids file)
         pmids_wanted = read_pmid_file(output_directory_name + '/inputs/alliance_pmids')
 
         # download xml from pubmed into base_path pubmed_xml/
@@ -558,9 +567,11 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
         # python3 process_many_pmids_to_json.py -s -f inputs/alliance_pmids > logs/log_process_many_pmids_to_json_update_create
         # download_and_convert_pmids(pmids_wanted, True)
 
-        # aggregate dqm data with pubmed data from dqm_data_updates_new/ into <output_directory_name>/sanitized_reference_json/REFERENCE_PUBM[EO]D_<mod>_1.json
-        # equivalent to
-        # python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -m all
+        # aggregate dqm data with pubmed data from dqm_data_updates_new/
+        # into <output_directory_name>/sanitized_reference_json/REFERENCE_PUBM[EO]D_<mod>_1.json
+        # PubMed papers in REFERENCE_PUBMED_<mod>_1.json
+        # non-Pubmed papers in REFERENCE_PUBMOD_<mod>_1.json
+        # equivalent to python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -m all
         aggregate_dqm_with_pubmed('dqm_data_updates_new/', mod, output_directory_name + '/')
 
         # if wanting to process the pmids from recursive download of comments and corrections, which Ceri does not want
@@ -568,21 +579,15 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
         # python3 parse_pubmed_json_reference.py -f inputs/pubmed_only_pmids > logs/log_parse_pubmed_json_reference_update_create
         # sanitize_pubmed_json_list(pmids_wanted, [])
 
-        # post generated json to api
-        # equivalent to
-        # python3 post_reference_to_api.py > logs/log_post_reference_to_api_update_create
+        # load new PubMed papers (REFERENCE_PUBMED_<mod>_1.json) into database
         json_filepath = base_path + 'process_dqm_update_' + mod + '/sanitized_reference_json/REFERENCE_PUBMED_' + mod + '_1.json'
-        process_results = post_references(json_filepath, 'yes_file_check')
-        logger.info(process_results)
-        json_filepath = base_path + 'process_dqm_update_' + mod + '/sanitized_reference_json/REFERENCE_PUBMOD_' + mod + '_1.json'
-        process_results = post_references(json_filepath, 'yes_file_check')
-        logger.info(process_results)
+        # process_results = post_references(json_filepath, 'yes_file_check'
+        post_references(json_filepath, live_change)
 
-        # post generated json to api
-        # equivalent to
-        # python3 post_comments_corrections_to_api.py -f inputs/alliance_pmids
-        # but if doing recursive should take inputs/all_pmids instead of inputs/alliance_pmids
-        post_comments_corrections(pmids_wanted)
+        # load new non PubMed papers (REFERENCE_PUBMOD_<mod>_1.json) into database
+        json_filepath = base_path + 'process_dqm_update_' + mod + '/sanitized_reference_json/REFERENCE_PUBMOD_' + mod + '_1.json'
+        # process_results = post_references(json_filepath, 'yes_file_check')
+        post_references(json_filepath, live_change)
 
         # update s3 md5sum only if prod, to test develop copy file from s3 prod to s3 develop
         # https://s3.console.aws.amazon.com/s3/buckets/agr-literature?prefix=develop%2Freference%2Fmetadata%2Fmd5sum%2F&region=us-east-1&showversions=false#
@@ -596,18 +601,60 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 
         fh_mod_report[mod].close()
 
-        ## update citations
-        db_session = create_postgres_session(False)
-        for curie in curies_for_citation_update:
-            logger.info("Update citation for curie:" + curie)
-            update_citation(db_session, curie)
-        db_session.close()
-
-        # rows_to_report = report[mod] + report2[mod]
-
         agr_to_title = get_agr_to_title_mapping(missing_agr_in_mod[mod])
 
         send_loading_report(mod, report[mod], missing_papers_in_mod[mod], agr_to_title, report_file_path)
+
+
+def add_cross_references(cross_reference_to_add, agr_list_for_cross_refs):
+
+    if len(agr_list_for_cross_refs) == 0:
+        return
+
+    agr_list = ", ".join(["'" + x + "'" for x in agr_list_for_cross_refs])
+
+    engine = create_postgres_engine(False)
+    db_connection = engine.connect()
+
+    rs = db_connection.execute("SELECT reference_id, curie FROM reference WHERE curie IN (" + agr_list + ")")
+    rows = rs.fetchall()
+    agr_to_reference_id = {}
+    for x in rows:
+        agr_to_reference_id[x[1]] = x[0]
+
+    db_connection.close()
+    engine.dispose()
+
+    db_session = create_postgres_session(False)
+
+    i = 0
+
+    for entry in cross_reference_to_add:
+
+        i += 1
+        if i > batch_size_for_commit:
+            i = 0
+            if live_change:
+                db_session.commit()
+            else:
+                db_session.rollback()
+
+        reference_id = agr_to_reference_id.get(entry['reference_curie'])
+        if reference_id is None:
+            continue
+        try:
+            x = CrossReferenceModel(reference_id=reference_id,
+                                    curie=entry["curie"],
+                                    pages=entry.get("pages"))
+            logger.info("The cross_reference row for reference_id = " + str(reference_id) + " and curie = " + entry["curie"] + " has been added into database.")
+        except Exception as e:
+            logger.info("An error occurred when adding cross_reference row for reference_id = " + str(reference_id) + " and curie = " + entry["curie"] + " " + str(e))
+
+    if live_change:
+        db_session.commit()
+    else:
+        db_session.rollback()
+    db_session.close()
 
 
 def get_agr_to_title_mapping(missing_agr_list):
@@ -735,6 +782,7 @@ def read_pmid_file(local_path):
 
 
 def save_new_references_to_file(references_to_create, mod):
+
     base_path = environ.get('XML_PATH')
     json_storage_path = base_path + 'dqm_data_updates_new/'
     if not path.exists(json_storage_path):
@@ -746,21 +794,21 @@ def save_new_references_to_file(references_to_create, mod):
     write_json(json_filename, dqm_data)
 
 
-def batch_alchemy(curies, db_dict, batch_size, count_start=0, verbose=False):
-    session = create_postgres_session(verbose)
+def batch_alchemy(db_session, curies, db_dict, batch_size, count_start=0):
+
     batch_list = curies[count_start:(count_start + batch_size)]
-    refs = session.query(ReferenceModel).\
+    refs = db_session.query(ReferenceModel).\
         filter(ReferenceModel.curie.in_(batch_list)).all()
-    session.close()
     for item in refs:
         item_dict = jsonable_encoder(item)
         db_dict[item.curie] = item_dict
     return count_start + batch_size, db_dict
 
 
-def update_db_entries(headers, entries, live_changes, report_fh, processing_flag):      # noqa: C901
+def update_db_entries(mod_to_mod_id, entries, report_fh, processing_flag):      # noqa: C901
     """
-    Take a dict of Alliance Reference curies and DQM MODReferenceTypes to compare against data stored in DB and update to match DQM data.
+    Take a dict of Alliance Reference curies and DQM MODReferenceTypes to compare against
+    data stored in DB and update to match DQM data.
 
     :param entries:
     :param processing_flag:
@@ -787,81 +835,54 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
     remap_keys['pageRange'] = 'page_range'
     # remap_keys['resourceAbbreviation'] = 'resource_title'
 
-    # MODReferenceTypes and allianceCategory cannot be auto converted from camel to snake, so have two lists
-    # fields_simple_snake = ['title', 'category', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issue_name', 'issue_date', 'date_published', 'date_last_modified']
-    # fields_simple_camel = ['title', 'allianceCategory', 'citation', 'volume', 'pages', 'language', 'abstract', 'publisher', 'issueName', 'issueDate', 'datePublished', 'dateLastModified']
+    # MODReferenceTypes and allianceCategory cannot be auto converted from camel to snake,
+    # so have two lists
+    # fields_simple_snake = ['title', 'category', 'citation', 'volume', 'pages', 'language',
+    #                        'abstract', 'publisher', 'issue_name', 'issue_date',
+    #                        'date_published', 'date_last_modified']
+    # fields_simple_camel = ['title', 'allianceCategory', 'citation', 'volume', 'pages',
+    #                        'language', 'abstract', 'publisher', 'issueName', 'issueDate',
+    #                        'datePublished', 'dateLastModified']
     # removed some fields that Ceri and Kimberly don't want to update anymore  2022 04 25
-    fields_simple_camel = ['title', 'allianceCategory', 'volume', 'pageRange', 'language', 'abstract', 'publisher', 'issueName', 'datePublished']
-    # there's no API to update tags
+    fields_simple_camel = ['title', 'allianceCategory', 'volume', 'pageRange', 'language',
+                           'abstract', 'publisher', 'issueName', 'datePublished']
 
-    api_port = environ.get('API_PORT')
-    # url_ref_curie_prefix = make_url_ref_curie_prefix()
-
-    # retrieve_method can be fast directly through sqlalchemy in batch mode, or slow one by one through the api
-    retrieve_method = 'batch_alchemy'
-    # retrieve_method = 'api_one_by_one'
-
+    # always use sqlalchemy in batch mode to speed up the database query
     db_dict = dict()
-    if retrieve_method == 'batch_alchemy':
-        curies = list(entries.keys())
-        curies_count = len(curies)
-        start_index = 0
-        # verbose = True
-        verbose = False
-        # api_server = environ.get('API_SERVER', 'localhost')
-        # 10000 freezes the server, 1000 works
-        # size_per_batch = 1000
-        size_per_batch = 200
-        while start_index < curies_count:
-            for batch_size in [size_per_batch]:
-                start_index, db_dict = batch_alchemy(curies, db_dict, batch_size, count_start=start_index, verbose=verbose)
-        # for debugging what came from the database
-        # print('curies')
-        # for agr in db_dict:
-        #     print(agr)
-        #     db_entry_json = json.dumps(db_dict[agr], indent=4)
-        #     print(db_entry_json)
+    curies = list(entries.keys())
+    curies_count = len(curies)
+    start_index = 0
+    # size_per_batch = 1000
+    size_per_batch = 200
+    db_session = create_postgres_session(False)
+    while start_index < curies_count:
+        for batch_size in [size_per_batch]:
+            start_index, db_dict = batch_alchemy(db_session, curies, db_dict, batch_size,
+                                                 count_start=start_index)
+    db_session.close()
+
+    db_session = create_postgres_session(False)
+
+    i = 0
 
     for agr in entries:
+
+        i += 1
+        if i > batch_size_for_commit:
+            i = 0
+            if live_change:
+                db_session.commit()
+            else:
+                db_session.rollback()
+
         dqm_entry = entries[agr]
-        # to test a particular reference curie
-        # PUT THIS BACK
-        # if agr != 'AGR:AGR-Reference-0000658372':
-        #     continue
-
-        if retrieve_method == 'api_one_by_one':
-            # agr_url = url_ref_curie_prefix + agr    # noqa: F841
-            api_server = environ.get('API_SERVER', 'localhost')
-            url = 'http://' + api_server + ':' + api_port + '/reference/' + agr
-            logger.info("get AGR reference info from database %s", url)
-            get_return = requests.get(url)
-            db_entry = json.loads(get_return.text)
-            # logger.info("title %s", response_dict['title'])   # for debugging which reference was found
-        elif retrieve_method == 'batch_alchemy':
-            db_entry = db_dict[agr]
-        else:
-            continue
-
-        # to debug
-        # db_entry_text = json.dumps(db_entry, indent=4, sort_keys=True)
-        # print('db ')
-        # print(db_entry_text)
-
-        api_server = environ.get('API_SERVER', 'localhost')
-        reference_patch_url = 'http://' + api_server + ':' + api_port + '/reference/' + agr
-
-        # always update mod_reference_types and mod_corpus_associations, whether 'mod_specific_fields_only' or 'mod_biblio_all'
-        headers = update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry)
+        db_entry = db_dict[agr]
+        reference_id = db_entry['reference_id']
+        # always update mod_reference_types and mod_corpus_associations, whether
+        # 'mod_specific_fields_only' or 'mod_biblio_all'
+        update_mod_specific_fields(db_session, mod_to_mod_id, dqm_entry, db_entry)
 
         if processing_flag == 'mod_biblio_all':
-            # for debugging changes
-            # dqm_entry_text = json.dumps(dqm_entry, indent=4, sort_keys=True)
-            # db_entry_text = json.dumps(db_entry, indent=4, sort_keys=True)
-            # print('db ')
-            # print(db_entry_text)
-            # print('dqm2 ')
-            # print(dqm_entry_text)
-
             update_json = dict()
             for field_camel in fields_simple_camel:
                 field_snake = field_camel
@@ -887,32 +908,58 @@ def update_db_entries(headers, entries, live_changes, report_fh, processing_flag
 
             authors_changed = compare_authors_or_editors(db_entry, dqm_entry, 'authors')
             if authors_changed[0]:
-                # live_changes = True
                 for patch_data in authors_changed[1]:
                     patch_dict = patch_data['patch_dict']
-                    patch_dict['reference_curie'] = agr
-                    logger.info("patch %s author_id %s patch_dict %s", agr, patch_data['author_id'], patch_dict)
-                    author_patch_url = 'http://' + api_server + ':' + api_port + '/author/' + str(patch_data['author_id'])
-                    headers = generic_api_patch(live_changes, author_patch_url, headers, patch_dict, str(patch_data['author_id']), None, None)
+                    # patch_dict['reference_id'] = reference_id
+                    try:
+                        x = db_session.query(AuthorModel).filter_by(author_id=patch_data['author_id']).one_or_none()
+                        if x:
+                            x.order = patch_dict['order']
+                            x.name = patch_dict['name']
+                            x.first_name = patch_dict.get('first_name', '')
+                            x.last_name = patch_dict.get('last_name', '')
+                            x.affiliations = patch_dict.get('affiliations', [])
+                            x.orcid = patch_dict.get('orcid', '')
+                            db_session.add(x)
+                            logger.info("The author row for author_id = " + str(patch_data['author_id']) + " has been updated")
+                    except Exception as e:
+                        logger.info("An error occurred when updating author row for author_id = " + str(patch_data['author_id']) + " " + str(e))
                 for create_dict in authors_changed[2]:
-                    create_dict['reference_curie'] = agr
-                    logger.info("add to %s create_dict %s", agr, create_dict)
-                    author_post_url = 'http://' + api_server + ':' + api_port + '/author/'
-                    headers = generic_api_post(live_changes, author_post_url, headers, create_dict, agr, None, None)
+                    try:
+                        x = AuthorModel(reference_id=db_entry['reference_id'],
+                                        order=create_dict['order'],
+                                        name=create_dict['name'],
+                                        first_name=create_dict.get('first_name', ''),
+                                        last_name=create_dict.get('last_name', ''),
+                                        affiliations=create_dict.get('affiliations', []),
+                                        orcid=create_dict.get('orcid', ''))
+                        db_session.add(x)
+                        logger.info("The author row for reference_id = " + str(reference_id) + " and name = '" + create_dict['name'] + " has been added into database.")
+                    except Exception as e:
+                        logger.info("An error occurred when adding author row for reference_id = " + str(reference_id) + " and name = '" + create_dict['name'] + " " + str(e))
 
-            # if curators want to get reports of how resource change, put this back, but we're comparing resource titles with dqm resource abbreviations, so they often differ even if they would match if we had a resource lookup by names and synonyms.
-            # e.g. WBPaper00000007 has db title "Comptes rendus des seances de l'Academie des sciences. Serie D, Sciences naturelles" and dqm abbreviation "C R Seances Acad Sci D"
+            # if curators want to get reports of how resource change, put this back,
+            # but we're comparing resource titles with dqm resource abbreviations,
+            # so they often differ even if they would match if we had a resource
+            # lookup by names and synonyms. e.g. WBPaper00000007 has db title
+            # "Comptes rendus des seances de l'Academie des sciences. Serie D,
+            # Sciences naturelles" and dqm abbreviation "C R Seances Acad Sci D"
             # resource_changed = compare_resource(db_entry, dqm_entry)
             # if resource_changed[0]:
             #     logger.info("%s dqm resource differs db %s dqm %s", agr_url, resource_changed[2], resource_changed[1])
             #     report_fh.write("%s dqm resource differs db '%s' dqm '%s'\n" % (agr_url, resource_changed[2], resource_changed[1]))
             if update_json:
-                # for debugging changes
-                # update_text = json.dumps(update_json, indent=4)
-                # print('update ' + update_text)
-                headers = generic_api_patch(live_changes, reference_patch_url, headers, update_json, agr, None, None)
+                try:
+                    db_session.query(ReferenceModel).filter_by(curie=agr).update(update_json)
+                    logger.info("The reference row for curie = " + agr + " has been updated.")
+                except Exception as e:
+                    logger.info("An error occurred when updating reference row for curie = " + agr + " " + str(e))
 
-    return headers
+    if live_change:
+        db_session.commit()
+    else:
+        db_session.rollback()
+    db_session.close()
 
 
 def compare_resource(db_entry, dqm_entry):
@@ -949,13 +996,11 @@ def compare_resource(db_entry, dqm_entry):
 #         return True, dqm_keywords, db_keywords
 
 
-# always update mod_reference_types and mod_corpus_associations, whether 'mod_specific_fields_only' or 'mod_biblio_all'
-def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):  # noqa: C901
-    api_port = environ.get('API_PORT')
+# always update mod_reference_types and mod_corpus_associations,
+# whether 'mod_specific_fields_only' or 'mod_biblio_all'
+def update_mod_specific_fields(db_session, mod_to_mod_id, dqm_entry, db_entry):  # noqa: C901
 
-    # to debug
-    # db_entry_text = json.dumps(db_entry, indent=4, sort_keys=True)
-    # print(db_entry_text)
+    reference_id = db_entry['reference_id']
 
     db_mod_corpus_association = {}
     if 'mod_corpus_association' in db_entry and db_entry['mod_corpus_association'] is not None:
@@ -967,23 +1012,38 @@ def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):
                         db_mod_corpus_association[mod] = {}
                     db_mod_corpus_association[mod]['id'] = db_mca_entry['mod_corpus_association_id']
                     db_mod_corpus_association[mod]['corpus'] = db_mca_entry['corpus']
-    # logger.info(agr)
+
     # logger.info(db_mod_corpus_association)
     if 'mod_corpus_associations' in dqm_entry:
         for dqm_mca_entry in dqm_entry['mod_corpus_associations']:
             if 'mod_abbreviation' in dqm_mca_entry and dqm_mca_entry['mod_abbreviation'] is not None:
                 mod = dqm_mca_entry['mod_abbreviation']
-                dqm_mca_entry['reference_curie'] = agr
                 if mod not in db_mod_corpus_association:
-                    logger.info(f"Action : add mod corpus association for {mod} to {agr}")
                     logger.info(dqm_mca_entry)
-                    mca_post_url = 'http://' + api_server + ':' + api_port + '/reference/mod_corpus_association/'
-                    headers = generic_api_post(live_changes, mca_post_url, headers, dqm_mca_entry, agr, None, None)
+                    try:
+                        x = ModCorpusAssociationModel(reference_id=reference_id,
+                                                      mod_id=mod_to_mod_id[mod],
+                                                      corpus=dqm_mca_entry['corpus'],
+                                                      mod_corpus_sort_source=dqm_mca_entry['mod_corpus_sort_source'])
+                        db_session.add(x)
+                        logger.info("The mod_corpus_association row for reference_id = " + str(reference_id) + " and mod = " + mod + " has been added into database.")
+                    except Exception as e:
+                        logger.info("An error occurred when adding mod_corpus_association row for reference_id = " + str(reference_id) + " and mod = " + mod + ". " + str(e))
+
                 elif dqm_mca_entry['corpus'] != db_mod_corpus_association[mod]['corpus']:
-                    logger.info(f"Action : update existing mod corpus association for {db_mod_corpus_association[mod]['id']} to {dqm_mca_entry}")
-                    mca_patch_url = 'http://' + api_server + ':' + api_port + '/reference/mod_corpus_association/' + str(db_mod_corpus_association[mod]['id'])
-                    logger.info(mca_patch_url)
-                    headers = generic_api_patch(live_changes, mca_patch_url, headers, dqm_mca_entry, str(db_mod_corpus_association[mod]['id']), None, None)
+                    try:
+                        mod = dqm_mca_entry['mod_abbreviation']
+                        x = db_session.query(ModCorpusAssociationModel).filter_by(mod_corpus_association_id=db_mod_corpus_association[mod]['id']).one_or_none()
+                        mod_corpus_association_id = db_mod_corpus_association[mod]['id']
+                        if x:
+                            x.reference_id = reference_id
+                            x.corpus = dqm_mca_entry['corpus'],
+                            x.mod_corpus_sort_source = dqm_mca_entry['mod_corpus_sort_source']
+                            x.mod_id = mod_to_mod_id[mod]
+                            db_session.add(x)
+                            logger.info("The mod_corpus_association row for mod_corpus_association_id = " + str(mod_corpus_association_id) + " has been updated in the database.")
+                    except Exception as e:
+                        logger.info("An error occurred when updating mod_corpus_association row for mod_corpus_association_id = " + str(mod_corpus_association_id) + " " + str(e))
 
     dqm_mod_ref_types = []
     if 'MODReferenceTypes' in dqm_entry:
@@ -1002,11 +1062,6 @@ def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):
     if 'mod_reference_type' in db_entry:
         db_mod_ref_types = db_entry['mod_reference_type']
 
-    # for debugging changes
-    # dqm_mod_ref_types_json = json.dumps(dqm_mod_ref_types, indent=4)
-    # db_mod_ref_types_json = json.dumps(db_mod_ref_types, indent=4)
-    # logger.info("Action : aggregate PMID mod data %s was %s now %s", agr, db_mod_ref_types_json, dqm_mod_ref_types_json)
-
     db_mrt_data = dict()
     to_delete_duplicate_rows = []
     for mrt in db_mod_ref_types:
@@ -1020,7 +1075,6 @@ def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):
         else:
             to_delete_duplicate_rows.append((mrt_id, ref_type))
 
-    # live_changes = False
     # try AGR:AGR-Reference-0000382879	WBPaper00000292
     for mod in dqm_mrt_data:
         lc_dqm = [x.lower() for x in dqm_mrt_data[mod]]
@@ -1029,14 +1083,15 @@ def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):
             lc_db = [x.lower() for x in db_mrt_data[mod].keys()]
         for ref_type in dqm_mrt_data[mod]:
             if ref_type.lower() not in lc_db:
-                ## insert it
-                logger.info("add %s %s to %s", mod, ref_type, agr)
-                url = 'http://' + api_server + ':' + api_port + '/reference/mod_reference_type/'
-                new_entry = dict()
-                new_entry["reference_type"] = ref_type
-                new_entry["source"] = mod
-                new_entry["reference_curie"] = agr
-                headers = generic_api_post(live_changes, url, headers, new_entry, agr, None, None)
+                try:
+                    x = ModReferenceTypeModel(reference_id=reference_id,
+                                              reference_type=ref_type,
+                                              source=mod)
+                    db_session.add(x)
+                    logger.info("The mod_reference_type for reference_id = " + str(reference_id) + " has been added into the database.")
+                except Exception as e:
+                    logger.info("An error occurred when adding mod_reference_type row for reference_id = " + str(reference_id) + " has been added into the database. " + str(e))
+
         if len(lc_db) == 0:
             continue
         for ref_type in db_mrt_data[mod]:
@@ -1047,58 +1102,14 @@ def update_mod_specific_fields(live_changes, headers, agr, dqm_entry, db_entry):
 
     for row in to_delete_duplicate_rows:
         (mod_reference_type_id, ref_type) = row
-        mod_reference_type_id = str(mod_reference_type_id)
-        logger.info("remove %s %s from %s via %s", mod, ref_type, agr, mod_reference_type_id)
-        url = 'http://' + api_server + ':' + api_port + '/reference/mod_reference_type/' + mod_reference_type_id
-        headers = generic_api_delete(live_changes, url, headers, None, agr, None, None)
-
-    return headers
-
-
-def generic_api_post(live_changes, url, headers, new_entry, agr, mapping_fh, error_fh):
-    if live_changes:
-        api_response_tuple = process_api_request('POST', url, headers, new_entry, agr, mapping_fh, error_fh)
-        headers = api_response_tuple[0]
-        response_text = api_response_tuple[1]
-        response_status_code = api_response_tuple[2]
-        log_info = api_response_tuple[3]
-        if log_info:
-            logger.info(log_info)
-        if response_status_code == 201:
-            response_dict = json.loads(response_text)
-            response_dict = str(response_dict).replace('"', '')
-            logger.info("%s\t%s", agr, response_dict)
-    return headers
-
-
-def generic_api_patch(live_changes, url, headers, update_json, agr, mapping_fh, error_fh):
-    if live_changes:
-        api_response_tuple = process_api_request('PATCH', url, headers, update_json, agr, mapping_fh, error_fh)
-        headers = api_response_tuple[0]
-        response_text = api_response_tuple[1]
-        response_status_code = api_response_tuple[2]
-        log_info = api_response_tuple[3]
-        if log_info:
-            logger.info(log_info)
-        if response_status_code == 202:
-            response_dict = json.loads(response_text)
-            response_dict = str(response_dict).replace('"', '')
-            logger.info("%s\t%s", agr, response_dict)
-    return headers
-
-
-def generic_api_delete(live_changes, url, headers, json_data, agr, mapping_fh, error_fh):
-    if live_changes:
-        api_response_tuple = process_api_request('DELETE', url, headers, json_data, agr, mapping_fh, error_fh)
-        headers = api_response_tuple[0]
-        response_text = api_response_tuple[1]    # noqa: F841
-        response_status_code = api_response_tuple[2]
-        log_info = api_response_tuple[3]
-        if log_info:
-            logger.info(log_info)
-        if response_status_code == 204:
-            logger.info("%s\t%s\tdelete success", agr, url)
-    return headers
+        try:
+            x = db_session.query(ModReferenceTypeModel).filter_by(
+                mod_reference_type_id=mod_reference_type_id).one_or_none()
+            if x:
+                db_session.delete(x)
+                logger.info("The mod_reference_type for mod_reference_type_id = " + str(mod_reference_type_id) + " has been deleted from the database.")
+        except Exception as e:
+            logger.info("An error occurred when deleting mod_reference_type row for mod_reference_type_id = " + str(mod_reference_type_id) + " has been deleted from the database. " + str(e))
 
 
 if __name__ == "__main__":

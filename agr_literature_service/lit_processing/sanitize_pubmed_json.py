@@ -19,11 +19,13 @@ def sanitize_pubmed_json_list(pmids, inject_list):
 
     pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'datePublished',
                    'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher',
-                   'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReferences']
+                   'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReferences',
+                   'publicationStatus', 'commentsCorrections', 'allianceCategory', 'journal']
     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'datePublished',
                            'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher',
-                           'plainLanguageAbstract', 'pubmedAbstractLanguages']
-    replace_value_fields = ['authors', 'pubMedType', 'meshTerms', 'crossReferences']
+                           'plainLanguageAbstract', 'pubmedAbstractLanguages',
+                           'publicationStatus', 'allianceCategory', 'journal']
+    replace_value_fields = ['authors', 'pubMedType', 'meshTerms', 'crossReferences', 'commentsCorrections']
     date_fields = ['dateArrivedInPubmed', 'dateLastModified']
 
     sanitized_data = []
@@ -38,7 +40,7 @@ def sanitize_pubmed_json_list(pmids, inject_list):
             entry['primaryId'] = 'PMID:' + pmid
             if 'nlm' in pubmed_data:
                 entry['resource'] = 'NLM:' + pubmed_data['nlm']
-            entry['category'] = 'unknown'
+            # entry['category'] = 'unknown'
             for pmid_field in pmid_fields:
                 if pmid_field in single_value_fields:
                     pmid_data = ''

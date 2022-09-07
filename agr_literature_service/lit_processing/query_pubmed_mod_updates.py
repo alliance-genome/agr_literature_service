@@ -14,19 +14,15 @@ from dotenv import load_dotenv
 from agr_literature_service.lit_processing.get_pubmed_xml import download_pubmed_xml
 from agr_literature_service.lit_processing.xml_to_json import generate_json
 from agr_literature_service.lit_processing.sanitize_pubmed_json import sanitize_pubmed_json_list
-from agr_literature_service.lit_processing.post_reference_to_api import post_references
+from agr_literature_service.lit_processing.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.helper_s3 import upload_xml_file_to_s3
-from agr_literature_service.lit_processing.helper_post_to_api import (generate_headers,
-                                                                      process_api_request, update_token)
-from agr_literature_service.lit_processing.post_comments_corrections_to_api import post_comments_corrections
 from agr_literature_service.lit_processing.update_resource_pubmed_nlm import update_resource_pubmed_nlm
-
 from agr_literature_service.api.database.main import get_db
-from agr_literature_service.api.models import ReferenceModel, CrossReferenceModel, ModCorpusAssociationModel, ModModel
+from agr_literature_service.api.models import ReferenceModel, CrossReferenceModel,\
+    ModCorpusAssociationModel, ModModel
 from helper_sqlalchemy import sqlalchemy_load_ref_xref
-from agr_literature_service.api.crud.cross_reference_crud import create
-from agr_literature_service.api.schemas import CrossReferenceSchemaPost
 from agr_literature_service.lit_processing.helper_email import send_email
+from agr_literature_service.api.user import set_global_user_id
 
 load_dotenv()
 
@@ -220,6 +216,8 @@ def query_mods(input_mod, reldate):
     # retrieve all cross_reference info from database
     xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
     db_session = next(get_db())
+    scriptNm = path.basename(__file__).replace(".py", "")
+    set_global_user_id(db_session, scriptNm)
     mods_to_query = ['ZFIN', 'WB', 'FB', 'SGD', 'XB']
     if input_mod in mods_to_query:
         mods_to_query = [input_mod]
@@ -290,7 +288,7 @@ def query_mods(input_mod, reldate):
         # logger.info(pmids_joined)
 
         # connect mod pmid from search to existing abc references
-        post_mca_to_existing_references(agr_curies_to_corpus, mod)
+        post_mca_to_existing_references(db_session, agr_curies_to_corpus, mod)
 
         pmids_to_process = sorted(pmids_to_create)
         # pmids_to_process = sorted(pmids_to_create)[0:2]   # smaller set to test
@@ -317,10 +315,11 @@ def query_mods(input_mod, reldate):
         # generate json to post for these pmids and inject data not from pubmed
         sanitize_pubmed_json_list(pmids_to_process, [inject_object])
 
-        # post generated json to api
+        # load new papers into database
         json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_PMID.json'
-        process_results = post_references(json_filepath, 'no_file_check')
-        logger.info(process_results)
+        # process_results = post_references(json_filepath, 'no_file_check')
+        # logger.info(process_results)
+        post_references(json_filepath)
         # upload each processed json file to s3
         for pmid in pmids_to_process:
             # logger.info(f"upload {pmid} to s3")
@@ -331,11 +330,13 @@ def query_mods(input_mod, reldate):
     logger.info("Sending Report")
     send_loading_report(pmids4mod, mods_to_query, log_path, log_url, not_loaded_pmids4mod)
 
-    # do not need to recursively process downloading errata and corrections, but if they exist, connect them.
-    # take list of pmids that were posted to the database, look at their .json for corrections and connect to existing abc references.
-    logger.info("pmids process comments corrections")
-    logger.info(pmids_posted)
-    post_comments_corrections(list(pmids_posted))
+    # do not need to recursively process downloading errata and corrections,
+    # but if they exist, connect them.
+    # take list of pmids that were posted to the database, look at their .json for
+    # corrections and connect to existing abc references.
+    # logger.info("pmids process comments corrections")
+    # logger.info(pmids_posted)
+    # post_comments_corrections(list(pmids_posted))
     db_session.close()
     logger.info("end query_mods")
 
@@ -483,11 +484,13 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref
                 if prefix == 'PMID':
                     found_pmids_for_this_doi.append(all_ref_xref[prefix])
             if len(found_pmids_for_this_doi) == 0:
-                fw.write(str(datetime.now()) + ": adding PMID:" + pmid + " to the row with doi = " + doi + " in the database\n")
-                data = {"curie": "PMID:" + pmid, "reference_curie": agr}
+                reference_id = get_reference_id_by_curie(db_session, agr)
+                if reference_id is None:
+                    logger.info("The reference curie: " + agr + " is not in the database.")
                 try:
-                    xref_schema = CrossReferenceSchemaPost(**data)
-                    create(db_session, xref_schema)
+                    cross_ref = CrossReferenceModel(curie="PMID:" + pmid, reference_id=reference_id)
+                    db_session.add(cross_ref)
+                    fw.write(str(datetime.now()) + ": adding PMID:" + pmid + " to the row with doi = " + doi + " in the database\n")
                 except Exception as e:
                     logger.info(str(datetime.now()) + ": adding " + pmid + " to the row with " + doi + " is failed: " + str(e) + "\n")
             else:
@@ -499,31 +502,42 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref
     return (log_path, log_url, not_loaded_pmids)
 
 
-def post_mca_to_existing_references(agr_curies_to_corpus, mod):
+def get_reference_id_by_curie(db_session, agr):
+
+    x = db_session.query(ReferenceModel).filter_by(curie=agr).one_or_none()
+    if x:
+        return x.reference_id
+    return None
+
+
+def post_mca_to_existing_references(db_session, agr_curies_to_corpus, mod):
     """
     :param agr_curies_to_corpus: agr reference curies to add an mca_value to
     :param mod: mod to associate
     :return:
     """
 
-    api_server = environ.get('API_SERVER', 'localhost')
-    api_port = environ.get('API_PORT')
-    token = update_token()
-    headers = generate_headers(token)
+    m = db_session.query(ModModel).filter_by(abbreviation=mod).one_or_none()
+    mod_id = m.mod_id
 
-    # to test a smaller set
-    # for agr in list(agr_curies_to_corpus)[0:10]:
+    curie_to_reference_id = {}
+    for x in db_session.query(ReferenceModel).filter(
+            ReferenceModel.curie.in_(agr_curies_to_corpus)).all():
+        curie_to_reference_id[x.curie] = x.reference_id
 
-    for agr in list(agr_curies_to_corpus):
-        data_json = {"mod_abbreviation": mod, "mod_corpus_sort_source": "mod_pubmed_search", "corpus": None, "reference_curie": agr}
-        url = 'http://' + api_server + ':' + api_port + '/reference/mod_corpus_association/'
-        api_response_tuple = process_api_request('POST', url, headers, data_json, agr, None, None)
-        headers = api_response_tuple[0]
-        response_text = api_response_tuple[1]
-        response_status_code = api_response_tuple[2]
-        log_info = api_response_tuple[3]
-        if response_status_code != 201:
-            logger.info(f"Error adding {mod} mca to {url}: {response_text} {log_info}")
+    for curie in agr_curies_to_corpus:
+        try:
+            reference_id = curie_to_reference_id[x.curie]
+            mca = ModCorpusAssociationModel(reference_id=reference_id,
+                                            mod_id=mod_id,
+                                            mod_corpus_sort_source='mod_pubmed_search',
+                                            corpus=None)
+            db_session.add(mca)
+            logger.info("The mod_corpus_association row has been added into database for mod = " + mod + ", reference_curie = " + curie)
+        except Exception as e:
+            logger.info("An error occurred when adding mod_corpus_association for mod = " + mod + ", reference_curie = " + curie + ". error = " + str(e))
+
+    db_session.commit()
 
 
 # find pmc articles for mice and 9 journals, get pmid mappings and list of pmc without pmid
@@ -646,7 +660,6 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
     parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
     parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
-    parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
     parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
     parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
     ##########

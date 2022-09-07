@@ -2,15 +2,16 @@
 import logging
 import logging.config
 import sys
-from os import environ
+from os import environ, path
 
+from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session
 from agr_literature_service.lit_processing.generate_pubmed_nlm_resource import (populate_from_url, populate_nlm_info,
                                                                                 generate_json)
 from agr_literature_service.lit_processing.helper_file_processing import load_pubmed_resource_basic
 from agr_literature_service.lit_processing.parse_dqm_json_resource import (save_resource_file, create_storage_path)
 from agr_literature_service.lit_processing.helper_sqlalchemy import sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.post_resource_to_api import post_resources
-
+from agr_literature_service.api.user import set_global_user_id
 
 logging.basicConfig(level=logging.INFO,
                     stream=sys.stdout,
@@ -19,10 +20,16 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 
-def update_resource_pubmed_nlm():
+def update_resource_pubmed_nlm(set_user=None):
     """
     download J_Medline file, convert to json, compare to existing resources, post new ones to api and database
     """
+
+    if set_user:
+        db_session = create_postgres_session(False)
+        scriptNm = path.basename(__file__).replace(".py", "")
+        set_global_user_id(db_session, scriptNm)
+        db_session.close()
 
     upload_to_s3 = True
     file_data = populate_from_url()
@@ -54,5 +61,6 @@ if __name__ == "__main__":
     """
 
     logger.info("start update_resource_pubmed_nlm")
-    update_resource_pubmed_nlm()
+    set_user = 1
+    update_resource_pubmed_nlm(set_user)
     logger.info("end update_resource_pubmed_nlm")
