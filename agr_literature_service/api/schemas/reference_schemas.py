@@ -12,11 +12,9 @@ from agr_literature_service.api.schemas import (AuthorSchemaPost, AuthorSchemaSh
                                                 ModCorpusAssociationSchemaCreate,
                                                 PubMedPublicationStatus, ReferenceCategory,
                                                 ReferenceCommentAndCorrectionSchemaRelated,
-                                                ModCorpusAssociationSchemaRelated,
-                                                WorkflowTagSchemaShow,
-                                                WorkflowTagSchemaRelated,
-                                                TopicEntityTagSchemaShow)
-from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated
+                                                ModCorpusAssociationSchemaRelated)
+from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagSchemaCreate, WorkflowTagSchemaRelated
+from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaCreate, TopicEntityTagSchemaRelated
 
 
 class ReferenceSchemaPost(BaseModel):
@@ -44,8 +42,8 @@ class ReferenceSchemaPost(BaseModel):
     authors: Optional[List[AuthorSchemaPost]] = None
     resource: Optional[str] = None
     open_access: Optional[bool] = None
-    workflow_tags: Optional[List[WorkflowTagSchemaRelated]] = None
-    topic_entity_tags: Optional[List[TopicEntityTagSchemaRelated]] = None
+    workflow_tags: Optional[List[WorkflowTagSchemaCreate]] = None
+    topic_entity_tags: Optional[List[TopicEntityTagSchemaCreate]] = None
 
     class Config():
         orm_mode = True
@@ -139,8 +137,8 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     comment_and_corrections: CommentAndCorrectionSchemaRelations
     open_access: Optional[bool] = None
     citation: Optional[str] = None
-    workflow_tags: Optional[List[WorkflowTagSchemaShow]] = None
-    topic_entity_tags: Optional[List[TopicEntityTagSchemaShow]] = None
+    workflow_tags: Optional[List[WorkflowTagSchemaRelated]] = None
+    topic_entity_tags: Optional[List[TopicEntityTagSchemaRelated]] = None
 
 
 class ReferenceSchemaNeedReviewShow(BaseModel):

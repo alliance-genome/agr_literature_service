@@ -110,11 +110,11 @@ class TestWorkflowTag:
             patch_data = {"mod_abbreviation": ""}
             response = client.patch(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", json=patch_data,
                                     headers=auth_headers)
-            assert response is response
+            # assert response is response
             # TODO uncomment this test after fixing the api
-            # assert response.status_code == status.HTTP_202_ACCEPTED
-            # response = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}")
-            # assert response.json()["mod_abbreviation"] == ""
+            assert response.status_code == status.HTTP_202_ACCEPTED
+            response = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}")
+            assert response.json()["mod_abbreviation"] == ""
 
     def test_show_ref_wt(self, test_workflow_tag): # noqa
         with TestClient(app) as client:

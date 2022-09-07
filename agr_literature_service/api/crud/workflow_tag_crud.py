@@ -8,10 +8,10 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, ModModel
-from agr_literature_service.api.schemas import WorkflowTagSchemaCreate
+from agr_literature_service.api.schemas import WorkflowTagSchemaPost
 
 
-def create(db: Session, workflow_tag: WorkflowTagSchemaCreate) -> int:
+def create(db: Session, workflow_tag: WorkflowTagSchemaPost) -> int:
     """
     Create a new workflow_tag
     :param db:
@@ -102,18 +102,18 @@ def patch(db: Session, reference_workflow_tag_id: int, workflow_tag_update):
                                         detail=f"Reference with curie {reference_curie} does not exist")
                 workflow_tag_db_obj.reference = new_reference
         elif field == "mod_abbreviation":
-            if value is not None:
+            if ((value is not None) and (len(value))) == 0:
+                workflow_tag_db_obj.mod_id = None
+            elif value is not None:
                 mod_abbreviation = value
                 new_mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
                 if not new_mod:
                     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                         detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
-                workflow_tag_db_obj.mod = new_mod
+                workflow_tag_db_obj.mod_id = new_mod.mod_id
         else:
             setattr(workflow_tag_db_obj, field, value)
-
     db.commit()
-
     return {"message": "updated"}
 
 

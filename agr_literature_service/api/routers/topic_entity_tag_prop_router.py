@@ -7,7 +7,7 @@ from agr_literature_service.api.crud import topic_entity_tag_crud
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (TopicEntityTagPropSchemaShow,
                                                 TopicEntityTagPropSchemaUpdate,
-                                                TopicEntityTagPropSchemaCreate,
+                                                TopicEntityTagPropSchemaPost,
                                                 ResponseMessageSchema)
 from agr_literature_service.api.user import set_global_user_from_okta
 
@@ -25,7 +25,7 @@ db_user = Security(auth.get_user)
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              response_model=str)
-def create(request: TopicEntityTagPropSchemaCreate,
+def create(request: TopicEntityTagPropSchemaPost,
            user: OktaUser = db_user,
            db: Session = db_session):
     set_global_user_from_okta(db, user)
