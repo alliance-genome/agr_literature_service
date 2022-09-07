@@ -680,6 +680,9 @@ if __name__ == "__main__":
     # run this once after data is loaded
     # generate_cross_references_file('reference')
 
+    # TODO:
+    # re-write the following two tests, maybe add more tests here
+
     # test_load_references()
     # test_update_references()
     test_pubmed_types_to_category_mapping()
