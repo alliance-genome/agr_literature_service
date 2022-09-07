@@ -1,5 +1,5 @@
 SHELL=/bin/bash
 BASH_ENV=/container.env
-0 4 * * * python3 /usr/src/app/agr_literature_service/lit_processing/dump_all_json_data.py >> /var/log/automated_scripts/dump_all_json_data.log 2>&1
-0 7 * * * python3 /usr/src/app/agr_literature_service/lit_processing/query_pubmed_mod_updates.py >> /var/log/automated_scripts/query_pubmed_mod_updates.log 2>&1
-0 10 * * 6 python3 /usr/src/app/agr_literature_service/lit_processing/update_all_pubmed_papers.py >> /var/log/automated_scripts/update_all_pubmed_papers.log 2>&1
+0 4 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_export/export_all_mod_references_to_json.py >> /var/log/automated_scripts/export_all_mod_references_to_json.log 2>&1
+0 7 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_search_new_references.py >> /var/log/automated_scripts/pubmed_search_new_references.log 2>&1
+0 10 * * 6 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_all_mods.py >> /var/log/automated_scripts/pubmed_update_references_all_mods.log 2>&1

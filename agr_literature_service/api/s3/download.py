@@ -2,7 +2,7 @@ from botocore.exceptions import ClientError
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from os import environ, getcwd, path
-from agr_literature_service.lit_processing.helper_s3 import download_file_from_s3
+from agr_literature_service.lit_processing.utils.s3_utils import download_file_from_s3
 from fastapi.responses import FileResponse
 from agr_literature_service.api.config import config
 

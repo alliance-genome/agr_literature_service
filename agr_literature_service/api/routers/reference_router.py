@@ -15,8 +15,8 @@ from agr_literature_service.api.user import set_global_user_from_okta
 
 import logging
 
-from agr_literature_service.lit_processing.process_single_pmid import process_pmid
-from agr_literature_service.lit_processing.dump_json_data import dump_data
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.process_single_pmid import process_pmid
+from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import dump_data
 
 
 logger = logging.getLogger(__name__)

@@ -5,16 +5,16 @@ from os import environ, makedirs, path
 import logging
 import logging.config
 
-from agr_literature_service.lit_processing.helper_sqlalchemy import sqlalchemy_load_ref_xref
-from agr_literature_service.lit_processing.helper_file_processing import split_identifier
+from agr_literature_service.lit_processing.utils.sqlalchemy_utils import sqlalchemy_load_ref_xref
+from agr_literature_service.lit_processing.utils.file_processing_utils import split_identifier
 
-from agr_literature_service.lit_processing.generate_dqm_json_test_set import load_sample_json
-from agr_literature_service.lit_processing.xml_to_json import generate_json
+from agr_literature_service.lit_processing.tests.generate_dqm_json_test_set import load_sample_json
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml.xml_to_json import generate_json
 
-from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_session
+from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.models import CrossReferenceModel, AuthorModel
-from agr_literature_service.lit_processing.process_single_pmid import process_pmid
-from agr_literature_service.lit_processing.update_pubmed_papers import update_data
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.process_single_pmid import process_pmid
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import update_data
 
 from dotenv import load_dotenv
 

@@ -70,7 +70,7 @@ run-functest:
 	sleep 5
 
 	# load the mods
-	docker-compose --env-file .env.test run test_runner python3 agr_literature_service/lit_processing/mod_populate_load.py
+	docker-compose --env-file .env.test run test_runner python3 agr_literature_service/lit_processing/tests/mod_populate_load.py
 
 	# load the data
 	docker-compose --env-file .env.test run test_runner /bin/bash agr_literature_service/lit_processing/sample_reference_populate_load.sh
