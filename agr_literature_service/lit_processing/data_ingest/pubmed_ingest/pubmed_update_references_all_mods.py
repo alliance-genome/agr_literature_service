@@ -7,7 +7,7 @@ import shutil
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import update_resource_pubmed_nlm
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml.get_pubmed_xml import download_pubmed_xml
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import download_pubmed_xml
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import update_data
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import load_s3_md5data, save_s3_md5data
 from datetime import datetime, timedelta

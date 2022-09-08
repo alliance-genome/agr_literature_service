@@ -10,8 +10,8 @@ import json
 import requests
 from dotenv import load_dotenv
 
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml.get_pubmed_xml import download_pubmed_xml
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml.xml_to_json import generate_json
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import download_pubmed_xml
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import generate_json
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.sanitize_pubmed_json import sanitize_pubmed_json_list
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3

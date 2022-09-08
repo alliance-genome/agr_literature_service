@@ -9,7 +9,7 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import sqlalch
 from agr_literature_service.lit_processing.utils.file_processing_utils import split_identifier
 
 from agr_literature_service.lit_processing.tests.generate_dqm_json_test_set import load_sample_json
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml.xml_to_json import generate_json
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import generate_json
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.models import CrossReferenceModel, AuthorModel

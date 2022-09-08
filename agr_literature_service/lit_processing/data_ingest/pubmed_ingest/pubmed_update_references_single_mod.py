@@ -14,8 +14,8 @@ from agr_literature_service.api.crud.reference_crud import get_citation_from_arg
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session, \
     create_postgres_engine
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import update_resource_pubmed_nlm
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml.get_pubmed_xml import download_pubmed_xml
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml.xml_to_json import generate_json
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import download_pubmed_xml
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import generate_json
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import load_s3_md5data
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3
 from agr_literature_service.lit_processing.utils.email_utils import send_email
