@@ -161,6 +161,7 @@ def generate_pmid_data(input_path, output_directory, input_mod):      # noqa: C9
 
     # output set of identifiers that will need XML downloaded
     output_pmid_file = base_path + output_directory + 'inputs/alliance_pmids'
+    makedirs(base_path + output_directory + 'inputs', exist_ok=True)
     with open(output_pmid_file, "w") as pmid_file:
         # for pmid in sorted(pmid_stats.iterkeys(), key=int):	# python 2
         for pmid in sorted(pmid_stats, key=int):
