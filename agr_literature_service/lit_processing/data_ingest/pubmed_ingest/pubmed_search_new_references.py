@@ -22,10 +22,8 @@ from agr_literature_service.api.models import ReferenceModel, CrossReferenceMode
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.utils.email_utils import send_email
 from agr_literature_service.api.user import set_global_user_id
-from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 load_dotenv()
-init_tmp_dir()
 
 
 # pipenv run python query_pubmed_mod_updates.py
@@ -130,7 +128,7 @@ logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
 base_path = environ.get('XML_PATH', "")
-search_path = base_path.replace("tests/", "") + 'pubmed_searches/'
+search_path = path.dirname(path.abspath(__file__)) + "/data_for_pubmed_processing/"
 search_outfile_path = search_path + 'search_new_mods/'
 pmc_process_path = search_path + 'pmc_processing/'
 pmc_storage_path = search_path + 'pmc_processing/pmc_xml/'
@@ -529,6 +527,9 @@ def post_mca_to_existing_references(db_session, agr_curies_to_corpus, mod):
     for curie in agr_curies_to_corpus:
         try:
             reference_id = curie_to_reference_id[x.curie]
+            mca = db_session.query(ModCorpusAssociationModel).filter_by(reference_id=reference_id, mod_id=mod_id).all()
+            if len(mca) > 0:
+                continue
             mca = ModCorpusAssociationModel(reference_id=reference_id,
                                             mod_id=mod_id,
                                             mod_corpus_sort_source='mod_pubmed_search',

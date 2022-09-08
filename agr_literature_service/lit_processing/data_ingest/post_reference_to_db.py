@@ -294,7 +294,7 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
                    "citation": citation,
                    "pubmed_types": entry.get('pubMedType', []),
                    "keywords": entry.get('keywords', []),
-                   "category": entry.get('allianceCategory', 'Other'),
+                   "category": entry.get('allianceCategory', 'Other').replace(' ', '_'),
                    "plain_language_abstract": entry.get('plainLanguageAbstract', ''),
                    "pubmed_abstract_languages": entry.get('pubmedAbstractLanguages', []),
                    "language": entry.get('language', ''),
