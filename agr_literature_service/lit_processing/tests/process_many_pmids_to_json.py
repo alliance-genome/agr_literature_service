@@ -6,6 +6,7 @@ from os import environ, makedirs, path
 
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import download_pubmed_xml
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import generate_json
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 # pipenv run python process_many_pmids_to_json.py -f inputs/alliance_pmids
 #
@@ -19,6 +20,8 @@ logging.basicConfig(level=logging.INFO,
                     format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
+
+init_tmp_dir()
 
 
 def download_and_convert_pmids(pmids_wanted, skip_download_flag):

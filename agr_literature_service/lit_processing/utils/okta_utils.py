@@ -2,9 +2,11 @@ from json import dumps, loads
 from os import environ, path
 import logging
 import logging.config
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 import requests
 
+init_tmp_dir()
 base_path = environ.get('XML_PATH')
 
 

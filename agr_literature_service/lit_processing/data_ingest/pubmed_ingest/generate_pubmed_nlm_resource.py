@@ -7,6 +7,7 @@ from os import environ, makedirs, path
 
 from dotenv import load_dotenv
 from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_s3
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 # generate from local file and do not upload to s3
 # pipenv run python generate_pubmed_nlm_resource.py -l
@@ -20,6 +21,7 @@ from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_
 # https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt
 
 load_dotenv()
+init_tmp_dir()
 
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../../logging.conf')

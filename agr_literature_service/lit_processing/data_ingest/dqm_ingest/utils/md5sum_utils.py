@@ -8,6 +8,7 @@ import logging.config
 
 from agr_literature_service.lit_processing.utils.file_processing_utils import split_identifier, write_json
 from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_s3, download_file_from_s3
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 from dotenv import load_dotenv
 
@@ -15,6 +16,7 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
+init_tmp_dir()
 
 
 # pipenv run python filter_dqm_md5sum.py -f dqm_data/ -m all

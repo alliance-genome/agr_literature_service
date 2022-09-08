@@ -7,8 +7,10 @@ from os import environ, makedirs, path
 
 import requests  # noqa flake8 will complain about this, but without it urllib.request will not work
 from dotenv import load_dotenv
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 load_dotenv()
+init_tmp_dir()
 
 # pipenv run python get_pubmed_tgz.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
 

@@ -18,9 +18,11 @@ from shutil import copy2
 
 from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_s3
 from dotenv import load_dotenv
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 
 load_dotenv()
+init_tmp_dir()
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../../../logging.conf')
 logging.config.fileConfig(log_file_path)

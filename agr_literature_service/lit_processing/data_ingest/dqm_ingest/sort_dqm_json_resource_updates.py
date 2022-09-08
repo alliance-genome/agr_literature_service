@@ -12,10 +12,12 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 from agr_literature_service.lit_processing.utils.file_processing_utils import (compare_authors_or_editors,
                                                                                save_resource_file, split_identifier)
 from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
+init_tmp_dir()
 
 # pipenv run python sort_dqm_json_resource_updates.py
 

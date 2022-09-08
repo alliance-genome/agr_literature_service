@@ -2,7 +2,9 @@ import argparse
 import logging.config
 from os import environ, path
 
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.sanitize_pubmed_json import sanitize_pubmed_json_list
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.sanitize_pubmed_json import \
+    sanitize_pubmed_json_list
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 # pipenv run python parse_pubmed_json_reference.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/pubmed_only_pmids
 # enter a file of pmids as an argument, sanitize, post to api
@@ -11,6 +13,7 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../loggin
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('parse_pubmed_json_reference')
 
+init_tmp_dir()
 
 if __name__ == "__main__":
     """

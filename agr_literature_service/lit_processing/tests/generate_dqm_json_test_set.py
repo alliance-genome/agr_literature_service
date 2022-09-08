@@ -8,9 +8,11 @@ from os import environ, makedirs, path
 
 from dotenv import load_dotenv
 
-from agr_literature_service.lit_processing.utils.helper_file_processing import split_identifier
+from agr_literature_service.lit_processing.utils.file_processing_utils import split_identifier
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 load_dotenv()
+init_tmp_dir()
 
 
 # pipenv run python generate_dqm_json_test_set.py -i inputs/sample_dqm_load.json -d dqm_load_sample/

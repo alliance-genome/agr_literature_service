@@ -11,6 +11,7 @@ from os import environ, makedirs, path
 
 import requests
 from dotenv import load_dotenv
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 logging.basicConfig(level=logging.INFO,
                     stream=sys.stdout,
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 load_dotenv()
+init_tmp_dir()
 
 
 # pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids

@@ -10,6 +10,7 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.sanitize_pu
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import generate_json
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3
 from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 # pipenv run python process_single_pmid.py -c 12345678
 # enter a single pmid as an argument, download xml, convert to json, sanitize, post to api
@@ -17,6 +18,8 @@ from agr_literature_service.api.user import set_global_user_id
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../../logging.conf')
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
+
+init_tmp_dir()
 
 
 def check_pmid_cross_reference(pmid):

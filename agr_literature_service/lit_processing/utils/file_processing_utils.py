@@ -7,6 +7,9 @@ import requests
 
 from agr_literature_service.lit_processing.utils.okta_utils import (generate_headers, get_authentication_token,
                                                                     update_token)
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
+
+init_tmp_dir()
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 

@@ -5,6 +5,9 @@ from os import environ, getcwd, path
 from agr_literature_service.lit_processing.utils.s3_utils import download_file_from_s3
 from fastapi.responses import FileResponse
 from agr_literature_service.api.config import config
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
+
+init_tmp_dir()
 
 
 def download_file_from_bucket(s3_client, bucket, folder, object_name=None):

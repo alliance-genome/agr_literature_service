@@ -11,6 +11,7 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import update_data
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import load_s3_md5data, save_s3_md5data
 from datetime import datetime, timedelta
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 logging.basicConfig(format='%(message)s')
 log = logging.getLogger()
@@ -18,6 +19,8 @@ log.setLevel(logging.INFO)
 
 download_xml_max_size = 50000
 sleep_time = 60
+
+init_tmp_dir()
 
 
 def update_all_data():

@@ -10,12 +10,15 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.parse_dqm_json
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.data_ingest.post_resource_to_db import post_resources
 from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 logging.basicConfig(level=logging.INFO,
                     stream=sys.stdout,
                     format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
+
+init_tmp_dir()
 
 
 def update_resource_pubmed_nlm(set_user=None):

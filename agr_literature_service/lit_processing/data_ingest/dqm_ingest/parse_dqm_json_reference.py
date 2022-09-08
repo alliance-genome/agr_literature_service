@@ -12,6 +12,9 @@ from dotenv import load_dotenv
 
 from agr_literature_service.lit_processing.utils.file_processing_utils import (clean_up_keywords, split_identifier,
                                                                                write_json)
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
+
+init_tmp_dir()
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 

@@ -2,6 +2,9 @@ import json
 from os import environ, makedirs, path
 
 from agr_literature_service.lit_processing.utils.file_processing_utils import write_json
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
+
+init_tmp_dir()
 
 
 def sanitize_pubmed_json_list(pmids, inject_list):

@@ -10,6 +10,9 @@ import shutil
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_engine
 from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_s3
 from agr_literature_service.lit_processing.utils.email_utils import send_email
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
+
+init_tmp_dir()
 
 logging.basicConfig(format='%(message)s')
 log = logging.getLogger()

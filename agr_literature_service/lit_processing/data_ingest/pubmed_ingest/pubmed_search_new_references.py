@@ -22,8 +22,10 @@ from agr_literature_service.api.models import ReferenceModel, CrossReferenceMode
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.utils.email_utils import send_email
 from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 load_dotenv()
+init_tmp_dir()
 
 
 # pipenv run python query_pubmed_mod_updates.py

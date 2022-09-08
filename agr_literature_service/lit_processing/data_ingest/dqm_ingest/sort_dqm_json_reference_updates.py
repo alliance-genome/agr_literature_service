@@ -24,6 +24,7 @@ from agr_literature_service.lit_processing.data_ingest.post_reference_to_db impo
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import update_resource_pubmed_nlm
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.get_dqm_data import download_dqm_json
 from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 # For WB needing 57578 references checked for updating,
 # It would take 48 hours to query the database through the API one by one.
@@ -32,6 +33,7 @@ from agr_literature_service.api.user import set_global_user_id
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
+init_tmp_dir()
 
 # live_change = True
 live_change = False  # for testing purpose

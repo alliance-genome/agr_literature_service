@@ -10,8 +10,10 @@ import boto3
 from botocore.exceptions import ClientError
 
 from dotenv import load_dotenv
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 load_dotenv()
+init_tmp_dir()
 
 logging.basicConfig(level=logging.INFO,
                     stream=sys.stdout,

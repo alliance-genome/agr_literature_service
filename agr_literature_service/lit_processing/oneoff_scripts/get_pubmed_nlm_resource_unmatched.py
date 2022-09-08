@@ -8,9 +8,11 @@ from typing import List, Set
 
 import requests
 from dotenv import load_dotenv
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 
 load_dotenv()
+init_tmp_dir()
 
 
 # pipenv run python get_pubmed_nlm_resource_unmatched.py

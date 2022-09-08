@@ -20,6 +20,7 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_u
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3
 from agr_literature_service.lit_processing.utils.email_utils import send_email
 from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 logging.basicConfig(format='%(message)s')
 log = logging.getLogger()
@@ -41,6 +42,8 @@ max_rows_per_commit = 250
 download_xml_max_size = 150000
 query_cutoff = 500
 sleep_time = 60
+
+init_tmp_dir()
 
 
 def update_data(mod, pmids, md5dict=None, newly_added_pmids=None):  # noqa: C901

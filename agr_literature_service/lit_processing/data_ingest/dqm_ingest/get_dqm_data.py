@@ -11,8 +11,11 @@ import urllib.request
 from os import environ, makedirs, path
 
 from dotenv import load_dotenv
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 load_dotenv()
+
+init_tmp_dir()
 
 # get_dqm_data.py downloads DQM MOD JSON from FMS and uncompresses. compares md5sum to current file to prevent downloading if it's the same
 # pipenv run python get_dqm_data.py

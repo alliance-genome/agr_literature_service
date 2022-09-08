@@ -12,8 +12,10 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 from agr_literature_service.api.models import ResourceModel, CrossReferenceModel, EditorModel
 from agr_literature_service.api.crud.resource_crud import create_next_curie
 from agr_literature_service.lit_processing.utils.file_processing_utils import split_identifier
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 load_dotenv()
+init_tmp_dir()
 
 # pipenv run python3 post_resource_to_api.py > log_post_resource_to_api
 
