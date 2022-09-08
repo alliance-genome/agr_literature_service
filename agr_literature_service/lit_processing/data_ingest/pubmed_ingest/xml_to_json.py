@@ -7,9 +7,6 @@ from os import environ, makedirs, path
 from typing import List, Set
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import load_s3_md5data, save_s3_md5data, generate_md5sum_from_dict
 from agr_literature_service.lit_processing.utils.file_processing_utils import write_json
-from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
-
-init_tmp_dir()
 
 
 # pipenv run python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
@@ -161,8 +158,8 @@ def get_medline_date_from_xml_date(pub_date):
 def get_alliance_category_from_pubmed_types(pubmed_types):     # noqa: C901
 
     # for functional tests work
-    mapping_path = base_path.replace("tests/", "")
-    mapping_file = mapping_path + "pubmed_searches/pubMedType2allianceCategory_mapping.tsv"
+    mapping_path = path.dirname(path.abspath(__file__)) + "/data_for_pubmed_processing/"
+    mapping_file = mapping_path + "pubMedType2allianceCategory_mapping.tsv"
     type2categoryInfo = {}
 
     f = open(mapping_file)
