@@ -10,10 +10,12 @@ import logging.config
 import re
 from datetime import datetime
 from os import environ, makedirs, path
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 from dotenv import load_dotenv
 
 load_dotenv()
+init_tmp_dir()
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../logging.conf')
 logging.config.fileConfig(log_file_path)

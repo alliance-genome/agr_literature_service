@@ -14,7 +14,9 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.models import CrossReferenceModel, AuthorModel
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.process_single_pmid import process_pmid
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import update_data
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import \
+    update_data
+from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 from dotenv import load_dotenv
 
@@ -22,6 +24,7 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
+init_tmp_dir()
 
 logging.basicConfig(level=logging.INFO,
                     format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
