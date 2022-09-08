@@ -214,13 +214,15 @@ class ReferenceModel(Base, AuditedModel):
     workflow_tag = relationship(
         "WorkflowTagModel",
         foreign_keys="WorkflowTagModel.reference_id",
-        back_populates="reference"
+        back_populates="reference",
+        cascade="all, delete, delete-orphan"
     )
 
     topic_entity_tags = relationship(
         "TopicEntityTagModel",
         foreign_keys="TopicEntityTagModel.reference_id",
-        back_populates="reference"
+        back_populates="reference",
+        cascade="all, delete, delete-orphan"
     )
 
     def __str__(self):
