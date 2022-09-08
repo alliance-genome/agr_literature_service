@@ -24,7 +24,6 @@ from agr_literature_service.lit_processing.data_ingest.post_reference_to_db impo
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import update_resource_pubmed_nlm
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.get_dqm_data import download_dqm_json
 from agr_literature_service.api.user import set_global_user_id
-from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 # For WB needing 57578 references checked for updating,
 # It would take 48 hours to query the database through the API one by one.
@@ -33,10 +32,9 @@ from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
-init_tmp_dir()
 
-# live_change = True
-live_change = False  # for testing purpose
+live_change = True
+# live_change = False  # for testing purpose
 batch_size_for_commit = 250
 
 # pipenv run python sort_dqm_json_reference_updates.py -f dqm_data -m WB
@@ -900,6 +898,8 @@ def update_db_entries(mod_to_mod_id, entries, report_fh, processing_flag):      
                 if dqm_value != db_value:
                     logger.info(f"patch {agr} {dqm_entry['primaryId']} field {field_snake} from db {db_value} to dqm {dqm_value}")
                     update_json[field_snake] = dqm_value
+                    if field_snake == 'category':
+                        update_json[field_snake] = update_json[field_snake].replace(' ', '_')
 
             # ignore keywords after initial 2021 Nov load
             # keywords_changed = compare_keywords(db_entry, dqm_entry)
@@ -920,7 +920,7 @@ def update_db_entries(mod_to_mod_id, entries, report_fh, processing_flag):      
                             x.first_name = patch_dict.get('first_name', '')
                             x.last_name = patch_dict.get('last_name', '')
                             x.affiliations = patch_dict.get('affiliations', [])
-                            x.orcid = patch_dict.get('orcid', '')
+                            x.orcid = patch_dict.get('orcid')
                             db_session.add(x)
                             logger.info("The author row for author_id = " + str(patch_data['author_id']) + " has been updated")
                     except Exception as e:
@@ -933,11 +933,11 @@ def update_db_entries(mod_to_mod_id, entries, report_fh, processing_flag):      
                                         first_name=create_dict.get('first_name', ''),
                                         last_name=create_dict.get('last_name', ''),
                                         affiliations=create_dict.get('affiliations', []),
-                                        orcid=create_dict.get('orcid', ''))
+                                        orcid=create_dict.get('orcid'))
                         db_session.add(x)
-                        logger.info("The author row for reference_id = " + str(reference_id) + " and name = '" + create_dict['name'] + " has been added into database.")
+                        logger.info("The author row for reference_id = " + str(reference_id) + " and name = '" + create_dict['name'] + "' has been added into database.")
                     except Exception as e:
-                        logger.info("An error occurred when adding author row for reference_id = " + str(reference_id) + " and name = '" + create_dict['name'] + " " + str(e))
+                        logger.info("An error occurred when adding author row for reference_id = " + str(reference_id) + " and name = '" + create_dict['name'] + "' " + str(e))
 
             # if curators want to get reports of how resource change, put this back,
             # but we're comparing resource titles with dqm resource abbreviations,
@@ -1032,17 +1032,10 @@ def update_mod_specific_fields(db_session, mod_to_mod_id, dqm_entry, db_entry): 
                         logger.info("An error occurred when adding mod_corpus_association row for reference_id = " + str(reference_id) + " and mod = " + mod + ". " + str(e))
 
                 elif dqm_mca_entry['corpus'] != db_mod_corpus_association[mod]['corpus']:
+                    mod_corpus_association_id = db_mod_corpus_association[mod]['id']
                     try:
-                        mod = dqm_mca_entry['mod_abbreviation']
-                        x = db_session.query(ModCorpusAssociationModel).filter_by(mod_corpus_association_id=db_mod_corpus_association[mod]['id']).one_or_none()
-                        mod_corpus_association_id = db_mod_corpus_association[mod]['id']
-                        if x:
-                            x.reference_id = reference_id
-                            x.corpus = dqm_mca_entry['corpus'],
-                            x.mod_corpus_sort_source = dqm_mca_entry['mod_corpus_sort_source']
-                            x.mod_id = mod_to_mod_id[mod]
-                            db_session.add(x)
-                            logger.info("The mod_corpus_association row for mod_corpus_association_id = " + str(mod_corpus_association_id) + " has been updated in the database.")
+                        db_session.query(ModCorpusAssociationModel).filter_by(mod_corpus_association_id=mod_corpus_association_id).update({"mod_corpus_sort_source": dqm_mca_entry['mod_corpus_sort_source'], "corpus": dqm_mca_entry['corpus']})
+                        logger.info("The mod_corpus_association row for mod_corpus_association_id = " + str(mod_corpus_association_id) + " has been updated in the database.")
                     except Exception as e:
                         logger.info("An error occurred when updating mod_corpus_association row for mod_corpus_association_id = " + str(mod_corpus_association_id) + " " + str(e))
 
