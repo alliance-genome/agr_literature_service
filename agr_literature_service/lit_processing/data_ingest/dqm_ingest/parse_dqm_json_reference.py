@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 base_path = environ.get('XML_PATH')
 
 
-def generate_pmid_data(input_path, output_directory, input_mod):      # noqa: C901
+def generate_pmid_data(input_path, output_directory, input_mod, base_input_dir=base_path):      # noqa: C901
     """
 
     output set of PMID identifiers that will need XML downloaded
@@ -82,7 +82,7 @@ def generate_pmid_data(input_path, output_directory, input_mod):      # noqa: C9
     check_pmid_is_unique = True
 
     for mod in mods:
-        filename = base_path + input_path + '/REFERENCE_' + mod + '.json'
+        filename = base_input_dir + input_path + '/REFERENCE_' + mod + '.json'
         logger.info("Loading %s data from %s", mod, filename)
         dqm_data = dict()
         try:
@@ -424,7 +424,7 @@ def load_pmid_multi_mods(output_path):
     return pmid_multi_mods
 
 
-def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # noqa: C901
+def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=base_path):      # noqa: C901
     # reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
     # outputs sanitized json to sanitized_reference_json/
     # does checks on dqm crossReferences.  if primaryId is not PMID, and a crossReference is PubMed,
@@ -529,7 +529,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
     sanitized_pubmed_multi_mod_data = []
     unmerged_pubmed_data = dict()			# pubmed data by pmid and mod that needs some fields merged
     for mod in mods:
-        filename = base_path + input_path + '/REFERENCE_' + mod + '.json'
+        filename = base_dir + input_path + '/REFERENCE_' + mod + '.json'
         logger.info("Processing %s", filename)
         unexpected_mod_properties = set()
         dqm_data = dict()
@@ -987,7 +987,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
     # output resourceAbbreviations not matched to NLMs or resource MOD IDs to a file for attempt to
     # download from other source
     # with get_pubmed_nlm_resource_unmatched.py
-    resource_xml_path = base_path + 'resource_xml/'
+    resource_xml_path = base_dir + 'resource_xml/'
     if not path.exists(resource_xml_path):
         makedirs(resource_xml_path)
     resource_abbreviation_not_found_filename = resource_xml_path + 'resource_abbreviation_not_matched'
@@ -1029,6 +1029,24 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory):      # n
 # tags - array of hashes, aggregate the hashes
 # resourceAbbreviation - single value, keep for mod data, try to resolve to journal from PMID
 
+def aggregate_dqm_data(base_dir, input_dir, output_dir, mod, generate_pmid_data_option):
+    logger.info("starting parse_dqm_json_reference.py")
+
+    # pipenv run python parse_dqm_json_reference.py -f dqm_sample/ -p
+    if generate_pmid_data_option:
+        logger.info("Generating PMID files from DQM data")
+        generate_pmid_data(base_dir, input_dir, output_dir, 'all')
+
+    # pipenv run python parse_dqm_json_reference.py -f dqm_sample/ -m WB
+    # pipenv run python parse_dqm_json_reference.py -f dqm_data_updates_new/ -m all
+    elif mod:
+        aggregate_dqm_with_pubmed(input_dir, mod, output_dir)
+
+    else:
+        logger.info("No valid processing for directory passed in.  Use -h for help.")
+
+    logger.info("ending parse_dqm_json_reference.py")
+
 
 if __name__ == "__main__":
     """
@@ -1037,41 +1055,13 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--generate-pmid-data', action='store_true', help='generate pmid outputs, requires -f')
-    parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
+    parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path',
+                        required=True)
     parser.add_argument('-m', '--mod', action='store', help='which mod, use all for all, requires -f')
-    parser.add_argument('-d', '--directory', action='store', help='output directory to generate into, requires -f')
-    parser.add_argument('-c', '--commandline', nargs='*', action='store', help='placeholder for process_single_pmid.py')
-    # parser.add_argument('-d', '--database', action='store_true', help='take input from database query')
-    # parser.add_argument('-r', '--restapi', action='store', help='take input from rest api')
-    # parser.add_argument('-s', '--sample', action='store_true', help='test sample input from hardcoded entries')
-    # parser.add_argument('-u', '--url', action='store', help='take input from entries in file at url')
+    parser.add_argument('-d', '--directory', action='store', help='output directory to generate into, requires -f',
+                        default='')
 
     args = vars(parser.parse_args())
+    aggregate_dqm_data(base_path, input_dir=args['file'], output_dir=args['directory'], mod=args['mod'],
+                       generate_pmid_data_option=args['generate_pmid_data'])
 
-    logger.info("starting parse_dqm_json_reference.py")
-
-    if args['file']:
-        output_directory = ''
-        if args['directory']:
-            output_directory = args['directory']
-
-        # pipenv run python parse_dqm_json_reference.py -f dqm_sample/ -p
-        if args['generate_pmid_data']:
-            logger.info("Generating PMID files from DQM data")
-            generate_pmid_data(args['file'], output_directory, 'all')
-
-        # pipenv run python parse_dqm_json_reference.py -f dqm_sample/ -m WB
-        # pipenv run python parse_dqm_json_reference.py -f dqm_data_updates_new/ -m all
-        elif args['mod']:
-            aggregate_dqm_with_pubmed(args['file'], args['mod'], output_directory)
-
-        else:
-            logger.info("No valid processing for directory passed in.  Use -h for help.")
-
-    elif args['commandline']:
-        logger.info("placeholder for process_single_pmid.py")
-
-    else:
-        logger.info("No valid processing flag passed in.  Use -h for help.")
-
-    logger.info("ending parse_dqm_json_reference.py")

@@ -10,6 +10,7 @@ from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
 
+
 metadata = MetaData()
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})

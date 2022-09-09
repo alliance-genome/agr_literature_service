@@ -3,6 +3,7 @@ import logging
 import sys
 import time
 from os import environ, makedirs, path
+from typing import List
 
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import download_pubmed_xml
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import generate_json
@@ -21,10 +22,12 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
+base_path = environ.get('XML_PATH')
+
 init_tmp_dir()
 
 
-def download_and_convert_pmids(pmids_wanted, skip_download_flag):
+def download_and_convert_pmids(pmids_wanted, skip_download_flag, base_dir=base_path):
     """
 
     :param pmids_wanted:
@@ -34,9 +37,9 @@ def download_and_convert_pmids(pmids_wanted, skip_download_flag):
     pmids_original = pmids_wanted
     pmids_additional = []
     pmids_new_list = pmids_wanted
-    pmids_additional = recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list, skip_download_flag)
+    pmids_additional = recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list, skip_download_flag,
+                                                 base_dir=base_dir)
 
-    base_path = environ.get('XML_PATH')
     inputs_path = base_path + 'inputs/'
     if not path.exists(inputs_path):
         makedirs(inputs_path)
@@ -57,7 +60,7 @@ def download_and_convert_pmids(pmids_wanted, skip_download_flag):
         pubmed_all_fh.write(pmids_all_string)
 
 
-def recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list, skip_download_flag):
+def recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list, skip_download_flag, base_dir=base_path):
     """
 
     :param pmids_original:
@@ -69,7 +72,7 @@ def recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list, 
     if not skip_download_flag:
         download_pubmed_xml(pmids_new_list)
     pmids_already_processed = pmids_original + pmids_additional
-    pmids_new_list = generate_json(pmids_new_list, pmids_already_processed)
+    pmids_new_list = generate_json(pmids_new_list, pmids_already_processed, base_dir=base_dir)
     # for pmid in pmids_new_list:
     #     logger.info("new_pmid %s", pmid)
     #     print("newly found %s" % (pmid))
@@ -82,6 +85,16 @@ def recursively_process_pmids(pmids_original, pmids_additional, pmids_new_list, 
     return pmids_additional
 
 
+def process_many_pmids_to_json(skip_download: bool = False, pmids: List[str] = None,
+                               load_pmids_from_file_path: str = None, base_dir=base_path):
+    if load_pmids_from_file_path:
+        logger.info("Processing file input from %s", load_pmids_from_file_path)
+        pmids = [line.strip() for line in open(base_path + load_pmids_from_file_path, 'r')]
+
+    download_and_convert_pmids(pmids, skip_download, base_dir=base_dir)
+    logger.info("Done Processing")
+
+
 if __name__ == "__main__":
     """
     call main start function
@@ -91,36 +104,14 @@ if __name__ == "__main__":
     """
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
-    parser.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
+    group.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
     parser.add_argument('-s', '--skip-download', action='store_true', help='do not download PubMed XML in testing mode')
 
     args = vars(parser.parse_args())
+    process_many_pmids_to_json(skip_download=args['skip_download'], pmids=args['commandline'], load_pmids_from_file_path=args['file'])
 
-    pmids_wanted = []
 
-    skip_download_flag = False
-    if args['skip_download']:
-        skip_download_flag = args['skip_download']
 
-    # python process_single_pmid.py -c 1234 4576 1828
-    if args['commandline']:
-        logger.info("Processing commandline input")
-        for pmid in args['commandline']:
-            pmids_wanted.append(pmid)
 
-    elif args['file']:
-        base_path = environ.get('XML_PATH')
-        logger.info("Processing file input from %s", args['file'])
-        with open(base_path + args['file'], 'r') as fp:
-            pmid = fp.readline()
-            while pmid:
-                pmids_wanted.append(pmid.rstrip())
-                pmid = fp.readline()
-
-    else:
-        logger.info("Must enter a PMID through command line")
-
-    download_and_convert_pmids(pmids_wanted, skip_download_flag)
-
-    logger.info("Done Processing")

@@ -211,7 +211,7 @@ def get_alliance_category_from_pubmed_types(pubmed_types):     # noqa: C901
     return 'Other'
 
 
-def generate_json(pmids, previous_pmids, not_found_xml=None):      # noqa: C901
+def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path):      # noqa: C901
     """
 
     :param pmids:
@@ -221,7 +221,7 @@ def generate_json(pmids, previous_pmids, not_found_xml=None):      # noqa: C901
 
     # open input xml file and read data in form of python dictionary using xmltodict module
     md5data = ''
-    storage_path = base_path + 'pubmed_xml/'
+    storage_path = base_dir + 'pubmed_xml/'
     json_storage_path = base_path + 'pubmed_json/'
     if not path.exists(storage_path):
         makedirs(storage_path)

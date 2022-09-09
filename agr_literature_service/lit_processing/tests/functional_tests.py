@@ -1,10 +1,21 @@
 import json
+import os.path
+
 import requests
 import re
 from os import environ, makedirs, path
 import logging
 import logging.config
 
+from agr_literature_service.api.database.setup import setup_database
+from agr_literature_service.lit_processing.data_ingest.dqm_ingest.parse_dqm_json_reference import aggregate_dqm_data, \
+    generate_pmid_data, aggregate_dqm_with_pubmed
+from agr_literature_service.lit_processing.data_ingest.dqm_ingest.sort_dqm_json_reference_updates import \
+    sort_dqm_references
+from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
+from agr_literature_service.lit_processing.tests.mod_populate_load import post_mods
+from agr_literature_service.lit_processing.tests.parse_pubmed_json_reference import parse_pubmed_json_reference
+from agr_literature_service.lit_processing.tests.process_many_pmids_to_json import process_many_pmids_to_json
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.utils.file_processing_utils import split_identifier
 
@@ -30,6 +41,8 @@ logging.basicConfig(level=logging.INFO,
                     format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
+
+base_path = environ.get('XML_PATH')
 
 # connect to docker
 #   docker run --rm --network=agr_literature_service_agr-literature -p 5432:5432 -v ${PWD}:/workdir -t -i 100225593120.dkr.ecr.us-east-1.amazonaws.com/agr_literature_dev:latest /bin/bash
@@ -559,9 +572,8 @@ def test_first_corresponding_author_flag():
     return result
 
 
-def test_pubmed_types_to_category_mapping():
+def test_pubmed_types_to_category_mapping(base_dir=base_path):
 
-    base_path = environ.get('XML_PATH')
     json_path = base_path + "pubmed_json/"
     if not path.exists(json_path):
         makedirs(json_path)
@@ -576,7 +588,7 @@ def test_pubmed_types_to_category_mapping():
                         '21976771': 'Retraction',
                         '7567443': 'Correction'}
 
-    generate_json(pmids, [])
+    generate_json(pmids, [], base_dir=base_dir)
 
     result = 'Failure'
     good_check_check_count = 0
@@ -686,9 +698,28 @@ if __name__ == "__main__":
     # TODO:
     # re-write the following two tests, maybe add more tests here
 
-    # test_load_references()
-    # test_update_references()
-    test_pubmed_types_to_category_mapping()
+    setup_database()
+    post_mods()
+
+    # load the data
+    local_file_path = path.dirname(path.abspath(__file__)) + "/"
+    generate_pmid_data(base_input_dir=local_file_path, input_path="dqm_load_sample",
+                       output_directory="./", input_mod="all")
+    process_many_pmids_to_json(skip_download=True, load_pmids_from_file_path="inputs/alliance_pmids",
+                               base_dir=local_file_path)
+    aggregate_dqm_with_pubmed(base_dir=local_file_path, input_path="dqm_load_sample", input_mod="all",
+                              output_directory="./")
+    parse_pubmed_json_reference(load_pmids_from_file_path="inputs/pubmed_only_pmids")
+    base_path = os.environ.get("XML_PATH", "")
+    json_filepath = base_path + '/sanitized_reference_json/'
+    post_references(json_path=json_filepath)
+
+    # load the update
+    sort_dqm_references(base_dir=local_file_path, input_path="/dqm_update_sample", input_mod="WB")
+
+    test_load_references()
+    test_update_references()
+    test_pubmed_types_to_category_mapping(base_dir=local_file_path)
     test_first_corresponding_author_flag()
 
     logger.info("ending sort_dqm_json_reference_updates.py")

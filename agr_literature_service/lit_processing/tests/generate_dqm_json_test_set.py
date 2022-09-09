@@ -14,6 +14,8 @@ from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp
 load_dotenv()
 init_tmp_dir()
 
+base_path = environ.get('XML_PATH')
+
 
 # pipenv run python generate_dqm_json_test_set.py -i inputs/sample_dqm_load.json -d dqm_load_sample/
 # pipenv run python generate_dqm_json_test_set.py -i inputs/sample_dqm_update.json -d dqm_update_sample/
@@ -28,9 +30,9 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 
-def load_sample_json(input_file):
-    base_path = environ.get('XML_PATH')
-    sample_file = base_path + input_file
+def load_sample_json(input_file, base_dir=base_path):
+
+    sample_file = base_dir + input_file
     print("LOADING file {}".format(sample_file))
     sample_json = dict()
     try:
@@ -52,7 +54,6 @@ def generate_dqm_json_test_set_from_sample_json(input_file, output_directory):  
     generate <output_directory>/ files based on manually chosen entries in <input_file>
     """
 
-    base_path = environ.get('XML_PATH')
     sample_json = load_sample_json(input_file)
     if not sample_json:
         return
@@ -120,7 +121,6 @@ def generate_dqm_json_test_set_from_start_mid_end():
     """
     generate dqm_sample/ files based on sampling from beginning, middle, and end of dqm files.
     """
-    base_path = environ.get('XML_PATH')
     sample_path = base_path + 'dqm_sample/'
     if not path.exists(sample_path):
         makedirs(sample_path)

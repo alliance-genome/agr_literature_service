@@ -39,6 +39,8 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
+base_path = environ.get('XML_PATH')
+
 
 def get_json_storage_path(mod):
     """
@@ -47,14 +49,13 @@ def get_json_storage_path(mod):
     :return:
     """
 
-    base_path = environ.get('XML_PATH')
     mod_json_storage_path = base_path + 'dqm_json/' + mod + '/'
     if not path.exists(mod_json_storage_path):
         makedirs(mod_json_storage_path)
     return mod_json_storage_path
 
 
-def generate_new_md5(input_path, mods):
+def generate_new_md5(input_path, mods, base_dir=base_path):
     """
 
     :param input_path:
@@ -68,8 +69,7 @@ def generate_new_md5(input_path, mods):
     # these fields we never want from dqm updates.  keyword was one time, tags will be processed differently later
     remove_fields = ['dateLastModified', 'issueDate', 'citation', 'keywords', 'tags']
 
-    base_path = environ.get('XML_PATH')
-    json_storage_path = base_path + 'dqm_json/'
+    json_storage_path = base_dir + 'dqm_json/'
     if not path.exists(json_storage_path):
         makedirs(json_storage_path)
 
@@ -78,7 +78,7 @@ def generate_new_md5(input_path, mods):
     for mod in mods:
         md5dict[mod] = {}
 
-        filename = base_path + input_path + '/REFERENCE_' + mod + '.json'
+        filename = base_dir + input_path + '/REFERENCE_' + mod + '.json'
         logger.info("Loading %s data from %s", mod, filename)
         dqm_data = dict()
         try:
@@ -194,7 +194,6 @@ def pubmed_json_generate_md5sum_and_save():
     :return:
     """
 
-    base_path = environ.get('XML_PATH')
     json_storage_path = base_path + 'pubmed_json/'
     dir_list = listdir(json_storage_path)
     md5dict = {}

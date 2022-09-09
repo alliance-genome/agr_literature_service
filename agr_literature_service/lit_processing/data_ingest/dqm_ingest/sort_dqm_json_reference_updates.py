@@ -148,6 +148,8 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
+base_path = environ.get('XML_PATH')
+
 
 def load_pmids_not_found():
     """
@@ -156,7 +158,6 @@ def load_pmids_not_found():
     """
 
     pmids_not_found = set()
-    base_path = environ.get('XML_PATH')
     pmids_not_found_file = base_path + 'pmids_not_found'
     if path.isfile(pmids_not_found_file):
         with open(pmids_not_found_file, 'r') as read_fh:
@@ -175,7 +176,7 @@ def filter_from_md5sum(mod):
     return
 
 
-def sort_dqm_references(input_path, input_mod):      # noqa: C901
+def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa: C901
     """
 
     # TODO
@@ -192,8 +193,6 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
     set_global_user_id(db_session, scriptNm)
     mod_to_mod_id = dict([(x.abbreviation, x.mod_id) for x in db_session.query(ModModel).all()])
     db_session.close()
-
-    base_path = environ.get('XML_PATH')
 
     url_ref_curie_prefix = make_url_ref_curie_prefix()
 
@@ -289,9 +288,9 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
 #         print(db_entry_text)
 
         logger.info("generating new md5")
-        new_md5dict = generate_new_md5(input_path, [mod])
+        new_md5dict = generate_new_md5(input_path, [mod], base_dir=base_dir)
 
-        filename = base_path + input_path + '/REFERENCE_' + mod + '.json'
+        filename = base_dir + input_path + '/REFERENCE_' + mod + '.json'
         logger.info(f"Processing {filename}")
         dqm_data = dict()
         with open(filename, 'r') as f:
@@ -559,7 +558,7 @@ def sort_dqm_references(input_path, input_mod):      # noqa: C901
         # convert xml from base_path pubmed_xml/ to base_path pubmed_json/
         # equivalent to
         # python3 xml_to_json.py -f inputs/alliance_pmids
-        generate_json(pmids_wanted, [])
+        generate_json(pmids_wanted, [], base_dir=base_dir)
 
         # if wanting to recursively download comments and corrections, which Ceri does not want
         # untested equivalent to
@@ -769,7 +768,6 @@ def send_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_title
 
 def read_pmid_file(local_path):
     pmids_wanted = []
-    base_path = environ.get('XML_PATH')
     file = base_path + local_path
     logger.info(f"Processing file input from {file}")
     with open(file, 'r') as fp:
@@ -782,7 +780,6 @@ def read_pmid_file(local_path):
 
 def save_new_references_to_file(references_to_create, mod):
 
-    base_path = environ.get('XML_PATH')
     json_storage_path = base_path + 'dqm_data_updates_new/'
     if not path.exists(json_storage_path):
         makedirs(json_storage_path)

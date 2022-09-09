@@ -1,6 +1,7 @@
 import argparse
 import logging.config
 from os import environ, path
+from typing import List
 
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.sanitize_pubmed_json import \
     sanitize_pubmed_json_list
@@ -15,46 +16,14 @@ logger = logging.getLogger('parse_pubmed_json_reference')
 
 init_tmp_dir()
 
-if __name__ == "__main__":
-    """
-    call main start function
-    """
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--generate-pmid-data', action='store_true', help='generate pmid outputs')
-    parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
-    parser.add_argument('-m', '--mod', action='store', help='which mod, use all or leave blank for all')
-    parser.add_argument('-c', '--commandline', nargs='*', action='store',
-                        help='placeholder for parse_pubmed_json_reference.py')
-
-    args = vars(parser.parse_args())
-
-    pmids_wanted = []
-
-    # python parse_pubmed_json_reference.py -c 1234 4576 1828
-    if args['commandline']:
-        logger.info("Processing commandline input")
-        for pmid in args['commandline']:
-            pmids_wanted.append(pmid)
-
-    elif args['file']:
-        logger.info("Processing file input from %s", args['file'])
+def parse_pubmed_json_reference(pmids: List[str] = None, load_pmids_from_file_path: str = None):
+    if load_pmids_from_file_path:
         base_path = environ.get('XML_PATH')
-        filename = base_path + args['file']
-        try:
-            with open(filename, 'r') as fp:
-                pmid = fp.readline()
-                while pmid:
-                    pmids_wanted.append(pmid.rstrip())
-                    pmid = fp.readline()
-                fp.close()
-        except IOError:
-            logger.info("No input file at %s", filename)
+        logger.info("Processing file input from %s", load_pmids_from_file_path)
+        pmids = [line.strip() for line in open(base_path + load_pmids_from_file_path, 'r')]
 
-    else:
-        logger.info("Must enter a PMID through command line")
-
-    sanitize_pubmed_json_list(pmids_wanted, [])
+    sanitize_pubmed_json_list(pmids, [])
 
     # do below if wanting to post from here, instead of from post_reference_to_api.py
     # base_path = environ.get('XML_PATH')
@@ -62,3 +31,18 @@ if __name__ == "__main__":
     # process_results = post_references(json_filepath)
 
     logger.info("Done Processing")
+
+
+if __name__ == "__main__":
+    """
+    call main start function
+    """
+
+    parser = argparse.ArgumentParser()
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('-c', '--commandline', nargs='*', action='store', help='take input from command line flag')
+    group.add_argument('-f', '--file', action='store', help='take input from entries in file with full path')
+
+    args = vars(parser.parse_args())
+    parse_pubmed_json_reference(pmids=args['commandline'], load_pmids_from_file_path=args['file'])
+

@@ -1,9 +1,9 @@
 import argparse
 import logging.config
 from os import environ, path
-import requests
 
-from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
+from agr_literature_service.api.models import CrossReferenceModel
+from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session, create_postgres_engine
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import download_pubmed_xml
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.sanitize_pubmed_json import sanitize_pubmed_json_list
@@ -22,45 +22,16 @@ logger = logging.getLogger('literature logger')
 init_tmp_dir()
 
 
-def check_pmid_cross_reference(pmid):
-    """
-
-    :param pmid:
-    :return:
-    """
-
-    api_port = environ.get('API_PORT')
-    api_server = environ.get('API_SERVER', 'localhost')
-    url = 'http://' + api_server + ':' + api_port + '/cross_reference/PMID:' + pmid
-    #     'Authorization': 'Bearer <token_goes_here>',
-    headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
-    process_results = []
-    process_result = dict()
-    process_result['text'] = 'cross_reference not found'
-    process_result['status_code'] = 999
-    process_result['found'] = False
-    post_return = requests.get(url, headers=headers)
-    process_status_code = post_return.status_code
-    if process_status_code == 200:
-        process_result['found'] = True
-        process_result['text'] = post_return.json()['reference_curie']
-        process_result['status_code'] = process_status_code
-    process_results.append(process_result)
-    return process_results
-
-
 def process_pmid(pmid):
     """
 
     :param pmid:
     :return:
     """
-
-    process_results = check_pmid_cross_reference(pmid)
-    if not process_results[0]['found']:
+    db_session = create_postgres_session(False)
+    exists = db_session.query(CrossReferenceModel).filter_by(curie="PMID:" + pmid).one_or_none()
+    db_session.close()
+    if not exists:
         base_path = environ.get('XML_PATH')
         pmids_wanted = [pmid]
         download_pubmed_xml(pmids_wanted)

@@ -65,9 +65,9 @@ run-functest:
 	docker-compose --env-file .env.test down -v
 	docker-compose --env-file .env.test up -d postgres
 	sleep 5
-	docker-compose --env-file .env.test up -d api
-	docker logs -f agr-literature-test_api_1 > outfile.log &
-	sleep 5
+	#docker-compose --env-file .env.test up -d api
+	#docker logs -f agr-literature-test_api_1 > outfile.log &
+	#sleep 5
 
 	# load the mods
 	docker-compose --env-file .env.test run test_runner python3 agr_literature_service/lit_processing/tests/mod_populate_load.py

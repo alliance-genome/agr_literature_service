@@ -412,7 +412,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--json_path', action='store', type=str, help='json_file_or_json_file_path', required=True)
-    parser.add_argument('-c', '--check_file', action='store_true', help="need_to_check_file")
+    parser.add_argument('-c', '--live_change', action='store_true', help="need_to_check_file")
 
     args = vars(parser.parse_args())
-    post_references(args['json_path'], args['check_file'])
+    post_references(args['json_path'], args['live_change'])
