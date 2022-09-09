@@ -111,7 +111,3 @@ if __name__ == "__main__":
 
     args = vars(parser.parse_args())
     process_many_pmids_to_json(skip_download=args['skip_download'], pmids=args['commandline'], load_pmids_from_file_path=args['file'])
-
-
-
-

@@ -8,8 +8,8 @@ import logging
 import logging.config
 
 from agr_literature_service.api.database.setup import setup_database
-from agr_literature_service.lit_processing.data_ingest.dqm_ingest.parse_dqm_json_reference import aggregate_dqm_data, \
-    generate_pmid_data, aggregate_dqm_with_pubmed
+from agr_literature_service.lit_processing.data_ingest.dqm_ingest.parse_dqm_json_reference import generate_pmid_data, \
+    aggregate_dqm_with_pubmed
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.sort_dqm_json_reference_updates import \
     sort_dqm_references
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
