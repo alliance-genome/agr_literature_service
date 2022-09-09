@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
-base_path = environ.get('XML_PATH')
+base_path = environ.get("XML_PATH", "")
 
 init_tmp_dir()
 

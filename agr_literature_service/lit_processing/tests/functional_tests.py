@@ -42,7 +42,7 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
-base_path = environ.get('XML_PATH')
+base_path = environ.get("XML_PATH", "")
 
 # connect to docker
 #   docker run --rm --network=agr_literature_service_agr-literature -p 5432:5432 -v ${PWD}:/workdir -t -i 100225593120.dkr.ecr.us-east-1.amazonaws.com/agr_literature_dev:latest /bin/bash
@@ -710,8 +710,7 @@ if __name__ == "__main__":
     aggregate_dqm_with_pubmed(base_dir=local_file_path, input_path="dqm_load_sample", input_mod="all",
                               output_directory="./")
     parse_pubmed_json_reference(load_pmids_from_file_path="inputs/pubmed_only_pmids")
-    base_path = os.environ.get("XML_PATH", "")
-    json_filepath = base_path + '/sanitized_reference_json/'
+    json_filepath = base_path + 'sanitized_reference_json/'
     post_references(json_path=json_filepath)
 
     # load the update

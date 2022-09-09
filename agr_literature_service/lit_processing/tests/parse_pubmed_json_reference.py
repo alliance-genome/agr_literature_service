@@ -19,7 +19,7 @@ init_tmp_dir()
 
 def parse_pubmed_json_reference(pmids: List[str] = None, load_pmids_from_file_path: str = None):
     if load_pmids_from_file_path:
-        base_path = environ.get('XML_PATH')
+        base_path = environ.get("XML_PATH", "")
         logger.info("Processing file input from %s", load_pmids_from_file_path)
         pmids = [line.strip() for line in open(base_path + load_pmids_from_file_path, 'r')]
 
