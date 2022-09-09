@@ -1064,4 +1064,3 @@ if __name__ == "__main__":
     args = vars(parser.parse_args())
     aggregate_dqm_data(base_path, input_dir=args['file'], output_dir=args['directory'], mod=args['mod'],
                        generate_pmid_data_option=args['generate_pmid_data'])
-
