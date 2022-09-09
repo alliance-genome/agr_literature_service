@@ -1,4 +1,4 @@
-from agr_literature_service.lit_processing.helper_sqlalchemy import create_postgres_engine
+from agr_literature_service.lit_processing.utils.helper_sqlalchemy import create_postgres_engine
 from datetime import datetime
 import re
 

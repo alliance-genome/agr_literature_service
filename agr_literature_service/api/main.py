@@ -9,11 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi_health import health
 
-from agr_literature_service.api.initialize import setup_resource_descriptor
-from agr_literature_service.api.models import initialize
-
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.database.main import is_database_online
+from agr_literature_service.api.database.setup import setup_database
 from agr_literature_service.api.routers import (author_router, bulk_downloads_router,
                                                 cross_reference_router, database_router,
                                                 editor_router, mesh_detail_router,
@@ -60,13 +58,8 @@ def custom_openapi() -> Dict[str, Any]:
 
 
 @app.on_event('startup')
-def setup_database():
-    """
-
-    :return:
-    """
-    initialize()
-    setup_resource_descriptor()
+def init_db():
+    setup_database()
 
 
 app.include_router(resource_router.router)
