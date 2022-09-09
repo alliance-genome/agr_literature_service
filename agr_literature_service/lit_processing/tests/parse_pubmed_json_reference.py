@@ -45,4 +45,3 @@ if __name__ == "__main__":
 
     args = vars(parser.parse_args())
     parse_pubmed_json_reference(pmids=args['commandline'], load_pmids_from_file_path=args['file'])
-
