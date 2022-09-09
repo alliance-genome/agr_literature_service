@@ -225,8 +225,6 @@ services:
       - .:/usr/local/bin/src/literature
     networks:
       - agr-literature
-    depends_on:
-      - api
 
   dev_app:
     restart: always
