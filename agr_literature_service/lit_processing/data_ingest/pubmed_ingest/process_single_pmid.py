@@ -3,7 +3,7 @@ import logging.config
 from os import environ, path
 
 from agr_literature_service.api.models import CrossReferenceModel
-from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session, create_postgres_engine
+from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import download_pubmed_xml
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.sanitize_pubmed_json import sanitize_pubmed_json_list
