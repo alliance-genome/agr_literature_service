@@ -1,5 +1,4 @@
 import json
-import os.path
 
 import requests
 import re
