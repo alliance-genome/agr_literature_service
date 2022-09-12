@@ -644,6 +644,7 @@ def add_cross_references(cross_reference_to_add, agr_list_for_cross_refs):
             x = CrossReferenceModel(reference_id=reference_id,
                                     curie=entry["curie"],
                                     pages=entry.get("pages"))
+            db_session.add(x)
             logger.info("The cross_reference row for reference_id = " + str(reference_id) + " and curie = " + entry["curie"] + " has been added into database.")
         except Exception as e:
             logger.info("An error occurred when adding cross_reference row for reference_id = " + str(reference_id) + " and curie = " + entry["curie"] + " " + str(e))
