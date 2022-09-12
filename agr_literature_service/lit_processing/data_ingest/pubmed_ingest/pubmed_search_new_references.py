@@ -463,6 +463,8 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref
     not_loaded_pmids = []
     for pmid in pmids:
         json_file = json_path + pmid + ".json"
+        if not path.exists(json_file):
+            continue
         f = open(json_file)
         json_data = json.load(f)
         f.close()
