@@ -31,14 +31,14 @@ jobs:
           HOST: 0.0.0.0
           PSQL_USERNAME: postgres
           PSQL_PASSWORD: postgres
-          PSQL_HOST: postgres
+          PSQL_HOST: localhost
           PSQL_PORT: 5432
           PSQL_DATABASE: literature-test
           PYTHONPATH: agr_literature_service/lit_processing/
           OKTA_DOMAIN: 'dev-30456587.okta.com/oauth2/default'
           OKTA_API_AUDIENCE: 'api://default'
           RESOURCE_DESCRIPTOR_URL: 'https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/resourceDescriptors.yaml'
-          ELASTICSEARCH_HOST: elasticsearch
+          ELASTICSEARCH_HOST: localhost
           ELASTICSEARCH_PORT: 9200
           ELASTICSEARCH_INDEX: references_index
           XML_PATH: tests/tmp
