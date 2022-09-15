@@ -155,7 +155,7 @@ def get_medline_date_from_xml_date(pub_date):
         return medline_re_output.group(1)
 
 
-def get_alliance_category_from_pubmed_types(pubmed_types):     # noqa: C901
+def get_alliance_category_from_pubmed_types(pubmed_types: List[str]):     # noqa: C901
 
     # for functional tests work
     mapping_path = path.dirname(path.abspath(__file__)) + "/data_for_pubmed_processing/"

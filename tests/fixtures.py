@@ -9,6 +9,7 @@ from os import environ
 
 def delete_all_table_content(engine):
     if environ.get('TEST_DATABASE_DELETE') == "true":
+        print("***** Deleting tables *****")
         for table in reversed(Base.metadata.sorted_tables):
             if table != "users":
                 engine.execute(table.delete())
@@ -22,5 +23,5 @@ def db() -> Session:
     delete_all_table_content(engine)
     db = sessionmaker(bind=engine, autoflush=True)()
     yield db
-    print("***** Deleting DB connection *****")
     delete_all_table_content(engine)
+    print("***** Deleting DB connection *****")

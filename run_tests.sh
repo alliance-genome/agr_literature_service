@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 export ENV_STATE=test
 # pytest -vv
-pytest
+pytest -m "not webtest"
 
