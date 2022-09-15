@@ -2,7 +2,7 @@
 # needs AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in environment.
 
 
-from os import environ
+from os import environ, path
 import sys
 import logging
 import logging.config
@@ -77,6 +77,8 @@ def upload_xml_file_to_s3(pmid, subDir=None):
         bucketname = 'agr-literature'
         xml_filename = pmid + '.xml'
         local_file_location = base_path + 'pubmed_xml/' + xml_filename
+        if not path.exists(local_file_location):
+            return
         if subDir is None:
             s3_file_location = env_state + '/reference/metadata/pubmed/xml/original/' + xml_filename
         else:
