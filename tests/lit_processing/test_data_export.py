@@ -5,7 +5,7 @@ from ..fixtures import db # noqa
 
 
 @pytest.fixture
-def test_data(db):
+def test_data(db): # noqa
     print("***** Loading data into the DB *****")
     print("***** Adding mods *****")
     post_mods()
