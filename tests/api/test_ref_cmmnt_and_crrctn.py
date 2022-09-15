@@ -6,7 +6,8 @@ from fastapi import status
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import ReferenceModel, ReferenceCommentAndCorrectionModel
-from .fixtures import auth_headers, db # noqa
+from ..fixtures import db # noqa
+from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 
 test_reference2 = test_reference

@@ -7,7 +7,8 @@ from fastapi import status, HTTPException
 from agr_literature_service.api.crud.mod_crud import destroy as destroy_mod, show as show_mod
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import ModModel
-from .fixtures import auth_headers, db # noqa
+from ..fixtures import db # noqa
+from .fixtures import auth_headers # noqa
 
 TestModData = namedtuple('TestModData', ['response', 'new_mod_id', 'new_mod_abbreviation'])
 
