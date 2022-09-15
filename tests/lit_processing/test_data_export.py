@@ -16,5 +16,5 @@ def test_data(db):
 
 class TestDataExport:
 
-    def test_dump_data(self, test_data):
+    def test_dump_data(self, test_data): # noqa
         assert True
