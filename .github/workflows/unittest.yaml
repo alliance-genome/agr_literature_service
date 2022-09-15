@@ -41,6 +41,7 @@ jobs:
           ELASTICSEARCH_HOST: elasticsearch
           ELASTICSEARCH_PORT: 9200
           ELASTICSEARCH_INDEX: references_index
+          XML_PATH: tests/tmp
         run: |
           docker-compose --env-file .env.test down -v
           docker-compose --env-file .env.test up -d postgres
