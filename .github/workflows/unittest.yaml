@@ -35,4 +35,12 @@ jobs:
           PSQL_PORT: 5432
           PSQL_DATABASE: literature-test
           PYTHONPATH: agr_literature_service/lit_processing/
-        run: make run-test-bash
+        run: |
+          docker-compose --env-file .env.test down -v
+          docker-compose --env-file .env.test up -d postgres
+          sleep 5
+          docker-compose --env-file .env.test up -d elasticsearch
+          docker-compose --env-file .env.test up -d --build api
+          sleep 10
+          pytest -m "not webtest"
+          docker-compose --env-file .env.test down -v
