@@ -3,7 +3,7 @@ from os import environ
 import pytest
 
 from agr_literature_service.api.models import initialize
-from agr_literature_service.lit_processing.helper_post_to_api import get_authentication_token, generate_headers
+from agr_literature_service.lit_processing.utils.okta_utils import get_authentication_token, generate_headers
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from sqlalchemy import create_engine
