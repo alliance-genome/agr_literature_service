@@ -4,7 +4,7 @@ from os import path, stat
 from agr_literature_service.lit_processing.data_export.export_all_mod_references_to_json import \
     dump_all_data
 from tests.utils import cleanup_tmp_files
-import load_references
+import tests.lit_processing.data_export import load_references
 
 
 class TestExportAllModReferencesToJson:
