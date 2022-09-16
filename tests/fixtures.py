@@ -13,7 +13,7 @@ from agr_literature_service.lit_processing.tests.mod_populate_load import post_m
 
 
 def delete_all_table_content(engine):
-    if environ.get('TEST_DATABASE_DELETE') == "true":
+    if environ.get('TEST_CLEANUP') == "true":
         print("***** Deleting tables *****")
         for table in reversed(Base.metadata.sorted_tables):
             if table != "users":
@@ -40,8 +40,9 @@ def cleanup_tmp_files_when_done():
     The cleanup is happening when the test importing this fixture exits, not when it is called
     """
     yield None
-    base_path = environ.get('XML_PATH')
-    shutil.rmtree(base_path)
+    if environ.get('TEST_CLEANUP') == "true":
+        base_path = environ.get('XML_PATH')
+        shutil.rmtree(base_path)
 
 
 @pytest.fixture
