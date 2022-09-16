@@ -1,7 +1,9 @@
 [run]
-source = agr_literature_service/api
+source = agr_literature_service
 # routers NOT tested here. just method calls.
-omit = agr_literature_service/api/routers/*
+omit =
+        agr_literature_service/api/routers/*
+        agr_literature_service/lit_processing/oneoff_scripts/*
 
 [report]
 exclude_lines =
