@@ -155,6 +155,7 @@ def download_pubmed_xml(pmids_wanted: List[str]):
                     # logger.info(clean_xml)
                     if re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml):
                         pmid_group = re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml)
+                        assert pmid_group is not None
                         pmid = pmid_group.group(1)
                         pmids_found.add(pmid)
                         filename = storage_path + pmid + '.xml'
