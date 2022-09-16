@@ -16,5 +16,3 @@ class TestProcessSinglePMID:
             assert os.path.exists(os.path.join(base_path, "pubmed_xml", "12345.xml"))
         finally:
             cleanup_tmp_files()
-
-

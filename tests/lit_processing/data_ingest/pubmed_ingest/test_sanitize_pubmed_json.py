@@ -2,7 +2,6 @@ import json
 import os
 from os import environ
 
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import download_pubmed_xml
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.sanitize_pubmed_json import \
     sanitize_pubmed_json_list
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import generate_json
