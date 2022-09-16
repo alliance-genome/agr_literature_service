@@ -1,0 +1,492 @@
+[
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "paper",
+                "source": "FB"
+            }
+        ],
+        "abstract": "Identifying the direction of signal flows in neural networks is important for understanding the intricate information dynamics of a living brain. Using a dataset of 213 projection neurons distributed in more than 15 neuropils of a Drosophila brain, we develop a powerful machine learning algorithm: node-based polarity identifier of neurons (NPIN). The proposed model is trained only by information specific to nodes, the branch points on the skeleton, and includes both Soma Features (which contain spatial information from a given node to a soma) and Local Features (which contain morphological information of a given node). After including the spatial correlations between nodal polarities, our NPIN provided extremely high accuracy (&gt;96.0%) for the classification of neuronal polarity, even for complex neurons with more than two dendrite/axon clusters. Finally, we further apply NPIN to classify the neuronal polarity of neurons in other species (Blowfly and Moth), which have much less neuronal data available. Our results demonstrate the potential of NPIN as a powerful tool to identify the neuronal polarity of insects and to map out the signal flows in the brain's neural networks if more training data become available in the future.",
+        "allianceCategory": "Research Article",
+        "authors": [
+            {
+                "affiliations": [
+                    "Brain Research Center, National Tsing Hua University, Hsinchu, 30013, Taiwan.",
+                    "Physics Division, National Center for Theoretical Sciences, Hsinchu, 30013, Taiwan."
+                ],
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "CZ",
+                "firstname": "Chen-Zhi",
+                "lastname": "Su",
+                "name": "Chen-Zhi Su"
+            },
+            {
+                "affiliations": [
+                    "Brain Research Center, National Tsing Hua University, Hsinchu, 30013, Taiwan.",
+                    "Department of Physics, National Tsing Hua University, Hsinchu, 30013, Taiwan."
+                ],
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "KT",
+                "firstname": "Kuan-Ting",
+                "lastname": "Chou",
+                "name": "Kuan-Ting Chou"
+            },
+            {
+                "affiliations": [
+                    "Institute of Systems Neuroscience, National Tsing Hua University, Hsinchu, 30013, Taiwan."
+                ],
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "HP",
+                "firstname": "Hsuan-Pei",
+                "lastname": "Huang",
+                "name": "Hsuan-Pei Huang"
+            },
+            {
+                "affiliations": [
+                    "Brain Research Center, National Tsing Hua University, Hsinchu, 30013, Taiwan.",
+                    "Department of Physics, National Tsing Hua University, Hsinchu, 30013, Taiwan."
+                ],
+                "authorRank": 4,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "CJ",
+                "firstname": "Chiau-Jou",
+                "lastname": "Li",
+                "name": "Chiau-Jou Li"
+            },
+            {
+                "affiliations": [
+                    "Institute of Systems Neuroscience, National Tsing Hua University, Hsinchu, 30013, Taiwan."
+                ],
+                "authorRank": 5,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "CC",
+                "firstname": "Ching-Che",
+                "lastname": "Charng",
+                "name": "Ching-Che Charng"
+            },
+            {
+                "affiliations": [
+                    "Brain Research Center, National Tsing Hua University, Hsinchu, 30013, Taiwan. cclo@mx.nthu.edu.tw.",
+                    "Institute of Systems Neuroscience, National Tsing Hua University, Hsinchu, 30013, Taiwan. cclo@mx.nthu.edu.tw."
+                ],
+                "authorRank": 6,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "CC",
+                "firstname": "Chung-Chuan",
+                "lastname": "Lo",
+                "name": "Chung-Chuan Lo"
+            },
+            {
+                "affiliations": [
+                    "Physics Division, National Center for Theoretical Sciences, Hsinchu, 30013, Taiwan. dwwang@phys.nthu.edu.tw.",
+                    "Department of Physics, National Tsing Hua University, Hsinchu, 30013, Taiwan. dwwang@phys.nthu.edu.tw.",
+                    "Center for Quantum Technology, National Tsing Hua University, Hsinchu, 30013, Taiwan. dwwang@phys.nthu.edu.tw."
+                ],
+                "authorRank": 7,
+                "correspondingAuthor": false,
+                "crossReferences": [
+                    {
+                        "id": "ORCID:0000-0001-8160-6570",
+                        "pages": [
+                            "person/orcid"
+                        ]
+                    }
+                ],
+                "firstAuthor": false,
+                "firstinit": "DW",
+                "firstname": "Daw-Wei",
+                "lastname": "Wang",
+                "name": "Daw-Wei Wang",
+                "orcid": "0000-0001-8160-6570"
+            }
+        ],
+        "crossReferences": [
+            {
+                "id": "PMID:33666823"
+            },
+            {
+                "id": "DOI:10.1007/s12021-021-09513-y"
+            },
+            {
+                "id": "PMCID:PMC8566381"
+            },
+            {
+                "id": "NLM:101142069"
+            },
+            {
+                "id": "ISSN:1539-2791"
+            },
+            {
+                "id": "FB:FBrf0251760",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "dateLastModified": "2022-02-18",
+        "datePublished": "2021-10-01",
+        "issueName": "4",
+        "keywords": [
+            "Axon",
+            "Connectome",
+            "Dendrite",
+            "Drosophila",
+            "Machine learning",
+            "Neuronal polarity"
+        ],
+        "language": "English",
+        "meshTerms": [
+            {
+                "meshHeadingTerm": "Axons",
+                "referenceId": "PMID:33666823"
+            },
+            {
+                "meshHeadingTerm": "Cell Body",
+                "referenceId": "PMID:33666823"
+            },
+            {
+                "meshHeadingTerm": "Machine Learning",
+                "referenceId": "PMID:33666823"
+            },
+            {
+                "meshHeadingTerm": "Neural Networks, Computer",
+                "referenceId": "PMID:33666823"
+            },
+            {
+                "meshHeadingTerm": "Neurons",
+                "referenceId": "PMID:33666823"
+            }
+        ],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "FB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "mod_corpus_associations": [
+            {
+                "corpus": true,
+                "mod_abbreviation": "FB",
+                "mod_corpus_sort_source": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:101142069"
+        ],
+        "pages": "669-684",
+        "primaryId": "PMID:33666823",
+        "pubMedType": [
+            "Journal Article",
+            "Research Support, Non-U.S. Gov't"
+        ],
+        "publicationStatus": "ppublish",
+        "resource": "NLM:101142069",
+        "resourceAbbreviation": "Neuroinformatics",
+        "title": "Identification of Neuronal Polarity by Node-Based Machine Learning.",
+        "volume": "19"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "paper",
+                "source": "FB"
+            }
+        ],
+        "abstract": "Epithelial folding is a common means to execute morphogenetic movements. The gastrulating Drosophila embryo offers many examples of epithelial folding events, including the ventral, cephalic, and dorsal furrows. Each of these folding events is associated with changes in intracellular contractility and/or cytoskeleton structures that autonomously promote epithelial folding. Here, we review accumulating evidence that suggests the progression and final form of ventral, cephalic, and dorsal furrows are also influenced by the behaviour of cells neighbouring these folds. We further discuss the prevalence and importance of junctional rearrangements during epithelial folding events, suggesting adherens junction components are prime candidates to modulate the transmission of the intercellular forces that influence folding events. Finally, we discuss how recently developed methods that enable precise spatial and/or temporal control of protein activity allow direct testing of molecular models of morphogenesis in vivo.",
+        "allianceCategory": "Research Article",
+        "authors": [
+            {
+                "affiliations": [
+                    "Department of Molecular Genetics and Cell Biology, University of Chicago, Chicago, IL, USA.",
+                    "Department of Cell Biology, Duke University School of Medicine, Durham, NC, USA."
+                ],
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "crossReferences": [
+                    {
+                        "id": "ORCID:0000-0003-2597-8104",
+                        "pages": [
+                            "person/orcid"
+                        ]
+                    }
+                ],
+                "firstAuthor": false,
+                "firstinit": "A",
+                "firstname": "Ashley",
+                "lastname": "Rich",
+                "name": "Ashley Rich",
+                "orcid": "0000-0003-2597-8104"
+            },
+            {
+                "affiliations": [
+                    "Department of Molecular Genetics and Cell Biology, University of Chicago, Chicago, IL, USA."
+                ],
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "crossReferences": [
+                    {
+                        "id": "ORCID:0000-0002-8723-7232",
+                        "pages": [
+                            "person/orcid"
+                        ]
+                    }
+                ],
+                "firstAuthor": false,
+                "firstinit": "M",
+                "firstname": "Michael",
+                "lastname": "Glotzer",
+                "name": "Michael Glotzer",
+                "orcid": "0000-0002-8723-7232"
+            }
+        ],
+        "crossReferences": [
+            {
+                "id": "PMID:33985411"
+            },
+            {
+                "id": "DOI:10.1080/21541248.2021.1926879"
+            },
+            {
+                "id": "PMCID:PMC8583230"
+            },
+            {
+                "id": "NLM:101530974"
+            },
+            {
+                "id": "ISSN:2154-1248"
+            },
+            {
+                "id": "FB:FBrf0251763",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "dateLastModified": "2022-07-16",
+        "datePublished": "2021 Sep-Nov",
+        "issueName": "5-6",
+        "keywords": [
+            "Adherens Junctions",
+            "Drosophila",
+            "Morphogenesis",
+            "Optogenetics",
+            "Rho signaling"
+        ],
+        "language": "English",
+        "meshTerms": [
+            {
+                "meshHeadingTerm": "Animals",
+                "referenceId": "PMID:33985411"
+            },
+            {
+                "meshHeadingTerm": "Cytoskeleton",
+                "meshQualifierTerm": "enzymology",
+                "referenceId": "PMID:33985411"
+            },
+            {
+                "meshHeadingTerm": "Cytoskeleton",
+                "meshQualifierTerm": "physiology",
+                "referenceId": "PMID:33985411"
+            },
+            {
+                "meshHeadingTerm": "Drosophila",
+                "meshQualifierTerm": "enzymology",
+                "referenceId": "PMID:33985411"
+            },
+            {
+                "meshHeadingTerm": "Drosophila",
+                "meshQualifierTerm": "physiology",
+                "referenceId": "PMID:33985411"
+            },
+            {
+                "meshHeadingTerm": "Drosophila Proteins",
+                "meshQualifierTerm": "metabolism",
+                "referenceId": "PMID:33985411"
+            },
+            {
+                "meshHeadingTerm": "Embryo, Nonmammalian",
+                "meshQualifierTerm": "cytology",
+                "referenceId": "PMID:33985411"
+            },
+            {
+                "meshHeadingTerm": "Embryo, Nonmammalian",
+                "meshQualifierTerm": "enzymology",
+                "referenceId": "PMID:33985411"
+            },
+            {
+                "meshHeadingTerm": "Embryo, Nonmammalian",
+                "meshQualifierTerm": "physiology",
+                "referenceId": "PMID:33985411"
+            },
+            {
+                "meshHeadingTerm": "Epithelial Cells",
+                "meshQualifierTerm": "enzymology",
+                "referenceId": "PMID:33985411"
+            },
+            {
+                "meshHeadingTerm": "Epithelial Cells",
+                "meshQualifierTerm": "physiology",
+                "referenceId": "PMID:33985411"
+            },
+            {
+                "meshHeadingTerm": "Microtubules",
+                "meshQualifierTerm": "enzymology",
+                "referenceId": "PMID:33985411"
+            },
+            {
+                "meshHeadingTerm": "Microtubules",
+                "meshQualifierTerm": "physiology",
+                "referenceId": "PMID:33985411"
+            },
+            {
+                "meshHeadingTerm": "Monomeric GTP-Binding Proteins",
+                "meshQualifierTerm": "metabolism",
+                "referenceId": "PMID:33985411"
+            },
+            {
+                "meshHeadingTerm": "Morphogenesis",
+                "referenceId": "PMID:33985411"
+            }
+        ],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "FB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "mod_corpus_associations": [
+            {
+                "corpus": true,
+                "mod_abbreviation": "FB",
+                "mod_corpus_sort_source": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:101530974"
+        ],
+        "pages": "416-428",
+        "primaryId": "PMID:33985411",
+        "pubMedType": [
+            "Journal Article",
+            "Research Support, N.I.H., Extramural",
+            "Review"
+        ],
+        "publicationStatus": "ppublish",
+        "resource": "NLM:101530974",
+        "resourceAbbreviation": "Small GTPases",
+        "title": "Small GTPases modulate intrinsic and extrinsic forces that control epithelial folding in <i>Drosophila</i> embryos.",
+        "volume": "12"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "paper",
+                "source": "FB"
+            }
+        ],
+        "abstract": "One of the major issues in phylogenetic analysis is that gene genealogies from different gene regions may not reflect the true species tree or history of speciation. This has led to considerable debate about whether concatenation of loci is the best approach for phylogenetic analysis. The application of Next-generation sequencing techniques such as RAD-seq generates thousands of relatively short sequence reads from across the genomes of the sampled taxa. These data sets are typically concatenated for phylogenetic analysis leading to data sets that contain millions of base pairs per taxon. The influence of gene region conflict among so many loci in determining the phylogenetic relationships among taxa is unclear. We simulated RAD-seq data by sampling 100 and 500 base pairs from alignments of over 6000 coding regions that each produce one of three highly supported alternative phylogenies of seven species of Drosophila. We conducted phylogenetic analyses on different sets of these regions to vary the sampling of loci with alternative gene trees to examine the effect on detecting the species tree. Irrespective of sequence length sampled per region and which subset of regions was used, phylogenetic analyses of the concatenated data always recovered the species tree. The results suggest that concatenated alignments of Next-generation data that consist of many short sequences are robust to gene tree/species tree conflict when the goal is to determine the phylogenetic relationships among taxa.",
+        "allianceCategory": "Research Article",
+        "authors": [
+            {
+                "affiliations": [
+                    "Department of Biology, Syracuse University, 107 College Place, Syracuse, NY, 13244, USA."
+                ],
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "DM",
+                "firstname": "David M",
+                "lastname": "Rivers",
+                "name": "David M Rivers"
+            },
+            {
+                "affiliations": [
+                    "Department of Biology, Syracuse University, 107 College Place, Syracuse, NY, 13244, USA."
+                ],
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "CT",
+                "firstname": "Clive T",
+                "lastname": "Darwell",
+                "name": "Clive T Darwell"
+            },
+            {
+                "affiliations": [
+                    "Department of Biology, Syracuse University, 107 College Place, Syracuse, NY, 13244, USA."
+                ],
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "DM",
+                "firstname": "David M",
+                "lastname": "Althoff",
+                "name": "David M Althoff"
+            }
+        ],
+        "crossReferences": [
+            {
+                "id": "PMID:34727672"
+            },
+            {
+                "id": "DOI:10.1111/cla.12149"
+            },
+            {
+                "id": "NLM:9881057"
+            },
+            {
+                "id": "ISSN:0748-3007"
+            },
+            {
+                "id": "FB:FBrf0251771",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "dateLastModified": "2021-11-03",
+        "datePublished": "2016-12-01",
+        "issueName": "6",
+        "keywords": [],
+        "language": "English",
+        "meshTerms": [],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "FB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "mod_corpus_associations": [
+            {
+                "corpus": true,
+                "mod_abbreviation": "FB",
+                "mod_corpus_sort_source": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:9881057"
+        ],
+        "pages": "672-681",
+        "primaryId": "PMID:34727672",
+        "pubMedType": [
+            "Journal Article"
+        ],
+        "publicationStatus": "ppublish",
+        "resource": "NLM:9881057",
+        "resourceAbbreviation": "Cladistics : the international journal of the Willi Hennig Society",
+        "title": "Phylogenetic analysis of RAD-seq data: examining the influence of gene genealogy conflict on analysis of concatenated data.",
+        "volume": "32"
+    }
+]

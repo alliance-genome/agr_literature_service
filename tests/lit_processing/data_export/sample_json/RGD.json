@@ -1,0 +1,440 @@
+[
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "JOURNAL ARTICLE",
+                "source": "RGD"
+            }
+        ],
+        "abstract": "The Fas system has been identified as a key regulator of testicular germ cell apoptosis. The goal of these experiments was to explore the expression of Fas system-related genes in the testis during development and after toxicant exposure. Both Fas ligand (FasL) and Fas receptor (Fas) were expressed postnatally in rat testis with peak expression associated with the high levels of germ cell apoptosis found during the first wave of spermatogenesis. The testicular expression of RIP and FAP-1, components of the Fas activating complex, increased after exposure to mono-(2-ethylhexyl)phthalate (MEHP), a Sertoli cell toxicant which induces massive germ cell death. Finally, the expression of additional apoptosis-inducing genes, including tumor necrosis factor receptor (TNFR), FADD, TRAIL, and DR5, was detected in mammalian testis. These results provide additional support for the following concepts: (1) Sertoli-germ cell interactions are important in the control of germ cell apoptosis; and (2) the Fas system and similar paracrine systems are important modulators of testicular homeostasis.",
+        "allianceCategory": "Research Article",
+        "authors": [
+            {
+                "affiliations": [
+                    "Department of Pathology and Laboratory Medicine, Brown University, Providence, RI 02912, USA. kim_boekelheide@brown.edu"
+                ],
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "K",
+                "firstname": "K",
+                "lastname": "Boekelheide",
+                "name": "K Boekelheide"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "J",
+                "firstname": "J",
+                "lastname": "Lee",
+                "name": "J Lee"
+            },
+            {
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "EB",
+                "firstname": "E B",
+                "lastname": "Shipp",
+                "name": "E B Shipp"
+            },
+            {
+                "authorRank": 4,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "JH",
+                "firstname": "J H",
+                "lastname": "Richburg",
+                "name": "J H Richburg"
+            },
+            {
+                "authorRank": 5,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "G",
+                "firstname": "G",
+                "lastname": "Li",
+                "name": "G Li"
+            }
+        ],
+        "crossReferences": [
+            {
+                "id": "PMID:10022303"
+            },
+            {
+                "id": "DOI:10.1016/s0378-4274(98)00242-2"
+            },
+            {
+                "id": "NLM:7709027"
+            },
+            {
+                "id": "ISSN:0378-4274"
+            },
+            {
+                "id": "RGD:152975630",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "dateLastModified": "2019-08-19",
+        "datePublished": "1998-12-28",
+        "keywords": [],
+        "meshTerms": [
+            {
+                "meshHeadingTerm": "Animals",
+                "referenceId": "PMID:10022303"
+            },
+            {
+                "meshHeadingTerm": "Carrier Proteins",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:10022303"
+            },
+            {
+                "meshHeadingTerm": "Diethylhexyl Phthalate",
+                "meshQualifierTerm": "analogs &amp; derivatives",
+                "referenceId": "PMID:10022303"
+            },
+            {
+                "meshHeadingTerm": "Diethylhexyl Phthalate",
+                "meshQualifierTerm": "toxicity",
+                "referenceId": "PMID:10022303"
+            },
+            {
+                "meshHeadingTerm": "Fetus",
+                "meshQualifierTerm": "drug effects",
+                "referenceId": "PMID:10022303"
+            },
+            {
+                "meshHeadingTerm": "Gene Expression Regulation",
+                "meshQualifierTerm": "drug effects",
+                "referenceId": "PMID:10022303"
+            },
+            {
+                "meshHeadingTerm": "Male",
+                "referenceId": "PMID:10022303"
+            },
+            {
+                "meshHeadingTerm": "Mice",
+                "referenceId": "PMID:10022303"
+            },
+            {
+                "meshHeadingTerm": "Protein Tyrosine Phosphatase, Non-Receptor Type 13",
+                "referenceId": "PMID:10022303"
+            },
+            {
+                "meshHeadingTerm": "Protein Tyrosine Phosphatases",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:10022303"
+            },
+            {
+                "meshHeadingTerm": "Proteins",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:10022303"
+            },
+            {
+                "meshHeadingTerm": "Rats",
+                "referenceId": "PMID:10022303"
+            },
+            {
+                "meshHeadingTerm": "Rats, Inbred F344",
+                "referenceId": "PMID:10022303"
+            },
+            {
+                "meshHeadingTerm": "Receptor-Interacting Protein Serine-Threonine Kinases",
+                "referenceId": "PMID:10022303"
+            },
+            {
+                "meshHeadingTerm": "Testis",
+                "meshQualifierTerm": "drug effects",
+                "referenceId": "PMID:10022303"
+            },
+            {
+                "meshHeadingTerm": "Testis",
+                "meshQualifierTerm": "metabolism",
+                "referenceId": "PMID:10022303"
+            },
+            {
+                "meshHeadingTerm": "fas Receptor",
+                "meshQualifierTerm": "physiology",
+                "referenceId": "PMID:10022303"
+            }
+        ],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "RGD",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "mod_corpus_associations": [
+            {
+                "corpus": true,
+                "mod_abbreviation": "RGD",
+                "mod_corpus_sort_source": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:7709027"
+        ],
+        "pages": "503-8",
+        "primaryId": "PMID:10022303",
+        "pubMedType": [
+            "Journal Article",
+            "Research Support, Non-U.S. Gov't",
+            "Research Support, U.S. Gov't, P.H.S."
+        ],
+        "publicationStatus": "ppublish",
+        "resource": "NLM:7709027",
+        "resourceAbbreviation": "Toxicology letters",
+        "title": "Expression of Fas system-related genes in the testis during development and after toxicant exposure.",
+        "volume": "102-103"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "JOURNAL ARTICLE",
+                "source": "RGD"
+            }
+        ],
+        "abstract": "The characterization of the Caenorhabditis elegans unc-47 gene recently allowed the identification of a mammalian (gamma)-amino butyric acid (GABA) transporter, presumed to be located in the synaptic vesicle membrane. In situ hybridization data in rat brain suggested that it might also take up glycine and thus represent a general Vesicular Inhibitory Amino Acid Transporter (VIAAT). In the present study, we have investigated the localization of VIAAT in neurons by using a polyclonal antibody raised against the hydrophilic N-terminal domain of the protein. Light microscopy and immunocytochemistry in primary cultures or tissue sections of the rat spinal cord revealed that VIAAT was localized in a subset (63-65%) of synaptophysin-immunoreactive terminal boutons; among the VIAAT-positive terminals around motoneuronal somata, 32.9% of them were also immunoreactive for GAD65, a marker of GABAergic presynaptic endings. Labelling was also found apposed to clusters positive for the glycine receptor or for its associated protein gephyrin. At the ultrastructural level, VIAAT immunoreactivity was restricted to presynaptic boutons exhibiting classical inhibitory features and, within the boutons, concentrated over synaptic vesicle clusters. Pre-embedding detection of VIAAT followed by post-embedding detection of GABA or glycine on serial sections of the spinal cord or cerebellar cortex indicated that VIAAT was present in glycine-, GABA- or GABA- and glycine-containing boutons. Taken together, these data further support the view of a common vesicular transporter for these two inhibitory transmitters, which would be responsible for their costorage in the same synaptic vesicle and subsequent corelease at mixed GABA-and-glycine synapses.",
+        "allianceCategory": "Research Article",
+        "authors": [
+            {
+                "affiliations": [
+                    "Laboratoire de Biologie Cellulaire de la Synapse (INSERM U 497), Ecole Normale Sup\u00e9rieure, France."
+                ],
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "A",
+                "firstname": "A",
+                "lastname": "Dumoulin",
+                "name": "A Dumoulin"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "P",
+                "firstname": "P",
+                "lastname": "Rostaing",
+                "name": "P Rostaing"
+            },
+            {
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "C",
+                "firstname": "C",
+                "lastname": "Bedet",
+                "name": "C Bedet"
+            },
+            {
+                "authorRank": 4,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "S",
+                "firstname": "S",
+                "lastname": "L\u00e9vi",
+                "name": "S L\u00e9vi"
+            },
+            {
+                "authorRank": 5,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "MF",
+                "firstname": "M F",
+                "lastname": "Isambert",
+                "name": "M F Isambert"
+            },
+            {
+                "authorRank": 6,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "JP",
+                "firstname": "J P",
+                "lastname": "Henry",
+                "name": "J P Henry"
+            },
+            {
+                "authorRank": 7,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "A",
+                "firstname": "A",
+                "lastname": "Triller",
+                "name": "A Triller"
+            },
+            {
+                "authorRank": 8,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "B",
+                "firstname": "B",
+                "lastname": "Gasnier",
+                "name": "B Gasnier"
+            }
+        ],
+        "crossReferences": [
+            {
+                "id": "PMID:10036231"
+            },
+            {
+                "id": "DOI:10.1242/jcs.112.6.811"
+            },
+            {
+                "id": "NLM:0052457"
+            },
+            {
+                "id": "ISSN:0021-9533"
+            },
+            {
+                "id": "RGD:151665723",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "dateLastModified": "2022-02-15",
+        "datePublished": "1999-03-01",
+        "keywords": [],
+        "meshTerms": [
+            {
+                "meshHeadingTerm": "Amino Acid Transport Systems",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Animals",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Antibody Specificity",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "COS Cells",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Carrier Proteins",
+                "meshQualifierTerm": "analysis",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Cells, Cultured",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Embryo, Mammalian",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Glycine",
+                "meshQualifierTerm": "analysis",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Immunohistochemistry",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Mice",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Microscopy, Immunoelectron",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Neurons",
+                "meshQualifierTerm": "cytology",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Neurons",
+                "meshQualifierTerm": "ultrastructure",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Presynaptic Terminals",
+                "meshQualifierTerm": "classification",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Presynaptic Terminals",
+                "meshQualifierTerm": "ultrastructure",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Rabbits",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Rats",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Rats, Sprague-Dawley",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Spinal Cord",
+                "meshQualifierTerm": "cytology",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Spinal Cord",
+                "meshQualifierTerm": "ultrastructure",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Transfection",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Vesicular Inhibitory Amino Acid Transport Proteins",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "Vesicular Transport Proteins",
+                "referenceId": "PMID:10036231"
+            },
+            {
+                "meshHeadingTerm": "gamma-Aminobutyric Acid",
+                "meshQualifierTerm": "analysis",
+                "referenceId": "PMID:10036231"
+            }
+        ],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "RGD",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "mod_corpus_associations": [
+            {
+                "corpus": true,
+                "mod_abbreviation": "RGD",
+                "mod_corpus_sort_source": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:0052457"
+        ],
+        "pages": "811-23",
+        "primaryId": "PMID:10036231",
+        "pubMedType": [
+            "Journal Article",
+            "Research Support, Non-U.S. Gov't"
+        ],
+        "publicationStatus": "ppublish",
+        "resource": "NLM:0052457",
+        "resourceAbbreviation": "Journal of cell science",
+        "title": "Presence of the vesicular inhibitory amino acid transporter in GABAergic and glycinergic synaptic terminal boutons.",
+        "volume": "112 ( Pt 6)"
+    }
+]
+
