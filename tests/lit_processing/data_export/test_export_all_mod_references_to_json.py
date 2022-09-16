@@ -1,5 +1,5 @@
 import json
-from os import environ, path
+from os import path, stat
 
 from agr_literature_service.lit_processing.data_export.export_all_mod_references_to_json import \
     dump_all_data
@@ -18,8 +18,8 @@ class TestExportAllModReferencesToJson:
             mod_to_count = {'WB': 1, 'XB': 2, 'ZFIN': 3, 'FB': 3, 'SGD': 2, 'RGD': 2, 'MGI': 2}
             for mod in ['WB', 'XB', 'ZFIN', 'FB', 'SGD', 'RGD', 'MGI']:
                 json_file = json_path + "reference" + "_" + mod + ".json"
-                assert os.path.exists(json_file)
-                assert os.stat(json_file).st_size > 5000
+                assert path.exists(json_file)
+                assert stat(json_file).st_size > 5000
                 json_data = json.load(open(json_file))
                 assert len(json_data['data']) == mod_to_count[mod]
                 assert 'category' in json_data['data']

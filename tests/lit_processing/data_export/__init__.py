@@ -8,4 +8,3 @@ def load_references():
     json_file_path = path.dirname(path.abspath(__file__)) + "/sample_json/"
 
     post_references(json_path=json_file_path)
-
