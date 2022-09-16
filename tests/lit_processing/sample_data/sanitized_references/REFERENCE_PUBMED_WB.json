@@ -114,7 +114,7 @@
         ],
         "modCorpusAssociations": [
             {
-                "corpus": null,
+                "corpus": true,
                 "modAbbreviation": "WB",
                 "modCorpusSortSource": "mod_pubmed_search"
             }
