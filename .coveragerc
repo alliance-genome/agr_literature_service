@@ -4,6 +4,7 @@ source = agr_literature_service
 omit =
         agr_literature_service/api/routers/*
         agr_literature_service/lit_processing/oneoff_scripts/*
+        agr_literature_service/lit_processing/tests/*
 
 [report]
 exclude_lines =
