@@ -41,7 +41,7 @@ jobs:
           ELASTICSEARCH_HOST: localhost
           ELASTICSEARCH_PORT: 9200
           ELASTICSEARCH_INDEX: references_index
-          XML_PATH: tests/tmp
+          XML_PATH: ${{env.GITHUB_WORKSPACE}}/tests/tmp/
           OKTA_CLIENT_ID: ${{ secrets.okta_client_id }}
           OKTA_CLIENT_SECRET: ${{ secrets.okta_client_secret }}
         run: |
