@@ -19,7 +19,7 @@ class TestXmlToJson:
                                                         "Retracted Publication"]) == "Retraction"
         assert get_alliance_category_from_pubmed_types(["Preprint"]) == "Preprint"
 
-    def test_generate_json(self, cleanup_tmp_files_when_done):
+    def test_generate_json(self, cleanup_tmp_files_when_done): # noqa
         base_path = environ.get('XML_PATH')
         pmids = ["10022914", "20301347", "21413225", "26051182", "28308877", "30003105", "31188077", "34530988",
                  "10206683", "21290765", "21873635", "27899353", "2", "30110134", "31193955", "7567443",

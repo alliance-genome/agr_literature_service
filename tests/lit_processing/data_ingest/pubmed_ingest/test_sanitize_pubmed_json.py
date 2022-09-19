@@ -10,7 +10,7 @@ from ....fixtures import cleanup_tmp_files_when_done # noqa
 
 class TestSanitizePubmedJson:
 
-    def test_sanitize_pubmed_json_list(self, cleanup_tmp_files_when_done):
+    def test_sanitize_pubmed_json_list(self, cleanup_tmp_files_when_done): # noqa
         base_path = environ.get('XML_PATH')
         pmids = ["10022914", "26051182"]
         generate_json(pmids, [], base_dir=os.path.join(
