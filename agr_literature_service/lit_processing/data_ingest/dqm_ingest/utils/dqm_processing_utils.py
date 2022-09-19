@@ -100,3 +100,34 @@ def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
             to_create.append(dqm_ordered[order])
 
     return True, to_patch, to_create
+
+
+def clean_up_keywords(mod, entry):
+    # e.g. 9882485 25544291 24201188 31188077
+    if mod == 'ZFIN':
+        if 'keywords' in entry:
+            if entry['keywords'][0] == '':
+                entry['keywords'] = []
+            else:
+                # zfin has all keywords in the first array element, they cannot fix it
+                zfin_value = entry['keywords'][0]
+                zfin_value = str(bs4.BeautifulSoup(zfin_value, "html.parser"))
+                comma_count = 0
+                semicolon_count = 0
+                if ", " in zfin_value:
+                    comma_count = zfin_value.count(',')
+                if "; " in zfin_value:
+                    semicolon_count = zfin_value.count(';')
+                if (comma_count == 0) and (semicolon_count == 0):
+                    entry['keywords'] = [zfin_value]
+                elif comma_count >= semicolon_count:
+                    entry['keywords'] = zfin_value.split(", ")
+                else:
+                    entry['keywords'] = zfin_value.split("; ")
+    else:
+        keywords = []
+        for mod_keyword in entry['keywords']:
+            mod_keyword = str(bs4.BeautifulSoup(mod_keyword, "html.parser"))
+            keywords.append(mod_keyword)
+        entry['keywords'] = keywords
+    return entry
