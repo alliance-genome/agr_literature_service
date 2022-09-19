@@ -10,12 +10,10 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.parse_dqm_json
 
 class TestParseDqmJsonReference:
     def test_generate_pmid_data(self):      # noqa: C901
-        print("blah blah")
         base_path = environ.get('XML_PATH')
         sample_file_path = os.path.join(
             os.path.dirname(__file__),
             "../../../../agr_literature_service/lit_processing/tests/")
-        print(sample_file_path)
         generate_pmid_data(base_input_dir=sample_file_path, input_path="dqm_load_sample/",
                            output_directory="./", input_mod="all")
         expected_pmids = [2, 10022914, 10206683, 20301347, 21290765, 21413221, 21413225,
@@ -34,6 +32,5 @@ class TestParseDqmJsonReference:
             cols = line.split("\t")
             if cols[0] == '21873635':
                 if cols[2].rstrip('\n') == "RGD, MGI, SGD, FB, ZFIN, WB":
-                    print("col is bunch of stuff")
                     has_multi_mod = True
         assert has_multi_mod is True
