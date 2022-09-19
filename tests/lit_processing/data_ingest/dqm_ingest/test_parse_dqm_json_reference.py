@@ -16,21 +16,16 @@ class TestParseDqmJsonReference:
             "../../../../agr_literature_service/lit_processing/tests/")
         generate_pmid_data(base_input_dir=sample_file_path, input_path="dqm_load_sample/",
                            output_directory="./", input_mod="all")
-        expected_pmids = [2, 10022914, 10206683, 20301347, 21290765, 21413221, 21413225,
-                          21873635, 27899353, 28304499, 28308877, 30002370, 30003105,
-                          30110134, 30979869, 31188077, 31193955, 33054145, 34530988]
+        expected_pmids_string = '2\n10022914\n10206683\n20301347\n21290765\n21413221\n21413225\n21873635\n27899353\n28304499\n28308877\n30002370\n30003105\n30110134\n30979869\n31188077\n31193955\n33054145\n34530988\n'
         filename = os.path.join(base_path, "inputs", "alliance_pmids")
         assert os.path.exists(filename)
         assert os.stat(filename).st_size > 0
-        for line in open(filename):
-            assert int(line.rstrip('\n')) in expected_pmids
+        generated_pmids = open(filename).read()
+        assert expected_pmids_string == generated_pmids
+
+        expected_pmids_by_mods_string = '10206683\t1\tRGD\n10022914\t2\tRGD, FB\n2\t2\tRGD, SGD\n20301347\t1\tRGD\n21873635\t6\tRGD, MGI, SGD, FB, ZFIN, WB\n27899353\t1\tRGD\n30979869\t1\tMGI\n30002370\t1\tSGD\n33054145\t1\tSGD\n28308877\t1\tFB\n28304499\t1\tFB\n31188077\t1\tZFIN\n30110134\t1\tZFIN\n31193955\t1\tZFIN\n30003105\t1\tZFIN\n34530988\t1\tZFIN\n21413225\t1\tWB\n21413221\t1\tWB\n21290765\t1\tWB\n'
         filename = os.path.join(base_path, "pmids_by_mods")
         assert os.path.exists(filename)
         assert os.stat(filename).st_size > 0
-        has_multi_mod = False
-        for line in open(filename):
-            cols = line.split("\t")
-            if cols[0] == '21873635':
-                if cols[2].rstrip('\n') == "RGD, MGI, SGD, FB, ZFIN, WB":
-                    has_multi_mod = True
-        assert has_multi_mod is True
+        generated_pmids_by_mods = open(filename).read()
+        assert expected_pmids_by_mods_string == generated_pmids_by_mods
