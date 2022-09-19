@@ -5,7 +5,7 @@ from os import environ, path
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.generate_pubmed_nlm_resource import (populate_from_url, populate_nlm_info,
                                                                                                           generate_json)
-from agr_literature_service.lit_processing.utils.file_processing_utils import load_pubmed_resource_basic
+from agr_literature_service.lit_processing.utils.generic_utils import load_pubmed_resource_basic
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.parse_dqm_json_resource import (save_resource_file, create_storage_path)
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.data_ingest.post_resource_to_db import post_resources

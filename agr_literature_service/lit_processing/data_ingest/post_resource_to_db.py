@@ -11,7 +11,7 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
     sqlalchemy_load_ref_xref
 from agr_literature_service.api.models import ResourceModel, CrossReferenceModel, EditorModel
 from agr_literature_service.api.crud.resource_crud import create_next_curie
-from agr_literature_service.lit_processing.utils.file_processing_utils import split_identifier
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 load_dotenv()

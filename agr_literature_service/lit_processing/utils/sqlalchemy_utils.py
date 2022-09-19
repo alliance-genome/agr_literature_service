@@ -1,4 +1,4 @@
-from agr_literature_service.lit_processing.utils.file_processing_utils import split_identifier
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 
 from os import environ
 
