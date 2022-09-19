@@ -14,26 +14,23 @@ from ...fixtures import cleanup_tmp_files_when_done, load_sanitized_references, 
 
 class TestExportSingleModReferencesToJson:
 
-    def test_data_retrieval_functions(self, db, load_sanitized_references): # noqa                                                                                                   
-        engine = create_postgres_engine(False)
-        db_connection = engine.connect()
-
+    def test_data_retrieval_functions(self, db, load_sanitized_references): # noqa
+        rs = db.execute("SELECT reference_id, curie FROM cross_reference where curie in ('PMID:33622238', "
+                        "'PMID:21392282', 'PMID:27973536')")
+        rows = rs.fetchall()
         reference_id_list = []
         curie_to_reference_id = {}
-
-        rs = db_connection.execute("SELECT reference_id, curie FROM cross_reference where curie in ('PMID:33622238', 'PMID:21392282', 'PMID:27973536')")
-        rows = rs.fetchall()
         for x in rows:
             reference_id_list.append(x[0])
             curie_to_reference_id[x[1]] = x[0]
 
         ref_ids = ", ".join([str(x) for x in reference_id_list])
 
-        reference_id_to_xrefs = get_cross_reference_data(db_connection, ref_ids)
-        reference_id_to_authors = get_author_data(db_connection, ref_ids)
-        reference_id_to_mesh_terms = get_mesh_term_data(db_connection, ref_ids)
-        reference_id_to_mod_corpus_data = get_mod_corpus_association_data(db_connection, ref_ids)
-        reference_id_to_mod_reference_types = get_mod_reference_type_data(db_connection, ref_ids)
+        reference_id_to_xrefs = get_cross_reference_data(db, ref_ids)
+        reference_id_to_authors = get_author_data(db, ref_ids)
+        reference_id_to_mesh_terms = get_mesh_term_data(db, ref_ids)
+        reference_id_to_mod_corpus_data = get_mod_corpus_association_data(db, ref_ids)
+        reference_id_to_mod_reference_types = get_mod_reference_type_data(db, ref_ids)
 
         ref_id = curie_to_reference_id['PMID:33622238']
 
@@ -57,9 +54,6 @@ class TestExportSingleModReferencesToJson:
                 assert curie == 'PMCID:PMC5156379'
             if curie.startswith('DOI'):
                 assert curie == 'DOI:10.1371/journal.ppat.1006045'
-
-        db_connection.close()
-        engine.dispose()
 
     def test_get_meta_data(self):
 
@@ -114,18 +108,12 @@ class TestExportSingleModReferencesToJson:
         assert json.dumps(json.load(open(new_json_file)), sort_keys=True) == json.dumps(json.load(open(json_file)),
                                                                                         sort_keys=True)
 
-        engine = create_postgres_engine(False)
-        db_connection = engine.connect()
-
         ## test get_comment_correction_data() and get_journal_data()
-        reference_id_to_comment_correction_data = get_comment_correction_data(db_connection)
+        reference_id_to_comment_correction_data = get_comment_correction_data(db)
         assert type(reference_id_to_comment_correction_data) == dict
 
-        resource_id_to_journal = get_journal_data(db_connection)
+        resource_id_to_journal = get_journal_data(db)
         assert type(resource_id_to_journal) == dict
-
-        db_connection.close()
-        engine.dispose()
 
         ## test get_reference_data_and_generate_json()
         json_file = json_path + "reference_RGD.json"
