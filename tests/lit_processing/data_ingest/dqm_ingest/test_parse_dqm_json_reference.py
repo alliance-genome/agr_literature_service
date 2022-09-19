@@ -5,11 +5,11 @@ from os import environ
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.parse_dqm_json_reference \
     import generate_pmid_data
 #     get_alliance_category_from_pubmed_types, generate_json
-# from ....fixtures import cleanup_tmp_files_when_done # noqa
+from ....fixtures import cleanup_tmp_files_when_done # noqa
 
 
 class TestParseDqmJsonReference:
-    def test_generate_pmid_data(self):      # noqa: C901
+    def test_generate_pmid_data(self, cleanup_tmp_files_when_done):      # noqa: C901
         base_path = environ.get('XML_PATH')
         sample_file_path = os.path.join(
             os.path.dirname(__file__),
