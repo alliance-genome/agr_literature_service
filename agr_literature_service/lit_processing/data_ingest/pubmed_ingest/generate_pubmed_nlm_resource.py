@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging.config
+import os.path
 import re
 import urllib
 from os import environ, makedirs, path
@@ -22,6 +23,8 @@ from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp
 
 load_dotenv()
 init_tmp_dir()
+
+base_path = environ.get('XML_PATH', "")
 
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../../logging.conf')
@@ -126,14 +129,12 @@ def populate_from_url():
         return file_data
 
 
-def populate_from_local_file():
+def populate_from_local_file(base_dir=base_path):
     """
 
     :return:
     """
-
-    base_path = environ.get('XML_PATH', "")
-    filename = base_path + 'J_Medline.txt'
+    filename = os.path.join(base_dir, 'J_Medline.txt')
     with open(filename) as txt_file:
         if not path.exists(filename):
             return "journal info file not found"

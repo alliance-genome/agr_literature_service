@@ -13,13 +13,13 @@ class TestExportAllModReferencesToJson:
         base_path = environ.get('XML_PATH')
         json_path = path.join(base_path, "json_data/")
         # mod_to_count = {'WB': 3, 'XB': 2, 'ZFIN': 3, 'FB': 3, 'SGD': 2, 'RGD': 2, 'MGI': 2}
-        mod_to_count = {'WB': 3, 'ZFIN': 3}
+        mod_to_count = {'WB': 3, 'ZFIN': 3, 'FB': 3}
         # for mod in ['WB', 'XB', 'ZFIN', 'FB', 'SGD', 'RGD', 'MGI']:
-        for mod in ['WB', 'ZFIN']:
+        for mod in ['WB', 'ZFIN', 'FB']:
             json_file = path.join(json_path, "reference_" + mod + ".json")
             assert path.exists(json_file)
-            if mod == 'WB':
-                assert stat(json_file).st_size > 2000
+            if mod in ['WB', 'FB']:
+                assert stat(json_file).st_size > 4000
             else:
                 assert stat(json_file).st_size > 10000
             json_data = json.load(open(json_file))

@@ -1,0 +1,41 @@
+--------------------------------------------------------
+JrId: 1008
+JournalTitle: Biochemical and biophysical research communications
+MedAbbr: Biochem Biophys Res Commun
+ISSN (Print): 0006-291X
+ISSN (Online): 1090-2104
+IsoAbbr: Biochem Biophys Res Commun
+NlmId: 0372516
+--------------------------------------------------------
+JrId: 32920
+JournalTitle: The journal of physiological sciences : JPS
+MedAbbr: J Physiol Sci
+ISSN (Print): 1880-6546
+ISSN (Online): 1880-6562
+IsoAbbr: J Physiol Sci
+NlmId: 101262417
+--------------------------------------------------------
+JrId: 47226
+JournalTitle: Communications biology
+MedAbbr: Commun Biol
+ISSN (Print): 
+ISSN (Online): 2399-3642
+IsoAbbr: Commun Biol
+NlmId: 101719179
+--------------------------------------------------------
+JrId: 33173
+JournalTitle: Alzheimer's & dementia : the journal of the Alzheimer's Association
+MedAbbr: Alzheimers Dement
+ISSN (Print): 1552-5260
+ISSN (Online): 1552-5279
+IsoAbbr: Alzheimers Dement
+NlmId: 101231978
+--------------------------------------------------------
+JrId: 49100
+JournalTitle: microPublication biology
+MedAbbr: MicroPubl Biol
+ISSN (Print): 
+ISSN (Online): 2578-9430
+IsoAbbr: MicroPubl Biol
+NlmId: 101759238
+--------------------------------------------------------
