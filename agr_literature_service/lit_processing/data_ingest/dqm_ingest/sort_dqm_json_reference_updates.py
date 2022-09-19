@@ -11,8 +11,9 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_u
     generate_new_md5, save_s3_md5data
 from agr_literature_service.api.models import ReferenceModel, ModReferenceTypeModel,\
     ModCorpusAssociationModel, AuthorModel, CrossReferenceModel, ModModel
-from agr_literature_service.lit_processing.utils.file_processing_utils import compare_authors_or_editors,\
-    split_identifier, write_json
+from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_processing_utils import \
+    compare_authors_or_editors
+from agr_literature_service.lit_processing.utils.file_processing_utils import split_identifier, write_json
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session,\
     create_postgres_engine, sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.utils.email_utils import send_email
