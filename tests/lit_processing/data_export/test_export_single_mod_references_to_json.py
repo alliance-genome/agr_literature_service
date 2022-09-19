@@ -2,7 +2,6 @@ import json
 from os import path, stat, rename, environ
 from datetime import date
 
-from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_engine
 from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import \
     dump_data, concatenate_json_files, get_meta_data, generate_json_file, get_reference_col_names,\
     get_reference_data_and_generate_json, get_comment_correction_data, get_journal_data,\
