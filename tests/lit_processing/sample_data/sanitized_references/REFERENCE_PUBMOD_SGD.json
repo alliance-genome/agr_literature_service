@@ -1,0 +1,109 @@
+[
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Personal Communication to SGD",
+                "source": "SGD"
+            }
+        ],
+        "allianceCategory": "Personal Communication",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Shortill S",
+                "referenceId": "SGD:S000311733"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Frier M",
+                "referenceId": "SGD:S000311733"
+            },
+            {
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Davey M",
+                "referenceId": "SGD:S000311733"
+            },
+            {
+                "authorRank": 4,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Conibear E",
+                "referenceId": "SGD:S000311733"
+            }
+        ],
+        "crossReferences": [
+            {
+                "id": "SGD:S000311733",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "datePublished": "2021",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "SGD",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "mod_corpus_associations": [
+            {
+                "corpus": true,
+                "mod_abbreviation": "SGD",
+                "mod_corpus_sort_source": "dqm_files"
+            }
+        ],
+        "primaryId": "SGD:S000311733",
+        "title": "The VINE complex is a VPS9-domain GEF-containing SNX-BAR coat involved in endosomal sorting"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Personal Communication to SGD",
+                "source": "SGD"
+            }
+        ],
+        "allianceCategory": "Personal Communication",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Schuldiner M",
+                "referenceId": "SGD:S000312642"
+            }
+        ],
+        "crossReferences": [
+            {
+                "id": "SGD:S000312642",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "datePublished": "2022",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "SGD",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "mod_corpus_associations": [
+            {
+                "corpus": true,
+                "mod_abbreviation": "SGD",
+                "mod_corpus_sort_source": "dqm_files"
+            }
+        ],
+        "primaryId": "SGD:S000312642",
+        "title": "Schuldiner M (2022)"
+    }
+]
