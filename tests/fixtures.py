@@ -14,7 +14,7 @@ from agr_literature_service.lit_processing.tests.mod_populate_load import post_m
 
 def delete_all_table_content(engine):
     if environ.get('TEST_CLEANUP') == "true":
-        print("***** Deleting tables *****")
+        print("***** Deleting test data from all tables *****")
         for table in reversed(Base.metadata.sorted_tables):
             if table != "users":
                 engine.execute(table.delete())
@@ -22,15 +22,15 @@ def delete_all_table_content(engine):
 
 @pytest.fixture
 def db() -> Session:
-    print("***** Creating DB connection *****")
+    print("***** Creating DB session *****")
     engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
     initialize()
     delete_all_table_content(engine)
     db = sessionmaker(bind=engine, autoflush=True)()
     yield db
     delete_all_table_content(engine)
-    print("***** Deleting DB connection *****")
-
+    print("***** Closing DB session *****")
+    db.close()
 
 @pytest.fixture
 def cleanup_tmp_files_when_done():
