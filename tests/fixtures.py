@@ -32,6 +32,7 @@ def db() -> Session:
     print("***** Closing DB session *****")
     db.close()
 
+
 @pytest.fixture
 def cleanup_tmp_files_when_done():
     """
