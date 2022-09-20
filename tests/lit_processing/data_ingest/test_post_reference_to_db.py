@@ -10,7 +10,7 @@ from agr_literature_service.lit_processing.data_ingest.post_reference_to_db impo
     insert_mod_reference_types, insert_mod_corpus_associations, \
     read_data_and_load_references, insert_comment_corrections
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
-from ...fixtures import db, cleanup_tmp_files_when_done # noqa
+from ...fixtures import db # noqa
 
 
 class TestPostReferenceToDb:
@@ -23,7 +23,7 @@ class TestPostReferenceToDb:
         json_file = path.join(path.dirname(path.abspath(__file__)), "../sample_data",
                               "sanitized_references", "REFERENCE_PUBMED_ZFIN.json")
         json_data = json.load(open(json_file))
-        # TODO: populate data
+        # TODO: populate test resources
         journal_to_resource_id = get_journal_data(db)
         orcid_dict = get_orcid_data(db)
         newly_added_orcid = []
@@ -60,8 +60,7 @@ class TestPostReferenceToDb:
         assert cc.reference_id_to == refs[1].reference_id
         assert cc.reference_comment_and_correction_type == 'RepublishedFrom'
 
-    def test_load_one_reference(self, db, cleanup_tmp_files_when_done): # noqa
-
+    def test_load_one_reference(self, db): # noqa
         populate_test_mods()
 
         json_file = path.join(path.dirname(path.abspath(__file__)), "../sample_data",
