@@ -1,0 +1,283 @@
+[
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Journal Article",
+                "source": "SGD"
+            },
+            {
+                "referenceType": "Research Support, Non-U.S. Gov't",
+                "source": "SGD"
+            }
+        ],
+        "abstract": "The yeast Saccharomyces cerevisiae has been an essential component of human civilization because of its long global history of use in food and beverage fermentation. However, the diversity and evolutionary history of the domesticated populations of the yeast remain elusive. We show here that China/Far East Asia is likely the center of origin of the domesticated populations of the species. The domesticated populations form two major groups associated with solid- and liquid-state fermentation and appear to have originated from heterozygous ancestors, which were likely formed by outcrossing between diverse wild isolates primitively for adaptation to maltose-rich niches. We found consistent gene expansion and contraction in the whole domesticated population, as well as lineage-specific genome variations leading to adaptation to different environments. We show a nearly panoramic view of the diversity and life history of S. cerevisiae and provide new insights into the origin and evolution of the species.",
+        "allianceCategory": "Research_Article",
+        "authors": [
+            {
+                "affiliations": [
+                    "State Key Laboratory of Mycology, Institute of Microbiology, Chinese Academy of Sciences, Beijing, 100101, China.",
+                    "College of Life Sciences, University of Chinese Academy of Sciences, No.19(A) Yuquan Road, Shijingshan District, Beijing, 100049, China."
+                ],
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "crossReferences": [
+                    {
+                        "id": "ORCID:0000-0003-0416-374X",
+                        "pages": [
+                            "person/orcid"
+                        ]
+                    }
+                ],
+                "firstAuthor": false,
+                "firstinit": "SF",
+                "firstname": "Shou-Fu",
+                "lastname": "Duan",
+                "name": "Shou-Fu Duan",
+                "orcid": "0000-0003-0416-374X"
+            },
+            {
+                "affiliations": [
+                    "State Key Laboratory of Mycology, Institute of Microbiology, Chinese Academy of Sciences, Beijing, 100101, China."
+                ],
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "PJ",
+                "firstname": "Pei-Jie",
+                "lastname": "Han",
+                "name": "Pei-Jie Han"
+            },
+            {
+                "affiliations": [
+                    "State Key Laboratory of Mycology, Institute of Microbiology, Chinese Academy of Sciences, Beijing, 100101, China."
+                ],
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "QM",
+                "firstname": "Qi-Ming",
+                "lastname": "Wang",
+                "name": "Qi-Ming Wang"
+            },
+            {
+                "affiliations": [
+                    "State Key Laboratory of Mycology, Institute of Microbiology, Chinese Academy of Sciences, Beijing, 100101, China."
+                ],
+                "authorRank": 4,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "WQ",
+                "firstname": "Wan-Qiu",
+                "lastname": "Liu",
+                "name": "Wan-Qiu Liu"
+            },
+            {
+                "affiliations": [
+                    "State Key Laboratory of Mycology, Institute of Microbiology, Chinese Academy of Sciences, Beijing, 100101, China.",
+                    "College of Life Sciences, University of Chinese Academy of Sciences, No.19(A) Yuquan Road, Shijingshan District, Beijing, 100049, China."
+                ],
+                "authorRank": 5,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "JY",
+                "firstname": "Jun-Yan",
+                "lastname": "Shi",
+                "name": "Jun-Yan Shi"
+            },
+            {
+                "affiliations": [
+                    "State Key Laboratory of Mycology, Institute of Microbiology, Chinese Academy of Sciences, Beijing, 100101, China."
+                ],
+                "authorRank": 6,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "K",
+                "firstname": "Kuan",
+                "lastname": "Li",
+                "name": "Kuan Li"
+            },
+            {
+                "affiliations": [
+                    "State Key Laboratory of Mycology, Institute of Microbiology, Chinese Academy of Sciences, Beijing, 100101, China."
+                ],
+                "authorRank": 7,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "XL",
+                "firstname": "Xiao-Ling",
+                "lastname": "Zhang",
+                "name": "Xiao-Ling Zhang"
+            },
+            {
+                "affiliations": [
+                    "State Key Laboratory of Mycology, Institute of Microbiology, Chinese Academy of Sciences, Beijing, 100101, China. baify@im.ac.cn.",
+                    "College of Life Sciences, University of Chinese Academy of Sciences, No.19(A) Yuquan Road, Shijingshan District, Beijing, 100049, China. baify@im.ac.cn."
+                ],
+                "authorRank": 8,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "FY",
+                "firstname": "Feng-Yan",
+                "lastname": "Bai",
+                "name": "Feng-Yan Bai"
+            }
+        ],
+        "citation": "Duan SF, et al. (2018) The origin and adaptive evolution of domesticated populations of yeast from Far East Asia. Nat Commun 9(1):2690",
+        "commentsCorrections": [],
+        "crossReferences": [
+            {
+                "id": "PMID:30002370"
+            },
+            {
+                "id": "DOI:10.1038/s41467-018-05106-7"
+            },
+            {
+                "id": "PMCID:PMC6043522"
+            },
+            {
+                "id": "NLM:101528555"
+            },
+            {
+                "id": "ISSN:2041-1723"
+            }
+        ],
+        "dateArrivedInPubmed": "2017-09-09",
+        "dateLastModified": "2019-07-12",
+        "datePublished": "2018-07-12",
+        "issueName": "1",
+        "journal": "Nat Commun",
+        "keywords": [],
+        "meshTerms": [
+            {
+                "meshHeadingTerm": "Adaptation, Physiological",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:30002370"
+            },
+            {
+                "meshHeadingTerm": "Asia",
+                "referenceId": "PMID:30002370"
+            },
+            {
+                "meshHeadingTerm": "Evolution, Molecular",
+                "referenceId": "PMID:30002370"
+            },
+            {
+                "meshHeadingTerm": "Far East",
+                "referenceId": "PMID:30002370"
+            },
+            {
+                "meshHeadingTerm": "Fermentation",
+                "referenceId": "PMID:30002370"
+            },
+            {
+                "meshHeadingTerm": "Genetic Variation",
+                "referenceId": "PMID:30002370"
+            },
+            {
+                "meshHeadingTerm": "Genetics, Population",
+                "referenceId": "PMID:30002370"
+            },
+            {
+                "meshHeadingTerm": "Genome, Fungal",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:30002370"
+            },
+            {
+                "meshHeadingTerm": "Phylogeny",
+                "referenceId": "PMID:30002370"
+            },
+            {
+                "meshHeadingTerm": "Saccharomyces cerevisiae",
+                "meshQualifierTerm": "classification",
+                "referenceId": "PMID:30002370"
+            },
+            {
+                "meshHeadingTerm": "Saccharomyces cerevisiae",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:30002370"
+            },
+            {
+                "meshHeadingTerm": "Saccharomyces cerevisiae",
+                "meshQualifierTerm": "metabolism",
+                "referenceId": "PMID:30002370"
+            }
+        ],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "SGD",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:101528555"
+        ],
+        "pages": "2690",
+        "primaryId": "PMID:30002370",
+        "pubMedType": [
+            "Journal Article",
+            "Research Support, Non-U.S. Gov't"
+        ],
+        "publicationStatus": "epublish",
+        "resource": "NLM:101528555",
+        "resourceAbbreviation": "Nat Commun",
+        "tags": [
+            {
+                "referenceId": "PMID:30002370",
+                "tagName": "inCorpus",
+                "tagSource": "SGD"
+            }
+        ],
+        "title": "The origin and adaptive evolution of domesticated populations of yeast from Far East Asia.",
+        "volume": "9"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Book",
+                "source": "SGD"
+            },
+            {
+                "referenceType": "Review",
+                "source": "SGD"
+            }
+        ],
+        "abstract": "In a word \u2014 yeast. Without yeast, there would be no beer. It\u2019s that simple. And yeast is a microbe, that is, a living organism that is too small to see with the human eye. Every time someone brews a batch of beer, in a very real sense he or she is doing a microbiology experiment. If you brew beer at home, you\u2019re a microbiologist! (In fact, you might even want to join the American Society for Microbiology!) So let\u2019s talk about yeast.",
+        "allianceCategory": "Review_Article",
+        "authors": [],
+        "citation": " (2012) None .",
+        "commentsCorrections": [],
+        "crossReferences": [
+            {
+                "id": "DOI:10.1128/AAMCol.2-2012"
+            },
+            {
+                "id": "PMID:33054145"
+            }
+        ],
+        "datePublished": "2012-01-01",
+        "keywords": [],
+        "meshTerms": [],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "SGD",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "primaryId": "PMID:33054145",
+        "pubMedType": [
+            "Review"
+        ],
+        "publicationStatus": "ppublish",
+        "publisher": "American Society for Microbiology",
+        "tags": [
+            {
+                "referenceId": "PMID:33054145",
+                "tagName": "inCorpus",
+                "tagSource": "SGD"
+            }
+        ],
+        "title": "FAQ: If the Yeast Ain\u2019t Happy, Ain\u2019t Nobody Happy: The Microbiology of Beer"
+    }
+]

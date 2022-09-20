@@ -1,0 +1,305 @@
+[
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Book_chapter",
+                "source": "WB"
+            }
+        ],
+        "allianceCategory": "Review_Article",
+        "authors": [
+            {
+                "affiliations": [
+                    "University of Missouri, Columbia"
+                ],
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "DL",
+                "firstname": "Donald L",
+                "lastname": "Riddle",
+                "name": "Donald L Riddle"
+            },
+            {
+                "affiliations": [
+                    "Indiana University"
+                ],
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "T",
+                "firstname": "Thomas",
+                "lastname": "Blumenthal",
+                "name": "Thomas Blumenthal"
+            },
+            {
+                "affiliations": [
+                    "University of California, Berkeley"
+                ],
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "BJ",
+                "firstname": "Barbara J",
+                "lastname": "Meyer",
+                "name": "Barbara J Meyer"
+            },
+            {
+                "affiliations": [
+                    "Howard Hughes Medical Institute, Fred Hutchinson Cancer Research                     Center, Seattle, Washington"
+                ],
+                "authorRank": 4,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "JR",
+                "firstname": "James R",
+                "lastname": "Priess",
+                "name": "James R Priess"
+            },
+            {
+                "affiliations": [
+                    "Department of Genetics, Washington University School of Medicine, St. Louis, Missouri, 63110"
+                ],
+                "authorRank": 5,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "RH",
+                "firstname": "Robert H",
+                "lastname": "Waterston",
+                "name": "Robert H Waterston"
+            },
+            {
+                "affiliations": [
+                    "The Sanger Centre, Hinxton Park, Hinxton, Cambridge, United Kingdom, CB10 1RQ"
+                ],
+                "authorRank": 6,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "JE",
+                "firstname": "John E",
+                "lastname": "Sulston",
+                "name": "John E Sulston"
+            },
+            {
+                "affiliations": [
+                    "The Sanger Centre, Hinxton Park, Hinxton, Cambridge, United Kingdom, CB10 1RQ"
+                ],
+                "authorRank": 7,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "AR",
+                "firstname": "Alan R",
+                "lastname": "Coulson",
+                "name": "Alan R Coulson"
+            }
+        ],
+        "citation": "Waterston RH et al. (1997) \"The Genome.\"",
+        "commentsCorrections": [],
+        "crossReferences": [
+            {
+                "id": "PMID:21413225"
+            }
+        ],
+        "datePublished": "1997-01-01",
+        "keywords": [],
+        "meshTerms": [],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "WB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "primaryId": "PMID:21413225",
+        "pubMedType": [
+            "Review"
+        ],
+        "publicationStatus": "ppublish",
+        "publisher": "Cold Spring Harbor Laboratory Press",
+        "tags": [
+            {
+                "referenceId": "PMID:21413225",
+                "tagName": "inCorpus",
+                "tagSource": "WB"
+            }
+        ],
+        "title": "The Genome"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Book",
+                "source": "WB"
+            }
+        ],
+        "abstract": "Why should one study a worm? This simple creature is one of several \u201cmodel\u201d organisms that together have provided tremendous insight into how all organisms are put together. It has become increasingly clear over the past two decades that knowledge from one organism, even one so simple as a worm, can provide tremendous power when connected with knowledge from other organisms. And because of the experimental accessibility of nematodes, knowledge about worms can come more quickly and cheaply than knowledge about higher organisms.",
+        "allianceCategory": "Review_Article",
+        "authors": [
+            {
+                "affiliations": [
+                    "University of Missouri, Columbia"
+                ],
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "DL",
+                "firstname": "Donald L",
+                "lastname": "Riddle",
+                "name": "Donald L Riddle"
+            },
+            {
+                "affiliations": [
+                    "Indiana University"
+                ],
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "T",
+                "firstname": "Thomas",
+                "lastname": "Blumenthal",
+                "name": "Thomas Blumenthal"
+            },
+            {
+                "affiliations": [
+                    "University of California, Berkeley"
+                ],
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "BJ",
+                "firstname": "Barbara J",
+                "lastname": "Meyer",
+                "name": "Barbara J Meyer"
+            },
+            {
+                "affiliations": [
+                    "Howard Hughes Medical Institute, Fred Hutchinson Cancer Research                     Center, Seattle, Washington"
+                ],
+                "authorRank": 4,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "JR",
+                "firstname": "James R",
+                "lastname": "Priess",
+                "name": "James R Priess"
+            }
+        ],
+        "citation": "Riddle DL et al. (1997) \"C. elegans II\"",
+        "commentsCorrections": [],
+        "crossReferences": [
+            {
+                "id": "PMID:21413221"
+            }
+        ],
+        "datePublished": "1997-01-01",
+        "keywords": [],
+        "meshTerms": [],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "WB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "pages": "1-1222",
+        "primaryId": "PMID:21413221",
+        "pubMedType": [
+            "Review"
+        ],
+        "publicationStatus": "ppublish",
+        "publisher": "Cold Spring Harbor Laboratory Press",
+        "tags": [
+            {
+                "referenceId": "PMID:21413221",
+                "tagName": "inCorpus",
+                "tagSource": "WB"
+            }
+        ],
+        "title": "<i>C. elegans</i> II"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Book_chapter",
+                "source": "WB"
+            }
+        ],
+        "abstract": "Mechanotransduction is the conversion of a mechanical stimulus into a biological response and constitutes the basis for a plethora of fundamental biological processes such as the senses of touch, balance and hearing and contributes critically to development and homeostasis in all organisms. Recent, genetic and electrophysiological studies have shown that specialized macromolecular complexes, encompassing mechanically gated ion channels, play a central role in the transformation of mechanical forces into a cellular signal, which takes place in mechanosensory organs of diverse organisms. These complexes are highly efficient sensors, closely entangled with their surrounding environment. Such association appears essential for proper channel gating, and provides proximity of the mechanosensory apparatus to the source of triggering mechanical energy. Genetic and molecular evidence collected in model organisms such as the nematode worm <i>Caenorhabditis elegans</i>, the fruit fly <i>Drosophila melanogaster</i> and the mouse highlight distinct classes of mechanically gated ion channels and interacting molecules, which are likely parts of the mechanotransducing apparatus. In this article, we review the progress towards deciphering mechanotransduction in <i>C. elegans</i>. The exceptional amenability of this simple worm to genetic and molecular manipulations has facilitated the dissection of a metazoan mechanotransducer complex to unprecedented detail.",
+        "allianceCategory": "Review_Article",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "A",
+                "firstname": "Andre",
+                "lastname": "Kamkin",
+                "name": "Andre Kamkin"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "I",
+                "firstname": "Irina",
+                "lastname": "Kiseleva",
+                "name": "Irina Kiseleva"
+            },
+            {
+                "affiliations": [
+                    "Institute of Molecular Biology and Biotechnology, Foundation for Research and Technology, Heraklion 71110, Crete, Greece"
+                ],
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "G",
+                "firstname": "Giannis",
+                "lastname": "Voglis",
+                "name": "Giannis Voglis"
+            },
+            {
+                "affiliations": [
+                    "Institute of Molecular Biology and Biotechnology, Foundation for Research and Technology, Heraklion 71110, Crete, Greece"
+                ],
+                "authorRank": 4,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "N",
+                "firstname": "Nektarios",
+                "lastname": "Tavernarakis",
+                "name": "Nektarios Tavernarakis"
+            }
+        ],
+        "citation": " (2005) \"Mechanotransduction in the Nematode Caenorhabditis elegans.\"",
+        "commentsCorrections": [],
+        "crossReferences": [
+            {
+                "id": "PMID:21290765"
+            }
+        ],
+        "datePublished": "2005-01-01",
+        "keywords": [],
+        "meshTerms": [],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "WB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "primaryId": "PMID:21290765",
+        "pubMedType": [
+            "Review"
+        ],
+        "publicationStatus": "ppublish",
+        "publisher": "Academia",
+        "tags": [
+            {
+                "referenceId": "PMID:21290765",
+                "tagName": "inCorpus",
+                "tagSource": "WB"
+            }
+        ],
+        "title": "Mechanotransduction in the Nematode <i>Caenorhabditis elegans</i>"
+    }
+]

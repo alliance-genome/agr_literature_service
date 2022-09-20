@@ -1,0 +1,104 @@
+[
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Personal Communication to SGD",
+                "source": "SGD"
+            }
+        ],
+        "allianceCategory": "Personal Communication",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "van Leeuwen J",
+                "referenceId": "SGD:S000182237"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Boone C",
+                "referenceId": "SGD:S000182237"
+            }
+        ],
+        "citation": "van Leeuwen J and Boone C (2015)   ",
+        "crossReferences": [
+            {
+                "id": "SGD:S000182237",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "datePublished": "2015",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "SGD",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "primaryId": "SGD:S000182237",
+        "tags": [
+            {
+                "referenceId": "SGD:S000182237",
+                "tagName": "inCorpus",
+                "tagSource": "SGD"
+            }
+        ],
+        "title": "van Leeuwen J and Boone C (2015)   "
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Personal Communication to SGD",
+                "source": "SGD"
+            }
+        ],
+        "allianceCategory": "Personal Communication",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Offman J",
+                "referenceId": "SGD:S000128229"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Hoffman E",
+                "referenceId": "SGD:S000128229"
+            }
+        ],
+        "citation": "Offman J and Hoffman E (2008)   ",
+        "crossReferences": [
+            {
+                "id": "SGD:S000128229",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "datePublished": "2008",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "SGD",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "primaryId": "SGD:S000128229",
+        "tags": [
+            {
+                "referenceId": "SGD:S000128229",
+                "tagName": "inCorpus",
+                "tagSource": "SGD"
+            }
+        ],
+        "title": "Offman J and Hoffman E (2008)   "
+    }
+]

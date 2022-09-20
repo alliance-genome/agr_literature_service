@@ -1,15 +1,15 @@
-# import json
 import os
 from os import environ
+import shutil
+import filecmp
 
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.parse_dqm_json_reference \
-    import generate_pmid_data
-#     get_alliance_category_from_pubmed_types, generate_json
+    import generate_pmid_data, aggregate_dqm_with_pubmed
 from ....fixtures import cleanup_tmp_files_when_done # noqa
 
 
 class TestParseDqmJsonReference:
-    def test_generate_pmid_data(self, cleanup_tmp_files_when_done):      # noqa: C901
+    def test_generate_pmid_data(self, cleanup_tmp_files_when_done):      # noqa: C901 F811
         base_path = environ.get('XML_PATH')
         sample_file_path = os.path.join(
             os.path.dirname(__file__),
@@ -29,3 +29,32 @@ class TestParseDqmJsonReference:
         assert os.stat(filename).st_size > 0
         generated_pmids_by_mods = open(filename).read()
         assert expected_pmids_by_mods_string == generated_pmids_by_mods
+
+    def test_aggregate_dqm_with_pubmed(self, cleanup_tmp_files_when_done):      # noqa: C901 F811
+        sample_file_path = os.path.join(
+            os.path.dirname(__file__),
+            "../../sample_data/for_aggregate_dqm_with_pubmed/")
+        base_path = environ.get('XML_PATH')
+        if (os.path.isdir(base_path)):
+            shutil.rmtree(base_path)
+        shutil.copytree(sample_file_path, base_path)
+
+        aggregate_dqm_with_pubmed(base_dir=sample_file_path, input_path="dqm_load_sample", input_mod="all",
+                                  output_directory="./")
+
+        validation_dir = os.path.join(sample_file_path, "validation")
+        for dirname in os.listdir(validation_dir):
+            subdirname = os.path.join(validation_dir, dirname)
+            if os.path.isdir(subdirname):
+                for filename in os.listdir(subdirname):
+                    file = os.path.join(subdirname, filename)
+                    if os.path.isfile(file):
+                        if (dirname == 'resource_xml'):
+                            # resource_xml/resource_abbreviation_not_matched is getting generated in sample_file_path and needs to be refactored
+                            # there is no test resource data, so all resources are in file of not_matched.
+                            # once resources are in, see which ones would not get generated and test for those.
+                            validation_data = open(file).readlines()
+                            generated_data = open(os.path.join(sample_file_path, dirname, filename)).readlines()
+                            assert validation_data.sort() == generated_data.sort()
+                        else:
+                            assert filecmp.cmp(file, os.path.join(base_path, dirname, filename))

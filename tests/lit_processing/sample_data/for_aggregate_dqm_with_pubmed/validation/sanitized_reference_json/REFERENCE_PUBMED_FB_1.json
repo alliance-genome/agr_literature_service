@@ -1,0 +1,152 @@
+[
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "paper",
+                "source": "FB"
+            }
+        ],
+        "abstract": "Sex-dependent differences in diuranl rhythms of insects concerning mainly phase and pattern are reviewed. As possible significant factors in the evolution of such differences are discussed: life span of the species, mode of assembling of both sexes, and temporal determination of sex-specific behaviour.",
+        "allianceCategory": "Research_Article",
+        "authors": [
+            {
+                "affiliations": [
+                    "I. Zoologisches Institut der Universit\u00e4t G\u00f6ttingen, G\u00f6ttingen, Deutschland."
+                ],
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "R",
+                "firstname": "R\u00fcdiger",
+                "lastname": "Hardeland",
+                "name": "R\u00fcdiger Hardeland"
+            }
+        ],
+        "citation": "Hardeland, 1969, Oecologia 3: 207--213",
+        "commentsCorrections": [],
+        "crossReferences": [
+            {
+                "id": "PMID:28308877"
+            },
+            {
+                "id": "DOI:10.1007/BF00416982"
+            },
+            {
+                "id": "NLM:0150372"
+            },
+            {
+                "id": "ISSN:0029-8549"
+            }
+        ],
+        "dateArrivedInPubmed": "1969-05-14",
+        "dateLastModified": "2019-11-20",
+        "datePublished": "1969-08-01",
+        "issueName": "2",
+        "journal": "Oecologia",
+        "keywords": [],
+        "language": "English",
+        "meshTerms": [],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "FB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:0150372"
+        ],
+        "pages": "207-213",
+        "primaryId": "PMID:28308877",
+        "pubMedType": [
+            "English Abstract",
+            "Journal Article"
+        ],
+        "publicationStatus": "ppublish",
+        "resource": "NLM:0150372",
+        "resourceAbbreviation": "Oecologia",
+        "tags": [
+            {
+                "referenceId": "FB:FBrf0020888",
+                "tagName": "inCorpus",
+                "tagSource": "FB"
+            }
+        ],
+        "title": "Geschlechtsbedingte Unterschiede bei Tagesrhythmen von Insekten.",
+        "volume": "3"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "paper",
+                "source": "FB"
+            }
+        ],
+        "allianceCategory": "Research_Article",
+        "authors": [
+            {
+                "affiliations": [
+                    "Zoologisches Institut der Universit\u00e4t Marburg a. d. Lahn, Deutschland."
+                ],
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "ME",
+                "firstname": "Martin E L",
+                "lastname": "Scriba",
+                "name": "Martin E L Scriba"
+            }
+        ],
+        "citation": "Scriba, 1967, Wilhelm Roux Arch. Entwickl. Mech. Org. 159: 314--345",
+        "commentsCorrections": [],
+        "crossReferences": [
+            {
+                "id": "PMID:28304499"
+            },
+            {
+                "id": "DOI:10.1007/BF00573799"
+            },
+            {
+                "id": "NLM:7508795"
+            },
+            {
+                "id": "ISSN:0043-5546"
+            }
+        ],
+        "dateArrivedInPubmed": "1967-01-31",
+        "dateLastModified": "2019-11-20",
+        "datePublished": "1967-09-01",
+        "issueName": "3",
+        "journal": "Wilhelm Roux Arch Entwickl Mech Org",
+        "keywords": [],
+        "language": "English",
+        "meshTerms": [],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "FB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:7508795"
+        ],
+        "pages": "314-345",
+        "primaryId": "PMID:28304499",
+        "pubMedType": [
+            "Journal Article"
+        ],
+        "publicationStatus": "ppublish",
+        "resource": "NLM:7508795",
+        "resourceAbbreviation": "Wilhelm Roux Arch. Entwickl. Mech. Org.",
+        "tags": [
+            {
+                "referenceId": "FB:FBrf0019024",
+                "tagName": "inCorpus",
+                "tagSource": "FB"
+            }
+        ],
+        "title": "Embryonale Entwicklungsst\u00f6rungen bei Defizienz und Tetraploidie des 2. Chromosoms vonDrosophila melanogaster.",
+        "volume": "159"
+    }
+]

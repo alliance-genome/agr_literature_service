@@ -1,0 +1,1433 @@
+[
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Journal",
+                "source": "ZFIN"
+            }
+        ],
+        "abstract": "Otoliths (ear stones) are biomineralized complexes essential for the balancing and hearing function of the inner ears in fish. Their formation is controlled by a genetically programmed biological process that is yet to be defined. We have isolated and characterized a spontaneous genetic mutant zebrafish with a complete absence of otoliths, named <i>no otolith 1</i> (<i>not1</i>). <i>not1</i> mutants are unable to develop otoliths during embryonic stages and fail to respond to acoustic stimuli, indicating an inner ear defect. We identified a deleterious mutation (G239R) that altered a highly conserved amino acid residue in the zebrafish ortholog of type I polyketide synthase (<i>pks1</i>) to underlie these phenotypes and showed that expression of the polyketide synthase gene of Japanese medaka fish could rescue the otolith deficiency in <i>not1</i> mutant zebrafish. Our finding highlights a critical and conserved role of type I polyketide synthase in the initiation of otolith formation. Given the functional homology between otoliths in teleost fish and otoconia in mammals and humans, <i>not1</i> mutants provide a new animal model for the study of human otoconia-related diseases.",
+        "allianceCategory": "Research_Article",
+        "authors": [
+            {
+                "affiliations": [
+                    "1Department of Biological Chemistry, Molecular and Behavioral Neuroscience Institute, University of Michigan, Ann Arbor, Michigan."
+                ],
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "MS",
+                "firstname": "Mi-Sun",
+                "lastname": "Lee",
+                "name": "Mi-Sun Lee"
+            },
+            {
+                "affiliations": [
+                    "2Center for Human Disease Modeling, Division of Nephrology, Duke University School of Medicine, Durham, North Carolina.",
+                    "3Department of Cell Biology, Division of Nephrology, Duke University School of Medicine, Durham, North Carolina."
+                ],
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "J",
+                "firstname": "Julien",
+                "lastname": "Philippe",
+                "name": "Julien Philippe"
+            },
+            {
+                "affiliations": [
+                    "2Center for Human Disease Modeling, Division of Nephrology, Duke University School of Medicine, Durham, North Carolina.",
+                    "3Department of Cell Biology, Division of Nephrology, Duke University School of Medicine, Durham, North Carolina."
+                ],
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "N",
+                "firstname": "Nicholas",
+                "lastname": "Katsanis",
+                "name": "Nicholas Katsanis"
+            },
+            {
+                "affiliations": [
+                    "2Center for Human Disease Modeling, Division of Nephrology, Duke University School of Medicine, Durham, North Carolina.",
+                    "4Department of Medicine, Division of Nephrology, Duke University School of Medicine, Durham, North Carolina."
+                ],
+                "authorRank": 4,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "W",
+                "firstname": "Weibin",
+                "lastname": "Zhou",
+                "name": "Weibin Zhou"
+            }
+        ],
+        "citation": "Lee, M.S., Philippe, J., Katsanis, N., Zhou, W. (2019) Polyketide Synthase Plays a Conserved Role in Otolith Formation. Zebrafish. 16(4):363-369",
+        "commentsCorrections": [],
+        "crossReferences": [
+            {
+                "id": "PMID:31188077"
+            },
+            {
+                "id": "DOI:10.1089/zeb.2019.1734"
+            },
+            {
+                "id": "PMCID:PMC6685216"
+            },
+            {
+                "id": "NLM:101225070"
+            },
+            {
+                "id": "ISSN:1545-8547"
+            }
+        ],
+        "dateLastModified": "2020-08-01",
+        "datePublished": "2019-08-01",
+        "issueName": "4",
+        "journal": "Zebrafish",
+        "keywords": [
+            "",
+            "balancing",
+            "ear",
+            "hearing",
+            "otolith"
+        ],
+        "meshTerms": [
+            {
+                "meshHeadingTerm": "Animals",
+                "referenceId": "PMID:31188077"
+            },
+            {
+                "meshHeadingTerm": "Embryonic Development",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:31188077"
+            },
+            {
+                "meshHeadingTerm": "Organogenesis",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:31188077"
+            },
+            {
+                "meshHeadingTerm": "Oryzias",
+                "meshQualifierTerm": "embryology",
+                "referenceId": "PMID:31188077"
+            },
+            {
+                "meshHeadingTerm": "Oryzias",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:31188077"
+            },
+            {
+                "meshHeadingTerm": "Otolithic Membrane",
+                "meshQualifierTerm": "embryology",
+                "referenceId": "PMID:31188077"
+            },
+            {
+                "meshHeadingTerm": "Polyketide Synthases",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:31188077"
+            },
+            {
+                "meshHeadingTerm": "Polyketide Synthases",
+                "meshQualifierTerm": "metabolism",
+                "referenceId": "PMID:31188077"
+            },
+            {
+                "meshHeadingTerm": "Zebrafish",
+                "meshQualifierTerm": "embryology",
+                "referenceId": "PMID:31188077"
+            },
+            {
+                "meshHeadingTerm": "Zebrafish",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:31188077"
+            },
+            {
+                "meshHeadingTerm": "Zebrafish Proteins",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:31188077"
+            },
+            {
+                "meshHeadingTerm": "Zebrafish Proteins",
+                "meshQualifierTerm": "metabolism",
+                "referenceId": "PMID:31188077"
+            }
+        ],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "ZFIN",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:101225070"
+        ],
+        "pages": "363-369",
+        "primaryId": "PMID:31188077",
+        "pubMedType": [
+            "Journal Article",
+            "Research Support, N.I.H., Extramural",
+            "Research Support, Non-U.S. Gov't"
+        ],
+        "publicationStatus": "ppublish",
+        "resource": "NLM:101225070",
+        "resourceAbbreviation": "Zebrafish",
+        "tags": [
+            {
+                "referenceId": "PMID:31188077",
+                "tagName": "inCorpus",
+                "tagSource": "ZFIN"
+            }
+        ],
+        "title": "Polyketide Synthase Plays a Conserved Role in Otolith Formation.",
+        "volume": "16"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Journal",
+                "source": "ZFIN"
+            }
+        ],
+        "abstract": "Recent studies suggest that malignant melanoma heterogeneity includes subpopulations of cells with features of multipotent neural crest (NC) cells. Zebrafish and mouse models have shown that reactivation of neural crest-specific pathways during transformation determines the invasiveness of melanoma cells. In our study, we show that the neural crest-associated transcription factor FOXD1 plays a key role in the invasion and the migration capacities of metastatic melanomas both in vivo and in vitro. Gene expression profiling analysis identified both an upregulation of FOXD1 in NC and melanoma cells, as well as a downregulation of several genes related to cell invasion in FOXD1 knockdown cells, including MMP9 and RAC1B. Furthermore, we demonstrate that knockdown of RAC1B a tumor-specific isoform of RAC1, significantly impaired melanoma cell migration and invasion and could abrogate enhanced invasiveness induced by FOXD1 overexpression. We conclude that FOXD1 may influence invasion and migration via indirect regulation of MMP9 and RAC1B alternative splicing in melanoma cells.",
+        "allianceCategory": "Research_Article",
+        "authors": [
+            {
+                "affiliations": [
+                    "Skin Cancer Unit, German Cancer Research Center (DKFZ), Heidelberg, Germany.",
+                    "Department of Dermatology, Venereology and Allergology, University Medical Center Mannheim, Ruprecht-Karl University of Heidelberg, Mannheim, Germany.",
+                    "Department of Pharmacy, Xiangya Hospital, Central South University, Changsha, China."
+                ],
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "H",
+                "firstname": "Huizi",
+                "lastname": "Wu",
+                "name": "Huizi Wu"
+            },
+            {
+                "affiliations": [
+                    "Skin Cancer Unit, German Cancer Research Center (DKFZ), Heidelberg, Germany.",
+                    "Department of Dermatology, Venereology and Allergology, University Medical Center Mannheim, Ruprecht-Karl University of Heidelberg, Mannheim, Germany."
+                ],
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "crossReferences": [
+                    {
+                        "id": "ORCID:0000-0002-7224-785X",
+                        "pages": [
+                            "person/orcid"
+                        ]
+                    }
+                ],
+                "firstAuthor": false,
+                "firstinit": "L",
+                "firstname": "Lionel",
+                "lastname": "Larrib\u00e8re",
+                "name": "Lionel Larrib\u00e8re",
+                "orcid": "0000-0002-7224-785X"
+            },
+            {
+                "affiliations": [
+                    "Skin Cancer Unit, German Cancer Research Center (DKFZ), Heidelberg, Germany.",
+                    "Department of Dermatology, Venereology and Allergology, University Medical Center Mannheim, Ruprecht-Karl University of Heidelberg, Mannheim, Germany."
+                ],
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "Q",
+                "firstname": "Qian",
+                "lastname": "Sun",
+                "name": "Qian Sun"
+            },
+            {
+                "affiliations": [
+                    "Skin Cancer Unit, German Cancer Research Center (DKFZ), Heidelberg, Germany.",
+                    "Department of Dermatology, Venereology and Allergology, University Medical Center Mannheim, Ruprecht-Karl University of Heidelberg, Mannheim, Germany."
+                ],
+                "authorRank": 4,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "D",
+                "firstname": "Daniel",
+                "lastname": "Novak",
+                "name": "Daniel Novak"
+            },
+            {
+                "affiliations": [
+                    "Skin Cancer Unit, German Cancer Research Center (DKFZ), Heidelberg, Germany.",
+                    "Department of Dermatology, Venereology and Allergology, University Medical Center Mannheim, Ruprecht-Karl University of Heidelberg, Mannheim, Germany."
+                ],
+                "authorRank": 5,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "S",
+                "firstname": "Sachindra",
+                "lastname": "Sachindra",
+                "name": "Sachindra Sachindra"
+            },
+            {
+                "affiliations": [
+                    "Skin Cancer Unit, German Cancer Research Center (DKFZ), Heidelberg, Germany.",
+                    "Department of Dermatology, Venereology and Allergology, University Medical Center Mannheim, Ruprecht-Karl University of Heidelberg, Mannheim, Germany."
+                ],
+                "authorRank": 6,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "K",
+                "firstname": "Karol",
+                "lastname": "Granados",
+                "name": "Karol Granados"
+            },
+            {
+                "affiliations": [
+                    "Skin Cancer Unit, German Cancer Research Center (DKFZ), Heidelberg, Germany.",
+                    "Department of Dermatology, Venereology and Allergology, University Medical Center Mannheim, Ruprecht-Karl University of Heidelberg, Mannheim, Germany."
+                ],
+                "authorRank": 7,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "V",
+                "firstname": "Viktor",
+                "lastname": "Umansky",
+                "name": "Viktor Umansky"
+            },
+            {
+                "affiliations": [
+                    "Skin Cancer Unit, German Cancer Research Center (DKFZ), Heidelberg, Germany.",
+                    "Department of Dermatology, Venereology and Allergology, University Medical Center Mannheim, Ruprecht-Karl University of Heidelberg, Mannheim, Germany."
+                ],
+                "authorRank": 8,
+                "correspondingAuthor": false,
+                "crossReferences": [
+                    {
+                        "id": "ORCID:0000-0001-5316-0241",
+                        "pages": [
+                            "person/orcid"
+                        ]
+                    }
+                ],
+                "firstAuthor": false,
+                "firstinit": "J",
+                "firstname": "Jochen",
+                "lastname": "Utikal",
+                "name": "Jochen Utikal",
+                "orcid": "0000-0001-5316-0241"
+            }
+        ],
+        "citation": "Wu, H., Larrib\u00e8re, L., Sun, Q., Novak, D., Sachindra, S., Granados, K., Umansky, V., Utikal, J. (2018) Loss of neural crest-associated gene FOXD1 impairs melanoma invasion and migration via RAC1B downregulation. International Journal of Cancer. 143(11):2962-2972",
+        "commentsCorrections": [],
+        "crossReferences": [
+            {
+                "id": "PMID:30110134"
+            },
+            {
+                "id": "DOI:10.1002/ijc.31799"
+            },
+            {
+                "id": "NLM:0042124"
+            },
+            {
+                "id": "ISSN:0020-7136"
+            }
+        ],
+        "dateArrivedInPubmed": "2017-12-22",
+        "dateLastModified": "2019-03-20",
+        "datePublished": "2018-12-01",
+        "issueName": "11",
+        "journal": "Int J Cancer",
+        "keywords": [
+            "FOXD1",
+            "Neural crest",
+            "RAC1B",
+            "invasion",
+            "melanoma",
+            "migration"
+        ],
+        "meshTerms": [
+            {
+                "meshHeadingTerm": "Cell Line, Tumor",
+                "referenceId": "PMID:30110134"
+            },
+            {
+                "meshHeadingTerm": "Cell Movement",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:30110134"
+            },
+            {
+                "meshHeadingTerm": "Down-Regulation",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:30110134"
+            },
+            {
+                "meshHeadingTerm": "Forkhead Transcription Factors",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:30110134"
+            },
+            {
+                "meshHeadingTerm": "Gene Expression Profiling",
+                "meshQualifierTerm": "methods",
+                "referenceId": "PMID:30110134"
+            },
+            {
+                "meshHeadingTerm": "Gene Expression Regulation, Neoplastic",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:30110134"
+            },
+            {
+                "meshHeadingTerm": "Humans",
+                "referenceId": "PMID:30110134"
+            },
+            {
+                "meshHeadingTerm": "Matrix Metalloproteinase 9",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:30110134"
+            },
+            {
+                "meshHeadingTerm": "Melanoma",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:30110134"
+            },
+            {
+                "meshHeadingTerm": "Neoplasm Invasiveness",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:30110134"
+            },
+            {
+                "meshHeadingTerm": "Neural Crest",
+                "meshQualifierTerm": "metabolism",
+                "referenceId": "PMID:30110134"
+            },
+            {
+                "meshHeadingTerm": "Signal Transduction",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:30110134"
+            },
+            {
+                "meshHeadingTerm": "rac1 GTP-Binding Protein",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:30110134"
+            }
+        ],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "ZFIN",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:0042124"
+        ],
+        "pages": "2962-2972",
+        "primaryId": "PMID:30110134",
+        "pubMedType": [
+            "Journal Article",
+            "Research Support, Non-U.S. Gov't"
+        ],
+        "publicationStatus": "ppublish",
+        "resource": "NLM:0042124",
+        "resourceAbbreviation": "Int. J. Cancer",
+        "tags": [
+            {
+                "referenceId": "PMID:30110134",
+                "tagName": "inCorpus",
+                "tagSource": "ZFIN"
+            }
+        ],
+        "title": "Loss of neural crest-associated gene FOXD1 impairs melanoma invasion and migration via RAC1B downregulation.",
+        "volume": "143"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Journal",
+                "source": "ZFIN"
+            }
+        ],
+        "abstract": "The paired-type homeodomain transcription factor Uncx is involved in multiple processes of embryogenesis in vertebrates. Reasoning that zebrafish genes <i>uncx4.1</i> and <i>uncx</i> are orthologs of mouse <i>Uncx</i>, we studied their genomic environment and developmental expression. Evolutionary analyses indicate the zebrafish <i>uncx</i> genes as being paralogs deriving from teleost-specific whole-genome duplication. Whole-mount <i>in situ</i> mRNA hybridization of <i>uncx</i> transcripts in zebrafish embryos reveals novel expression domains, confirms those previously known, and suggests sub-functionalization of paralogs. Using genetic mutants and pharmacological inhibitors, we investigate the role of signaling pathways on the expression of zebrafish <i>uncx</i> genes in developing somites. In identifying putative functional role(s) of zebrafish <i>uncx</i> genes, we hypothesized that they encode transcription factors that coordinate growth and innervation of somitic muscles.",
+        "allianceCategory": "Research_Article",
+        "authors": [
+            {
+                "affiliations": [
+                    "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+                ],
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "V",
+                "firstname": "Valeria",
+                "lastname": "Nittoli",
+                "name": "Valeria Nittoli"
+            },
+            {
+                "affiliations": [
+                    "Immunrise Technologies, 75005 Paris, France."
+                ],
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "AE",
+                "firstname": "Antonio Emidio",
+                "lastname": "Fortunato",
+                "name": "Antonio Emidio Fortunato"
+            },
+            {
+                "affiliations": [
+                    "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+                ],
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "G",
+                "firstname": "Giulia",
+                "lastname": "Fasano",
+                "name": "Giulia Fasano"
+            },
+            {
+                "affiliations": [
+                    "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+                ],
+                "authorRank": 4,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "U",
+                "firstname": "Ugo",
+                "lastname": "Coppola",
+                "name": "Ugo Coppola"
+            },
+            {
+                "affiliations": [
+                    "Department of Developmental Genetics, Max Planck Institute for Heart and Lung Research, 61231 Bad Nauheim, Germany."
+                ],
+                "authorRank": 5,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "A",
+                "firstname": "Alessandra",
+                "lastname": "Gentile",
+                "name": "Alessandra Gentile"
+            },
+            {
+                "affiliations": [
+                    "Orphanet, French National Institute for Health and Medical Research, 75014 Paris, France."
+                ],
+                "authorRank": 6,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "S",
+                "firstname": "Sylvie",
+                "lastname": "Maiella",
+                "name": "Sylvie Maiella"
+            },
+            {
+                "affiliations": [
+                    "Wyss Institute for Biologically Inspired Engineering at Harvard University, 02115 Boston, USA."
+                ],
+                "authorRank": 7,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "F",
+                "firstname": "Fernanda",
+                "lastname": "Langellotto",
+                "name": "Fernanda Langellotto"
+            },
+            {
+                "affiliations": [
+                    "Human Genetics,Wellcome Sanger Institute, CB10 1SA Hinxton, UK."
+                ],
+                "authorRank": 8,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "I",
+                "firstname": "Immacolata",
+                "lastname": "Porreca",
+                "name": "Immacolata Porreca"
+            },
+            {
+                "affiliations": [
+                    "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+                ],
+                "authorRank": 9,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "R",
+                "firstname": "Raffaella",
+                "lastname": "De Paolo",
+                "name": "Raffaella De Paolo"
+            },
+            {
+                "affiliations": [
+                    "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+                ],
+                "authorRank": 10,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "R",
+                "firstname": "Rita",
+                "lastname": "Marino",
+                "name": "Rita Marino"
+            },
+            {
+                "affiliations": [
+                    "Department of Biology, University of Naples Federico II, 80126 Naples, Italy."
+                ],
+                "authorRank": 11,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "M",
+                "firstname": "Marcella",
+                "lastname": "Fiengo",
+                "name": "Marcella Fiengo"
+            },
+            {
+                "affiliations": [
+                    "Department of Biology, University of Naples Federico II, 80126 Naples, Italy."
+                ],
+                "authorRank": 12,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "A",
+                "firstname": "Aldo",
+                "lastname": "Donizetti",
+                "name": "Aldo Donizetti"
+            },
+            {
+                "affiliations": [
+                    "Department of Biology, University of Naples Federico II, 80126 Naples, Italy."
+                ],
+                "authorRank": 13,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "F",
+                "firstname": "Francesco",
+                "lastname": "Aniello",
+                "name": "Francesco Aniello"
+            },
+            {
+                "affiliations": [
+                    "Laboratory for Developmental Genetics, RIKEN Center for Integrative Medical Sciences, 230-0045 Yokohama, Japan."
+                ],
+                "authorRank": 14,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "T",
+                "firstname": "Takashi",
+                "lastname": "Kondo",
+                "name": "Takashi Kondo"
+            },
+            {
+                "affiliations": [
+                    "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+                ],
+                "authorRank": 15,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "F",
+                "firstname": "Filomena",
+                "lastname": "Ristoratore",
+                "name": "Filomena Ristoratore"
+            },
+            {
+                "affiliations": [
+                    "Department of Science and Technology, University of Sannio, 82100 Benevento, Italy."
+                ],
+                "authorRank": 16,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "LMT",
+                "firstname": "Lorella M T",
+                "lastname": "Canzoniero",
+                "name": "Lorella M T Canzoniero"
+            },
+            {
+                "affiliations": [
+                    "School of Life Sciences, Federal Institute of Technology, 1015 Lausanne, Switzerland.",
+                    "University of Geneva, 1205 Geneva, Switzerland."
+                ],
+                "authorRank": 17,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "D",
+                "firstname": "Denis",
+                "lastname": "Duboule",
+                "name": "Denis Duboule"
+            },
+            {
+                "affiliations": [
+                    "Department of Cell and Developmental Biology, University College London, WC1E6BT London, UK."
+                ],
+                "authorRank": 18,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "SW",
+                "firstname": "Stephen W",
+                "lastname": "Wilson",
+                "name": "Stephen W Wilson"
+            },
+            {
+                "affiliations": [
+                    "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+                ],
+                "authorRank": 19,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "P",
+                "firstname": "Paolo",
+                "lastname": "Sordino",
+                "name": "Paolo Sordino"
+            }
+        ],
+        "citation": "Nittoli, V., Fortunato, A.E., Fasano, G., Coppola, U., Gentile, A., Maiella, S., Langellotto, F., Porreca, I., De Paolo, R., Marino, R., Fiengo, M., Donizetti, A., Aniello, F., Kondo, T., Ristoratore, F., Canzoniero, L.M.T., Duboule, D., Wilson, S.W., Sordino, P. (2019) Characterization of paralogous <i>uncx</i> transcription factor encoding genes in zebrafish. Gene X. 2:100011",
+        "commentsCorrections": [],
+        "crossReferences": [
+            {
+                "id": "PMID:31193955"
+            },
+            {
+                "id": "DOI:10.1016/j.gene.2019.100011"
+            },
+            {
+                "id": "PMCID:PMC6543554"
+            },
+            {
+                "id": "NLM:101746496"
+            },
+            {
+                "id": "ISSN:2590-1583"
+            }
+        ],
+        "dateArrivedInPubmed": "2018-07-27",
+        "dateLastModified": "2021-01-09",
+        "datePublished": "2019-06-01",
+        "journal": "Gene X",
+        "keywords": [
+            "AP",
+            "antero-posterior",
+            "Ace",
+            "acerebellar",
+            "CAMP",
+            "conserved ancestral microsyntenic pairs",
+            "CNE",
+            "conserved non-coding elements",
+            "CRM",
+            "cis-regulatory module",
+            "CS",
+            "Corpuscle of Stannius",
+            "CaP",
+            "caudal primary motor neuron axons",
+            "Ce",
+            "cerebellum",
+            "Development",
+            "Di",
+            "diencephalon",
+            "Elfn1",
+            "Extracellular Leucine Rich Repeat And Fibronectin Type III Domain Containing 1",
+            "Ey",
+            "eye",
+            "FB",
+            "forebrain",
+            "FGF",
+            "fibroblast growth factor",
+            "Flh",
+            "floating head",
+            "HB",
+            "hindbrain",
+            "HM",
+            "hybridization mix",
+            "Hy",
+            "hypothalamus",
+            "MO",
+            "morpholino",
+            "Mical",
+            "molecule interacting with CasL",
+            "No",
+            "notochord",
+            "OP",
+            "olfactory placode",
+            "OT",
+            "optic tectum",
+            "PA",
+            "pharyngeal arches",
+            "PSM",
+            "presomitic mesoderm",
+            "SC",
+            "spinal cord",
+            "Shh",
+            "sonic hedgehog",
+            "Signaling pathway",
+            "So",
+            "somites",
+            "Synteny",
+            "TSGD",
+            "TSGD",
+            "teleost-specific genome duplication",
+            "Te",
+            "telencephalon",
+            "Th",
+            "thalamus",
+            "Uncx",
+            "VLP",
+            "ventro-lateral-posterior",
+            "WIHC",
+            "whole-mount immunohistochemistry",
+            "WISH",
+            "whole-mount in situ hybridization",
+            "YE",
+            "yolk extension",
+            "Yo",
+            "yolk",
+            "Zebrafish",
+            "cyc",
+            "cyclops",
+            "fss",
+            "fused-somites",
+            "hpf",
+            "hours post fertilization",
+            "ptc",
+            "patched",
+            "smu",
+            "slow-muscle-omitted",
+            "syu",
+            "sonic-you",
+            "yot",
+            "you-too",
+            "AP, antero-posterior",
+            "Ace, acerebellar",
+            "CAMP, conserved ancestral microsyntenic pairs",
+            "CNE, conserved non-coding elements",
+            "CRM, cis-regulatory module",
+            "CS, Corpuscle of Stannius",
+            "CaP, caudal primary motor neuron axons",
+            "Ce, cerebellum",
+            "Di, diencephalon",
+            "Elfn1, Extracellular Leucine Rich Repeat And Fibronectin Type III Domain Containing 1",
+            "Ey, eye",
+            "FB, forebrain",
+            "FGF, fibroblast growth factor",
+            "Flh, floating head",
+            "HB, hindbrain",
+            "HM, hybridization mix",
+            "Hy, hypothalamus",
+            "MO, morpholino",
+            "Mical, molecule interacting with CasL",
+            "No, notochord",
+            "OP, olfactory placode",
+            "OT, optic tectum",
+            "PA, pharyngeal arches",
+            "PSM, presomitic mesoderm",
+            "SC, spinal cord",
+            "Shh, sonic hedgehog",
+            "So, somites",
+            "TSGD, teleost-specific genome duplication",
+            "Te, telencephalon",
+            "Th, thalamus",
+            "VLP, ventro-lateral-posterior",
+            "WIHC, whole-mount immunohistochemistry",
+            "WISH, whole-mount in situ hybridization",
+            "YE, yolk extension",
+            "Yo, yolk",
+            "cyc, cyclops",
+            "fss, fused-somites",
+            "hpf, hours post fertilization",
+            "ptc, patched",
+            "smu, slow-muscle-omitted",
+            "syu, sonic-you",
+            "yot, you-too"
+        ],
+        "meshTerms": [],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "ZFIN",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:101746496"
+        ],
+        "pages": "100011",
+        "primaryId": "PMID:31193955",
+        "pubMedType": [
+            "Journal Article"
+        ],
+        "publicationStatus": "ppublish",
+        "resource": "NLM:101746496",
+        "resourceAbbreviation": "Gene X",
+        "tags": [
+            {
+                "referenceId": "PMID:31193955",
+                "tagName": "canShowImages",
+                "tagSource": "ZFIN"
+            },
+            {
+                "referenceId": "PMID:31193955",
+                "tagName": "inCorpus",
+                "tagSource": "ZFIN"
+            }
+        ],
+        "title": "Characterization of paralogous <i>uncx</i> transcription factor encoding genes in zebrafish.",
+        "volume": "2"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Journal",
+                "source": "ZFIN"
+            }
+        ],
+        "abstract": "The 11q23 of the mixed lineage leukemia 1 (<i>MLL1</i>) gene plays a crucial role in early embryonic development and hematopoiesis. The <i>MLL-AF9</i> fusion gene, resulting from chromosomal translocation, often leads to acute myeloid leukemia with poor prognosis. Here, we generated a zebrafish model expressing the human <i>MLL-AF9</i> fusion gene. Microinjection of human <i>MLL-AF9</i> mRNA into zebrafish embryos resulted in enhanced hematopoiesis and the activation of downstream genes such as <i>meis1</i> and <i>hox</i> cluster genes. Embryonic MLL-AF9 expression upregulated HSPC and myeloid lineage markers. Doxorubicin and MI-2 (a menin inhibitor) treatments significantly restored normal hematopoiesis in MLL-AF9-expressing animals. This study provides insight into the role of MLL-AF9 in zebrafish hematopoiesis and establishes a robust and efficient in vivo model for high-throughput drug screening.",
+        "allianceCategory": "Research_Article",
+        "authors": [
+            {
+                "affiliations": [
+                    "Department of Hematology, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China.",
+                    "Cancer Biology Research Center, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China."
+                ],
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "crossReferences": [
+                    {
+                        "id": "ORCID:0000-0002-1756-0560",
+                        "pages": [
+                            "person/orcid"
+                        ]
+                    }
+                ],
+                "firstAuthor": false,
+                "firstinit": "J",
+                "firstname": "Jiaqi",
+                "lastname": "Tan",
+                "name": "Jiaqi Tan",
+                "orcid": "0000-0002-1756-0560"
+            },
+            {
+                "affiliations": [
+                    "Department of Hematology, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China.",
+                    "Cancer Biology Research Center, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China."
+                ],
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "L",
+                "firstname": "Lei",
+                "lastname": "Zhao",
+                "name": "Lei Zhao"
+            },
+            {
+                "affiliations": [
+                    "Department of Hematology, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China.",
+                    "Cancer Biology Research Center, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China."
+                ],
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "G",
+                "firstname": "Gaoxiang",
+                "lastname": "Wang",
+                "name": "Gaoxiang Wang"
+            },
+            {
+                "affiliations": [
+                    "Department of Hematology, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China.",
+                    "Cancer Biology Research Center, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China."
+                ],
+                "authorRank": 4,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "T",
+                "firstname": "Tongjuan",
+                "lastname": "Li",
+                "name": "Tongjuan Li"
+            },
+            {
+                "affiliations": [
+                    "Department of Hematology, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China.",
+                    "Cancer Biology Research Center, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China."
+                ],
+                "authorRank": 5,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "D",
+                "firstname": "Dan",
+                "lastname": "Li",
+                "name": "Dan Li"
+            },
+            {
+                "affiliations": [
+                    "Department of Hematology, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China.",
+                    "Cancer Biology Research Center, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China."
+                ],
+                "authorRank": 6,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "Q",
+                "firstname": "Qian",
+                "lastname": "Xu",
+                "name": "Qian Xu"
+            },
+            {
+                "affiliations": [
+                    "Department of Hematology, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China.",
+                    "Cancer Biology Research Center, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China."
+                ],
+                "authorRank": 7,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "X",
+                "firstname": "Xing",
+                "lastname": "Chen",
+                "name": "Xing Chen"
+            },
+            {
+                "affiliations": [
+                    "Department of Hematology, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China.",
+                    "Cancer Biology Research Center, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China."
+                ],
+                "authorRank": 8,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "Z",
+                "firstname": "Zhen",
+                "lastname": "Shang",
+                "name": "Zhen Shang"
+            },
+            {
+                "affiliations": [
+                    "Department of Hematology, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China.",
+                    "Cancer Biology Research Center, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China."
+                ],
+                "authorRank": 9,
+                "correspondingAuthor": false,
+                "crossReferences": [
+                    {
+                        "id": "ORCID:0000-0002-9948-4783",
+                        "pages": [
+                            "person/orcid"
+                        ]
+                    }
+                ],
+                "firstAuthor": false,
+                "firstinit": "J",
+                "firstname": "Jue",
+                "lastname": "Wang",
+                "name": "Jue Wang",
+                "orcid": "0000-0002-9948-4783"
+            },
+            {
+                "affiliations": [
+                    "Department of Hematology, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China.",
+                    "Cancer Biology Research Center, Tongji Hospital, Tongji Medical College, Huazhong University of Science and Technology, Wuhan 430030, China."
+                ],
+                "authorRank": 10,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "J",
+                "firstname": "Jianfeng",
+                "lastname": "Zhou",
+                "name": "Jianfeng Zhou"
+            }
+        ],
+        "citation": "Tan, J., Zhao, L., Wang, G., Li, T., Li, D., Xu, Q., Chen, X., Shang, Z., Wang, J., Zhou, J. (2018) Human MLL-AF9 Overexpression Induces Aberrant Hematopoietic Expansion in Zebrafish. BioMed Research International. 2018:6705842",
+        "commentsCorrections": [],
+        "crossReferences": [
+            {
+                "id": "PMID:30003105"
+            },
+            {
+                "id": "DOI:10.1155/2018/6705842"
+            },
+            {
+                "id": "PMCID:PMC5998191"
+            },
+            {
+                "id": "NLM:101600173"
+            }
+        ],
+        "dateArrivedInPubmed": "2017-10-02",
+        "dateLastModified": "2019-08-16",
+        "datePublished": "2018-01-01",
+        "journal": "Biomed Res Int",
+        "keywords": [],
+        "meshTerms": [
+            {
+                "meshHeadingTerm": "Animals",
+                "referenceId": "PMID:30003105"
+            },
+            {
+                "meshHeadingTerm": "Disease Models, Animal",
+                "referenceId": "PMID:30003105"
+            },
+            {
+                "meshHeadingTerm": "Hematopoiesis",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:30003105"
+            },
+            {
+                "meshHeadingTerm": "Histone-Lysine N-Methyltransferase",
+                "referenceId": "PMID:30003105"
+            },
+            {
+                "meshHeadingTerm": "Humans",
+                "referenceId": "PMID:30003105"
+            },
+            {
+                "meshHeadingTerm": "Leukemia, Myeloid, Acute",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:30003105"
+            },
+            {
+                "meshHeadingTerm": "Myeloid-Lymphoid Leukemia Protein",
+                "meshQualifierTerm": "physiology",
+                "referenceId": "PMID:30003105"
+            },
+            {
+                "meshHeadingTerm": "Oncogene Proteins, Fusion",
+                "meshQualifierTerm": "physiology",
+                "referenceId": "PMID:30003105"
+            },
+            {
+                "meshHeadingTerm": "Translocation, Genetic",
+                "referenceId": "PMID:30003105"
+            },
+            {
+                "meshHeadingTerm": "Zebrafish",
+                "referenceId": "PMID:30003105"
+            }
+        ],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "ZFIN",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:101600173"
+        ],
+        "pages": "6705842",
+        "primaryId": "PMID:30003105",
+        "pubMedType": [
+            "Journal Article"
+        ],
+        "publicationStatus": "epublish",
+        "resource": "NLM:101600173",
+        "resourceAbbreviation": "Biomed Res. Int.",
+        "tags": [
+            {
+                "referenceId": "PMID:30003105",
+                "tagName": "canShowImages",
+                "tagSource": "ZFIN"
+            },
+            {
+                "referenceId": "PMID:30003105",
+                "tagName": "inCorpus",
+                "tagSource": "ZFIN"
+            }
+        ],
+        "title": "Human MLL-AF9 Overexpression Induces Aberrant Hematopoietic Expansion in Zebrafish.",
+        "volume": "2018"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Journal",
+                "source": "ZFIN"
+            }
+        ],
+        "abstract": "The paired-type homeodomain transcription factor Uncx is involved in multiple processes of embryogenesis in vertebrates. Reasoning that zebrafish genes uncx4.1 and uncx are orthologs of mouse Uncx, we studied their genomic environment and developmental expression. Evolutionary analyses indicate the zebrafish uncx genes as being paralogs deriving from teleost-specific whole-genome duplication. Whole-mount in situ mRNA hybridization of uncx transcripts in zebrafish embryos reveals novel expression domains, confirms those previously known, and suggests sub-functionalization of paralogs. Using genetic mutants and pharmacological inhibitors, we investigate the role of signaling pathways on the expression of zebrafish uncx genes in developing somites. In identifying putative functional role(s) of zebrafish uncx genes, we hypothesized that they encode transcription factors that coordinate growth and innervation of somitic muscles.",
+        "allianceCategory": "Research_Article",
+        "authors": [
+            {
+                "affiliations": [
+                    "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+                ],
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "V",
+                "firstname": "Valeria",
+                "lastname": "Nittoli",
+                "name": "Valeria Nittoli"
+            },
+            {
+                "affiliations": [
+                    "Immunrise Technologies, 75005 Paris, France."
+                ],
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "AE",
+                "firstname": "Antonio Emidio",
+                "lastname": "Fortunato",
+                "name": "Antonio Emidio Fortunato"
+            },
+            {
+                "affiliations": [
+                    "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+                ],
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "G",
+                "firstname": "Giulia",
+                "lastname": "Fasano",
+                "name": "Giulia Fasano"
+            },
+            {
+                "affiliations": [
+                    "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+                ],
+                "authorRank": 4,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "U",
+                "firstname": "Ugo",
+                "lastname": "Coppola",
+                "name": "Ugo Coppola"
+            },
+            {
+                "affiliations": [
+                    "Department of Developmental Genetics, Max Planck Institute for Heart and Lung Research, 61231 Bad Nauheim, Germany."
+                ],
+                "authorRank": 5,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "A",
+                "firstname": "Alessandra",
+                "lastname": "Gentile",
+                "name": "Alessandra Gentile"
+            },
+            {
+                "affiliations": [
+                    "Orphanet, French National Institute for Health and Medical Research, 75014 Paris, France."
+                ],
+                "authorRank": 6,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "S",
+                "firstname": "Sylvie",
+                "lastname": "Maiella",
+                "name": "Sylvie Maiella"
+            },
+            {
+                "affiliations": [
+                    "Wyss Institute for Biologically Inspired Engineering at Harvard University, 02115 Boston, USA."
+                ],
+                "authorRank": 7,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "F",
+                "firstname": "Fernanda",
+                "lastname": "Langellotto",
+                "name": "Fernanda Langellotto"
+            },
+            {
+                "affiliations": [
+                    "Human Genetics,Wellcome Sanger Institute, CB10 1SA Hinxton, UK."
+                ],
+                "authorRank": 8,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "I",
+                "firstname": "Immacolata",
+                "lastname": "Porreca",
+                "name": "Immacolata Porreca"
+            },
+            {
+                "affiliations": [
+                    "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+                ],
+                "authorRank": 9,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "R",
+                "firstname": "Raffaella",
+                "lastname": "De Paolo",
+                "name": "Raffaella De Paolo"
+            },
+            {
+                "affiliations": [
+                    "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+                ],
+                "authorRank": 10,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "R",
+                "firstname": "Rita",
+                "lastname": "Marino",
+                "name": "Rita Marino"
+            },
+            {
+                "affiliations": [
+                    "Department of Biology, University of Naples Federico II, 80126 Naples, Italy."
+                ],
+                "authorRank": 11,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "M",
+                "firstname": "Marcella",
+                "lastname": "Fiengo",
+                "name": "Marcella Fiengo"
+            },
+            {
+                "affiliations": [
+                    "Department of Biology, University of Naples Federico II, 80126 Naples, Italy."
+                ],
+                "authorRank": 12,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "A",
+                "firstname": "Aldo",
+                "lastname": "Donizetti",
+                "name": "Aldo Donizetti"
+            },
+            {
+                "affiliations": [
+                    "Department of Biology, University of Naples Federico II, 80126 Naples, Italy."
+                ],
+                "authorRank": 13,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "F",
+                "firstname": "Francesco",
+                "lastname": "Aniello",
+                "name": "Francesco Aniello"
+            },
+            {
+                "affiliations": [
+                    "Laboratory for Developmental Genetics, RIKEN Center for Integrative Medical Sciences, 230-0045 Yokohama, Japan."
+                ],
+                "authorRank": 14,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "T",
+                "firstname": "Takashi",
+                "lastname": "Kondo",
+                "name": "Takashi Kondo"
+            },
+            {
+                "affiliations": [
+                    "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+                ],
+                "authorRank": 15,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "F",
+                "firstname": "Filomena",
+                "lastname": "Ristoratore",
+                "name": "Filomena Ristoratore"
+            },
+            {
+                "affiliations": [
+                    "Department of Science and Technology, University of Sannio, 82100 Benevento, Italy."
+                ],
+                "authorRank": 16,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "LMT",
+                "firstname": "Lorella M T",
+                "lastname": "Canzoniero",
+                "name": "Lorella M T Canzoniero"
+            },
+            {
+                "affiliations": [
+                    "School of Life Sciences, Federal Institute of Technology, 1015 Lausanne, Switzerland; University of Geneva, 1205 Geneva, Switzerland."
+                ],
+                "authorRank": 17,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "D",
+                "firstname": "Denis",
+                "lastname": "Duboule",
+                "name": "Denis Duboule"
+            },
+            {
+                "affiliations": [
+                    "Department of Cell and Developmental Biology, University College London, WC1E6BT London, UK."
+                ],
+                "authorRank": 18,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "SW",
+                "firstname": "Stephen W",
+                "lastname": "Wilson",
+                "name": "Stephen W Wilson"
+            },
+            {
+                "affiliations": [
+                    "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy. Electronic address: paolo.sordino@szn.it."
+                ],
+                "authorRank": 19,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "P",
+                "firstname": "Paolo",
+                "lastname": "Sordino",
+                "name": "Paolo Sordino"
+            }
+        ],
+        "citation": "Nittoli, V., Fortunato, A.E., Fasano, G., Coppola, U., Gentile, A., Maiella, S., Langellotto, F., Porreca, I., De Paolo, R., Marino, R., Fiengo, M., Donizetti, A., Aniello, F., Kondo, T., Ristoratore, F., Canzoniero, L.M.T., Duboule, D., Wilson, S.W., Sordino, P. (2019) Characterization of paralogous uncx transcription factor encoding genes in zebrafish. Gene. 721S:100011",
+        "commentsCorrections": [],
+        "crossReferences": [
+            {
+                "id": "PMID:34530988"
+            },
+            {
+                "id": "DOI:10.1016/j.gene.2019.100011"
+            },
+            {
+                "id": "NLM:7706761"
+            },
+            {
+                "id": "ISSN:0378-1119"
+            }
+        ],
+        "dateArrivedInPubmed": "2018-07-27",
+        "dateLastModified": "2021-09-17",
+        "datePublished": "2019-01-01",
+        "journal": "Gene",
+        "keywords": [
+            "Development",
+            "Signaling pathway",
+            "Synteny",
+            "TSGD",
+            "Uncx",
+            "Zebrafish"
+        ],
+        "meshTerms": [],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "ZFIN",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:7706761"
+        ],
+        "pages": "100011",
+        "primaryId": "PMID:34530988",
+        "pubMedType": [
+            "Journal Article"
+        ],
+        "publicationStatus": "ppublish",
+        "resource": "NLM:7706761",
+        "resourceAbbreviation": "Gene",
+        "tags": [
+            {
+                "referenceId": "PMID:34530988",
+                "tagName": "canShowImages",
+                "tagSource": "ZFIN"
+            },
+            {
+                "referenceId": "PMID:34530988",
+                "tagName": "inCorpus",
+                "tagSource": "ZFIN"
+            }
+        ],
+        "title": "Characterization of paralogous uncx transcription factor encoding genes in zebrafish.",
+        "volume": "721S"
+    }
+]

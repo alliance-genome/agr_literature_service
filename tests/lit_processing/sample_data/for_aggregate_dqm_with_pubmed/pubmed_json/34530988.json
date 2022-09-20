@@ -1,0 +1,246 @@
+{
+    "abstract": "The paired-type homeodomain transcription factor Uncx is involved in multiple processes of embryogenesis in vertebrates. Reasoning that zebrafish genes uncx4.1 and uncx are orthologs of mouse Uncx, we studied their genomic environment and developmental expression. Evolutionary analyses indicate the zebrafish uncx genes as being paralogs deriving from teleost-specific whole-genome duplication. Whole-mount in situ mRNA hybridization of uncx transcripts in zebrafish embryos reveals novel expression domains, confirms those previously known, and suggests sub-functionalization of paralogs. Using genetic mutants and pharmacological inhibitors, we investigate the role of signaling pathways on the expression of zebrafish uncx genes in developing somites. In identifying putative functional role(s) of zebrafish uncx genes, we hypothesized that they encode transcription factors that coordinate growth and innervation of somitic muscles.",
+    "allianceCategory": "Research_Article",
+    "authors": [
+        {
+            "affiliations": [
+                "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+            ],
+            "authorRank": 1,
+            "firstinit": "V",
+            "firstname": "Valeria",
+            "lastname": "Nittoli",
+            "name": "Valeria Nittoli"
+        },
+        {
+            "affiliations": [
+                "Immunrise Technologies, 75005 Paris, France."
+            ],
+            "authorRank": 2,
+            "firstinit": "AE",
+            "firstname": "Antonio Emidio",
+            "lastname": "Fortunato",
+            "name": "Antonio Emidio Fortunato"
+        },
+        {
+            "affiliations": [
+                "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+            ],
+            "authorRank": 3,
+            "firstinit": "G",
+            "firstname": "Giulia",
+            "lastname": "Fasano",
+            "name": "Giulia Fasano"
+        },
+        {
+            "affiliations": [
+                "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+            ],
+            "authorRank": 4,
+            "firstinit": "U",
+            "firstname": "Ugo",
+            "lastname": "Coppola",
+            "name": "Ugo Coppola"
+        },
+        {
+            "affiliations": [
+                "Department of Developmental Genetics, Max Planck Institute for Heart and Lung Research, 61231 Bad Nauheim, Germany."
+            ],
+            "authorRank": 5,
+            "firstinit": "A",
+            "firstname": "Alessandra",
+            "lastname": "Gentile",
+            "name": "Alessandra Gentile"
+        },
+        {
+            "affiliations": [
+                "Orphanet, French National Institute for Health and Medical Research, 75014 Paris, France."
+            ],
+            "authorRank": 6,
+            "firstinit": "S",
+            "firstname": "Sylvie",
+            "lastname": "Maiella",
+            "name": "Sylvie Maiella"
+        },
+        {
+            "affiliations": [
+                "Wyss Institute for Biologically Inspired Engineering at Harvard University, 02115 Boston, USA."
+            ],
+            "authorRank": 7,
+            "firstinit": "F",
+            "firstname": "Fernanda",
+            "lastname": "Langellotto",
+            "name": "Fernanda Langellotto"
+        },
+        {
+            "affiliations": [
+                "Human Genetics,Wellcome Sanger Institute, CB10 1SA Hinxton, UK."
+            ],
+            "authorRank": 8,
+            "firstinit": "I",
+            "firstname": "Immacolata",
+            "lastname": "Porreca",
+            "name": "Immacolata Porreca"
+        },
+        {
+            "affiliations": [
+                "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+            ],
+            "authorRank": 9,
+            "firstinit": "R",
+            "firstname": "Raffaella",
+            "lastname": "De Paolo",
+            "name": "Raffaella De Paolo"
+        },
+        {
+            "affiliations": [
+                "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+            ],
+            "authorRank": 10,
+            "firstinit": "R",
+            "firstname": "Rita",
+            "lastname": "Marino",
+            "name": "Rita Marino"
+        },
+        {
+            "affiliations": [
+                "Department of Biology, University of Naples Federico II, 80126 Naples, Italy."
+            ],
+            "authorRank": 11,
+            "firstinit": "M",
+            "firstname": "Marcella",
+            "lastname": "Fiengo",
+            "name": "Marcella Fiengo"
+        },
+        {
+            "affiliations": [
+                "Department of Biology, University of Naples Federico II, 80126 Naples, Italy."
+            ],
+            "authorRank": 12,
+            "firstinit": "A",
+            "firstname": "Aldo",
+            "lastname": "Donizetti",
+            "name": "Aldo Donizetti"
+        },
+        {
+            "affiliations": [
+                "Department of Biology, University of Naples Federico II, 80126 Naples, Italy."
+            ],
+            "authorRank": 13,
+            "firstinit": "F",
+            "firstname": "Francesco",
+            "lastname": "Aniello",
+            "name": "Francesco Aniello"
+        },
+        {
+            "affiliations": [
+                "Laboratory for Developmental Genetics, RIKEN Center for Integrative Medical Sciences, 230-0045 Yokohama, Japan."
+            ],
+            "authorRank": 14,
+            "firstinit": "T",
+            "firstname": "Takashi",
+            "lastname": "Kondo",
+            "name": "Takashi Kondo"
+        },
+        {
+            "affiliations": [
+                "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy."
+            ],
+            "authorRank": 15,
+            "firstinit": "F",
+            "firstname": "Filomena",
+            "lastname": "Ristoratore",
+            "name": "Filomena Ristoratore"
+        },
+        {
+            "affiliations": [
+                "Department of Science and Technology, University of Sannio, 82100 Benevento, Italy."
+            ],
+            "authorRank": 16,
+            "firstinit": "LMT",
+            "firstname": "Lorella M T",
+            "lastname": "Canzoniero",
+            "name": "Lorella M T Canzoniero"
+        },
+        {
+            "affiliations": [
+                "School of Life Sciences, Federal Institute of Technology, 1015 Lausanne, Switzerland; University of Geneva, 1205 Geneva, Switzerland."
+            ],
+            "authorRank": 17,
+            "firstinit": "D",
+            "firstname": "Denis",
+            "lastname": "Duboule",
+            "name": "Denis Duboule"
+        },
+        {
+            "affiliations": [
+                "Department of Cell and Developmental Biology, University College London, WC1E6BT London, UK."
+            ],
+            "authorRank": 18,
+            "firstinit": "SW",
+            "firstname": "Stephen W",
+            "lastname": "Wilson",
+            "name": "Stephen W Wilson"
+        },
+        {
+            "affiliations": [
+                "Biology and Evolution of Marine Organisms, Zoological Station Anton Dohrn, 80121 Naples, Italy. Electronic address: paolo.sordino@szn.it."
+            ],
+            "authorRank": 19,
+            "firstinit": "P",
+            "firstname": "Paolo",
+            "lastname": "Sordino",
+            "name": "Paolo Sordino"
+        }
+    ],
+    "crossReferences": [
+        {
+            "id": "PMID:34530988"
+        },
+        {
+            "id": "DOI:10.1016/j.gene.2019.100011"
+        },
+        {
+            "id": "NLM:7706761"
+        },
+        {
+            "id": "ISSN:0378-1119"
+        }
+    ],
+    "dateArrivedInPubmed": {
+        "date_string": "2018-07-27",
+        "day": "27",
+        "month": "07",
+        "year": "2018"
+    },
+    "dateLastModified": {
+        "date_string": "2021-09-17",
+        "day": "17",
+        "month": "09",
+        "year": "2021"
+    },
+    "datePublished": "2019-01-01",
+    "doi": "10.1016/j.gene.2019.100011",
+    "is_journal": "journal",
+    "issn": "0378-1119",
+    "journal": "Gene",
+    "keywords": [
+        "Development",
+        "Signaling pathway",
+        "Synteny",
+        "TSGD",
+        "Uncx",
+        "Zebrafish"
+    ],
+    "language": "eng",
+    "nlm": "7706761",
+    "pages": "100011",
+    "pubMedType": [
+        "Journal Article"
+    ],
+    "publicationStatus": "ppublish",
+    "pubmed": "34530988",
+    "resourceAbbreviation": "Gene",
+    "title": "Characterization of paralogous uncx transcription factor encoding genes in zebrafish.",
+    "volume": "721S"
+}

@@ -1,0 +1,579 @@
+[
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Peer Reviewed Article",
+                "source": "MGI"
+            }
+        ],
+        "abstract": "Hypothalamic neurons expressing the anorectic peptide Pro-opiomelanocortin (Pomc) regulate food intake and body weight. Here, we show that Steroid Receptor Coactivator-1 (SRC-1) interacts with a target of leptin receptor activation, phosphorylated STAT3, to potentiate Pomc transcription. Deletion of SRC-1 in Pomc neurons in mice attenuates their depolarization by leptin, decreases Pomc expression and increases food intake leading to high-fat diet-induced obesity. In humans, fifteen rare heterozygous variants in SRC-1 found in severely obese individuals impair leptin-mediated Pomc reporter activity in cells, whilst four variants found in non-obese controls do not. In a knock-in mouse model of a loss of function human variant (SRC-1<sup>L1376P</sup>), leptin-induced depolarization of Pomc neurons and Pomc expression are significantly reduced, and food intake and body weight are increased. In summary, we demonstrate that SRC-1 modulates the function of hypothalamic Pomc neurons, and suggest that targeting SRC-1 may represent a useful therapeutic strategy for weight loss.",
+        "allianceCategory": "Research_Article",
+        "authors": [
+            {
+                "affiliations": [
+                    "Children's Nutrition Research Center, Department of Pediatrics, Baylor College of Medicine, One Baylor Plaza, Houston, TX, 77030, USA."
+                ],
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "Y",
+                "firstname": "Yongjie",
+                "lastname": "Yang",
+                "name": "Yongjie Yang"
+            },
+            {
+                "affiliations": [
+                    "University of Cambridge Metabolic Research Laboratories, and NIHR Cambridge Biomedical Research Centre, Wellcome Trust-MRC Institute of Metabolic Science, Addenbrooke's Hospital, Cambridge, CB2 0QQ, UK."
+                ],
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "AA",
+                "firstname": "Agatha A",
+                "lastname": "van der Klaauw",
+                "name": "Agatha A van der Klaauw"
+            },
+            {
+                "affiliations": [
+                    "Children's Nutrition Research Center, Department of Pediatrics, Baylor College of Medicine, One Baylor Plaza, Houston, TX, 77030, USA.",
+                    "Division of Gastroenterology, Union Hospital, Tongji Medical College, Huazhong University of Sciences &amp; Technology, Wuhan, 430022, China."
+                ],
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "L",
+                "firstname": "Liangru",
+                "lastname": "Zhu",
+                "name": "Liangru Zhu"
+            },
+            {
+                "affiliations": [
+                    "University of Cambridge Metabolic Research Laboratories, and NIHR Cambridge Biomedical Research Centre, Wellcome Trust-MRC Institute of Metabolic Science, Addenbrooke's Hospital, Cambridge, CB2 0QQ, UK."
+                ],
+                "authorRank": 4,
+                "correspondingAuthor": false,
+                "crossReferences": [
+                    {
+                        "id": "ORCID:0000-0002-6646-5498",
+                        "pages": [
+                            "person/orcid"
+                        ]
+                    }
+                ],
+                "firstAuthor": false,
+                "firstinit": "TM",
+                "firstname": "Tessa M",
+                "lastname": "Cacciottolo",
+                "name": "Tessa M Cacciottolo",
+                "orcid": "0000-0002-6646-5498"
+            },
+            {
+                "affiliations": [
+                    "Children's Nutrition Research Center, Department of Pediatrics, Baylor College of Medicine, One Baylor Plaza, Houston, TX, 77030, USA."
+                ],
+                "authorRank": 5,
+                "correspondingAuthor": false,
+                "crossReferences": [
+                    {
+                        "id": "ORCID:0000-0002-5471-9016",
+                        "pages": [
+                            "person/orcid"
+                        ]
+                    }
+                ],
+                "firstAuthor": false,
+                "firstinit": "Y",
+                "firstname": "Yanlin",
+                "lastname": "He",
+                "name": "Yanlin He",
+                "orcid": "0000-0002-5471-9016"
+            },
+            {
+                "affiliations": [
+                    "University of Cambridge Metabolic Research Laboratories, and NIHR Cambridge Biomedical Research Centre, Wellcome Trust-MRC Institute of Metabolic Science, Addenbrooke's Hospital, Cambridge, CB2 0QQ, UK."
+                ],
+                "authorRank": 6,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "LKJ",
+                "firstname": "Lukas K J",
+                "lastname": "Stadler",
+                "name": "Lukas K J Stadler"
+            },
+            {
+                "affiliations": [
+                    "Children's Nutrition Research Center, Department of Pediatrics, Baylor College of Medicine, One Baylor Plaza, Houston, TX, 77030, USA."
+                ],
+                "authorRank": 7,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "C",
+                "firstname": "Chunmei",
+                "lastname": "Wang",
+                "name": "Chunmei Wang"
+            },
+            {
+                "affiliations": [
+                    "Children's Nutrition Research Center, Department of Pediatrics, Baylor College of Medicine, One Baylor Plaza, Houston, TX, 77030, USA."
+                ],
+                "authorRank": 8,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "P",
+                "firstname": "Pingwen",
+                "lastname": "Xu",
+                "name": "Pingwen Xu"
+            },
+            {
+                "affiliations": [
+                    "Children's Nutrition Research Center, Department of Pediatrics, Baylor College of Medicine, One Baylor Plaza, Houston, TX, 77030, USA."
+                ],
+                "authorRank": 9,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "K",
+                "firstname": "Kenji",
+                "lastname": "Saito",
+                "name": "Kenji Saito"
+            },
+            {
+                "affiliations": [
+                    "Children's Nutrition Research Center, Department of Pediatrics, Baylor College of Medicine, One Baylor Plaza, Houston, TX, 77030, USA."
+                ],
+                "authorRank": 10,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "A",
+                "firstname": "Antentor",
+                "lastname": "Hinton",
+                "name": "Antentor Hinton"
+            },
+            {
+                "affiliations": [
+                    "Children's Nutrition Research Center, Department of Pediatrics, Baylor College of Medicine, One Baylor Plaza, Houston, TX, 77030, USA."
+                ],
+                "authorRank": 11,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "X",
+                "firstname": "Xiaofeng",
+                "lastname": "Yan",
+                "name": "Xiaofeng Yan"
+            },
+            {
+                "affiliations": [
+                    "University of Cambridge Metabolic Research Laboratories, and NIHR Cambridge Biomedical Research Centre, Wellcome Trust-MRC Institute of Metabolic Science, Addenbrooke's Hospital, Cambridge, CB2 0QQ, UK."
+                ],
+                "authorRank": 12,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "JM",
+                "firstname": "Julia M",
+                "lastname": "Keogh",
+                "name": "Julia M Keogh"
+            },
+            {
+                "affiliations": [
+                    "University of Cambridge Metabolic Research Laboratories, and NIHR Cambridge Biomedical Research Centre, Wellcome Trust-MRC Institute of Metabolic Science, Addenbrooke's Hospital, Cambridge, CB2 0QQ, UK."
+                ],
+                "authorRank": 13,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "E",
+                "firstname": "Elana",
+                "lastname": "Henning",
+                "name": "Elana Henning"
+            },
+            {
+                "affiliations": [
+                    "University of Cambridge Metabolic Research Laboratories, and NIHR Cambridge Biomedical Research Centre, Wellcome Trust-MRC Institute of Metabolic Science, Addenbrooke's Hospital, Cambridge, CB2 0QQ, UK."
+                ],
+                "authorRank": 14,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "MC",
+                "firstname": "Matthew C",
+                "lastname": "Banton",
+                "name": "Matthew C Banton"
+            },
+            {
+                "affiliations": [
+                    "Wellcome Sanger Institute, Cambridge, CB10 1SA, UK.",
+                    "Mathematical and Statistical Sciences Department, University of Colorado - Denver, Denver, CO, 80204, USA."
+                ],
+                "authorRank": 15,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "AE",
+                "firstname": "Audrey E",
+                "lastname": "Hendricks",
+                "name": "Audrey E Hendricks"
+            },
+            {
+                "affiliations": [
+                    "University of Cambridge Metabolic Research Laboratories, and NIHR Cambridge Biomedical Research Centre, Wellcome Trust-MRC Institute of Metabolic Science, Addenbrooke's Hospital, Cambridge, CB2 0QQ, UK."
+                ],
+                "authorRank": 16,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "EG",
+                "firstname": "Elena G",
+                "lastname": "Bochukova",
+                "name": "Elena G Bochukova"
+            },
+            {
+                "affiliations": [
+                    "University of Cambridge Metabolic Research Laboratories, and NIHR Cambridge Biomedical Research Centre, Wellcome Trust-MRC Institute of Metabolic Science, Addenbrooke's Hospital, Cambridge, CB2 0QQ, UK."
+                ],
+                "authorRank": 17,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "V",
+                "firstname": "Vanisha",
+                "lastname": "Mistry",
+                "name": "Vanisha Mistry"
+            },
+            {
+                "affiliations": [
+                    "University of Cambridge Metabolic Research Laboratories, and NIHR Cambridge Biomedical Research Centre, Wellcome Trust-MRC Institute of Metabolic Science, Addenbrooke's Hospital, Cambridge, CB2 0QQ, UK."
+                ],
+                "authorRank": 18,
+                "correspondingAuthor": false,
+                "crossReferences": [
+                    {
+                        "id": "ORCID:0000-0003-4188-1804",
+                        "pages": [
+                            "person/orcid"
+                        ]
+                    }
+                ],
+                "firstAuthor": false,
+                "firstinit": "KL",
+                "firstname": "Katherine L",
+                "lastname": "Lawler",
+                "name": "Katherine L Lawler",
+                "orcid": "0000-0003-4188-1804"
+            },
+            {
+                "affiliations": [
+                    "Department of Molecular and Cellular Biology, Baylor College of Medicine, Houston, TX, 77030, USA."
+                ],
+                "authorRank": 19,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "L",
+                "firstname": "Lan",
+                "lastname": "Liao",
+                "name": "Lan Liao"
+            },
+            {
+                "affiliations": [
+                    "Department of Molecular and Cellular Biology, Baylor College of Medicine, Houston, TX, 77030, USA."
+                ],
+                "authorRank": 20,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "J",
+                "firstname": "Jianming",
+                "lastname": "Xu",
+                "name": "Jianming Xu"
+            },
+            {
+                "affiliations": [
+                    "University of Cambridge Metabolic Research Laboratories, and NIHR Cambridge Biomedical Research Centre, Wellcome Trust-MRC Institute of Metabolic Science, Addenbrooke's Hospital, Cambridge, CB2 0QQ, UK."
+                ],
+                "authorRank": 21,
+                "correspondingAuthor": false,
+                "crossReferences": [
+                    {
+                        "id": "ORCID:0000-0003-2199-4449",
+                        "pages": [
+                            "person/orcid"
+                        ]
+                    }
+                ],
+                "firstAuthor": false,
+                "firstinit": "S",
+                "firstname": "Stephen",
+                "lastname": "O'Rahilly",
+                "name": "Stephen O'Rahilly",
+                "orcid": "0000-0003-2199-4449"
+            },
+            {
+                "affiliations": [
+                    "Brown Foundation Institute of Molecular Medicine, University of Texas Health Science Center at Houston, Houston, TX, 77030, USA."
+                ],
+                "authorRank": 22,
+                "correspondingAuthor": false,
+                "crossReferences": [
+                    {
+                        "id": "ORCID:0000-0002-4561-2540",
+                        "pages": [
+                            "person/orcid"
+                        ]
+                    }
+                ],
+                "firstAuthor": false,
+                "firstinit": "Q",
+                "firstname": "Qingchun",
+                "lastname": "Tong",
+                "name": "Qingchun Tong",
+                "orcid": "0000-0002-4561-2540"
+            },
+            {
+                "authorRank": 23,
+                "collectivename": "UK10K Consortium",
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "UK10K Consortium"
+            },
+            {
+                "affiliations": [
+                    "Wellcome Sanger Institute, Cambridge, CB10 1SA, UK."
+                ],
+                "authorRank": 24,
+                "correspondingAuthor": false,
+                "crossReferences": [
+                    {
+                        "id": "ORCID:0000-0001-5800-4520",
+                        "pages": [
+                            "person/orcid"
+                        ]
+                    }
+                ],
+                "firstAuthor": false,
+                "lastname": "In\u00eas Barroso",
+                "name": "In\u00eas Barroso",
+                "orcid": "0000-0001-5800-4520"
+            },
+            {
+                "affiliations": [
+                    "Department of Molecular and Cellular Biology, Baylor College of Medicine, Houston, TX, 77030, USA."
+                ],
+                "authorRank": 25,
+                "correspondingAuthor": false,
+                "crossReferences": [
+                    {
+                        "id": "ORCID:0000-0003-3332-1399",
+                        "pages": [
+                            "person/orcid"
+                        ]
+                    }
+                ],
+                "firstAuthor": false,
+                "firstinit": "BW",
+                "firstname": "Bert W",
+                "lastname": "O'Malley",
+                "name": "Bert W O'Malley",
+                "orcid": "0000-0003-3332-1399"
+            },
+            {
+                "affiliations": [
+                    "University of Cambridge Metabolic Research Laboratories, and NIHR Cambridge Biomedical Research Centre, Wellcome Trust-MRC Institute of Metabolic Science, Addenbrooke's Hospital, Cambridge, CB2 0QQ, UK. isf20@cam.ac.uk."
+                ],
+                "authorRank": 26,
+                "correspondingAuthor": false,
+                "crossReferences": [
+                    {
+                        "id": "ORCID:0000-0001-7609-3504",
+                        "pages": [
+                            "person/orcid"
+                        ]
+                    }
+                ],
+                "firstAuthor": false,
+                "firstinit": "IS",
+                "firstname": "I Sadaf",
+                "lastname": "Farooqi",
+                "name": "I Sadaf Farooqi",
+                "orcid": "0000-0001-7609-3504"
+            },
+            {
+                "affiliations": [
+                    "Children's Nutrition Research Center, Department of Pediatrics, Baylor College of Medicine, One Baylor Plaza, Houston, TX, 77030, USA. yongx@bcm.edu.",
+                    "Department of Molecular and Cellular Biology, Baylor College of Medicine, Houston, TX, 77030, USA. yongx@bcm.edu."
+                ],
+                "authorRank": 27,
+                "correspondingAuthor": false,
+                "crossReferences": [
+                    {
+                        "id": "ORCID:0000-0002-4908-1572",
+                        "pages": [
+                            "person/orcid"
+                        ]
+                    }
+                ],
+                "firstAuthor": false,
+                "firstinit": "Y",
+                "firstname": "Yong",
+                "lastname": "Xu",
+                "name": "Yong Xu",
+                "orcid": "0000-0002-4908-1572"
+            }
+        ],
+        "citation": "Nat Commun 2019 Apr 12;10(1):1718",
+        "commentsCorrections": [],
+        "crossReferences": [
+            {
+                "id": "PMID:30979869"
+            },
+            {
+                "id": "DOI:10.1038/s41467-019-08737-6"
+            },
+            {
+                "id": "PMCID:PMC6461669"
+            },
+            {
+                "id": "NLM:101528555"
+            },
+            {
+                "id": "ISSN:2041-1723"
+            }
+        ],
+        "dateArrivedInPubmed": "2018-09-26",
+        "dateLastModified": "2021-01-09",
+        "datePublished": "2019-04-12",
+        "issueName": "1",
+        "journal": "Nat Commun",
+        "keywords": [],
+        "meshTerms": [
+            {
+                "meshHeadingTerm": "Alleles",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Animals",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Body Weight",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Cell Line, Tumor",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Crosses, Genetic",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Gene Deletion",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Gene Knock-In Techniques",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Genetic Variation",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "HEK293 Cells",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Heterozygote",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Homeostasis",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Humans",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Hypothalamus",
+                "meshQualifierTerm": "metabolism",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Leptin",
+                "meshQualifierTerm": "metabolism",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Male",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Membrane Potentials",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Mice",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Mice, Transgenic",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Mutation, Missense",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Neurons",
+                "meshQualifierTerm": "metabolism",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Nuclear Receptor Coactivator 1",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Nuclear Receptor Coactivator 1",
+                "meshQualifierTerm": "metabolism",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Obesity",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Obesity",
+                "meshQualifierTerm": "metabolism",
+                "referenceId": "PMID:30979869"
+            },
+            {
+                "meshHeadingTerm": "Phenotype",
+                "referenceId": "PMID:30979869"
+            }
+        ],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "MGI",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:101528555"
+        ],
+        "pages": "1718",
+        "primaryId": "PMID:30979869",
+        "pubMedType": [
+            "Journal Article",
+            "Research Support, N.I.H., Extramural",
+            "Research Support, Non-U.S. Gov't",
+            "Research Support, U.S. Gov't, Non-P.H.S."
+        ],
+        "publicationStatus": "epublish",
+        "resource": "NLM:101528555",
+        "resourceAbbreviation": "Nat Commun",
+        "tags": [
+            {
+                "referenceId": "PMID:30979869",
+                "tagName": "inCorpus",
+                "tagSource": "MGI"
+            }
+        ],
+        "title": "Steroid receptor coactivator-1 modulates the function of Pomc neurons and energy homeostasis.",
+        "volume": "10"
+    }
+]

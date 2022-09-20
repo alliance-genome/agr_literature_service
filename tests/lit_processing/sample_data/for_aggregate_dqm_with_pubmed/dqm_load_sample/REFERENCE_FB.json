@@ -1,0 +1,300 @@
+{
+    "data": [
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "paper",
+                    "source": "FB"
+                }
+            ],
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "firstName": "G.E.",
+                    "lastName": "Lapta",
+                    "name": "G.E. Lapta",
+                    "referenceId": "FB:FBrf0035013"
+                }
+            ],
+            "citation": "Lapta, 1980, Sov. Genet. 16(4): 386--390",
+            "crossReferences": [
+                {
+                    "id": "FB:FBrf0035013",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "dateLastModified": "2019-03-15T14:20:02.41773-04:00",
+            "datePublished": "1980",
+            "issueName": "4",
+            "language": "English",
+            "pages": "386--390",
+            "primaryId": "FB:FBrf0035013",
+            "resourceAbbreviation": "Sov. Genet.",
+            "tags": [
+                {
+                    "referenceId": "FB:FBrf0035013",
+                    "tagName": "inCorpus",
+                    "tagSource": "FB"
+                }
+            ],
+            "title": "Analysis of the distribution of asynaptic segments in Drosophila melanogaster chromosomes.",
+            "volume": "16"
+        },
+        {
+          "MODReferenceTypes": [
+            {
+              "referenceType": "paper",
+              "source": "FB"
+            }
+          ],
+          "abstract": "The protein tyrosine kinase PYK2 has been implicated in signaling pathways activated by G-protein-coupled receptors, intracellular calcium, and stress signals. Here we describe the molecular cloning and characterization of a novel family of PYK2-binding proteins designated Nirs (PYK2 N-terminal domain-interacting receptors). The three Nir proteins (Nir1, Nir2, and Nir3) bind to the amino-terminal domain of PYK2 via a conserved sequence motif located in the carboxy terminus. The primary structures of Nirs reveal six putative transmembrane domains, a region homologous to phosphatidylinositol (PI) transfer protein, and an acidic domain. The Nir proteins are the human homologues of the Drosophila retinal degeneration B protein (rdgB), a protein implicated in the visual transduction pathway in flies. We demonstrate that Nirs are calcium-binding proteins that exhibit PI transfer activity in vivo. Activation of PYK2 by agents that elevate intracellular calcium or by phorbol ester induce tyrosine phosphorylation of Nirs. Moreover, PYK2 and Nirs exhibit similar expression patterns in several regions of the brain and retina. In addition, PYK2-Nir complexes are detected in lysates prepared from cultured cells or from brain tissues. Finally, the Nir1-encoding gene is located at human chromosome 17p13.1, in proximity to a locus responsible for several human retinal diseases. We propose that the Nir and rdgB proteins represent a new family of evolutionarily conserved PYK2-binding proteins that play a role in the control of calcium and phosphoinositide metabolism downstream of G-protein-coupled receptors.",
+          "allianceCategory": "Research Article",
+          "authors": [
+            {
+              "authorRank": 1,
+              "firstName": "S.",
+              "lastName": "Lev",
+              "name": "S. Lev",
+              "referenceId": "PMID:10022914"
+            },
+            {
+              "authorRank": 2,
+              "firstName": "J.",
+              "lastName": "Hernandez",
+              "name": "J. Hernandez",
+              "referenceId": "PMID:10022914"
+            },
+            {
+              "authorRank": 6,
+              "firstName": "J.",
+              "lastName": "Schlessinger",
+              "name": "J. Schlessinger",
+              "referenceId": "PMID:10022914"
+            },
+            {
+              "authorRank": 5,
+              "firstName": "G.",
+              "lastName": "Plowman",
+              "name": "G. Plowman",
+              "referenceId": "PMID:10022914"
+            },
+            {
+              "authorRank": 3,
+              "firstName": "R.",
+              "lastName": "Martinez",
+              "name": "R. Martinez",
+              "referenceId": "PMID:10022914"
+            },
+            {
+              "authorRank": 4,
+              "firstName": "A.",
+              "lastName": "Chen",
+              "name": "A. Chen",
+              "referenceId": "PMID:10022914"
+            }
+          ],
+          "citation": "Lev et al., 1999, Mol. Cell. Biol. 19(3): 2278--2288",
+          "crossReferences": [
+            {
+              "id": "FB:FBrf0106846",
+              "pages": [
+                "reference"
+              ]
+            },
+            {
+              "id": "DOI:10.1128/MCB.19.3.2278"
+            },
+            {
+              "id": "PMCID:PMC84020"
+            }
+          ],
+          "dateLastModified": "2021-10-28T08:55:35.429453-04:00",
+          "datePublished": "1999",
+          "issueName": "3",
+          "language": "English",
+          "pages": "2278--2288",
+          "primaryId": "PMID:10022914",
+          "resourceAbbreviation": "Mol. Cell. Biol.",
+          "tags": [
+            {
+              "referenceId": "FB:FBrf0106846",
+              "tagName": "inCorpus",
+              "tagSource": "FB"
+            }
+          ],
+          "title": "Identification of a novel family of targets of PYK2 related to Drosophila retinal degeneration B (rdgB) protein.",
+          "volume": "19"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "paper",
+                    "source": "FB"
+                }
+            ],
+            "abstract": "Sex-dependent differences in diuranl rhythms of insects concerning mainly phase and pattern are reviewed. As possible significant factors in the evolution of such differences are discussed: life span of the species, mode of assembling of both sexes, and temporal determination of sex-specific behaviour.",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "firstName": "R.",
+                    "lastName": "Hardeland",
+                    "name": "R. Hardeland",
+                    "referenceId": "PMID:28308877"
+                }
+            ],
+            "citation": "Hardeland, 1969, Oecologia 3: 207--213",
+            "crossReferences": [
+                {
+                    "id": "FB:FBrf0020888",
+                    "pages": [
+                        "reference"
+                    ]
+                },
+                {
+                    "id": "DOI:10.1007/BF00416982"
+                }
+            ],
+            "dateLastModified": "2019-03-15T14:19:33.588229-04:00",
+            "datePublished": "1969",
+            "language": "English",
+            "pages": "207--213",
+            "primaryId": "PMID:28308877",
+            "resourceAbbreviation": "Oecologia",
+            "tags": [
+                {
+                    "referenceId": "FB:FBrf0020888",
+                    "tagName": "inCorpus",
+                    "tagSource": "FB"
+                }
+            ],
+            "title": "Geschlechtsbedingte unterschiede bei tagesrhythmen von insekten.",
+            "volume": "3"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "paper",
+                    "source": "FB"
+                }
+            ],
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "firstName": "M.E.L.",
+                    "lastName": "Scriba",
+                    "name": "M.E.L. Scriba",
+                    "referenceId": "PMID:28304499"
+                }
+            ],
+            "citation": "Scriba, 1967, Wilhelm Roux Arch. Entwickl. Mech. Org. 159: 314--345",
+            "crossReferences": [
+                {
+                    "id": "FB:FBrf0019024",
+                    "pages": [
+                        "reference"
+                    ]
+                },
+                {
+                    "id": "DOI:10.1007/BF00573799"
+                }
+            ],
+            "dateLastModified": "2019-03-15T14:20:12.063106-04:00",
+            "datePublished": "1967",
+            "language": "English",
+            "pages": "314--345",
+            "primaryId": "PMID:28304499",
+            "resourceAbbreviation": "Wilhelm Roux Arch. Entwickl. Mech. Org.",
+            "tags": [
+                {
+                    "referenceId": "FB:FBrf0019024",
+                    "tagName": "inCorpus",
+                    "tagSource": "FB"
+                }
+            ],
+            "title": "Embryonale Entwicklungsstorungen bei Defizienz und Tetraploidie des 2. Chromosoms von Drosophila melanogaster.",
+            "volume": "159"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "paper",
+                    "source": "FB"
+                }
+            ],
+            "abstract": "The goal of the Gene Ontology (GO) project is to provide a uniform way to describe the functions of gene products from organisms across all kingdoms of life and thereby enable analysis of genomic data. Protein annotations are either based on experiments or predicted from protein sequences. Since most sequences have not been experimentally characterized, most available annotations need to be based on predictions. To make as accurate inferences as possible, the GO Consortium's Reference Genome Project is using an explicit evolutionary framework to infer annotations of proteins from a broad set of genomes from experimental annotations in a semi-automated manner. Most components in the pipeline, such as selection of sequences, building multiple sequence alignments and phylogenetic trees, retrieving experimental annotations and depositing inferred annotations, are fully automated. However, the most crucial step in our pipeline relies on software-assisted curation by an expert biologist. This curation tool, Phylogenetic Annotation and INference Tool (PAINT) helps curators to infer annotations among members of a protein family. PAINT allows curators to make precise assertions as to when functions were gained and lost during evolution and record the evidence (e.g. experimentally supported GO annotations and phylogenetic information including orthology) for those assertions. In this article, we describe how we use PAINT to infer protein function in a phylogenetic context with emphasis on its strengths, limitations and guidelines. We also discuss specific examples showing how PAINT annotations compare with those generated by other highly used homology-based methods.",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "firstName": "P.",
+                    "lastName": "Gaudet",
+                    "name": "P. Gaudet",
+                    "referenceId": "PMID:21873635"
+                },
+                {
+                    "authorRank": 2,
+                    "firstName": "M.",
+                    "lastName": "Livstone",
+                    "name": "M. Livstone",
+                    "referenceId": "PMID:21873635"
+                },
+                {
+                    "authorRank": 3,
+                    "firstName": "P.",
+                    "lastName": "Thomas",
+                    "name": "P. Thomas",
+                    "referenceId": "PMID:21873635"
+                }
+            ],
+            "citation": "Gaudet et al., 2011, Brief. Bioinform. 12(5): 449--462",
+            "crossReferences": [
+                {
+                    "id": "FB:FBrf0239784",
+                    "pages": [
+                        "reference"
+                    ]
+                },
+                {
+                    "id": "DOI:10.1093/bib/bbr042"
+                },
+                {
+                    "id": "PMCID:PMC3178059"
+                }
+            ],
+            "dateLastModified": "2019-03-15T14:19:49.575165-04:00",
+            "datePublished": "2011",
+            "issueName": "5",
+            "language": "English",
+            "pages": "449--462",
+            "primaryId": "PMID:21873635",
+            "resourceAbbreviation": "Brief. Bioinform.",
+            "tags": [
+                {
+                    "referenceId": "FB:FBrf0239784",
+                    "tagName": "inCorpus",
+                    "tagSource": "FB"
+                }
+            ],
+            "title": "Gene Ontology annotation inferences using phylogenetic trees. GO Reference Genome Project.",
+            "volume": "12"
+        }
+    ],
+    "metaData": {
+        "dataProvider": {
+            "crossReference": {
+                "id": "FB",
+                "pages": [
+                    "homepage"
+                ]
+            },
+            "type": "curated"
+        },
+        "dateProduced": "2021-11-05T11:44:59-04:00",
+        "release": "PRODUCTION"
+    }
+}
