@@ -24,7 +24,7 @@ class TestOktaUtils:
         assert len(token) > 0
 
     @pytest.mark.webtest
-    def test_get_authentication_token(self):
+    def test_get_authentication_token(self, cleanup_tmp_files_when_done):
         token = get_authentication_token()
         assert type(token) == str
         assert len(token) > 0
