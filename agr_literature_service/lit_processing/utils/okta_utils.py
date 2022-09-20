@@ -1,3 +1,4 @@
+import os
 from json import dumps, loads
 from os import environ, path
 import logging
@@ -48,6 +49,7 @@ def update_okta_token():
     token = response_dict['access_token']
     # logger.info("token %s", token)
     okta_file = base_path + 'okta_token'
+    os.makedirs(base_path, exist_ok=True)
     with open(okta_file, 'w') as okta_fh:
         okta_fh.write("%s" % (token))
         okta_fh.close
