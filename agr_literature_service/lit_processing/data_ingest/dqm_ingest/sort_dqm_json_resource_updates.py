@@ -7,9 +7,10 @@ from dotenv import load_dotenv
 from fastapi.encoders import jsonable_encoder
 
 from agr_literature_service.api.models import ResourceModel, CrossReferenceModel
+from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import save_resource_file
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session,\
     sqlalchemy_load_ref_xref
-from agr_literature_service.lit_processing.utils.generic_utils import save_resource_file, split_identifier
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_processing_utils import \
     compare_authors_or_editors
 from agr_literature_service.api.user import set_global_user_id
