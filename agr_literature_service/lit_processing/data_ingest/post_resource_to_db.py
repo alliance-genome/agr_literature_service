@@ -48,17 +48,17 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
+base_path = environ.get('XML_PATH', "")
 
-def post_resources(input_path, input_mod):      # noqa: C901
+
+def post_resources(input_path, input_mod, base_input_dir=base_path):      # noqa: C901
     """
 
     :param input_path:
     :return:
     """
 
-    base_path = environ.get('XML_PATH', "")
-
-    json_storage_path = base_path + input_path + '/'
+    json_storage_path = base_input_dir + input_path + '/'
     filesets = ['NLM', 'FB', 'ZFIN']
     if input_mod in filesets:
         filesets = [input_mod]
@@ -153,7 +153,10 @@ def post_resources(input_path, input_mod):      # noqa: C901
                     last_curie_row = db_session.query(
                         ResourceModel.curie).order_by(
                             sqlalchemy.desc(ResourceModel.curie)).first()
-                    curie = create_next_curie(last_curie_row[0])
+                    last_curie = 'AGR:AGR-Resource-0000000000'
+                    if last_curie_row:
+                        last_curie = last_curie_row[0]
+                    curie = create_next_curie(last_curie)
                     cross_references = new_entry.get('cross_references', [])
                     editors = new_entry.get('editors', [])
                     if "cross_references" in new_entry:
