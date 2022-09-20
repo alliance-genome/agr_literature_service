@@ -1,0 +1,105 @@
+{
+    "abstract": "Congenital myasthenic syndromes (designated as CMS throughout this entry) are characterized by fatigable weakness of skeletal muscle (e.g., ocular, bulbar, limb muscles) with onset at or shortly after birth or in early childhood; rarely, symptoms may not manifest until later in childhood. Cardiac and smooth muscle are usually not involved. Severity and course of disease are highly variable, ranging from minor symptoms to progressive disabling weakness. In some subtypes of CMS, myasthenic symptoms may be mild, but sudden severe exacerbations of weakness or even sudden episodes of respiratory insufficiency may be precipitated by fever, infections, or excitement. Major findings of the neonatal-onset subtype include: respiratory insufficiency with sudden apnea and cyanosis; feeding difficulties; poor suck and cry; choking spells; eyelid ptosis; and facial, bulbar, and generalized weakness. Arthrogryposis multiplex congenita may also be present. Stridor in infancy may be an important clue to CMS. Later childhood-onset subtypes show abnormal muscle fatigability with difficulty in activities such as running or climbing stairs; motor milestones may be delayed; fluctuating eyelid ptosis and fixed or fluctuating extraocular muscle weakness are common presentations. The diagnosis of CMS is based on clinical findings, a decremental EMG response of the compound muscle action potential (CMAP) on low-frequency (2-3 Hz) stimulation, a positive response to acetylcholinesterase (AchE) inhibitors, absence of anti-acetylcholine receptor (AChR) and anti-MuSK antibodies in the serum, and lack of improvement of clinical symptoms with immunosuppressive therapy. Pathogenic variants in one of multiple genes encoding proteins expressed at the neuromuscular junction are currently known to be associated with subtypes of CMS. The most commonly associated genes include: <i>CHAT</i>, <i>CHRNE</i>, <i>COLQ</i>, <i>DOK7</i>, <i>GFPT1</i>, and <i>RAPSN</i>. <i>Treatment of manifestations:</i> Most individuals with CMS benefit from AChE inhibitors and/or the potassium channel blocker 3,4-diaminopyridine (3,4-DAP); however, caution must be used in giving 3,4-DAP to young children and individuals with fast-channel CMS (FCCMS). Individuals with <i>COLQ</i> and <i>DOK7</i> pathogenic variants usually do not respond to long-term treatment with AChE inhibitors. Some individuals with slow-channel CMS (SCCMS) are treated with quinidine, which has some major side effects and may be detrimental in individuals with AChR deficiency. Fluoxetine is reported to be beneficial for SCCMS. Ephedrine and albuterol have been beneficial in several individuals, especially as a therapeutic option for those with <i>DOK7</i> or <i>COLQ</i> pathogenic variants. <i>Prevention of primary manifestations:</i> Prophylactic anticholinesterase therapy to prevent sudden respiratory insufficiency or apneic attacks provoked by fever or infections in those with pathogenic variants in <i>CHAT</i> or <i>RAPSN</i>. Parents of infants are advised to use apnea monitors and be trained in CPR. <i>Agents/circumstances to avoid:</i> Drugs known to affect neuromuscular transmission and exacerbate symptoms of myasthenia gravis (e.g., ciprofloxacin, chloroquine, procaine, lithium, phenytoin, beta-blockers, procainamide, quinidine). <i>Evaluation of relatives at risk:</i> If the pathogenic variants in the family are known, molecular genetic testing can be used to clarify the genetic status of at-risk asymptomatic family members, especially newborns or young children, who could benefit from early treatment to prevent sudden respiratory failure. Congenital myasthenic syndromes are inherited in an autosomal recessive or an autosomal dominant manner. In autosomal recessive CMS (AR-CMS), the parents of an affected child are obligate heterozygotes and therefore carry one pathogenic variant. Heterozygotes (carriers) are asymptomatic. At conception, each sib of an affected individual has a 25% chance of being affected, a 50% chance of being an asymptomatic carrier, and a 25% chance of being unaffected and not a carrier. In autosomal dominant CMS (AD-CMS), some individuals have an affected parent while others have a <i>de novo</i> pathogenic variant. The proportion of cases caused by <i>de novo</i> pathogenic variants is unknown. Each child of an individual with AD-CMS has a 50% chance of inheriting the pathogenic variant. Prenatal testing and preimplantation genetic testing are possible if the pathogenic variant(s) have been identified in an affected family member.",
+    "allianceCategory": "Review_Article",
+    "authors": [
+        {
+            "authorRank": 1,
+            "firstinit": "MP",
+            "firstname": "Margaret P",
+            "lastname": "Adam",
+            "name": "Margaret P Adam"
+        },
+        {
+            "authorRank": 2,
+            "firstinit": "HH",
+            "firstname": "Holly H",
+            "lastname": "Ardinger",
+            "name": "Holly H Ardinger"
+        },
+        {
+            "authorRank": 3,
+            "firstinit": "RA",
+            "firstname": "Roberta A",
+            "lastname": "Pagon",
+            "name": "Roberta A Pagon"
+        },
+        {
+            "authorRank": 4,
+            "firstinit": "SE",
+            "firstname": "Stephanie E",
+            "lastname": "Wallace",
+            "name": "Stephanie E Wallace"
+        },
+        {
+            "authorRank": 5,
+            "firstinit": "LJH",
+            "firstname": "Lora JH",
+            "lastname": "Bean",
+            "name": "Lora JH Bean"
+        },
+        {
+            "authorRank": 6,
+            "firstinit": "G",
+            "firstname": "Ghayda",
+            "lastname": "Mirzaa",
+            "name": "Ghayda Mirzaa"
+        },
+        {
+            "authorRank": 7,
+            "firstinit": "A",
+            "firstname": "Anne",
+            "lastname": "Amemiya",
+            "name": "Anne Amemiya"
+        },
+        {
+            "affiliations": [
+                "Department of Neurology, Friedrich-Baur Institute; Medical Genetics Center (MGZ), Munich, Germany"
+            ],
+            "authorRank": 8,
+            "firstinit": "A",
+            "firstname": "Angela",
+            "lastname": "Abicht",
+            "name": "Angela Abicht"
+        },
+        {
+            "affiliations": [
+                "John Walton Muscular Dystrophy Research Centre, Institute of Genetic Medicine, Newcastle University, Newcastle upon Tyne, United Kingdom"
+            ],
+            "authorRank": 9,
+            "firstinit": "J",
+            "firstname": "Juliane",
+            "lastname": "M\u00fcller",
+            "name": "Juliane M\u00fcller"
+        },
+        {
+            "affiliations": [
+                "John Walton Muscular Dystrophy Research Centre, Institute of Genetic Medicine, Newcastle University, Newcastle upon Tyne, United Kingdom"
+            ],
+            "authorRank": 10,
+            "firstinit": "H",
+            "firstname": "Hanns",
+            "lastname": "Lochm\u00fcller",
+            "name": "Hanns Lochm\u00fcller"
+        }
+    ],
+    "crossReferences": [
+        {
+            "id": "PMID:20301347"
+        }
+    ],
+    "dateLastModified": {
+        "date_string": "2016-7-14",
+        "day": "14",
+        "month": "7",
+        "year": "2016"
+    },
+    "datePublished": "1993-01-01",
+    "is_book": "book",
+    "language": "eng",
+    "pubMedType": [
+        "Review"
+    ],
+    "publicationStatus": "ppublish",
+    "publisher": "University of Washington, Seattle",
+    "title": "Congenital Myasthenic Syndromes"
+}

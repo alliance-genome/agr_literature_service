@@ -1,0 +1,395 @@
+[
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Journal_article",
+                "source": "WB"
+            }
+        ],
+        "abstract": "Applying a series of techniques intended to induce, detect and isolate lethal and/or sterile temperature-sensitive mutants, specific to the self-fertilizing hermaphrodite nematode Caenorhabditis elegans, Bergerac strain, 25 such mutants have been found. Optimal conditions for the application of mutagenic treatment and the detection of such mutations are discussed.",
+        "allianceCategory": "Research Article",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Abdul Kader N",
+                "referenceId": "WB:WBPaper00000003"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Brun J",
+                "referenceId": "WB:WBPaper00000003"
+            }
+        ],
+        "citation": "Abdul Kader N et al. (1978) Revue de Nematologie \"Induction, detection and isolation of temperature-sensitive lethal and/or ....\"",
+        "crossReferences": [
+            {
+                "id": "WB:WBPaper00000003",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "datePublished": "1978",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "WB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "pages": "27-37",
+        "primaryId": "WB:WBPaper00000003",
+        "resourceAbbreviation": "Revue de Nematologie",
+        "tags": [
+            {
+                "referenceId": "WB:WBPaper00000003",
+                "tagName": "inCorpus",
+                "tagSource": "WB"
+            }
+        ],
+        "title": "Induction, detection and isolation of temperature-sensitive lethal and/or sterile mutants in nematodes. I. The free-living nematode C. elegans.",
+        "volume": "1"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Journal_article",
+                "source": "WB"
+            }
+        ],
+        "abstract": "Before diakinesis, the development of the oocytes of C. elegans takes place in the presence of a specific anatomical structure: the rachis. This is an undivided, anucleated cytoplasmic mass placed in the central part of the ovary. Electron microscopy shows that, at first, in the gonial region, it is made of two branches which infiltrate themselves between the oogonia and then converge in a single axial column. Afterwards, this column will be pushed to the outside of the gonad and will disappear when the great oocyte increase takes place. Until then, the rachis is limited by its own envelope and connects each germinal cell through a pore present in the double layered membrane. The cytoplasmic bridge established between the oogonia and the rachis, the presence of a typical Golgi apparatus and of numerous mitochondria in the rachis strongly suggest that the rachis plays a role in the oocyte",
+        "allianceCategory": "Research Article",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Abi-Rached M",
+                "referenceId": "WB:WBPaper00000005"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Brun J",
+                "referenceId": "WB:WBPaper00000005"
+            }
+        ],
+        "citation": "Abi-Rached M et al. (1975) Nematologica \"Etude ultrastructurale des relations entre ovocytes et rachis au cours de ....\"",
+        "crossReferences": [
+            {
+                "id": "DOI:10.1163/187529275X00518"
+            },
+            {
+                "id": "WB:WBPaper00000005",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "datePublished": "1975",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "WB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "pages": "151-162",
+        "primaryId": "WB:WBPaper00000005",
+        "resourceAbbreviation": "Nematologica",
+        "tags": [
+            {
+                "referenceId": "WB:WBPaper00000005",
+                "tagName": "inCorpus",
+                "tagSource": "WB"
+            }
+        ],
+        "title": "Etude ultrastructurale des relations entre ovocytes et rachis au cours de l'Sovogenese du nematode C. elegans.",
+        "volume": "21"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Journal_article",
+                "source": "WB"
+            }
+        ],
+        "abstract": "Electron microscope studies in and around the nucleus of C. elegans oogonia and primary oocytes showed fibrogranular formations whose presence is not always constant. The nucleolus, very large in the first oogenetic stages, disappeared during early diakinesis. In pachytene and diplotene, it underwent a vacuolization phase in its central part. Perinuclear corpuscules and groups of granules were limited to the vitellogenetic phase of meiotic I prophase: they were localized in the vicinity of the nuclear membrane and nucleolus. The perinuclear formations, detectable as early as germigene, remained until full ooplasmic growth. Their localization at the limit of the nucleus led to their involvement in the exchange processes which took place between the nucleolus and the cytoplasm, by way of the perinucleolar granules and",
+        "allianceCategory": "Research Article",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Abi-Rached M",
+                "referenceId": "WB:WBPaper00000006"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Brun J",
+                "referenceId": "WB:WBPaper00000006"
+            }
+        ],
+        "citation": "Abi-Rached M et al. (1978) Revue de Nematologie \"Ultrastructural changes in the nuclear and perinuclear regions of the oogonia ....\"",
+        "crossReferences": [
+            {
+                "id": "WB:WBPaper00000006",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "datePublished": "1978",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "WB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "pages": "63-72",
+        "primaryId": "WB:WBPaper00000006",
+        "resourceAbbreviation": "Revue de Nematologie",
+        "tags": [
+            {
+                "referenceId": "WB:WBPaper00000006",
+                "tagName": "inCorpus",
+                "tagSource": "WB"
+            }
+        ],
+        "title": "Ultrastructural changes in the nuclear and perinuclear regions of the oogonia and primary oocytes of C. elegans, Bergerac strain.",
+        "volume": "1"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Journal_article",
+                "source": "WB"
+            }
+        ],
+        "abstract": "During oogenesis in the hermaphroditic nematode C. elegans, the synaptonemal complex is not detectable until the homologous chromosomes are at least partly paired (that is until meiotic prophase synapsis). In the pachytene stage, the complex has a typically classic organization. At the separation phase, the complex persists in certain places, in the diplotene stage and even in early diakinesis. These zones which persist during separation of the homologous chromosomes are believed to correspond to chiasma. This interpretation therefore implicates the complex in the recombination mechanism.",
+        "allianceCategory": "Research Article",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Abi-Rached M",
+                "referenceId": "WB:WBPaper00000007"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Brun J",
+                "referenceId": "WB:WBPaper00000007"
+            }
+        ],
+        "citation": "Abi-Rached M et al. (1979) C R Seances Acad Sci D \"Changes in the synaptonemal complex in the oocyte nucleus in meiotic prophase of ....\"",
+        "crossReferences": [
+            {
+                "id": "WB:WBPaper00000007",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "datePublished": "1979",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "WB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "pages": "425-428",
+        "primaryId": "WB:WBPaper00000007",
+        "resourceAbbreviation": "C R Seances Acad Sci D",
+        "tags": [
+            {
+                "referenceId": "WB:WBPaper00000007",
+                "tagName": "inCorpus",
+                "tagSource": "WB"
+            }
+        ],
+        "title": "Changes in the synaptonemal complex in the oocyte nucleus in meiotic prophase of C. elegans.",
+        "volume": "288"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Journal_article",
+                "source": "WB"
+            }
+        ],
+        "allianceCategory": "Research Article",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Ali MY",
+                "referenceId": "WB:WBPaper00000010"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Wahab A",
+                "referenceId": "WB:WBPaper00000010"
+            },
+            {
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "El-Kifel AH",
+                "referenceId": "WB:WBPaper00000010"
+            }
+        ],
+        "citation": "Ali MY et al. (1973) Parasitologia Hungarica \"Nematodes associated with Coleoptera species in Egypt Part 2.\"",
+        "crossReferences": [
+            {
+                "id": "WB:WBPaper00000010",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "datePublished": "1973",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "WB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "pages": "169-188",
+        "primaryId": "WB:WBPaper00000010",
+        "resourceAbbreviation": "Parasitologia Hungarica",
+        "tags": [
+            {
+                "referenceId": "WB:WBPaper00000010",
+                "tagName": "inCorpus",
+                "tagSource": "WB"
+            }
+        ],
+        "title": "Nematodes associated with Coleoptera species in Egypt Part 2.",
+        "volume": "6"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Journal_article",
+                "source": "WB"
+            }
+        ],
+        "abstract": "Larval forms of the free-living nematode Caenorhabditis elegans possess the ability to enter a developmental stage which is thought to be specialized for survival in harsh environmental conditions, i.e. the dauerlarval stage. In this study the responses of dauerlarvae to thermal stress and oxygen deprivation are investigated. Oxygen consumption of dauerlarvae is less sensitive to temperature change than that of adults, with Q10 values of 1.7 and 2.6 respectively. The upper thermal tolerance limit of dauerlarvae is also different from that of adults; dauerlarvae survive approximately three times longer than adults when exposed to 37C. In addition to differences in thermal tolerance, dauerlarvae surrvive longer under anaerobic conditions than adults, 7 days and 2 days respectively. On recovery from anaerobic stress dauerlarvae exhibit behavior changes which are suggestive of emergence from the dauerlarval stage. The responses of dauerlarvae to thermal stress and oxygen deprivation appear to be important aspects of the specialization for survival",
+        "allianceCategory": "Research Article",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Anderson GL",
+                "referenceId": "WB:WBPaper00000011"
+            }
+        ],
+        "citation": "Anderson GL (1978) Canadian Journal of Zoology \"Responses of dauerlarvae of C. elegans (Nematoda: Rhabditidae) to thermal ....\"",
+        "crossReferences": [
+            {
+                "id": "DOI:10.1139/z78-244"
+            },
+            {
+                "id": "WB:WBPaper00000011",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "datePublished": "1978",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "WB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "pages": "1786-1791",
+        "primaryId": "WB:WBPaper00000011",
+        "resourceAbbreviation": "Canadian Journal of Zoology",
+        "tags": [
+            {
+                "referenceId": "WB:WBPaper00000011",
+                "tagName": "inCorpus",
+                "tagSource": "WB"
+            }
+        ],
+        "title": "Responses of dauerlarvae of C. elegans (Nematoda: Rhabditidae) to thermal stress and oxygen deprivation.",
+        "volume": "56"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Journal_article",
+                "source": "WB"
+            }
+        ],
+        "abstract": "The dispersal and behavior of Caenorhabditis elegans in the presence of various species of bacteria were studied on agar plates. Several species proved attractive to the nematode, the proximity of colonies of living bacteria increasing the rate of dispersal of the nematodes, which on contact tended to remain within the colonies feeding on the bacteria. Other species showed little attraction, or proved repellent. Escherichia coli, Pseudomonas fluorescens and P. aeruginosa were attractive as well as supporting growth and reproduction of the nematode. Dead bacteria were unattractive. Bacillus megatherium repelled",
+        "allianceCategory": "Research Article",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Andrew PA",
+                "referenceId": "WB:WBPaper00000014"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Nicholas WL",
+                "referenceId": "WB:WBPaper00000014"
+            }
+        ],
+        "citation": "Andrew PA et al. (1976) Nematologica \"Effect of bacteria on dispersal of C. elegans (Rhabditidae).\"",
+        "crossReferences": [
+            {
+                "id": "DOI:10.1163/187529276X00454"
+            },
+            {
+                "id": "WB:WBPaper00000014",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "datePublished": "1976",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "WB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "pages": "451-461",
+        "primaryId": "WB:WBPaper00000014",
+        "resourceAbbreviation": "Nematologica",
+        "tags": [
+            {
+                "referenceId": "WB:WBPaper00000014",
+                "tagName": "inCorpus",
+                "tagSource": "WB"
+            }
+        ],
+        "title": "Effect of bacteria on dispersal of C. elegans (Rhabditidae).",
+        "volume": "22"
+    }
+]

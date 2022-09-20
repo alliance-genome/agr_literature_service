@@ -1,0 +1,202 @@
+{
+    "abstract": "The protein tyrosine kinase PYK2 has been implicated in signaling pathways activated by G-protein-coupled receptors, intracellular calcium, and stress signals. Here we describe the molecular cloning and characterization of a novel family of PYK2-binding proteins designated Nirs (PYK2 N-terminal domain-interacting receptors). The three Nir proteins (Nir1, Nir2, and Nir3) bind to the amino-terminal domain of PYK2 via a conserved sequence motif located in the carboxy terminus. The primary structures of Nirs reveal six putative transmembrane domains, a region homologous to phosphatidylinositol (PI) transfer protein, and an acidic domain. The Nir proteins are the human homologues of the Drosophila retinal degeneration B protein (rdgB), a protein implicated in the visual transduction pathway in flies. We demonstrate that Nirs are calcium-binding proteins that exhibit PI transfer activity in vivo. Activation of PYK2 by agents that elevate intracellular calcium or by phorbol ester induce tyrosine phosphorylation of Nirs. Moreover, PYK2 and Nirs exhibit similar expression patterns in several regions of the brain and retina. In addition, PYK2-Nir complexes are detected in lysates prepared from cultured cells or from brain tissues. Finally, the Nir1-encoding gene is located at human chromosome 17p13.1, in proximity to a locus responsible for several human retinal diseases. We propose that the Nir and rdgB proteins represent a new family of evolutionarily conserved PYK2-binding proteins that play a role in the control of calcium and phosphoinositide metabolism downstream of G-protein-coupled receptors.",
+    "allianceCategory": "Research_Article",
+    "authors": [
+        {
+            "affiliations": [
+                "Sugen, Inc., South San Francisco, California 94080, USA."
+            ],
+            "authorRank": 1,
+            "firstinit": "S",
+            "firstname": "S",
+            "lastname": "Lev",
+            "name": "S Lev"
+        },
+        {
+            "authorRank": 2,
+            "firstinit": "J",
+            "firstname": "J",
+            "lastname": "Hernandez",
+            "name": "J Hernandez"
+        },
+        {
+            "authorRank": 3,
+            "firstinit": "R",
+            "firstname": "R",
+            "lastname": "Martinez",
+            "name": "R Martinez"
+        },
+        {
+            "authorRank": 4,
+            "firstinit": "A",
+            "firstname": "A",
+            "lastname": "Chen",
+            "name": "A Chen"
+        },
+        {
+            "authorRank": 5,
+            "firstinit": "G",
+            "firstname": "G",
+            "lastname": "Plowman",
+            "name": "G Plowman"
+        },
+        {
+            "authorRank": 6,
+            "firstinit": "J",
+            "firstname": "J",
+            "lastname": "Schlessinger",
+            "name": "J Schlessinger"
+        }
+    ],
+    "crossReferences": [
+        {
+            "id": "PMID:10022914"
+        },
+        {
+            "id": "PMCID:PMC84020"
+        },
+        {
+            "id": "DOI:10.1128/MCB.19.3.2278"
+        },
+        {
+            "id": "NLM:8109087"
+        },
+        {
+            "id": "ISSN:0270-7306"
+        }
+    ],
+    "dateLastModified": {
+        "date_string": "2021-05-26",
+        "day": "26",
+        "month": "05",
+        "year": "2021"
+    },
+    "datePublished": "1999-03-01",
+    "doi": "10.1128/MCB.19.3.2278",
+    "is_journal": "journal",
+    "issn": "0270-7306",
+    "issueName": "3",
+    "journal": "Mol Cell Biol",
+    "language": "eng",
+    "meshTerms": [
+        {
+            "meshHeadingTerm": "Amino Acid Sequence",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Animals",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Binding Sites",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Brain",
+            "meshQualifierTerm": "metabolism",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Calcium",
+            "meshQualifierTerm": "metabolism",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Calcium-Binding Proteins",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Calcium-Binding Proteins",
+            "meshQualifierTerm": "metabolism",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Chromosome Mapping",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Cloning, Molecular",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Drosophila Proteins",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Drosophila melanogaster",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Eye Proteins",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Focal Adhesion Kinase 2",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Humans",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Membrane Proteins",
+            "meshQualifierTerm": "chemistry",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Membrane Transport Proteins",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Molecular Sequence Data",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Phosphorylation",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Protein-Tyrosine Kinases",
+            "meshQualifierTerm": "metabolism",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Rabbits",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Rats",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Retina",
+            "meshQualifierTerm": "metabolism",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Sequence Homology, Amino Acid",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Tissue Distribution",
+            "referenceId": "PMID:10022914"
+        },
+        {
+            "meshHeadingTerm": "Tyrosine",
+            "meshQualifierTerm": "metabolism",
+            "referenceId": "PMID:10022914"
+        }
+    ],
+    "nlm": "8109087",
+    "pages": "2278-88",
+    "pmc": "PMC84020",
+    "pubMedType": [
+        "Journal Article"
+    ],
+    "publicationStatus": "ppublish",
+    "pubmed": "10022914",
+    "resourceAbbreviation": "Mol Cell Biol",
+    "title": "Identification of a novel family of targets of PYK2 related to Drosophila retinal degeneration B (rdgB) protein.",
+    "volume": "19"
+}

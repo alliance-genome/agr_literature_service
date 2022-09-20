@@ -1,0 +1,91 @@
+[
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "PERSONAL COMMUNICATION",
+                "source": "RGD"
+            }
+        ],
+        "abstract": "Personal communication between Dr. V. Kren's group and the RGD curators. They submitted the data to RGD. ",
+        "allianceCategory": "Personal Communication",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstName": "KREN",
+                "lastName": "Dr. V.",
+                "name": "Dr. V.",
+                "referenceId": "RGD:A201083"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstName": "LISKA",
+                "lastName": "Frantisek",
+                "name": "Frantisek",
+                "referenceId": "RGD:A201084"
+            }
+        ],
+        "citation": "Personal communication between Dr. V. Kren's group and the RGD curators.",
+        "crossReferences": [
+            {
+                "id": "RGD:10002756",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "dateLastModified": "2015-04-24T10:49:05.000-05:00",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "RGD",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "primaryId": "RGD:10002756",
+        "title": "Data registered by Dr. V. Kren's group"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "PERSONAL COMMUNICATION",
+                "source": "RGD"
+            }
+        ],
+        "abstract": "Personal communication between Dr. Jintao Zhang's group and the RGD curators. They submitted the data to RGD.",
+        "allianceCategory": "Personal Communication",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstName": "ZHANG",
+                "lastName": "Dr. Jintao",
+                "name": "Dr. Jintao",
+                "referenceId": "RGD:A201160"
+            }
+        ],
+        "citation": "Personal communication between Dr. Jintao Zhang's group and the RGD curators.",
+        "crossReferences": [
+            {
+                "id": "RGD:10002786",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "dateLastModified": "2015-04-28T14:20:00.000-05:00",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "RGD",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "primaryId": "RGD:10002786",
+        "title": "Data registered by Dr. Jintao Zhang's group"
+    }
+]

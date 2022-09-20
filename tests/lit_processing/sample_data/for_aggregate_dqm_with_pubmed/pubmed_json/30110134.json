@@ -1,0 +1,230 @@
+{
+    "abstract": "Recent studies suggest that malignant melanoma heterogeneity includes subpopulations of cells with features of multipotent neural crest (NC) cells. Zebrafish and mouse models have shown that reactivation of neural crest-specific pathways during transformation determines the invasiveness of melanoma cells. In our study, we show that the neural crest-associated transcription factor FOXD1 plays a key role in the invasion and the migration capacities of metastatic melanomas both in vivo and in vitro. Gene expression profiling analysis identified both an upregulation of FOXD1 in NC and melanoma cells, as well as a downregulation of several genes related to cell invasion in FOXD1 knockdown cells, including MMP9 and RAC1B. Furthermore, we demonstrate that knockdown of RAC1B a tumor-specific isoform of RAC1, significantly impaired melanoma cell migration and invasion and could abrogate enhanced invasiveness induced by FOXD1 overexpression. We conclude that FOXD1 may influence invasion and migration via indirect regulation of MMP9 and RAC1B alternative splicing in melanoma cells.",
+    "allianceCategory": "Research_Article",
+    "authors": [
+        {
+            "affiliations": [
+                "Skin Cancer Unit, German Cancer Research Center (DKFZ), Heidelberg, Germany.",
+                "Department of Dermatology, Venereology and Allergology, University Medical Center Mannheim, Ruprecht-Karl University of Heidelberg, Mannheim, Germany.",
+                "Department of Pharmacy, Xiangya Hospital, Central South University, Changsha, China."
+            ],
+            "authorRank": 1,
+            "firstinit": "H",
+            "firstname": "Huizi",
+            "lastname": "Wu",
+            "name": "Huizi Wu"
+        },
+        {
+            "affiliations": [
+                "Skin Cancer Unit, German Cancer Research Center (DKFZ), Heidelberg, Germany.",
+                "Department of Dermatology, Venereology and Allergology, University Medical Center Mannheim, Ruprecht-Karl University of Heidelberg, Mannheim, Germany."
+            ],
+            "authorRank": 2,
+            "crossReferences": [
+                {
+                    "id": "ORCID:0000-0002-7224-785X",
+                    "pages": [
+                        "person/orcid"
+                    ]
+                }
+            ],
+            "firstinit": "L",
+            "firstname": "Lionel",
+            "lastname": "Larrib\u00e8re",
+            "name": "Lionel Larrib\u00e8re",
+            "orcid": "0000-0002-7224-785X"
+        },
+        {
+            "affiliations": [
+                "Skin Cancer Unit, German Cancer Research Center (DKFZ), Heidelberg, Germany.",
+                "Department of Dermatology, Venereology and Allergology, University Medical Center Mannheim, Ruprecht-Karl University of Heidelberg, Mannheim, Germany."
+            ],
+            "authorRank": 3,
+            "firstinit": "Q",
+            "firstname": "Qian",
+            "lastname": "Sun",
+            "name": "Qian Sun"
+        },
+        {
+            "affiliations": [
+                "Skin Cancer Unit, German Cancer Research Center (DKFZ), Heidelberg, Germany.",
+                "Department of Dermatology, Venereology and Allergology, University Medical Center Mannheim, Ruprecht-Karl University of Heidelberg, Mannheim, Germany."
+            ],
+            "authorRank": 4,
+            "firstinit": "D",
+            "firstname": "Daniel",
+            "lastname": "Novak",
+            "name": "Daniel Novak"
+        },
+        {
+            "affiliations": [
+                "Skin Cancer Unit, German Cancer Research Center (DKFZ), Heidelberg, Germany.",
+                "Department of Dermatology, Venereology and Allergology, University Medical Center Mannheim, Ruprecht-Karl University of Heidelberg, Mannheim, Germany."
+            ],
+            "authorRank": 5,
+            "firstinit": "S",
+            "firstname": "Sachindra",
+            "lastname": "Sachindra",
+            "name": "Sachindra Sachindra"
+        },
+        {
+            "affiliations": [
+                "Skin Cancer Unit, German Cancer Research Center (DKFZ), Heidelberg, Germany.",
+                "Department of Dermatology, Venereology and Allergology, University Medical Center Mannheim, Ruprecht-Karl University of Heidelberg, Mannheim, Germany."
+            ],
+            "authorRank": 6,
+            "firstinit": "K",
+            "firstname": "Karol",
+            "lastname": "Granados",
+            "name": "Karol Granados"
+        },
+        {
+            "affiliations": [
+                "Skin Cancer Unit, German Cancer Research Center (DKFZ), Heidelberg, Germany.",
+                "Department of Dermatology, Venereology and Allergology, University Medical Center Mannheim, Ruprecht-Karl University of Heidelberg, Mannheim, Germany."
+            ],
+            "authorRank": 7,
+            "firstinit": "V",
+            "firstname": "Viktor",
+            "lastname": "Umansky",
+            "name": "Viktor Umansky"
+        },
+        {
+            "affiliations": [
+                "Skin Cancer Unit, German Cancer Research Center (DKFZ), Heidelberg, Germany.",
+                "Department of Dermatology, Venereology and Allergology, University Medical Center Mannheim, Ruprecht-Karl University of Heidelberg, Mannheim, Germany."
+            ],
+            "authorRank": 8,
+            "crossReferences": [
+                {
+                    "id": "ORCID:0000-0001-5316-0241",
+                    "pages": [
+                        "person/orcid"
+                    ]
+                }
+            ],
+            "firstinit": "J",
+            "firstname": "Jochen",
+            "lastname": "Utikal",
+            "name": "Jochen Utikal",
+            "orcid": "0000-0001-5316-0241"
+        }
+    ],
+    "crossReferences": [
+        {
+            "id": "PMID:30110134"
+        },
+        {
+            "id": "DOI:10.1002/ijc.31799"
+        },
+        {
+            "id": "NLM:0042124"
+        },
+        {
+            "id": "ISSN:0020-7136"
+        }
+    ],
+    "dateArrivedInPubmed": {
+        "date_string": "2017-12-22",
+        "day": "22",
+        "month": "12",
+        "year": "2017"
+    },
+    "dateLastModified": {
+        "date_string": "2019-03-20",
+        "day": "20",
+        "month": "03",
+        "year": "2019"
+    },
+    "datePublished": "2018-12-01",
+    "doi": "10.1002/ijc.31799",
+    "is_journal": "journal",
+    "issn": "0020-7136",
+    "issueName": "11",
+    "journal": "Int J Cancer",
+    "keywords": [
+        "FOXD1",
+        "RAC1B",
+        "invasion",
+        "melanoma",
+        "migration",
+        "neural crest"
+    ],
+    "language": "eng",
+    "meshTerms": [
+        {
+            "meshHeadingTerm": "Cell Line, Tumor",
+            "referenceId": "PMID:30110134"
+        },
+        {
+            "meshHeadingTerm": "Cell Movement",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:30110134"
+        },
+        {
+            "meshHeadingTerm": "Down-Regulation",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:30110134"
+        },
+        {
+            "meshHeadingTerm": "Forkhead Transcription Factors",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:30110134"
+        },
+        {
+            "meshHeadingTerm": "Gene Expression Profiling",
+            "meshQualifierTerm": "methods",
+            "referenceId": "PMID:30110134"
+        },
+        {
+            "meshHeadingTerm": "Gene Expression Regulation, Neoplastic",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:30110134"
+        },
+        {
+            "meshHeadingTerm": "Humans",
+            "referenceId": "PMID:30110134"
+        },
+        {
+            "meshHeadingTerm": "Matrix Metalloproteinase 9",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:30110134"
+        },
+        {
+            "meshHeadingTerm": "Melanoma",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:30110134"
+        },
+        {
+            "meshHeadingTerm": "Neoplasm Invasiveness",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:30110134"
+        },
+        {
+            "meshHeadingTerm": "Neural Crest",
+            "meshQualifierTerm": "metabolism",
+            "referenceId": "PMID:30110134"
+        },
+        {
+            "meshHeadingTerm": "Signal Transduction",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:30110134"
+        },
+        {
+            "meshHeadingTerm": "rac1 GTP-Binding Protein",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:30110134"
+        }
+    ],
+    "nlm": "0042124",
+    "pages": "2962-2972",
+    "pubMedType": [
+        "Journal Article",
+        "Research Support, Non-U.S. Gov't"
+    ],
+    "publicationStatus": "ppublish",
+    "pubmed": "30110134",
+    "resourceAbbreviation": "Int J Cancer",
+    "title": "Loss of neural crest-associated gene FOXD1 impairs melanoma invasion and migration via RAC1B downregulation.",
+    "volume": "143"
+}

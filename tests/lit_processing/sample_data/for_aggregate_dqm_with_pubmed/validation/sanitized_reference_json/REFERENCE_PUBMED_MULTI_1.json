@@ -1,0 +1,615 @@
+[
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "JOURNAL ARTICLE",
+                "source": "RGD"
+            },
+            {
+                "referenceType": "paper",
+                "source": "FB"
+            }
+        ],
+        "abstract": "The protein tyrosine kinase PYK2 has been implicated in signaling pathways activated by G-protein-coupled receptors, intracellular calcium, and stress signals. Here we describe the molecular cloning and characterization of a novel family of PYK2-binding proteins designated Nirs (PYK2 N-terminal domain-interacting receptors). The three Nir proteins (Nir1, Nir2, and Nir3) bind to the amino-terminal domain of PYK2 via a conserved sequence motif located in the carboxy terminus. The primary structures of Nirs reveal six putative transmembrane domains, a region homologous to phosphatidylinositol (PI) transfer protein, and an acidic domain. The Nir proteins are the human homologues of the Drosophila retinal degeneration B protein (rdgB), a protein implicated in the visual transduction pathway in flies. We demonstrate that Nirs are calcium-binding proteins that exhibit PI transfer activity in vivo. Activation of PYK2 by agents that elevate intracellular calcium or by phorbol ester induce tyrosine phosphorylation of Nirs. Moreover, PYK2 and Nirs exhibit similar expression patterns in several regions of the brain and retina. In addition, PYK2-Nir complexes are detected in lysates prepared from cultured cells or from brain tissues. Finally, the Nir1-encoding gene is located at human chromosome 17p13.1, in proximity to a locus responsible for several human retinal diseases. We propose that the Nir and rdgB proteins represent a new family of evolutionarily conserved PYK2-binding proteins that play a role in the control of calcium and phosphoinositide metabolism downstream of G-protein-coupled receptors.",
+        "allianceCategory": "Research_Article",
+        "authors": [
+            {
+                "affiliations": [
+                    "Sugen, Inc., South San Francisco, California 94080, USA."
+                ],
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "S",
+                "firstname": "S",
+                "lastname": "Lev",
+                "name": "S Lev"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "J",
+                "firstname": "J",
+                "lastname": "Hernandez",
+                "name": "J Hernandez"
+            },
+            {
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "R",
+                "firstname": "R",
+                "lastname": "Martinez",
+                "name": "R Martinez"
+            },
+            {
+                "authorRank": 4,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "A",
+                "firstname": "A",
+                "lastname": "Chen",
+                "name": "A Chen"
+            },
+            {
+                "authorRank": 5,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "G",
+                "firstname": "G",
+                "lastname": "Plowman",
+                "name": "G Plowman"
+            },
+            {
+                "authorRank": 6,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "J",
+                "firstname": "J",
+                "lastname": "Schlessinger",
+                "name": "J Schlessinger"
+            }
+        ],
+        "commentsCorrections": [],
+        "crossReferences": [
+            {
+                "id": "PMID:10022914"
+            },
+            {
+                "id": "PMCID:PMC84020"
+            },
+            {
+                "id": "DOI:10.1128/MCB.19.3.2278"
+            },
+            {
+                "id": "NLM:8109087"
+            },
+            {
+                "id": "ISSN:0270-7306"
+            },
+            {
+                "id": "PMID:10022914"
+            },
+            {
+                "id": "PMCID:PMC84020"
+            },
+            {
+                "id": "DOI:10.1128/MCB.19.3.2278"
+            },
+            {
+                "id": "NLM:8109087"
+            },
+            {
+                "id": "ISSN:0270-7306"
+            }
+        ],
+        "dateLastModified": "2021-05-26",
+        "datePublished": "1999-03-01",
+        "issueName": "3",
+        "journal": "Mol Cell Biol",
+        "meshTerms": [
+            {
+                "meshHeadingTerm": "Amino Acid Sequence",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Animals",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Binding Sites",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Brain",
+                "meshQualifierTerm": "metabolism",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Calcium",
+                "meshQualifierTerm": "metabolism",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Calcium-Binding Proteins",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Calcium-Binding Proteins",
+                "meshQualifierTerm": "metabolism",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Chromosome Mapping",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Cloning, Molecular",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Drosophila Proteins",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Drosophila melanogaster",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Eye Proteins",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Focal Adhesion Kinase 2",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Humans",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Membrane Proteins",
+                "meshQualifierTerm": "chemistry",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Membrane Transport Proteins",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Molecular Sequence Data",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Phosphorylation",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Protein-Tyrosine Kinases",
+                "meshQualifierTerm": "metabolism",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Rabbits",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Rats",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Retina",
+                "meshQualifierTerm": "metabolism",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Sequence Homology, Amino Acid",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Tissue Distribution",
+                "referenceId": "PMID:10022914"
+            },
+            {
+                "meshHeadingTerm": "Tyrosine",
+                "meshQualifierTerm": "metabolism",
+                "referenceId": "PMID:10022914"
+            }
+        ],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "RGD",
+                "modCorpusSortSource": "dqm_files"
+            },
+            {
+                "corpus": true,
+                "modAbbreviation": "FB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:8109087"
+        ],
+        "pages": "2278-88",
+        "primaryId": "PMID:10022914",
+        "pubMedType": [
+            "Journal Article"
+        ],
+        "publicationStatus": "ppublish",
+        "resource": "NLM:8109087",
+        "tags": [
+            {
+                "referenceId": "FB:FBrf0106846",
+                "tagName": "inCorpus",
+                "tagSource": "FB"
+            }
+        ],
+        "title": "Identification of a novel family of targets of PYK2 related to Drosophila retinal degeneration B (rdgB) protein.",
+        "volume": "19"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "JOURNAL ARTICLE",
+                "source": "RGD"
+            },
+            {
+                "referenceType": "Journal Article",
+                "source": "SGD"
+            },
+            {
+                "referenceType": "Research Support, U.S. Gov't, Non-P.H.S.",
+                "source": "SGD"
+            },
+            {
+                "referenceType": "Research Support, U.S. Gov't, P.H.S.",
+                "source": "SGD"
+            }
+        ],
+        "allianceCategory": "Research_Article",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "KS",
+                "firstname": "K S",
+                "lastname": "Bose",
+                "name": "K S Bose"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "RH",
+                "firstname": "R H",
+                "lastname": "Sarma",
+                "name": "R H Sarma"
+            }
+        ],
+        "commentsCorrections": {
+            "ErratumIn": [
+                "8"
+            ]
+        },
+        "crossReferences": [
+            {
+                "id": "PMID:2"
+            },
+            {
+                "id": "DOI:10.1016/0006-291x(75)90482-9"
+            },
+            {
+                "id": "NLM:0372516"
+            },
+            {
+                "id": "ISSN:0006-291X"
+            },
+            {
+                "id": "PMID:2"
+            },
+            {
+                "id": "DOI:10.1016/0006-291x(75)90482-9"
+            },
+            {
+                "id": "NLM:0372516"
+            },
+            {
+                "id": "ISSN:0006-291X"
+            }
+        ],
+        "dateLastModified": "2019-06-12",
+        "datePublished": "1975-10-27",
+        "issueName": "4",
+        "journal": "Biochem Biophys Res Commun",
+        "meshTerms": [
+            {
+                "meshHeadingTerm": "Fourier Analysis",
+                "referenceId": "PMID:2"
+            },
+            {
+                "meshHeadingTerm": "Magnetic Resonance Spectroscopy",
+                "referenceId": "PMID:2"
+            },
+            {
+                "meshHeadingTerm": "Models, Molecular",
+                "referenceId": "PMID:2"
+            },
+            {
+                "meshHeadingTerm": "Molecular Conformation",
+                "referenceId": "PMID:2"
+            },
+            {
+                "meshHeadingTerm": "NAD",
+                "meshQualifierTerm": "analogs &amp; derivatives",
+                "referenceId": "PMID:2"
+            },
+            {
+                "meshHeadingTerm": "NADP",
+                "referenceId": "PMID:2"
+            },
+            {
+                "meshHeadingTerm": "Structure-Activity Relationship",
+                "referenceId": "PMID:2"
+            },
+            {
+                "meshHeadingTerm": "Temperature",
+                "referenceId": "PMID:2"
+            }
+        ],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "RGD",
+                "modCorpusSortSource": "dqm_files"
+            },
+            {
+                "corpus": true,
+                "modAbbreviation": "SGD",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:0372516"
+        ],
+        "pages": "1173-9",
+        "primaryId": "PMID:2",
+        "pubMedType": [
+            "Journal Article",
+            "Research Support, U.S. Gov't, Non-P.H.S.",
+            "Research Support, U.S. Gov't, P.H.S."
+        ],
+        "publicationStatus": "ppublish",
+        "resource": "NLM:0372516",
+        "tags": [
+            {
+                "referenceId": "PMID:2",
+                "tagName": "inCorpus",
+                "tagSource": "SGD"
+            }
+        ],
+        "title": "Delineation of the intimate details of the backbone conformation of pyridine nucleotide coenzymes in aqueous solution.",
+        "volume": "66"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "JOURNAL ARTICLE",
+                "source": "RGD"
+            },
+            {
+                "referenceType": "Peer Reviewed Article",
+                "source": "MGI"
+            },
+            {
+                "referenceType": "Journal Article",
+                "source": "SGD"
+            },
+            {
+                "referenceType": "Research Support, N.I.H., Extramural",
+                "source": "SGD"
+            },
+            {
+                "referenceType": "paper",
+                "source": "FB"
+            },
+            {
+                "referenceType": "Curation",
+                "source": "ZFIN"
+            },
+            {
+                "referenceType": "Journal_article",
+                "source": "WB"
+            }
+        ],
+        "abstract": "The goal of the Gene Ontology (GO) project is to provide a uniform way to describe the functions of gene products from organisms across all kingdoms of life and thereby enable analysis of genomic data. Protein annotations are either based on experiments or predicted from protein sequences. Since most sequences have not been experimentally characterized, most available annotations need to be based on predictions. To make as accurate inferences as possible, the GO Consortium's Reference Genome Project is using an explicit evolutionary framework to infer annotations of proteins from a broad set of genomes from experimental annotations in a semi-automated manner. Most components in the pipeline, such as selection of sequences, building multiple sequence alignments and phylogenetic trees, retrieving experimental annotations and depositing inferred annotations, are fully automated. However, the most crucial step in our pipeline relies on software-assisted curation by an expert biologist. This curation tool, Phylogenetic Annotation and INference Tool (PAINT) helps curators to infer annotations among members of a protein family. PAINT allows curators to make precise assertions as to when functions were gained and lost during evolution and record the evidence (e.g. experimentally supported GO annotations and phylogenetic information including orthology) for those assertions. In this article, we describe how we use PAINT to infer protein function in a phylogenetic context with emphasis on its strengths, limitations and guidelines. We also discuss specific examples showing how PAINT annotations compare with those generated by other highly used homology-based methods.",
+        "allianceCategory": "Research_Article",
+        "authors": [
+            {
+                "affiliations": [
+                    "Swiss Institute for Bioinformatics, CMU, 1 Rue Michel Servet, 1211 Geneva 4, Switzerland. pascale.gaudet@isb-sib.ch"
+                ],
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "P",
+                "firstname": "Pascale",
+                "lastname": "Gaudet",
+                "name": "Pascale Gaudet"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "MS",
+                "firstname": "Michael S",
+                "lastname": "Livstone",
+                "name": "Michael S Livstone"
+            },
+            {
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "SE",
+                "firstname": "Suzanna E",
+                "lastname": "Lewis",
+                "name": "Suzanna E Lewis"
+            },
+            {
+                "authorRank": 4,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstinit": "PD",
+                "firstname": "Paul D",
+                "lastname": "Thomas",
+                "name": "Paul D Thomas"
+            }
+        ],
+        "commentsCorrections": [],
+        "crossReferences": [
+            {
+                "id": "PMID:21873635"
+            },
+            {
+                "id": "DOI:10.1093/bib/bbr042"
+            },
+            {
+                "id": "PMCID:PMC3178059"
+            },
+            {
+                "id": "NLM:100912837"
+            },
+            {
+                "id": "ISSN:1467-5463"
+            },
+            {
+                "id": "PMID:21873635"
+            },
+            {
+                "id": "DOI:10.1093/bib/bbr042"
+            },
+            {
+                "id": "PMCID:PMC3178059"
+            },
+            {
+                "id": "NLM:100912837"
+            },
+            {
+                "id": "ISSN:1467-5463"
+            }
+        ],
+        "dateLastModified": "2021-10-20",
+        "datePublished": "2011-09-01",
+        "issueName": "5",
+        "journal": "Brief Bioinform",
+        "meshTerms": [
+            {
+                "meshHeadingTerm": "Databases, Genetic",
+                "referenceId": "PMID:21873635"
+            },
+            {
+                "meshHeadingTerm": "Genome",
+                "referenceId": "PMID:21873635"
+            },
+            {
+                "meshHeadingTerm": "Genomics",
+                "meshQualifierTerm": "methods",
+                "referenceId": "PMID:21873635"
+            },
+            {
+                "meshHeadingTerm": "Molecular Sequence Annotation",
+                "meshQualifierTerm": "methods",
+                "referenceId": "PMID:21873635"
+            },
+            {
+                "meshHeadingTerm": "Phylogeny",
+                "referenceId": "PMID:21873635"
+            },
+            {
+                "meshHeadingTerm": "Proteins",
+                "meshQualifierTerm": "chemistry",
+                "referenceId": "PMID:21873635"
+            },
+            {
+                "meshHeadingTerm": "Proteins",
+                "meshQualifierTerm": "genetics",
+                "referenceId": "PMID:21873635"
+            }
+        ],
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "RGD",
+                "modCorpusSortSource": "dqm_files"
+            },
+            {
+                "corpus": true,
+                "modAbbreviation": "MGI",
+                "modCorpusSortSource": "dqm_files"
+            },
+            {
+                "corpus": true,
+                "modAbbreviation": "SGD",
+                "modCorpusSortSource": "dqm_files"
+            },
+            {
+                "corpus": true,
+                "modAbbreviation": "FB",
+                "modCorpusSortSource": "dqm_files"
+            },
+            {
+                "corpus": true,
+                "modAbbreviation": "ZFIN",
+                "modCorpusSortSource": "dqm_files"
+            },
+            {
+                "corpus": true,
+                "modAbbreviation": "WB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:100912837"
+        ],
+        "pages": "449-62",
+        "primaryId": "PMID:21873635",
+        "pubMedType": [
+            "Journal Article",
+            "Research Support, N.I.H., Extramural"
+        ],
+        "publicationStatus": "ppublish",
+        "resource": "NLM:100912837",
+        "tags": [
+            {
+                "referenceId": "PMID:21873635",
+                "tagName": "inCorpus",
+                "tagSource": "MGI"
+            },
+            {
+                "referenceId": "PMID:21873635",
+                "tagName": "inCorpus",
+                "tagSource": "SGD"
+            },
+            {
+                "referenceId": "FB:FBrf0239784",
+                "tagName": "inCorpus",
+                "tagSource": "FB"
+            },
+            {
+                "referenceId": "PMID:21873635",
+                "tagName": "inCorpus",
+                "tagSource": "ZFIN"
+            },
+            {
+                "referenceId": "PMID:21873635",
+                "tagName": "inCorpus",
+                "tagSource": "WB"
+            }
+        ],
+        "title": "Phylogenetic-based propagation of functional annotations within the Gene Ontology consortium.",
+        "volume": "12"
+    }
+]

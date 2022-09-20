@@ -1,0 +1,60 @@
+{
+    "abstract": "Why should one study a worm? This simple creature is one of several \u201cmodel\u201d organisms that together have provided tremendous insight into how all organisms are put together. It has become increasingly clear over the past two decades that knowledge from one organism, even one so simple as a worm, can provide tremendous power when connected with knowledge from other organisms. And because of the experimental accessibility of nematodes, knowledge about worms can come more quickly and cheaply than knowledge about higher organisms.",
+    "allianceCategory": "Review_Article",
+    "authors": [
+        {
+            "affiliations": [
+                "University of Missouri, Columbia"
+            ],
+            "authorRank": 1,
+            "firstinit": "DL",
+            "firstname": "Donald L",
+            "lastname": "Riddle",
+            "name": "Donald L Riddle"
+        },
+        {
+            "affiliations": [
+                "Indiana University"
+            ],
+            "authorRank": 2,
+            "firstinit": "T",
+            "firstname": "Thomas",
+            "lastname": "Blumenthal",
+            "name": "Thomas Blumenthal"
+        },
+        {
+            "affiliations": [
+                "University of California, Berkeley"
+            ],
+            "authorRank": 3,
+            "firstinit": "BJ",
+            "firstname": "Barbara J",
+            "lastname": "Meyer",
+            "name": "Barbara J Meyer"
+        },
+        {
+            "affiliations": [
+                "Howard Hughes Medical Institute, Fred Hutchinson Cancer Research                     Center, Seattle, Washington"
+            ],
+            "authorRank": 4,
+            "firstinit": "JR",
+            "firstname": "James R",
+            "lastname": "Priess",
+            "name": "James R Priess"
+        }
+    ],
+    "crossReferences": [
+        {
+            "id": "PMID:21413221"
+        }
+    ],
+    "datePublished": "1997-01-01",
+    "is_book": "book",
+    "language": "eng",
+    "pubMedType": [
+        "Review"
+    ],
+    "publicationStatus": "ppublish",
+    "publisher": "Cold Spring Harbor Laboratory Press",
+    "title": "<i>C. elegans</i> II"
+}

@@ -1,0 +1,130 @@
+{
+    "abstract": "It is accepted that confusion regarding the description of genetic variants occurs when researchers do not use standard nomenclature. The Human Genome Organization Gene Nomenclature Committee contacted a panel of consultants, all working on the KAL1 gene, to propose an update of the nomenclature of the gene, as there was a convention in the literature of using the 'KAL1' symbol, when referring to the gene, but using the name 'anosmin-1' when referring to the protein. The new name, ANOS1, reflects protein name and is more transferrable across species.",
+    "allianceCategory": "Research_Article",
+    "authors": [
+        {
+            "authorRank": 1,
+            "firstinit": "F",
+            "firstname": "Fernando",
+            "lastname": "de Castro",
+            "name": "Fernando de Castro"
+        },
+        {
+            "authorRank": 2,
+            "firstinit": "R",
+            "firstname": "Ruth",
+            "lastname": "Seal",
+            "name": "Ruth Seal"
+        },
+        {
+            "authorRank": 3,
+            "firstinit": "R",
+            "firstname": "Roberto",
+            "lastname": "Maggi",
+            "name": "Roberto Maggi"
+        },
+        {
+            "authorRank": 4,
+            "collectivename": "Group of HGNC consultants for KAL1 nomenclature",
+            "name": "Group of HGNC consultants for KAL1 nomenclature"
+        }
+    ],
+    "crossReferences": [
+        {
+            "id": "PMID:27899353"
+        },
+        {
+            "id": "DOI:10.1093/bfgp/elw037"
+        },
+        {
+            "id": "PMCID:PMC5860151"
+        },
+        {
+            "id": "NLM:101528229"
+        },
+        {
+            "id": "ISSN:2041-2649"
+        }
+    ],
+    "dateLastModified": {
+        "date_string": "2018-12-02",
+        "day": "02",
+        "month": "12",
+        "year": "2018"
+    },
+    "datePublished": "2017-07-01",
+    "doi": "10.1093/bfgp/elw037",
+    "is_journal": "journal",
+    "issn": "2041-2649",
+    "issueName": "4",
+    "journal": "Brief Funct Genomics",
+    "keywords": [
+        ": Kallmann",
+        "ANOS1",
+        "KAL1",
+        "anosmin-1",
+        "gene",
+        "nomenclature"
+    ],
+    "language": "eng",
+    "meshTerms": [
+        {
+            "meshHeadingTerm": "Animals",
+            "referenceId": "PMID:27899353"
+        },
+        {
+            "meshHeadingTerm": "Extracellular Matrix Proteins",
+            "meshQualifierTerm": "chemistry",
+            "referenceId": "PMID:27899353"
+        },
+        {
+            "meshHeadingTerm": "Extracellular Matrix Proteins",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:27899353"
+        },
+        {
+            "meshHeadingTerm": "Extracellular Matrix Proteins",
+            "meshQualifierTerm": "metabolism",
+            "referenceId": "PMID:27899353"
+        },
+        {
+            "meshHeadingTerm": "Humans",
+            "referenceId": "PMID:27899353"
+        },
+        {
+            "meshHeadingTerm": "Kallmann Syndrome",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:27899353"
+        },
+        {
+            "meshHeadingTerm": "Nerve Tissue Proteins",
+            "meshQualifierTerm": "chemistry",
+            "referenceId": "PMID:27899353"
+        },
+        {
+            "meshHeadingTerm": "Nerve Tissue Proteins",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:27899353"
+        },
+        {
+            "meshHeadingTerm": "Nerve Tissue Proteins",
+            "meshQualifierTerm": "metabolism",
+            "referenceId": "PMID:27899353"
+        },
+        {
+            "meshHeadingTerm": "Terminology as Topic",
+            "referenceId": "PMID:27899353"
+        }
+    ],
+    "nlm": "101528229",
+    "pages": "205-210",
+    "pmc": "PMC5860151",
+    "pubMedType": [
+        "Journal Article"
+    ],
+    "publicationStatus": "ppublish",
+    "pubmed": "27899353",
+    "resourceAbbreviation": "Brief Funct Genomics",
+    "title": "ANOS1: a unified nomenclature for Kallmann syndrome 1 gene (KAL1) and anosmin-1.",
+    "volume": "16"
+}
