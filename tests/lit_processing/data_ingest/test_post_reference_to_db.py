@@ -23,6 +23,7 @@ class TestPostReferenceToDb:
         json_file = path.join(path.dirname(path.abspath(__file__)), "../sample_data",
                               "sanitized_references", "REFERENCE_PUBMED_ZFIN.json")
         json_data = json.load(open(json_file))
+        # TODO: populate data
         journal_to_resource_id = get_journal_data(db)
         orcid_dict = get_orcid_data(db)
         newly_added_orcid = []
@@ -72,11 +73,11 @@ class TestPostReferenceToDb:
 
         ## test get_journal_data()
         journal_to_resource_id = get_journal_data(db)
-        assert type(journal_to_resource_id) == dict
+        assert isinstance(journal_to_resource_id, dict)
 
         ## test insert_reference()
         reference_id = insert_reference(db, primaryId, journal_to_resource_id, entry)
-        assert type(reference_id) == int
+        assert isinstance(reference_id, int)
         db.commit()
         x = db.query(ReferenceModel).filter_by(title=entry['title']).one_or_none()
 
