@@ -6,6 +6,6 @@ from ...fixtures import cleanup_tmp_files_when_done # noqa
 
 
 class TestTmpFilesUtils:
-    def test_init_tmp_dir(self, cleanup_tmp_files_when_done):
+    def test_init_tmp_dir(self, cleanup_tmp_files_when_done): # noqa
         init_tmp_dir()
         assert os.path.exists(environ.get("XML_PATH", ""))

@@ -1,5 +1,5 @@
 import os
-from json import dumps, loads
+from json import loads
 from os import environ, path
 import logging
 import logging.config

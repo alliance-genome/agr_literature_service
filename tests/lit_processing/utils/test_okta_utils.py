@@ -18,13 +18,13 @@ class TestOktaUtils:
         }
 
     @pytest.mark.webtest
-    def test_update_okta_token(self, cleanup_tmp_files_when_done):
+    def test_update_okta_token(self, cleanup_tmp_files_when_done): # noqa
         token = update_okta_token()
         assert type(token) == str
         assert len(token) > 0
 
     @pytest.mark.webtest
-    def test_get_authentication_token(self, cleanup_tmp_files_when_done):
+    def test_get_authentication_token(self, cleanup_tmp_files_when_done): # noqa
         token = get_authentication_token()
         assert type(token) == str
         assert len(token) > 0
@@ -36,4 +36,3 @@ class TestOktaUtils:
         # this call does not create a new file but uses the cached one
         get_authentication_token()
         assert os.path.getatime(token_file) == creation_time
-

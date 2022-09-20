@@ -10,7 +10,7 @@ from ...api.test_reference import test_reference # noqa
 
 
 class TestSqlalchemyUtils:
-    def test_create_postgres_engine(self, db, capfd):
+    def test_create_postgres_engine(self, db, capfd): # noqa
         engine = create_postgres_engine(verbose=False)
         assert isinstance(engine, Engine)
         res = engine.execute("SELECT * from USERS")
@@ -20,7 +20,7 @@ class TestSqlalchemyUtils:
         print_out = capfd.readouterr()[0]
         assert print_out != ""
 
-    def test_create_postgres_session(self, db, capfd):
+    def test_create_postgres_session(self, db, capfd): # noqa
         session = create_postgres_session(verbose=False)
         assert isinstance(session, Session)
         res = session.execute("SELECT * from USERS")
@@ -30,7 +30,7 @@ class TestSqlalchemyUtils:
         print_out = capfd.readouterr()[0]
         assert print_out != ""
 
-    def test_sqlalchemy_load_ref_xref(self, db, test_cross_reference):
+    def test_sqlalchemy_load_ref_xref(self, db, test_cross_reference): # noqa
         sqlalchemy_load_ref_xref(datatype="reference")
         sqlalchemy_load_ref_xref(datatype="resource")
         res = db.execute("SELECT * from cross_reference")
