@@ -16,7 +16,7 @@ def delete_all_table_content(engine):
     if environ.get('TEST_CLEANUP') == "true":
         print("***** Deleting test data from all tables *****")
         for table in reversed(Base.metadata.sorted_tables):
-            if table != "users":
+            if table.fullname != "users":
                 engine.execute(table.delete())
 
 
