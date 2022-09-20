@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from os import environ, path
 
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
-from agr_literature_service.lit_processing.tests.mod_populate_load import post_mods
+from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 
 
 def delete_all_table_content(engine):
@@ -48,7 +48,7 @@ def cleanup_tmp_files_when_done():
 
 @pytest.fixture
 def load_sanitized_references():
-    post_mods()
+    populate_test_mods()
     json_file_path = path.join(path.dirname(path.abspath(__file__)), "lit_processing", "sample_data",
                                "sanitized_references/")
     post_references(json_path=json_file_path)

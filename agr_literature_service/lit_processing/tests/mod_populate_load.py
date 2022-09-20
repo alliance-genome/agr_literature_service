@@ -10,7 +10,7 @@ logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
 
-def post_mods():      # noqa: C901
+def populate_test_mods():      # noqa: C901
     """
     :return:
     """
@@ -85,7 +85,7 @@ if __name__ == "__main__":
     """
 
     logger.info("Starting mod_populate_load.py")
-    post_mods()
+    populate_test_mods()
     logger.info("ending mod_populate_load.py")
 
 # pipenv run python mod_populate_load.py

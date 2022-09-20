@@ -12,7 +12,7 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.parse_dqm_json
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.sort_dqm_json_reference_updates import \
     sort_dqm_references
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
-from agr_literature_service.lit_processing.tests.mod_populate_load import post_mods
+from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from agr_literature_service.lit_processing.tests.parse_pubmed_json_reference import parse_pubmed_json_reference
 from agr_literature_service.lit_processing.tests.process_many_pmids_to_json import process_many_pmids_to_json
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import sqlalchemy_load_ref_xref
@@ -698,7 +698,7 @@ if __name__ == "__main__":
     # re-write the following two tests, maybe add more tests here
 
     setup_database()
-    post_mods()
+    populate_test_mods()
 
     # load the data
     local_file_path = path.dirname(path.abspath(__file__)) + "/"
