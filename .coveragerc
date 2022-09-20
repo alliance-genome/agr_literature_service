@@ -5,6 +5,7 @@ omit =
         agr_literature_service/api/routers/*
         agr_literature_service/lit_processing/oneoff_scripts/*
         agr_literature_service/lit_processing/tests/*
+        *__init__*
 
 [report]
 exclude_lines =
