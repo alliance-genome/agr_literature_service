@@ -1,3 +1,6 @@
+import bs4
+
+
 def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
     """
     Authors and Editors are in a hash with order of 'order' from db and 'authorRank' from dqm.  They have to be sorted by the order, and for updates the db 'author_id' is used to patch.  Currently we don't want to remove any authors, so we patch None to the values.  We're only getting from dqms the 'name', 'first_name', 'last_name', and 'order', although the ingest schema allows other data.

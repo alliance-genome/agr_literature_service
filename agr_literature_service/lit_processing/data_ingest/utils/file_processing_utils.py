@@ -55,6 +55,7 @@ def save_resource_file(json_storage_path, pubmed_by_nlm, datatype):
     json_filename = json_storage_path + 'RESOURCE_' + datatype + '.json'
     write_json(json_filename, pubmed_data)
 
+
 def write_json(json_filename, dict_to_output):
     """
 
