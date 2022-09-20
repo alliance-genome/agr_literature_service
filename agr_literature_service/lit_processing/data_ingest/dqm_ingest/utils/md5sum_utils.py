@@ -6,7 +6,8 @@ import sys
 from os import environ, path, makedirs, listdir
 import logging.config
 
-from agr_literature_service.lit_processing.utils.generic_utils import split_identifier, write_json
+from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_s3, download_file_from_s3
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
