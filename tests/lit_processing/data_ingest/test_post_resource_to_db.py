@@ -1,10 +1,9 @@
-import json
-from os import path, environ
+from os import path
 
 from agr_literature_service.api.models import ResourceModel, CrossReferenceModel
 from agr_literature_service.lit_processing.data_ingest.post_resource_to_db import \
     post_resources
-from agr_literature_service.lit_processing.tests.mod_populate_load import post_mods
+from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from ...fixtures import db, cleanup_tmp_files_when_done # noqa
 
 
@@ -12,7 +11,7 @@ class TestPostResourceToDb:
 
     def test_post_resources(self, db, cleanup_tmp_files_when_done): # noqa
 
-        post_mods()
+        populate_test_mods()
 
         base_input_dir = path.join(path.dirname(__file__), "../sample_data/")
         json_path = "sanitized_resources/"
@@ -28,6 +27,3 @@ class TestPostResourceToDb:
         resource_id = res_rows[4].resource_id
         crossRef = db.query(CrossReferenceModel).filter_by(resource_id=resource_id).first()
         assert crossRef.curie == 'NLM:101759238'
-        
-        
-            
