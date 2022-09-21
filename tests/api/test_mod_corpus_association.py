@@ -3,7 +3,8 @@ from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
-from .fixtures import auth_headers, db # noqa
+from ..fixtures import db # noqa
+from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 from collections import namedtuple

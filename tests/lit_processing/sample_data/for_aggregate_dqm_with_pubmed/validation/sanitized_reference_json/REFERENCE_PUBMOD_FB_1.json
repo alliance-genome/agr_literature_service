@@ -1,0 +1,54 @@
+[
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "paper",
+                "source": "FB"
+            }
+        ],
+        "allianceCategory": "Research Article",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstName": "G.E.",
+                "lastName": "Lapta",
+                "name": "G.E. Lapta",
+                "referenceId": "FB:FBrf0035013"
+            }
+        ],
+        "citation": "Lapta, 1980, Sov. Genet. 16(4): 386--390",
+        "crossReferences": [
+            {
+                "id": "FB:FBrf0035013",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "dateLastModified": "2019-03-15T14:20:02.41773-04:00",
+        "datePublished": "1980",
+        "issueName": "4",
+        "language": "English",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "FB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "pages": "386--390",
+        "primaryId": "FB:FBrf0035013",
+        "resourceAbbreviation": "Sov. Genet.",
+        "tags": [
+            {
+                "referenceId": "FB:FBrf0035013",
+                "tagName": "inCorpus",
+                "tagSource": "FB"
+            }
+        ],
+        "title": "Analysis of the distribution of asynaptic segments in Drosophila melanogaster chromosomes.",
+        "volume": "16"
+    }
+]

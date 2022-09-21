@@ -8,7 +8,7 @@ from os import environ, makedirs, path
 
 from dotenv import load_dotenv
 
-from agr_literature_service.lit_processing.utils.file_processing_utils import split_identifier
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 load_dotenv()

@@ -1,0 +1,74 @@
+{
+    "data": [
+        {
+            "crossReferences": [
+                {
+                    "id": "NLM:0372516"
+                }
+            ],
+            "isoAbbreviation": "Biochem Biophys Res Commun",
+            "medlineAbbreviation": "Biochem Biophys Res Commun",
+            "nlm": "0372516",
+	    "onlineISSN": "1090-2104",
+            "primaryId": "NLM:0372516",
+            "printISSN": "0006-291X",
+            "title": "Biochemical and biophysical research communications"
+        },
+        {
+            "crossReferences": [
+                {
+                    "id": "NLM:101262417"
+                }
+            ],
+            "isoAbbreviation": "J Physiol Sci",
+            "medlineAbbreviation": "J Physiol Sci",
+            "nlm": "101262417",
+            "onlineISSN": "1880-6562",
+            "primaryId": "NLM:101262417",
+            "printISSN": "1880-6546",
+            "title": "The journal of physiological sciences : JPS"
+        },
+        {
+            "crossReferences": [
+                {
+                    "id": "NLM:101719179"
+                }
+            ],
+            "isoAbbreviation": "Commun Biol",
+            "medlineAbbreviation": "Commun Biol",
+            "nlm": "101719179",
+	    "onlineISSN": "2399-3642",
+            "primaryId": "NLM:101719179",
+            "printISSN": "",
+            "title": "Communications biology"
+        },
+        {
+            "crossReferences": [
+                {
+                    "id": "NLM:101231978"
+                }
+            ],
+            "isoAbbreviation": "Alzheimers Dement",
+            "medlineAbbreviation": "Alzheimers Dement",
+            "nlm": "101231978",
+	    "onlineISSN": "1552-5279",
+            "primaryId": "NLM:101231978",
+            "printISSN": "1552-5260",
+            "title": "Alzheimer's & dementia : the journal of the Alzheimer's Association"
+        },
+        {
+            "crossReferences": [
+                {
+                    "id": "NLM:101759238"
+                }
+            ],
+            "isoAbbreviation": "MicroPubl Biol",
+            "medlineAbbreviation": "MicroPubl Biol",
+            "nlm": "101759238",
+	    "onlineISSN": "2578-9430",
+            "primaryId": "NLM:101759238",
+            "printISSN": "",
+            "title": "microPublication biology"
+        }
+    ]
+}

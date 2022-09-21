@@ -6,9 +6,9 @@ from os import environ, makedirs, path
 
 from dotenv import load_dotenv
 
-from agr_literature_service.lit_processing.utils.file_processing_utils import (load_pubmed_resource_basic,
-                                                                               save_resource_file, split_identifier,
-                                                                               write_json)
+from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json, \
+    save_resource_file, load_pubmed_resource_basic
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 load_dotenv()

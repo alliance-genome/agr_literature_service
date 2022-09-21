@@ -1,0 +1,58 @@
+{
+    "allianceCategory": "Research_Article",
+    "authors": [
+        {
+            "affiliations": [
+                "Zoologisches Institut der Universit\u00e4t Marburg a. d. Lahn, Deutschland."
+            ],
+            "authorRank": 1,
+            "firstinit": "ME",
+            "firstname": "Martin E L",
+            "lastname": "Scriba",
+            "name": "Martin E L Scriba"
+        }
+    ],
+    "crossReferences": [
+        {
+            "id": "PMID:28304499"
+        },
+        {
+            "id": "DOI:10.1007/BF00573799"
+        },
+        {
+            "id": "NLM:7508795"
+        },
+        {
+            "id": "ISSN:0043-5546"
+        }
+    ],
+    "dateArrivedInPubmed": {
+        "date_string": "1967-01-31",
+        "day": "31",
+        "month": "01",
+        "year": "1967"
+    },
+    "dateLastModified": {
+        "date_string": "2019-11-20",
+        "day": "20",
+        "month": "11",
+        "year": "2019"
+    },
+    "datePublished": "1967-09-01",
+    "doi": "10.1007/BF00573799",
+    "is_vernacular": "vernacular",
+    "issn": "0043-5546",
+    "issueName": "3",
+    "journal": "Wilhelm Roux Arch Entwickl Mech Org",
+    "language": "ger",
+    "nlm": "7508795",
+    "pages": "314-345",
+    "pubMedType": [
+        "Journal Article"
+    ],
+    "publicationStatus": "ppublish",
+    "pubmed": "28304499",
+    "resourceAbbreviation": "Wilhelm Roux Arch Entwickl Mech Org",
+    "title": "Embryonale Entwicklungsst\u00f6rungen bei Defizienz und Tetraploidie des 2. Chromosoms vonDrosophila melanogaster.",
+    "volume": "159"
+}

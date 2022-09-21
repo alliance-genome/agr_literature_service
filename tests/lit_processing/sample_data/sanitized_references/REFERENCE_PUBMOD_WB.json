@@ -1,0 +1,194 @@
+[
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Journal_article",
+                "source": "WB"
+            }
+        ],
+        "abstract": "Background: TDP-43-positive inclusions are present in disease-affected neurons in over half of patients with Alzheimer's disease (AD). AD patients with TDP-43 pathology have worsened clinical outcomes and increased neurodegeneration, but the molecular mechanisms underlying this are unknown.Methods: We have developed new models of multi-pathology AD by combining tau and TDP-43 or tau and A&#946; in C. elegans neurons. To characterize these transgenic animals, we measured changes in behavioral outcomes, pathological protein accumulation, and neuron loss. We further tested whether the potent tau modifier sut-2 influences synergistic neurotoxicity exhibited by tau and TDP-43 co-expression.Results: TDP-43 promotes tau but not A&#946; neurotoxicity, resulting in enhanced uncoordinated locomotion, neuronal dysfunction, pathological protein accumulation, and selective neurodegeneration through aging. Synergism between tau and TDP-43 is rescued by sut-2 loss-of-function.Conclusions: Characterizing the relationship between TDP-43 and tau in vivo is critical to understand and ultimately treat mixed pathology AD. Studies of this novel model of tau and TDP-43 combined proteotoxicity provide insights into mechanisms underlying tau and TDP-43 synergistic neurotoxicity. The identification of sut-2 as a robust modifier of co-expressed tau and TDP-43 implicates TDP-43 as an enhancer of tau toxicity.",
+        "allianceCategory": "Research Article",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Latimer CS",
+                "referenceId": "PMID:34971207"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Keene CD",
+                "referenceId": "PMID:34971207"
+            },
+            {
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Kraemer BC",
+                "referenceId": "PMID:34971207"
+            },
+            {
+                "authorRank": 4,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Liachko NF",
+                "referenceId": "PMID:34971207"
+            }
+        ],
+        "crossReferences": [
+            {
+                "id": "DOI:10.1002/alz.058137"
+            },
+            {
+                "id": "WB:WBPaper00062318",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "datePublished": "2021-12",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "WB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "mod_corpus_associations": [
+            {
+                "corpus": true,
+                "mod_abbreviation": "WB",
+                "mod_corpus_sort_source": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:101231978"
+        ],
+        "pages": "e058137",
+        "primaryId": "PMID:34971207",
+        "resource": "NLM:101231978",
+        "resourceAbbreviation": "Alzheimers Dement",
+        "title": "TDP-43 promotes pathological tau phosphorylation and selective neurotoxicity in C. elegans.",
+        "volume": "17 Suppl 2"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Micropublication",
+                "source": "WB"
+            },
+            {
+                "referenceType": "Journal_article",
+                "source": "WB"
+            }
+        ],
+        "allianceCategory": "Research Article",
+        "authors": [],
+        "crossReferences": [
+            {
+                "id": "DOI:10.17912/micropub.biology.000513"
+            },
+            {
+                "id": "WB:WBPaper00062348",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "datePublished": "Unknown",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "WB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "mod_corpus_associations": [
+            {
+                "corpus": true,
+                "mod_abbreviation": "WB",
+                "mod_corpus_sort_source": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:101759238"
+        ],
+        "primaryId": "WB:WBPaper00062348",
+        "resource": "NLM:101759238",
+        "resourceAbbreviation": "microPublication Biology",
+        "title": "502 Bad Gateway"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Micropublication",
+                "source": "WB"
+            },
+            {
+                "referenceType": "Journal_article",
+                "source": "WB"
+            }
+        ],
+        "abstract": "Fungal infection triggers the induction of antimicrobial peptide (AMP) genes in the epidermis (Pujol et al, 2008). We previously showed that this effect is suppressed by the mitochondrial unfolded protein response (UPRmt), which can beactivated by knockdown of select genes including the mitochondrial metalloprotease spg-7 (Zugasti et al, 2016). Here, we confirm that RNAi against spg-7 triggers the UPRmt and blocks AMP induction during infection, whereas infection itself doesnot trigger the UPRmt. ATFS-1 is a key factor in the UPRmt, mediating much of the associated transcriptional response. We find that, surprisingly, ATFS-1 is not required for the suppression of AMP induction provoked by spg-7(RNAi). These data show that the mitochondrial dysfunction that blocks the immune response upon infection or wounding is independent of ATFS-1.",
+        "allianceCategory": "Research Article",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "MARTINEAU, Celine N",
+                "referenceId": "WB:WBPaper00062467"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "MAYNARD, Claire A",
+                "referenceId": "WB:WBPaper00062467"
+            },
+            {
+                "authorRank": 3,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "PUJOL, Nathalie",
+                "referenceId": "WB:WBPaper00062467"
+            }
+        ],
+        "crossReferences": [
+            {
+                "id": "DOI:10.17912/micropub.biology.000525"
+            },
+            {
+                "id": "WB:WBPaper00062467",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "datePublished": "2022-02-22",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "WB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "mod_corpus_associations": [
+            {
+                "corpus": true,
+                "mod_abbreviation": "WB",
+                "mod_corpus_sort_source": "dqm_files"
+            }
+        ],
+        "nlm": [
+            "NLM:101759238"
+        ],
+        "primaryId": "WB:WBPaper00062467",
+        "resource": "NLM:101759238",
+        "resourceAbbreviation": "microPublication Biology",
+        "title": "ATFS-1 plays no repressive role in the regulation of epidermal immune response"
+    }
+]

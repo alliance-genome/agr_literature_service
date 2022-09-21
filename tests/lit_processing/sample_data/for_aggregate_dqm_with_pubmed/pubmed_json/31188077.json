@@ -1,0 +1,159 @@
+{
+    "abstract": "Otoliths (ear stones) are biomineralized complexes essential for the balancing and hearing function of the inner ears in fish. Their formation is controlled by a genetically programmed biological process that is yet to be defined. We have isolated and characterized a spontaneous genetic mutant zebrafish with a complete absence of otoliths, named <i>no otolith 1</i> (<i>not1</i>). <i>not1</i> mutants are unable to develop otoliths during embryonic stages and fail to respond to acoustic stimuli, indicating an inner ear defect. We identified a deleterious mutation (G239R) that altered a highly conserved amino acid residue in the zebrafish ortholog of type I polyketide synthase (<i>pks1</i>) to underlie these phenotypes and showed that expression of the polyketide synthase gene of Japanese medaka fish could rescue the otolith deficiency in <i>not1</i> mutant zebrafish. Our finding highlights a critical and conserved role of type I polyketide synthase in the initiation of otolith formation. Given the functional homology between otoliths in teleost fish and otoconia in mammals and humans, <i>not1</i> mutants provide a new animal model for the study of human otoconia-related diseases.",
+    "allianceCategory": "Research_Article",
+    "authors": [
+        {
+            "affiliations": [
+                "1Department of Biological Chemistry, Molecular and Behavioral Neuroscience Institute, University of Michigan, Ann Arbor, Michigan."
+            ],
+            "authorRank": 1,
+            "firstinit": "MS",
+            "firstname": "Mi-Sun",
+            "lastname": "Lee",
+            "name": "Mi-Sun Lee"
+        },
+        {
+            "affiliations": [
+                "2Center for Human Disease Modeling, Division of Nephrology, Duke University School of Medicine, Durham, North Carolina.",
+                "3Department of Cell Biology, Division of Nephrology, Duke University School of Medicine, Durham, North Carolina."
+            ],
+            "authorRank": 2,
+            "firstinit": "J",
+            "firstname": "Julien",
+            "lastname": "Philippe",
+            "name": "Julien Philippe"
+        },
+        {
+            "affiliations": [
+                "2Center for Human Disease Modeling, Division of Nephrology, Duke University School of Medicine, Durham, North Carolina.",
+                "3Department of Cell Biology, Division of Nephrology, Duke University School of Medicine, Durham, North Carolina."
+            ],
+            "authorRank": 3,
+            "firstinit": "N",
+            "firstname": "Nicholas",
+            "lastname": "Katsanis",
+            "name": "Nicholas Katsanis"
+        },
+        {
+            "affiliations": [
+                "2Center for Human Disease Modeling, Division of Nephrology, Duke University School of Medicine, Durham, North Carolina.",
+                "4Department of Medicine, Division of Nephrology, Duke University School of Medicine, Durham, North Carolina."
+            ],
+            "authorRank": 4,
+            "firstinit": "W",
+            "firstname": "Weibin",
+            "lastname": "Zhou",
+            "name": "Weibin Zhou"
+        }
+    ],
+    "crossReferences": [
+        {
+            "id": "PMID:31188077"
+        },
+        {
+            "id": "DOI:10.1089/zeb.2019.1734"
+        },
+        {
+            "id": "PMCID:PMC6685216"
+        },
+        {
+            "id": "NLM:101225070"
+        },
+        {
+            "id": "ISSN:1545-8547"
+        }
+    ],
+    "dateLastModified": {
+        "date_string": "2020-08-01",
+        "day": "01",
+        "month": "08",
+        "year": "2020"
+    },
+    "datePublished": "2019-08-01",
+    "doi": "10.1089/zeb.2019.1734",
+    "is_journal": "journal",
+    "issn": "1545-8547",
+    "issueName": "4",
+    "journal": "Zebrafish",
+    "keywords": [
+        "balancing",
+        "ear",
+        "hearing",
+        "otolith"
+    ],
+    "language": "eng",
+    "meshTerms": [
+        {
+            "meshHeadingTerm": "Animals",
+            "referenceId": "PMID:31188077"
+        },
+        {
+            "meshHeadingTerm": "Embryonic Development",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:31188077"
+        },
+        {
+            "meshHeadingTerm": "Organogenesis",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:31188077"
+        },
+        {
+            "meshHeadingTerm": "Oryzias",
+            "meshQualifierTerm": "embryology",
+            "referenceId": "PMID:31188077"
+        },
+        {
+            "meshHeadingTerm": "Oryzias",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:31188077"
+        },
+        {
+            "meshHeadingTerm": "Otolithic Membrane",
+            "meshQualifierTerm": "embryology",
+            "referenceId": "PMID:31188077"
+        },
+        {
+            "meshHeadingTerm": "Polyketide Synthases",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:31188077"
+        },
+        {
+            "meshHeadingTerm": "Polyketide Synthases",
+            "meshQualifierTerm": "metabolism",
+            "referenceId": "PMID:31188077"
+        },
+        {
+            "meshHeadingTerm": "Zebrafish",
+            "meshQualifierTerm": "embryology",
+            "referenceId": "PMID:31188077"
+        },
+        {
+            "meshHeadingTerm": "Zebrafish",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:31188077"
+        },
+        {
+            "meshHeadingTerm": "Zebrafish Proteins",
+            "meshQualifierTerm": "genetics",
+            "referenceId": "PMID:31188077"
+        },
+        {
+            "meshHeadingTerm": "Zebrafish Proteins",
+            "meshQualifierTerm": "metabolism",
+            "referenceId": "PMID:31188077"
+        }
+    ],
+    "nlm": "101225070",
+    "pages": "363-369",
+    "pmc": "PMC6685216",
+    "pubMedType": [
+        "Journal Article",
+        "Research Support, N.I.H., Extramural",
+        "Research Support, Non-U.S. Gov't"
+    ],
+    "publicationStatus": "ppublish",
+    "pubmed": "31188077",
+    "resourceAbbreviation": "Zebrafish",
+    "title": "Polyketide Synthase Plays a Conserved Role in Otolith Formation.",
+    "volume": "16"
+}

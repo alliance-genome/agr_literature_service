@@ -1,0 +1,353 @@
+{
+    "data": [
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Journal Article",
+                    "source": "SGD"
+                },
+                {
+                    "referenceType": "Research Support, U.S. Gov't, Non-P.H.S.",
+                    "source": "SGD"
+                },
+                {
+                    "referenceType": "Research Support, U.S. Gov't, P.H.S.",
+                    "source": "SGD"
+                }
+            ],
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "name": "Bose KS",
+                    "referenceId": "PMID:2"
+                },
+                {
+                    "authorRank": 2,
+                    "name": "Sarma RH",
+                    "referenceId": "PMID:2"
+                }
+            ],
+            "citation": "Bose KS and Sarma RH (1975) Delineation of the intimate details of the backbone conformation of pyridine nucleotide coenzymes in aqueous solution. Biochem Biophys Res Commun 66(4):1173-9",
+            "crossReferences": [
+                {
+                    "id": "SGD:S000185526",
+                    "pages": [
+                        "reference"
+                    ]
+                },
+                {
+                    "id": "DOI:10.1016/0006-291x(75)90482-9"
+                },
+                {
+                    "id": "PMID:2"
+                }
+            ],
+            "dateLastModified": "2019-06-12T00:06:00-00:00",
+            "datePublished": "1975 Oct 27",
+            "issueName": "4",
+            "pages": "1173-9",
+            "primaryId": "PMID:2",
+            "resourceAbbreviation": "Biochem Biophys Res Commun",
+            "tags": [
+                {
+                    "referenceId": "PMID:2",
+                    "tagName": "inCorpus",
+                    "tagSource": "SGD"
+                }
+            ],
+            "title": "Delineation of the intimate details of the backbone conformation of pyridine nucleotide coenzymes in aqueous solution.",
+            "volume": "66"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Journal Article",
+                    "source": "SGD"
+                },
+                {
+                    "referenceType": "Research Support, Non-U.S. Gov't",
+                    "source": "SGD"
+                }
+            ],
+            "abstract": "The yeast Saccharomyces cerevisiae has been an essential component of human civilization because of its long global history of use in food and beverage fermentation. However, the diversity and evolutionary history of the domesticated populations of the yeast remain elusive. We show here that China/Far East Asia is likely the center of origin of the domesticated populations of the species. The domesticated populations form two major groups associated with solid- and liquid-state fermentation and appear to have originated from heterozygous ancestors, which were likely formed by outcrossing between diverse wild isolates primitively for adaptation to maltose-rich niches. We found consistent gene expansion and contraction in the whole domesticated population, as well as lineage-specific genome variations leading to adaptation to different environments. We show a nearly panoramic view of the diversity and life history of S. cerevisiae and provide new insights into the origin and evolution of the species.",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "name": "Duan SF",
+                    "referenceId": "PMID:30002370"
+                },
+                {
+                    "authorRank": 2,
+                    "name": "Han PJ",
+                    "referenceId": "PMID:30002370"
+                },
+                {
+                    "authorRank": 3,
+                    "name": "Wang QM",
+                    "referenceId": "PMID:30002370"
+                },
+                {
+                    "authorRank": 4,
+                    "name": "Liu WQ",
+                    "referenceId": "PMID:30002370"
+                },
+                {
+                    "authorRank": 5,
+                    "name": "Shi JY",
+                    "referenceId": "PMID:30002370"
+                },
+                {
+                    "authorRank": 6,
+                    "name": "Li K",
+                    "referenceId": "PMID:30002370"
+                },
+                {
+                    "authorRank": 7,
+                    "name": "Zhang XL",
+                    "referenceId": "PMID:30002370"
+                },
+                {
+                    "authorRank": 8,
+                    "name": "Bai FY",
+                    "referenceId": "PMID:30002370"
+                }
+            ],
+            "citation": "Duan SF, et al. (2018) The origin and adaptive evolution of domesticated populations of yeast from Far East Asia. Nat Commun 9(1):2690",
+            "crossReferences": [
+                {
+                    "id": "SGD:S000217483",
+                    "pages": [
+                        "reference"
+                    ]
+                },
+                {
+                    "id": "PMCID:PMC6043522"
+                },
+                {
+                    "id": "DOI:10.1038/s41467-018-05106-7"
+                },
+                {
+                    "id": "PMID:30002370"
+                }
+            ],
+            "dateLastModified": "2019-07-12T00:07:00-00:00",
+            "datePublished": "2018 Jul 12",
+            "issueName": "1",
+            "pages": "2690",
+            "primaryId": "PMID:30002370",
+            "resourceAbbreviation": "Nat Commun",
+            "tags": [
+                {
+                    "referenceId": "PMID:30002370",
+                    "tagName": "inCorpus",
+                    "tagSource": "SGD"
+                }
+            ],
+            "title": "The origin and adaptive evolution of domesticated populations of yeast from Far East Asia.",
+            "volume": "9"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Journal Article",
+                    "source": "SGD"
+                },
+                {
+                    "referenceType": "Research Support, N.I.H., Extramural",
+                    "source": "SGD"
+                }
+            ],
+            "abstract": "The goal of the Gene Ontology (GO) project is to provide a uniform way to describe the functions of gene products from organisms across all kingdoms of life and thereby enable analysis of genomic data. Protein annotations are either based on experiments or predicted from protein sequences. Since most sequences have not been experimentally characterized, most available annotations need to be based on predictions. To make as accurate inferences as possible, the GO Consortium's Reference Genome Project is using an explicit evolutionary framework to infer annotations of proteins from a broad set of genomes from experimental annotations in a semi-automated manner. Most components in the pipeline, such as selection of sequences, building multiple sequence alignments and phylogenetic trees, retrieving experimental annotations and depositing inferred annotations, are fully automated. However, the most crucial step in our pipeline relies on software-assisted curation by an expert biologist. This curation tool, Phylogenetic Annotation and INference Tool (PAINT) helps curators to infer annotations among members of a protein family. PAINT allows curators to make precise assertions as to when functions were gained and lost during evolution and record the evidence (e.g. experimentally supported GO annotations and phylogenetic information including orthology) for those assertions. In this article, we describe how we use PAINT to infer protein function in a phylogenetic context with emphasis on its strengths, limitations and guidelines. We also discuss specific examples showing how PAINT annotations compare with those generated by other highly used homology-based methods.",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "name": "Gaudet P",
+                    "referenceId": "PMID:21873635"
+                },
+                {
+                    "authorRank": 2,
+                    "name": "Livstone MS",
+                    "referenceId": "PMID:21873635"
+                },
+                {
+                    "authorRank": 3,
+                    "name": "Lewis SE",
+                    "referenceId": "PMID:21873635"
+                },
+                {
+                    "authorRank": 4,
+                    "name": "Thomas PD",
+                    "referenceId": "PMID:21873635"
+                }
+            ],
+            "citation": "Gaudet P, et al. (2011) Phylogenetic-based propagation of functional annotations within the Gene Ontology consortium. Brief. Bioinformatics 12(5):449-62",
+            "crossReferences": [
+                {
+                    "id": "SGD:S000246339",
+                    "pages": [
+                        "reference"
+                    ]
+                },
+                {
+                    "id": "PMCID:PMC3178059"
+                },
+                {
+                    "id": "DOI:10.1093/bib/bbr042"
+                },
+                {
+                    "id": "PMID:21873635"
+                }
+            ],
+            "dateLastModified": "2021-10-20T00:10:00-00:00",
+            "datePublished": "2011-09",
+            "issueName": "5",
+            "pages": "449-62",
+            "primaryId": "PMID:21873635",
+            "resourceAbbreviation": "Brief. Bioinformatics",
+            "tags": [
+                {
+                    "referenceId": "PMID:21873635",
+                    "tagName": "inCorpus",
+                    "tagSource": "SGD"
+                }
+            ],
+            "title": "Phylogenetic-based propagation of functional annotations within the Gene Ontology consortium.",
+            "volume": "12"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Book",
+                    "source": "SGD"
+                },
+                {
+                    "referenceType": "Review",
+                    "source": "SGD"
+                }
+            ],
+            "abstract": "In a word - yeast. Without yeast, there would be no beer. It's that simple. And yeast is a microbe, that is, a living organism that is too small to see with the human eye. Every time someone brews a batch of beer, in a very real sense he or she is doing a microbiology experiment. If you brew beer at home, you're a microbiologist! (In fact, you might even want to join the American Society for Microbiology!) So let's talk about yeast.",
+            "allianceCategory": "Book",
+            "citation": " (2012) None .",
+            "crossReferences": [
+                {
+                    "id": "SGD:S000298041",
+                    "pages": [
+                        "reference"
+                    ]
+                },
+                {
+                    "id": "DOI:10.1128/AAMCol.2-2012"
+                },
+                {
+                    "id": "PMID:33054145"
+                }
+            ],
+            "datePublished": "2012",
+            "primaryId": "PMID:33054145",
+            "tags": [
+                {
+                    "referenceId": "PMID:33054145",
+                    "tagName": "inCorpus",
+                    "tagSource": "SGD"
+                }
+            ],
+            "title": "FAQ: If the Yeast Ain\u2019t Happy, Ain\u2019t Nobody Happy: The Microbiology of Beer"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Personal Communication to SGD",
+                    "source": "SGD"
+                }
+            ],
+            "allianceCategory": "Personal Communication",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "name": "van Leeuwen J",
+                    "referenceId": "SGD:S000182237"
+                },
+                {
+                    "authorRank": 2,
+                    "name": "Boone C",
+                    "referenceId": "SGD:S000182237"
+                }
+            ],
+            "citation": "van Leeuwen J and Boone C (2015)   ",
+            "crossReferences": [
+                {
+                    "id": "SGD:S000182237",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "2015",
+            "primaryId": "SGD:S000182237",
+            "tags": [
+                {
+                    "referenceId": "SGD:S000182237",
+                    "tagName": "inCorpus",
+                    "tagSource": "SGD"
+                }
+            ],
+            "title": "van Leeuwen J and Boone C (2015)   "
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Personal Communication to SGD",
+                    "source": "SGD"
+                }
+            ],
+            "allianceCategory": "Personal Communication",
+            "authors": [
+                {
+                    "authorRank": 1,
+                    "name": "Offman J",
+                    "referenceId": "SGD:S000128229"
+                },
+                {
+                    "authorRank": 2,
+                    "name": "Hoffman E",
+                    "referenceId": "SGD:S000128229"
+                }
+            ],
+            "citation": "Offman J and Hoffman E (2008)   ",
+            "crossReferences": [
+                {
+                    "id": "SGD:S000128229",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "2008",
+            "primaryId": "SGD:S000128229",
+            "tags": [
+                {
+                    "referenceId": "SGD:S000128229",
+                    "tagName": "inCorpus",
+                    "tagSource": "SGD"
+                }
+            ],
+            "title": "Offman J and Hoffman E (2008)   "
+        }
+    ],
+    "metaData": {
+        "dataProvider": {
+            "crossReference": {
+                "id": "SGD",
+                "pages": [
+                    "homepage"
+                ]
+            },
+            "type": "curated"
+        },
+        "dateProduced": "2021-11-09T15:11:34-00:00",
+        "release": "SGD 1.0.1.4 2021-11-09"
+    }
+}

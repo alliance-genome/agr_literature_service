@@ -1,0 +1,161 @@
+[
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "book",
+                "source": "FB"
+            }
+        ],
+        "allianceCategory": "Book",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstName": "D.L.",
+                "lastName": "Lindsley",
+                "name": "D.L. Lindsley",
+                "referenceId": "FB:FBrf0066905"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstName": "G.G.",
+                "lastName": "Zimm",
+                "name": "G.G. Zimm",
+                "referenceId": "FB:FBrf0066905"
+            }
+        ],
+        "crossReferences": [
+            {
+                "id": "FB:FBrf0066905",
+                "pages": [
+                    "reference"
+                ]
+            },
+            {
+                "id": "ISBN:9780124509900"
+            }
+        ],
+        "datePublished": "1992",
+        "language": "English",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "FB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "mod_corpus_associations": [
+            {
+                "corpus": true,
+                "mod_abbreviation": "FB",
+                "mod_corpus_sort_source": "dqm_files"
+            }
+        ],
+        "pages": "viii + 1133pp",
+        "primaryId": "FB:FBrf0066905",
+        "publisher": "Academic Press (San Diego, CA)",
+        "title": "The Genome of Drosophila melanogaster."
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "book",
+                "source": "FB"
+            }
+        ],
+        "allianceCategory": "Book",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "firstName": "M.",
+                "lastName": "Demerec",
+                "name": "M. Demerec",
+                "referenceId": "FB:FBrf0075527"
+            }
+        ],
+        "crossReferences": [
+            {
+                "id": "FB:FBrf0075527",
+                "pages": [
+                    "reference"
+                ]
+            },
+            {
+                "id": "ISBN:9780879694418"
+            }
+        ],
+        "datePublished": "1994",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "FB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "mod_corpus_associations": [
+            {
+                "corpus": true,
+                "mod_abbreviation": "FB",
+                "mod_corpus_sort_source": "dqm_files"
+            }
+        ],
+        "pages": "632pp",
+        "primaryId": "FB:FBrf0075527",
+        "publisher": "Cold Spring Harbor Press (Cold Spring Harbor)",
+        "title": "Biology of Drosophila. [Facsimile edition.]"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "book",
+                "source": "FB"
+            }
+        ],
+        "allianceCategory": "Book",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Anonymous",
+                "referenceId": "FB:FBrf0154014"
+            }
+        ],
+        "crossReferences": [
+            {
+                "id": "FB:FBrf0154014",
+                "pages": [
+                    "reference"
+                ]
+            },
+            {
+                "id": "ISBN:9781888902358"
+            }
+        ],
+        "datePublished": "1997",
+        "language": "English",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "FB",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "mod_corpus_associations": [
+            {
+                "corpus": true,
+                "mod_abbreviation": "FB",
+                "mod_corpus_sort_source": "dqm_files"
+            }
+        ],
+        "pages": "2 CD-ROMs",
+        "primaryId": "FB:FBrf0154014",
+        "publisher": "Cogito (New York, NY)",
+        "title": "Knowledge now in experimental biology: six experimental organisms a multimedia survey."
+    }
+]

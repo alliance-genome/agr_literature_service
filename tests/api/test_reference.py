@@ -8,7 +8,8 @@ from fastapi import status
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, CrossReferenceModel
-from .fixtures import auth_headers, db # noqa
+from ..fixtures import db # noqa
+from .fixtures import auth_headers # noqa
 from .test_resource import test_resource # noqa
 
 TestReferenceData = namedtuple('TestReferenceData', ['response', 'new_ref_curie'])

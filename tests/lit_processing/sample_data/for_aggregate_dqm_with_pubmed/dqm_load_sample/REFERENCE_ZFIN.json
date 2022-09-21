@@ -1,0 +1,769 @@
+{
+    "data": [
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Journal",
+                    "source": "ZFIN"
+                }
+            ],
+            "abstract": "Otoliths (ear stones) are biomineralized complexes essential for the balancing and hearing function of the inner ears in fish. Their formation is controlled by a genetically programmed biological process that is yet to be defined. We have isolated and characterized a spontaneous genetic mutant zebrafish with a complete absence of otoliths, named <i>no otolith 1</i> (<i>not1</i>). <i>not1</i> mutants are unable to develop otoliths during embryonic stages and fail to respond to acoustic stimuli, indicating an inner ear defect. We identified a deleterious mutation (G239R) that altered a highly conserved amino acid residue in the zebrafish ortholog of type I polyketide synthase (<i>pks1</i>) to underlie these phenotypes and showed that expression of the polyketide synthase gene of Japanese medaka fish could rescue the otolith deficiency in <i>not1</i> mutant zebrafish. Our finding highlights a critical and conserved role of type I polyketide synthase in the initiation of otolith formation. Given the functional homology between otoliths in teleost fish and otoconia in mammals and humans, <i>not1</i> mutants provide a new animal model for the study of human otoconia-related diseases.",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "firstName": "Nicholas",
+                    "lastName": "Katsanis",
+                    "name": "Katsanis,N.",
+                    "referenceId": "PMID:31188077"
+                },
+                {
+                    "firstName": "Julien",
+                    "lastName": "Philippe",
+                    "name": "Philippe,J.",
+                    "referenceId": "PMID:31188077"
+                },
+                {
+                    "firstName": "Weibin",
+                    "lastName": "Zhou",
+                    "name": "Zhou,W.",
+                    "referenceId": "PMID:31188077"
+                },
+                {
+                    "firstName": "Mi-Sun",
+                    "lastName": "Lee",
+                    "name": "Lee,M.",
+                    "referenceId": "PMID:31188077"
+                }
+            ],
+            "citation": "Lee, M.S., Philippe, J., Katsanis, N., Zhou, W. (2019) Polyketide Synthase Plays a Conserved Role in Otolith Formation. Zebrafish. 16(4):363-369",
+            "crossReferences": [
+                {
+                    "id": "ZFIN:ZDB-PUB-190613-8",
+                    "pages": [
+                        "reference"
+                    ]
+                },
+                {
+                    "id": "DOI:10.1089/zeb.2019.1734",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "2019-06-12",
+            "keywords": [
+                ", balancing, ear, hearing, otolith"
+            ],
+            "meshTerms": [
+                {
+                    "meshHeadingTerm": "D047108",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:31188077"
+                },
+                {
+                    "meshHeadingTerm": "D038081",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:31188077"
+                },
+                {
+                    "meshHeadingTerm": "D009990",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:31188077"
+                },
+                {
+                    "meshHeadingTerm": "D009990",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:31188077"
+                },
+                {
+                    "meshHeadingTerm": "D010037",
+                    "meshQualfierTerm": "Q000196",
+                    "referenceId": "PMID:31188077"
+                },
+                {
+                    "meshHeadingTerm": "D015027",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:31188077"
+                },
+                {
+                    "meshHeadingTerm": "D015027",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:31188077"
+                }
+            ],
+            "pages": "363-369",
+            "primaryId": "PMID:31188077",
+            "resourceAbbreviation": "Zebrafish",
+            "tags": [
+                {
+                    "referenceId": "PMID:31188077",
+                    "tagName": "inCorpus",
+                    "tagSource": "ZFIN"
+                }
+            ],
+            "title": "Polyketide Synthase Plays a Conserved Role in Otolith Formation",
+            "volume": "16(4)"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Journal",
+                    "source": "ZFIN"
+                }
+            ],
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "name": "Glaser, V.",
+                    "referenceId": "ZFIN:ZDB-PUB-040528-2"
+                }
+            ],
+            "citation": "Glaser, V. (2004) An Interview with Erez Raz, Ph.D. Zebrafish. 1(1):9-11",
+            "crossReferences": [
+                {
+                    "id": "ZFIN:ZDB-PUB-040528-2",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "2004-01-01",
+            "pages": "9-11",
+            "primaryId": "ZFIN:ZDB-PUB-040528-2",
+            "resourceAbbreviation": "Zebrafish",
+            "tags": [
+                {
+                    "referenceId": "ZFIN:ZDB-PUB-040528-2",
+                    "tagName": "inCorpus",
+                    "tagSource": "ZFIN"
+                }
+            ],
+            "title": "An Interview with Erez Raz, Ph.D",
+            "volume": "1(1)"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Thesis",
+                    "source": "ZFIN"
+                }
+            ],
+            "allianceCategory": "Thesis",
+            "authors": [
+                {
+                    "name": "Zhou, S.",
+                    "referenceId": "ZFIN:ZDB-PUB-050216-15"
+                }
+            ],
+            "citation": "Zhou, S. (2003) Effects of cadmium on somitogenesis and neurogenesis of zebrafish embryos. Master's Thesis. :247P",
+            "crossReferences": [
+                {
+                    "id": "ZFIN:ZDB-PUB-050216-15",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "2003-01-01",
+            "pages": "247P",
+            "primaryId": "ZFIN:ZDB-PUB-050216-15",
+            "resourceAbbreviation": "Master's Thesis",
+            "tags": [
+                {
+                    "referenceId": "ZFIN:ZDB-PUB-050216-15",
+                    "tagName": "inCorpus",
+                    "tagSource": "ZFIN"
+                }
+            ],
+            "title": "Effects of cadmium on somitogenesis and neurogenesis of zebrafish embryos"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Journal",
+                    "source": "ZFIN"
+                }
+            ],
+            "abstract": "Recent studies suggest that malignant melanoma heterogeneity includes subpopulations of cells with features of multipotent neural crest (NC) cells. Zebrafish and mouse models have shown that reactivation of neural crest-specific pathways during transformation determines the invasiveness of melanoma cells. In this study, we show that the neural crest-associated transcription factor FOXD1 plays a key role in the invasion and the migration capacities of metastatic melanomas both in vivo and in vitro. Gene expression profiling analysis identified both an upregulation of FOXD1 in NC and melanoma cells, as well as a downregulation of several genes related to cell invasion in FOXD1 knockdown cells, including MMP9 and RAC1B. Furthermore, we demonstrate that knockdown of RAC1B a tumor-specific isoform of RAC1, significantly impaired melanoma cell migration and invasion and could abrogate enhanced invasiveness induced by FOXD1 overexpression. We conclude that FOXD1 may influence invasion and migration via indirect regulation of MMP9 and RAC1B alternative splicing in melanoma cells. This article is protected by copyright. All rights reserved.",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "firstName": "Huizi",
+                    "lastName": "Wu",
+                    "name": "Wu,H.",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "firstName": "Sachindra",
+                    "lastName": "Sachindra",
+                    "name": "Sachindra,S.",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "firstName": "Lionel",
+                    "lastName": "Larrib\u00e8re",
+                    "name": "Larrib\u00e8re,L.",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "firstName": "Jochen",
+                    "lastName": "Utikal",
+                    "name": "Utikal,J.",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "firstName": "Daniel",
+                    "lastName": "Novak",
+                    "name": "Novak,D.",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "firstName": "Karol",
+                    "lastName": "Granados",
+                    "name": "Granados,K.",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "firstName": "Viktor",
+                    "lastName": "Umansky",
+                    "name": "Umansky,V.",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "firstName": "Qian",
+                    "lastName": "Sun",
+                    "name": "Sun,Q.",
+                    "referenceId": "PMID:30110134"
+                }
+            ],
+            "citation": "Wu, H., Larrib\u00e8re, L., Sun, Q., Novak, D., Sachindra, S., Granados, K., Umansky, V., Utikal, J. (2018) Loss of neural crest-associated gene FOXD1 impairs melanoma invasion and migration via RAC1B downregulation. International Journal of Cancer. 143(11):2962-2972",
+            "crossReferences": [
+                {
+                    "id": "ZFIN:ZDB-PUB-180816-15",
+                    "pages": [
+                        "reference"
+                    ]
+                },
+                {
+                    "id": "DOI:10.1002/ijc.31799",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "2018-08-15",
+            "keywords": [
+                "FOXD1, Neural crest, RAC1B, invasion, melanoma, migration"
+            ],
+            "meshTerms": [
+                {
+                    "meshHeadingTerm": "D002465",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "meshHeadingTerm": "D015536",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "meshHeadingTerm": "D051858",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "meshHeadingTerm": "D020869",
+                    "meshQualfierTerm": "Q000379",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "meshHeadingTerm": "D015972",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "meshHeadingTerm": "D020780",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "meshHeadingTerm": "D008545",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "meshHeadingTerm": "D009361",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "meshHeadingTerm": "D009432",
+                    "meshQualfierTerm": "Q000378",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "meshHeadingTerm": "D015398",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:30110134"
+                },
+                {
+                    "meshHeadingTerm": "D020830",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:30110134"
+                }
+            ],
+            "pages": "2962-2972",
+            "primaryId": "PMID:30110134",
+            "resourceAbbreviation": "Int. J. Cancer",
+            "tags": [
+                {
+                    "referenceId": "PMID:30110134",
+                    "tagName": "inCorpus",
+                    "tagSource": "ZFIN"
+                }
+            ],
+            "title": "Loss of neural crest-associated gene FOXD1 impairs melanoma invasion and migration via RAC1B downregulation",
+            "volume": "143(11)"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Curation",
+                    "source": "ZFIN"
+                }
+            ],
+            "abstract": "The goal of the GO Reference Genome Project, described in PMID 19578431, is to provide accurate, complete and consistent GO annotations for all genes in twelve model organism genomes.To this end, GO curators are annotating evolutionary trees from the PANTHER database with GO terms describing molecular function, biological process and cellular component. GO terms based on experimental data from the scientific literature are used to annotate ancestral genes in the phylogenetic tree by sequence similarity (ISS), and unannotated descendants of these ancestral genes are inferred to have inherited these same GO annotations by descent. The annotations are done using a tool called PAINT (Phylogenetic Annotation and INference Tool).\r\nurl: http://gocwiki.geneontology.org/index.php/PAINT",
+            "allianceCategory": "Internal Process Reference",
+            "authors": [
+                {
+                    "firstName": "Suzanna E",
+                    "lastName": "Lewis",
+                    "name": "Lewis,S.",
+                    "referenceId": "PMID:21873635"
+                },
+                {
+                    "firstName": "Pascale",
+                    "lastName": "Gaudet",
+                    "name": "Gaudet,P.",
+                    "referenceId": "PMID:21873635"
+                },
+                {
+                    "firstName": "Paul D",
+                    "lastName": "Thomas",
+                    "name": "Thomas,P.",
+                    "referenceId": "PMID:21873635"
+                },
+                {
+                    "firstName": "Michael S",
+                    "lastName": "Livstone",
+                    "name": "Livstone,M.",
+                    "referenceId": "PMID:21873635"
+                }
+            ],
+            "citation": "Gaudet, P., Livstone, M., Thomas, P., The Reference Genome Project (2010) Annotation inferences using phylogenetic trees. Automated Data Submission. ",
+            "crossReferences": [
+                {
+                    "id": "ZFIN:ZDB-PUB-110330-1",
+                    "pages": [
+                        "reference"
+                    ]
+                },
+                {
+                    "id": "DOI:10.1093/bib/bbr042",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "2010-01-01",
+            "meshTerms": [
+                {
+                    "meshHeadingTerm": "D023281",
+                    "meshQualfierTerm": "Q000379",
+                    "referenceId": "PMID:21873635"
+                },
+                {
+                    "meshHeadingTerm": "D058977",
+                    "meshQualfierTerm": "Q000379",
+                    "referenceId": "PMID:21873635"
+                },
+                {
+                    "meshHeadingTerm": "D011506",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:21873635"
+                },
+                {
+                    "meshHeadingTerm": "D011506",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:21873635"
+                }
+            ],
+            "primaryId": "PMID:21873635",
+            "resourceAbbreviation": "Automated Data Submission",
+            "tags": [
+                {
+                    "referenceId": "PMID:21873635",
+                    "tagName": "inCorpus",
+                    "tagSource": "ZFIN"
+                }
+            ],
+            "title": "Annotation inferences using phylogenetic trees"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Journal",
+                    "source": "ZFIN"
+                }
+            ],
+            "abstract": "The paired-type homeodomain transcription factor Uncx is involved in multiple processes of embryogenesis in vertebrates. Reasoning that zebrafish genes <i>uncx4.1</i> and <i>uncx</i> are orthologs of mouse <i>Uncx</i>, we studied their genomic environment and developmental expression. Evolutionary analyses indicate the zebrafish <i>uncx</i> genes as being paralogs deriving from teleost-specific whole-genome duplication. Whole-mount <i>in situ</i> mRNA hybridization of <i>uncx</i> transcripts in zebrafish embryos reveals novel expression domains, confirms those previously known, and suggests sub-functionalization of paralogs. Using genetic mutants and pharmacological inhibitors, we investigate the role of signaling pathways on the expression of zebrafish <i>uncx</i> genes in developing somites. In identifying putative functional role(s) of zebrafish <i>uncx</i> genes, we hypothesized that they encode transcription factors that coordinate growth and innervation of somitic muscles.",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "firstName": "Francesco",
+                    "lastName": "Aniello",
+                    "name": "Aniello,F.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Giulia",
+                    "lastName": "Fasano",
+                    "name": "Fasano,G.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Alessandra",
+                    "lastName": "Gentile",
+                    "name": "Gentile,A.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Sylvie",
+                    "lastName": "Maiella",
+                    "name": "Maiella,S.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Filomena",
+                    "lastName": "Ristoratore",
+                    "name": "Ristoratore,F.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Marcella",
+                    "lastName": "Fiengo",
+                    "name": "Fiengo,M.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Immacolata",
+                    "lastName": "Porreca",
+                    "name": "Porreca,I.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Denis",
+                    "lastName": "Duboule",
+                    "name": "Duboule,D.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Valeria",
+                    "lastName": "Nittoli",
+                    "name": "Nittoli,V.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Rita",
+                    "lastName": "Marino",
+                    "name": "Marino,R.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Takashi",
+                    "lastName": "Kondo",
+                    "name": "Kondo,T.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Lorella M T",
+                    "lastName": "Canzoniero",
+                    "name": "Canzoniero,L.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Aldo",
+                    "lastName": "Donizetti",
+                    "name": "Donizetti,A.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Fernanda",
+                    "lastName": "Langellotto",
+                    "name": "Langellotto,F.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Ugo",
+                    "lastName": "Coppola",
+                    "name": "Coppola,U.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Stephen W",
+                    "lastName": "Wilson",
+                    "name": "Wilson,S.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Raffaella",
+                    "lastName": "De Paolo",
+                    "name": "De Paolo,R.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Antonio Emidio",
+                    "lastName": "Fortunato",
+                    "name": "Fortunato,A.",
+                    "referenceId": "PMID:31193955"
+                },
+                {
+                    "firstName": "Paolo",
+                    "lastName": "Sordino",
+                    "name": "Sordino,P.",
+                    "referenceId": "PMID:31193955"
+                }
+            ],
+            "citation": "Nittoli, V., Fortunato, A.E., Fasano, G., Coppola, U., Gentile, A., Maiella, S., Langellotto, F., Porreca, I., De Paolo, R., Marino, R., Fiengo, M., Donizetti, A., Aniello, F., Kondo, T., Ristoratore, F., Canzoniero, L.M.T., Duboule, D., Wilson, S.W., Sordino, P. (2019) Characterization of paralogous <i>uncx</i> transcription factor encoding genes in zebrafish. Gene X. 2:100011",
+            "crossReferences": [
+                {
+                    "id": "ZFIN:ZDB-PUB-190614-11",
+                    "pages": [
+                        "reference"
+                    ]
+                },
+                {
+                    "id": "DOI:10.1016/j.gene.2019.100011",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "2019-06-01",
+            "keywords": [
+                "AP, antero-posterior, Ace, acerebellar, CAMP, conserved ancestral microsyntenic pairs, CNE, conserved non-coding elements, CRM, cis-regulatory module, CS, Corpuscle of Stannius, CaP, caudal primary motor neuron axons, Ce, cerebellum, Development, Di, diencephalon, Elfn1, Extracellular Leucine Rich Repeat And Fibronectin Type III Domain Containing 1, Ey, eye, FB, forebrain, FGF, fibroblast growth factor, Flh, floating head, HB, hindbrain, HM, hybridization mix, Hy, hypothalamus, MO, morpholino, Mical, molecule interacting with CasL, No, notochord, OP, olfactory placode, OT, optic tectum, PA, pharyngeal arches, PSM, presomitic mesoderm, SC, spinal cord, Shh, sonic hedgehog, Signaling pathway, So, somites, Synteny, TSGD, TSGD, teleost-specific genome duplication, Te, telencephalon, Th, thalamus, Uncx, VLP, ventro-lateral-posterior, WIHC, whole-mount immunohistochemistry, WISH, whole-mount in situ hybridization, YE, yolk extension, Yo, yolk, Zebrafish, cyc, cyclops, fss, fused-somites, hpf, hours post fertilization, ptc, patched, smu, slow-muscle-omitted, syu, sonic-you, yot, you-too"
+            ],
+            "pages": "100011",
+            "primaryId": "PMID:31193955",
+            "resourceAbbreviation": "Gene X",
+            "tags": [
+                {
+                    "referenceId": "PMID:31193955",
+                    "tagName": "canShowImages",
+                    "tagSource": "ZFIN"
+                },
+                {
+                    "referenceId": "PMID:31193955",
+                    "tagName": "inCorpus",
+                    "tagSource": "ZFIN"
+                }
+            ],
+            "title": "Characterization of paralogous <i>uncx</i> transcription factor encoding genes in zebrafish",
+            "volume": "2"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Journal",
+                    "source": "ZFIN"
+                }
+            ],
+            "abstract": "The 11q23 of the mixed lineage leukemia 1 (<i>MLL1</i>) gene plays a crucial role in early embryonic development and hematopoiesis. The <i>MLL-AF9</i> fusion gene, resulting from chromosomal translocation, often leads to acute myeloid leukemia with poor prognosis. Here, we generated a zebrafish model expressing the human <i>MLL-AF9</i> fusion gene. Microinjection of human <i>MLL-AF9</i> mRNA into zebrafish embryos resulted in enhanced hematopoiesis and the activation of downstream genes such as <i>meis1</i> and <i>hox</i> cluster genes. Embryonic MLL-AF9 expression upregulated HSPC and myeloid lineage markers. Doxorubicin and MI-2 (a menin inhibitor) treatments significantly restored normal hematopoiesis in MLL-AF9-expressing animals. This study provides insight into the role of MLL-AF9 in zebrafish hematopoiesis and establishes a robust and efficient in vivo model for high-throughput drug screening.",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "firstName": "Jue",
+                    "lastName": "Wang",
+                    "name": "Wang,J.",
+                    "referenceId": "PMID:30003105"
+                },
+                {
+                    "firstName": "Zhen",
+                    "lastName": "Shang",
+                    "name": "Shang,Z.",
+                    "referenceId": "PMID:30003105"
+                },
+                {
+                    "firstName": "Qian",
+                    "lastName": "Xu",
+                    "name": "Xu,Q.",
+                    "referenceId": "PMID:30003105"
+                },
+                {
+                    "firstName": "Jiaqi",
+                    "lastName": "Tan",
+                    "name": "Tan,J.",
+                    "referenceId": "PMID:30003105"
+                },
+                {
+                    "firstName": "Lei",
+                    "lastName": "Zhao",
+                    "name": "Zhao,L.",
+                    "referenceId": "PMID:30003105"
+                },
+                {
+                    "firstName": "Gaoxiang",
+                    "lastName": "Wang",
+                    "name": "Wang,G.",
+                    "referenceId": "PMID:30003105"
+                },
+                {
+                    "firstName": "Tongjuan",
+                    "lastName": "Li",
+                    "name": "Li,T.",
+                    "referenceId": "PMID:30003105"
+                },
+                {
+                    "firstName": "Xing",
+                    "lastName": "Chen",
+                    "name": "Chen,X.",
+                    "referenceId": "PMID:30003105"
+                },
+                {
+                    "firstName": "Jianfeng",
+                    "lastName": "Zhou",
+                    "name": "Zhou,J.",
+                    "referenceId": "PMID:30003105"
+                },
+                {
+                    "firstName": "Dan",
+                    "lastName": "Li",
+                    "name": "Li,D.",
+                    "referenceId": "PMID:30003105"
+                }
+            ],
+            "citation": "Tan, J., Zhao, L., Wang, G., Li, T., Li, D., Xu, Q., Chen, X., Shang, Z., Wang, J., Zhou, J. (2018) Human MLL-AF9 Overexpression Induces Aberrant Hematopoietic Expansion in Zebrafish. BioMed Research International. 2018:6705842",
+            "crossReferences": [
+                {
+                    "id": "ZFIN:ZDB-PUB-180714-6",
+                    "pages": [
+                        "reference"
+                    ]
+                },
+                {
+                    "id": "DOI:10.1155/2018/6705842",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "2018-05-30",
+            "keywords": [
+                ""
+            ],
+            "meshTerms": [
+                {
+                    "meshHeadingTerm": "D006410",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:30003105"
+                },
+                {
+                    "meshHeadingTerm": "D015470",
+                    "meshQualfierTerm": "Q000235",
+                    "referenceId": "PMID:30003105"
+                },
+                {
+                    "meshHeadingTerm": "D051788",
+                    "meshQualfierTerm": "Q000502",
+                    "referenceId": "PMID:30003105"
+                },
+                {
+                    "meshHeadingTerm": "D015514",
+                    "meshQualfierTerm": "Q000502",
+                    "referenceId": "PMID:30003105"
+                }
+            ],
+            "pages": "6705842",
+            "primaryId": "PMID:30003105",
+            "resourceAbbreviation": "Biomed Res. Int.",
+            "tags": [
+                {
+                    "referenceId": "PMID:30003105",
+                    "tagName": "canShowImages",
+                    "tagSource": "ZFIN"
+                },
+                {
+                    "referenceId": "PMID:30003105",
+                    "tagName": "inCorpus",
+                    "tagSource": "ZFIN"
+                }
+            ],
+            "title": "Human MLL-AF9 Overexpression Induces Aberrant Hematopoietic Expansion in Zebrafish",
+            "volume": "2018"
+        },
+        {
+            "MODReferenceTypes": [
+                {
+                    "referenceType": "Journal",
+                    "source": "ZFIN"
+                }
+            ],
+            "abstract": "The paired-type homeodomain transcription factor Uncx is involved in multiple processes of embryogenesis in vertebrates. Reasoning that zebrafish genes uncx4.1 and uncx are orthologs of mouse Uncx, we studied their genomic environment and developmental expression. Evolutionary analyses indicate the zebrafish uncx genes as being paralogs deriving from teleost-specific whole-genome duplication. Whole-mount in situ mRNA hybridization of uncx transcripts in zebrafish embryos reveals novel expression domains, confirms those previously known, and suggests sub-functionalization of paralogs. Using genetic mutants and pharmacological inhibitors, we investigate the role of signaling pathways on the expression of zebrafish uncx genes in developing somites. In identifying putative functional role(s) of zebrafish uncx genes, we hypothesized that they encode transcription factors that coordinate growth and innervation of somitic muscles.",
+            "allianceCategory": "Research Article",
+            "authors": [
+                {
+                    "name": "Nittoli, V., Fortunato, A.E., Fasano, G., Coppola, U., Gentile, A., Maiella, S., Langellotto, F., Porreca, I., De Paolo, R., Marino, R., Fiengo, M., Donizetti, A., Aniello, F., Kondo, T., Ristoratore, F., Canzoniero, L.M.T., Duboule, D., Wilson, S.W., Sordino, P.",
+                    "referenceId": "ZFIN:ZDB-PUB-210918-21"
+                }
+            ],
+            "citation": "Nittoli, V., Fortunato, A.E., Fasano, G., Coppola, U., Gentile, A., Maiella, S., Langellotto, F., Porreca, I., De Paolo, R., Marino, R., Fiengo, M., Donizetti, A., Aniello, F., Kondo, T., Ristoratore, F., Canzoniero, L.M.T., Duboule, D., Wilson, S.W., Sordino, P. (2019) Characterization of paralogous uncx transcription factor encoding genes in zebrafish. Gene. 721S:100011",
+            "crossReferences": [
+                {
+                    "id": "ZFIN:ZDB-PUB-210918-21",
+                    "pages": [
+                        "reference"
+                    ]
+                },
+                {
+                    "id": "DOI:10.1016/j.gene.2019.100011",
+                    "pages": [
+                        "reference"
+                    ]
+                }
+            ],
+            "datePublished": "2019-01-01",
+            "keywords": [
+                "Development, Signaling pathway, Synteny, TSGD, Uncx, Zebrafish"
+            ],
+            "pages": "100011",
+            "primaryId": "PMID:34530988",
+            "resourceAbbreviation": "Gene",
+            "tags": [
+                {
+                    "referenceId": "PMID:34530988",
+                    "tagName": "canShowImages",
+                    "tagSource": "ZFIN"
+                },
+                {
+                    "referenceId": "PMID:34530988",
+                    "tagName": "inCorpus",
+                    "tagSource": "ZFIN"
+                }
+            ],
+            "title": "Characterization of paralogous uncx transcription factor encoding genes in zebrafish",
+            "volume": "721S"
+        }
+    ],
+    "metaData": {
+        "dataProvider": {
+            "crossReference": {
+                "id": "ZFIN",
+                "pages": [
+                    "homepage"
+                ]
+            },
+            "type": "curated"
+        },
+        "dateProduced": "2021-11-08T03:41:54-08:00"
+    }
+}

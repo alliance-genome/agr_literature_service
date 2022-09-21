@@ -8,6 +8,7 @@ import sys
 import time
 import urllib
 from os import environ, makedirs, path
+from typing import List
 
 import requests
 from dotenv import load_dotenv
@@ -63,7 +64,7 @@ init_tmp_dir()
 # logger = logging.getLogger('literature logger')
 
 
-def download_pubmed_xml(pmids_wanted):
+def download_pubmed_xml(pmids_wanted: List[str]):  # pragma: no cover
     """
 
     4.5 minutes to download 28994 wormbase records in 10000 chunks
@@ -154,6 +155,7 @@ def download_pubmed_xml(pmids_wanted):
                     # logger.info(clean_xml)
                     if re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml):
                         pmid_group = re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml)
+                        assert pmid_group is not None
                         pmid = pmid_group.group(1)
                         pmids_found.add(pmid)
                         filename = storage_path + pmid + '.xml'

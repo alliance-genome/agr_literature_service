@@ -21,7 +21,7 @@ init_tmp_dir()
 # if file already exists in pmids_found, skip it.
 
 
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../../../logging.conf')
+log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../../logging.conf')
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 

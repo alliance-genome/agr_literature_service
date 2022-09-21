@@ -7,7 +7,8 @@ from agr_literature_service.api.main import app
 from fastapi import status
 
 from agr_literature_service.api.models import ResourceModel
-from .fixtures import auth_headers, db # noqa
+from ..fixtures import db # noqa
+from .fixtures import auth_headers # noqa
 
 TestResourceData = namedtuple('TestResourceData', ['response', 'new_resource_curie'])
 

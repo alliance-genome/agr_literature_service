@@ -1,0 +1,106 @@
+[
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Peer Reviewed Article",
+                "source": "MGI"
+            }
+        ],
+        "allianceCategory": "Research Article",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Bodmer WF",
+                "referenceId": "BodmerWFMGI:48543"
+            }
+        ],
+        "citation": "Heredity 1961;16():485-95",
+        "crossReferences": [
+            {
+                "id": "MGI:48543",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "dateLastModified": "2019-08-14T00:00:00-04:00",
+        "datePublished": "1961",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "MGI",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "pages": "485-95",
+        "primaryId": "MGI:48543",
+        "resourceAbbreviation": "Heredity",
+        "tags": [
+            {
+                "referenceId": "MGI:48543",
+                "tagName": "inCorpus",
+                "tagSource": "MGI"
+            }
+        ],
+        "title": "Viability effects and recombination differences in a linkage test with pallid and fidget in the house mouse.",
+        "volume": "16"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Newsletter",
+                "source": "MGI"
+            }
+        ],
+        "abstract": "Full text of MNL contribution:  Research notes: Linkage of pg with si and Sl in L.G. IV. Linkage of pygmy (pg) to \"a silvering gene\" was reported in MNL 9, Suppl. P.7 . This report was based on the work of Dr. J.W.B. King, but neither the data nor the recombination frequency were given. Dr. King has kindly given us his data which are as follows: si - pg (si +/+ pg x si +/+ pg); + +: 321; + si: 65; pg +: 137; pg si: 3; Total: 526; p +/- s. e., %: 20.1 +/- 5.92 We have worked out the recombination and its standard error, allowing for the incomplete penetrance of si, by Bailey's equations 5.43 and 5.44 (Introduction to the mathematical theory of genetic linkage, 1961). Following the report in MNL 29: 48 of linkage between silver (si) and steel (Sl) and at the suggestion of Dr. Margaret C. Green, we have tested pg against Sl and found them to be linked. The data are as follows: S1 - pg (S1 +/+ pg x + +/+ pg); + +: 88; S1 +: 113; + pg: 57; Sl pg: 7; Total: 265; p +/- s.e., %: 14.2 +/-  4.04. The usefulness of si as a marker is somewhat enhanced by the fulfillment of the prediction that pg and Sl should be linked. It is to be hoped that the order can be established from the existing 2-point tests when the si - Sl recombination is known. The data reported here would make the recombination between si and Sl 34 +/- 7% if the order is si  pg - Sl, or 6 +/- 7% if the order is si - Sl - pg. (Falconer and Isaacson)",
+        "allianceCategory": "Other",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Falconer DS",
+                "referenceId": "FalconerDSMGI:48554"
+            },
+            {
+                "authorRank": 2,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": " Isaacson JH",
+                "referenceId": "IsaacsonJHMGI:48554"
+            }
+        ],
+        "citation": "Mouse News Lett 1965;32():30-31",
+        "crossReferences": [
+            {
+                "id": "MGI:48554",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "dateLastModified": "2006-12-12T00:00:00-05:00",
+        "datePublished": "1965",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "MGI",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "pages": "30-31",
+        "primaryId": "MGI:48554",
+        "resourceAbbreviation": "Mouse News Lett",
+        "tags": [
+            {
+                "referenceId": "MGI:48554",
+                "tagName": "inCorpus",
+                "tagSource": "MGI"
+            }
+        ],
+        "title": "Linkage of pg with si and Sl in L.G. IV",
+        "volume": "32"
+    }
+]

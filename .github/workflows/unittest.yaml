@@ -31,8 +31,24 @@ jobs:
           HOST: 0.0.0.0
           PSQL_USERNAME: postgres
           PSQL_PASSWORD: postgres
-          PSQL_HOST: postgres
+          PSQL_HOST: localhost
           PSQL_PORT: 5432
           PSQL_DATABASE: literature-test
           PYTHONPATH: agr_literature_service/lit_processing/
-        run: make run-test-bash
+          OKTA_DOMAIN: 'dev-30456587.okta.com/oauth2/default'
+          OKTA_API_AUDIENCE: 'api://default'
+          RESOURCE_DESCRIPTOR_URL: 'https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/resourceDescriptors.yaml'
+          ELASTICSEARCH_HOST: localhost
+          ELASTICSEARCH_PORT: 9200
+          ELASTICSEARCH_INDEX: references_index
+          XML_PATH: ${GITHUB_WORKSPACE}/tests/tmp/
+          OKTA_CLIENT_ID: ${{ secrets.okta_client_id }}
+          OKTA_CLIENT_SECRET: ${{ secrets.okta_client_secret }}
+        run: |
+          docker-compose --env-file .env.test down -v
+          docker-compose --env-file .env.test up -d postgres
+          sleep 5
+          docker-compose --env-file .env.test up -d elasticsearch
+          sleep 10
+          pytest -m "not webtest"
+          docker-compose --env-file .env.test down -v

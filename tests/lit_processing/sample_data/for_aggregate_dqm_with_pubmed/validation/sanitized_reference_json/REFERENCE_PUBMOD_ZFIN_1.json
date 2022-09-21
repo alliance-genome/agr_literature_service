@@ -1,0 +1,95 @@
+[
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Journal",
+                "source": "ZFIN"
+            }
+        ],
+        "allianceCategory": "Research Article",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Glaser, V.",
+                "referenceId": "ZFIN:ZDB-PUB-040528-2"
+            }
+        ],
+        "citation": "Glaser, V. (2004) An Interview with Erez Raz, Ph.D. Zebrafish. 1(1):9-11",
+        "crossReferences": [
+            {
+                "id": "ZFIN:ZDB-PUB-040528-2",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "datePublished": "2004-01-01",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "ZFIN",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "pages": "9-11",
+        "primaryId": "ZFIN:ZDB-PUB-040528-2",
+        "resourceAbbreviation": "Zebrafish",
+        "tags": [
+            {
+                "referenceId": "ZFIN:ZDB-PUB-040528-2",
+                "tagName": "inCorpus",
+                "tagSource": "ZFIN"
+            }
+        ],
+        "title": "An Interview with Erez Raz, Ph.D",
+        "volume": "1(1)"
+    },
+    {
+        "MODReferenceTypes": [
+            {
+                "referenceType": "Thesis",
+                "source": "ZFIN"
+            }
+        ],
+        "allianceCategory": "Thesis",
+        "authors": [
+            {
+                "authorRank": 1,
+                "correspondingAuthor": false,
+                "firstAuthor": false,
+                "name": "Zhou, S.",
+                "referenceId": "ZFIN:ZDB-PUB-050216-15"
+            }
+        ],
+        "citation": "Zhou, S. (2003) Effects of cadmium on somitogenesis and neurogenesis of zebrafish embryos. Master's Thesis. :247P",
+        "crossReferences": [
+            {
+                "id": "ZFIN:ZDB-PUB-050216-15",
+                "pages": [
+                    "reference"
+                ]
+            }
+        ],
+        "datePublished": "2003-01-01",
+        "modCorpusAssociations": [
+            {
+                "corpus": true,
+                "modAbbreviation": "ZFIN",
+                "modCorpusSortSource": "dqm_files"
+            }
+        ],
+        "pages": "247P",
+        "primaryId": "ZFIN:ZDB-PUB-050216-15",
+        "resourceAbbreviation": "Master's Thesis",
+        "tags": [
+            {
+                "referenceId": "ZFIN:ZDB-PUB-050216-15",
+                "tagName": "inCorpus",
+                "tagSource": "ZFIN"
+            }
+        ],
+        "title": "Effects of cadmium on somitogenesis and neurogenesis of zebrafish embryos"
+    }
+]

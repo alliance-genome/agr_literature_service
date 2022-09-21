@@ -23,7 +23,7 @@ sleep_time = 60
 init_tmp_dir()
 
 
-def update_all_data():
+def update_all_data():  # pragma: no cover
 
     ## take 18 sec
     log.info("Updating resource:")
@@ -78,7 +78,7 @@ def update_all_data():
         time.sleep(sleep_time)
 
 
-def download_all_xml_files(pmids_all):
+def download_all_xml_files(pmids_all):  # pragma: no cover
 
     load_dotenv()
     base_path = environ.get('XML_PATH', "")
@@ -132,7 +132,7 @@ def get_pmids_with_xml(xml_path):
     return found_xml
 
 
-def remove_empty_xml_file(xml_path):
+def remove_empty_xml_file(xml_path):  # pragma: no cover
 
     for filename in listdir(xml_path):
         file = path.join(xml_path, filename)

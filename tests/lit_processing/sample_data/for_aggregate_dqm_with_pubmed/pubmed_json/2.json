@@ -1,0 +1,98 @@
+{
+    "allianceCategory": "Research_Article",
+    "authors": [
+        {
+            "authorRank": 1,
+            "firstinit": "KS",
+            "firstname": "K S",
+            "lastname": "Bose",
+            "name": "K S Bose"
+        },
+        {
+            "authorRank": 2,
+            "firstinit": "RH",
+            "firstname": "R H",
+            "lastname": "Sarma",
+            "name": "R H Sarma"
+        }
+    ],
+    "commentsCorrections": {
+        "ErratumIn": [
+            "8"
+        ]
+    },
+    "crossReferences": [
+        {
+            "id": "PMID:2"
+        },
+        {
+            "id": "DOI:10.1016/0006-291x(75)90482-9"
+        },
+        {
+            "id": "NLM:0372516"
+        },
+        {
+            "id": "ISSN:0006-291X"
+        }
+    ],
+    "dateLastModified": {
+        "date_string": "2019-06-12",
+        "day": "12",
+        "month": "06",
+        "year": "2019"
+    },
+    "datePublished": "1975-10-27",
+    "doi": "10.1016/0006-291x(75)90482-9",
+    "is_journal": "journal",
+    "issn": "0006-291X",
+    "issueName": "4",
+    "journal": "Biochem Biophys Res Commun",
+    "language": "eng",
+    "meshTerms": [
+        {
+            "meshHeadingTerm": "Fourier Analysis",
+            "referenceId": "PMID:2"
+        },
+        {
+            "meshHeadingTerm": "Magnetic Resonance Spectroscopy",
+            "referenceId": "PMID:2"
+        },
+        {
+            "meshHeadingTerm": "Models, Molecular",
+            "referenceId": "PMID:2"
+        },
+        {
+            "meshHeadingTerm": "Molecular Conformation",
+            "referenceId": "PMID:2"
+        },
+        {
+            "meshHeadingTerm": "NAD",
+            "meshQualifierTerm": "analogs &amp; derivatives",
+            "referenceId": "PMID:2"
+        },
+        {
+            "meshHeadingTerm": "NADP",
+            "referenceId": "PMID:2"
+        },
+        {
+            "meshHeadingTerm": "Structure-Activity Relationship",
+            "referenceId": "PMID:2"
+        },
+        {
+            "meshHeadingTerm": "Temperature",
+            "referenceId": "PMID:2"
+        }
+    ],
+    "nlm": "0372516",
+    "pages": "1173-9",
+    "pubMedType": [
+        "Journal Article",
+        "Research Support, U.S. Gov't, Non-P.H.S.",
+        "Research Support, U.S. Gov't, P.H.S."
+    ],
+    "publicationStatus": "ppublish",
+    "pubmed": "2",
+    "resourceAbbreviation": "Biochem Biophys Res Commun",
+    "title": "Delineation of the intimate details of the backbone conformation of pyridine nucleotide coenzymes in aqueous solution.",
+    "volume": "66"
+}
