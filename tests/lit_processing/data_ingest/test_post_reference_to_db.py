@@ -35,7 +35,7 @@ class TestPostReferenceToDb:
                                       orcid_dict, newly_added_orcid,
                                       doi_to_reference_id,
                                       mod_to_mod_id, True)
-        refs = db.query(ReferenceModel).all()
+        refs = db.query(ReferenceModel).order_by(ReferenceModel.reference_id).all()
         assert len(refs) == 3
         assert 'lung squamous cell carcinoma pathogenesis' in refs[1].title
         assert 'The role of the histone methyltransferase' in refs[2].title
