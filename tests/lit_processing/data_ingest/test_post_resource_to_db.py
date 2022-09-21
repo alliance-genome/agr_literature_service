@@ -18,7 +18,7 @@ class TestPostResourceToDb:
         json_path = "sanitized_resources/"
         post_resources(json_path, 'NLM', base_input_dir)
 
-        res_rows = db.query(ResourceModel).all()
+        res_rows = db.query(ResourceModel).order_by(ResourceModel.resource_id).all()
         assert len(res_rows) == 5
         assert res_rows[0].title == 'Biochemical and biophysical research communications'
         assert res_rows[1].iso_abbreviation == 'J Physiol Sci'
