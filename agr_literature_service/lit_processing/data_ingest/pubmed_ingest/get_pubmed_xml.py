@@ -64,7 +64,7 @@ init_tmp_dir()
 # logger = logging.getLogger('literature logger')
 
 
-def download_pubmed_xml(pmids_wanted: List[str]):
+def download_pubmed_xml(pmids_wanted: List[str]):  # pragma: no cover
     """
 
     4.5 minutes to download 28994 wormbase records in 10000 chunks

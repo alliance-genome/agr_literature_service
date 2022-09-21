@@ -27,7 +27,7 @@ def generate_headers(token):
     return headers
 
 
-def update_okta_token():
+def update_okta_token():  # pragma: no cover
     """
 
     :return:
@@ -56,7 +56,7 @@ def update_okta_token():
     return token
 
 
-def get_authentication_token():
+def get_authentication_token():  # pragma: no cover
     okta_file = base_path + 'okta_token'
     token = ''
     if path.isfile(okta_file):

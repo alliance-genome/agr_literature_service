@@ -59,7 +59,7 @@ def md5_update_from_file(filename, hash):
     return hash
 
 
-def download_dqm_json():
+def download_dqm_json():  # pragma: no cover
     """
 
     :return:

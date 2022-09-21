@@ -46,7 +46,7 @@ sleep_time = 60
 init_tmp_dir()
 
 
-def update_data(mod, pmids, md5dict=None, newly_added_pmids=None):  # noqa: C901
+def update_data(mod, pmids, md5dict=None, newly_added_pmids=None):  # noqa: C901 pragma: no cover
 
     if md5dict is None and mod:
         update_resource_pubmed_nlm
