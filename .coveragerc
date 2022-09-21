@@ -10,6 +10,19 @@ omit =
         agr_literature_service/lit_processing/utils/s3_utils.py
         agr_literature_service/api/s3/*
 
+        # to be added back when we have unit tests for them
+        agr_literature_service/lit_processing/data_ingest/dqm_ingest/get_dqm_data.py
+        agr_literature_service/lit_processing/data_ingest/dqm_ingest/parse_dqm_json_resource.py
+        agr_literature_service/lit_processing/data_ingest/dqm_ingest/sort_dqm_json_reference_updates.py
+        agr_literature_service/lit_processing/data_ingest/dqm_ingest/sort_dqm_json_resource_updates.py
+        agr_literature_service/lit_processing/data_ingest/dqm_ingest/utils/dqm_processing_utils.py
+        agr_literature_service/lit_processing/data_ingest/dqm_ingest/utils/md5sum_utils.py
+        agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_search_new_references.py
+        agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_all_mods.py
+        agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_single_mod.py
+        agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_resources_nlm.py
+
+
 [report]
 exclude_lines =
     # Have to re-enable the standard pragma
