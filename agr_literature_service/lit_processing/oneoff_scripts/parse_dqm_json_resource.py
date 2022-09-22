@@ -18,6 +18,9 @@ log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../../log
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
 
+# This was used for original resource load.  Not needed in the future, but might help debug so
+# storing in oneoff/
+
 # pipenv run python parse_dqm_json_resource.py
 
 # 50 seconds to run, mostly from generate_resource_abbreviation_to_nlm_from_dqm_references for FB data,
@@ -37,17 +40,7 @@ logger = logging.getLogger('literature logger')
 #                                  'publisher', 'editorsOrAuthors', 'volumes', 'pages', 'abstractOrSummary']
 
 
-def create_storage_path(json_storage_path):
-    """
-
-    :return:
-    """
-
-    if not path.exists(json_storage_path):
-        makedirs(json_storage_path)
-
-
-def load_mod_resource_to_nlm(mod):
+def load_mod_resource_to_nlm(mod):  # pragma: no cover
     """
 
     :param mod:
@@ -65,7 +58,7 @@ def load_mod_resource_to_nlm(mod):
     return mod_to_nlm
 
 
-def generate_resource_abbreviation_to_nlm_from_dqm_references(input_path, mod):      # noqa: C901
+def generate_resource_abbreviation_to_nlm_from_dqm_references(input_path, mod):      # noqa: C901 pragma: no cover
     """
     This mapping via abbreviationSynonyms to mod_to_nlm never matches anything after adding the mapping via online and print issn through crossReferences.  Leaving this here in case future data finds it helps with MOD data that lacks issn information, but has resource abbreviationSynonyms that matches against reference resourceAbbreviation and PubMed XML nlm.
     This takes about a minute to run, compared to the whole script running in a second without this.
@@ -232,7 +225,8 @@ if __name__ == "__main__":
 
     base_path = environ.get('XML_PATH', "")
     json_storage_path = base_path + 'sanitized_resource_json/'
-    create_storage_path(json_storage_path)
+    if not path.exists(json_storage_path):
+        makedirs(json_storage_path)
 
     mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB']
 

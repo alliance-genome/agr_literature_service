@@ -1,12 +1,12 @@
 import logging.config
 import sys
-from os import environ, path
+from os import environ, makedirs, path
 
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import load_pubmed_resource_basic
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.generate_pubmed_nlm_resource import (populate_from_url, populate_nlm_info,
                                                                                                           generate_json)
-from agr_literature_service.lit_processing.data_ingest.dqm_ingest.parse_dqm_json_resource import (save_resource_file, create_storage_path)
+from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import save_resource_file
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.data_ingest.post_resource_to_db import post_resources
 from agr_literature_service.api.user import set_global_user_id
@@ -51,7 +51,8 @@ def update_resource_pubmed_nlm(set_user=None):
 
     base_path = environ.get('XML_PATH', "")
     json_storage_path = base_path + 'sanitized_resource_json/'
-    create_storage_path(json_storage_path)
+    if not path.exists(json_storage_path):
+        makedirs(json_storage_path)
     save_resource_file(json_storage_path, resources_to_create, 'NLM')
     post_resources('sanitized_resource_json', 'NLM')
 
