@@ -1,6 +1,6 @@
 import logging.config
 import sys
-from os import environ, path
+from os import environ, makedirs, path
 
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import load_pubmed_resource_basic
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
