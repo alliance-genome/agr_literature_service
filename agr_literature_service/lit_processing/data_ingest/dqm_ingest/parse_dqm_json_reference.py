@@ -578,7 +578,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
                 dqm_xrefs = dict()
 
                 crossRefsInMod[primary_id] = entry['crossReferences']
-                
+
                 for cross_reference in entry['crossReferences']:
 
                     prefix, identifier, separator = split_identifier(cross_reference["id"])
@@ -598,7 +598,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
                         if prefix not in cross_ref_no_pages_ok_fields:
                             fh_mod_report[mod].write("mod %s primaryId %s has cross reference identifier %s without web pages\n" % (mod, primary_id, cross_reference["id"]))
                             # logger.debug("mod %s primaryId %s has cross reference %s without pages", mod, primary_id, cross_reference["id"])
-                    id = cross_reference['id']                               
+                    id = cross_reference['id']
                     cross_ref_type_group = re.search(r"^([^0-9]+)[0-9]", id)
                     if cross_ref_type_group is not None:
                         if cross_ref_type_group[1].lower() not in expected_cross_reference_type:
