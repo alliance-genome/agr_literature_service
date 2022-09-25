@@ -137,7 +137,11 @@ def insert_mod_corpus_associations(db_session, primaryId, reference_id, mod_to_m
 
 def insert_mod_reference_types(db_session, primaryId, reference_id, mod_ref_types_from_json):
 
+    found = {}
     for x in mod_ref_types_from_json:
+        if (reference_id, x['source'], x['referenceType']) in found:
+            continue
+        found[(reference_id, x['source'], x['referenceType'])] = 1
         try:
             mrt = ModReferenceTypeModel(reference_id=reference_id,
                                         source=x['source'],
@@ -210,16 +214,22 @@ def insert_mesh_terms(db_session, primaryId, reference_id, mesh_terms_from_json)
 
 def insert_cross_references(db_session, primaryId, reference_id, doi_to_reference_id, cross_refs_from_json):
 
+    found = {}
     for c in cross_refs_from_json:
         curie = c['id']
         if primaryId.startswith('PMID'):
             prefix = curie.split(':')[0]
-            if prefix not in ['PMID', 'PMCID', 'DOI']:
+            # if prefix not in ['PMID', 'PMCID', 'DOI', 'MGI', 'SGD', 'RGD', 'WB', 'XENBASE', 'FB', 'ZFIN']:
+            if prefix in ['NLM', 'ISSN']:    
                 continue
         if curie.startswith('DOI:'):
             if curie in doi_to_reference_id:
                 log.info(primaryId + ": " + curie + " is already in the database for reference_id = " + str(doi_to_reference_id[curie]))
                 continue
+        if curie in found:
+            continue
+        found[curie] = 1
+        
         try:
             cross_ref = None
             if c.get('pages'):
