@@ -220,7 +220,7 @@ def insert_cross_references(db_session, primaryId, reference_id, doi_to_referenc
         if primaryId.startswith('PMID'):
             prefix = curie.split(':')[0]
             # if prefix not in ['PMID', 'PMCID', 'DOI', 'MGI', 'SGD', 'RGD', 'WB', 'XENBASE', 'FB', 'ZFIN']:
-            if prefix in ['NLM', 'ISSN']:    
+            if prefix in ['NLM', 'ISSN']:
                 continue
         if curie.startswith('DOI:'):
             if curie in doi_to_reference_id:
@@ -229,7 +229,7 @@ def insert_cross_references(db_session, primaryId, reference_id, doi_to_referenc
         if curie in found:
             continue
         found[curie] = 1
-        
+
         try:
             cross_ref = None
             if c.get('pages'):
