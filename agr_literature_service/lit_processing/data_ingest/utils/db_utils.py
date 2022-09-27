@@ -85,13 +85,22 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
             authors_in_db.append((x['name'], x['first_name'], x['last_name'], x['order'], '|'.join(affiliations), orcid))
 
     authors_in_json = []
+    noAuthorRankInJson = False
+    if len(author_list_in_json) > 0 and 'authorRank' not in author_list_in_json[0]:
+        noAuthorRankInJson = True
+        # will use the order in the author list
+    i = 0
     for x in author_list_in_json:
         orcid = 'ORCID:' + x['orcid'] if x.get('orcid') else ''
         affiliations = x['affiliations'] if x.get('affiliations') else []
-        if x.get('authorRank') is None:
-            logger.info("The authors in json record for REFERENCE_ID:" + str(reference_id) + " has no authorRank")
-            return
-        authors_in_json.append((x.get('name', ''), x.get('firstName', ''), x.get('lastName', ''), x.get('authorRank'), '|'.join(affiliations), orcid))
+        # if x.get('authorRank') is None:
+        #    logger.info("The authors in json record for REFERENCE_ID:" + str(reference_id) + " has no authorRank")
+        #    return
+        i += 1
+        authorRank = x.get('authorRank')
+        if noAuthorRankInJson is True:
+            authorRank = i
+        authors_in_json.append((x.get('name', ''), x.get('firstName', ''), x.get('lastName', ''), authorRank, '|'.join(affiliations), orcid))
 
     if set(authors_in_db) == set(authors_in_json):
         return []
