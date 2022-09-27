@@ -1,24 +1,15 @@
 from fastapi.encoders import jsonable_encoder
+from os import environ, makedirs, path
+from typing import Dict, Tuple, Union
+import json
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
-    CrossReferenceModel, ModCorpusAssociationModel, ModReferenceTypeModel
+    CrossReferenceModel, ModCorpusAssociationModel, ModReferenceTypeModel, \
+    ModModel
 
 batch_size_for_commit = 250
-
-
-def get_references_by_curies(db_session, curie_list):
-
-    if len(curie_list) == 0:
-        return {}
-
-    ref_curie_to_reference = {}
-
-    for x in db_session.query(ReferenceModel).filter(ReferenceModel.curie.in_(curie_list)).all():
-        ref_curie_to_reference[x.curie] = jsonable_encoder(x)
-
-    return ref_curie_to_reference
 
 
 def add_cross_references(cross_references_to_add, ref_curie_list, logger, live_change=True):
@@ -242,6 +233,64 @@ dded into the database. " + str(e))
             logger.info("An error occurred when deleting mod_reference_type row for mod_reference_type_id = " + str(mod_reference_type_id) + " has been deleted from the database. " + str(e))
 
 
+def add_mca_to_existing_references(db_session, agr_curies_to_corpus, mod, logger):
+
+    m = db_session.query(ModModel).filter_by(abbreviation=mod).one_or_none()
+    mod_id = m.mod_id
+
+    curie_to_reference_id = {}
+    for x in db_session.query(ReferenceModel).filter(
+            ReferenceModel.curie.in_(agr_curies_to_corpus)).all():
+        curie_to_reference_id[x.curie] = x.reference_id
+
+    for curie in agr_curies_to_corpus:
+        try:
+            reference_id = curie_to_reference_id[x.curie]
+            mca = db_session.query(ModCorpusAssociationModel).filter_by(reference_id=reference_id, mod_id=mod_id).all()
+            if len(mca) > 0:
+                continue
+            mca = ModCorpusAssociationModel(reference_id=reference_id,
+                                            mod_id=mod_id,
+                                            mod_corpus_sort_source='mod_pubmed_search',
+                                            corpus=None)
+            db_session.add(mca)
+            logger.info("The mod_corpus_association row has been added into database for mod = " + mod + ", reference_curie = " + curie)
+        except Exception as e:
+            logger.info("An error occurred when adding mod_corpus_association for mod = " + mod + ", reference_curie = " + curie + ". error = " + str(e))
+
+    db_session.commit()
+
+
+def get_pmid_association_to_mod_via_reference(db_session, pmids, mod_abbreviation):
+
+    allRows = db_session.query(
+        CrossReferenceModel.curie,
+        ReferenceModel.curie,
+        ModModel.abbreviation
+    ).join(
+        ReferenceModel.cross_reference
+    ).filter(
+        CrossReferenceModel.curie.in_(pmids)
+    ).outerjoin(
+        ReferenceModel.mod_corpus_association
+    ).outerjoin(
+        ModCorpusAssociationModel.mod
+    ).all()
+
+    pmid_curie_mod_dict: Dict[str, Tuple[Union[str, None], Union[str, None]]] = {}
+    ## example: pmid_curie_mod_dict['PMID:35510023'] = ('AGR:AGR-Reference-0000862607', 'SGD')
+    for x in allRows:
+        pmid = x[0]
+        ref_curie = x[1]
+        mod = x[2]
+        if pmid not in pmid_curie_mod_dict or pmid_curie_mod_dict[pmid][1] is None:
+            pmid_curie_mod_dict[pmid] = (ref_curie, mod if mod == mod_abbreviation else None)
+    for pmid in pmids:
+        if pmid not in pmid_curie_mod_dict:
+            pmid_curie_mod_dict[pmid] = (None, None)
+    return pmid_curie_mod_dict
+
+
 def get_curie_to_title_mapping(curie_list):
 
     if len(curie_list) == 0:
@@ -260,3 +309,109 @@ def get_curie_to_title_mapping(curie_list):
     db_session.close()
 
     return ref_curie_to_title
+
+
+def get_references_by_curies(db_session, curie_list):
+
+    if len(curie_list) == 0:
+        return {}
+
+    ref_curie_to_reference = {}
+
+    for x in db_session.query(ReferenceModel).filter(ReferenceModel.curie.in_(curie_list)).all():
+        ref_curie_to_reference[x.curie] = jsonable_encoder(x)
+
+    return ref_curie_to_reference
+
+
+def get_reference_id_by_curie(db_session, curie):
+
+    x = db_session.query(ReferenceModel).filter_by(curie=curie).one_or_none()
+    if x:
+        return x.reference_id
+    return None
+
+
+def set_pmid_list(db_session, mod, pmids4mod, json_file):
+
+    f = open(json_file)
+    json_data = json.load(f)
+    f.close()
+
+    for x in json_data:
+        if x.get('crossReferences'):
+            for c in x['crossReferences']:
+                if c['id'].startswith('PMID:'):
+                    row = db_session.query(CrossReferenceModel).filter_by(curie=c['id']).one_or_none()
+                    if row:
+                        pmid = c['id'].replace('PMID:', '')
+                        pmids4mod['all'].add(pmid)
+                        pmids4mod[mod].add(pmid)
+
+
+def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref_xref_obsolete, logger):
+
+    # check for papers with same doi in the database
+    # print ("ref_xref_valid=", str(ref_xref_valid['AGR:AGR-Reference-0000167781']))
+    # ref_xref_valid= {'DOI': '10.1111/j.1440-1711.2005.01311.x', 'MGI': '3573820', 'PMID': '15748210'}
+    # print ("xref_ref['DOI'][doi]=", str(xref_ref['DOI']['10.1111/j.1440-1711.2005.01311.x']))
+    # xref_ref['DOI'][doi]= AGR:AGR-Reference-0000167781
+
+    from datetime import datetime
+    base_path = environ.get('XML', '')
+    json_path = base_path + "pubmed_json/"
+    log_path = base_path + 'pubmed_search_logs/'
+    log_url = None
+    if environ.get('LOG_PATH'):
+        log_path = path.join(environ['LOG_PATH'], 'pubmed_search/')
+        if environ.get('LOG_URL'):
+            log_url = path.join(environ['LOG_URL'], 'pubmed_search/')
+    if not path.exists(log_path):
+        makedirs(log_path)
+    log_file = log_path + "duplicate_rows_" + mod + ".log"
+    fw = None
+    if path.exists(log_file):
+        fw = open(log_file, "a")
+    else:
+        fw = open(log_file, "w")
+    not_loaded_pmids = []
+    for pmid in pmids:
+        json_file = json_path + pmid + ".json"
+        if not path.exists(json_file):
+            continue
+        f = open(json_file)
+        json_data = json.load(f)
+        f.close()
+        cross_references = json_data['crossReferences']
+        doi = None
+        for c in cross_references:
+            if c['id'].startswith('DOI:'):
+                doi = c['id'].replace('DOI:', '')
+        if doi and doi in xref_ref['DOI']:
+            ## the doi for the new paper is in the database
+            agr = xref_ref['DOI'][doi]
+            all_ref_xref = ref_xref_valid[agr] if agr in ref_xref_valid else {}
+            if agr in ref_xref_obsolete:
+                # merge two dictionaries
+                all_ref_xref.update(ref_xref_obsolete[agr])
+            found_pmids_for_this_doi = []
+            for prefix in all_ref_xref:
+                if prefix == 'PMID':
+                    found_pmids_for_this_doi.append(all_ref_xref[prefix])
+            if len(found_pmids_for_this_doi) == 0:
+                reference_id = get_reference_id_by_curie(db_session, agr)
+                if reference_id is None:
+                    logger.info("The reference curie: " + agr + " is not in the database.")
+                try:
+                    cross_ref = CrossReferenceModel(curie="PMID:" + pmid, reference_id=reference_id)
+                    db_session.add(cross_ref)
+                    fw.write(str(datetime.now()) + ": adding PMID:" + pmid + " to the row with doi = " + doi + " in the database\n")
+                except Exception as e:
+                    logger.info(str(datetime.now()) + ": adding " + pmid + " to the row with " + doi + " is failed: " + str(e) + "\n")
+            else:
+                fw.write(str(datetime.now()) + ": " + doi + " for PMID:" + pmid + " is associated with PMID(s) in the database: " + ",".join(found_pmids_for_this_doi) + "\n")
+                not_loaded_pmids.append((pmid, doi, ",".join(found_pmids_for_this_doi)))
+            pmids.remove(pmid)
+    fw.close()
+
+    return (log_path, log_url, not_loaded_pmids)
