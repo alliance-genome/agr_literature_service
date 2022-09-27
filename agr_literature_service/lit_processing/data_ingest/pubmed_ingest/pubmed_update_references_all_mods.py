@@ -4,13 +4,17 @@ from dotenv import load_dotenv
 from os import environ, makedirs, path, listdir, stat, remove
 import shutil
 
-from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import update_resource_pubmed_nlm
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import download_pubmed_xml
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import update_data
-from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import load_s3_md5data, save_s3_md5data
-from datetime import datetime, timedelta
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import \
+    update_resource_pubmed_nlm
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import \
+    download_pubmed_xml
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import \
+    update_data
+from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
+    load_s3_md5data, save_s3_md5data
+from agr_literature_service.lit_processing.data_ingest.utils.db_utils import retrieve_newly_added_pmids,\
+    retrieve_all_pmids
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 logging.basicConfig(format='%(message)s')
@@ -139,29 +143,6 @@ def remove_empty_xml_file(xml_path):  # pragma: no cover
         if stat(file).st_size == 0:
             log.info(filename + ": file size = 0")
             remove(file)
-
-
-def retrieve_newly_added_pmids(db_session):
-
-    pmids_new = []
-
-    filter_after = datetime.today() - timedelta(days=150)
-
-    for x in db_session.query(CrossReferenceModel).join(ReferenceModel.cross_reference).filter(CrossReferenceModel.curie.like('PMID:%')).filter(ReferenceModel.date_created >= filter_after).all():
-        pmids_new.append(x.curie.replace('PMID:', ''))
-
-    return pmids_new
-
-
-def retrieve_all_pmids(db_session):
-
-    pmids = []
-    for x in db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie.like('PMID:%')).all():
-        if x.is_obsolete:
-            continue
-        pmids.append(x.curie.replace("PMID:", ""))
-
-    return pmids
 
 
 if __name__ == "__main__":
