@@ -1,6 +1,7 @@
 from fastapi.encoders import jsonable_encoder
 from os import environ, makedirs, path
 from typing import Dict, Tuple, Union
+from datetime import datetime, timedelta
 import json
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
@@ -415,3 +416,26 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref
     fw.close()
 
     return (log_path, log_url, not_loaded_pmids)
+
+
+def retrieve_newly_added_pmids(db_session):
+
+    pmids_new = []
+
+    filter_after = datetime.today() - timedelta(days=150)
+
+    for x in db_session.query(CrossReferenceModel).join(ReferenceModel.cross_reference).filter(CrossReferenceModel.curie.like('PMID:%')).filter(ReferenceModel.date_created >= filter_after).all():
+        pmids_new.append(x.curie.replace('PMID:', ''))
+
+    return pmids_new
+
+
+def retrieve_all_pmids(db_session):
+
+    pmids = []
+    for x in db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie.like('PMID:%')).all():
+        if x.is_obsolete:
+            continue
+        pmids.append(x.curie.replace("PMID:", ""))
+
+    return pmids
