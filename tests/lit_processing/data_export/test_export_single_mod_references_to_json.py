@@ -35,7 +35,7 @@ class TestExportSingleModReferencesToJson:
 
         ref_id = curie_to_reference_id['PMID:33622238']
 
-        assert len(reference_id_to_xrefs.get(ref_id)) == 2
+        assert len(reference_id_to_xrefs.get(ref_id)) == 3
         assert len(reference_id_to_authors.get(ref_id)) == 2
         assert len(reference_id_to_mesh_terms.get(ref_id)) == 24
         assert len(reference_id_to_mod_corpus_data.get(ref_id)) == 1
