@@ -553,30 +553,12 @@ def load_pubmed_data_if_present(primary_id, report_file_handlers, mod, original_
     return pubmed_data, is_pubmod, pmid
 
 
-def process_pubmod_data(entry, update_primary_id, primary_id, cross_refs_in_mod, mod, resource_to_mod_issn_nlm,
-                        resource_to_nlm, resource_to_nlm_highest, report_file_handlers, resource_to_mod,
-                        report_file_path, resource_not_found):
-    if 'authors' in entry:
-        all_authors_have_rank = all(['authorRank' in author for author in entry['authors']])
-        for author in entry['authors']:
-            author['correspondingAuthor'] = False
-            author['firstAuthor'] = False
-        if not all_authors_have_rank:
-            for idx, _ in enumerate(entry['authors']):
-                entry['authors'][idx]['authorRank'] = idx + 1
-        if update_primary_id:
-            for idx, _ in enumerate(entry['authors']):
-                entry['authors'][idx]['referenceId'] = primary_id
-    if 'crossReferences' in entry:
-        entry['crossReferences'] = [cross_reference for cross_reference in entry['crossReferences'] if
-                                    split_identifier(cross_reference['id'])[0].lower() != 'pmid']
-    if 'keywords' in entry:
-        entry = clean_up_keywords(mod, entry)
+def set_resource_info_from_abbreviation(entry, mod, primary_id, resource_to_mod_issn_nlm, resource_to_nlm,
+                                        resource_to_nlm_highest, resource_to_mod, report_file_handlers,
+                                        resource_not_found, report_file_path):
     if 'resourceAbbreviation' in entry:
-        # journal = entry['resourceAbbreviation'].lower()
-        # if journal not in resource_to_nlm:
         journal_simplified = simplify_text_keep_digits(entry['resourceAbbreviation'])
-        if journal_simplified != '':
+        if journal_simplified:
             # logger.info("CHECK mod %s journal_simplified %s", mod, journal_simplified)
             # highest priority to mod resources from dqm resource file with an issn in crossReferences that maps to a single nlm
             if journal_simplified in resource_to_mod_issn_nlm[mod]:
@@ -584,27 +566,24 @@ def process_pubmod_data(entry, update_primary_id, primary_id, cross_refs_in_mod,
                 entry['resource'] = resource_to_mod_issn_nlm[mod][journal_simplified]
             # next highest priority to resource names that map to an nlm
             elif journal_simplified in resource_to_nlm:
-                nlm_list = resource_to_nlm[journal_simplified]
                 # a resourceAbbreviation can resolve to multiple NLMs, so we cannot use a list of NLMs to get a single canonical NLM title
-                entry['nlm'] = nlm_list
+                entry['nlm'] = resource_to_nlm[journal_simplified]
                 entry['resource'] = 'NLM:' + resource_to_nlm_highest[journal_simplified]
-                if len(nlm_list) > 1:  # e.g. ZFIN:ZDB-PUB-020604-2  FB:FBrf0009739  WB:WBPaper00000557
-                    multiple_nlms = ", ".join(nlm_list)
+                if len(resource_to_nlm[journal_simplified]) > 1:  # e.g. ZFIN:ZDB-PUB-020604-2  FB:FBrf0009739  WB:WBPaper00000557
                     write_report_line(
                         report_file_handlers, mod, "generic",
-                        message="primaryId %s has resourceAbbreviation %s mapping to multiple NLMs %s.\n" %
-                                (primary_id, entry['resourceAbbreviation'], multiple_nlms),
+                        message="primaryId %s has resourceAbbreviation %s mapping to multiple NLMs %s.\n" % (
+                            primary_id, entry['resourceAbbreviation'], ", ".join(resource_to_nlm[journal_simplified])),
                         report_file_path=report_file_path)
             # next highest priority to resource names that are in the dqm resource submission
             elif journal_simplified in resource_to_mod[mod]:
                 entry['modResources'] = resource_to_mod[mod][journal_simplified]
                 if len(resource_to_mod[mod][journal_simplified]) > 1:
-                    multiple_mod_resources = ", ".join(resource_to_mod[mod][journal_simplified])
                     write_report_line(
                         report_file_handlers, mod, "generic",
                         message="primaryId %s has resourceAbbreviation %s mapping to multiple MOD "
                                 "resources %s.\n" % (primary_id, entry['resourceAbbreviation'],
-                                                     multiple_mod_resources),
+                                                     ", ".join(resource_to_mod[mod][journal_simplified])),
                         report_file_path=report_file_path)
                 else:
                     entry['resource'] = resource_to_mod[mod][journal_simplified][0]
@@ -620,6 +599,25 @@ def process_pubmod_data(entry, update_primary_id, primary_id, cross_refs_in_mod,
             report_file_handlers, mod, "reference_no_resource",
             message="primaryId %s does not have a resourceAbbreviation.\n" % (primary_id),
             report_file_path=report_file_path)
+
+
+def process_pubmod_authors_xrefs_keywords(entry, update_primary_id, primary_id, mod):
+    if 'authors' in entry:
+        all_authors_have_rank = all(['authorRank' in author for author in entry['authors']])
+        for author in entry['authors']:
+            author['correspondingAuthor'] = False
+            author['firstAuthor'] = False
+        if not all_authors_have_rank:
+            for idx, _ in enumerate(entry['authors']):
+                entry['authors'][idx]['authorRank'] = idx + 1
+        if update_primary_id:
+            for idx, _ in enumerate(entry['authors']):
+                entry['authors'][idx]['referenceId'] = primary_id
+    if 'crossReferences' in entry:
+        entry['crossReferences'] = [cross_reference for cross_reference in entry['crossReferences'] if
+                                    split_identifier(cross_reference['id'])[0].lower() != 'pmid']
+    if 'keywords' in entry:
+        clean_up_keywords(mod, entry)
 
 
 def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=base_path):  # noqa: C901
@@ -739,9 +737,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
                                                                        orig_primary_id, report_file_path)
 
             if is_pubmod:
-                process_pubmod_data(entry, update_primary_id, primary_id, cross_refs_in_mod, mod,
-                                    resource_to_mod_issn_nlm, resource_to_nlm, resource_to_nlm_highest,
-                                    report_file_handlers, resource_to_mod, report_file_path, resource_not_found)
+                process_pubmod_authors_xrefs_keywords(entry, update_primary_id, primary_id, cross_refs_in_mod)
+                set_resource_info_from_abbreviation(entry, mod, primary_id, resource_to_mod_issn_nlm,
+                                                    resource_to_nlm, resource_to_nlm_highest, resource_to_mod,
+                                                    report_file_handlers, resource_not_found, report_file_path)
             else:
                 # pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms']
                 for pmid_field in pmid_fields:
@@ -831,7 +830,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
                     entry['keywords'] = []
                 else:
                     # e.g. 9882485 25544291 24201188 31188077
-                    entry = clean_up_keywords(mod, entry)
+                    clean_up_keywords(mod, entry)
                     # remove this after checking it works well
                     # if mod == 'ZFIN':
                     #     if 'keywords' in entry:
