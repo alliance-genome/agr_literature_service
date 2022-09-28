@@ -422,11 +422,6 @@ def load_pmid_multi_mods(output_path):
 
     return pmid_multi_mods
 
-
-ReportFiles = namedtuple('ReportFiles', ['mod_report_generic_dict', 'mod_report_title_dict', 'mod_report_differ_dict',
-                                         'mod_report_resource_unmatched_dict', 'mod_report_reference_no_resource_dict'])
-
-
 REPORT_TYPE_FILE_NAME_POSTFIX = {
     "generic": "main",
     "title": "dqm_pubmed_differ_title",
@@ -444,6 +439,7 @@ def write_report_line(report_file_handlers: Dict[str, Dict[str, TextIO]], mod: s
         report_file_handlers[report_type][mod] = open(get_report_file_name(report_file_path=report_file_path, mod=mod,
                                                                            report_type=report_type,
                                                                            output_directory=output_directory), "w")
+        report_file_handlers[report_type][mod].write(message)
 
 
 def get_report_file_name(report_file_path, mod, report_type, output_directory):
@@ -454,7 +450,6 @@ def get_report_file_name(report_file_path, mod, report_type, output_directory):
 
 
 def close_report_file_handlers(report_file_handlers):
-    report_file_handlers['multi'].close()
     for mod_handlers_dict in report_file_handlers.values():
         for file_handler in mod_handlers_dict.values():
             file_handler.close()
@@ -596,7 +591,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
         makedirs(report_file_path)
 
     report_file_handlers = defaultdict(dict)
-    resource_not_found = defaultdict(lambda: defaultdict(lambda: 1))
+    resource_not_found = defaultdict(lambda: defaultdict(int))
     cross_reference_types = defaultdict(lambda: defaultdict(list))
 
     logger.info("Aggregating DQM and PubMed data from %s using mods %s", input_path, mods)
@@ -749,7 +744,6 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
                         report_file_handlers, mod, "reference_no_resource",
                         message="primaryId %s does not have a resourceAbbreviation.\n" % (primary_id),
                         report_file_path=report_file_path)
-                    resource_not_found[mod][entry['resourceAbbreviation']] += 1
             else:
                 # pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms']
                 for pmid_field in pmid_fields:
