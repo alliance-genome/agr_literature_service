@@ -428,6 +428,12 @@
             },
             {
                 "id": "ISSN:2041-1723"
+            },
+            {
+                "id": "MGI:6305446",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "dateArrivedInPubmed": "2018-09-26",
