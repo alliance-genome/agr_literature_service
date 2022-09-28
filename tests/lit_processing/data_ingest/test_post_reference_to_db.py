@@ -4,11 +4,13 @@ from os import path
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel,\
     AuthorModel, ModCorpusAssociationModel, ModReferenceTypeModel, MeshDetailModel,\
     ModModel, ReferenceCommentAndCorrectionModel
+from agr_literature_service.lit_processing.data_ingest.utils.db_utils import \
+    get_orcid_data, get_journal_data
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import \
-    insert_reference, get_journal_data, get_orcid_data, insert_authors, \
-    insert_cross_references, get_doi_data, set_primaryId, insert_mesh_terms, \
-    insert_mod_reference_types, insert_mod_corpus_associations, \
-    read_data_and_load_references, insert_comment_corrections
+    insert_reference, insert_authors, insert_cross_references, get_doi_data, \
+    set_primaryId, insert_mesh_terms, insert_mod_reference_types, \
+    insert_mod_corpus_associations, read_data_and_load_references, \
+    insert_comment_corrections
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from ...fixtures import db # noqa
 

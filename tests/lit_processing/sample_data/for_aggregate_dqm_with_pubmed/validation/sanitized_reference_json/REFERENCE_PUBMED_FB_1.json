@@ -36,6 +36,12 @@
             },
             {
                 "id": "ISSN:0029-8549"
+            },
+            {
+                "id": "FB:FBrf0020888",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "dateArrivedInPubmed": "1969-05-14",
@@ -111,6 +117,12 @@
             },
             {
                 "id": "ISSN:0043-5546"
+            },
+            {
+                "id": "FB:FBrf0019024",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "dateArrivedInPubmed": "1967-01-31",

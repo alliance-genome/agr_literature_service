@@ -6,7 +6,9 @@ import json
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel,\
     AuthorModel, ModCorpusAssociationModel, ModReferenceTypeModel, ModModel,\
     ReferenceCommentAndCorrectionModel, MeshDetailModel
-from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session, create_postgres_engine
+from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
+from agr_literature_service.lit_processing.data_ingest.utils.db_utils import get_orcid_data,\
+    get_journal_data, get_doi_data, get_reference_by_pmid
 from agr_literature_service.api.crud.reference_crud import get_citation_from_args, get_next_curie
 
 logging.basicConfig(format='%(message)s')
@@ -18,9 +20,6 @@ def post_references(json_path, live_change=True):  # noqa: C901
 
     db_session = create_postgres_session(False)
 
-    engine = create_postgres_engine(False)
-    db_connection = engine.connect()
-
     files_to_process = []
     if path.isdir(json_path):
         for filename in listdir(json_path):
@@ -30,14 +29,14 @@ def post_references(json_path, live_change=True):  # noqa: C901
         files_to_process.append(json_path)
 
     log.info("Getting journal info from database...")
-    journal_to_resource_id = get_journal_data(db_connection)
+    journal_to_resource_id = get_journal_data(db_session)
 
     log.info("Getting orcid info from database...")
-    orcid_dict = get_orcid_data(db_connection)
+    orcid_dict = get_orcid_data(db_session)
     newly_added_orcid = []
 
     log.info("Getting DOI info from database...")
-    doi_to_reference_id = get_doi_data(db_connection)
+    doi_to_reference_id = get_doi_data(db_session)
 
     log.info("Getting mod info from database...")
     mod_to_mod_id = dict([(x.abbreviation, x.mod_id) for x in db_session.query(ModModel).all()])
@@ -54,8 +53,6 @@ def post_references(json_path, live_change=True):  # noqa: C901
                                       mod_to_mod_id, live_change)
 
     db_session.close()
-    db_connection.close()
-    engine.dispose()
     log.info("DONE!\n\n")
 
 
@@ -137,7 +134,11 @@ def insert_mod_corpus_associations(db_session, primaryId, reference_id, mod_to_m
 
 def insert_mod_reference_types(db_session, primaryId, reference_id, mod_ref_types_from_json):
 
+    found = {}
     for x in mod_ref_types_from_json:
+        if (reference_id, x['source'], x['referenceType']) in found:
+            continue
+        found[(reference_id, x['source'], x['referenceType'])] = 1
         try:
             mrt = ModReferenceTypeModel(reference_id=reference_id,
                                         source=x['source'],
@@ -210,16 +211,22 @@ def insert_mesh_terms(db_session, primaryId, reference_id, mesh_terms_from_json)
 
 def insert_cross_references(db_session, primaryId, reference_id, doi_to_reference_id, cross_refs_from_json):
 
+    found = {}
     for c in cross_refs_from_json:
         curie = c['id']
         if primaryId.startswith('PMID'):
             prefix = curie.split(':')[0]
-            if prefix not in ['PMID', 'PMCID', 'DOI']:
+            # if prefix not in ['PMID', 'PMCID', 'DOI', 'MGI', 'SGD', 'RGD', 'WB', 'XENBASE', 'FB', 'ZFIN']:
+            if prefix in ['NLM', 'ISSN']:
                 continue
         if curie.startswith('DOI:'):
             if curie in doi_to_reference_id:
                 log.info(primaryId + ": " + curie + " is already in the database for reference_id = " + str(doi_to_reference_id[curie]))
                 continue
+        if curie in found:
+            continue
+        found[curie] = 1
+
         try:
             cross_ref = None
             if c.get('pages'):
@@ -360,52 +367,6 @@ def set_primaryId(entry):
     if primaryId:
         return primaryId
     return 'unknown_paper_id'
-
-
-def get_journal_data(db_connection):
-
-    journal_to_resource_id = {}
-
-    rs = db_connection.execute("select resource_id, iso_abbreviation, title from resource")
-
-    rows = rs.fetchall()
-    for x in rows:
-        journal_to_resource_id[x[1]] = (x[0], x[2])
-
-    return journal_to_resource_id
-
-
-def get_orcid_data(db_connection):
-
-    orcid_dict = {}
-
-    rs = db_connection.execute("select curie, is_obsolete from cross_reference where curie like 'ORCID:%%'")
-    rows = rs.fetchall()
-    for x in rows:
-        orcid_dict[x[0]] = x[1]
-
-    return orcid_dict
-
-
-def get_doi_data(db_connection):
-
-    doi_to_reference_id = {}
-
-    rs = db_connection.execute("select curie, reference_id from cross_reference where curie like 'DOI:%%'")
-    rows = rs.fetchall()
-    for x in rows:
-        doi_to_reference_id[x[0]] = x[1]
-
-    return doi_to_reference_id
-
-
-def get_reference_by_pmid(db_session, pmid):
-
-    x = db_session.query(CrossReferenceModel).filter_by(curie='PMID:' + pmid).one_or_none()
-
-    if x:
-        return x.reference_id
-    return None
 
 
 if __name__ == "__main__":

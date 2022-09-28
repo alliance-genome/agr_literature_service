@@ -31,6 +31,9 @@ class TestParseDqmJsonReference:
         assert expected_pmids_by_mods_string == generated_pmids_by_mods
 
     def test_aggregate_dqm_with_pubmed(self, cleanup_tmp_files_when_done):      # noqa: C901 F811
+        # if code changes to generate new data, copy tests/tmp/sanitized_reference_json/* to
+        # tests/lit_processing/sample_data/for_aggregate_dqm_with_pubmed/validation/sanitized_reference_json/
+        # to replace the expected output (might need to change other files depending on what changed)
         sample_file_path = os.path.join(
             os.path.dirname(__file__),
             "../../sample_data/for_aggregate_dqm_with_pubmed/")

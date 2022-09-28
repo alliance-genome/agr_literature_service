@@ -139,6 +139,12 @@
             },
             {
                 "id": "ISSN:2041-1723"
+            },
+            {
+                "id": "SGD:S000217483",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "dateArrivedInPubmed": "2017-09-09",
@@ -253,6 +259,12 @@
             },
             {
                 "id": "PMID:33054145"
+            },
+            {
+                "id": "SGD:S000298041",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "datePublished": "2012-01-01",

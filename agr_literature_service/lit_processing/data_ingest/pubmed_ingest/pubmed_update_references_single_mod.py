@@ -1,4 +1,3 @@
-from sqlalchemy import or_
 import argparse
 import logging
 from os import environ, makedirs, path
@@ -9,16 +8,21 @@ import time
 
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
     ModModel, ModCorpusAssociationModel, ReferenceCommentAndCorrectionModel, \
-    AuthorModel, MeshDetailModel, ResourceModel
+    AuthorModel, MeshDetailModel
 from agr_literature_service.api.crud.reference_crud import get_citation_from_args
-from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session, \
-    create_postgres_engine
+from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import update_resource_pubmed_nlm
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import download_pubmed_xml
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import generate_json
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import load_s3_md5data
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3
-from agr_literature_service.lit_processing.utils.email_utils import send_email
+from agr_literature_service.lit_processing.data_ingest.utils.db_utils import get_reference_id_by_pmid,\
+    get_orcid_data, get_author_data, get_mesh_term_data, get_cross_reference_data, \
+    get_cross_reference_data_for_resource, get_comment_correction_data, get_journal_data, \
+    get_reference_ids_by_pmids, get_pmid_to_reference_id_for_papers_not_associated_with_mod, \
+    get_pmid_to_reference_id
+from agr_literature_service.lit_processing.utils.report_utils import write_log_and_send_pubmed_update_report,\
+    write_log_and_send_pubmed_no_update_report
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
@@ -160,8 +164,9 @@ def update_data(mod, pmids, md5dict=None, newly_added_pmids=None):  # noqa: C901
         reference_id_list = list(reference_id_to_pmid.keys())
 
     if len(reference_id_list) == 0:
-        close_no_update(fw, mod, email_subject, email_recipients, sender_email,
-                        sender_password, reply_to, log_path)
+        write_log_and_send_pubmed_no_update_report(fw, mod, email_subject, email_recipients,
+                                                   sender_email, sender_password, reply_to,
+                                                   log_path, log)
         return
 
     fw.write(str(datetime.now()) + "\n")
@@ -177,9 +182,12 @@ def update_data(mod, pmids, md5dict=None, newly_added_pmids=None):  # noqa: C901
                                                                old_md5sum, json_path,
                                                                pmids_with_json_updated)
 
-    write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag,
-                  not_found_xml_list, log_url, log_path, email_subject,
-                  email_recipients, sender_email, sender_password, reply_to)
+    write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, update_log,
+                                            authors_with_first_or_corresponding_flag,
+                                            not_found_xml_list, log_url, log_path,
+                                            email_subject, email_recipients,
+                                            sender_email, sender_password,
+                                            reply_to, log)
 
     if environ.get('ENV_STATE') and environ['ENV_STATE'] == 'prod':
         fw.write(str(datetime.now()) + "\n")
@@ -204,13 +212,10 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
     ## start a database session
     db_session = create_postgres_session(False)
 
-    engine = create_postgres_engine(False)
-    db_connection = engine.connect()
-
     ## reference_id => a list of author name in order
     fw.write("Getting author info from database...\n")
     log.info("Getting author info from database...")
-    reference_id_to_authors = get_author_data(db_connection, mod, reference_id_list)
+    reference_id_to_authors = get_author_data(db_session, mod, reference_id_list, query_cutoff)
 
     ## ORCID ID => is_obsolete
     fw.write("Getting ORCID info from database...\n")
@@ -226,7 +231,7 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
     ## reference_id => a list of mesh_terms in order
     fw.write("Getting mesh_term info from database...\n")
     log.info("Getting mesh_term info from database...")
-    reference_id_to_mesh_terms = get_mesh_term_data(db_connection, mod, reference_id_list)
+    reference_id_to_mesh_terms = get_mesh_term_data(db_session, mod, reference_id_list, query_cutoff)
 
     ## reference_id => doi, reference_id =>pmcid
     fw.write("Getting DOI/PMCID info from database...\n")
@@ -245,8 +250,6 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
     (resource_id_to_issn, resource_id_to_nlm) = get_cross_reference_data_for_resource(db_session)
 
     db_session.close()
-    db_connection.close()
-    engine.dispose()
 
     newly_added_orcid = []
     count = 0
@@ -961,107 +964,6 @@ def set_paths():
             email_recipients, sender_email, sender_password, reply_to)
 
 
-def close_no_update(fw, mod, email_subject, email_recipients, sender_email, sender_password, reply_to, log_dir):
-
-    log.info("No new update in PubMed.")
-    fw.write("No new update in PubMed.\n")
-    log.info("DONE!\n")
-    fw.write("DONE!\n")
-
-    if mod is None:
-        return
-
-    email_message = None
-    if mod:
-        if mod == "NONE":
-            email_message = "No new update found in PubMed for the papers that are not associated with a mod"
-        else:
-            email_message = "No new update found in PubMed for " + mod + " papers"
-    else:
-        email_message = "No new update found in PubMed"
-    email_message = "<strong>" + email_message + "</strong>"
-
-    (status, message) = send_email(email_subject, email_recipients, email_message, sender_email,
-                                   sender_password, reply_to)
-    if status == 'error':
-        fw.write("Failed sending email to slack: " + message + "\n")
-        log.info("Failed sending email to slack: " + message + "\n")
-
-
-def write_summary(fw, mod, update_log, authors_with_first_or_corresponding_flag, not_found_xml_list, log_url, log_dir, email_subject, email_recipients, sender_email, sender_password, reply_to):
-
-    message = None
-    if mod:
-        if mod == 'NONE':
-            message = "Updating Summary for pubmed papers that are not associated with a mod..."
-        else:
-            message = "Updating Summary for " + mod + " pubmed papers..."
-    else:
-        message = "Updating Summary..."
-
-    fw.write(message + "\n")
-    log.info(message)
-    email_message = "<h3>" + message + "</h3>"
-
-    for field_name in field_names_to_report:
-        if field_name == 'pmids_updated':
-            continue
-        log.info("Paper(s) with " + field_name + " updated:" + str(update_log[field_name]))
-        fw.write("Paper(s) with " + field_name + " updated:" + str(update_log[field_name]) + "\n")
-        email_message = email_message + "Paper(s) with <b>" + field_name + "</b> updated:" + str(update_log[field_name]) + "<br>"
-        # if field_name == 'author_name':
-        #    email_message = email_message + "<br>"
-
-    pmids_updated = list(set(update_log['pmids_updated']))
-
-    if len(pmids_updated) == 0:
-        email_message = email_message + "<strong>No papers updated.</strong><p>"
-    else:
-        if len(pmids_updated) <= 100:
-            email_message = email_message + "<strong>Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated</strong>. PMID(s):<br>" + ", ".join(pmids_updated) + "<p>"
-        else:
-            email_message = email_message + "<strong>Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated</strong>. PMID(s):<br>" + ", ".join(pmids_updated[0:100]) + "<br>See log file for the full updated PMID list and update details.<p>"
-        if log_url:
-            email_message = email_message + "<b>The log files are available at: </b><a href=" + log_url + ">" + log_url + "</a><p>"
-
-        fw.write("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the following PMID list:\n" + ", ".join(pmids_updated) + "\n")
-
-    if len(authors_with_first_or_corresponding_flag) > 0:
-
-        log.info("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database")
-        fw.write("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database\n")
-        email_message = email_message + "Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database<p>"
-
-        for x in authors_with_first_or_corresponding_flag:
-            (pmid, name, first_author, corresponding_author) = x
-            log.info("PMID:" + str(pmid) + ": name = " + name + ", " + first_author + ", " + corresponding_author)
-            fw.write("PMID:" + str(pmid) + ": name = " + name + ", " + first_author + ", " + corresponding_author + "\n")
-            email_message = email_message + "PMID:" + str(pmid) + ": name =" + name + ", first_author=" + first_author + ", corresponding_author=" + corresponding_author + "<br>"
-
-    if len(not_found_xml_list) > 0:
-        i = 0
-        for pmid in not_found_xml_list:
-            if not str(pmid).isdigit():
-                continue
-            if i == 0:
-                log.info("Following PMID(s) are missing while updating pubmed data")
-                fw.write("Following PMID(s) are missing while updating pubmed data")
-                email_message = email_message + "<p>Following PMID(s) are missing while updating pubmed data:<p>"
-            i += 1
-            log.info("PMID:" + str(pmid))
-            fw.write("PMID:" + str(pmid) + "\n")
-            email_message = email_message + "PMID:" + str(pmid) + "<br>"
-        email_message = email_message + "<p>"
-
-    if mod:
-        email_message = email_message + "DONE!<p>"
-        (status, message) = send_email(email_subject, email_recipients, email_message,
-                                       sender_email, sender_password, reply_to)
-        if status == 'error':
-            fw.write("Failed sending email to slack: " + message + "\n")
-            log.info("Failed sending email to slack: " + message + "\n")
-
-
 def generate_pmids_with_info(pmids_all, old_md5sum, new_md5sum, pmid_to_reference_id):
 
     reference_id_list = []
@@ -1075,211 +977,6 @@ def generate_pmids_with_info(pmids_all, old_md5sum, new_md5sum, pmid_to_referenc
             if pmid in pmid_to_reference_id:
                 reference_id_list.append(pmid_to_reference_id[pmid])
     return reference_id_list
-
-
-def get_reference_id_by_pmid(db_session, pmid):
-
-    x = db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie == 'PMID:' + pmid).one_or_none()
-    if x:
-        return x.reference_id
-    else:
-        return None
-
-
-def get_orcid_data(db_session):
-
-    orcid_dict = {}
-
-    for x in db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie.like('ORCID:%')).all():
-        orcid_dict[x.curie] = x.is_obsolete
-
-    return orcid_dict
-
-
-def adding_author_row(x, reference_id_to_authors):
-
-    authors = []
-    reference_id = x[0]
-    if reference_id in reference_id_to_authors:
-        authors = reference_id_to_authors[reference_id]
-    authors.append({"orcid": x[1],
-                    "first_author": x[2],
-                    "order": x[3],
-                    "corresponding_author": x[4],
-                    "name": x[5],
-                    "affiliations": x[6] if x[6] else [],
-                    "first_name": x[7],
-                    "last_name": x[8]})
-    reference_id_to_authors[reference_id] = authors
-
-
-def get_author_data(db_connection, mod, reference_id_list):
-
-    reference_id_to_authors = {}
-
-    if mod and len(reference_id_list) > query_cutoff:
-        author_limit = 500000
-        for index in range(500):
-            offset = index * author_limit
-            rs = db_connection.execute("select a.reference_id, a.orcid, a.first_author, a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, a.last_name from author a, mod_corpus_association mca, mod m where a.reference_id = mca.reference_id and mca.mod_id = m.mod_id and m.abbreviation = '" + mod + "' order by a.reference_id, a.order limit " + str(author_limit) + " offset " + str(offset))
-            rows = rs.fetchall()
-            if len(rows) == 0:
-                break
-            for x in rows:
-                adding_author_row(x, reference_id_to_authors)
-    elif reference_id_list and len(reference_id_list) > 0:
-        # name & order are keywords in postgres so have use alias 'a' for table name
-        ref_ids = ", ".join([str(x) for x in reference_id_list])
-        raw_sql = "SELECT a.reference_id, a.orcid, a.first_author, a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, a.last_name FROM author a WHERE reference_id IN (" + ref_ids + ") order by a.reference_id, a.order"
-        rs = db_connection.execute(raw_sql)
-        rows = rs.fetchall()
-        for x in rows:
-            adding_author_row(x, reference_id_to_authors)
-
-    return reference_id_to_authors
-
-
-def adding_mesh_term_row(x, reference_id_to_mesh_terms):
-
-    reference_id = x[0]
-    mesh_terms = []
-    if reference_id in reference_id_to_mesh_terms:
-        mesh_terms = reference_id_to_mesh_terms[reference_id]
-    qualifier_term = x[2] if x[2] else ''
-    mesh_terms.append((x[1], qualifier_term))
-    reference_id_to_mesh_terms[reference_id] = mesh_terms
-
-
-def get_mesh_term_data(db_connection, mod, reference_id_list):
-
-    reference_id_to_mesh_terms = {}
-
-    if mod and len(reference_id_list) > query_cutoff:
-        # the query is taking too long to return so break up to query database
-        # multiple times to keep session alive
-        mesh_limit = 1000000
-        for index in range(50):
-            offset = index * mesh_limit
-            rs = db_connection.execute("select md.reference_id, md.heading_term, md.qualifier_term from mesh_detail md, mod_corpus_association mca, mod m where md.reference_id = mca.reference_id and mca.mod_id = m.mod_id and m.abbreviation = '" + mod + "' order by md.mesh_detail_id limit " + str(mesh_limit) + " offset " + str(offset))
-            rows = rs.fetchall()
-            if len(rows) == 0:
-                break
-            for x in rows:
-                adding_mesh_term_row(x, reference_id_to_mesh_terms)
-    elif reference_id_list and len(reference_id_list) > 0:
-        ref_ids = ", ".join([str(x) for x in reference_id_list])
-        raw_sql = "SELECT reference_id, heading_term, qualifier_term FROM mesh_detail WHERE reference_id IN (" + ref_ids + ")"
-        rs = db_connection.execute(raw_sql)
-        rows = rs.fetchall()
-        for x in rows:
-            adding_mesh_term_row(x, reference_id_to_mesh_terms)
-
-    return reference_id_to_mesh_terms
-
-
-def get_cross_reference_data(db_session, mod, reference_id_list):
-
-    reference_id_to_doi = {}
-    reference_id_to_pmcid = {}
-
-    allCrossRefs = None
-    if mod:
-        allCrossRefs = db_session.query(CrossReferenceModel).join(ReferenceModel.cross_reference).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).all()
-    elif reference_id_list and len(reference_id_list) > 0:
-        allCrossRefs = db_session.query(CrossReferenceModel).filter(CrossReferenceModel.reference_id.in_(reference_id_list)).all()
-
-    if allCrossRefs is None:
-        return (reference_id_to_doi, reference_id_to_pmcid)
-
-    for x in allCrossRefs:
-        if x.curie.startswith('DOI:'):
-            reference_id_to_doi[x.reference_id] = x.curie.replace('DOI:', '')
-        elif x.curie.startswith('PMCID:'):
-            reference_id_to_pmcid[x.reference_id] = x.curie.replace('PMCID:', '')
-
-    return (reference_id_to_doi, reference_id_to_pmcid)
-
-
-def get_cross_reference_data_for_resource(db_session):
-
-    resource_id_to_issn = {}
-    resource_id_to_nlm = {}
-
-    for x in db_session.query(CrossReferenceModel).filter(CrossReferenceModel.resource_id.isnot(None)).all():
-        if x.curie.startswith('ISSN:'):
-            resource_id_to_issn[x.resource_id] = x.curie.replace('ISSN:', '')
-        elif x.curie.startswith('NLM:'):
-            resource_id_to_nlm[x.resource_id] = x.curie.replace('NLM:', '')
-
-    return (resource_id_to_issn, resource_id_to_nlm)
-
-
-def get_comment_correction_data(db_session, mod, reference_id_list):
-
-    reference_ids_to_comment_correction_type = {}
-
-    allCommentCorrections = None
-    if mod:
-        allCommentCorrections = db_session.query(ReferenceCommentAndCorrectionModel).join(ReferenceModel.comment_and_corrections_in or ReferenceModel.comment_and_corrections_out).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).all()
-    elif reference_id_list and len(reference_id_list) > 0:
-        allCommentCorrections = db_session.query(ReferenceCommentAndCorrectionModel).filter(or_(ReferenceCommentAndCorrectionModel.reference_id_from.in_(reference_id_list), ReferenceCommentAndCorrectionModel.reference_id_to.in_(reference_id_list))).all()
-
-    if allCommentCorrections is None:
-        return reference_ids_to_comment_correction_type
-
-    for x in allCommentCorrections:
-        type = x.reference_comment_and_correction_type.replace("x.reference_comment_and_correction_type", "")
-        reference_ids_to_comment_correction_type[(x.reference_id_from, x.reference_id_to)] = type
-
-    return reference_ids_to_comment_correction_type
-
-
-def get_journal_data(db_session):
-
-    journal_to_resource_id = {}
-
-    for x in db_session.query(ResourceModel).all():
-        journal_to_resource_id[x.iso_abbreviation] = (x.resource_id, x.title)
-
-    return journal_to_resource_id
-
-
-def get_reference_ids_by_pmids(db_session, pmids, pmid_to_reference_id, reference_id_to_pmid):
-
-    pmid_list = []
-    for pmid in pmids.split('|'):
-        pmid_list.append('PMID:' + pmid)
-
-    for x in db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie.in_(pmid_list)).all():
-        if x.is_obsolete is True:
-            continue
-        pmid = x.curie.replace('PMID:', '')
-        pmid_to_reference_id[pmid] = x.reference_id
-        reference_id_to_pmid[x.reference_id] = pmid
-
-
-def get_pmid_to_reference_id_for_papers_not_associated_with_mod(db_session, pmid_to_reference_id, reference_id_to_pmid):
-
-    in_corpus = {}
-    for x in db_session.query(ModCorpusAssociationModel).all():
-        in_corpus[x.reference_id] = 1
-
-    for x in db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie.like('PMID:%')).all():
-        if x.reference_id in in_corpus:
-            continue
-        pmid = x.curie.replace('PMID:', '')
-        pmid_to_reference_id[pmid] = x.reference_id
-        reference_id_to_pmid[x.reference_id] = pmid
-
-
-def get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id_to_pmid):
-
-    for x in db_session.query(CrossReferenceModel).join(ReferenceModel.cross_reference).filter(CrossReferenceModel.curie.like('PMID:%')).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).all():
-        if x.is_obsolete is True:
-            continue
-        pmid = x.curie.replace('PMID:', '')
-        pmid_to_reference_id[pmid] = x.reference_id
-        reference_id_to_pmid[x.reference_id] = pmid
 
 
 if __name__ == "__main__":

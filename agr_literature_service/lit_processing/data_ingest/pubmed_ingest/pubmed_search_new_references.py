@@ -4,8 +4,7 @@ import re
 import time
 import urllib
 from os import environ, makedirs, path
-from typing import List, Set, Dict, Tuple, Union
-import json
+from typing import Set
 
 import requests
 from dotenv import load_dotenv
@@ -15,12 +14,13 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.sanitize_pubmed_json import sanitize_pubmed_json_list
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import update_resource_pubmed_nlm
+from agr_literature_service.lit_processing.data_ingest.utils.db_utils import set_pmid_list, \
+    check_handle_duplicate, add_mca_to_existing_references, get_pmid_association_to_mod_via_reference
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import \
+    update_resource_pubmed_nlm
 from agr_literature_service.api.database.main import get_db
-from agr_literature_service.api.models import ReferenceModel, CrossReferenceModel,\
-    ModCorpusAssociationModel, ModModel
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import sqlalchemy_load_ref_xref
-from agr_literature_service.lit_processing.utils.email_utils import send_email
+from agr_literature_service.lit_processing.utils.report_utils import send_pubmed_search_report
 from agr_literature_service.api.user import set_global_user_id
 
 load_dotenv()
@@ -143,33 +143,6 @@ if not path.exists(pmc_storage_path):
     makedirs(pmc_storage_path)
 
 
-def get_pmid_association_to_mod_via_reference(pmids: List[str], mod_abbreviation: str):
-    db_session = next(get_db())
-    query = db_session.query(
-        CrossReferenceModel.curie,
-        ReferenceModel.curie,
-        ModModel.abbreviation
-    ).join(
-        ReferenceModel.cross_reference
-    ).filter(
-        CrossReferenceModel.curie.in_(pmids)
-    ).outerjoin(
-        ReferenceModel.mod_corpus_association
-    ).outerjoin(
-        ModCorpusAssociationModel.mod
-    )
-    results = query.all()
-    pmid_curie_mod_dict: Dict[str, Tuple[Union[str, None], Union[str, None]]] = {}
-    ## example: pmid_curie_mod_dict['PMID:35510023'] = ('AGR:AGR-Reference-0000862607', 'SGD')
-    for result in results:
-        if result[0] not in pmid_curie_mod_dict or pmid_curie_mod_dict[result[0]][1] is None:
-            pmid_curie_mod_dict[result[0]] = (result[1], result[2] if result[2] == mod_abbreviation else None)
-    for pmid in pmids:
-        if pmid not in pmid_curie_mod_dict:
-            pmid_curie_mod_dict[pmid] = (None, None)
-    return pmid_curie_mod_dict
-
-
 def query_pubmed_mod_updates(input_mod, reldate):
     """
 
@@ -256,7 +229,7 @@ def query_mods(input_mod, reldate):
                 if pmid not in fp_pmids:
                     whitelist_pmids.append(pmid)
             pmids_wanted = list(map(lambda x: 'PMID:' + x, whitelist_pmids))
-            pmid_curie_mod_dict = get_pmid_association_to_mod_via_reference(pmids_wanted, mod)
+            pmid_curie_mod_dict = get_pmid_association_to_mod_via_reference(db_session, pmids_wanted, mod)
             # to debug
             # json_data = json.dumps(pmid_curie_mod_dict, indent=4, sort_keys=True)
             # print(mod)
@@ -287,7 +260,7 @@ def query_mods(input_mod, reldate):
         # logger.info(pmids_joined)
 
         # connect mod pmid from search to existing abc references
-        post_mca_to_existing_references(db_session, agr_curies_to_corpus, mod)
+        add_mca_to_existing_references(db_session, agr_curies_to_corpus, mod, logger)
 
         pmids_to_process = sorted(pmids_to_create)
         # pmids_to_process = sorted(pmids_to_create)[0:2]   # smaller set to test
@@ -299,7 +272,8 @@ def query_mods(input_mod, reldate):
                                                                        pmids_to_process,
                                                                        xref_ref,
                                                                        ref_xref_valid,
-                                                                       ref_xref_obsolete)
+                                                                       ref_xref_obsolete,
+                                                                       logger)
 
         not_loaded_pmids4mod[mod] = not_loaded_pmids
         for pmid in pmids_to_process:
@@ -327,7 +301,7 @@ def query_mods(input_mod, reldate):
         set_pmid_list(db_session, mod, pmids4mod, json_filepath)
 
     logger.info("Sending Report")
-    send_loading_report(pmids4mod, mods_to_query, log_path, log_url, not_loaded_pmids4mod)
+    send_pubmed_search_report(pmids4mod, mods_to_query, log_path, log_url, not_loaded_pmids4mod, logger)
 
     # do not need to recursively process downloading errata and corrections,
     # but if they exist, connect them.
@@ -338,210 +312,6 @@ def query_mods(input_mod, reldate):
     # post_comments_corrections(list(pmids_posted))
     db_session.close()
     logger.info("end query_mods")
-
-
-def set_pmid_list(db_session, mod, pmids4mod, json_file):
-
-    f = open(json_file)
-    json_data = json.load(f)
-    f.close()
-
-    for x in json_data:
-        if x.get('crossReferences'):
-            for c in x['crossReferences']:
-                if c['id'].startswith('PMID:'):
-                    row = db_session.query(CrossReferenceModel).filter_by(curie=c['id']).one_or_none()
-                    if row:
-                        pmid = c['id'].replace('PMID:', '')
-                        pmids4mod['all'].add(pmid)
-                        pmids4mod[mod].add(pmid)
-
-
-def send_loading_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod):
-
-    email_recipients = None
-    if environ.get('CRONTAB_EMAIL'):
-        email_recipients = environ['CRONTAB_EMAIL']
-    sender_email = None
-    if environ.get('SENDER_EMAIL'):
-        sender_email = environ['SENDER_EMAIL']
-    sender_password = None
-    if environ.get('SENDER_PASSWORD'):
-        sender_password = environ['SENDER_PASSWORD']
-    reply_to = sender_email
-    if environ.get('REPLY_TO'):
-        reply_to = environ['REPLY_TO']
-    if email_recipients is None or sender_email is None:
-        return
-
-    all_pmids = pmids4mod.get('all')
-    if all_pmids is None:
-        return
-
-    email_subject = "PubMed Paper Search Report"
-    email_message = ""
-
-    if len(all_pmids) == 0:
-
-        email_message = "No new papers from PubMed Search"
-
-    else:
-
-        log_file = log_path + "new_papers.log"
-        fw = open(log_file, "w")
-        message = "Total " + str(len(all_pmids)) + " new PubMed paper(s) have been added into database"
-        fw.write(message + "\n\n")
-        email_message = "<h3>" + message + "</h3>"
-
-        rows = ""
-        for mod in mods:
-            pmids = pmids4mod.get(mod)
-            if pmids is None:
-                continue
-            # email_message = email_message + "<strong>" + mod + "</strong>" + " : " + str(len(pmids)) + "<br>"
-            rows = rows + "<tr><th width='80'>" + mod + ":</th><td>" + str(len(pmids)) + "</td></tr>"
-            fw.write(mod + ": " + str(len(pmids)) + "\n")
-
-        email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
-
-        rows = ''
-        for mod in mods:
-            if mod not in not_loaded_pmids4mod:
-                continue
-            not_loaded_pmids = not_loaded_pmids4mod[mod]
-            for not_loaded_pmid_row in not_loaded_pmids:
-                (pmid_new, doi, pmid_in_db) = not_loaded_pmid_row
-                rows = rows + "<tr><th width='80'>" + mod + ":</th><td><b>PMID:" + pmid_new + "</b> was not added since its DOI:" + doi + " already exists. This DOI is associated with PMID:" + pmid_in_db + " in the database.</td></tr>"
-        if rows != '':
-            email_message = email_message + "<p><strong>Following new PMID(s) were not added to ABC from PubMed Search</strong><p>"
-            email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
-
-        if log_url:
-            email_message = email_message + "<p>Log file(s) are available at " + "<a href=" + log_url + ">" + log_url + "</a><p>"
-        else:
-            email_message = email_message + "<p>Log file(s) are available at " + log_path
-
-        fw.write("\n")
-        for mod in mods:
-            pmids = pmids4mod.get(mod)
-            if pmids is None:
-                continue
-            pmids_to_report = list(map(lambda x: 'PMID:' + x, pmids))
-            fw.write("New papers for " + mod + ":\n")
-            fw.write("\n".join(pmids_to_report) + "\n\n")
-
-    (status, message) = send_email(email_subject, email_recipients,
-                                   email_message, sender_email, sender_password, reply_to)
-    if status == 'error':
-        logger.info("Failed sending email to slack: " + message + "\n")
-
-
-def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref_xref_obsolete):
-
-    # check for papers with same doi in the database
-    # print ("ref_xref_valid=", str(ref_xref_valid['AGR:AGR-Reference-0000167781']))
-    # ref_xref_valid= {'DOI': '10.1111/j.1440-1711.2005.01311.x', 'MGI': '3573820', 'PMID': '15748210'}
-    # print ("xref_ref['DOI'][doi]=", str(xref_ref['DOI']['10.1111/j.1440-1711.2005.01311.x']))
-    # xref_ref['DOI'][doi]= AGR:AGR-Reference-0000167781
-
-    from datetime import datetime
-    json_path = base_path + "pubmed_json/"
-    log_path = base_path + 'pubmed_search_logs/'
-    log_url = None
-    if environ.get('LOG_PATH'):
-        log_path = path.join(environ['LOG_PATH'], 'pubmed_search/')
-        if environ.get('LOG_URL'):
-            log_url = path.join(environ['LOG_URL'], 'pubmed_search/')
-    if not path.exists(log_path):
-        makedirs(log_path)
-    log_file = log_path + "duplicate_rows_" + mod + ".log"
-    fw = None
-    if path.exists(log_file):
-        fw = open(log_file, "a")
-    else:
-        fw = open(log_file, "w")
-    not_loaded_pmids = []
-    for pmid in pmids:
-        json_file = json_path + pmid + ".json"
-        if not path.exists(json_file):
-            continue
-        f = open(json_file)
-        json_data = json.load(f)
-        f.close()
-        cross_references = json_data['crossReferences']
-        doi = None
-        for c in cross_references:
-            if c['id'].startswith('DOI:'):
-                doi = c['id'].replace('DOI:', '')
-        if doi and doi in xref_ref['DOI']:
-            ## the doi for the new paper is in the database
-            agr = xref_ref['DOI'][doi]
-            all_ref_xref = ref_xref_valid[agr] if agr in ref_xref_valid else {}
-            if agr in ref_xref_obsolete:
-                # merge two dictionaries
-                all_ref_xref.update(ref_xref_obsolete[agr])
-            found_pmids_for_this_doi = []
-            for prefix in all_ref_xref:
-                if prefix == 'PMID':
-                    found_pmids_for_this_doi.append(all_ref_xref[prefix])
-            if len(found_pmids_for_this_doi) == 0:
-                reference_id = get_reference_id_by_curie(db_session, agr)
-                if reference_id is None:
-                    logger.info("The reference curie: " + agr + " is not in the database.")
-                try:
-                    cross_ref = CrossReferenceModel(curie="PMID:" + pmid, reference_id=reference_id)
-                    db_session.add(cross_ref)
-                    fw.write(str(datetime.now()) + ": adding PMID:" + pmid + " to the row with doi = " + doi + " in the database\n")
-                except Exception as e:
-                    logger.info(str(datetime.now()) + ": adding " + pmid + " to the row with " + doi + " is failed: " + str(e) + "\n")
-            else:
-                fw.write(str(datetime.now()) + ": " + doi + " for PMID:" + pmid + " is associated with PMID(s) in the database: " + ",".join(found_pmids_for_this_doi) + "\n")
-                not_loaded_pmids.append((pmid, doi, ",".join(found_pmids_for_this_doi)))
-            pmids.remove(pmid)
-    fw.close()
-
-    return (log_path, log_url, not_loaded_pmids)
-
-
-def get_reference_id_by_curie(db_session, agr):
-
-    x = db_session.query(ReferenceModel).filter_by(curie=agr).one_or_none()
-    if x:
-        return x.reference_id
-    return None
-
-
-def post_mca_to_existing_references(db_session, agr_curies_to_corpus, mod):
-    """
-    :param agr_curies_to_corpus: agr reference curies to add an mca_value to
-    :param mod: mod to associate
-    :return:
-    """
-
-    m = db_session.query(ModModel).filter_by(abbreviation=mod).one_or_none()
-    mod_id = m.mod_id
-
-    curie_to_reference_id = {}
-    for x in db_session.query(ReferenceModel).filter(
-            ReferenceModel.curie.in_(agr_curies_to_corpus)).all():
-        curie_to_reference_id[x.curie] = x.reference_id
-
-    for curie in agr_curies_to_corpus:
-        try:
-            reference_id = curie_to_reference_id[x.curie]
-            mca = db_session.query(ModCorpusAssociationModel).filter_by(reference_id=reference_id, mod_id=mod_id).all()
-            if len(mca) > 0:
-                continue
-            mca = ModCorpusAssociationModel(reference_id=reference_id,
-                                            mod_id=mod_id,
-                                            mod_corpus_sort_source='mod_pubmed_search',
-                                            corpus=None)
-            db_session.add(mca)
-            logger.info("The mod_corpus_association row has been added into database for mod = " + mod + ", reference_curie = " + curie)
-        except Exception as e:
-            logger.info("An error occurred when adding mod_corpus_association for mod = " + mod + ", reference_curie = " + curie + ". error = " + str(e))
-
-    db_session.commit()
 
 
 # find pmc articles for mice and 9 journals, get pmid mappings and list of pmc without pmid

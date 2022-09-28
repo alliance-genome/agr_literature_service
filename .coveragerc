@@ -9,6 +9,7 @@ omit =
         agr_literature_service/lit_processing/utils/email_utils.py
         agr_literature_service/lit_processing/utils/s3_utils.py
         agr_literature_service/api/s3/*
+        agr_literature_service/lit_processing/utils/report_utils.py
 
         # to be added back when we have unit tests for them
         agr_literature_service/lit_processing/data_ingest/dqm_ingest/get_dqm_data.py
@@ -20,6 +21,7 @@ omit =
         agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_all_mods.py
         agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_single_mod.py
         agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_resources_nlm.py
+        agr_literature_service/lit_processing/data_ingest/utils/db_utils.py
 
 
 [report]
