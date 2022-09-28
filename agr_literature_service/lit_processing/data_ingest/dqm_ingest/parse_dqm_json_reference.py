@@ -1,14 +1,13 @@
 import argparse
-import io
 import json
 import logging.config
 import re
 import sys
 import urllib.request
 import warnings
-from collections import namedtuple, defaultdict
+from collections import defaultdict
 from os import environ, makedirs, path
-from typing import Dict, List, TextIO
+from typing import Dict, TextIO
 
 import bs4
 from dotenv import load_dotenv
@@ -421,6 +420,7 @@ def load_pmid_multi_mods(output_path):
         f.close()
 
     return pmid_multi_mods
+
 
 REPORT_TYPE_FILE_NAME_POSTFIX = {
     "generic": "main",
