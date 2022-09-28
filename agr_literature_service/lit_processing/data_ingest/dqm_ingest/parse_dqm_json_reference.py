@@ -262,6 +262,8 @@ def populate_expected_cross_reference_type():
     expected_cross_reference_type.add('FB:FBrf'.lower())
     expected_cross_reference_type.add('ZFIN:ZDB-PUB-'.lower())
     expected_cross_reference_type.add('Xenbase:XB-ART-'.lower())
+    expected_cross_reference_type.add('NLM:'.lower())
+    expected_cross_reference_type.add('ISSN:'.lower())
 
     # when getting pubmed data and merging mod cross references, was excluding these types, but
     # now merging so long as the type does not already exist from pubmed (mods have DOIs not in PubMed)
@@ -620,6 +622,143 @@ def process_pubmod_authors_xrefs_keywords(entry, update_primary_id, primary_id, 
         clean_up_keywords(mod, entry)
 
 
+def process_pubmed_data(entry, mod, pmid, pmid_fields, single_value_fields, pubmed_data, date_fields,
+                        compare_if_dqm_empty, report_file_handlers, report_file_path, replace_value_fields, primary_id,
+                        resource_nlm_to_title, resource_to_nlm):
+    cross_refs_in_mod = entry['crossReferences'][:] if 'crossReferences' in entry else []
+    for pmid_field in pmid_fields:
+        if pmid_field in single_value_fields:
+            pmid_data = ''
+            dqm_data = ''
+            if pmid_field in pubmed_data:
+                if pmid_field in date_fields:
+                    pmid_data = pubmed_data[pmid_field]['date_string']
+                else:
+                    pmid_data = pubmed_data[pmid_field]
+            if pmid_field in entry:
+                dqm_data = entry[pmid_field]
+            if dqm_data != '':
+                dqm_data = bs4.BeautifulSoup(dqm_data, "html.parser")
+            # UNCOMMENT to output log of data comparison between dqm and pubmed
+            if (dqm_data != '') or (compare_if_dqm_empty):
+                if pmid_field == 'title':
+                    compare_dqm_pubmed(report_file_handlers, mod, report_file_path, "title", pmid,
+                                       pmid_field, dqm_data, pmid_data)
+                else:
+                    compare_dqm_pubmed(report_file_handlers, mod, report_file_path, "differ", pmid,
+                                       pmid_field, dqm_data, pmid_data)
+            if pmid_data != '':
+                entry[pmid_field] = pmid_data
+            if pmid_field == 'datePublished':
+                if (pmid_data == '') and (dqm_data != ''):
+                    entry[pmid_field] = dqm_data
+        elif pmid_field in replace_value_fields:
+            entry[pmid_field] = []
+            if pmid_field in pubmed_data:
+                # logger.info("PMID %s pmid_field %s data %s", pmid, pmid_field, pubmed_data[pmid_field])
+                entry[pmid_field] = pubmed_data[pmid_field]
+
+    if 'authors' in entry:
+        for author in entry['authors']:
+            author['correspondingAuthor'] = False
+            author['firstAuthor'] = False
+
+    sanitized_cross_references = []
+    pubmed_xrefs = dict()
+    if 'crossReferences' in pubmed_data:
+        sanitized_cross_references = pubmed_data['crossReferences']
+        for cross_reference in pubmed_data['crossReferences']:
+            id = cross_reference['id']
+            prefix, identifier, separator = split_identifier(id)
+            pubmed_xrefs[prefix] = identifier
+    if 'crossReferences' in entry:
+        for cross_reference in entry['crossReferences']:
+            id = cross_reference['id']
+            prefix, identifier, separator = split_identifier(id)
+            if prefix in pubmed_xrefs:
+                if pubmed_xrefs[prefix].lower() != identifier.lower():
+                    write_report_line(
+                        report_file_handlers, mod, "generic",
+                        message="primaryId %s has xref %s PubMed has %s%s%s\n" % (
+                            primary_id, id, prefix, separator, pubmed_xrefs[prefix]),
+                        report_file_path=report_file_path)
+            else:
+                sanitized_cross_references.append(cross_reference)
+    for x in cross_refs_in_mod:
+        if x not in sanitized_cross_references:
+            sanitized_cross_references.append(x)
+    entry['crossReferences'] = sanitized_cross_references
+
+    if 'nlm' in pubmed_data:
+        nlm = pubmed_data['nlm']
+        entry['nlm'] = ['NLM:' + nlm]
+        entry['resource'] = 'NLM:' + nlm
+        if nlm in resource_nlm_to_title:
+            # logger.info("PMID %s has NLM %s setting to title %s", pmid, nlm, resource_nlm_to_title[nlm])
+            entry['resourceAbbreviation'] = resource_nlm_to_title[nlm]
+        nlm_simplified = simplify_text_keep_digits(pubmed_data['nlm'])
+        if nlm_simplified not in resource_to_nlm:
+            write_report_line(
+                report_file_handlers, mod, "generic",
+                message="NLM value %s from PMID %s XML does not map to a proper resource.\n" % (
+                    pubmed_data['nlm'], pmid), report_file_path=report_file_path)
+    else:
+        if 'is_journal' in pubmed_data:
+            write_report_line(
+                report_file_handlers, mod, "generic",
+                message="PMID %s does not have an NLM resource.\n" % pmid,
+                report_file_path=report_file_path)
+
+    if 'keywords' not in entry:
+        entry['keywords'] = []
+    else:
+        # e.g. 9882485 25544291 24201188 31188077
+        clean_up_keywords(mod, entry)
+        # remove this after checking it works well
+        # if mod == 'ZFIN':
+        #     if 'keywords' in entry:
+        #         if entry['keywords'][0] == '':
+        #             entry['keywords'] = []
+        #         else:
+        #             zfin_value = entry['keywords'][0]
+        #             zfin_value = str(bs4.BeautifulSoup(zfin_value, "html.parser"))
+        #             comma_count = 0
+        #             semicolon_count = 0
+        #             if ", " in zfin_value:
+        #                 comma_count = zfin_value.count(',')
+        #             if "; " in zfin_value:
+        #                 semicolon_count = zfin_value.count(';')
+        #             if (comma_count == 0) and (semicolon_count == 0):
+        #                 entry['keywords'] = [zfin_value]
+        #             elif comma_count >= semicolon_count:
+        #                 entry['keywords'] = zfin_value.split(", ")
+        #             else:
+        #                 entry['keywords'] = zfin_value.split("; ")
+        # else:
+        #     keywords = []
+        #     for mod_keyword in entry['keywords']:
+        #         mod_keyword = str(bs4.BeautifulSoup(mod_keyword, "html.parser"))
+        #         keywords.append(mod_keyword)
+        #     entry['keywords'] = keywords
+
+    if 'keywords' in pubmed_data:
+        # aggregate for all MODs except ZFIN, which has misformed data and can't fix it.
+        # 19308247 aggregates keywords for WB
+        for mod_keyword in pubmed_data['keywords']:
+            if mod_keyword.upper() not in map(str.upper, entry['keywords']):
+                entry['keywords'].append(mod_keyword)
+
+
+# # datePublished, keywords, and crossReferences, MODReferenceTypes, tags, allianceCategory, resourceAbbreviation
+# # datePublished - pubmed value, if no value use mod's, if multiple mod's different, error
+# # resourceAbbreviation - if pmid always use NLM's name
+# # keywords - aggregate
+# # tags - aggregate
+# # MODReferenceTypes - aggregate
+# # crossReferences - aggregate and clean up pages
+# # allianceCategory - single value, error if there's more than 1 unique value because of different MODs
+
+
 def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=base_path):  # noqa: C901
     # reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
     # outputs sanitized json to sanitized_reference_json/
@@ -666,7 +805,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
     # for mod in mods:
     #     resource_to_mod[mod] = dict()
 
-    expected_cross_reference_type, exclude_cross_reference_type, pubmed_not_dqm_cross_reference_type = populate_expected_cross_reference_type()
+    expected_cross_reference_type, exclude_cross_reference_type, pubmed_not_dqm_cross_reference_type = \
+        populate_expected_cross_reference_type()
 
     json_storage_path = base_path + output_directory + 'sanitized_reference_json/'
     if not path.exists(json_storage_path):
@@ -700,12 +840,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
         entries = dqm_data['data']
         sanitized_pubmod_data = []
         sanitized_pubmed_single_mod_data = []
-        cross_refs_in_mod = {}
         for entry in entries:
             orig_primary_id = entry['primaryId']
-            if 'crossReferences' in entry:
-                cross_refs_in_mod[orig_primary_id] = entry['crossReferences']
-            #             print("primaryId %s" % (entry['primaryId']))
             blank_fields = set()
             for entry_property in entry:
                 if entry_property not in schema_data['properties']:
@@ -737,142 +873,15 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
                                                                        orig_primary_id, report_file_path)
 
             if is_pubmod:
-                process_pubmod_authors_xrefs_keywords(entry, update_primary_id, primary_id, cross_refs_in_mod)
+                process_pubmod_authors_xrefs_keywords(entry, update_primary_id, primary_id, mod)
                 set_resource_info_from_abbreviation(entry, mod, primary_id, resource_to_mod_issn_nlm,
                                                     resource_to_nlm, resource_to_nlm_highest, resource_to_mod,
                                                     report_file_handlers, resource_not_found, report_file_path)
             else:
-                # pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher', 'meshTerms']
-                for pmid_field in pmid_fields:
-                    if pmid_field in single_value_fields:
-                        pmid_data = ''
-                        dqm_data = ''
-                        if pmid_field in pubmed_data:
-                            if pmid_field in date_fields:
-                                pmid_data = pubmed_data[pmid_field]['date_string']
-                            else:
-                                pmid_data = pubmed_data[pmid_field]
-                        if pmid_field in entry:
-                            dqm_data = entry[pmid_field]
-                        if dqm_data != '':
-                            dqm_data = bs4.BeautifulSoup(dqm_data, "html.parser")
-                        # UNCOMMENT to output log of data comparison between dqm and pubmed
-                        if (dqm_data != '') or (compare_if_dqm_empty):
-                            if pmid_field == 'title':
-                                compare_dqm_pubmed(report_file_handlers, mod, report_file_path, "title", pmid,
-                                                   pmid_field, dqm_data, pmid_data)
-                            else:
-                                compare_dqm_pubmed(report_file_handlers, mod, report_file_path, "differ", pmid,
-                                                   pmid_field, dqm_data, pmid_data)
-                        if pmid_data != '':
-                            entry[pmid_field] = pmid_data
-                        if pmid_field == 'datePublished':
-                            if (pmid_data == '') and (dqm_data != ''):
-                                entry[pmid_field] = dqm_data
-                    elif pmid_field in replace_value_fields:
-                        entry[pmid_field] = []
-                        if pmid_field in pubmed_data:
-                            # logger.info("PMID %s pmid_field %s data %s", pmid, pmid_field, pubmed_data[pmid_field])
-                            entry[pmid_field] = pubmed_data[pmid_field]
-
-                if 'authors' in entry:
-                    for author in entry['authors']:
-                        author['correspondingAuthor'] = False
-                        author['firstAuthor'] = False
-
-                sanitized_cross_references = []
-                pubmed_xrefs = dict()
-                if 'crossReferences' in pubmed_data:
-                    sanitized_cross_references = pubmed_data['crossReferences']
-                    for cross_reference in pubmed_data['crossReferences']:
-                        id = cross_reference['id']
-                        prefix, identifier, separator = split_identifier(id)
-                        pubmed_xrefs[prefix] = identifier
-                if 'crossReferences' in entry:
-                    for cross_reference in entry['crossReferences']:
-                        id = cross_reference['id']
-                        prefix, identifier, separator = split_identifier(id)
-                        if prefix in pubmed_xrefs:
-                            if pubmed_xrefs[prefix].lower() != identifier.lower():
-                                write_report_line(
-                                    report_file_handlers, mod, "generic",
-                                    message="primaryId %s has xref %s PubMed has %s%s%s\n" % (
-                                        primary_id, id, prefix, separator, pubmed_xrefs[prefix]),
-                                    report_file_path=report_file_path)
-                        else:
-                            sanitized_cross_references.append(cross_reference)
-                for x in cross_refs_in_mod.get(primary_id, []):
-                    if x not in sanitized_cross_references:
-                        sanitized_cross_references.append(x)
-                entry['crossReferences'] = sanitized_cross_references
-
-                if 'nlm' in pubmed_data:
-                    nlm = pubmed_data['nlm']
-                    entry['nlm'] = ['NLM:' + nlm]
-                    entry['resource'] = 'NLM:' + nlm
-                    if nlm in resource_nlm_to_title:
-                        # logger.info("PMID %s has NLM %s setting to title %s", pmid, nlm, resource_nlm_to_title[nlm])
-                        entry['resourceAbbreviation'] = resource_nlm_to_title[nlm]
-                    nlm_simplified = simplify_text_keep_digits(pubmed_data['nlm'])
-                    if nlm_simplified not in resource_to_nlm:
-                        write_report_line(
-                            report_file_handlers, mod, "generic",
-                            message="NLM value %s from PMID %s XML does not map to a proper resource.\n" % (
-                                pubmed_data['nlm'], pmid), report_file_path=report_file_path)
-                else:
-                    if 'is_journal' in pubmed_data:
-                        write_report_line(
-                            report_file_handlers, mod, "generic",
-                            message="PMID %s does not have an NLM resource.\n" % pmid,
-                            report_file_path=report_file_path)
-
-                if 'keywords' not in entry:
-                    entry['keywords'] = []
-                else:
-                    # e.g. 9882485 25544291 24201188 31188077
-                    clean_up_keywords(mod, entry)
-                    # remove this after checking it works well
-                    # if mod == 'ZFIN':
-                    #     if 'keywords' in entry:
-                    #         if entry['keywords'][0] == '':
-                    #             entry['keywords'] = []
-                    #         else:
-                    #             zfin_value = entry['keywords'][0]
-                    #             zfin_value = str(bs4.BeautifulSoup(zfin_value, "html.parser"))
-                    #             comma_count = 0
-                    #             semicolon_count = 0
-                    #             if ", " in zfin_value:
-                    #                 comma_count = zfin_value.count(',')
-                    #             if "; " in zfin_value:
-                    #                 semicolon_count = zfin_value.count(';')
-                    #             if (comma_count == 0) and (semicolon_count == 0):
-                    #                 entry['keywords'] = [zfin_value]
-                    #             elif comma_count >= semicolon_count:
-                    #                 entry['keywords'] = zfin_value.split(", ")
-                    #             else:
-                    #                 entry['keywords'] = zfin_value.split("; ")
-                    # else:
-                    #     keywords = []
-                    #     for mod_keyword in entry['keywords']:
-                    #         mod_keyword = str(bs4.BeautifulSoup(mod_keyword, "html.parser"))
-                    #         keywords.append(mod_keyword)
-                    #     entry['keywords'] = keywords
-
-                if 'keywords' in pubmed_data:
-                    # aggregate for all MODs except ZFIN, which has misformed data and can't fix it.
-                    # 19308247 aggregates keywords for WB
-                    for mod_keyword in pubmed_data['keywords']:
-                        if mod_keyword.upper() not in map(str.upper, entry['keywords']):
-                            entry['keywords'].append(mod_keyword)
-
-            # # datePublished, keywords, and crossReferences, MODReferenceTypes, tags, allianceCategory, resourceAbbreviation
-            # # datePublished - pubmed value, if no value use mod's, if multiple mod's different, error
-            # # resourceAbbreviation - if pmid always use NLM's name
-            # # keywords - aggregate
-            # # tags - aggregate
-            # # MODReferenceTypes - aggregate
-            # # crossReferences - aggregate and clean up pages
-            # # allianceCategory - single value, error if there's more than 1 unique value because of different MODs
+                # processing pubmed data
+                process_pubmed_data(entry, mod, pmid, pmid_fields, single_value_fields, pubmed_data, date_fields,
+                                    compare_if_dqm_empty, report_file_handlers, report_file_path, replace_value_fields,
+                                    primary_id, resource_nlm_to_title, resource_to_nlm)
 
             if is_pubmod:
                 sanitized_pubmod_data.append(entry)
