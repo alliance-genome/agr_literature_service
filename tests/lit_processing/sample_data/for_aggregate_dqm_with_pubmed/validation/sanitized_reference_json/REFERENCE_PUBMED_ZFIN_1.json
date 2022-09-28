@@ -78,6 +78,18 @@
             },
             {
                 "id": "ISSN:1545-8547"
+            },
+            {
+                "id": "ZFIN:ZDB-PUB-190613-8",
+                "pages": [
+                    "reference"
+                ]
+            },
+            {
+                "id": "DOI:10.1089/zeb.2019.1734",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "dateLastModified": "2020-08-01",
@@ -330,6 +342,18 @@
             },
             {
                 "id": "ISSN:0020-7136"
+            },
+            {
+                "id": "ZFIN:ZDB-PUB-180816-15",
+                "pages": [
+                    "reference"
+                ]
+            },
+            {
+                "id": "DOI:10.1002/ijc.31799",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "dateArrivedInPubmed": "2017-12-22",
@@ -696,6 +720,18 @@
             },
             {
                 "id": "ISSN:2590-1583"
+            },
+            {
+                "id": "ZFIN:ZDB-PUB-190614-11",
+                "pages": [
+                    "reference"
+                ]
+            },
+            {
+                "id": "DOI:10.1016/j.gene.2019.100011",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "dateArrivedInPubmed": "2018-07-27",
@@ -1043,6 +1079,18 @@
             },
             {
                 "id": "NLM:101600173"
+            },
+            {
+                "id": "ZFIN:ZDB-PUB-180714-6",
+                "pages": [
+                    "reference"
+                ]
+            },
+            {
+                "id": "DOI:10.1155/2018/6705842",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "dateArrivedInPubmed": "2017-10-02",
@@ -1382,6 +1430,18 @@
             },
             {
                 "id": "ISSN:0378-1119"
+            },
+            {
+                "id": "ZFIN:ZDB-PUB-210918-21",
+                "pages": [
+                    "reference"
+                ]
+            },
+            {
+                "id": "DOI:10.1016/j.gene.2019.100011",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "dateArrivedInPubmed": "2018-07-27",

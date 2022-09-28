@@ -89,6 +89,12 @@
                 "id": "ISSN:0270-7306"
             },
             {
+                "id": "RGD:2304238",
+                "pages": [
+                    "reference"
+                ]
+            },
+            {
                 "id": "PMID:10022914"
             },
             {
@@ -102,6 +108,18 @@
             },
             {
                 "id": "ISSN:0270-7306"
+            },
+            {
+                "id": "RGD:2304238",
+                "pages": [
+                    "reference"
+                ]
+            },
+            {
+                "id": "FB:FBrf0106846",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "dateLastModified": "2021-05-26",
@@ -309,6 +327,12 @@
                 "id": "ISSN:0006-291X"
             },
             {
+                "id": "RGD:1303381",
+                "pages": [
+                    "reference"
+                ]
+            },
+            {
                 "id": "PMID:2"
             },
             {
@@ -319,6 +343,18 @@
             },
             {
                 "id": "ISSN:0006-291X"
+            },
+            {
+                "id": "RGD:1303381",
+                "pages": [
+                    "reference"
+                ]
+            },
+            {
+                "id": "SGD:S000185526",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "dateLastModified": "2019-06-12",
@@ -486,6 +522,12 @@
                 "id": "ISSN:1467-5463"
             },
             {
+                "id": "RGD:13792537",
+                "pages": [
+                    "reference"
+                ]
+            },
+            {
                 "id": "PMID:21873635"
             },
             {
@@ -499,6 +541,42 @@
             },
             {
                 "id": "ISSN:1467-5463"
+            },
+            {
+                "id": "RGD:13792537",
+                "pages": [
+                    "reference"
+                ]
+            },
+            {
+                "id": "MGI:6201960",
+                "pages": [
+                    "reference"
+                ]
+            },
+            {
+                "id": "SGD:S000246339",
+                "pages": [
+                    "reference"
+                ]
+            },
+            {
+                "id": "FB:FBrf0239784",
+                "pages": [
+                    "reference"
+                ]
+            },
+            {
+                "id": "ZFIN:ZDB-PUB-110330-1",
+                "pages": [
+                    "reference"
+                ]
+            },
+            {
+                "id": "WB:WBPaper00046480",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "dateLastModified": "2021-10-20",

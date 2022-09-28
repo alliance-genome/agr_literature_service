@@ -9,7 +9,7 @@ import shutil
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_engine
 from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_s3
-from agr_literature_service.lit_processing.utils.email_utils import send_email
+from agr_literature_service.lit_processing.utils.report_utils import send_data_export_report
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 init_tmp_dir()
@@ -71,7 +71,7 @@ def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
         error_msg = "Error occurred when retrieving data from Reference data and generating json file: " + str(e)
         log.info(error_msg)
         if ondemand:
-            send_email_report("ERROR", email, mod, error_msg)
+            send_data_export_report("ERROR", email, mod, error_msg, log)
         return
 
     log.info("Uploading json file to s3...")
@@ -82,14 +82,14 @@ def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
         error_msg = "Error occurred when uploading json file to s3: " + str(e)
         log.info(error_msg)
         if ondemand:
-            send_email_report("ERROR", email, mod, error_msg)
+            send_data_export_report("ERROR", email, mod, error_msg, log)
         return
 
     if ondemand:
         log.info("Sending email...")
         ui_url = str(ui_root_url) + filename
         email_message = "The file " + filename + " is ready for <a href=" + ui_url + ">download</a>"
-        send_email_report("SUCCESS", email, mod, email_message)
+        send_data_export_report("SUCCESS", email, mod, email_message, log)
 
     log.info("DONE!")
 
@@ -353,37 +353,6 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
         data.append(row)
 
     return i
-
-
-def send_email_report(status, email, mod, email_message):
-
-    email_recipients = email
-    if email_recipients is None:
-        if environ.get('CRONTAB_EMAIL'):
-            email_recipients = environ['CRONTAB_EMAIL']
-        else:
-            return
-
-    sender_email = None
-    if environ.get('SENDER_EMAIL'):
-        sender_email = environ['SENDER_EMAIL']
-    sender_password = None
-    if environ.get('SENDER_PASSWORD'):
-        sender_password = environ['SENDER_PASSWORD']
-    reply_to = sender_email
-    if environ.get('REPLY_TO'):
-        reply_to = environ['REPLY_TO']
-
-    email_subject = None
-    if status == 'SUCCESS':
-        email_subject = "The " + mod + " Reference json file is ready for download"
-    else:
-        email_subject = "Error Report for " + mod + " Reference download"
-
-    (email_status, message) = send_email(email_subject, email_recipients, email_message,
-                                         sender_email, sender_password, reply_to)
-    if email_status == 'error':
-        log.info("Failed sending email to " + email_recipients + ": " + message + "\n")
 
 
 def get_mod_corpus_association_data(db_connection, ref_ids):

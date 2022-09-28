@@ -99,6 +99,12 @@
             },
             {
                 "id": "ISSN:1059-7794"
+            },
+            {
+                "id": "RGD:11526447",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "dateLastModified": "2006-11-15",
@@ -278,6 +284,12 @@
         "crossReferences": [
             {
                 "id": "PMID:20301347"
+            },
+            {
+                "id": "RGD:11352983",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "dateLastModified": "2016-7-14",
@@ -361,6 +373,12 @@
             },
             {
                 "id": "ISSN:2041-2649"
+            },
+            {
+                "id": "RGD:11570444",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "dateLastModified": "2018-12-02",

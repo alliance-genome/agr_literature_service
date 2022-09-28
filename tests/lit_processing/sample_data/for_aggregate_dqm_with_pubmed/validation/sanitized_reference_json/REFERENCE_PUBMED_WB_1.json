@@ -98,6 +98,12 @@
         "crossReferences": [
             {
                 "id": "PMID:21413225"
+            },
+            {
+                "id": "WB:WBPaper00002666",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "datePublished": "1997-01-01",
@@ -189,6 +195,12 @@
         "crossReferences": [
             {
                 "id": "PMID:21413221"
+            },
+            {
+                "id": "WB:WBPaper00004071",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "datePublished": "1997-01-01",
@@ -275,6 +287,12 @@
         "crossReferences": [
             {
                 "id": "PMID:21290765"
+            },
+            {
+                "id": "WB:WBPaper00040000",
+                "pages": [
+                    "reference"
+                ]
             }
         ],
         "datePublished": "2005-01-01",
