@@ -6,7 +6,7 @@ import re
 import sys
 import urllib.request
 import warnings
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from os import environ, makedirs, path
 from typing import Dict, List
 
@@ -431,7 +431,7 @@ def load_pmid_multi_mods(output_path):
 
 ReportFiles = namedtuple('ReportFiles', ['mod_report_generic_dict', 'mod_report_title_dict', 'mod_report_differ_dict',
                                          'mod_report_resource_unmatched_dict', 'mod_report_reference_no_resource_dict',
-                                         'resource_not_found_dict', 'cross_reference_types_dict'])
+                                         'resource_not_found_dict'])
 
 
 def initialize_report_file_handlers(mods: List[str], report_file_path: str, output_directory: str) -> ReportFiles:
@@ -442,10 +442,8 @@ def initialize_report_file_handlers(mods: List[str], report_file_path: str, outp
     fh_mod_report_resource_unmatched = dict()
     fh_mod_report_reference_no_resource = dict()
     resource_not_found = dict()
-    cross_reference_types = dict()
     for mod in mods:
         resource_not_found[mod] = dict()
-        cross_reference_types[mod] = dict()
         filename = report_file_path + mod + '_main'
         filename_title = report_file_path + mod + '_dqm_pubmed_differ_title'
         filename_differ = report_file_path + mod + '_dqm_pubmed_differ_other'
@@ -460,7 +458,70 @@ def initialize_report_file_handlers(mods: List[str], report_file_path: str, outp
     multi_report_filename = base_path + output_directory + 'report_files/multi_mod'
     fh_mod_report['multi'] = open(multi_report_filename, 'w')
     return ReportFiles(fh_mod_report, fh_mod_report_title, fh_mod_report_differ, fh_mod_report_resource_unmatched,
-                       fh_mod_report_reference_no_resource, resource_not_found, cross_reference_types)
+                       fh_mod_report_reference_no_resource, resource_not_found)
+
+
+def validate_xref_pages(cross_reference, prefix, cross_ref_no_pages_ok_fields, mod, primary_id, fh_mod_report):
+    if 'pages' in cross_reference:
+        if len(cross_reference["pages"]) > 1:
+            fh_mod_report[mod].write(
+                "mod %s primaryId %s has cross reference identifier %s with multiple web pages %s\n" % (
+                    mod, primary_id, cross_reference["id"], cross_reference["pages"]))
+            # logger.info("mod %s primaryId %s has cross reference identifier %s with web pages %s", mod, primary_id, cross_reference["id"], cross_reference["pages"])
+        else:
+            return True
+    else:
+        if prefix not in cross_ref_no_pages_ok_fields:
+            fh_mod_report[mod].write(
+                "mod %s primaryId %s has cross reference identifier %s without web pages\n" % (
+                    mod, primary_id, cross_reference["id"]))
+    return False
+
+
+def process_xrefs_and_find_pmid_if_necessary(reference, mod, fh_mod_report, original_primary_id,
+                                             cross_ref_no_pages_ok_fields, expected_cross_reference_type,
+                                             exclude_cross_reference_type, cross_reference_types):
+    # need to process crossReferences once to reassign primaryId if PMID and filter out
+    # unexpected crossReferences,
+    # then again later to clean up crossReferences that get data from pubmed xml (once the PMID is known)
+    primary_id = original_primary_id
+    update_primary_id = False
+    too_many_xref_per_type_failure = False
+    if 'crossReferences' not in reference:
+        fh_mod_report[mod].write("mod %s primaryId %s has no cross references\n" % (mod, primary_id))
+    else:
+        expected_cross_references = []
+        dqm_xrefs = defaultdict(set)
+        for cross_reference in reference['crossReferences']:
+            prefix, identifier, separator = split_identifier(cross_reference["id"])
+            needs_pmid_extraction = validate_xref_pages(cross_reference=cross_reference, prefix=prefix, mod=mod,
+                                                        cross_ref_no_pages_ok_fields=cross_ref_no_pages_ok_fields,
+                                                        primary_id=primary_id, fh_mod_report=fh_mod_report)
+            if needs_pmid_extraction:
+                if not re.match(r"^PMID:[0-9]+", original_primary_id) and cross_reference["pages"][0] == 'PubMed' \
+                        and re.match(r"^PMID:[0-9]+", cross_reference["id"]):
+                    update_primary_id = True
+                    reference['primaryId'] = cross_reference["id"]
+                    primary_id = cross_reference["id"]
+
+            cross_ref_type_group = re.search(r"^([^0-9]+)[0-9]", cross_reference['id'])
+            if cross_ref_type_group is not None:
+                if cross_ref_type_group[1].lower() not in expected_cross_reference_type:
+                    cross_reference_types[mod][cross_ref_type_group[1]].append(primary_id + ' ' + cross_reference['id'])
+                if cross_ref_type_group[1].lower() not in exclude_cross_reference_type:
+                    dqm_xrefs[prefix].add(identifier)
+                    expected_cross_references.append(cross_reference)
+        reference['crossReferences'] = expected_cross_references
+        for prefix, identifiers in dqm_xrefs.items():
+            if len(identifiers) > 1:
+                too_many_xref_per_type_failure = True
+                fh_mod_report[mod].write("mod %s primaryId %s has too many identifiers for %s %s\n" % (
+                    mod, primary_id, prefix, ', '.join(sorted(dqm_xrefs[prefix]))))
+
+    if too_many_xref_per_type_failure:
+        return None, None
+    else:
+        return primary_id, update_primary_id
 
 
 def get_schema_data_from_alliance():
@@ -477,6 +538,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
     # does checks on dqm crossReferences.  if primaryId is not PMID, and a crossReference is PubMed,
     # assigns PMID to primaryId and to authors's referenceId.
     # if any reference's author doesn't have author Rank, assign authorRank based on array order.
+    logger.info("initializing data structures")
     cross_ref_no_pages_ok_fields = ['DOI', 'PMID', 'PMC', 'PMCID', 'ISBN']
     pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'datePublished',
                    'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher',
@@ -534,7 +596,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
     fh_mod_report_resource_unmatched = mod_report_files_dicts.mod_report_resource_unmatched_dict
     fh_mod_report_reference_no_resource = mod_report_files_dicts.mod_report_reference_no_resource_dict
     resource_not_found = mod_report_files_dicts.resource_not_found_dict
-    cross_reference_types = mod_report_files_dicts.cross_reference_types_dict
+    cross_reference_types = defaultdict(lambda: defaultdict(list))
 
     logger.info("Aggregating DQM and PubMed data from %s using mods %s", input_path, mods)
     schema_data = get_schema_data_from_alliance()
@@ -559,8 +621,6 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
         for entry in entries:
             is_pubmod = True
             pmid = None
-            update_primary_id = False
-            primary_id = entry['primaryId']
             orig_primary_id = entry['primaryId']
             #             print("primaryId %s" % (entry['primaryId']))
             blank_fields = set()
@@ -570,7 +630,6 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
                 if entry_property in single_value_fields:
                     if entry[entry_property] == "":
                         blank_fields.add(entry_property)
-            too_many_xref_per_type_failure = False
             for entry_field in blank_fields:
                 del entry[entry_field]
 
@@ -578,65 +637,16 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
             mod_corpus_associations = [{"modAbbreviation": mod, "modCorpusSortSource": "dqm_files", "corpus": True}]
             entry['modCorpusAssociations'] = mod_corpus_associations
 
-            # need to process crossReferences once to reassign primaryId if PMID and filter out
-            # unexpected crossReferences,
-            # then again later to clean up crossReferences that get data from pubmed xml (once the PMID is known)
-            if 'crossReferences' in entry:
-                expected_cross_references = []
-                dqm_xrefs = dict()
-                for cross_reference in entry['crossReferences']:
-
-                    prefix, identifier, separator = split_identifier(cross_reference["id"])
-                    if 'pages' in cross_reference:
-                        if len(cross_reference["pages"]) > 1:
-                            fh_mod_report[mod].write(
-                                "mod %s primaryId %s has cross reference identifier %s with multiple web pages %s\n" % (
-                                mod, primary_id, cross_reference["id"], cross_reference["pages"]))
-                            # logger.info("mod %s primaryId %s has cross reference identifier %s with web pages %s", mod, primary_id, cross_reference["id"], cross_reference["pages"])
-                        else:
-                            if not re.match(r"^PMID:[0-9]+", orig_primary_id):
-                                if cross_reference["pages"][0] == 'PubMed':
-                                    xref_id = cross_reference["id"]
-                                    if re.match(r"^PMID:[0-9]+", xref_id):
-                                        update_primary_id = True
-                                        primary_id = xref_id
-                                        entry['primaryId'] = xref_id
-                    else:
-                        if prefix not in cross_ref_no_pages_ok_fields:
-                            fh_mod_report[mod].write(
-                                "mod %s primaryId %s has cross reference identifier %s without web pages\n" % (
-                                mod, primary_id, cross_reference["id"]))
-                            # logger.debug("mod %s primaryId %s has cross reference %s without pages", mod, primary_id, cross_reference["id"])
-
-                    id = cross_reference['id']
-
-                    cross_ref_type_group = re.search(r"^([^0-9]+)[0-9]", id)
-                    if cross_ref_type_group is not None:
-                        if cross_ref_type_group[1].lower() not in expected_cross_reference_type:
-                            if cross_ref_type_group[1] in cross_reference_types[mod]:
-                                cross_reference_types[mod][cross_ref_type_group[1]].append(primary_id + ' ' + id)
-                            else:
-                                cross_reference_types[mod][cross_ref_type_group[1]] = [primary_id + ' ' + id]
-                            # cross_reference_types[mod].add(cross_ref_type_group[1])
-                        if cross_ref_type_group[1].lower() not in exclude_cross_reference_type:
-                            if prefix not in dqm_xrefs:
-                                dqm_xrefs[prefix] = set()
-                            dqm_xrefs[prefix].add(identifier)
-                            #                             logger.info(f"xref id {id} not in exclude_cross_reference_type")
-                            expected_cross_references.append(cross_reference)
-                entry['crossReferences'] = expected_cross_references
-                #                 logger.info(f"expected {expected_cross_references}")
-                for prefix in dqm_xrefs:
-                    if len(dqm_xrefs[prefix]) > 1:
-                        too_many_xref_per_type_failure = True
-                        fh_mod_report[mod].write("mod %s primaryId %s has too many identifiers for %s %s\n" % (
-                        mod, primary_id, prefix, ', '.join(sorted(dqm_xrefs[prefix]))))
-
-            else:
-                fh_mod_report[mod].write("mod %s primaryId %s has no cross references\n" % (mod, primary_id))
-                # logger.info("mod %s primaryId %s has no cross references", mod, primary_id)
-
-            if too_many_xref_per_type_failure:
+            primary_id, update_primary_id = process_xrefs_and_find_pmid_if_necessary(
+                reference=entry,
+                mod=mod,
+                fh_mod_report=fh_mod_report,
+                original_primary_id=orig_primary_id,
+                cross_ref_no_pages_ok_fields=cross_ref_no_pages_ok_fields,
+                expected_cross_reference_type=expected_cross_reference_type,
+                exclude_cross_reference_type=exclude_cross_reference_type,
+                cross_reference_types=cross_reference_types)
+            if not primary_id:
                 continue
 
             pmid_group = re.search(r"^PMID:([0-9]+)", primary_id)
