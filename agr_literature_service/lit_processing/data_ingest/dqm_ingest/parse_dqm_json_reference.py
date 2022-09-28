@@ -536,6 +536,26 @@ def get_schema_data_from_alliance():
     return schema_data
 
 
+def load_pubmed_data_if_present(primary_id, report_file_handlers, mod, original_primary_id, report_file_path):
+    pmid_group = re.search(r"^PMID:([0-9]+)", primary_id)
+    pmid = None
+    is_pubmod = True
+    pubmed_data = {}
+    if pmid_group is not None:
+        pmid = pmid_group[1]
+        filename = base_path + 'pubmed_json/' + pmid + '.json'
+        try:
+            with open(filename, 'r') as f:
+                pubmed_data = json.load(f)
+                f.close()
+                is_pubmod = False
+        except IOError:
+            write_report_line(report_file_handlers, mod, report_type="generic",
+                              message="Warning: PMID %s does not have PubMed xml, from Mod %s primary_id "
+                                      "%s\n" % (pmid, mod, original_primary_id), report_file_path=report_file_path)
+    return pubmed_data, is_pubmod, pmid
+
+
 def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=base_path):  # noqa: C901
     # reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
     # outputs sanitized json to sanitized_reference_json/
@@ -618,8 +638,6 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
         sanitized_pubmed_single_mod_data = []
         cross_refs_in_mod = {}
         for entry in entries:
-            is_pubmod = True
-            pmid = None
             orig_primary_id = entry['primaryId']
             #             print("primaryId %s" % (entry['primaryId']))
             blank_fields = set()
@@ -650,22 +668,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
             if not primary_id:
                 continue
 
-            pmid_group = re.search(r"^PMID:([0-9]+)", primary_id)
-            if pmid_group is not None:
-                pmid = pmid_group[1]
-                # print(pmid)
-                filename = base_path + 'pubmed_json/' + pmid + '.json'
-                # print("primary_id %s reading %s" % (primary_id, filename))
-                pubmed_data = dict()
-                try:
-                    with open(filename, 'r') as f:
-                        pubmed_data = json.load(f)
-                        f.close()
-                        is_pubmod = False
-                except IOError:
-                    write_report_line(report_file_handlers, mod, report_type="generic",
-                                      message="Warning: PMID %s does not have PubMed xml, from Mod %s primary_id "
-                                              "%s\n" % (pmid, mod, orig_primary_id), report_file_path=report_file_path)
+            pubmed_data, is_pubmod, pmid = load_pubmed_data_if_present(primary_id, report_file_handlers, mod,
+                                                                       orig_primary_id, report_file_path)
 
             if is_pubmod:
                 # print("primaryKey %s is None" % (primary_id))
