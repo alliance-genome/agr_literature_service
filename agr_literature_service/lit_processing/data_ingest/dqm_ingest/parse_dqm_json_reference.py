@@ -476,7 +476,8 @@ def validate_xref_pages(cross_reference, prefix, cross_ref_no_pages_ok_fields, m
 
 def process_xrefs_and_find_pmid_if_necessary(reference, mod, report_file_handlers, original_primary_id,
                                              cross_ref_no_pages_ok_fields, expected_cross_reference_type,
-                                             exclude_cross_reference_type, cross_reference_types, report_file_path):
+                                             exclude_cross_reference_type, cross_reference_types, report_file_path,
+                                             cross_refs_in_mod):
     # need to process crossReferences once to reassign primaryId if PMID and filter out
     # unexpected crossReferences,
     # then again later to clean up crossReferences that get data from pubmed xml (once the PMID is known)
@@ -490,6 +491,7 @@ def process_xrefs_and_find_pmid_if_necessary(reference, mod, report_file_handler
     else:
         expected_cross_references = []
         dqm_xrefs = defaultdict(set)
+        cross_refs_in_mod[primary_id] = reference['crossReferences']
         for cross_reference in reference['crossReferences']:
             prefix, identifier, separator = split_identifier(cross_reference["id"])
             needs_pmid_extraction = validate_xref_pages(cross_reference=cross_reference, prefix=prefix, mod=mod,
@@ -614,6 +616,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
         entries = dqm_data['data']
         sanitized_pubmod_data = []
         sanitized_pubmed_single_mod_data = []
+        cross_refs_in_mod = {}
         for entry in entries:
             is_pubmod = True
             pmid = None
@@ -642,7 +645,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
                 expected_cross_reference_type=expected_cross_reference_type,
                 exclude_cross_reference_type=exclude_cross_reference_type,
                 cross_reference_types=cross_reference_types,
-                report_file_path=report_file_path)
+                report_file_path=report_file_path,
+                cross_refs_in_mod=cross_refs_in_mod)
             if not primary_id:
                 continue
 
@@ -693,6 +697,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
                         # cross references came from the mod, but some had a pmid (e.g. 24270275) that is no longer at PubMed, so do not add to cross_references
                         if prefix.lower() != 'pmid':
                             sanitized_cross_references.append(cross_reference)
+                        for x in cross_refs_in_mod.get(primary_id, []):
+                            if x not in sanitized_cross_references:
+                                sanitized_cross_references.append(x)
                     entry['crossReferences'] = sanitized_cross_references
                 if 'keywords' in entry:
                     entry = clean_up_keywords(mod, entry)
@@ -804,6 +811,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
                                     report_file_path=report_file_path)
                         else:
                             sanitized_cross_references.append(cross_reference)
+                for x in cross_refs_in_mod.get(primary_id, []):
+                    if x not in sanitized_cross_references:
+                        sanitized_cross_references.append(x)
                 entry['crossReferences'] = sanitized_cross_references
 
                 if 'nlm' in pubmed_data:
