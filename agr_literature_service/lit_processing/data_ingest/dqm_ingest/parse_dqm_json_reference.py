@@ -632,7 +632,7 @@ SINGLE_VALUE_FIELDS = ['volume', 'title', 'pages', 'issueName', 'datePublished',
 
 def process_pubmed_data(entry, mod, pmid, pmid_fields, pubmed_data, date_fields,
                         compare_if_dqm_empty, report_file_handlers, report_file_path, primary_id,
-                        resource_nlm_to_title, resource_to_nlm):
+                        resource_nlm_to_title, resource_to_nlm):  # noqa: C901
     for pmid_field in pmid_fields:
         if pmid_field in SINGLE_VALUE_FIELDS:
             pmid_data = ''
