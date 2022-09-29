@@ -622,12 +622,19 @@ def process_pubmod_authors_xrefs_keywords(entry, update_primary_id, primary_id, 
         clean_up_keywords(mod, entry)
 
 
-def process_pubmed_data(entry, mod, pmid, pmid_fields, single_value_fields, pubmed_data, date_fields,
-                        compare_if_dqm_empty, report_file_handlers, report_file_path, replace_value_fields, primary_id,
+REPLACE_VALUE_FIELDS = ['authors', 'pubMedType', 'meshTerms', 'commentsCorrections']
+
+SINGLE_VALUE_FIELDS = ['volume', 'title', 'pages', 'issueName', 'datePublished',
+                       'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher',
+                       'plainLanguageAbstract', 'pubmedAbstractLanguages',
+                       'publicationStatus', 'allianceCategory', 'journal']
+
+
+def process_pubmed_data(entry, mod, pmid, pmid_fields, pubmed_data, date_fields,
+                        compare_if_dqm_empty, report_file_handlers, report_file_path, primary_id,
                         resource_nlm_to_title, resource_to_nlm):
-    cross_refs_in_mod = entry['crossReferences'][:] if 'crossReferences' in entry else []
     for pmid_field in pmid_fields:
-        if pmid_field in single_value_fields:
+        if pmid_field in SINGLE_VALUE_FIELDS:
             pmid_data = ''
             dqm_data = ''
             if pmid_field in pubmed_data:
@@ -652,7 +659,7 @@ def process_pubmed_data(entry, mod, pmid, pmid_fields, single_value_fields, pubm
             if pmid_field == 'datePublished':
                 if (pmid_data == '') and (dqm_data != ''):
                     entry[pmid_field] = dqm_data
-        elif pmid_field in replace_value_fields:
+        elif pmid_field in REPLACE_VALUE_FIELDS:
             entry[pmid_field] = []
             if pmid_field in pubmed_data:
                 # logger.info("PMID %s pmid_field %s data %s", pmid, pmid_field, pubmed_data[pmid_field])
@@ -663,31 +670,25 @@ def process_pubmed_data(entry, mod, pmid, pmid_fields, single_value_fields, pubm
             author['correspondingAuthor'] = False
             author['firstAuthor'] = False
 
-    sanitized_cross_references = []
-    pubmed_xrefs = dict()
+    prefix_xrefs_dict = {}
     if 'crossReferences' in pubmed_data:
-        sanitized_cross_references = pubmed_data['crossReferences']
-        for cross_reference in pubmed_data['crossReferences']:
-            id = cross_reference['id']
-            prefix, identifier, separator = split_identifier(id)
-            pubmed_xrefs[prefix] = identifier
+        for xref in pubmed_data['crossReferences']:
+            prefix, identifier, _ = split_identifier(xref["id"])
+            prefix_xrefs_dict[prefix] = (xref, identifier)
     if 'crossReferences' in entry:
         for cross_reference in entry['crossReferences']:
-            id = cross_reference['id']
-            prefix, identifier, separator = split_identifier(id)
-            if prefix in pubmed_xrefs:
-                if pubmed_xrefs[prefix].lower() != identifier.lower():
+            prefix, identifier, separator = split_identifier(cross_reference['id'])
+            if prefix not in prefix_xrefs_dict:
+                prefix_xrefs_dict[prefix] = cross_reference, identifier
+            else:
+                if prefix_xrefs_dict[prefix][1].lower() != identifier.lower():
                     write_report_line(
                         report_file_handlers, mod, "generic",
                         message="primaryId %s has xref %s PubMed has %s%s%s\n" % (
-                            primary_id, id, prefix, separator, pubmed_xrefs[prefix]),
+                            primary_id, cross_reference['id'], prefix, separator, prefix_xrefs_dict[prefix][1]),
                         report_file_path=report_file_path)
-            else:
-                sanitized_cross_references.append(cross_reference)
-    for x in cross_refs_in_mod:
-        if x not in sanitized_cross_references:
-            sanitized_cross_references.append(x)
-    entry['crossReferences'] = sanitized_cross_references
+
+    entry['crossReferences'] = [cross_reference[0] for cross_reference in prefix_xrefs_dict.values()]
 
     if 'nlm' in pubmed_data:
         nlm = pubmed_data['nlm']
@@ -714,49 +715,12 @@ def process_pubmed_data(entry, mod, pmid, pmid_fields, single_value_fields, pubm
     else:
         # e.g. 9882485 25544291 24201188 31188077
         clean_up_keywords(mod, entry)
-        # remove this after checking it works well
-        # if mod == 'ZFIN':
-        #     if 'keywords' in entry:
-        #         if entry['keywords'][0] == '':
-        #             entry['keywords'] = []
-        #         else:
-        #             zfin_value = entry['keywords'][0]
-        #             zfin_value = str(bs4.BeautifulSoup(zfin_value, "html.parser"))
-        #             comma_count = 0
-        #             semicolon_count = 0
-        #             if ", " in zfin_value:
-        #                 comma_count = zfin_value.count(',')
-        #             if "; " in zfin_value:
-        #                 semicolon_count = zfin_value.count(';')
-        #             if (comma_count == 0) and (semicolon_count == 0):
-        #                 entry['keywords'] = [zfin_value]
-        #             elif comma_count >= semicolon_count:
-        #                 entry['keywords'] = zfin_value.split(", ")
-        #             else:
-        #                 entry['keywords'] = zfin_value.split("; ")
-        # else:
-        #     keywords = []
-        #     for mod_keyword in entry['keywords']:
-        #         mod_keyword = str(bs4.BeautifulSoup(mod_keyword, "html.parser"))
-        #         keywords.append(mod_keyword)
-        #     entry['keywords'] = keywords
-
     if 'keywords' in pubmed_data:
         # aggregate for all MODs except ZFIN, which has misformed data and can't fix it.
         # 19308247 aggregates keywords for WB
         for mod_keyword in pubmed_data['keywords']:
             if mod_keyword.upper() not in map(str.upper, entry['keywords']):
                 entry['keywords'].append(mod_keyword)
-
-
-# # datePublished, keywords, and crossReferences, MODReferenceTypes, tags, allianceCategory, resourceAbbreviation
-# # datePublished - pubmed value, if no value use mod's, if multiple mod's different, error
-# # resourceAbbreviation - if pmid always use NLM's name
-# # keywords - aggregate
-# # tags - aggregate
-# # MODReferenceTypes - aggregate
-# # crossReferences - aggregate and clean up pages
-# # allianceCategory - single value, error if there's more than 1 unique value because of different MODs
 
 
 def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=base_path):  # noqa: C901
@@ -771,12 +735,6 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
                    'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher',
                    'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReferences',
                    'publicationStatus', 'commentsCorrections', 'allianceCategory', 'journal']
-    # single_value_fields = ['volume', 'title', 'pages', 'issueName', 'issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher']
-    single_value_fields = ['volume', 'title', 'pages', 'issueName', 'datePublished',
-                           'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher',
-                           'plainLanguageAbstract', 'pubmedAbstractLanguages',
-                           'publicationStatus', 'allianceCategory', 'journal']
-    replace_value_fields = ['authors', 'pubMedType', 'meshTerms', 'crossReferences', 'commentsCorrections']
     # date_fields = ['issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified']
     # datePublished is a string, not a proper date field
     date_fields = ['dateArrivedInPubmed', 'dateLastModified']
@@ -846,7 +804,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
             for entry_property in entry:
                 if entry_property not in schema_data['properties']:
                     unexpected_mod_properties.add(entry_property)
-                if entry_property in single_value_fields:
+                if entry_property in SINGLE_VALUE_FIELDS:
                     if entry[entry_property] == "":
                         blank_fields.add(entry_property)
             for entry_field in blank_fields:
@@ -879,8 +837,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
                                                     report_file_handlers, resource_not_found, report_file_path)
             else:
                 # processing pubmed data
-                process_pubmed_data(entry, mod, pmid, pmid_fields, single_value_fields, pubmed_data, date_fields,
-                                    compare_if_dqm_empty, report_file_handlers, report_file_path, replace_value_fields,
+                process_pubmed_data(entry, mod, pmid, pmid_fields, pubmed_data, date_fields,
+                                    compare_if_dqm_empty, report_file_handlers, report_file_path,
                                     primary_id, resource_nlm_to_title, resource_to_nlm)
 
             if is_pubmod:
