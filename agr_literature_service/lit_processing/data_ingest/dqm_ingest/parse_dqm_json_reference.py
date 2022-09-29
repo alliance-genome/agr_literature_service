@@ -23,6 +23,34 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
 
+
+class ReportWriter:
+    def __init__(self, mod_reports_dir, multimod_reports_file_path):
+        self.mod_reports_dir = mod_reports_dir
+        self.multimod_reports_file_path = multimod_reports_file_path
+        self.report_file_handlers = defaultdict(dict)
+        if not path.exists(mod_reports_dir):
+            makedirs(mod_reports_dir)
+
+    def get_report_file_name(self, mod, report_type):
+        if report_type == "multi":
+            return self.multimod_reports_file_path
+        else:
+            return self.mod_reports_dir + mod + "_" + REPORT_TYPE_FILE_NAME_POSTFIX[report_type]
+
+    def write(self, mod: str, report_type: str, message: str):
+        try:
+            self.report_file_handlers[report_type][mod].write(message)
+        except KeyError:
+            self.report_file_handlers[report_type][mod] = open(
+                self.get_report_file_name(mod=mod, report_type=report_type), "w")
+            self.report_file_handlers[report_type][mod].write(message)
+
+    def close(self):
+        for mod_handlers_dict in self.report_file_handlers.values():
+            for file_handler in mod_handlers_dict.values():
+                file_handler.close()
+
 # TODO  -p  should also be able to take directory so that dqm updates can run on dqm_data_updates_new/
 
 # pipenv run python parse_dqm_json_reference.py -f dqm_data/ -p  takes about 90 seconds to run
@@ -216,17 +244,16 @@ def simplify_text(text):
     return clean
 
 
-def compare_dqm_pubmed(report_file_handlers, mod, report_file_path, report_type, pmid, field, dqm_data, pubmed_data):
+def compare_dqm_pubmed(mod, report_type, pmid, field, dqm_data, pubmed_data, report_writer: ReportWriter):
 
     # to_return = ''
     # logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_data, pubmed_data)
     dqm_clean = simplify_text(dqm_data)
     pubmed_clean = simplify_text(pubmed_data)
     if dqm_clean != pubmed_clean:
-        write_report_line(
-            report_file_handlers, mod, report_type,
-            message="dqm and pubmed differ\t%s\t%s\t%s\t%s\n" % (field, pmid, dqm_data, pubmed_data),
-            report_file_path=report_file_path)
+        report_writer.write(
+            mod=mod, report_type=report_type,
+            message="dqm and pubmed differ\t%s\t%s\t%s\t%s\n" % (field, pmid, dqm_data, pubmed_data))
         # logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_clean, pubmed_clean)
         # logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_data, pubmed_data)
     # else:
@@ -433,56 +460,30 @@ REPORT_TYPE_FILE_NAME_POSTFIX = {
 }
 
 
-def write_report_line(report_file_handlers: Dict[str, Dict[str, TextIO]], mod: str, report_type: str, message: str,
-                      report_file_path: str = None, output_directory: str = None):
-    # TODO: create a class ReportFileHandlers to store the streams and the vars report_file_path and output_directory
-    try:
-        report_file_handlers[report_type][mod].write(message)
-    except KeyError:
-        report_file_handlers[report_type][mod] = open(get_report_file_name(report_file_path=report_file_path, mod=mod,
-                                                                           report_type=report_type,
-                                                                           output_directory=output_directory), "w")
-        report_file_handlers[report_type][mod].write(message)
-
-
-def get_report_file_name(report_file_path, mod, report_type, output_directory):
-    if report_type == "multi" and output_directory is not None:
-        return base_path + output_directory + 'report_files/multi_mod'
-    else:
-        return report_file_path + mod + "_" + REPORT_TYPE_FILE_NAME_POSTFIX[report_type]
-
-
-def close_report_file_handlers(report_file_handlers):
-    for mod_handlers_dict in report_file_handlers.values():
-        for file_handler in mod_handlers_dict.values():
-            file_handler.close()
-
-
 CROSS_REF_NO_PAGES_OK_FIELDS = ['DOI', 'PMID', 'PMC', 'PMCID', 'ISBN']
 
 
-def validate_xref_pages(cross_reference, prefix, mod, primary_id, report_file_handlers, report_file_path):
+def validate_xref_pages(cross_reference, prefix, mod, primary_id, report_writer: ReportWriter):
     if 'pages' in cross_reference:
         if len(cross_reference["pages"]) > 1:
-            write_report_line(report_file_handlers, mod, report_type="generic",
-                              message="mod %s primaryId %s has cross reference identifier %s with multiple web "
-                                      "pages %s\n" % (mod, primary_id, cross_reference["id"], cross_reference["pages"]),
-                              report_file_path=report_file_path)
+            report_writer.write(mod=mod, report_type="generic",
+                                message="mod %s primaryId %s has cross reference identifier %s with "
+                                                    "multiple web pages %s\n" % (mod, primary_id, cross_reference["id"],
+                                                                                 cross_reference["pages"]))
         else:
             return True
     else:
         if prefix not in CROSS_REF_NO_PAGES_OK_FIELDS:
-            write_report_line(report_file_handlers, mod, report_type="generic",
-                              message="mod %s primaryId %s has cross reference identifier %s without web pages\n" % (
-                                  mod, primary_id, cross_reference["id"]),
-                              report_file_path=report_file_path)
+            report_writer.write(mod=mod, report_type="generic",
+                                message="mod %s primaryId %s has cross reference identifier %s without "
+                                                    "web pages\n" % (mod, primary_id, cross_reference["id"]))
     return False
 
 
-def process_xrefs_and_find_pmid_if_necessary(reference, mod, report_file_handlers, original_primary_id,
+def process_xrefs_and_find_pmid_if_necessary(reference, mod, report_writer: ReportWriter, original_primary_id,
                                              expected_cross_reference_type,
                                              exclude_cross_reference_type,
-                                             cross_reference_types: Dict[str, Dict[str, list]], report_file_path):
+                                             cross_reference_types: Dict[str, Dict[str, list]]):
     # need to process crossReferences once to reassign primaryId if PMID and filter out
     # unexpected crossReferences,
     # then again later to clean up crossReferences that get data from pubmed xml (once the PMID is known)
@@ -490,18 +491,15 @@ def process_xrefs_and_find_pmid_if_necessary(reference, mod, report_file_handler
     update_primary_id = False
     too_many_xref_per_type_failure = False
     if 'crossReferences' not in reference:
-        write_report_line(report_file_handlers, mod, report_type="generic",
-                          message="mod %s primaryId %s has no cross references\n" % (mod, primary_id),
-                          report_file_path=report_file_path)
+        report_writer.write(mod=mod, report_type="generic",
+                            message="mod %s primaryId %s has no cross references\n" % (mod, primary_id))
     else:
         expected_cross_references = []
         dqm_xrefs = defaultdict(set)
         for cross_reference in reference['crossReferences']:
             prefix, identifier, separator = split_identifier(cross_reference["id"])
             needs_pmid_extraction = validate_xref_pages(cross_reference=cross_reference, prefix=prefix, mod=mod,
-                                                        primary_id=primary_id,
-                                                        report_file_handlers=report_file_handlers,
-                                                        report_file_path=report_file_path)
+                                                        primary_id=primary_id, report_writer=report_writer)
             if needs_pmid_extraction:
                 if not re.match(r"^PMID:[0-9]+", original_primary_id) and cross_reference["pages"][0] == 'PubMed' \
                         and re.match(r"^PMID:[0-9]+", cross_reference["id"]):
@@ -520,10 +518,9 @@ def process_xrefs_and_find_pmid_if_necessary(reference, mod, report_file_handler
         for prefix, identifiers in dqm_xrefs.items():
             if len(identifiers) > 1:
                 too_many_xref_per_type_failure = True
-                write_report_line(report_file_handlers, mod, report_type="generic",
-                                  message="mod %s primaryId %s has too many identifiers for %s %s\n" % (
-                                      mod, primary_id, prefix, ', '.join(sorted(dqm_xrefs[prefix]))),
-                                  report_file_path=report_file_path)
+                report_writer.write(mod=mod, report_type="generic",
+                                    message="mod %s primaryId %s has too many identifiers for %s %s\n" % (
+                                        mod, primary_id, prefix, ', '.join(sorted(dqm_xrefs[prefix]))))
 
     if too_many_xref_per_type_failure:
         return None, None
@@ -539,7 +536,7 @@ def get_schema_data_from_alliance():
     return schema_data
 
 
-def load_pubmed_data_if_present(primary_id, report_file_handlers, mod, original_primary_id, report_file_path):
+def load_pubmed_data_if_present(primary_id, mod, original_primary_id, report_writer: ReportWriter):
     pmid_group = re.search(r"^PMID:([0-9]+)", primary_id)
     pmid = None
     is_pubmod = True
@@ -552,15 +549,15 @@ def load_pubmed_data_if_present(primary_id, report_file_handlers, mod, original_
                 pubmed_data = json.load(f)
                 is_pubmod = False
         except IOError:
-            write_report_line(report_file_handlers, mod, report_type="generic",
-                              message="Warning: PMID %s does not have PubMed xml, from Mod %s primary_id "
-                                      "%s\n" % (pmid, mod, original_primary_id), report_file_path=report_file_path)
+            report_writer.write(mod=mod, report_type="generic",
+                                message="Warning: PMID %s does not have PubMed xml, from Mod %s primary_id "
+                                            "%s\n" % (pmid, mod, original_primary_id))
     return pubmed_data, is_pubmod, pmid
 
 
 def set_resource_info_from_abbreviation(entry, mod, primary_id, resource_to_mod_issn_nlm, resource_to_nlm,
-                                        resource_to_nlm_highest, resource_to_mod, report_file_handlers,
-                                        resource_not_found, report_file_path):
+                                        resource_to_nlm_highest, resource_to_mod, resource_not_found,
+                                        report_writer: ReportWriter):
     if 'resourceAbbreviation' in entry:
         journal_simplified = simplify_text_keep_digits(entry['resourceAbbreviation'])
         if journal_simplified:
@@ -575,35 +572,30 @@ def set_resource_info_from_abbreviation(entry, mod, primary_id, resource_to_mod_
                 entry['nlm'] = resource_to_nlm[journal_simplified]
                 entry['resource'] = 'NLM:' + resource_to_nlm_highest[journal_simplified]
                 if len(resource_to_nlm[journal_simplified]) > 1:  # e.g. ZFIN:ZDB-PUB-020604-2  FB:FBrf0009739  WB:WBPaper00000557
-                    write_report_line(
-                        report_file_handlers, mod, "generic",
+                    report_writer.write(
+                        mod=mod, report_type="generic",
                         message="primaryId %s has resourceAbbreviation %s mapping to multiple NLMs %s.\n" % (
-                            primary_id, entry['resourceAbbreviation'], ", ".join(resource_to_nlm[journal_simplified])),
-                        report_file_path=report_file_path)
+                            primary_id, entry['resourceAbbreviation'], ", ".join(resource_to_nlm[journal_simplified])))
             # next highest priority to resource names that are in the dqm resource submission
             elif journal_simplified in resource_to_mod[mod]:
                 entry['modResources'] = resource_to_mod[mod][journal_simplified]
                 if len(resource_to_mod[mod][journal_simplified]) > 1:
-                    write_report_line(
-                        report_file_handlers, mod, "generic",
+                    report_writer.write(
+                        mod=mod, report_type="generic",
                         message="primaryId %s has resourceAbbreviation %s mapping to multiple MOD "
                                 "resources %s.\n" % (primary_id, entry['resourceAbbreviation'],
-                                                     ", ".join(resource_to_mod[mod][journal_simplified])),
-                        report_file_path=report_file_path)
+                                                     ", ".join(resource_to_mod[mod][journal_simplified])))
                 else:
                     entry['resource'] = resource_to_mod[mod][journal_simplified][0]
             else:
-                write_report_line(
-                    report_file_handlers, mod, "resource_unmatched",
+                report_writer.write(
+                    mod=mod, report_type="resource_unmatched",
                     message="primaryId %s has resourceAbbreviation %s not in NLM nor DQM resource "
-                            "file.\n" % (primary_id, entry['resourceAbbreviation']),
-                    report_file_path=report_file_path)
+                            "file.\n" % (primary_id, entry['resourceAbbreviation']))
                 resource_not_found[mod][entry['resourceAbbreviation']] += 1
     else:
-        write_report_line(
-            report_file_handlers, mod, "reference_no_resource",
-            message="primaryId %s does not have a resourceAbbreviation.\n" % (primary_id),
-            report_file_path=report_file_path)
+        report_writer.write(mod=mod, report_type="reference_no_resource",
+                            message="primaryId %s does not have a resourceAbbreviation.\n" % primary_id)
 
 
 def process_pubmod_authors_xrefs_keywords(entry, update_primary_id, primary_id, mod):
@@ -635,8 +627,8 @@ SINGLE_VALUE_FIELDS = ['volume', 'title', 'pages', 'issueName', 'datePublished',
 DATE_FIELDS = ['dateArrivedInPubmed', 'dateLastModified']
 
 
-def process_pubmed_data(entry, mod, pmid, pmid_fields, pubmed_data, compare_if_dqm_empty, report_file_handlers,
-                        report_file_path, primary_id, resource_nlm_to_title, resource_to_nlm):
+def process_pubmed_data(entry, mod, pmid, pmid_fields, pubmed_data, compare_if_dqm_empty,
+                        primary_id, resource_nlm_to_title, resource_to_nlm, report_writer: ReportWriter):
     for pmid_field in pmid_fields:
         if pmid_field in SINGLE_VALUE_FIELDS:
             pmid_data = ''
@@ -653,11 +645,10 @@ def process_pubmed_data(entry, mod, pmid, pmid_fields, pubmed_data, compare_if_d
             # UNCOMMENT to output log of data comparison between dqm and pubmed
             if (dqm_data != '') or (compare_if_dqm_empty):
                 if pmid_field == 'title':
-                    compare_dqm_pubmed(report_file_handlers, mod, report_file_path, "title", pmid,
-                                       pmid_field, dqm_data, pmid_data)
+                    compare_dqm_pubmed(mod, "title", pmid, pmid_field, dqm_data, pmid_data, report_writer=report_writer)
                 else:
-                    compare_dqm_pubmed(report_file_handlers, mod, report_file_path, "differ", pmid,
-                                       pmid_field, dqm_data, pmid_data)
+                    compare_dqm_pubmed(mod, "differ", pmid, pmid_field, dqm_data, pmid_data,
+                                       report_writer=report_writer)
             if pmid_data != '':
                 entry[pmid_field] = pmid_data
             if pmid_field == 'datePublished':
@@ -686,11 +677,10 @@ def process_pubmed_data(entry, mod, pmid, pmid_fields, pubmed_data, compare_if_d
                 prefix_xrefs_dict[prefix] = cross_reference, identifier
             else:
                 if prefix_xrefs_dict[prefix][1].lower() != identifier.lower():
-                    write_report_line(
-                        report_file_handlers, mod, "generic",
+                    report_writer.write(
+                        mod=mod, report_type="generic",
                         message="primaryId %s has xref %s PubMed has %s%s%s\n" % (
-                            primary_id, cross_reference['id'], prefix, separator, prefix_xrefs_dict[prefix][1]),
-                        report_file_path=report_file_path)
+                            primary_id, cross_reference['id'], prefix, separator, prefix_xrefs_dict[prefix][1]))
 
     entry['crossReferences'] = [cross_reference[0] for cross_reference in prefix_xrefs_dict.values()]
 
@@ -703,16 +693,14 @@ def process_pubmed_data(entry, mod, pmid, pmid_fields, pubmed_data, compare_if_d
             entry['resourceAbbreviation'] = resource_nlm_to_title[nlm]
         nlm_simplified = simplify_text_keep_digits(pubmed_data['nlm'])
         if nlm_simplified not in resource_to_nlm:
-            write_report_line(
-                report_file_handlers, mod, "generic",
+            report_writer.write(
+                mod=mod, report_type="generic",
                 message="NLM value %s from PMID %s XML does not map to a proper resource.\n" % (
-                    pubmed_data['nlm'], pmid), report_file_path=report_file_path)
+                    pubmed_data['nlm'], pmid))
     else:
         if 'is_journal' in pubmed_data:
-            write_report_line(
-                report_file_handlers, mod, "generic",
-                message="PMID %s does not have an NLM resource.\n" % pmid,
-                report_file_path=report_file_path)
+            report_writer.write(mod=mod, report_type="generic",
+                                message="PMID %s does not have an NLM resource.\n" % pmid)
 
     if 'keywords' not in entry:
         entry['keywords'] = []
@@ -728,8 +716,7 @@ def process_pubmed_data(entry, mod, pmid, pmid_fields, pubmed_data, compare_if_d
 
 
 def find_resource_abbreviation_not_matched_to_nlm_or_res_mod(resource_not_found: Dict[str, Dict[str, int]],
-                                                             report_file_handlers, report_file_path,
-                                                             base_dir=base_path):
+                                                             report_writer: ReportWriter, base_dir=base_path):
     # output resourceAbbreviations not matched to NLMs or resource MOD IDs to a file for attempt to
     # download from other source
     # with get_pubmed_nlm_resource_unmatched.py
@@ -744,29 +731,26 @@ def find_resource_abbreviation_not_matched_to_nlm_or_res_mod(resource_not_found:
                 if res_abbr not in already_reported_res_abbrs:
                     resource_abbreviation_not_found_fh.write(res_abbr + "\n")
                     already_reported_res_abbrs.add(res_abbr)
-                write_report_line(
-                    report_file_handlers, mod, report_type="generic",
-                    message="Summary: resourceAbbreviation %s not found %s times.\n" % (res_abbr, count),
-                    report_file_path=report_file_path)
+                report_writer.write(
+                    mod=mod, report_type="generic",
+                    message="Summary: resourceAbbreviation %s not found %s times.\n" % (res_abbr, count))
 
 
-def report_unexpected_cross_references(report_file_handlers, cross_reference_types: Dict[str, Dict[str, list]],
-                                       report_file_path, exclude_cross_reference_type):
+def report_unexpected_cross_references(cross_reference_types: Dict[str, Dict[str, list]],
+                                       exclude_cross_reference_type, report_writer: ReportWriter):
     for mod, xref_type_xrefs_dict in cross_reference_types.items():
         for xref_type, xref_messages in xref_type_xrefs_dict.items():
             if xref_type.lower() in exclude_cross_reference_type:
                 logger.info("unexpected crossReferences mod %s type: %s", mod, xref_type)
-                write_report_line(
-                    report_file_handlers, mod, report_type="generic",
-                    message="Warning: unexpected crossReferences type: %s\n" % xref_type,
-                    report_file_path=report_file_path)
+                report_writer.write(
+                    mod=mod, report_type="generic",
+                    message="Warning: unexpected crossReferences type: %s\n" % xref_type)
             else:
                 for xref_message in xref_messages:
                     logger.info("unexpected crossReferences mod %s type: %s values: %s", mod, xref_type, xref_message)
-                    write_report_line(
-                        report_file_handlers, mod, report_type="generic",
-                        message="Warning: unexpected crossReferences type: %s values: %s\n" % (xref_type, xref_message),
-                        report_file_path=report_file_path)
+                    report_writer.write(
+                        mod=mod, report_type="generic",
+                        message="Warning: unexpected crossReferences type: %s values: %s\n" % (xref_type, xref_message))
 
 
 def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=base_path):  # noqa: C901
@@ -811,11 +795,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
     if not path.exists(json_storage_path):
         makedirs(json_storage_path)
 
-    report_file_path = base_path + output_directory + 'report_files/'
-    if not path.exists(report_file_path):
-        makedirs(report_file_path)
+    report_writer = ReportWriter(mod_reports_dir=base_path + output_directory + 'report_files/',
+                                 multimod_reports_file_path=base_path + output_directory + 'report_files/multi_mod')
 
-    report_file_handlers = defaultdict(dict)
     resource_not_found = defaultdict(lambda: defaultdict(int))
     cross_reference_types = defaultdict(lambda: defaultdict(list))
 
@@ -858,28 +840,26 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
             primary_id, update_primary_id = process_xrefs_and_find_pmid_if_necessary(
                 reference=entry,
                 mod=mod,
-                report_file_handlers=report_file_handlers,
+                report_writer=report_writer,
                 original_primary_id=orig_primary_id,
                 expected_cross_reference_type=expected_cross_reference_type,
                 exclude_cross_reference_type=exclude_cross_reference_type,
-                cross_reference_types=cross_reference_types,
-                report_file_path=report_file_path)
+                cross_reference_types=cross_reference_types)
             if not primary_id:
                 continue
 
-            pubmed_data, is_pubmod, pmid = load_pubmed_data_if_present(primary_id, report_file_handlers, mod,
-                                                                       orig_primary_id, report_file_path)
+            pubmed_data, is_pubmod, pmid = load_pubmed_data_if_present(primary_id, mod, orig_primary_id,
+                                                                       report_writer=report_writer)
 
             if is_pubmod:
                 process_pubmod_authors_xrefs_keywords(entry, update_primary_id, primary_id, mod)
                 set_resource_info_from_abbreviation(entry, mod, primary_id, resource_to_mod_issn_nlm,
                                                     resource_to_nlm, resource_to_nlm_highest, resource_to_mod,
-                                                    report_file_handlers, resource_not_found, report_file_path)
+                                                    resource_not_found, report_writer=report_writer)
             else:
                 # processing pubmed data
                 process_pubmed_data(entry, mod, pmid, pmid_fields, pubmed_data, compare_if_dqm_empty,
-                                    report_file_handlers, report_file_path, primary_id, resource_nlm_to_title,
-                                    resource_to_nlm)
+                                    primary_id, resource_nlm_to_title, resource_to_nlm, report_writer=report_writer)
 
             if is_pubmod:
                 sanitized_pubmod_data.append(entry)
@@ -1001,18 +981,16 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
                     multiple_list.append(alliance_category + ': ' + mods)
                 multiple_alliance_categories = "\t".join(multiple_list)
                 # logger.info("MULTIPLE ALLIANCE CATEGORY pmid %s alliance categories %s", pmid, multiple_alliance_categories)
-                write_report_line(
-                    report_file_handlers, "multi", report_type="",
+                report_writer.write(
+                    mod="multi", report_type="",
                     message="Multiple allianceCategory pmid %s alliance categories %s\n" % (
-                        pmid, multiple_alliance_categories),
-                    output_directory=output_directory)
+                        pmid, multiple_alliance_categories))
         if len(date_published_set) > 1:
             dates_published = "\t".join(date_published_set)
             # logger.info("MULTIPLE DATES PUBLISHED pmid %s dates published %s", pmid, dates_published)
-            write_report_line(
-                report_file_handlers, "multi", report_type="",
-                message="Multiple datePublished pmid %s dates published %s\n" % (pmid, dates_published),
-                output_directory=output_directory)
+            report_writer.write(
+                mod="multi", report_type="",
+                message="Multiple datePublished pmid %s dates published %s\n" % (pmid, dates_published))
 
         sanitized_pubmed_multi_mod_data.append(sanitized_entry)
 
@@ -1025,11 +1003,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
         json_filename = json_storage_path + 'REFERENCE_PUBMED_MULTI_' + str(i + 1) + '.json'
         write_json(json_filename, dict_to_output)
 
-    report_unexpected_cross_references(report_file_handlers, cross_reference_types, report_file_path,
-                                       exclude_cross_reference_type)
-    find_resource_abbreviation_not_matched_to_nlm_or_res_mod(resource_not_found, report_file_handlers,
-                                                             report_file_path, base_dir)
-    close_report_file_handlers(report_file_handlers)
+    report_unexpected_cross_references(cross_reference_types, exclude_cross_reference_type, report_writer=report_writer)
+    find_resource_abbreviation_not_matched_to_nlm_or_res_mod(resource_not_found, report_writer=report_writer,
+                                                             base_dir=base_dir)
+    report_writer.close()
 
 # check merging with these pmids and mod with data in dqm_merge/ manually generated files, based on pmids_by_mods
 # 27639630        3       SGD, WB, ZFIN
