@@ -71,7 +71,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 }
             }
         },
-        "from": 100,
+        "from": from_entry,
         "size": size_result_count,
         "track_total_hits": True
     }
