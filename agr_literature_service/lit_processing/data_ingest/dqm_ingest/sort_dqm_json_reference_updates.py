@@ -26,9 +26,11 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_upda
     update_resource_pubmed_nlm
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.get_dqm_data import \
     download_dqm_json
-from agr_literature_service.lit_processing.data_ingest.utils.db_utils import \
-    get_references_by_curies, get_curie_to_title_mapping, add_cross_references, \
-    update_authors, update_mod_corpus_associations, update_mod_reference_types
+from agr_literature_service.lit_processing.utils.db_read_utils import \
+    get_references_by_curies, get_curie_to_title_mapping
+from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
+    add_cross_references, update_authors, update_mod_corpus_associations, \
+    update_mod_reference_types
 from agr_literature_service.api.user import set_global_user_id
 
 # For WB needing 57578 references checked for updating,

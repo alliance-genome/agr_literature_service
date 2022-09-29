@@ -16,7 +16,7 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import generate_json
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import load_s3_md5data
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3
-from agr_literature_service.lit_processing.data_ingest.utils.db_utils import get_reference_id_by_pmid,\
+from agr_literature_service.lit_processing.utils.db_read_utils import get_reference_id_by_pmid,\
     get_orcid_data, get_author_data, get_mesh_term_data, get_cross_reference_data, \
     get_cross_reference_data_for_resource, get_comment_correction_data, get_journal_data, \
     get_reference_ids_by_pmids, get_pmid_to_reference_id_for_papers_not_associated_with_mod, \

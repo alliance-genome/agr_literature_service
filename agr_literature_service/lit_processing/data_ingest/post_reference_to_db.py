@@ -7,7 +7,7 @@ from agr_literature_service.api.models import CrossReferenceModel, ReferenceMode
     AuthorModel, ModCorpusAssociationModel, ModReferenceTypeModel, ModModel,\
     ReferenceCommentAndCorrectionModel, MeshDetailModel
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
-from agr_literature_service.lit_processing.data_ingest.utils.db_utils import get_orcid_data,\
+from agr_literature_service.lit_processing.utils.db_read_utils import get_orcid_data,\
     get_journal_data, get_doi_data, get_reference_by_pmid
 from agr_literature_service.api.crud.reference_crud import get_citation_from_args, get_next_curie
 
