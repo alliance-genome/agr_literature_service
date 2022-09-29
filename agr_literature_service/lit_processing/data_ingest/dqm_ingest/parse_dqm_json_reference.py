@@ -435,6 +435,7 @@ REPORT_TYPE_FILE_NAME_POSTFIX = {
 
 def write_report_line(report_file_handlers: Dict[str, Dict[str, TextIO]], mod: str, report_type: str, message: str,
                       report_file_path: str = None, output_directory: str = None):
+    # TODO: create a class ReportFileHandlers to store the streams and the vars report_file_path and output_directory
     try:
         report_file_handlers[report_type][mod].write(message)
     except KeyError:
@@ -457,8 +458,10 @@ def close_report_file_handlers(report_file_handlers):
             file_handler.close()
 
 
-def validate_xref_pages(cross_reference, prefix, cross_ref_no_pages_ok_fields, mod, primary_id, report_file_handlers,
-                        report_file_path):
+CROSS_REF_NO_PAGES_OK_FIELDS = ['DOI', 'PMID', 'PMC', 'PMCID', 'ISBN']
+
+
+def validate_xref_pages(cross_reference, prefix, mod, primary_id, report_file_handlers, report_file_path):
     if 'pages' in cross_reference:
         if len(cross_reference["pages"]) > 1:
             write_report_line(report_file_handlers, mod, report_type="generic",
@@ -468,7 +471,7 @@ def validate_xref_pages(cross_reference, prefix, cross_ref_no_pages_ok_fields, m
         else:
             return True
     else:
-        if prefix not in cross_ref_no_pages_ok_fields:
+        if prefix not in CROSS_REF_NO_PAGES_OK_FIELDS:
             write_report_line(report_file_handlers, mod, report_type="generic",
                               message="mod %s primaryId %s has cross reference identifier %s without web pages\n" % (
                                   mod, primary_id, cross_reference["id"]),
@@ -477,8 +480,9 @@ def validate_xref_pages(cross_reference, prefix, cross_ref_no_pages_ok_fields, m
 
 
 def process_xrefs_and_find_pmid_if_necessary(reference, mod, report_file_handlers, original_primary_id,
-                                             cross_ref_no_pages_ok_fields, expected_cross_reference_type,
-                                             exclude_cross_reference_type, cross_reference_types, report_file_path):
+                                             expected_cross_reference_type,
+                                             exclude_cross_reference_type,
+                                             cross_reference_types: Dict[str, Dict[str, list]], report_file_path):
     # need to process crossReferences once to reassign primaryId if PMID and filter out
     # unexpected crossReferences,
     # then again later to clean up crossReferences that get data from pubmed xml (once the PMID is known)
@@ -495,7 +499,6 @@ def process_xrefs_and_find_pmid_if_necessary(reference, mod, report_file_handler
         for cross_reference in reference['crossReferences']:
             prefix, identifier, separator = split_identifier(cross_reference["id"])
             needs_pmid_extraction = validate_xref_pages(cross_reference=cross_reference, prefix=prefix, mod=mod,
-                                                        cross_ref_no_pages_ok_fields=cross_ref_no_pages_ok_fields,
                                                         primary_id=primary_id,
                                                         report_file_handlers=report_file_handlers,
                                                         report_file_path=report_file_path)
@@ -629,16 +632,17 @@ SINGLE_VALUE_FIELDS = ['volume', 'title', 'pages', 'issueName', 'datePublished',
                        'plainLanguageAbstract', 'pubmedAbstractLanguages',
                        'publicationStatus', 'allianceCategory', 'journal']
 
+DATE_FIELDS = ['dateArrivedInPubmed', 'dateLastModified']
 
-def process_pubmed_data(entry, mod, pmid, pmid_fields, pubmed_data, date_fields,
-                        compare_if_dqm_empty, report_file_handlers, report_file_path, primary_id,
-                        resource_nlm_to_title, resource_to_nlm):
+
+def process_pubmed_data(entry, mod, pmid, pmid_fields, pubmed_data, compare_if_dqm_empty, report_file_handlers,
+                        report_file_path, primary_id, resource_nlm_to_title, resource_to_nlm):
     for pmid_field in pmid_fields:
         if pmid_field in SINGLE_VALUE_FIELDS:
             pmid_data = ''
             dqm_data = ''
             if pmid_field in pubmed_data:
-                if pmid_field in date_fields:
+                if pmid_field in DATE_FIELDS:
                     pmid_data = pubmed_data[pmid_field]['date_string']
                 else:
                     pmid_data = pubmed_data[pmid_field]
@@ -723,6 +727,48 @@ def process_pubmed_data(entry, mod, pmid, pmid_fields, pubmed_data, date_fields,
                 entry['keywords'].append(mod_keyword)
 
 
+def find_resource_abbreviation_not_matched_to_nlm_or_res_mod(resource_not_found: Dict[str, Dict[str, int]],
+                                                             report_file_handlers, report_file_path,
+                                                             base_dir=base_path):
+    # output resourceAbbreviations not matched to NLMs or resource MOD IDs to a file for attempt to
+    # download from other source
+    # with get_pubmed_nlm_resource_unmatched.py
+    resource_xml_path = base_dir + 'resource_xml/'
+    if not path.exists(resource_xml_path):
+        makedirs(resource_xml_path)
+    resource_abbreviation_not_found_filename = resource_xml_path + 'resource_abbreviation_not_matched'
+    already_reported_res_abbrs = set()
+    with open(resource_abbreviation_not_found_filename, "w") as resource_abbreviation_not_found_fh:
+        for mod, res_abbr_not_found_count in resource_not_found.items():
+            for res_abbr, count in res_abbr_not_found_count.items():
+                if res_abbr not in already_reported_res_abbrs:
+                    resource_abbreviation_not_found_fh.write(res_abbr + "\n")
+                    already_reported_res_abbrs.add(res_abbr)
+                write_report_line(
+                    report_file_handlers, mod, report_type="generic",
+                    message="Summary: resourceAbbreviation %s not found %s times.\n" % (res_abbr, count),
+                    report_file_path=report_file_path)
+
+
+def report_unexpected_cross_references(report_file_handlers, cross_reference_types: Dict[str, Dict[str, list]],
+                                       report_file_path, exclude_cross_reference_type):
+    for mod, xref_type_xrefs_dict in cross_reference_types.items():
+        for xref_type, xref_messages in xref_type_xrefs_dict.items():
+            if xref_type.lower() in exclude_cross_reference_type:
+                logger.info("unexpected crossReferences mod %s type: %s", mod, xref_type)
+                write_report_line(
+                    report_file_handlers, mod, report_type="generic",
+                    message="Warning: unexpected crossReferences type: %s\n" % xref_type,
+                    report_file_path=report_file_path)
+            else:
+                for xref_message in xref_messages:
+                    logger.info("unexpected crossReferences mod %s type: %s values: %s", mod, xref_type, xref_message)
+                    write_report_line(
+                        report_file_handlers, mod, report_type="generic",
+                        message="Warning: unexpected crossReferences type: %s values: %s\n" % (xref_type, xref_message),
+                        report_file_path=report_file_path)
+
+
 def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=base_path):  # noqa: C901
     # reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
     # outputs sanitized json to sanitized_reference_json/
@@ -730,20 +776,15 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
     # assigns PMID to primaryId and to authors's referenceId.
     # if any reference's author doesn't have author Rank, assign authorRank based on array order.
     logger.info("initializing data structures")
-    cross_ref_no_pages_ok_fields = ['DOI', 'PMID', 'PMC', 'PMCID', 'ISBN']
     pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'datePublished',
                    'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher',
                    'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReferences',
                    'publicationStatus', 'commentsCorrections', 'allianceCategory', 'journal']
-    # date_fields = ['issueDate', 'datePublished', 'dateArrivedInPubmed', 'dateLastModified']
     # datePublished is a string, not a proper date field
-    date_fields = ['dateArrivedInPubmed', 'dateLastModified']
 
     compare_if_dqm_empty = False  # do dqm vs pmid comparison even if dqm has no data, by default skip
 
-    # mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
     # RGD should be first in mods list.  if conflicting allianceCategories the later mod gets priority
-    # mods = ['RGD', 'SGD', 'FB', 'MGI', 'ZFIN', 'WB']
     mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB', 'XB']
     if input_mod in mods:
         mods = [input_mod]
@@ -819,7 +860,6 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
                 mod=mod,
                 report_file_handlers=report_file_handlers,
                 original_primary_id=orig_primary_id,
-                cross_ref_no_pages_ok_fields=cross_ref_no_pages_ok_fields,
                 expected_cross_reference_type=expected_cross_reference_type,
                 exclude_cross_reference_type=exclude_cross_reference_type,
                 cross_reference_types=cross_reference_types,
@@ -837,9 +877,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
                                                     report_file_handlers, resource_not_found, report_file_path)
             else:
                 # processing pubmed data
-                process_pubmed_data(entry, mod, pmid, pmid_fields, pubmed_data, date_fields,
-                                    compare_if_dqm_empty, report_file_handlers, report_file_path,
-                                    primary_id, resource_nlm_to_title, resource_to_nlm)
+                process_pubmed_data(entry, mod, pmid, pmid_fields, pubmed_data, compare_if_dqm_empty,
+                                    report_file_handlers, report_file_path, primary_id, resource_nlm_to_title,
+                                    resource_to_nlm)
 
             if is_pubmod:
                 sanitized_pubmod_data.append(entry)
@@ -985,49 +1025,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
         json_filename = json_storage_path + 'REFERENCE_PUBMED_MULTI_' + str(i + 1) + '.json'
         write_json(json_filename, dict_to_output)
 
-    resource_abbreviations_not_found = set()
-    for mod in resource_not_found:
-        for resource_abbrev in resource_not_found[mod]:
-            resource_abbreviations_not_found.add(resource_abbrev)
-            write_report_line(
-                report_file_handlers, mod, report_type="generic",
-                message="Summary: resourceAbbreviation %s not found %s times.\n" % (
-                    resource_abbrev, resource_not_found[mod][resource_abbrev]),
-                report_file_path=report_file_path)
-
-    for mod in cross_reference_types:
-        # for cross_reference_type in cross_reference_types[mod]:
-        #     logger.info("unexpected crossReferences mod %s type: %s", mod, cross_reference_type)
-        #     fh_mod_report[mod].write("Warning: unexpected crossReferences type: %s\n" % (cross_reference_type))
-        for cross_reference_type in cross_reference_types[mod]:
-            if cross_reference_type.lower() in exclude_cross_reference_type:
-                logger.info("unexpected crossReferences mod %s type: %s", mod, cross_reference_type)
-                write_report_line(
-                    report_file_handlers, mod, report_type="generic",
-                    message="Warning: unexpected crossReferences type: %s\n" % cross_reference_type,
-                    report_file_path=report_file_path)
-            else:
-                for cross_reference_type_message in cross_reference_types[mod][cross_reference_type]:
-                    logger.info("unexpected crossReferences mod %s type: %s values: %s", mod, cross_reference_type,
-                                cross_reference_type_message)
-                    write_report_line(
-                        report_file_handlers, mod, report_type="generic",
-                        message="Warning: unexpected crossReferences type: %s values: %s\n" % (
-                            cross_reference_type, cross_reference_type_message),
-                        report_file_path=report_file_path)
-
-    # output resourceAbbreviations not matched to NLMs or resource MOD IDs to a file for attempt to
-    # download from other source
-    # with get_pubmed_nlm_resource_unmatched.py
-    resource_xml_path = base_dir + 'resource_xml/'
-    if not path.exists(resource_xml_path):
-        makedirs(resource_xml_path)
-    resource_abbreviation_not_found_filename = resource_xml_path + 'resource_abbreviation_not_matched'
-    with open(resource_abbreviation_not_found_filename, "w") as resource_abbreviation_not_found_fh:
-        for resource_abbrev in resource_abbreviations_not_found:
-            resource_abbreviation_not_found_fh.write(resource_abbrev + "\n")
-        resource_abbreviation_not_found_fh.close()
-
+    report_unexpected_cross_references(report_file_handlers, cross_reference_types, report_file_path,
+                                       exclude_cross_reference_type)
+    find_resource_abbreviation_not_matched_to_nlm_or_res_mod(resource_not_found, report_file_handlers,
+                                                             report_file_path, base_dir)
     close_report_file_handlers(report_file_handlers)
 
 # check merging with these pmids and mod with data in dqm_merge/ manually generated files, based on pmids_by_mods
