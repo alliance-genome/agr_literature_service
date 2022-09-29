@@ -629,7 +629,7 @@ DATE_FIELDS = ['dateArrivedInPubmed', 'dateLastModified']
 
 PMID_FIELDS = ['authors', 'volume', 'title', 'pages', 'issueName', 'datePublished',
                'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher',
-               'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReferences',
+               'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages',
                'publicationStatus', 'commentsCorrections', 'allianceCategory', 'journal']
 
 
