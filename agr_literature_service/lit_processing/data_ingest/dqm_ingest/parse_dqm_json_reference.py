@@ -7,7 +7,7 @@ import urllib.request
 import warnings
 from collections import defaultdict
 from os import environ, makedirs, path
-from typing import Dict, TextIO
+from typing import Dict
 
 import bs4
 from dotenv import load_dotenv
