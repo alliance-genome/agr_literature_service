@@ -79,7 +79,7 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
-base_path = environ.get('XML_PATH')
+base_path = environ.get("XML_PATH", "")
 
 
 def generate_pmid_data(input_path, output_directory, input_mod, base_input_dir=base_path):  # noqa: C901
@@ -468,15 +468,15 @@ def validate_xref_pages(cross_reference, prefix, mod, primary_id, report_writer:
         if len(cross_reference["pages"]) > 1:
             report_writer.write(mod=mod, report_type="generic",
                                 message="mod %s primaryId %s has cross reference identifier %s with "
-                                                    "multiple web pages %s\n" % (mod, primary_id, cross_reference["id"],
-                                                                                 cross_reference["pages"]))
+                                        "multiple web pages %s\n" % (mod, primary_id, cross_reference["id"],
+                                                                     cross_reference["pages"]))
         else:
             return True
     else:
         if prefix not in CROSS_REF_NO_PAGES_OK_FIELDS:
             report_writer.write(mod=mod, report_type="generic",
                                 message="mod %s primaryId %s has cross reference identifier %s without "
-                                                    "web pages\n" % (mod, primary_id, cross_reference["id"]))
+                                        "web pages\n" % (mod, primary_id, cross_reference["id"]))
     return False
 
 
@@ -551,7 +551,7 @@ def load_pubmed_data_if_present(primary_id, mod, original_primary_id, report_wri
         except IOError:
             report_writer.write(mod=mod, report_type="generic",
                                 message="Warning: PMID %s does not have PubMed xml, from Mod %s primary_id "
-                                            "%s\n" % (pmid, mod, original_primary_id))
+                                        "%s\n" % (pmid, mod, original_primary_id))
     return pubmed_data, is_pubmod, pmid
 
 
