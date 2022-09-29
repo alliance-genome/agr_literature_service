@@ -14,8 +14,10 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.sanitize_pubmed_json import sanitize_pubmed_json_list
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3
-from agr_literature_service.lit_processing.data_ingest.utils.db_utils import set_pmid_list, \
-    check_handle_duplicate, add_mca_to_existing_references, get_pmid_association_to_mod_via_reference
+from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
+    check_handle_duplicate, add_mca_to_existing_references
+from agr_literature_service.lit_processing.utils.db_read_utils import \
+    set_pmid_list, get_pmid_association_to_mod_via_reference
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import \
     update_resource_pubmed_nlm
 from agr_literature_service.api.database.main import get_db
