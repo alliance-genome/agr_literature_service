@@ -617,7 +617,7 @@ def process_pubmod_authors_xrefs_keywords(entry, update_primary_id, primary_id, 
         clean_up_keywords(mod, entry)
 
 
-REPLACE_VALUE_FIELDS = ['authors', 'pubMedType', 'meshTerms', 'commentsCorrections']
+REPLACE_VALUE_FIELDS = ['authors', 'pubMedType', 'meshTerms']
 
 SINGLE_VALUE_FIELDS = ['volume', 'title', 'pages', 'issueName', 'datePublished',
                        'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher',
@@ -630,7 +630,7 @@ DATE_FIELDS = ['dateArrivedInPubmed', 'dateLastModified']
 PMID_FIELDS = ['authors', 'volume', 'title', 'pages', 'issueName', 'datePublished',
                'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher',
                'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages',
-               'publicationStatus', 'commentsCorrections', 'allianceCategory', 'journal']
+               'publicationStatus', 'allianceCategory', 'journal']
 
 
 COMPARE_IF_DQM_EMPTY = False  # do dqm vs pmid comparison even if dqm has no data, by default skip
