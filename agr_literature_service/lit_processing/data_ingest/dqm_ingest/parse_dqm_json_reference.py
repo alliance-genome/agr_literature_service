@@ -262,13 +262,6 @@ def compare_dqm_pubmed(mod, report_type, pmid, field, dqm_data, pubmed_data, rep
 
 
 def chunks(list, size):
-    """
-
-    :param list:
-    :param size:
-    :return:
-    """
-
     for i in range(0, len(list), size):
         yield list[i:i + size]
 
@@ -887,13 +880,10 @@ def process_unmerged_pubmed_data(unmerged_pubmed_data, additional_fields, aggreg
         sanitized_pubmed_multi_mod_data.append(sanitized_entry)
 
 
-def write_sanitized_multimod_data_to_json(sanitized_pubmed_multi_mod_data, json_storage_path):
-    entries_size = 100000
-    sanitized_pubmed_list = list(chunks(sanitized_pubmed_multi_mod_data, entries_size))
-    for i in range(len(sanitized_pubmed_list)):
-        dict_to_output = sanitized_pubmed_list[i]
-        json_filename = json_storage_path + 'REFERENCE_PUBMED_MULTI_' + str(i + 1) + '.json'
-        write_json(json_filename, dict_to_output)
+def write_sanitized_data_to_json(sanitized_pubmed_multi_mod_data, entries_size, base_file_name):
+    for i, sanitized_pubmed_data_chunk in enumerate(chunks(sanitized_pubmed_multi_mod_data, entries_size)):
+        json_filename = base_file_name + "_" + str(i + 1) + '.json'
+        write_json(json_filename, sanitized_pubmed_data_chunk)
 
 
 def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=base_path):  # noqa: C901
@@ -1022,7 +1012,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
                                  sanitized_pubmed_multi_mod_data, report_writer)
     logger.info("outputting sanitized pubmed_data")
 
-    write_sanitized_multimod_data_to_json(sanitized_pubmed_multi_mod_data, json_storage_path)
+    write_sanitized_data_to_json(sanitized_pubmed_multi_mod_data, entries_size = 100000,
+                                 base_file_name=json_storage_path + "REFERENCE_PUBMED_MULTI")
     report_unexpected_cross_references(cross_reference_types, exclude_cross_reference_type, report_writer=report_writer)
     find_resource_abbreviation_not_matched_to_nlm_or_res_mod(resource_not_found, report_writer=report_writer,
                                                              base_dir=base_dir)
