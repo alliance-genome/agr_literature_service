@@ -787,38 +787,48 @@ def update_unexpected_mod_properties_and_delete_blank_fields_from_entry(entry, s
             del entry[entry_property]
 
 
-def process_unmerged_pubmed_data(unmerged_pubmed_data, additional_fields, aggregate_fields,
+def report_multiple_categories_and_dates_while_merging_multimod(alliance_category_dict, report_writer, pmid,
+                                                                date_published_set):
+    if len(alliance_category_dict) > 1:
+        category_mods = "\t".join([alliance_category + ': ' + ", ".join(mods) for alliance_category, mods in
+                                   alliance_category_dict.items()])
+        report_writer.write(
+            mod="multi", report_type="",
+            message=f"Multiple allianceCategory pmid {pmid} alliance categories {category_mods}\n")
+    if len(date_published_set) > 1:
+        dates_published = "\t".join(date_published_set)
+        report_writer.write(
+            mod="multi", report_type="",
+            message=f"Multiple datePublished pmid {pmid} dates published {dates_published}\n")
+
+
+def process_unmerged_pubmed_data(unmerged_pubmed_data: Dict[str, dict], additional_fields, aggregate_fields,
                                  sanitized_pubmed_multi_mod_data, report_writer):
     for pmid in unmerged_pubmed_data:
         date_published_set = set()
-        alliance_category_dict = dict()
+        alliance_category_dict = defaultdict(set)
         sanitized_entry = dict()
         cross_references_dict = dict()
         mod_corpus_association_dict = dict()
         for mod in unmerged_pubmed_data[pmid]:
             entry = unmerged_pubmed_data[pmid][mod]
-
             sanitized_entry['primaryId'] = entry['primaryId']
 
             for pmid_field in PMID_FIELDS:
-                if pmid_field in entry:
-                    if pmid_field not in sanitized_entry:
-                        sanitized_entry[pmid_field] = entry[pmid_field]
+                if pmid_field in entry and pmid_field not in sanitized_entry:
+                    sanitized_entry[pmid_field] = entry[pmid_field]
 
             for additional_field in additional_fields:
-                if additional_field in entry:
-                    if additional_field not in sanitized_entry:
-                        sanitized_entry[additional_field] = entry[additional_field]
+                if additional_field in entry and additional_field not in sanitized_entry:
+                    sanitized_entry[additional_field] = entry[additional_field]
 
             if 'datePublished' in entry:
                 date_published_set.add(entry['datePublished'])
 
             if 'allianceCategory' in entry:
                 sanitized_entry['allianceCategory'] = entry['allianceCategory']
-                if not entry['allianceCategory'] in alliance_category_dict:
-                    alliance_category_dict[entry['allianceCategory']] = set()
                 alliance_category_dict[entry['allianceCategory']].add(mod)
-
+                
             for aggregate_field in aggregate_fields:
                 if aggregate_field in entry:
                     for value in entry[aggregate_field]:
@@ -847,36 +857,17 @@ def process_unmerged_pubmed_data(unmerged_pubmed_data, additional_fields, aggreg
             else:
                 sanitized_entry['modCorpusAssociations'] = [mod_corpus_association_dict[mod_corpus_association_id]]
 
-        for cross_ref_id in cross_references_dict:
-            pages = cross_references_dict[cross_ref_id]
-            sanitized_cross_ref_dict = dict()
-            sanitized_cross_ref_dict["id"] = cross_ref_id
+        for cross_ref_id, pages in cross_references_dict.items():
+            sanitized_cross_ref_dict = {"id": cross_ref_id}
             if len(pages) > 0:
                 sanitized_cross_ref_dict["pages"] = pages
             if 'crossReferences' in sanitized_entry:
                 sanitized_entry['crossReferences'].append(sanitized_cross_ref_dict)
             else:
                 sanitized_entry['crossReferences'] = [sanitized_cross_ref_dict]
-
-        if 'allianceCategory' in sanitized_entry:
-            if len(alliance_category_dict) > 1:
-                multiple_list = []
-                for alliance_category in alliance_category_dict:
-                    mods = ", ".join(alliance_category_dict[alliance_category])
-                    multiple_list.append(alliance_category + ': ' + mods)
-                multiple_alliance_categories = "\t".join(multiple_list)
-                # logger.info("MULTIPLE ALLIANCE CATEGORY pmid %s alliance categories %s", pmid, multiple_alliance_categories)
-                report_writer.write(
-                    mod="multi", report_type="",
-                    message="Multiple allianceCategory pmid %s alliance categories %s\n" % (
-                        pmid, multiple_alliance_categories))
-        if len(date_published_set) > 1:
-            dates_published = "\t".join(date_published_set)
-            # logger.info("MULTIPLE DATES PUBLISHED pmid %s dates published %s", pmid, dates_published)
-            report_writer.write(
-                mod="multi", report_type="",
-                message="Multiple datePublished pmid %s dates published %s\n" % (pmid, dates_published))
-
+                
+        report_multiple_categories_and_dates_while_merging_multimod(alliance_category_dict, report_writer, pmid,
+                                                                    date_published_set)
         sanitized_pubmed_multi_mod_data.append(sanitized_entry)
 
 
