@@ -1004,7 +1004,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
                                  sanitized_pubmed_multi_mod_data, report_writer)
     logger.info("outputting sanitized pubmed_data")
 
-    write_sanitized_data_to_json(sanitized_pubmed_multi_mod_data, entries_size = 100000,
+    write_sanitized_data_to_json(sanitized_pubmed_multi_mod_data, entries_size=100000,
                                  base_file_name=json_storage_path + "REFERENCE_PUBMED_MULTI")
     report_unexpected_cross_references(cross_reference_types, exclude_cross_reference_type, report_writer=report_writer)
     find_resource_abbreviation_not_matched_to_nlm_or_res_mod(resource_not_found, report_writer=report_writer,
