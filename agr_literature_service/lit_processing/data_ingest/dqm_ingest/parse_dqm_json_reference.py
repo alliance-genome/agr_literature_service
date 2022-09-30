@@ -797,6 +797,108 @@ def update_unexpected_mod_properties_and_delete_blank_fields_from_entry(entry, s
         del entry[entry_field]
 
 
+def process_unmerged_pubmed_data(unmerged_pubmed_data, additional_fields, aggregate_fields,
+                                 sanitized_pubmed_multi_mod_data, report_writer):
+    for pmid in unmerged_pubmed_data:
+        date_published_set = set()
+        alliance_category_dict = dict()
+        sanitized_entry = dict()
+        cross_references_dict = dict()
+        mod_corpus_association_dict = dict()
+        for mod in unmerged_pubmed_data[pmid]:
+            entry = unmerged_pubmed_data[pmid][mod]
+
+            sanitized_entry['primaryId'] = entry['primaryId']
+
+            for pmid_field in PMID_FIELDS:
+                if pmid_field in entry:
+                    if pmid_field not in sanitized_entry:
+                        sanitized_entry[pmid_field] = entry[pmid_field]
+
+            for additional_field in additional_fields:
+                if additional_field in entry:
+                    if additional_field not in sanitized_entry:
+                        sanitized_entry[additional_field] = entry[additional_field]
+
+            if 'datePublished' in entry:
+                date_published_set.add(entry['datePublished'])
+
+            if 'allianceCategory' in entry:
+                sanitized_entry['allianceCategory'] = entry['allianceCategory']
+                if not entry['allianceCategory'] in alliance_category_dict:
+                    alliance_category_dict[entry['allianceCategory']] = set()
+                alliance_category_dict[entry['allianceCategory']].add(mod)
+
+            for aggregate_field in aggregate_fields:
+                if aggregate_field in entry:
+                    for value in entry[aggregate_field]:
+                        if aggregate_field in sanitized_entry:
+                            sanitized_entry[aggregate_field].append(value)
+                        else:
+                            sanitized_entry[aggregate_field] = [value]
+
+            if 'modCorpusAssociations' in entry:
+                for mod_corpus_association in entry['modCorpusAssociations']:
+                    id = mod_corpus_association['modAbbreviation']
+                    mod_corpus_association_dict[id] = mod_corpus_association
+                    # logger.info("mod_corpus_association %s", mod_corpus_association)
+
+            if 'crossReferences' in entry:
+                for cross_ref in entry['crossReferences']:
+                    id = cross_ref['id']
+                    pages = []
+                    if 'pages' in cross_ref:
+                        pages = cross_ref['pages']
+                    cross_references_dict[id] = pages
+
+        for mod_corpus_association_id in mod_corpus_association_dict:
+            if 'modCorpusAssociations' in sanitized_entry:
+                sanitized_entry['modCorpusAssociations'].append(mod_corpus_association_dict[mod_corpus_association_id])
+            else:
+                sanitized_entry['modCorpusAssociations'] = [mod_corpus_association_dict[mod_corpus_association_id]]
+
+        for cross_ref_id in cross_references_dict:
+            pages = cross_references_dict[cross_ref_id]
+            sanitized_cross_ref_dict = dict()
+            sanitized_cross_ref_dict["id"] = cross_ref_id
+            if len(pages) > 0:
+                sanitized_cross_ref_dict["pages"] = pages
+            if 'crossReferences' in sanitized_entry:
+                sanitized_entry['crossReferences'].append(sanitized_cross_ref_dict)
+            else:
+                sanitized_entry['crossReferences'] = [sanitized_cross_ref_dict]
+
+        if 'allianceCategory' in sanitized_entry:
+            if len(alliance_category_dict) > 1:
+                multiple_list = []
+                for alliance_category in alliance_category_dict:
+                    mods = ", ".join(alliance_category_dict[alliance_category])
+                    multiple_list.append(alliance_category + ': ' + mods)
+                multiple_alliance_categories = "\t".join(multiple_list)
+                # logger.info("MULTIPLE ALLIANCE CATEGORY pmid %s alliance categories %s", pmid, multiple_alliance_categories)
+                report_writer.write(
+                    mod="multi", report_type="",
+                    message="Multiple allianceCategory pmid %s alliance categories %s\n" % (
+                        pmid, multiple_alliance_categories))
+        if len(date_published_set) > 1:
+            dates_published = "\t".join(date_published_set)
+            # logger.info("MULTIPLE DATES PUBLISHED pmid %s dates published %s", pmid, dates_published)
+            report_writer.write(
+                mod="multi", report_type="",
+                message="Multiple datePublished pmid %s dates published %s\n" % (pmid, dates_published))
+
+        sanitized_pubmed_multi_mod_data.append(sanitized_entry)
+
+
+def write_sanitized_multimod_data_to_json(sanitized_pubmed_multi_mod_data, json_storage_path):
+    entries_size = 100000
+    sanitized_pubmed_list = list(chunks(sanitized_pubmed_multi_mod_data, entries_size))
+    for i in range(len(sanitized_pubmed_list)):
+        dict_to_output = sanitized_pubmed_list[i]
+        json_filename = json_storage_path + 'REFERENCE_PUBMED_MULTI_' + str(i + 1) + '.json'
+        write_json(json_filename, dict_to_output)
+
+
 def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=base_path):  # noqa: C901
     # reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
     # outputs sanitized json to sanitized_reference_json/
@@ -919,112 +1021,11 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
     aggregate_fields = ['keywords', 'MODReferenceTypes', 'tags']
     additional_fields = ['nlm', 'resource']
 
-    for pmid in unmerged_pubmed_data:
-        # this was when trying to send all mod-pubmed data to a hash, and sort those with muliple mods, but script crashed out of memory
-        # if len(unmerged_pubmed_data[pmid]) > 1:
-        #     this_mods = ", ".join(unmerged_pubmed_data[pmid])
-        #     logger.info("pmid %s length %s", pmid, this_mods)
-        # else:
-        #     sanitized_pubmod_data.append(entry)
-
-        date_published_set = set()
-        alliance_category_dict = dict()
-        sanitized_entry = dict()
-        cross_references_dict = dict()
-        mod_corpus_association_dict = dict()
-        for mod in unmerged_pubmed_data[pmid]:
-            entry = unmerged_pubmed_data[pmid][mod]
-
-            sanitized_entry['primaryId'] = entry['primaryId']
-
-            for pmid_field in PMID_FIELDS:
-                if pmid_field in entry:
-                    if pmid_field not in sanitized_entry:
-                        sanitized_entry[pmid_field] = entry[pmid_field]
-
-            for additional_field in additional_fields:
-                if additional_field in entry:
-                    if additional_field not in sanitized_entry:
-                        sanitized_entry[additional_field] = entry[additional_field]
-
-            if 'datePublished' in entry:
-                date_published_set.add(entry['datePublished'])
-
-            if 'allianceCategory' in entry:
-                sanitized_entry['allianceCategory'] = entry['allianceCategory']
-                if not entry['allianceCategory'] in alliance_category_dict:
-                    alliance_category_dict[entry['allianceCategory']] = set()
-                alliance_category_dict[entry['allianceCategory']].add(mod)
-
-            for aggregate_field in aggregate_fields:
-                if aggregate_field in entry:
-                    for value in entry[aggregate_field]:
-                        if aggregate_field in sanitized_entry:
-                            sanitized_entry[aggregate_field].append(value)
-                        else:
-                            sanitized_entry[aggregate_field] = [value]
-
-            if 'modCorpusAssociations' in entry:
-                for mod_corpus_association in entry['modCorpusAssociations']:
-                    id = mod_corpus_association['modAbbreviation']
-                    mod_corpus_association_dict[id] = mod_corpus_association
-                    # logger.info("mod_corpus_association %s", mod_corpus_association)
-
-            if 'crossReferences' in entry:
-                for cross_ref in entry['crossReferences']:
-                    id = cross_ref['id']
-                    pages = []
-                    if 'pages' in cross_ref:
-                        pages = cross_ref['pages']
-                    cross_references_dict[id] = pages
-
-        for mod_corpus_association_id in mod_corpus_association_dict:
-            if 'modCorpusAssociations' in sanitized_entry:
-                sanitized_entry['modCorpusAssociations'].append(mod_corpus_association_dict[mod_corpus_association_id])
-            else:
-                sanitized_entry['modCorpusAssociations'] = [mod_corpus_association_dict[mod_corpus_association_id]]
-
-        for cross_ref_id in cross_references_dict:
-            pages = cross_references_dict[cross_ref_id]
-            sanitized_cross_ref_dict = dict()
-            sanitized_cross_ref_dict["id"] = cross_ref_id
-            if len(pages) > 0:
-                sanitized_cross_ref_dict["pages"] = pages
-            if 'crossReferences' in sanitized_entry:
-                sanitized_entry['crossReferences'].append(sanitized_cross_ref_dict)
-            else:
-                sanitized_entry['crossReferences'] = [sanitized_cross_ref_dict]
-
-        if 'allianceCategory' in sanitized_entry:
-            if len(alliance_category_dict) > 1:
-                multiple_list = []
-                for alliance_category in alliance_category_dict:
-                    mods = ", ".join(alliance_category_dict[alliance_category])
-                    multiple_list.append(alliance_category + ': ' + mods)
-                multiple_alliance_categories = "\t".join(multiple_list)
-                # logger.info("MULTIPLE ALLIANCE CATEGORY pmid %s alliance categories %s", pmid, multiple_alliance_categories)
-                report_writer.write(
-                    mod="multi", report_type="",
-                    message="Multiple allianceCategory pmid %s alliance categories %s\n" % (
-                        pmid, multiple_alliance_categories))
-        if len(date_published_set) > 1:
-            dates_published = "\t".join(date_published_set)
-            # logger.info("MULTIPLE DATES PUBLISHED pmid %s dates published %s", pmid, dates_published)
-            report_writer.write(
-                mod="multi", report_type="",
-                message="Multiple datePublished pmid %s dates published %s\n" % (pmid, dates_published))
-
-        sanitized_pubmed_multi_mod_data.append(sanitized_entry)
-
+    process_unmerged_pubmed_data(unmerged_pubmed_data, additional_fields, aggregate_fields,
+                                 sanitized_pubmed_multi_mod_data, report_writer)
     logger.info("outputting sanitized pubmed_data")
 
-    entries_size = 100000
-    sanitized_pubmed_list = list(chunks(sanitized_pubmed_multi_mod_data, entries_size))
-    for i in range(len(sanitized_pubmed_list)):
-        dict_to_output = sanitized_pubmed_list[i]
-        json_filename = json_storage_path + 'REFERENCE_PUBMED_MULTI_' + str(i + 1) + '.json'
-        write_json(json_filename, dict_to_output)
-
+    write_sanitized_multimod_data_to_json(sanitized_pubmed_multi_mod_data, json_storage_path)
     report_unexpected_cross_references(cross_reference_types, exclude_cross_reference_type, report_writer=report_writer)
     find_resource_abbreviation_not_matched_to_nlm_or_res_mod(resource_not_found, report_writer=report_writer,
                                                              base_dir=base_dir)
