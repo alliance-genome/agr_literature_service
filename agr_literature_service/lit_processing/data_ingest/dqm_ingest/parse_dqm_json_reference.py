@@ -788,13 +788,10 @@ def load_dqm_data_from_json(filename):
 
 def update_unexpected_mod_properties_and_delete_blank_fields_from_entry(entry, schema_data,
                                                                         unexpected_mod_properties: set):
-    blank_fields = set()
     unexpected_mod_properties.update({field for field in entry.keys() if field not in schema_data['properties']})
-    for entry_property in entry.keys():
+    for entry_property in list(entry.keys()):
         if entry_property in SINGLE_VALUE_FIELDS and entry[entry_property] == "":
-            blank_fields.add(entry_property)
-    for entry_field in blank_fields:
-        del entry[entry_field]
+            del entry[entry_property]
 
 
 def process_unmerged_pubmed_data(unmerged_pubmed_data, additional_fields, aggregate_fields,
