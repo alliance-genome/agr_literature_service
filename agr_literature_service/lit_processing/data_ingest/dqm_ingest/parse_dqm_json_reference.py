@@ -1017,24 +1017,6 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
 # tags - array of hashes, aggregate the hashes
 # resourceAbbreviation - single value, keep for mod data, try to resolve to journal from PMID
 
-def aggregate_dqm_data(base_dir, input_dir, output_dir, mod, generate_pmid_data_option):
-    logger.info("starting parse_dqm_json_reference.py")
-
-    # pipenv run python parse_dqm_json_reference.py -f dqm_sample/ -p
-    if generate_pmid_data_option:
-        logger.info("Generating PMID files from DQM data")
-        generate_pmid_data(base_dir, input_dir, output_dir, 'all')
-
-    # pipenv run python parse_dqm_json_reference.py -f dqm_sample/ -m WB
-    # pipenv run python parse_dqm_json_reference.py -f dqm_data_updates_new/ -m all
-    elif mod:
-        aggregate_dqm_with_pubmed(input_dir, mod, output_dir)
-
-    else:
-        logger.info("No valid processing for directory passed in.  Use -h for help.")
-
-    logger.info("ending parse_dqm_json_reference.py")
-
 
 if __name__ == "__main__":
     """
@@ -1050,5 +1032,17 @@ if __name__ == "__main__":
                         default='')
 
     args = vars(parser.parse_args())
-    aggregate_dqm_data(base_path, input_dir=args['file'], output_dir=args['directory'], mod=args['mod'],
-                       generate_pmid_data_option=args['generate_pmid_data'])
+    logger.info("starting parse_dqm_json_reference.py")
+
+    # pipenv run python parse_dqm_json_reference.py -f dqm_sample/ -p
+    if args['generate_pmid_data']:
+        logger.info("Generating PMID files from DQM data")
+        generate_pmid_data(base_path, args['file'], args['directory'], 'all')
+
+    # pipenv run python parse_dqm_json_reference.py -f dqm_sample/ -m WB
+    # pipenv run python parse_dqm_json_reference.py -f dqm_data_updates_new/ -m all
+    elif args['mod']:
+        aggregate_dqm_with_pubmed(args['file'], args['mod'], args['directory'])
+    else:
+        logger.info("No valid processing for directory passed in.  Use -h for help.")
+    logger.info("ending parse_dqm_json_reference.py")
