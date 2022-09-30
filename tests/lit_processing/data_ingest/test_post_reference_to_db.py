@@ -113,7 +113,8 @@ class TestPostReferenceToDb:
         ## test insert_mesh_terms()
         insert_mesh_terms(db, primaryId, reference_id, entry['meshTerms'])
         db.commit()
-        mt = db.query(MeshDetailModel).filter_by(reference_id=reference_id).first()
+        mt = db.query(MeshDetailModel).filter_by(reference_id=reference_id).order_by(
+            MeshDetailModel.mesh_detail_id).first()
         assert mt.heading_term == 'Animals'
 
         ## test insert_mod_reference_types()
