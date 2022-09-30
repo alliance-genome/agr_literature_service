@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging.config
+import os.path
 import re
 import sys
 import urllib.request
@@ -776,6 +777,26 @@ def report_unexpected_cross_references(cross_reference_types: Dict[str, Dict[str
                         message="Warning: unexpected crossReferences type: %s values: %s\n" % (xref_type, xref_message))
 
 
+def load_dqm_data_from_json(filename):
+    logger.info("Loading %s", filename)
+    if os.path.exists(filename):
+        return json.load(open(filename, 'r'))
+    else:
+        logger.info("No file found %s", filename)
+        return None
+
+
+def update_unexpected_mod_properties_and_delete_blank_fields_from_entry(entry, schema_data,
+                                                                        unexpected_mod_properties: set):
+    blank_fields = set()
+    unexpected_mod_properties.update({field for field in entry.keys() if field not in schema_data['properties']})
+    for entry_property in entry.keys():
+        if entry_property in SINGLE_VALUE_FIELDS and entry[entry_property] == "":
+            blank_fields.add(entry_property)
+    for entry_field in blank_fields:
+        del entry[entry_field]
+
+
 def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=base_path):  # noqa: C901
     # reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
     # outputs sanitized json to sanitized_reference_json/
@@ -825,35 +846,19 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
     sanitized_pubmed_multi_mod_data = []
     unmerged_pubmed_data = defaultdict(dict)  # pubmed data by pmid and mod that needs some fields merged
     for mod in mods:
-        filename = base_dir + input_path + '/REFERENCE_' + mod + '.json'
-        logger.info("Processing %s", filename)
-        unexpected_mod_properties = set()
-        dqm_data = dict()
-        try:
-            with open(filename, 'r') as f:
-                dqm_data = json.load(f)
-                f.close()
-        except IOError:
-            logger.info("No file found for mod %s %s", mod, filename)
+        dqm_data = load_dqm_data_from_json(filename=base_dir + input_path + '/REFERENCE_' + mod + '.json')
+        if dqm_data is None:
             continue
-        entries = dqm_data['data']
         sanitized_pubmod_data = []
         sanitized_pubmed_single_mod_data = []
-        for entry in entries:
+        unexpected_mod_properties = set()
+        for entry in dqm_data['data']:
             orig_primary_id = entry['primaryId']
-            blank_fields = set()
-            for entry_property in entry:
-                if entry_property not in schema_data['properties']:
-                    unexpected_mod_properties.add(entry_property)
-                if entry_property in SINGLE_VALUE_FIELDS:
-                    if entry[entry_property] == "":
-                        blank_fields.add(entry_property)
-            for entry_field in blank_fields:
-                del entry[entry_field]
-
+            update_unexpected_mod_properties_and_delete_blank_fields_from_entry(entry, schema_data,
+                                                                                unexpected_mod_properties)
             # inject the mod corpus association data because if it came from that mod dqm file it should have this entry
-            mod_corpus_associations = [{"modAbbreviation": mod, "modCorpusSortSource": "dqm_files", "corpus": True}]
-            entry['modCorpusAssociations'] = mod_corpus_associations
+            entry['modCorpusAssociations'] = [{"modAbbreviation": mod, "modCorpusSortSource": "dqm_files",
+                                               "corpus": True}]
 
             primary_id, update_primary_id = process_xrefs_and_find_pmid_if_necessary(
                 reference=entry,
