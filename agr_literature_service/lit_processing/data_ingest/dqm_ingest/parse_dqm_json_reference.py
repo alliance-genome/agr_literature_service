@@ -8,7 +8,7 @@ import urllib.request
 import warnings
 from collections import defaultdict
 from os import environ, makedirs, path
-from typing import Dict
+from typing import Dict, Any
 
 import bs4
 from dotenv import load_dotenv
@@ -824,12 +824,12 @@ AGGREGATE_FIELDS_FOR_MULTIMOD_MERGE = ['keywords', 'MODReferenceTypes', 'tags']
 ADDITIONAL_FIELDS_FOR_MULTIMOD_MERGE = ['nlm', 'resource']
 
 
-def merge_multimod_pubmed_and_dqm_data(unmerged_dqm_data_with_pmid: Dict[str, dict],
-                                       sanitized_pubmed_multi_mod_data, report_writer):
+def merge_multimod_pubmed_and_dqm_data(unmerged_dqm_data_with_pmid: Dict[str, dict], sanitized_pubmed_multi_mod_data,
+                                       report_writer):
     for pmid in unmerged_dqm_data_with_pmid:
         date_published_set = set()
         alliance_category_dict = defaultdict(set)
-        sanitized_entry = dict()
+        sanitized_entry: Dict[str, Any] = dict()
         update_sanitized_entry_xrefs_from_unmerged_data(unmerged_dqm_data_with_pmid[pmid], sanitized_entry)
         for mod in unmerged_dqm_data_with_pmid[pmid]:
             entry = unmerged_dqm_data_with_pmid[pmid][mod]
