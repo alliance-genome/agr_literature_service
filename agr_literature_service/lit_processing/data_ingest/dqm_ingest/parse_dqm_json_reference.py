@@ -828,7 +828,7 @@ def process_unmerged_pubmed_data(unmerged_pubmed_data: Dict[str, dict], addition
             if 'allianceCategory' in entry:
                 sanitized_entry['allianceCategory'] = entry['allianceCategory']
                 alliance_category_dict[entry['allianceCategory']].add(mod)
-                
+
             for aggregate_field in aggregate_fields:
                 if aggregate_field in entry:
                     for value in entry[aggregate_field]:
@@ -865,7 +865,7 @@ def process_unmerged_pubmed_data(unmerged_pubmed_data: Dict[str, dict], addition
                 sanitized_entry['crossReferences'].append(sanitized_cross_ref_dict)
             else:
                 sanitized_entry['crossReferences'] = [sanitized_cross_ref_dict]
-                
+
         report_multiple_categories_and_dates_while_merging_multimod(alliance_category_dict, report_writer, pmid,
                                                                     date_published_set)
         sanitized_pubmed_multi_mod_data.append(sanitized_entry)
