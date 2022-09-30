@@ -880,8 +880,8 @@ def process_unmerged_pubmed_data(unmerged_pubmed_data, additional_fields, aggreg
         sanitized_pubmed_multi_mod_data.append(sanitized_entry)
 
 
-def write_sanitized_data_to_json(sanitized_pubmed_multi_mod_data, entries_size, base_file_name):
-    for i, sanitized_pubmed_data_chunk in enumerate(chunks(sanitized_pubmed_multi_mod_data, entries_size)):
+def write_sanitized_data_to_json(data, entries_size, base_file_name):
+    for i, sanitized_pubmed_data_chunk in enumerate(chunks(data, entries_size)):
         json_filename = base_file_name + "_" + str(i + 1) + '.json'
         write_json(json_filename, sanitized_pubmed_data_chunk)
 
@@ -987,18 +987,10 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
 
         logger.info("Generating .json output for mod %s", mod)
 
-        entries_size = 50000
-        sanitized_pubmod_list = list(chunks(sanitized_pubmod_data, entries_size))
-        for i in range(len(sanitized_pubmod_list)):
-            dict_to_output = sanitized_pubmod_list[i]
-            json_filename = json_storage_path + 'REFERENCE_PUBMOD_' + mod + '_' + str(i + 1) + '.json'
-            write_json(json_filename, dict_to_output)
-
-        sanitized_pubmed_list = list(chunks(sanitized_pubmed_single_mod_data, entries_size))
-        for i in range(len(sanitized_pubmed_list)):
-            dict_to_output = sanitized_pubmed_list[i]
-            json_filename = json_storage_path + 'REFERENCE_PUBMED_' + mod + '_' + str(i + 1) + '.json'
-            write_json(json_filename, dict_to_output)
+        write_sanitized_data_to_json(data=sanitized_pubmod_data, entries_size=50000,
+                                     base_file_name=json_storage_path + "REFERENCE_PUBMOD_" + mod)
+        write_sanitized_data_to_json(data=sanitized_pubmed_single_mod_data, entries_size=50000,
+                                     base_file_name=json_storage_path + "REFERENCE_PUBMED_" + mod)
 
         for unexpected_mod_property in unexpected_mod_properties:
             logger.info("Warning: Unexpected Mod %s Property %s", mod, unexpected_mod_property)
