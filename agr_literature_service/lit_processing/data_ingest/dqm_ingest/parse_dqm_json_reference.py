@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_processing_utils import clean_up_keywords
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json
-from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier, memoized
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 init_tmp_dir()
@@ -266,44 +266,6 @@ def chunks(list, size):
         yield list[i:i + size]
 
 
-def populate_expected_cross_reference_type():
-    # if pages should be stripped from some crossReferences, make this a dict and set some to
-    # have or not have, and strip when matched against this
-    expected_cross_reference_type = set()
-    expected_cross_reference_type.add('PMID:'.lower())
-    expected_cross_reference_type.add('PMCID:PMC'.lower())
-    expected_cross_reference_type.add('DOI:'.lower())
-    expected_cross_reference_type.add('DOI:/S'.lower())
-    expected_cross_reference_type.add('DOI:IJIv'.lower())
-    expected_cross_reference_type.add('WB:WBPaper'.lower())
-    expected_cross_reference_type.add('SGD:S'.lower())
-    expected_cross_reference_type.add('RGD:'.lower())
-    expected_cross_reference_type.add('MGI:'.lower())
-    expected_cross_reference_type.add('ISBN:'.lower())
-    expected_cross_reference_type.add('FB:FBrf'.lower())
-    expected_cross_reference_type.add('ZFIN:ZDB-PUB-'.lower())
-    expected_cross_reference_type.add('Xenbase:XB-ART-'.lower())
-    expected_cross_reference_type.add('NLM:'.lower())
-    expected_cross_reference_type.add('ISSN:'.lower())
-
-    # when getting pubmed data and merging mod cross references, was excluding these types, but
-    # now merging so long as the type does not already exist from pubmed (mods have DOIs not in PubMed)
-    pubmed_not_dqm_cross_reference_type = set()
-    # pubmed_not_dqm_cross_reference_type.add('PMID:'.lower())
-    # pubmed_not_dqm_cross_reference_type.add('PMCID:PMC'.lower())
-    # pubmed_not_dqm_cross_reference_type.add('DOI:'.lower())
-    # pubmed_not_dqm_cross_reference_type.add('DOI:/S'.lower())
-    # pubmed_not_dqm_cross_reference_type.add('DOI:IJIv'.lower())
-
-    exclude_cross_reference_type = set()
-    exclude_cross_reference_type.add('WB:WBTransgene'.lower())
-    exclude_cross_reference_type.add('WB:WBGene'.lower())
-    exclude_cross_reference_type.add('WB:WBVar'.lower())
-    exclude_cross_reference_type.add('Xenbase:XB-GENEPAGE-'.lower())
-
-    return expected_cross_reference_type, exclude_cross_reference_type, pubmed_not_dqm_cross_reference_type
-
-
 def load_mod_resource(mods, resource_to_nlm):
     resource_fields = ['primaryId', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
     resource_to_mod = dict()
@@ -474,9 +436,48 @@ def validate_xref_pages(cross_reference, prefix, mod, primary_id, report_writer:
     return False
 
 
+# if pages should be stripped from some crossReferences, make this a dict and set some to
+# have or not have, and strip when matched against this
+EXPECTED_XREF_TYPES = {
+    xref.lower() for xref in
+    [
+        'PMID:',
+        'PMCID:PMC',
+        'DOI:',
+        'DOI:/S',
+        'DOI:IJIv',
+        'WB:WBPaper',
+        'SGD:S',
+        'RGD:',
+        'MGI:',
+        'ISBN:',
+        'FB:FBrf',
+        'ZFIN:ZDB-PUB-',
+        'Xenbase:XB-ART-'
+    ]
+}
+
+# when getting pubmed data and merging mod cross references, was excluding these types, but
+# now merging so long as the type does not already exist from pubmed (mods have DOIs not in PubMed)
+# pubmed_not_dqm_cross_reference_type = set()
+# pubmed_not_dqm_cross_reference_type.add('PMID:'.lower())
+# pubmed_not_dqm_cross_reference_type.add('PMCID:PMC'.lower())
+# pubmed_not_dqm_cross_reference_type.add('DOI:'.lower())
+# pubmed_not_dqm_cross_reference_type.add('DOI:/S'.lower())
+# pubmed_not_dqm_cross_reference_type.add('DOI:IJIv'.lower())
+
+EXCLUDE_XREF_TYPES = {
+    xref for xref in
+    [
+        'WB:WBTransgene',
+        'WB:WBGene',
+        'WB:WBVar',
+        'Xenbase:XB-GENEPAGE-'
+    ]
+}
+
+
 def process_xrefs_and_find_pmid_if_necessary(reference, mod, report_writer: ReportWriter, original_primary_id,
-                                             expected_cross_reference_type,
-                                             exclude_cross_reference_type,
                                              cross_reference_types: Dict[str, Dict[str, list]]):
     # need to process crossReferences once to reassign primaryId if PMID and filter out
     # unexpected crossReferences,
@@ -503,9 +504,9 @@ def process_xrefs_and_find_pmid_if_necessary(reference, mod, report_writer: Repo
 
             cross_ref_type_group = re.search(r"^([^0-9]+)[0-9]", cross_reference['id'])
             if cross_ref_type_group is not None:
-                if cross_ref_type_group[1].lower() not in expected_cross_reference_type:
+                if cross_ref_type_group[1].lower() not in EXPECTED_XREF_TYPES:
                     cross_reference_types[mod][cross_ref_type_group[1]].append(primary_id + ' ' + cross_reference['id'])
-                if cross_ref_type_group[1].lower() not in exclude_cross_reference_type:
+                if cross_ref_type_group[1].lower() not in EXCLUDE_XREF_TYPES:
                     dqm_xrefs[prefix].add(identifier)
                     expected_cross_references.append(cross_reference)
         reference['crossReferences'] = expected_cross_references
@@ -522,6 +523,7 @@ def process_xrefs_and_find_pmid_if_necessary(reference, mod, report_writer: Repo
         return primary_id, update_primary_id
 
 
+@memoized
 def get_schema_data_from_alliance():
     agr_schemas_reference_json_url = 'https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/ingest/resourcesAndReferences/reference.json'
     with urllib.request.urlopen(agr_schemas_reference_json_url) as url:
@@ -779,8 +781,8 @@ def load_dqm_data_from_json(filename):
         return None
 
 
-def update_unexpected_mod_properties_and_delete_blank_fields_from_entry(entry, schema_data,
-                                                                        unexpected_mod_properties: set):
+def update_unexpected_mod_properties_and_delete_blank_fields_from_entry(entry, unexpected_mod_properties: set):
+    schema_data = get_schema_data_from_alliance()
     unexpected_mod_properties.update({field for field in entry.keys() if field not in schema_data['properties']})
     for entry_property in list(entry.keys()):
         if entry_property in SINGLE_VALUE_FIELDS and entry[entry_property] == "":
@@ -802,34 +804,46 @@ def report_multiple_categories_and_dates_while_merging_multimod(alliance_categor
             message=f"Multiple datePublished pmid {pmid} dates published {dates_published}\n")
 
 
-def process_unmerged_pubmed_data(unmerged_pubmed_data: Dict[str, dict], additional_fields, aggregate_fields,
-                                 sanitized_pubmed_multi_mod_data, report_writer):
-    for pmid in unmerged_pubmed_data:
+def update_sanitized_entry_xrefs_from_unmerged_data(unmerged_dqm_data_for_single_pmid, sanitized_entry):
+    cross_references_dict = dict()
+    for entry in unmerged_dqm_data_for_single_pmid.values():
+        if 'crossReferences' in entry:
+            for cross_ref in entry['crossReferences']:
+                cross_references_dict[cross_ref['id']] = cross_ref['pages'] if 'pages' in cross_ref else None
+
+    for cross_ref_id, pages in cross_references_dict.items():
+        sanitized_cross_ref_dict = {"id": cross_ref_id}
+        if pages:
+            sanitized_cross_ref_dict["pages"] = pages
+        if 'crossReferences' not in sanitized_entry:
+            sanitized_entry['crossReferences'] = []
+        sanitized_entry['crossReferences'].append(sanitized_cross_ref_dict)
+
+
+AGGREGATE_FIELDS_FOR_MULTIMOD_MERGE = ['keywords', 'MODReferenceTypes', 'tags']
+ADDITIONAL_FIELDS_FOR_MULTIMOD_MERGE = ['nlm', 'resource']
+
+
+def merge_multimod_pubmed_and_dqm_data(unmerged_dqm_data_with_pmid: Dict[str, dict],
+                                       sanitized_pubmed_multi_mod_data, report_writer):
+    for pmid in unmerged_dqm_data_with_pmid:
         date_published_set = set()
         alliance_category_dict = defaultdict(set)
         sanitized_entry = dict()
-        cross_references_dict = dict()
-        mod_corpus_association_dict = dict()
-        for mod in unmerged_pubmed_data[pmid]:
-            entry = unmerged_pubmed_data[pmid][mod]
+        update_sanitized_entry_xrefs_from_unmerged_data(unmerged_dqm_data_with_pmid[pmid], sanitized_entry)
+        for mod in unmerged_dqm_data_with_pmid[pmid]:
+            entry = unmerged_dqm_data_with_pmid[pmid][mod]
             sanitized_entry['primaryId'] = entry['primaryId']
 
             for pmid_field in PMID_FIELDS:
                 if pmid_field in entry and pmid_field not in sanitized_entry:
                     sanitized_entry[pmid_field] = entry[pmid_field]
 
-            for additional_field in additional_fields:
+            for additional_field in ADDITIONAL_FIELDS_FOR_MULTIMOD_MERGE:
                 if additional_field in entry and additional_field not in sanitized_entry:
                     sanitized_entry[additional_field] = entry[additional_field]
 
-            if 'datePublished' in entry:
-                date_published_set.add(entry['datePublished'])
-
-            if 'allianceCategory' in entry:
-                sanitized_entry['allianceCategory'] = entry['allianceCategory']
-                alliance_category_dict[entry['allianceCategory']].add(mod)
-
-            for aggregate_field in aggregate_fields:
+            for aggregate_field in AGGREGATE_FIELDS_FOR_MULTIMOD_MERGE:
                 if aggregate_field in entry:
                     for value in entry[aggregate_field]:
                         if aggregate_field in sanitized_entry:
@@ -837,34 +851,16 @@ def process_unmerged_pubmed_data(unmerged_pubmed_data: Dict[str, dict], addition
                         else:
                             sanitized_entry[aggregate_field] = [value]
 
-            if 'modCorpusAssociations' in entry:
-                for mod_corpus_association in entry['modCorpusAssociations']:
-                    id = mod_corpus_association['modAbbreviation']
-                    mod_corpus_association_dict[id] = mod_corpus_association
-                    # logger.info("mod_corpus_association %s", mod_corpus_association)
+            if 'modCorpusAssociations' not in sanitized_entry:
+                sanitized_entry['modCorpusAssociations'] = []
+            sanitized_entry['modCorpusAssociations'].append(generate_default_mod_corpus_association_for_dqm_data(mod))
 
-            if 'crossReferences' in entry:
-                for cross_ref in entry['crossReferences']:
-                    id = cross_ref['id']
-                    pages = []
-                    if 'pages' in cross_ref:
-                        pages = cross_ref['pages']
-                    cross_references_dict[id] = pages
+            if 'datePublished' in entry:
+                date_published_set.add(entry['datePublished'])
 
-        for mod_corpus_association_id in mod_corpus_association_dict:
-            if 'modCorpusAssociations' in sanitized_entry:
-                sanitized_entry['modCorpusAssociations'].append(mod_corpus_association_dict[mod_corpus_association_id])
-            else:
-                sanitized_entry['modCorpusAssociations'] = [mod_corpus_association_dict[mod_corpus_association_id]]
-
-        for cross_ref_id, pages in cross_references_dict.items():
-            sanitized_cross_ref_dict = {"id": cross_ref_id}
-            if len(pages) > 0:
-                sanitized_cross_ref_dict["pages"] = pages
-            if 'crossReferences' in sanitized_entry:
-                sanitized_entry['crossReferences'].append(sanitized_cross_ref_dict)
-            else:
-                sanitized_entry['crossReferences'] = [sanitized_cross_ref_dict]
+            if 'allianceCategory' in entry:
+                sanitized_entry['allianceCategory'] = entry['allianceCategory']
+                alliance_category_dict[entry['allianceCategory']].add(mod)
 
         report_multiple_categories_and_dates_while_merging_multimod(alliance_category_dict, report_writer, pmid,
                                                                     date_published_set)
@@ -877,20 +873,73 @@ def write_sanitized_data_to_json(data, entries_size, base_file_name):
         write_json(json_filename, sanitized_pubmed_data_chunk)
 
 
+def generate_default_mod_corpus_association_for_dqm_data(mod):
+    return {
+        "modAbbreviation": mod,
+        "modCorpusSortSource": "dqm_files",
+        "corpus": True
+    }
+
+
+def sanitize_and_sort_entry_into_pubmod_pubmed_or_multi(
+        entry, unexpected_mod_properties, mod, report_writer,
+        cross_reference_types, resource_to_mod_issn_nlm, resource_to_nlm_id,
+        resource_to_nlm_highest_id, resource_to_mod, resource_not_found, sanitized_pubmod_data, pmid_multi_mods,
+        unmerged_dqm_data_with_pmid, sanitized_pubmed_single_mod_data, resource_nlm_id_to_title):
+    orig_primary_id = entry['primaryId']
+    update_unexpected_mod_properties_and_delete_blank_fields_from_entry(entry, unexpected_mod_properties)
+    # inject the mod corpus association data because if it came from that mod dqm file it should have this entry
+    entry['modCorpusAssociations'] = [generate_default_mod_corpus_association_for_dqm_data(mod)]
+
+    primary_id, update_primary_id = process_xrefs_and_find_pmid_if_necessary(
+        reference=entry, mod=mod, report_writer=report_writer, original_primary_id=orig_primary_id,
+        cross_reference_types=cross_reference_types)
+    if not primary_id:
+        return
+
+    pubmed_data, is_pubmod, pmid = load_pubmed_data_if_present(primary_id, mod, orig_primary_id,
+                                                               report_writer=report_writer)
+    if is_pubmod:
+        process_pubmod_authors_xrefs_keywords(entry, update_primary_id, primary_id, mod)
+        set_resource_info_from_abbreviation(entry, mod, primary_id, resource_to_mod_issn_nlm, resource_to_nlm_id,
+                                            resource_to_nlm_highest_id, resource_to_mod, resource_not_found,
+                                            report_writer=report_writer)
+        sanitized_pubmod_data.append(entry)
+    else:
+        # processing pubmed data
+        merge_pubmed_single_value_fields_into_entry(entry, pubmed_data, mod, pmid, report_writer)
+        replace_fields_in_dqm_data_with_pubmed_values(entry, pubmed_data)
+        set_additional_author_values_in_dqm_data(entry)
+        merge_pubmed_xrefs_into_entry_xrefs(entry, pubmed_data, mod, primary_id, report_writer)
+        merge_pubmed_nlm_resource_info_into_entry(entry, mod, pmid, pubmed_data, resource_nlm_id_to_title,
+                                                  resource_to_nlm_id, report_writer)
+        merge_keywords_from_pubmed_into_entry(entry, pubmed_data, mod)
+
+        if pmid in pmid_multi_mods.keys():
+            # logger.info("MULTIPLE pmid %s mod %s", pmid, mod)
+            unmerged_dqm_data_with_pmid[pmid][mod] = entry
+        else:
+            sanitized_pubmed_single_mod_data.append(entry)
+
+
+ALLOWED_MODS = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB', 'XB']
+
+
 def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=base_path):  # noqa: C901
     # reads agr_schemas's reference.json to check for dqm data that's not accounted for there.
     # outputs sanitized json to sanitized_reference_json/
     # does checks on dqm crossReferences.  if primaryId is not PMID, and a crossReference is PubMed,
     # assigns PMID to primaryId and to authors's referenceId.
     # if any reference's author doesn't have author Rank, assign authorRank based on array order.
-    logger.info("initializing data structures")
 
     # datePublished is a string, not a proper date field
 
+    logger.info("initializing data structures")
     # RGD should be first in mods list.  if conflicting allianceCategories the later mod gets priority
-    mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB', 'XB']
-    if input_mod in mods:
+    if input_mod in ALLOWED_MODS:
         mods = [input_mod]
+    else:
+        mods = ALLOWED_MODS
 
     # this has to be loaded, if the mod data is hashed by pmid+mod and sorted for those with
     # multiple mods, there's an out-of-memory crash
@@ -907,9 +956,6 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
     # for mod in mods:
     #     resource_to_mod[mod] = dict()
 
-    expected_cross_reference_type, exclude_cross_reference_type, pubmed_not_dqm_cross_reference_type = \
-        populate_expected_cross_reference_type()
-
     json_storage_path = base_path + output_directory + 'sanitized_reference_json/'
     if not path.exists(json_storage_path):
         makedirs(json_storage_path)
@@ -921,10 +967,9 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
     cross_reference_types = defaultdict(lambda: defaultdict(list))
 
     logger.info("Aggregating DQM and PubMed data from %s using mods %s", input_path, mods)
-    schema_data = get_schema_data_from_alliance()
 
     sanitized_pubmed_multi_mod_data = []
-    unmerged_pubmed_data = defaultdict(dict)  # pubmed data by pmid and mod that needs some fields merged
+    unmerged_dqm_data_with_pmid = defaultdict(dict)  # pubmed data by pmid and mod that needs some fields merged
     for mod in mods:
         dqm_data = load_dqm_data_from_json(filename=base_dir + input_path + '/REFERENCE_' + mod + '.json')
         if dqm_data is None:
@@ -933,48 +978,11 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
         sanitized_pubmed_single_mod_data = []
         unexpected_mod_properties = set()
         for entry in dqm_data['data']:
-            orig_primary_id = entry['primaryId']
-            update_unexpected_mod_properties_and_delete_blank_fields_from_entry(entry, schema_data,
-                                                                                unexpected_mod_properties)
-            # inject the mod corpus association data because if it came from that mod dqm file it should have this entry
-            entry['modCorpusAssociations'] = [{"modAbbreviation": mod, "modCorpusSortSource": "dqm_files",
-                                               "corpus": True}]
-
-            primary_id, update_primary_id = process_xrefs_and_find_pmid_if_necessary(
-                reference=entry,
-                mod=mod,
-                report_writer=report_writer,
-                original_primary_id=orig_primary_id,
-                expected_cross_reference_type=expected_cross_reference_type,
-                exclude_cross_reference_type=exclude_cross_reference_type,
-                cross_reference_types=cross_reference_types)
-            if not primary_id:
-                continue
-
-            pubmed_data, is_pubmod, pmid = load_pubmed_data_if_present(primary_id, mod, orig_primary_id,
-                                                                       report_writer=report_writer)
-
-            if is_pubmod:
-                process_pubmod_authors_xrefs_keywords(entry, update_primary_id, primary_id, mod)
-                set_resource_info_from_abbreviation(entry, mod, primary_id, resource_to_mod_issn_nlm,
-                                                    resource_to_nlm_id, resource_to_nlm_highest_id, resource_to_mod,
-                                                    resource_not_found, report_writer=report_writer)
-                sanitized_pubmod_data.append(entry)
-            else:
-                # processing pubmed data
-                merge_pubmed_single_value_fields_into_entry(entry, pubmed_data, mod, pmid, report_writer)
-                replace_fields_in_dqm_data_with_pubmed_values(entry, pubmed_data)
-                set_additional_author_values_in_dqm_data(entry)
-                merge_pubmed_xrefs_into_entry_xrefs(entry, pubmed_data, mod, primary_id, report_writer)
-                merge_pubmed_nlm_resource_info_into_entry(entry, mod, pmid, pubmed_data, resource_nlm_id_to_title,
-                                                          resource_to_nlm_id, report_writer)
-                merge_keywords_from_pubmed_into_entry(entry, pubmed_data, mod)
-
-                if pmid in pmid_multi_mods.keys():
-                    # logger.info("MULTIPLE pmid %s mod %s", pmid, mod)
-                    unmerged_pubmed_data[pmid][mod] = entry
-                else:
-                    sanitized_pubmed_single_mod_data.append(entry)
+            sanitize_and_sort_entry_into_pubmod_pubmed_or_multi(
+                entry, unexpected_mod_properties, mod, report_writer, cross_reference_types,
+                resource_to_mod_issn_nlm, resource_to_nlm_id, resource_to_nlm_highest_id, resource_to_mod,
+                resource_not_found, sanitized_pubmod_data, pmid_multi_mods, unmerged_dqm_data_with_pmid,
+                sanitized_pubmed_single_mod_data, resource_nlm_id_to_title)
 
         logger.info("Generating .json output for mod %s", mod)
 
@@ -988,16 +996,12 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
 
     logger.info("processing unmerged pubmed_data")
 
-    aggregate_fields = ['keywords', 'MODReferenceTypes', 'tags']
-    additional_fields = ['nlm', 'resource']
-
-    process_unmerged_pubmed_data(unmerged_pubmed_data, additional_fields, aggregate_fields,
-                                 sanitized_pubmed_multi_mod_data, report_writer)
+    merge_multimod_pubmed_and_dqm_data(unmerged_dqm_data_with_pmid, sanitized_pubmed_multi_mod_data, report_writer)
     logger.info("outputting sanitized pubmed_data")
 
     write_sanitized_data_to_json(sanitized_pubmed_multi_mod_data, entries_size=100000,
                                  base_file_name=json_storage_path + "REFERENCE_PUBMED_MULTI")
-    report_unexpected_cross_references(cross_reference_types, exclude_cross_reference_type, report_writer=report_writer)
+    report_unexpected_cross_references(cross_reference_types, EXCLUDE_XREF_TYPES, report_writer=report_writer)
     find_resource_abbreviation_not_matched_to_nlm_or_res_mod(resource_not_found, report_writer=report_writer,
                                                              base_dir=base_dir)
     report_writer.close()
