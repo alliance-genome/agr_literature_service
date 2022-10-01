@@ -6,22 +6,27 @@ from datetime import datetime
 import json
 import time
 
-from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
-    ModModel, ModCorpusAssociationModel, ReferenceCommentAndCorrectionModel, \
-    AuthorModel, MeshDetailModel
+from agr_literature_service.api.models import ModModel, ReferenceModel, ModCorpusAssociationModel
 from agr_literature_service.api.crud.reference_crud import get_citation_from_args
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import update_resource_pubmed_nlm
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import download_pubmed_xml
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import generate_json
-from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import load_s3_md5data
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import \
+    update_resource_pubmed_nlm
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import \
+    download_pubmed_xml
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import \
+    generate_json
+from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
+    load_s3_md5data
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3
-from agr_literature_service.lit_processing.utils.db_read_utils import get_reference_id_by_pmid,\
+from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_orcid_data, get_author_data, get_mesh_term_data, get_cross_reference_data, \
     get_cross_reference_data_for_resource, get_comment_correction_data, get_journal_data, \
     get_reference_ids_by_pmids, get_pmid_to_reference_id_for_papers_not_associated_with_mod, \
     get_pmid_to_reference_id
-from agr_literature_service.lit_processing.utils.report_utils import write_log_and_send_pubmed_update_report,\
+from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
+    update_authors, update_comment_corrections, update_mesh_terms, update_cross_reference
+from agr_literature_service.lit_processing.utils.report_utils import \
+    write_log_and_send_pubmed_update_report, \
     write_log_and_send_pubmed_no_update_report
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
@@ -376,15 +381,16 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
                                    json_data.get('doi'),
                                    reference_id_to_pmcid.get(x.reference_id),
                                    pmcid_list_in_db,
-                                   json_data.get('pmc'), update_log)
+                                   json_data.get('pmc'), update_log, log)
 
         ## update author table
         # author_list_with_first_or_corresponding_author =
         # a list of (pmid, name, first_author, corresponding_author)
-        authors = update_authors(db_session, fw, pmid, x.reference_id,
+        authors = update_authors(db_session, x.reference_id,
                                  reference_id_to_authors.get(x.reference_id),
-                                 json_data.get('authors'), orcid_dict,
-                                 newly_added_orcid, update_log)
+                                 json_data.get('authors'),
+                                 orcid_dict, newly_added_orcid,
+                                 None, fw, pmid, update_log)
 
         authors_with_first_or_corresponding_flag = authors_with_first_or_corresponding_flag + authors
 
@@ -545,369 +551,6 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
     else:
         fw.write("PMID:" + str(pmid) + " No Change in Reference table\n")
         log.info(str(count) + " PMID:" + str(pmid) + " No Change in Reference table")
-
-
-def update_authors(db_session, fw, pmid, reference_id, author_list_in_db, author_list_in_json, orcid_dict, newly_added_orcid, update_log):
-    # If any of the author fields are different, check if any of our ABC authors
-    # have a different corresponding_author or first_author, in which case do not
-    # update the authors at all (in theory, eventually send a message to a curator,
-    # but for now don't do that).  If the first/corr flags have not been changed,
-    # then get rid of all the ABC authors, and repopulate them from the PubMed data
-
-    if author_list_in_json is None:
-        return []
-
-    authors_in_db = []
-    author_list_with_first_or_corresponding_author = []
-    if author_list_in_db:
-        for x in author_list_in_db:
-            if x['first_author'] or x['corresponding_author']:
-                author_list_with_first_or_corresponding_author.append((pmid, x['name'], "first_author = " + str(x['first_author']), "corresponding_author = " + str(x['corresponding_author'])))
-            affiliations = x['affiliations'] if x['affiliations'] else []
-            orcid = x['orcid'] if x['orcid'] else ''
-            authors_in_db.append((x['name'], x['first_name'], x['last_name'], x['order'], '|'.join(affiliations), orcid))
-
-    authors_in_json = []
-    for x in author_list_in_json:
-        orcid = 'ORCID:' + x['orcid'] if x.get('orcid') else ''
-        affiliations = x['affiliations'] if x.get('affiliations') else []
-        authors_in_json.append((x.get('name', ''), x.get('firstname', ''), x.get('lastname', ''), x.get('authorRank', 0), '|'.join(affiliations), orcid))
-
-    # print ("authors_in_db=", authors_in_db)
-    # print ("authors_in_json", authors_in_json)
-
-    if set(authors_in_db) == set(authors_in_json):
-        return []
-
-    ## only return / notify if there is any other author info changed
-    if len(author_list_with_first_or_corresponding_author) > 0:
-        return author_list_with_first_or_corresponding_author
-
-    update_log['author_name'] = update_log['author_name'] + 1
-    update_log['pmids_updated'].append(pmid)
-
-    ## deleting authors from database for the given pmid
-    for x in db_session.query(AuthorModel).filter_by(reference_id=reference_id).order_by(AuthorModel.order).all():
-        name = x.name
-        affiliations = x.affiliations if x.affiliations else []
-        try:
-            db_session.delete(x)
-            fw.write("PMID:" + str(pmid) + ": DELETE AUTHOR: " + name + " | '" + '|'.join(affiliations) + "'\n")
-        except Exception as e:
-            fw.write("PMID:" + str(pmid) + ": DELETE AUTHOR: " + name + " failed: " + str(e) + "\n")
-
-    ## adding authors from pubmed into database
-    for x in authors_in_json:
-        (name, firstname, lastname, authorRank, affiliations, orcid) = x
-        if orcid and orcid not in orcid_dict and orcid not in newly_added_orcid:
-            ## not in cross_reference table
-            data = {"curie": orcid, "is_obsolete": False}
-            try:
-                c = CrossReferenceModel(**data)
-                db_session.add(c)
-                fw.write("PMID:" + str(pmid) + ": INSERT CROSS_REFERENCE: " + orcid + "\n")
-                newly_added_orcid.append(orcid)
-            except Exception as e:
-                fw.write("PMID:" + str(pmid) + ": INSERT CROSS_REFERENCE: " + orcid + " failed: " + str(e) + "\n")
-        data = {"reference_id": reference_id,
-                "name": name,
-                "first_name": firstname,
-                "last_name": lastname,
-                "order": authorRank,
-                "affiliations": affiliations.split('|'),
-                "orcid": orcid if orcid else None,
-                "first_author": False,
-                "corresponding_author": False}
-        try:
-            x = AuthorModel(**data)
-            db_session.add(x)
-            fw.write("PMID:" + str(pmid) + ": INSERT AUTHOR: " + name + " | '" + affiliations + "'\n")
-        except Exception as e:
-            fw.write("PMID:" + str(pmid) + ": INSERT AUTHOR: " + name + " failed: " + str(e) + "\n")
-
-    return []
-
-
-def update_comment_corrections(db_session, fw, pmid, reference_id, pmid_to_reference_id, reference_ids_to_comment_correction_type, comment_correction_in_json, update_log):
-
-    if comment_correction_in_json is None or str(comment_correction_in_json) == '{}':
-        return
-
-    type_mapping = {'ErratumIn': 'ErratumFor',
-                    'RepublishedIn': 'RepublishedFrom',
-                    'RetractionIn': 'RetractionOf',
-                    'ExpressionOfConcernIn': 'ExpressionOfConcernFor',
-                    'ReprintIn': 'ReprintOf',
-                    'UpdateIn': 'UpdateOf'}
-
-    new_reference_ids_to_comment_correction_type = {}
-    for type in comment_correction_in_json:
-        other_pmids = comment_correction_in_json[type]
-        other_reference_ids = []
-        for this_pmid in other_pmids:
-            other_reference_id = pmid_to_reference_id.get(this_pmid)
-            if other_reference_id is None:
-                other_reference_id = get_reference_id_by_pmid(db_session, this_pmid)
-                if other_reference_id is None:
-                    continue
-            other_reference_ids.append(other_reference_id)
-        if len(other_reference_ids) == 0:
-            continue
-        if type.endswith('For') or type.endswith('From') or type.endswith('Of'):
-            reference_id_from = reference_id
-            for reference_id_to in other_reference_ids:
-                new_reference_ids_to_comment_correction_type[(reference_id_from, reference_id_to)] = type
-        else:
-            type = type_mapping.get(type)
-            if type is None:
-                continue
-            reference_id_to = reference_id
-            for reference_id_from in other_reference_ids:
-                new_reference_ids_to_comment_correction_type[(reference_id_from, reference_id_to)] = type
-
-    if len(new_reference_ids_to_comment_correction_type.keys()) == 0:
-        return
-
-    for key in new_reference_ids_to_comment_correction_type:
-        if key in reference_ids_to_comment_correction_type:
-            if reference_ids_to_comment_correction_type[key] == new_reference_ids_to_comment_correction_type[key]:
-                continue
-            (reference_id_from, reference_id_to) = key
-            update_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
-            update_log['comment_erratum'] = update_log['comment_erratum'] + 1
-            update_log['pmids_updated'].append(pmid)
-        else:
-            insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
-            update_log['comment_erratum'] = update_log['comment_erratum'] + 1
-            update_log['pmids_updated'].append(pmid)
-
-    for key in reference_ids_to_comment_correction_type:
-        if key in new_reference_ids_to_comment_correction_type:
-            continue
-        (reference_id_from, reference_id_to) = key
-        if reference_id in [reference_id_from, reference_id_to]:
-            ## only remove the ones that are associated with given PMIDs
-            delete_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
-            update_log['comment_erratum'] = update_log['comment_erratum'] + 1
-            update_log['pmids_updated'].append(pmid)
-
-
-def insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):
-
-    ## check to see if any newly added ones matches this entry
-    rows = db_session.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to).all()
-    if len(rows) > 0:
-        return
-
-    data = {"reference_id_from": reference_id_from,
-            "reference_id_to": reference_id_to,
-            "reference_comment_and_correction_type": type}
-    try:
-        x = ReferenceCommentAndCorrectionModel(**data)
-        db_session.add(x)
-        fw.write("PMID:" + str(pmid) + ": INSERT CommentsAndCorrections: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + "\n")
-    except Exception as e:
-        fw.write("PMID:" + str(pmid) + ": INSERT CommentsAndCorrections: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + " failed: " + str(e) + "\n")
-
-
-def update_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):
-
-    all = db_session.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to).all()
-
-    if len(all) == 0:
-        return
-
-    for x in all:
-        db_session.delete(x)
-
-    insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
-
-
-def delete_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):
-
-    for x in db_session.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to, reference_comment_and_correction_type=type).all():
-        try:
-            db_session.delete(x)
-            fw.write("PMID:" + str(pmid) + ": DELETE CommentsAndCorrections: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + "\n")
-        except Exception as e:
-            fw.write("PMID:" + str(pmid) + ": DELETE CommentsAndCorrections: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + " failed: " + str(e) + "\n")
-
-
-def update_mesh_terms(db_session, fw, pmid, reference_id, mesh_terms_in_db, mesh_terms_in_json_data, update_log):
-
-    if mesh_terms_in_json_data is None:
-        return
-
-    mesh_terms_in_json = []
-
-    for m in mesh_terms_in_json_data:
-        heading_term = m.get('meshHeadingTerm')
-        qualifier_term = m.get('meshQualifierTerm', '')
-        if heading_term is None:
-            continue
-        mesh_terms_in_json.append((heading_term, qualifier_term))
-
-    if mesh_terms_in_db is None:
-        mesh_terms_in_db = []
-
-    if len(mesh_terms_in_json) == 0 or set(mesh_terms_in_json) == set(mesh_terms_in_db):
-        return
-
-    for m in mesh_terms_in_json:
-        if m in mesh_terms_in_db:
-            continue
-        else:
-            insert_mesh_term(db_session, fw, pmid, reference_id, m)
-
-    for m in mesh_terms_in_db:
-        if m in mesh_terms_in_json:
-            continue
-        else:
-            delete_mesh_term(db_session, fw, pmid, reference_id, m)
-
-    update_log['mesh_term'] = update_log['mesh_term'] + 1
-    update_log['pmids_updated'].append(pmid)
-
-
-def insert_mesh_term(db_session, fw, pmid, reference_id, terms):
-
-    (heading_term, qualifier_term) = terms
-
-    if qualifier_term == '':
-        qualifier_term = None
-
-    data = {'reference_id': reference_id, 'heading_term': heading_term, 'qualifier_term': qualifier_term}
-    try:
-        x = MeshDetailModel(**data)
-        db_session.add(x)
-        fw.write("PMID:" + str(pmid) + ": INSERT mesh term: " + str(terms) + "\n")
-    except Exception as e:
-        fw.write("PMID:" + str(pmid) + ": INSERT mesh term: " + str(terms) + " failed: " + str(e) + "\n")
-
-
-def delete_mesh_term(db_session, fw, pmid, reference_id, terms):
-
-    (heading_term, qualifier_term) = terms
-
-    try:
-        x = None
-        if qualifier_term != '':
-            x = db_session.query(MeshDetailModel).filter_by(reference_id=reference_id, heading_term=heading_term, qualifier_term=qualifier_term).one_or_none()
-        else:
-            for m in db_session.query(MeshDetailModel).filter_by(reference_id=reference_id, heading_term=heading_term).all():
-                if not m.qualifier_term:
-                    x = m
-        if x is None:
-            return
-        db_session.delete(x)
-        fw.write("PMID:" + str(pmid) + ": DELETE mesh term " + str(terms) + "\n")
-    except Exception as e:
-        fw.write("PMID:" + str(pmid) + ": DELETE mesh term: " + str(terms) + " failed: " + str(e) + "\n")
-
-
-def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_in_db, doi_json, pmcid_db, pmcid_list_in_db, pmcid_json, update_log):
-
-    if doi_json is None and pmcid_json is None:
-        return
-
-    ## take care of DOI
-    if doi_json and (doi_db is None or doi_json != doi_db) and doi_json in doi_list_in_db:
-        fw.write("PMID:" + str(pmid) + ": DOI:" + doi_json + " is in the database for another paper.\n")
-    else:
-        if doi_json and doi_json != doi_db:
-            if doi_db is None:
-                insert_doi(db_session, fw, pmid, reference_id, doi_json)
-            else:
-                update_doi(db_session, fw, pmid, reference_id, doi_db, doi_json)
-            update_log['doi'] = update_log['doi'] + 1
-            update_log['pmids_updated'].append(pmid)
-
-    ## take care of PMCID
-    if pmcid_json:
-        if pmcid_json.startswith('PMC'):
-            if not pmcid_json.replace('PMC', '').isdigit():
-                pmcid_json = None
-        else:
-            pmcid_json = None
-
-    if pmcid_json is None:
-        return
-
-    if pmcid_db and pmcid_db == pmcid_json:
-        return
-
-    if pmcid_json and (pmcid_db is None or pmcid_json != pmcid_db) and pmcid_json in pmcid_list_in_db:
-        fw.write("PMID:" + str(pmid) + ": PMC:" + pmcid_json + " is in the database for another paper.\n")
-    else:
-        if pmcid_db:
-            update_pmcid(db_session, fw, pmid, reference_id, pmcid_db, pmcid_json)
-        else:
-            insert_pmcid(db_session, fw, pmid, reference_id, pmcid_json)
-
-        update_log['pmcid'] = update_log['pmcid'] + 1
-        update_log['pmids_updated'].append(pmid)
-
-
-def update_doi(db_session, fw, pmid, reference_id, old_doi, new_doi):
-
-    try:
-        x = db_session.query(CrossReferenceModel).filter_by(reference_id=reference_id).filter(CrossReferenceModel.curie == 'DOI:' + old_doi).one_or_none()
-        if x is None:
-            return
-        x.curie = new_doi
-        db_session.add(x)
-        fw.write("PMID:" + str(pmid) + ": UPDATE DOI from " + old_doi + " to " + new_doi + "\n")
-    except Exception as e:
-        fw.write("PMID:" + str(pmid) + ": UPDATE DOI from " + old_doi + " to " + new_doi + " failed: " + str(e) + "\n")
-
-
-def insert_doi(db_session, fw, pmid, reference_id, doi):
-
-    ## for some reason, we need to add this check to make sure it is not in db
-    x = db_session.query(CrossReferenceModel).filter_by(curie="DOI:" + doi).one_or_none()
-    if x:
-        if x.reference_id != reference_id:
-            log.info("The DOI:" + doi + " is associated with two papers: reference_ids=" + str(reference_id) + ", " + str(x.reference_id))
-        return
-
-    data = {"curie": "DOI:" + doi, "reference_id": reference_id, "is_obsolete": False}
-    try:
-        x = CrossReferenceModel(**data)
-        db_session.add(x)
-        fw.write("PMID:" + str(pmid) + ": INSERT DOI:" + doi + "\n")
-    except Exception as e:
-        fw.write("PMID:" + str(pmid) + ": INSERT DOI:" + doi + " failed: " + str(e) + "\n")
-
-
-def update_pmcid(db_session, fw, pmid, reference_id, old_pmcid, new_pmcid):
-
-    try:
-        x = db_session.query(CrossReferenceModel).filter_by(reference_id=reference_id).filter(CrossReferenceModel.curie == 'PMCID:' + old_pmcid).one_or_none()
-        if x is None:
-            return
-        x.curie = new_pmcid
-        db_session.add(x)
-        fw.write("PMID:" + str(pmid) + ": UPDATE PMCID from " + old_pmcid + " to " + new_pmcid + "\n")
-    except Exception as e:
-        fw.write("PMID:" + str(pmid) + ": UPDATE PMCID from " + old_pmcid + " to " + new_pmcid + " failed: " + str(e) + "\n")
-
-
-def insert_pmcid(db_session, fw, pmid, reference_id, pmcid):
-
-    ## for some reason, we need to add this check to make sure it is not in db
-    x = db_session.query(CrossReferenceModel).filter_by(curie="PMCID:" + pmcid).one_or_none()
-    if x:
-        if x.reference_id != reference_id:
-            log.info("The PMCID:" + pmcid + " is associated with two papers: reference_ids=" + str(reference_id) + ", " + str(x.reference_id))
-        return
-
-    data = {"curie": "PMCID:" + pmcid, "reference_id": reference_id, "is_obsolete": False}
-    try:
-        x = CrossReferenceModel(**data)
-        db_session.add(x)
-        fw.write("PMID:" + str(pmid) + ": INSERT PMCID:" + pmcid + "\n")
-    except Exception as e:
-        fw.write("PMID:" + str(pmid) + ": INSERT PMCID:" + pmcid + " failed: " + str(e) + "\n")
 
 
 def get_md5sum(md5sum_path):
