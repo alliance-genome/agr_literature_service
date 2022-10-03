@@ -133,4 +133,3 @@ def clean_up_keywords(mod, entry):
             mod_keyword = str(bs4.BeautifulSoup(mod_keyword, "html.parser"))
             keywords.append(mod_keyword)
         entry['keywords'] = keywords
-    return entry

@@ -4,7 +4,7 @@ from os import path
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel,\
     AuthorModel, ModCorpusAssociationModel, ModReferenceTypeModel, MeshDetailModel,\
     ModModel, ReferenceCommentAndCorrectionModel
-from agr_literature_service.lit_processing.data_ingest.utils.db_utils import \
+from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_orcid_data, get_journal_data
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import \
     insert_reference, insert_authors, insert_cross_references, get_doi_data, \
@@ -113,7 +113,8 @@ class TestPostReferenceToDb:
         ## test insert_mesh_terms()
         insert_mesh_terms(db, primaryId, reference_id, entry['meshTerms'])
         db.commit()
-        mt = db.query(MeshDetailModel).filter_by(reference_id=reference_id).first()
+        mt = db.query(MeshDetailModel).filter_by(reference_id=reference_id).order_by(
+            MeshDetailModel.mesh_detail_id).first()
         assert mt.heading_term == 'Animals'
 
         ## test insert_mod_reference_types()
