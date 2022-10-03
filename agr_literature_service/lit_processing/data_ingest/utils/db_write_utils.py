@@ -94,7 +94,10 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
     if author_list_in_db:
         for x in author_list_in_db:
             if x['first_author'] or x['corresponding_author']:
-                author_list_with_first_or_corresponding_author.append((x['name'], "first_author = " + str(x['first_author']), "corresponding_author = " + str(x['corresponding_author'])))
+                id = "REFERENCE_ID:" + str(reference_id)
+                if pmid is not None:
+                    id = "PMID:" + str(pmid)
+                author_list_with_first_or_corresponding_author.append(id, (x['name'], "first_author = " + str(x['first_author']), "corresponding_author = " + str(x['corresponding_author'])))
             affiliations = x['affiliations'] if x['affiliations'] else []
             orcid = x['orcid'] if x['orcid'] else ''
             authors_in_db.append((x['name'], x['first_name'], x['last_name'], x['order'], '|'.join(affiliations), orcid))
