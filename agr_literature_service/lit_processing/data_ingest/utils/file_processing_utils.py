@@ -1,4 +1,6 @@
 import json
+import logging
+import os
 from os import environ
 
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
@@ -6,6 +8,8 @@ from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp
 init_tmp_dir()
 
 base_path = environ.get('XML_PATH')
+
+logger = logging.getLogger(__name__)
 
 
 def load_pubmed_resource_basic():
@@ -70,3 +74,16 @@ def write_json(json_filename, dict_to_output):
         json_data = json.dumps(dict_to_output, indent=4, sort_keys=True)
         json_file.write(json_data)
         json_file.close()
+
+
+def load_references_from_dqm_json(filename):
+    """
+    Load reference data from file
+    """
+    logger.info("Loading %s", filename)
+    if os.path.exists(filename):
+        return json.load(open(filename, 'r'))["data"]
+    else:
+        logger.info("No file found %s", filename)
+        return None
+
