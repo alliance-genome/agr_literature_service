@@ -1,7 +1,7 @@
 from sqlalchemy_continuum import make_versioned
 from sqlalchemy_continuum.plugins import PropertyModTrackerPlugin
 from agr_literature_service.api.continuum_plugins import UserPlugin
-from agr_literature_service.api.utils import execute_once
+from agr_literature_service.global_utils import execute_once
 
 
 @execute_once
