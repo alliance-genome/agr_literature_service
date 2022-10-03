@@ -270,10 +270,10 @@ def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, upda
         email_message = email_message + "Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database<p>"
 
         for x in authors_with_first_or_corresponding_flag:
-            (pmid, name, first_author, corresponding_author) = x
-            logger.info("PMID:" + str(pmid) + ": name = " + name + ", " + first_author + ", " + corresponding_author)
-            fw.write("PMID:" + str(pmid) + ": name = " + name + ", " + first_author + ", " + corresponding_author + "\n")
-            email_message = email_message + "PMID:" + str(pmid) + ": name =" + name + ", first_author=" + first_author + ", corresponding_author=" + corresponding_author + "<br>"
+            (paper_id, name, first_author, corresponding_author) = x
+            logger.info(paper_id + ": name = " + name + ", " + first_author + ", " + corresponding_author)
+            fw.write(paper_id + ": name = " + name + ", " + first_author + ", " + corresponding_author + "\n")
+            email_message = email_message + paper_id + ": name =" + name + ", first_author=" + first_author + ", corresponding_author=" + corresponding_author + "<br>"
 
     if len(not_found_xml_list) > 0:
         i = 0
