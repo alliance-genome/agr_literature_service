@@ -5,8 +5,11 @@ import logging
 import os
 from typing import List, Iterable
 
+import bs4
+
 from agr_literature_service.lit_processing.data_ingest.utils.alliance_utils import get_schema_data_from_alliance
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json, chunks
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +78,67 @@ class Reference:
             if 'crossReferences' not in self.data:
                 self.data['crossReferences'] = []
             self.data['crossReferences'].append(sanitized_cross_ref_dict)
+
+    def clean_up_keywords(self, mod):
+        # e.g. 9882485 25544291 24201188 31188077
+        if mod == 'ZFIN':
+            if 'keywords' in self.data:
+                if self.data['keywords'][0] == '':
+                    self.data['keywords'] = []
+                else:
+                    # zfin has all keywords in the first array element, they cannot fix it
+                    zfin_value = self.data['keywords'][0]
+                    zfin_value = str(bs4.BeautifulSoup(zfin_value, "html.parser"))
+                    comma_count = 0
+                    semicolon_count = 0
+                    if ", " in zfin_value:
+                        comma_count = zfin_value.count(',')
+                    if "; " in zfin_value:
+                        semicolon_count = zfin_value.count(';')
+                    if (comma_count == 0) and (semicolon_count == 0):
+                        self.data['keywords'] = [zfin_value]
+                    elif comma_count >= semicolon_count:
+                        self.data['keywords'] = zfin_value.split(", ")
+                    else:
+                        self.data['keywords'] = zfin_value.split("; ")
+        else:
+            keywords = []
+            for mod_keyword in self.data['keywords']:
+                mod_keyword = str(bs4.BeautifulSoup(mod_keyword, "html.parser"))
+                keywords.append(mod_keyword)
+            self.data['keywords'] = keywords
+
+    def merge_keywords_from_pubmed(self, pubmed_data: Reference, mod):
+        if 'keywords' not in self.data:
+            self.data['keywords'] = []
+        else:
+            # e.g. 9882485 25544291 24201188 31188077
+            self.clean_up_keywords(mod)
+        if 'keywords' in pubmed_data:
+            # aggregate for all MODs except ZFIN, which has misformed data and can't fix it.
+            # 19308247 aggregates keywords for WB
+            entry_keywords = {keyword.upper() for keyword in self.data['keywords']}
+            for pubmed_keyword in pubmed_data['keywords']:
+                if pubmed_keyword.upper() not in entry_keywords:
+                    self.data['keywords'].append(pubmed_keyword)
+
+    def process_pubmod_authors_xrefs_keywords(self, update_primary_id, primary_id, mod):
+        if 'authors' in self.data:
+            all_authors_have_rank = all(['authorRank' in author for author in self.data['authors']])
+            for author in self.data['authors']:
+                author['correspondingAuthor'] = False
+                author['firstAuthor'] = False
+            if not all_authors_have_rank:
+                for idx, _ in enumerate(self.data['authors']):
+                    self.data['authors'][idx]['authorRank'] = idx + 1
+            if update_primary_id:
+                for idx, _ in enumerate(self.data['authors']):
+                    self.data['authors'][idx]['referenceId'] = primary_id
+        if 'crossReferences' in self.data:
+            self.data['crossReferences'] = [cross_reference for cross_reference in self.data['crossReferences'] if
+                                            split_identifier(cross_reference['id'])[0].lower() != 'pmid']
+        if 'keywords' in self.data:
+            self.clean_up_keywords(mod)
 
 
 def load_references_data_from_dqm_json(filename):

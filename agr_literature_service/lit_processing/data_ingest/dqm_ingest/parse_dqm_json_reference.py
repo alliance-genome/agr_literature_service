@@ -11,7 +11,7 @@ from typing import Dict
 import bs4
 from dotenv import load_dotenv
 
-from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_processing_utils import clean_up_keywords
+from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.report_writer import ReportWriter
 from agr_literature_service.lit_processing.data_ingest.reference import SINGLE_VALUE_FIELDS, DATE_FIELDS, \
     REPLACE_VALUE_FIELDS, PMID_FIELDS, Reference, write_sanitized_references_to_json, load_references_data_from_dqm_json
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
@@ -23,33 +23,6 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
 
-
-class ReportWriter:
-    def __init__(self, mod_reports_dir, multimod_reports_file_path):
-        self.mod_reports_dir = mod_reports_dir
-        self.multimod_reports_file_path = multimod_reports_file_path
-        self.report_file_handlers = defaultdict(dict)
-        if not path.exists(mod_reports_dir):
-            makedirs(mod_reports_dir)
-
-    def get_report_file_name(self, mod, report_type):
-        if report_type == "multi":
-            return self.multimod_reports_file_path
-        else:
-            return self.mod_reports_dir + mod + "_" + REPORT_TYPE_FILE_NAME_POSTFIX[report_type]
-
-    def write(self, mod: str, report_type: str, message: str):
-        try:
-            self.report_file_handlers[report_type][mod].write(message)
-        except KeyError:
-            self.report_file_handlers[report_type][mod] = open(
-                self.get_report_file_name(mod=mod, report_type=report_type), "w")
-            self.report_file_handlers[report_type][mod].write(message)
-
-    def close(self):
-        for mod_handlers_dict in self.report_file_handlers.values():
-            for file_handler in mod_handlers_dict.values():
-                file_handler.close()
 
 # TODO  -p  should also be able to take directory so that dqm updates can run on dqm_data_updates_new/
 
@@ -401,15 +374,6 @@ def load_pmid_multi_mods(output_path):
     return pmid_multi_mods
 
 
-REPORT_TYPE_FILE_NAME_POSTFIX = {
-    "generic": "main",
-    "title": "dqm_pubmed_differ_title",
-    "differ": "dqm_pubmed_differ_other",
-    "resource_unmatched": "resource_unmatched",
-    "reference_no_resource": "reference_no_resource"
-}
-
-
 CROSS_REF_NO_PAGES_OK_FIELDS = ['DOI', 'PMID', 'PMC', 'PMCID', 'ISBN']
 
 
@@ -578,26 +542,6 @@ def set_resource_info_from_abbreviation(entry, mod, primary_id, resource_to_mod_
         report_writer.write(mod=mod, report_type="reference_no_resource",
                             message="primaryId %s does not have a resourceAbbreviation.\n" % primary_id)
 
-
-def process_pubmod_authors_xrefs_keywords(entry, update_primary_id, primary_id, mod):
-    if 'authors' in entry:
-        all_authors_have_rank = all(['authorRank' in author for author in entry['authors']])
-        for author in entry['authors']:
-            author['correspondingAuthor'] = False
-            author['firstAuthor'] = False
-        if not all_authors_have_rank:
-            for idx, _ in enumerate(entry['authors']):
-                entry['authors'][idx]['authorRank'] = idx + 1
-        if update_primary_id:
-            for idx, _ in enumerate(entry['authors']):
-                entry['authors'][idx]['referenceId'] = primary_id
-    if 'crossReferences' in entry:
-        entry['crossReferences'] = [cross_reference for cross_reference in entry['crossReferences'] if
-                                    split_identifier(cross_reference['id'])[0].lower() != 'pmid']
-    if 'keywords' in entry:
-        clean_up_keywords(mod, entry)
-
-
 COMPARE_IF_DQM_EMPTY = False  # do dqm vs pmid comparison even if dqm has no data, by default skip
 
 
@@ -686,21 +630,6 @@ def merge_pubmed_nlm_resource_info_into_entry(entry, mod, pmid, pubmed_data, res
         if 'is_journal' in pubmed_data:
             report_writer.write(mod=mod, report_type="generic",
                                 message="PMID %s does not have an NLM resource.\n" % pmid)
-
-
-def merge_keywords_from_pubmed_into_entry(entry, pubmed_data, mod):
-    if 'keywords' not in entry:
-        entry['keywords'] = []
-    else:
-        # e.g. 9882485 25544291 24201188 31188077
-        clean_up_keywords(mod, entry)
-    if 'keywords' in pubmed_data:
-        # aggregate for all MODs except ZFIN, which has misformed data and can't fix it.
-        # 19308247 aggregates keywords for WB
-        entry_keywords = {keyword.upper() for keyword in entry['keywords']}
-        for pubmed_keyword in pubmed_data['keywords']:
-            if pubmed_keyword.upper() not in entry_keywords:
-                entry['keywords'].append(pubmed_keyword)
 
 
 def find_resource_abbreviation_not_matched_to_nlm_or_res_mod(resource_not_found: Dict[str, Dict[str, int]],
@@ -827,7 +756,7 @@ def sanitize_and_sort_entry_into_pubmod_pubmed_or_multi(
     pubmed_data, is_pubmod, pmid = load_pubmed_data_if_present(primary_id, mod, orig_primary_id,
                                                                report_writer=report_writer)
     if is_pubmod:
-        process_pubmod_authors_xrefs_keywords(reference, update_primary_id, primary_id, mod)
+        reference.process_pubmod_authors_xrefs_keywords(update_primary_id, primary_id, mod)
         set_resource_info_from_abbreviation(reference, mod, primary_id, resource_to_mod_issn_nlm, resource_to_nlm_id,
                                             resource_to_nlm_highest_id, resource_to_mod, resource_not_found,
                                             report_writer=report_writer)
@@ -840,7 +769,7 @@ def sanitize_and_sort_entry_into_pubmod_pubmed_or_multi(
         merge_pubmed_xrefs_into_entry_xrefs(reference, pubmed_data, mod, primary_id, report_writer)
         merge_pubmed_nlm_resource_info_into_entry(reference, mod, pmid, pubmed_data, resource_nlm_id_to_title,
                                                   resource_to_nlm_id, report_writer)
-        merge_keywords_from_pubmed_into_entry(reference, pubmed_data, mod)
+        reference.merge_keywords_from_pubmed(pubmed_data, mod)
 
         if pmid in pmid_multi_mods.keys():
             # logger.info("MULTIPLE pmid %s mod %s", pmid, mod)
@@ -905,8 +834,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
         sanitized_pubmod_data = []
         sanitized_pubmed_single_mod_data = []
         unexpected_mod_properties = set()
-        for dqm_ref_data in dqm_references:
-            reference = Reference(data=dqm_ref_data)
+        for dqm_ref_raw_data in dqm_references:
+            reference = Reference(data=dqm_ref_raw_data)
             unexpected_mod_properties.update(set(reference.get_list_of_unexpected_mod_properties()))
             reference.delete_blank_fields()
             sanitize_and_sort_entry_into_pubmod_pubmed_or_multi(
