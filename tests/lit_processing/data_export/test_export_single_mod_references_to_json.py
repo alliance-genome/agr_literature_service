@@ -5,9 +5,11 @@ from datetime import date
 from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import \
     dump_data, concatenate_json_files, get_meta_data, generate_json_file, get_reference_col_names,\
     get_reference_data_and_generate_json
-from agr_literature_service.lit_processing.utils.db_read_utils import get_comment_correction_data,\
-    get_journal_data, get_cross_reference_data, get_author_data, get_mesh_term_data, \
-    get_mod_corpus_association_data, get_mod_reference_type_data
+from agr_literature_service.lit_processing.utils.db_read_utils import \
+    get_comment_correction_data_for_ref_ids, get_journal_data, \
+    get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
+    get_mesh_term_data_for_ref_ids, get_mod_corpus_association_data_for_ref_ids, \
+    get_mod_reference_type_data_for_ref_ids
 
 from ...fixtures import cleanup_tmp_files_when_done, load_sanitized_references, db # noqa
 
