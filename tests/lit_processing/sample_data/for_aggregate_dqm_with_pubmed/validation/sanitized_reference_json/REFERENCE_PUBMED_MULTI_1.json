@@ -71,29 +71,7 @@
                 "name": "J Schlessinger"
             }
         ],
-        "commentsCorrections": [],
         "crossReferences": [
-            {
-                "id": "PMID:10022914"
-            },
-            {
-                "id": "PMCID:PMC84020"
-            },
-            {
-                "id": "DOI:10.1128/MCB.19.3.2278"
-            },
-            {
-                "id": "NLM:8109087"
-            },
-            {
-                "id": "ISSN:0270-7306"
-            },
-            {
-                "id": "RGD:2304238",
-                "pages": [
-                    "reference"
-                ]
-            },
             {
                 "id": "PMID:10022914"
             },
@@ -308,30 +286,7 @@
                 "name": "R H Sarma"
             }
         ],
-        "commentsCorrections": {
-            "ErratumIn": [
-                "8"
-            ]
-        },
         "crossReferences": [
-            {
-                "id": "PMID:2"
-            },
-            {
-                "id": "DOI:10.1016/0006-291x(75)90482-9"
-            },
-            {
-                "id": "NLM:0372516"
-            },
-            {
-                "id": "ISSN:0006-291X"
-            },
-            {
-                "id": "RGD:1303381",
-                "pages": [
-                    "reference"
-                ]
-            },
             {
                 "id": "PMID:2"
             },
@@ -504,29 +459,7 @@
                 "name": "Paul D Thomas"
             }
         ],
-        "commentsCorrections": [],
         "crossReferences": [
-            {
-                "id": "PMID:21873635"
-            },
-            {
-                "id": "DOI:10.1093/bib/bbr042"
-            },
-            {
-                "id": "PMCID:PMC3178059"
-            },
-            {
-                "id": "NLM:100912837"
-            },
-            {
-                "id": "ISSN:1467-5463"
-            },
-            {
-                "id": "RGD:13792537",
-                "pages": [
-                    "reference"
-                ]
-            },
             {
                 "id": "PMID:21873635"
             },
