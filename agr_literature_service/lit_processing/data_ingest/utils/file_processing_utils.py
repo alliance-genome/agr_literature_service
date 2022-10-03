@@ -76,14 +76,6 @@ def write_json(json_filename, dict_to_output):
         json_file.close()
 
 
-def load_references_from_dqm_json(filename):
-    """
-    Load reference data from file
-    """
-    logger.info("Loading %s", filename)
-    if os.path.exists(filename):
-        return json.load(open(filename, 'r'))["data"]
-    else:
-        logger.info("No file found %s", filename)
-        return None
-
+def chunks(list, size):
+    for i in range(0, len(list), size):
+        yield list[i:i + size]

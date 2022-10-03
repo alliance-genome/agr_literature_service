@@ -1,5 +1,4 @@
 import argparse
-import copy
 import json
 import logging.config
 import re
@@ -7,18 +6,15 @@ import sys
 import warnings
 from collections import defaultdict
 from os import environ, makedirs, path
-from typing import Dict, Any, List
+from typing import Dict
 
 import bs4
 from dotenv import load_dotenv
 
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_processing_utils import clean_up_keywords
 from agr_literature_service.lit_processing.data_ingest.reference import SINGLE_VALUE_FIELDS, DATE_FIELDS, \
-    REPLACE_VALUE_FIELDS, PMID_FIELDS, Reference
-from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json, \
-    load_references_from_dqm_json
+    REPLACE_VALUE_FIELDS, PMID_FIELDS, Reference, write_sanitized_references_to_json, load_references_data_from_dqm_json
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
-from agr_literature_service.global_utils import memoized
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 init_tmp_dir()
@@ -262,11 +258,6 @@ def compare_dqm_pubmed(mod, report_type, pmid, field, dqm_data, pubmed_data, rep
         # logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_data, pubmed_data)
     # else:
     #     logger.info("%s\t%s\t%s", field, pmid, 'GOOD')
-
-
-def chunks(list, size):
-    for i in range(0, len(list), size):
-        yield list[i:i + size]
 
 
 def load_mod_resource(mods, resource_to_nlm):
@@ -750,14 +741,6 @@ def report_unexpected_cross_references(cross_reference_types: Dict[str, Dict[str
                         message="Warning: unexpected crossReferences type: %s values: %s\n" % (xref_type, xref_message))
 
 
-def update_unexpected_mod_properties_and_delete_blank_fields_from_entry(entry, unexpected_mod_properties: set):
-    schema_data = get_schema_data_from_alliance()
-    unexpected_mod_properties.update({field for field in entry.keys() if field not in schema_data['properties']})
-    for entry_property in list(entry.keys()):
-        if entry_property in SINGLE_VALUE_FIELDS and entry[entry_property] == "":
-            del entry[entry_property]
-
-
 def report_multiple_categories_and_dates_while_merging_multimod(alliance_category_dict, report_writer, pmid,
                                                                 date_published_set):
     if len(alliance_category_dict) > 1:
@@ -816,13 +799,6 @@ def merge_multimod_pubmed_and_dqm_data(unmerged_dqm_data_with_pmid: Dict[str, Di
         report_multiple_categories_and_dates_while_merging_multimod(alliance_category_dict, report_writer, pmid,
                                                                     date_published_set)
         sanitized_pubmed_multi_mod_data.append(sanitized_reference)
-
-
-def write_sanitized_references_to_json(references: List[Reference], entries_size, base_file_name):
-    data = [ref.get_data() for ref in references]
-    for i, sanitized_pubmed_data_chunk in enumerate(chunks(data, entries_size)):
-        json_filename = base_file_name + "_" + str(i + 1) + '.json'
-        write_json(json_filename, sanitized_pubmed_data_chunk)
 
 
 def generate_default_mod_corpus_association_for_dqm_data(mod):
@@ -922,7 +898,8 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
     sanitized_pubmed_multi_mod_data = []
     unmerged_dqm_data_with_pmid = defaultdict(dict)  # pubmed data by pmid and mod that needs some fields merged
     for mod in mods:
-        dqm_references = load_references_from_dqm_json(filename=base_dir + input_path + '/REFERENCE_' + mod + '.json')
+        dqm_references = load_references_data_from_dqm_json(
+            filename=base_dir + input_path + '/REFERENCE_' + mod + '.json')
         if dqm_references is None:
             continue
         sanitized_pubmod_data = []

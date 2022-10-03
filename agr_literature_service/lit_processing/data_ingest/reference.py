@@ -1,8 +1,12 @@
 from __future__ import annotations
+
+import json
 import logging
+import os
 from typing import List, Iterable
 
 from agr_literature_service.lit_processing.data_ingest.utils.alliance_utils import get_schema_data_from_alliance
+from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json, chunks
 
 logger = logging.getLogger(__name__)
 
@@ -72,3 +76,21 @@ class Reference:
                 self.data['crossReferences'] = []
             self.data['crossReferences'].append(sanitized_cross_ref_dict)
 
+
+def load_references_data_from_dqm_json(filename):
+    """
+    Load reference data from file
+    """
+    logger.info("Loading %s", filename)
+    if os.path.exists(filename):
+        return json.load(open(filename, 'r'))["data"]
+    else:
+        logger.info("No file found %s", filename)
+        return None
+
+
+def write_sanitized_references_to_json(references: List[Reference], entries_size, base_file_name):
+    data = [ref.get_data() for ref in references]
+    for i, sanitized_pubmed_data_chunk in enumerate(chunks(data, entries_size)):
+        json_filename = base_file_name + "_" + str(i + 1) + '.json'
+        write_json(json_filename, sanitized_pubmed_data_chunk)
