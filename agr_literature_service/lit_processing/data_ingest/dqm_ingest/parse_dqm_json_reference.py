@@ -13,7 +13,8 @@ from dotenv import load_dotenv
 
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.report_writer import ReportWriter
 from agr_literature_service.lit_processing.data_ingest.reference import SINGLE_VALUE_FIELDS, DATE_FIELDS, \
-    REPLACE_VALUE_FIELDS, PMID_FIELDS, Reference, write_sanitized_references_to_json, load_references_data_from_dqm_json
+    REPLACE_VALUE_FIELDS, PMID_FIELDS, Reference, write_sanitized_references_to_json, \
+    load_references_data_from_dqm_json, EXCLUDE_XREF_TYPES
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
@@ -374,113 +375,6 @@ def load_pmid_multi_mods(output_path):
     return pmid_multi_mods
 
 
-CROSS_REF_NO_PAGES_OK_FIELDS = ['DOI', 'PMID', 'PMC', 'PMCID', 'ISBN']
-
-
-def validate_xref_pages(cross_reference, prefix, mod, primary_id, report_writer: ReportWriter):
-    if 'pages' in cross_reference:
-        if len(cross_reference["pages"]) > 1:
-            report_writer.write(mod=mod, report_type="generic",
-                                message="mod %s primaryId %s has cross reference identifier %s with "
-                                        "multiple web pages %s\n" % (mod, primary_id, cross_reference["id"],
-                                                                     cross_reference["pages"]))
-        else:
-            return True
-    else:
-        if prefix not in CROSS_REF_NO_PAGES_OK_FIELDS:
-            report_writer.write(mod=mod, report_type="generic",
-                                message="mod %s primaryId %s has cross reference identifier %s without "
-                                        "web pages\n" % (mod, primary_id, cross_reference["id"]))
-    return False
-
-
-# if pages should be stripped from some crossReferences, make this a dict and set some to
-# have or not have, and strip when matched against this
-EXPECTED_XREF_TYPES = {
-    xref.lower() for xref in
-    [
-        'PMID:',
-        'PMCID:PMC',
-        'DOI:',
-        'DOI:/S',
-        'DOI:IJIv',
-        'WB:WBPaper',
-        'SGD:S',
-        'RGD:',
-        'MGI:',
-        'ISBN:',
-        'FB:FBrf',
-        'ZFIN:ZDB-PUB-',
-        'Xenbase:XB-ART-'
-    ]
-}
-
-# when getting pubmed data and merging mod cross references, was excluding these types, but
-# now merging so long as the type does not already exist from pubmed (mods have DOIs not in PubMed)
-# pubmed_not_dqm_cross_reference_type = set()
-# pubmed_not_dqm_cross_reference_type.add('PMID:'.lower())
-# pubmed_not_dqm_cross_reference_type.add('PMCID:PMC'.lower())
-# pubmed_not_dqm_cross_reference_type.add('DOI:'.lower())
-# pubmed_not_dqm_cross_reference_type.add('DOI:/S'.lower())
-# pubmed_not_dqm_cross_reference_type.add('DOI:IJIv'.lower())
-
-EXCLUDE_XREF_TYPES = {
-    xref for xref in
-    [
-        'WB:WBTransgene',
-        'WB:WBGene',
-        'WB:WBVar',
-        'Xenbase:XB-GENEPAGE-'
-    ]
-}
-
-
-def process_xrefs_and_find_pmid_if_necessary(reference, mod, report_writer: ReportWriter, original_primary_id,
-                                             cross_reference_types: Dict[str, Dict[str, list]]):
-    # need to process crossReferences once to reassign primaryId if PMID and filter out
-    # unexpected crossReferences,
-    # then again later to clean up crossReferences that get data from pubmed xml (once the PMID is known)
-    primary_id = original_primary_id
-    update_primary_id = False
-    too_many_xref_per_type_failure = False
-    if 'crossReferences' not in reference:
-        report_writer.write(mod=mod, report_type="generic",
-                            message="mod %s primaryId %s has no cross references\n" % (mod, primary_id))
-    else:
-        expected_cross_references = []
-        dqm_xrefs = defaultdict(set)
-        for cross_reference in reference['crossReferences']:
-            prefix, identifier, separator = split_identifier(cross_reference["id"])
-            needs_pmid_extraction = validate_xref_pages(cross_reference=cross_reference, prefix=prefix, mod=mod,
-                                                        primary_id=primary_id, report_writer=report_writer)
-            if needs_pmid_extraction:
-                if not re.match(r"^PMID:[0-9]+", original_primary_id) and cross_reference["pages"][0] == 'PubMed' \
-                        and re.match(r"^PMID:[0-9]+", cross_reference["id"]):
-                    update_primary_id = True
-                    reference['primaryId'] = cross_reference["id"]
-                    primary_id = cross_reference["id"]
-
-            cross_ref_type_group = re.search(r"^([^0-9]+)[0-9]", cross_reference['id'])
-            if cross_ref_type_group is not None:
-                if cross_ref_type_group[1].lower() not in EXPECTED_XREF_TYPES:
-                    cross_reference_types[mod][cross_ref_type_group[1]].append(primary_id + ' ' + cross_reference['id'])
-                if cross_ref_type_group[1].lower() not in EXCLUDE_XREF_TYPES:
-                    dqm_xrefs[prefix].add(identifier)
-                    expected_cross_references.append(cross_reference)
-        reference['crossReferences'] = expected_cross_references
-        for prefix, identifiers in dqm_xrefs.items():
-            if len(identifiers) > 1:
-                too_many_xref_per_type_failure = True
-                report_writer.write(mod=mod, report_type="generic",
-                                    message="mod %s primaryId %s has too many identifiers for %s %s\n" % (
-                                        mod, primary_id, prefix, ', '.join(sorted(dqm_xrefs[prefix]))))
-
-    if too_many_xref_per_type_failure:
-        return None, None
-    else:
-        return primary_id, update_primary_id
-
-
 def load_pubmed_data_if_present(primary_id, mod, original_primary_id, report_writer: ReportWriter):
     pmid_group = re.search(r"^PMID:([0-9]+)", primary_id)
     pmid = None
@@ -747,26 +641,25 @@ def sanitize_and_sort_entry_into_pubmod_pubmed_or_multi(
     # inject the mod corpus association data because if it came from that mod dqm file it should have this entry
     reference['modCorpusAssociations'] = [generate_default_mod_corpus_association_for_dqm_data(mod)]
 
-    primary_id, update_primary_id = process_xrefs_and_find_pmid_if_necessary(
-        reference=reference, mod=mod, report_writer=report_writer, original_primary_id=orig_primary_id,
-        cross_reference_types=cross_reference_types)
-    if not primary_id:
+    reference.process_xrefs_and_find_pmid_if_necessary(mod=mod, report_writer=report_writer,
+                                                       cross_reference_types=cross_reference_types)
+    if not reference.original_primary_id:
         return
 
-    pubmed_data, is_pubmod, pmid = load_pubmed_data_if_present(primary_id, mod, orig_primary_id,
+    pubmed_data, is_pubmod, pmid = load_pubmed_data_if_present(reference.original_primary_id, mod, orig_primary_id,
                                                                report_writer=report_writer)
     if is_pubmod:
-        reference.process_pubmod_authors_xrefs_keywords(update_primary_id, primary_id, mod)
-        set_resource_info_from_abbreviation(reference, mod, primary_id, resource_to_mod_issn_nlm, resource_to_nlm_id,
-                                            resource_to_nlm_highest_id, resource_to_mod, resource_not_found,
-                                            report_writer=report_writer)
+        reference.process_pubmod_authors_xrefs_keywords(mod)
+        set_resource_info_from_abbreviation(reference, mod, reference.original_primary_id, resource_to_mod_issn_nlm,
+                                            resource_to_nlm_id, resource_to_nlm_highest_id, resource_to_mod,
+                                            resource_not_found, report_writer=report_writer)
         sanitized_pubmod_data.append(reference)
     else:
         # processing pubmed data
         merge_pubmed_single_value_fields_into_entry(reference, pubmed_data, mod, pmid, report_writer)
         replace_fields_in_dqm_data_with_pubmed_values(reference, pubmed_data)
         set_additional_author_values_in_dqm_data(reference)
-        merge_pubmed_xrefs_into_entry_xrefs(reference, pubmed_data, mod, primary_id, report_writer)
+        merge_pubmed_xrefs_into_entry_xrefs(reference, pubmed_data, mod, reference.original_primary_id, report_writer)
         merge_pubmed_nlm_resource_info_into_entry(reference, mod, pmid, pubmed_data, resource_nlm_id_to_title,
                                                   resource_to_nlm_id, report_writer)
         reference.merge_keywords_from_pubmed(pubmed_data, mod)

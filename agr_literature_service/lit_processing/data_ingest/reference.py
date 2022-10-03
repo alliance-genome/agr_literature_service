@@ -3,10 +3,13 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import List, Iterable
+import re
+from collections import defaultdict
+from typing import List, Iterable, Dict
 
 import bs4
 
+from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.report_writer import ReportWriter
 from agr_literature_service.lit_processing.data_ingest.utils.alliance_utils import get_schema_data_from_alliance
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json, chunks
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
@@ -28,13 +31,56 @@ PMID_FIELDS = ['authors', 'volume', 'title', 'pages', 'issueName', 'datePublishe
                'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages',
                'publicationStatus', 'allianceCategory', 'journal']
 
+CROSS_REF_NO_PAGES_OK_FIELDS = ['DOI', 'PMID', 'PMC', 'PMCID', 'ISBN']
+
+EXPECTED_XREF_TYPES = {
+    xref.lower() for xref in
+    [
+        'PMID:',
+        'PMCID:PMC',
+        'DOI:',
+        'DOI:/S',
+        'DOI:IJIv',
+        'WB:WBPaper',
+        'SGD:S',
+        'RGD:',
+        'MGI:',
+        'ISBN:',
+        'FB:FBrf',
+        'ZFIN:ZDB-PUB-',
+        'Xenbase:XB-ART-'
+    ]
+}
+
+# when getting pubmed data and merging mod cross references, was excluding these types, but
+# now merging so long as the type does not already exist from pubmed (mods have DOIs not in PubMed)
+# pubmed_not_dqm_cross_reference_type = set()
+# pubmed_not_dqm_cross_reference_type.add('PMID:'.lower())
+# pubmed_not_dqm_cross_reference_type.add('PMCID:PMC'.lower())
+# pubmed_not_dqm_cross_reference_type.add('DOI:'.lower())
+# pubmed_not_dqm_cross_reference_type.add('DOI:/S'.lower())
+# pubmed_not_dqm_cross_reference_type.add('DOI:IJIv'.lower())
+
+EXCLUDE_XREF_TYPES = {
+    xref for xref in
+    [
+        'WB:WBTransgene',
+        'WB:WBGene',
+        'WB:WBVar',
+        'Xenbase:XB-GENEPAGE-'
+    ]
+}
+
 
 class Reference:
 
     def __init__(self, data: dict = None):
         self.data = {}
+        self.original_primary_id = None
+        self.need_update_primary_id = False
         if data:
             self.data = data
+            self.original_primary_id = data["primaryId"]
 
     def __getitem__(self, item):
         return self.data[item]
@@ -63,6 +109,72 @@ class Reference:
         for ref_field in list(self.data.keys()):
             if ref_field in SINGLE_VALUE_FIELDS and self.data[ref_field] == "":
                 del self.data[ref_field]
+
+    @staticmethod
+    def validate_xref_pages(cross_reference, prefix, mod, primary_id, report_writer: ReportWriter):
+        if 'pages' in cross_reference:
+            if len(cross_reference["pages"]) > 1:
+                report_writer.write(mod=mod, report_type="generic",
+                                    message="mod %s primaryId %s has cross reference identifier %s with "
+                                            "multiple web pages %s\n" % (mod, primary_id, cross_reference["id"],
+                                                                         cross_reference["pages"]))
+            else:
+                return True
+        else:
+            if prefix not in CROSS_REF_NO_PAGES_OK_FIELDS:
+                report_writer.write(mod=mod, report_type="generic",
+                                    message="mod %s primaryId %s has cross reference identifier %s without "
+                                            "web pages\n" % (mod, primary_id, cross_reference["id"]))
+        return False
+
+    def process_xrefs_and_find_pmid_if_necessary(self, mod, report_writer: ReportWriter,
+                                                 cross_reference_types: Dict[str, Dict[str, list]]):
+        # need to process crossReferences once to reassign primaryId if PMID and filter out
+        # unexpected crossReferences,
+        # then again later to clean up crossReferences that get data from pubmed xml (once the PMID is known)
+        update_primary_id = False
+        too_many_xref_per_type_failure = False
+        if 'crossReferences' not in self.data:
+            report_writer.write(
+                mod=mod, report_type="generic", message="mod %s primaryId %s has no cross references\n" % (
+                    mod, self.original_primary_id))
+        else:
+            expected_cross_references = []
+            dqm_xrefs = defaultdict(set)
+            for cross_reference in self.data['crossReferences']:
+                prefix, identifier, separator = split_identifier(cross_reference["id"])
+                needs_pmid_extraction = self.validate_xref_pages(
+                    cross_reference=cross_reference, prefix=prefix, mod=mod, primary_id=self.original_primary_id,
+                    report_writer=report_writer)
+                if needs_pmid_extraction:
+                    if not re.match(r"^PMID:[0-9]+", self.original_primary_id) and \
+                            cross_reference["pages"][0] == 'PubMed' and \
+                            re.match(r"^PMID:[0-9]+", cross_reference["id"]):
+                        update_primary_id = True
+                        self.data['primaryId'] = cross_reference["id"]
+                        self.original_primary_id = cross_reference["id"]
+
+                cross_ref_type_group = re.search(r"^([^0-9]+)[0-9]", cross_reference['id'])
+                if cross_ref_type_group is not None:
+                    if cross_ref_type_group[1].lower() not in EXPECTED_XREF_TYPES:
+                        cross_reference_types[mod][cross_ref_type_group[1]].append(
+                            self.original_primary_id + ' ' + cross_reference['id'])
+                    if cross_ref_type_group[1].lower() not in EXCLUDE_XREF_TYPES:
+                        dqm_xrefs[prefix].add(identifier)
+                        expected_cross_references.append(cross_reference)
+            self.data['crossReferences'] = expected_cross_references
+            for prefix, identifiers in dqm_xrefs.items():
+                if len(identifiers) > 1:
+                    too_many_xref_per_type_failure = True
+                    report_writer.write(mod=mod, report_type="generic",
+                                        message="mod %s primaryId %s has too many identifiers for %s %s\n" % (
+                                            mod, self.original_primary_id, prefix,
+                                            ', '.join(sorted(dqm_xrefs[prefix]))))
+
+        if too_many_xref_per_type_failure:
+            self.need_update_primary_id = False
+        else:
+            self.need_update_primary_id = update_primary_id
 
     def set_xrefs_from_unmerged_data(self, unmerged_dqm_data_for_single_pmid: Iterable[Reference]):
         cross_references_dict = dict()
@@ -122,7 +234,7 @@ class Reference:
                 if pubmed_keyword.upper() not in entry_keywords:
                     self.data['keywords'].append(pubmed_keyword)
 
-    def process_pubmod_authors_xrefs_keywords(self, update_primary_id, primary_id, mod):
+    def process_pubmod_authors_xrefs_keywords(self, mod):
         if 'authors' in self.data:
             all_authors_have_rank = all(['authorRank' in author for author in self.data['authors']])
             for author in self.data['authors']:
@@ -131,9 +243,9 @@ class Reference:
             if not all_authors_have_rank:
                 for idx, _ in enumerate(self.data['authors']):
                     self.data['authors'][idx]['authorRank'] = idx + 1
-            if update_primary_id:
+            if self.need_update_primary_id:
                 for idx, _ in enumerate(self.data['authors']):
-                    self.data['authors'][idx]['referenceId'] = primary_id
+                    self.data['authors'][idx]['referenceId'] = self.original_primary_id
         if 'crossReferences' in self.data:
             self.data['crossReferences'] = [cross_reference for cross_reference in self.data['crossReferences'] if
                                             split_identifier(cross_reference['id'])[0].lower() != 'pmid']
