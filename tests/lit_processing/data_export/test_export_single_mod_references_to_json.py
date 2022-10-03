@@ -6,10 +6,9 @@ from agr_literature_service.lit_processing.data_export.export_single_mod_referen
     dump_data, concatenate_json_files, get_meta_data, generate_json_file, get_reference_col_names,\
     get_reference_data_and_generate_json
 from agr_literature_service.lit_processing.utils.db_read_utils import \
-    get_comment_correction_data_for_ref_ids, get_journal_data, \
-    get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
-    get_mesh_term_data_for_ref_ids, get_mod_corpus_association_data_for_ref_ids, \
-    get_mod_reference_type_data_for_ref_ids
+    get_comment_correction_data, get_journal_data, get_cross_reference_data_for_ref_ids,\
+    get_author_data_for_ref_ids, get_mesh_term_data_for_ref_ids, \
+    get_mod_corpus_association_data_for_ref_ids, get_mod_reference_type_data_for_ref_ids
 
 from ...fixtures import cleanup_tmp_files_when_done, load_sanitized_references, db # noqa
 
@@ -30,11 +29,11 @@ class TestExportSingleModReferencesToJson:
 
         ref_ids = ", ".join([str(x) for x in reference_id_list])
 
-        reference_id_to_xrefs = get_cross_reference_data(db, ref_ids)
-        reference_id_to_authors = get_author_data(db, ref_ids)
-        reference_id_to_mesh_terms = get_mesh_term_data(db, ref_ids)
-        reference_id_to_mod_corpus_data = get_mod_corpus_association_data(db, ref_ids)
-        reference_id_to_mod_reference_types = get_mod_reference_type_data(db, ref_ids)
+        reference_id_to_xrefs = get_cross_reference_data_for_ref_ids(db, ref_ids)
+        reference_id_to_authors = get_author_data_for_ref_ids(db, ref_ids)
+        reference_id_to_mesh_terms = get_mesh_term_data_for_ref_ids(db, ref_ids)
+        reference_id_to_mod_corpus_data = get_mod_corpus_association_data_for_ref_ids(db, ref_ids)
+        reference_id_to_mod_reference_types = get_mod_reference_type_data_for_ref_ids(db, ref_ids)
 
         ref_id = curie_to_reference_id['PMID:33622238']
 
