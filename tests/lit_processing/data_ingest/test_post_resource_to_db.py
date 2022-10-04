@@ -16,7 +16,7 @@ class TestPostResourceToDb:
 
         base_input_dir = path.join(path.dirname(__file__), "../sample_data/")
         json_path = "sanitized_resources/"
-        post_resources(json_path, 'NLM', base_input_dir)
+        post_resources(db, json_path, 'NLM', base_input_dir)
 
         res_rows = db.query(ResourceModel).order_by(ResourceModel.resource_id).all()
         assert len(res_rows) == 5
