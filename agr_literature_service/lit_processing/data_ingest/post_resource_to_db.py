@@ -50,8 +50,132 @@ logger = logging.getLogger(__name__)
 
 base_path = environ.get('XML_PATH', "")
 
+remap_editor_keys = dict()                # global, set where used if empty
+remap_cross_references_keys = dict()      # global, set where used if empty
+cross_references_keys_to_remove = dict()  # global, set where used it empty
 
-def post_resources(input_path, input_mod, base_input_dir=base_path):      # noqa: C901
+remap_keys = dict()
+
+
+def process_editors(db_session, resource_id, new_entry):
+    global remap_editor_keys
+    if not remap_editor_keys:
+        remap_editor_keys['authorRank'] = 'order'
+        remap_editor_keys['firstName'] = 'first_name'
+        remap_editor_keys['lastName'] = 'last_name'
+
+    editors = new_entry.get('editors', [])
+    editor_keys_to_remove = {'referenceId'}
+    for editor in editors:
+        new_editor = dict()
+        for subkey in editor:
+            if subkey in remap_editor_keys:
+                new_editor[remap_editor_keys[subkey]] = editor[subkey]
+            elif subkey not in editor_keys_to_remove:
+                new_editor[subkey] = editor[subkey]
+            if new_editor.get('orcid') and new_editor['orcid']:
+                cross_reference_obj = db_session.query(
+                    CrossReferenceModel).filter_by(
+                        curie=new_editor['orcid']).first()
+                if not cross_reference_obj:
+                    cross_reference_obj = CrossReferenceModel(curie=new_editor['orcid'])
+                    db_session.add(cross_reference_obj)
+            new_editor['resource_id'] = resource_id
+            editor_obj = EditorModel(**new_editor)
+            db_session.add(editor_obj)
+    if "editors" in new_entry:
+        del new_entry["editors"]
+
+
+def process_cross_references(db_session, resource_id, new_entry):
+    global remap_cross_references_keys
+    if not remap_cross_references_keys:
+        remap_cross_references_keys['id'] = 'curie'
+
+    cross_references = new_entry.get('cross_references', [])
+    for xref in cross_references:
+        new_xref = dict()
+        for subkey in xref:
+            if subkey in remap_cross_references_keys:
+                new_xref[remap_cross_references_keys[subkey]] = xref[subkey]
+            elif subkey not in cross_references_keys_to_remove:
+                new_xref[subkey] = xref[subkey]
+        new_xref['resource_id'] = resource_id
+        if db_session.query(CrossReferenceModel).filter_by(curie=new_xref['curie']).first():
+            logger.info("CrossReference with curie = " + new_xref['curie'] + " already exists")
+            db_session.rollback()
+            break
+        cr = CrossReferenceModel(**new_xref)
+        db_session.add(cr)
+        logger.info("Adding resource info into cross_reference table for " + new_xref['curie'])
+        if "cross_references" in new_entry:
+            del new_entry["cross_references"]
+
+
+def remap_keys_get_new_entry(entry):
+    global remap_keys
+    if not remap_keys:
+        remap_keys['isoAbbreviation'] = 'iso_abbreviation'
+        remap_keys['medlineAbbreviation'] = 'medline_abbreviation'
+        remap_keys['abbreviationSynonyms'] = 'abbreviation_synonyms'
+        remap_keys['crossReferences'] = 'cross_references'
+        remap_keys['editorsOrAuthors'] = 'editors'
+        remap_keys['printISSN'] = 'print_issn'
+        remap_keys['onlineISSN'] = 'online_issn'
+    keys_to_remove = {'nlm', 'primaryId'}
+    new_entry = dict()
+
+    for key in entry:
+        # logger.info("key found\t%s\t%s", key, entry[key])
+        if key in remap_keys:
+            new_entry[remap_keys[key]] = entry[key]
+        elif key not in keys_to_remove:
+            new_entry[key] = entry[key]
+    return new_entry
+
+
+def process_entry(db_session, entry, xref_ref):
+    primary_id = entry['primaryId']
+    prefix, identifier, separator = split_identifier(primary_id)
+    if prefix in xref_ref:
+        if identifier in xref_ref[prefix]:
+            logger.info("%s\talready in", primary_id)
+            return True, ""
+
+    new_entry = remap_keys_get_new_entry(entry)
+    try:
+        resource_id = None
+        last_curie_row = db_session.query(
+            ResourceModel.curie).order_by(
+                sqlalchemy.desc(ResourceModel.curie)).first()
+        last_curie = 'AGR:AGR-Resource-0000000000'
+        if last_curie_row:
+            last_curie = last_curie_row[0]
+        curie = create_next_curie(last_curie)
+
+        process_cross_references(db_session, resource_id, new_entry)
+
+        process_editors(db_session, resource_id, new_entry)
+
+        new_entry['curie'] = curie
+        x = ResourceModel(**new_entry)
+        db_session.add(x)
+        db_session.flush()
+        db_session.refresh(x)
+        resource_id = x.resource_id
+        logger.info("Adding resource into database for '" + new_entry['iso_abbreviation'] + "'")
+        # mapping_fh.write("%s\t%s\n" % (primary_id, curie))
+        db_session.commit()
+        return True, f"{primary_id}\t{curie}\n"
+    except Exception as e:
+        message = f"An error occurred when adding resource into database for '{new_entry['iso_abbreviation']}'. {e}\n"
+        logger.info(message)
+        # error_fh.write("An error occurred when adding resource into database for '" + new_entry['iso_abbreviation'] + "'. " + str(e) + "\n")
+        db_session.rollback()
+        return False, message
+
+
+def post_resources(db_session, input_path, input_mod, base_input_dir=base_path):      # noqa: C901
     """
 
     :param input_path:
@@ -62,24 +186,8 @@ def post_resources(input_path, input_mod, base_input_dir=base_path):      # noqa
     filesets = ['NLM', 'FB', 'ZFIN']
     if input_mod in filesets:
         filesets = [input_mod]
-    keys_to_remove = {'nlm', 'primaryId'}
-    remap_keys = dict()
-    remap_keys['isoAbbreviation'] = 'iso_abbreviation'
-    remap_keys['medlineAbbreviation'] = 'medline_abbreviation'
-    remap_keys['abbreviationSynonyms'] = 'abbreviation_synonyms'
-    remap_keys['crossReferences'] = 'cross_references'
-    remap_keys['editorsOrAuthors'] = 'editors'
-    remap_keys['printISSN'] = 'print_issn'
-    remap_keys['onlineISSN'] = 'online_issn'
-    editor_keys_to_remove = {'referenceId'}
-    remap_editor_keys = dict()
-    remap_editor_keys['authorRank'] = 'order'
-    remap_editor_keys['firstName'] = 'first_name'
-    remap_editor_keys['lastName'] = 'last_name'
-    cross_references_keys_to_remove = dict()
-    remap_cross_references_keys = dict()
-    remap_cross_references_keys['id'] = 'curie'
-    keys_found = set()
+    print(f"mod is {input_mod}")
+    print(f"set is {filesets}")
 
     resource_primary_id_to_curie_file = base_path + 'resource_primary_id_to_curie'
     errors_in_posting_resource_file = base_path + 'errors_in_posting_resource'
@@ -100,116 +208,21 @@ def post_resources(input_path, input_mod, base_input_dir=base_path):      # noqa
     #             if line_data[0]:
     #                 already_processed_primary_id.add(line_data[0].rstrip())
 
-    db_session = create_postgres_session(False)
-
     with open(resource_primary_id_to_curie_file, 'a') as mapping_fh, open(errors_in_posting_resource_file, 'a') as error_fh:
 
         for fileset in filesets:
             logger.info("processing %s", fileset)
-            # if fileset != 'NLM':
-            #     continue
 
             filename = json_storage_path + 'RESOURCE_' + fileset + '.json'
             f = open(filename)
             resource_data = json.load(f)
             for entry in resource_data['data']:
-                primary_id = entry['primaryId']
-                prefix, identifier, separator = split_identifier(primary_id)
-                if prefix in xref_ref:
-                    if identifier in xref_ref[prefix]:
-                        logger.info("%s\talready in", primary_id)
-                        continue
-                # if primary_id in already_processed_primary_id:
-                #     # logger.info("%s\talready in", primary_id)
-                #     continue
-                # if primary_id != 'NLM:8404639':
-                #     continue
-
-                # counter += 1
-                # if counter > 1:
-                #     break
-
-                # to debug json from data file before changes
-                # json_object = json.dumps(entry, indent=4)
-                # print("before " + json_object)
-
-                new_entry = dict()
-
-                for key in entry:
-                    keys_found.add(key)
-                    # logger.info("key found\t%s\t%s", key, entry[key])
-                    if key in remap_keys:
-                        # logger.info("remap\t%s\t%s", key, remap_keys[key])
-                        # this renames a key, but it can be accessed again in the
-                        # for key loop, so sometimes a key is visited twice while
-                        # another is skipped, so have to create a new dict
-                        # to populate instead
-                        # entry[remap_keys[key]] = entry.pop(key)
-                        new_entry[remap_keys[key]] = entry[key]
-                    elif key not in keys_to_remove:
-                        new_entry[key] = entry[key]
-                try:
-                    resource_id = None
-                    last_curie_row = db_session.query(
-                        ResourceModel.curie).order_by(
-                            sqlalchemy.desc(ResourceModel.curie)).first()
-                    last_curie = 'AGR:AGR-Resource-0000000000'
-                    if last_curie_row:
-                        last_curie = last_curie_row[0]
-                    curie = create_next_curie(last_curie)
-                    cross_references = new_entry.get('cross_references', [])
-                    editors = new_entry.get('editors', [])
-                    if "cross_references" in new_entry:
-                        del new_entry["cross_references"]
-                    if "editors" in new_entry:
-                        del new_entry["editors"]
-                    new_entry['curie'] = curie
-                    x = ResourceModel(**new_entry)
-                    db_session.add(x)
-                    db_session.flush()
-                    db_session.refresh(x)
-                    resource_id = x.resource_id
-                    logger.info("Adding resource into database for '" + new_entry['iso_abbreviation'] + "'")
-                    mapping_fh.write("%s\t%s\n" % (primary_id, curie))
-
-                    for xref in cross_references:
-                        new_xref = dict()
-                        for subkey in xref:
-                            if subkey in remap_cross_references_keys:
-                                new_xref[remap_cross_references_keys[subkey]] = xref[subkey]
-                            elif subkey not in cross_references_keys_to_remove:
-                                new_xref[subkey] = xref[subkey]
-                        new_xref['resource_id'] = resource_id
-                        if db_session.query(CrossReferenceModel).filter_by(curie=new_xref['curie']).first():
-                            logger.info("CrossReference with curie = " + new_xref['curie'] + " already exists")
-                            db_session.rollback()
-                            break
-                        cr = CrossReferenceModel(**new_xref)
-                        db_session.add(cr)
-                        logger.info("Adding resource info into cross_reference table for " + new_xref['curie'])
-
-                    for editor in editors:
-                        new_editor = dict()
-                        for subkey in editor:
-                            if subkey in remap_editor_keys:
-                                new_editor[remap_editor_keys[subkey]] = editor[subkey]
-                            elif subkey not in editor_keys_to_remove:
-                                new_editor[subkey] = editor[subkey]
-                        if new_editor.get('orcid') and new_editor['orcid']:
-                            cross_reference_obj = db_session.query(
-                                CrossReferenceModel).filter_by(
-                                    curie=new_editor['orcid']).first()
-                            if not cross_reference_obj:
-                                cross_reference_obj = CrossReferenceModel(curie=new_editor['orcid'])
-                                db_session.add(cross_reference_obj)
-                        new_editor['resource_id'] = resource_id
-                        editor_obj = EditorModel(**new_editor)
-                        db_session.add(editor_obj)
-                    db_session.commit()
-                except Exception as e:
-                    logger.info("An error occurred when adding resource into database for '" + new_entry['iso_abbreviation'] + "'. " + str(e))
-                    error_fh.write("An error occurred when adding resource into database for '" + new_entry['iso_abbreviation'] + "'. " + str(e) + "\n")
-                    db_session.rollback()
+                process_okay, message = process_entry(db_session, entry, xref_ref)
+                if process_okay:
+                    if message:
+                        mapping_fh.write(message)
+                else:
+                    error_fh.write(message)
 
         mapping_fh.close
         error_fh.close
@@ -229,8 +242,8 @@ if __name__ == "__main__":
     logger.info("starting post_resource_to_api.py")
 
     if args['file']:
-        post_resources(args['file'], 'all')
-
+        db_session = create_postgres_session(False)
+        post_resources(db_session, args['file'], 'all')
     else:
         logger.info("No flag passed in.  Use -h for help.")
 
