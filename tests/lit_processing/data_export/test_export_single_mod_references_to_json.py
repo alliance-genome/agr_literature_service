@@ -4,9 +4,11 @@ from datetime import date
 
 from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import \
     dump_data, concatenate_json_files, get_meta_data, generate_json_file, get_reference_col_names,\
-    get_reference_data_and_generate_json, get_comment_correction_data, get_journal_data,\
-    get_cross_reference_data, get_author_data, get_mesh_term_data, \
-    get_mod_corpus_association_data, get_mod_reference_type_data
+    get_reference_data_and_generate_json
+from agr_literature_service.lit_processing.utils.db_read_utils import \
+    get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
+    get_mesh_term_data_for_ref_ids, get_mod_corpus_association_data_for_ref_ids, \
+    get_mod_reference_type_data_for_ref_ids
 
 from ...fixtures import cleanup_tmp_files_when_done, load_sanitized_references, db # noqa
 
@@ -27,11 +29,11 @@ class TestExportSingleModReferencesToJson:
 
         ref_ids = ", ".join([str(x) for x in reference_id_list])
 
-        reference_id_to_xrefs = get_cross_reference_data(db, ref_ids)
-        reference_id_to_authors = get_author_data(db, ref_ids)
-        reference_id_to_mesh_terms = get_mesh_term_data(db, ref_ids)
-        reference_id_to_mod_corpus_data = get_mod_corpus_association_data(db, ref_ids)
-        reference_id_to_mod_reference_types = get_mod_reference_type_data(db, ref_ids)
+        reference_id_to_xrefs = get_cross_reference_data_for_ref_ids(db, ref_ids)
+        reference_id_to_authors = get_author_data_for_ref_ids(db, ref_ids)
+        reference_id_to_mesh_terms = get_mesh_term_data_for_ref_ids(db, ref_ids)
+        reference_id_to_mod_corpus_data = get_mod_corpus_association_data_for_ref_ids(db, ref_ids)
+        reference_id_to_mod_reference_types = get_mod_reference_type_data_for_ref_ids(db, ref_ids)
 
         ref_id = curie_to_reference_id['PMID:33622238']
 
@@ -105,14 +107,9 @@ class TestExportSingleModReferencesToJson:
         assert json.dumps(json.load(open(new_json_file)), sort_keys=True) == json.dumps(json.load(open(json_file)),
                                                                                         sort_keys=True)
 
-        ## test get_comment_correction_data() and get_journal_data()
-        reference_id_to_comment_correction_data = get_comment_correction_data(db)
-        assert type(reference_id_to_comment_correction_data) == dict
-
-        resource_id_to_journal = get_journal_data(db)
-        assert type(resource_id_to_journal) == dict
-
         ## test get_reference_data_and_generate_json()
+        reference_id_to_comment_correction_data = {}
+        resource_id_to_journal = {}
         json_file = json_path + "reference_WB.json"
         datestamp = str(date.today()).replace("-", "")
         get_reference_data_and_generate_json('WB', reference_id_to_comment_correction_data,
