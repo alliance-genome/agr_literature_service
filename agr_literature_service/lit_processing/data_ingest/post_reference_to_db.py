@@ -214,11 +214,13 @@ def insert_cross_references(db_session, primaryId, reference_id, doi_to_referenc
     found = {}
     for c in cross_refs_from_json:
         curie = c['id']
-        if primaryId.startswith('PMID'):
-            prefix = curie.split(':')[0]
-            # if prefix not in ['PMID', 'PMCID', 'DOI', 'MGI', 'SGD', 'RGD', 'WB', 'XENBASE', 'FB', 'ZFIN']:
-            if prefix in ['NLM', 'ISSN']:
-                continue
+        # if primaryId.startswith('PMID'):
+        #    prefix = curie.split(':')[0]
+        #    if prefix in ['NLM', 'ISSN']:
+        #        continue
+        prefix = curie.split(':')[0]
+        if prefix in ['NLM', 'ISSN']:
+            continue
         if curie.startswith('DOI:'):
             if curie in doi_to_reference_id:
                 log.info(primaryId + ": " + curie + " is already in the database for reference_id = " + str(doi_to_reference_id[curie]))
