@@ -1,4 +1,8 @@
+import re
+
 import bs4
+
+from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.report_writer import ReportWriter
 
 
 def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
@@ -103,3 +107,45 @@ def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
             to_create.append(dqm_ordered[order])
 
     return True, to_patch, to_create
+
+
+def simplify_text_keep_digits(text):
+    """
+
+    :param text:
+    :return:
+    """
+
+    no_html = re.sub('<[^<]+?>', '', str(text))
+    stripped = re.sub(r"[^a-zA-Z0-9]+", "", str(no_html))
+    clean = stripped.lower()
+    return clean
+
+
+def simplify_text(text):
+    """
+
+    :param text:
+    :return:
+    """
+
+    no_html = re.sub('<[^<]+?>', '', str(text))
+    stripped = re.sub(r"[^a-zA-Z]+", "", str(no_html))
+    clean = stripped.lower()
+    return clean
+
+
+def compare_dqm_pubmed(mod, report_type, pmid, field, dqm_data, pubmed_data, report_writer: ReportWriter):
+
+    # to_return = ''
+    # logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_data, pubmed_data)
+    dqm_clean = simplify_text(dqm_data)
+    pubmed_clean = simplify_text(pubmed_data)
+    if dqm_clean != pubmed_clean:
+        report_writer.write(
+            mod=mod, report_type=report_type,
+            message="dqm and pubmed differ\t%s\t%s\t%s\t%s\n" % (field, pmid, dqm_data, pubmed_data))
+        # logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_clean, pubmed_clean)
+        # logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_data, pubmed_data)
+    # else:
+    #     logger.info("%s\t%s\t%s", field, pmid, 'GOOD')

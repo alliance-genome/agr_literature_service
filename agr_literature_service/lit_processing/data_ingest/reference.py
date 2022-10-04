@@ -9,13 +9,14 @@ from typing import List, Iterable, Dict
 
 import bs4
 
+from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_processing_utils import compare_dqm_pubmed, \
+    simplify_text_keep_digits
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.report_writer import ReportWriter
 from agr_literature_service.lit_processing.data_ingest.utils.alliance_utils import get_schema_data_from_alliance
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json, chunks
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 
 logger = logging.getLogger(__name__)
-
 
 REPLACE_VALUE_FIELDS = ['authors', 'pubMedType', 'meshTerms']
 
@@ -74,13 +75,31 @@ EXCLUDE_XREF_TYPES = {
 
 class Reference:
 
-    def __init__(self, data: dict = None):
+    def __init__(self, data: dict = None, report_writer: ReportWriter = None):
         self.data = {}
-        self.original_primary_id = None
+        self.pmid = None
+        self._original_primary_id = None
         self.need_update_primary_id = False
         if data:
             self.data = data
             self.original_primary_id = data["primaryId"]
+        self.report_writer = report_writer
+        self.is_pubmod = True
+        self.pubmed_data = {}
+
+    @property
+    def original_primary_id(self):
+        return self._original_primary_id
+
+    @original_primary_id.setter
+    def original_primary_id(self, primary_id):
+        self._original_primary_id = primary_id
+        self.extract_pmid(primary_id)
+
+    def extract_pmid(self, primary_id):
+        pmid_group = re.search(r"^PMID:([0-9]+)", primary_id)
+        if pmid_group is not None:
+            self.pmid = pmid_group[1]
 
     def __getitem__(self, item):
         return self.data[item]
@@ -110,32 +129,30 @@ class Reference:
             if ref_field in SINGLE_VALUE_FIELDS and self.data[ref_field] == "":
                 del self.data[ref_field]
 
-    @staticmethod
-    def validate_xref_pages(cross_reference, prefix, mod, primary_id, report_writer: ReportWriter):
+    def validate_xref_pages(self, cross_reference, prefix, mod, primary_id):
         if 'pages' in cross_reference:
             if len(cross_reference["pages"]) > 1:
-                report_writer.write(mod=mod, report_type="generic",
-                                    message="mod %s primaryId %s has cross reference identifier %s with "
-                                            "multiple web pages %s\n" % (mod, primary_id, cross_reference["id"],
-                                                                         cross_reference["pages"]))
+                self.report_writer.write(mod=mod, report_type="generic",
+                                         message="mod %s primaryId %s has cross reference identifier %s with "
+                                                 "multiple web pages %s\n" % (mod, primary_id, cross_reference["id"],
+                                                                              cross_reference["pages"]))
             else:
                 return True
         else:
             if prefix not in CROSS_REF_NO_PAGES_OK_FIELDS:
-                report_writer.write(mod=mod, report_type="generic",
-                                    message="mod %s primaryId %s has cross reference identifier %s without "
-                                            "web pages\n" % (mod, primary_id, cross_reference["id"]))
+                self.report_writer.write(mod=mod, report_type="generic",
+                                         message="mod %s primaryId %s has cross reference identifier %s without "
+                                                 "web pages\n" % (mod, primary_id, cross_reference["id"]))
         return False
 
-    def process_xrefs_and_find_pmid_if_necessary(self, mod, report_writer: ReportWriter,
-                                                 cross_reference_types: Dict[str, Dict[str, list]]):
+    def process_xrefs_and_find_pmid_if_necessary(self, mod, cross_reference_types: Dict[str, Dict[str, list]]):
         # need to process crossReferences once to reassign primaryId if PMID and filter out
         # unexpected crossReferences,
         # then again later to clean up crossReferences that get data from pubmed xml (once the PMID is known)
         update_primary_id = False
         too_many_xref_per_type_failure = False
         if 'crossReferences' not in self.data:
-            report_writer.write(
+            self.report_writer.write(
                 mod=mod, report_type="generic", message="mod %s primaryId %s has no cross references\n" % (
                     mod, self.original_primary_id))
         else:
@@ -144,8 +161,7 @@ class Reference:
             for cross_reference in self.data['crossReferences']:
                 prefix, identifier, separator = split_identifier(cross_reference["id"])
                 needs_pmid_extraction = self.validate_xref_pages(
-                    cross_reference=cross_reference, prefix=prefix, mod=mod, primary_id=self.original_primary_id,
-                    report_writer=report_writer)
+                    cross_reference=cross_reference, prefix=prefix, mod=mod, primary_id=self.original_primary_id)
                 if needs_pmid_extraction:
                     if not re.match(r"^PMID:[0-9]+", self.original_primary_id) and \
                             cross_reference["pages"][0] == 'PubMed' and \
@@ -166,15 +182,108 @@ class Reference:
             for prefix, identifiers in dqm_xrefs.items():
                 if len(identifiers) > 1:
                     too_many_xref_per_type_failure = True
-                    report_writer.write(mod=mod, report_type="generic",
-                                        message="mod %s primaryId %s has too many identifiers for %s %s\n" % (
-                                            mod, self.original_primary_id, prefix,
-                                            ', '.join(sorted(dqm_xrefs[prefix]))))
+                    self.report_writer.write(mod=mod, report_type="generic",
+                                             message="mod %s primaryId %s has too many identifiers for %s %s\n" % (
+                                                 mod, self.original_primary_id, prefix,
+                                                 ', '.join(sorted(dqm_xrefs[prefix]))))
 
         if too_many_xref_per_type_failure:
             self.need_update_primary_id = False
         else:
             self.need_update_primary_id = update_primary_id
+
+    def load_pubmed_data_and_determine_if_ref_is_pubmed(self, mod, pubmed_file_base_path):
+        if self.pmid:
+            filename = pubmed_file_base_path + 'pubmed_json/' + self.pmid + '.json'
+            try:
+                with open(filename, 'r') as f:
+                    self.pubmed_data = json.load(f)
+                    self.is_pubmod = False
+            except IOError:
+                self.report_writer.write(mod=mod, report_type="generic",
+                                         message="Warning: PMID %s does not have PubMed xml, from Mod %s primary_id "
+                                                 "%s\n" % (self.pmid, mod, self.original_primary_id))
+
+    def merge_pubmed_single_value_fields_from_pubmed_ref(self, pubmed_data, mod, pmid, report_writer,
+                                                         compare_if_dqm_empty):
+        for single_value_field in SINGLE_VALUE_FIELDS:
+            pubmed_data_for_field = ""
+            dqm_data_for_field = ""
+            if single_value_field in pubmed_data:
+                if single_value_field in DATE_FIELDS:
+                    pubmed_data_for_field = pubmed_data[single_value_field]['date_string']
+                else:
+                    pubmed_data_for_field = pubmed_data[single_value_field]
+            if single_value_field in self.data:
+                dqm_data_for_field = self.data[single_value_field]
+            if dqm_data_for_field != "":
+                dqm_data_for_field = str(bs4.BeautifulSoup(dqm_data_for_field, "html.parser"))
+            # UNCOMMENT to output log of data comparison between dqm and pubmed
+            if dqm_data_for_field != "" or compare_if_dqm_empty:
+                if single_value_field == 'title':
+                    compare_dqm_pubmed(mod, "title", pmid, single_value_field, dqm_data_for_field,
+                                       pubmed_data_for_field,
+                                       report_writer=report_writer)
+                else:
+                    compare_dqm_pubmed(mod, "differ", pmid, single_value_field, dqm_data_for_field,
+                                       pubmed_data_for_field,
+                                       report_writer=report_writer)
+            if pubmed_data_for_field != "":
+                self.data[single_value_field] = pubmed_data_for_field
+            if single_value_field == 'datePublished':
+                if pubmed_data_for_field == "" and dqm_data_for_field != "":
+                    self.data[single_value_field] = dqm_data_for_field
+
+    def replace_fields_with_pubmed_values(self, pubmed_data):
+        for replace_value_field in REPLACE_VALUE_FIELDS:
+            # always delete dqm value to be replaced even if the respective pubmed value is empty
+            self.data[replace_value_field] = []
+            if replace_value_field in pubmed_data:
+                # logger.info("PMID %s pmid_field %s data %s", pmid, pmid_field, pubmed_data[pmid_field])
+                self.data[replace_value_field] = pubmed_data[replace_value_field]
+
+    def set_resource_info_from_abbreviation(self, mod, primary_id, resource_to_mod_issn_nlm, resource_to_nlm_id,
+                                            resource_to_nlm_highest_id, resource_to_mod, resource_not_found):
+        if 'resourceAbbreviation' in self.data:
+            journal_simplified = simplify_text_keep_digits(self.data['resourceAbbreviation'])
+            if journal_simplified:
+                # logger.info("CHECK mod %s journal_simplified %s", mod, journal_simplified)
+                # highest priority to mod resources from dqm resource file with an issn in crossReferences that maps to a single nlm
+                if journal_simplified in resource_to_mod_issn_nlm[mod]:
+                    self.data['nlm'] = [resource_to_mod_issn_nlm[mod][journal_simplified]]
+                    self.data['resource'] = resource_to_mod_issn_nlm[mod][journal_simplified]
+                # next highest priority to resource names that map to an nlm
+                elif journal_simplified in resource_to_nlm_id:
+                    # a resourceAbbreviation can resolve to multiple NLMs, so we cannot use a list of NLMs to get a single canonical NLM title
+                    self.data['nlm'] = resource_to_nlm_id[journal_simplified]
+                    self.data['resource'] = 'NLM:' + resource_to_nlm_highest_id[journal_simplified]
+                    if len(resource_to_nlm_id[
+                               journal_simplified]) > 1:  # e.g. ZFIN:ZDB-PUB-020604-2  FB:FBrf0009739  WB:WBPaper00000557
+                        self.report_writer.write(
+                            mod=mod, report_type="generic",
+                            message="primaryId %s has resourceAbbreviation %s mapping to multiple NLMs %s.\n" % (
+                                primary_id, self.data['resourceAbbreviation'],
+                                ", ".join(resource_to_nlm_id[journal_simplified])))
+                # next highest priority to resource names that are in the dqm resource submission
+                elif journal_simplified in resource_to_mod[mod]:
+                    self.data['modResources'] = resource_to_mod[mod][journal_simplified]
+                    if len(resource_to_mod[mod][journal_simplified]) > 1:
+                        self.report_writer.write(
+                            mod=mod, report_type="generic",
+                            message="primaryId %s has resourceAbbreviation %s mapping to multiple MOD "
+                                    "resources %s.\n" % (primary_id, self.data['resourceAbbreviation'],
+                                                         ", ".join(resource_to_mod[mod][journal_simplified])))
+                    else:
+                        self.data['resource'] = resource_to_mod[mod][journal_simplified][0]
+                else:
+                    self.report_writer.write(
+                        mod=mod, report_type="resource_unmatched",
+                        message="primaryId %s has resourceAbbreviation %s not in NLM nor DQM resource "
+                                "file.\n" % (primary_id, self.data['resourceAbbreviation']))
+                    resource_not_found[mod][self.data['resourceAbbreviation']] += 1
+        else:
+            self.report_writer.write(mod=mod, report_type="reference_no_resource",
+                                     message="primaryId %s does not have a resourceAbbreviation.\n" % primary_id)
 
     def set_xrefs_from_unmerged_data(self, unmerged_dqm_data_for_single_pmid: Iterable[Reference]):
         cross_references_dict = dict()
