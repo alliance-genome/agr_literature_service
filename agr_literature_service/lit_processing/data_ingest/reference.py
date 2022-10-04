@@ -452,16 +452,18 @@ class Reference:
             self.clean_up_keywords(mod)
 
 
-def load_references_data_from_dqm_json(filename):
+def load_references_data_from_dqm_json(filename, report_writer) -> Iterable[Reference]:
     """
     Load reference data from file
     """
     logger.info("Loading %s", filename)
     if os.path.exists(filename):
-        return json.load(open(filename, 'r'))["data"]
+        json_data = json.load(open(filename, 'r'))["data"]
+        for ref_data in json_data:
+            yield Reference(data=ref_data, report_writer=report_writer)
     else:
         logger.info("No file found %s", filename)
-        return None
+        return []
 
 
 def write_sanitized_references_to_json(references: List[Reference], entries_size, base_file_name):

@@ -149,3 +149,13 @@ def compare_dqm_pubmed(mod, report_type, pmid, field, dqm_data, pubmed_data, rep
         # logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_data, pubmed_data)
     # else:
     #     logger.info("%s\t%s\t%s", field, pmid, 'GOOD')
+
+
+def strip_string_to_integer(string):
+    """
+
+    :param string:
+    :return:
+    """
+
+    return int("".join(filter(lambda x: x.isdigit(), string)))

@@ -8,15 +8,13 @@ from collections import defaultdict
 from os import environ, makedirs, path
 from typing import Dict
 
-import bs4
 from dotenv import load_dotenv
 
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_processing_utils import \
-    simplify_text_keep_digits
+    simplify_text_keep_digits, strip_string_to_integer
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.report_writer import ReportWriter
-from agr_literature_service.lit_processing.data_ingest.reference import SINGLE_VALUE_FIELDS, DATE_FIELDS, \
-    REPLACE_VALUE_FIELDS, PMID_FIELDS, Reference, write_sanitized_references_to_json, \
-    load_references_data_from_dqm_json, EXCLUDE_XREF_TYPES
+from agr_literature_service.lit_processing.data_ingest.reference import PMID_FIELDS, Reference, \
+    write_sanitized_references_to_json, load_references_data_from_dqm_json, EXCLUDE_XREF_TYPES
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
@@ -303,16 +301,6 @@ def load_pubmed_resource():
     return resource_to_nlm, resource_to_nlm_highest, resource_nlm_to_title
 
 
-def strip_string_to_integer(string):
-    """
-
-    :param string:
-    :return:
-    """
-
-    return int("".join(filter(lambda x: x.isdigit(), string)))
-
-
 def load_pmid_multi_mods(output_path):
     """
 
@@ -486,15 +474,11 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
     sanitized_pubmed_multi_mod_data = []
     unmerged_dqm_data_with_pmid = defaultdict(dict)  # pubmed data by pmid and mod that needs some fields merged
     for mod in mods:
-        dqm_references = load_references_data_from_dqm_json(
-            filename=base_dir + input_path + '/REFERENCE_' + mod + '.json')
-        if dqm_references is None:
-            continue
         sanitized_pubmod_data = []
         sanitized_pubmed_single_mod_data = []
         unexpected_mod_properties = set()
-        for dqm_ref_raw_data in dqm_references:
-            reference = Reference(data=dqm_ref_raw_data, report_writer=report_writer)
+        for reference in load_references_data_from_dqm_json(
+                filename=base_dir + input_path + '/REFERENCE_' + mod + '.json', report_writer=report_writer):
             unexpected_mod_properties.update(set(reference.get_list_of_unexpected_mod_properties()))
             reference.delete_blank_fields()
             reference.sanitize_and_sort_entry_into_pubmod_pubmed_or_multi(
