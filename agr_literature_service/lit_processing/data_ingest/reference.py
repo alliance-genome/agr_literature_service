@@ -129,6 +129,50 @@ class Reference:
             if ref_field in SINGLE_VALUE_FIELDS and self.data[ref_field] == "":
                 del self.data[ref_field]
 
+    @staticmethod
+    def generate_default_mod_corpus_association_for_dqm_data(mod):
+        return {
+            "modAbbreviation": mod,
+            "modCorpusSortSource": "dqm_files",
+            "corpus": True
+        }
+
+    def sanitize_and_sort_entry_into_pubmod_pubmed_or_multi(self, mod, cross_reference_types, resource_to_mod_issn_nlm,
+                                                            resource_to_nlm_id, resource_to_nlm_highest_id,
+                                                            resource_to_mod, resource_not_found, sanitized_pubmod_data,
+                                                            pmid_multi_mods, unmerged_dqm_data_with_pmid,
+                                                            sanitized_pubmed_single_mod_data, resource_nlm_id_to_title,
+                                                            compare_if_dqm_empty, base_path):
+        # inject the mod corpus association data because if it came from that mod dqm file it should have this entry
+        self.data['modCorpusAssociations'] = [self.generate_default_mod_corpus_association_for_dqm_data(mod)]
+
+        self.process_xrefs_and_find_pmid_if_necessary(mod=mod, cross_reference_types=cross_reference_types)
+        if not self.original_primary_id:
+            return
+
+        self.load_pubmed_data_and_determine_if_ref_is_pubmed(mod=mod, pubmed_file_base_path=base_path)
+        if self.is_pubmod:
+            self.process_pubmod_authors_xrefs_keywords(mod)
+            self.set_resource_info_from_abbreviation(mod, resource_to_mod_issn_nlm,
+                                                     resource_to_nlm_id, resource_to_nlm_highest_id,
+                                                     resource_to_mod,
+                                                     resource_not_found)
+            sanitized_pubmod_data.append(self)
+        else:
+            # processing pubmed data
+            self.merge_pubmed_single_value_fields_from_pubmed_ref(mod=mod, compare_if_dqm_empty=compare_if_dqm_empty)
+            self.replace_fields_with_pubmed_values()
+            self.set_additional_author_values_in_dqm_data()
+            self.update_xrefs_from_pubmed_data(mod)
+            self.update_nlm_resource_info_from_pubmed_data(mod, resource_nlm_id_to_title, resource_to_nlm_id)
+            self.merge_keywords_from_pubmed(mod)
+
+            if self.pmid in pmid_multi_mods.keys():
+                # logger.info("MULTIPLE pmid %s mod %s", pmid, mod)
+                unmerged_dqm_data_with_pmid[self.pmid][mod] = self
+            else:
+                sanitized_pubmed_single_mod_data.append(self)
+
     def validate_xref_pages(self, cross_reference, prefix, mod, primary_id):
         if 'pages' in cross_reference:
             if len(cross_reference["pages"]) > 1:
@@ -250,16 +294,15 @@ class Reference:
                 self.report_writer.write(mod=mod, report_type="generic",
                                          message="PMID %s does not have an NLM resource.\n" % self.pmid)
 
-    def merge_pubmed_single_value_fields_from_pubmed_ref(self, pubmed_data, mod, pmid, report_writer,
-                                                         compare_if_dqm_empty):
+    def merge_pubmed_single_value_fields_from_pubmed_ref(self, mod, compare_if_dqm_empty):
         for single_value_field in SINGLE_VALUE_FIELDS:
             pubmed_data_for_field = ""
             dqm_data_for_field = ""
-            if single_value_field in pubmed_data:
+            if single_value_field in self.pubmed_data:
                 if single_value_field in DATE_FIELDS:
-                    pubmed_data_for_field = pubmed_data[single_value_field]['date_string']
+                    pubmed_data_for_field = self.pubmed_data[single_value_field]['date_string']
                 else:
-                    pubmed_data_for_field = pubmed_data[single_value_field]
+                    pubmed_data_for_field = self.pubmed_data[single_value_field]
             if single_value_field in self.data:
                 dqm_data_for_field = self.data[single_value_field]
             if dqm_data_for_field != "":
@@ -267,28 +310,28 @@ class Reference:
             # UNCOMMENT to output log of data comparison between dqm and pubmed
             if dqm_data_for_field != "" or compare_if_dqm_empty:
                 if single_value_field == 'title':
-                    compare_dqm_pubmed(mod, "title", pmid, single_value_field, dqm_data_for_field,
+                    compare_dqm_pubmed(mod, "title", self.pmid, single_value_field, dqm_data_for_field,
                                        pubmed_data_for_field,
-                                       report_writer=report_writer)
+                                       report_writer=self.report_writer)
                 else:
-                    compare_dqm_pubmed(mod, "differ", pmid, single_value_field, dqm_data_for_field,
+                    compare_dqm_pubmed(mod, "differ", self.pmid, single_value_field, dqm_data_for_field,
                                        pubmed_data_for_field,
-                                       report_writer=report_writer)
+                                       report_writer=self.report_writer)
             if pubmed_data_for_field != "":
                 self.data[single_value_field] = pubmed_data_for_field
             if single_value_field == 'datePublished':
                 if pubmed_data_for_field == "" and dqm_data_for_field != "":
                     self.data[single_value_field] = dqm_data_for_field
 
-    def replace_fields_with_pubmed_values(self, pubmed_data):
+    def replace_fields_with_pubmed_values(self):
         for replace_value_field in REPLACE_VALUE_FIELDS:
             # always delete dqm value to be replaced even if the respective pubmed value is empty
             self.data[replace_value_field] = []
-            if replace_value_field in pubmed_data:
+            if replace_value_field in self.pubmed_data:
                 # logger.info("PMID %s pmid_field %s data %s", pmid, pmid_field, pubmed_data[pmid_field])
-                self.data[replace_value_field] = pubmed_data[replace_value_field]
+                self.data[replace_value_field] = self.pubmed_data[replace_value_field]
 
-    def set_resource_info_from_abbreviation(self, mod, primary_id, resource_to_mod_issn_nlm, resource_to_nlm_id,
+    def set_resource_info_from_abbreviation(self, mod, resource_to_mod_issn_nlm, resource_to_nlm_id,
                                             resource_to_nlm_highest_id, resource_to_mod, resource_not_found):
         if 'resourceAbbreviation' in self.data:
             journal_simplified = simplify_text_keep_digits(self.data['resourceAbbreviation'])
@@ -308,7 +351,7 @@ class Reference:
                         self.report_writer.write(
                             mod=mod, report_type="generic",
                             message="primaryId %s has resourceAbbreviation %s mapping to multiple NLMs %s.\n" % (
-                                primary_id, self.data['resourceAbbreviation'],
+                                self.original_primary_id, self.data['resourceAbbreviation'],
                                 ", ".join(resource_to_nlm_id[journal_simplified])))
                 # next highest priority to resource names that are in the dqm resource submission
                 elif journal_simplified in resource_to_mod[mod]:
@@ -317,7 +360,7 @@ class Reference:
                         self.report_writer.write(
                             mod=mod, report_type="generic",
                             message="primaryId %s has resourceAbbreviation %s mapping to multiple MOD "
-                                    "resources %s.\n" % (primary_id, self.data['resourceAbbreviation'],
+                                    "resources %s.\n" % (self.original_primary_id, self.data['resourceAbbreviation'],
                                                          ", ".join(resource_to_mod[mod][journal_simplified])))
                     else:
                         self.data['resource'] = resource_to_mod[mod][journal_simplified][0]
@@ -325,11 +368,12 @@ class Reference:
                     self.report_writer.write(
                         mod=mod, report_type="resource_unmatched",
                         message="primaryId %s has resourceAbbreviation %s not in NLM nor DQM resource "
-                                "file.\n" % (primary_id, self.data['resourceAbbreviation']))
+                                "file.\n" % (self.original_primary_id, self.data['resourceAbbreviation']))
                     resource_not_found[mod][self.data['resourceAbbreviation']] += 1
         else:
             self.report_writer.write(mod=mod, report_type="reference_no_resource",
-                                     message="primaryId %s does not have a resourceAbbreviation.\n" % primary_id)
+                                     message="primaryId %s does not have a resourceAbbreviation.\n" %
+                                             self.original_primary_id)
 
     def set_xrefs_from_unmerged_data(self, unmerged_dqm_data_for_single_pmid: Iterable[Reference]):
         cross_references_dict = dict()
@@ -375,17 +419,17 @@ class Reference:
                 keywords.append(mod_keyword)
             self.data['keywords'] = keywords
 
-    def merge_keywords_from_pubmed(self, pubmed_data: Reference, mod):
+    def merge_keywords_from_pubmed(self, mod):
         if 'keywords' not in self.data:
             self.data['keywords'] = []
         else:
             # e.g. 9882485 25544291 24201188 31188077
             self.clean_up_keywords(mod)
-        if 'keywords' in pubmed_data:
+        if 'keywords' in self.pubmed_data:
             # aggregate for all MODs except ZFIN, which has misformed data and can't fix it.
             # 19308247 aggregates keywords for WB
             entry_keywords = {keyword.upper() for keyword in self.data['keywords']}
-            for pubmed_keyword in pubmed_data['keywords']:
+            for pubmed_keyword in self.pubmed_data['keywords']:
                 if pubmed_keyword.upper() not in entry_keywords:
                     self.data['keywords'].append(pubmed_keyword)
 

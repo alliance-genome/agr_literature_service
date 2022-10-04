@@ -422,7 +422,8 @@ def merge_multimod_pubmed_and_dqm_data(unmerged_dqm_data_with_pmid: Dict[str, Di
 
             if 'modCorpusAssociations' not in sanitized_reference:
                 sanitized_reference['modCorpusAssociations'] = []
-            sanitized_reference['modCorpusAssociations'].append(generate_default_mod_corpus_association_for_dqm_data(mod))
+            sanitized_reference['modCorpusAssociations'].append(
+                Reference.generate_default_mod_corpus_association_for_dqm_data(mod))
 
             if 'datePublished' in entry:
                 date_published_set.add(entry['datePublished'])
@@ -434,52 +435,6 @@ def merge_multimod_pubmed_and_dqm_data(unmerged_dqm_data_with_pmid: Dict[str, Di
         report_multiple_categories_and_dates_while_merging_multimod(alliance_category_dict, report_writer, pmid,
                                                                     date_published_set)
         sanitized_pubmed_multi_mod_data.append(sanitized_reference)
-
-
-def generate_default_mod_corpus_association_for_dqm_data(mod):
-    return {
-        "modAbbreviation": mod,
-        "modCorpusSortSource": "dqm_files",
-        "corpus": True
-    }
-
-
-def sanitize_and_sort_entry_into_pubmod_pubmed_or_multi(
-        reference: Reference, mod, report_writer,
-        cross_reference_types, resource_to_mod_issn_nlm, resource_to_nlm_id,
-        resource_to_nlm_highest_id, resource_to_mod, resource_not_found, sanitized_pubmod_data, pmid_multi_mods,
-        unmerged_dqm_data_with_pmid, sanitized_pubmed_single_mod_data, resource_nlm_id_to_title):
-    # inject the mod corpus association data because if it came from that mod dqm file it should have this entry
-    reference['modCorpusAssociations'] = [generate_default_mod_corpus_association_for_dqm_data(mod)]
-
-    reference.process_xrefs_and_find_pmid_if_necessary(mod=mod, cross_reference_types=cross_reference_types)
-    if not reference.original_primary_id:
-        return
-
-    reference.load_pubmed_data_and_determine_if_ref_is_pubmed(mod=mod, pubmed_file_base_path=base_path)
-    if reference.is_pubmod:
-        reference.process_pubmod_authors_xrefs_keywords(mod)
-        reference.set_resource_info_from_abbreviation(mod, reference.original_primary_id, resource_to_mod_issn_nlm,
-                                                      resource_to_nlm_id, resource_to_nlm_highest_id, resource_to_mod,
-                                                      resource_not_found)
-        sanitized_pubmod_data.append(reference)
-    else:
-        # processing pubmed data
-        reference.merge_pubmed_single_value_fields_from_pubmed_ref(pubmed_data=reference.pubmed_data, mod=mod,
-                                                                   pmid=reference.pmid,
-                                                                   report_writer=report_writer,
-                                                                   compare_if_dqm_empty=COMPARE_IF_DQM_EMPTY)
-        reference.replace_fields_with_pubmed_values(reference.pubmed_data)
-        reference.set_additional_author_values_in_dqm_data()
-        reference.update_xrefs_from_pubmed_data(mod)
-        reference.update_nlm_resource_info_from_pubmed_data(mod, resource_nlm_id_to_title, resource_to_nlm_id)
-        reference.merge_keywords_from_pubmed(reference.pubmed_data, mod)
-
-        if reference.pmid in pmid_multi_mods.keys():
-            # logger.info("MULTIPLE pmid %s mod %s", pmid, mod)
-            unmerged_dqm_data_with_pmid[reference.pmid][mod] = reference
-        else:
-            sanitized_pubmed_single_mod_data.append(reference)
 
 
 ALLOWED_MODS = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB', 'XB']
@@ -542,11 +497,11 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
             reference = Reference(data=dqm_ref_raw_data, report_writer=report_writer)
             unexpected_mod_properties.update(set(reference.get_list_of_unexpected_mod_properties()))
             reference.delete_blank_fields()
-            sanitize_and_sort_entry_into_pubmod_pubmed_or_multi(
-                reference, mod, report_writer, cross_reference_types,
-                resource_to_mod_issn_nlm, resource_to_nlm_id, resource_to_nlm_highest_id, resource_to_mod,
-                resource_not_found, sanitized_pubmod_data, pmid_multi_mods, unmerged_dqm_data_with_pmid,
-                sanitized_pubmed_single_mod_data, resource_nlm_id_to_title)
+            reference.sanitize_and_sort_entry_into_pubmod_pubmed_or_multi(
+                mod, cross_reference_types, resource_to_mod_issn_nlm, resource_to_nlm_id, resource_to_nlm_highest_id,
+                resource_to_mod, resource_not_found, sanitized_pubmod_data, pmid_multi_mods,
+                unmerged_dqm_data_with_pmid, sanitized_pubmed_single_mod_data, resource_nlm_id_to_title,
+                compare_if_dqm_empty=COMPARE_IF_DQM_EMPTY, base_path=base_path)
 
         logger.info("Generating .json output for mod %s", mod)
 
