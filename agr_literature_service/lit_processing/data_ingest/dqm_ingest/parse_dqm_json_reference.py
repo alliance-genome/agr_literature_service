@@ -388,7 +388,7 @@ def merge_multimod_pubmed_and_dqm_data(unmerged_dqm_data_with_pmid: Dict[str, Di
     for pmid in unmerged_dqm_data_with_pmid:
         date_published_set = set()
         alliance_category_dict = defaultdict(set)
-        sanitized_reference = Reference()
+        sanitized_reference = Reference(report_writer=report_writer)
         sanitized_reference.set_xrefs_from_unmerged_data(unmerged_dqm_data_with_pmid[pmid].values())
         for mod, entry in unmerged_dqm_data_with_pmid[pmid].items():
             sanitized_reference['primaryId'] = entry['primaryId']

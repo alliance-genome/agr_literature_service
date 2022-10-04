@@ -1,7 +1,5 @@
 import re
 
-import bs4
-
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.report_writer import ReportWriter
 
 

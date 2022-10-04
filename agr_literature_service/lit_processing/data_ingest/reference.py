@@ -5,12 +5,12 @@ import logging
 import os
 import re
 from collections import defaultdict
-from typing import List, Iterable, Dict
+from typing import List, Iterable, Dict, Any
 
 import bs4
 
-from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_processing_utils import compare_dqm_pubmed, \
-    simplify_text_keep_digits
+from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_processing_utils import \
+    compare_dqm_pubmed, simplify_text_keep_digits
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.report_writer import ReportWriter
 from agr_literature_service.lit_processing.data_ingest.utils.alliance_utils import get_schema_data_from_alliance
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json, chunks
@@ -75,7 +75,7 @@ EXCLUDE_XREF_TYPES = {
 
 class Reference:
 
-    def __init__(self, data: dict = None, report_writer: ReportWriter = None):
+    def __init__(self, report_writer: ReportWriter, data=None):
         self.data = {}
         self.pmid = None
         self._original_primary_id = None
@@ -85,7 +85,7 @@ class Reference:
             self.original_primary_id = data["primaryId"]
         self.report_writer = report_writer
         self.is_pubmod = True
-        self.pubmed_data = {}
+        self.pubmed_data: Dict[str, Any] = {}
 
     @property
     def original_primary_id(self):
@@ -346,8 +346,7 @@ class Reference:
                     # a resourceAbbreviation can resolve to multiple NLMs, so we cannot use a list of NLMs to get a single canonical NLM title
                     self.data['nlm'] = resource_to_nlm_id[journal_simplified]
                     self.data['resource'] = 'NLM:' + resource_to_nlm_highest_id[journal_simplified]
-                    if len(resource_to_nlm_id[
-                               journal_simplified]) > 1:  # e.g. ZFIN:ZDB-PUB-020604-2  FB:FBrf0009739  WB:WBPaper00000557
+                    if len(resource_to_nlm_id[journal_simplified]) > 1:  # e.g. ZFIN:ZDB-PUB-020604-2  FB:FBrf0009739  WB:WBPaper00000557
                         self.report_writer.write(
                             mod=mod, report_type="generic",
                             message="primaryId %s has resourceAbbreviation %s mapping to multiple NLMs %s.\n" % (

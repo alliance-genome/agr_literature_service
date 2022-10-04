@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 from os import environ
 
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
