@@ -338,57 +338,6 @@ def load_pmid_multi_mods(output_path):
 COMPARE_IF_DQM_EMPTY = False  # do dqm vs pmid comparison even if dqm has no data, by default skip
 
 
-
-def set_additional_author_values_in_dqm_data(entry):
-    # needs to happen after "replace_fields_in_dqm_data_with_pubmed_values"
-    if 'authors' in entry:
-        for author in entry['authors']:
-            author['correspondingAuthor'] = False
-            author['firstAuthor'] = False
-
-
-def merge_pubmed_xrefs_into_entry_xrefs(entry, pubmed_data, mod, primary_id, report_writer):
-    prefix_xrefs_dict = {}
-    if 'crossReferences' in pubmed_data:
-        for xref in pubmed_data['crossReferences']:
-            prefix, identifier, _ = split_identifier(xref["id"])
-            prefix_xrefs_dict[prefix] = (xref, identifier)
-    if 'crossReferences' in entry:
-        for cross_reference in entry['crossReferences']:
-            prefix, identifier, separator = split_identifier(cross_reference['id'])
-            if prefix not in prefix_xrefs_dict:
-                prefix_xrefs_dict[prefix] = cross_reference, identifier
-            else:
-                if prefix_xrefs_dict[prefix][1].lower() != identifier.lower():
-                    report_writer.write(
-                        mod=mod, report_type="generic",
-                        message="primaryId %s has xref %s PubMed has %s%s%s\n" % (
-                            primary_id, cross_reference['id'], prefix, separator, prefix_xrefs_dict[prefix][1]))
-
-    entry['crossReferences'] = [cross_reference[0] for cross_reference in prefix_xrefs_dict.values()]
-
-
-def merge_pubmed_nlm_resource_info_into_entry(entry, mod, pmid, pubmed_data, resource_nlm_id_to_title,
-                                              resource_to_nlm_id, report_writer: ReportWriter):
-    if 'nlm' in pubmed_data:
-        nlm_identifier = pubmed_data['nlm']
-        entry['nlm'] = ['NLM:' + nlm_identifier]
-        entry['resource'] = 'NLM:' + nlm_identifier
-        if nlm_identifier in resource_nlm_id_to_title:
-            # logger.info("PMID %s has NLM %s setting to title %s", pmid, nlm, resource_nlm_to_title[nlm])
-            entry['resourceAbbreviation'] = resource_nlm_id_to_title[nlm_identifier]
-        nlm_id_simplified = simplify_text_keep_digits(nlm_identifier)
-        if nlm_id_simplified not in resource_to_nlm_id:
-            report_writer.write(
-                mod=mod, report_type="generic",
-                message="NLM value %s from PMID %s XML does not map to a proper resource.\n" % (
-                    pubmed_data['nlm'], pmid))
-    else:
-        if 'is_journal' in pubmed_data:
-            report_writer.write(mod=mod, report_type="generic",
-                                message="PMID %s does not have an NLM resource.\n" % pmid)
-
-
 def find_resource_abbreviation_not_matched_to_nlm_or_res_mod(resource_not_found: Dict[str, Dict[str, int]],
                                                              report_writer: ReportWriter, base_dir=base_path):
     # output resourceAbbreviations not matched to NLMs or resource MOD IDs to a file for attempt to
@@ -500,7 +449,6 @@ def sanitize_and_sort_entry_into_pubmod_pubmed_or_multi(
         cross_reference_types, resource_to_mod_issn_nlm, resource_to_nlm_id,
         resource_to_nlm_highest_id, resource_to_mod, resource_not_found, sanitized_pubmod_data, pmid_multi_mods,
         unmerged_dqm_data_with_pmid, sanitized_pubmed_single_mod_data, resource_nlm_id_to_title):
-    orig_primary_id = reference['primaryId']
     # inject the mod corpus association data because if it came from that mod dqm file it should have this entry
     reference['modCorpusAssociations'] = [generate_default_mod_corpus_association_for_dqm_data(mod)]
 
@@ -522,10 +470,9 @@ def sanitize_and_sort_entry_into_pubmod_pubmed_or_multi(
                                                                    report_writer=report_writer,
                                                                    compare_if_dqm_empty=COMPARE_IF_DQM_EMPTY)
         reference.replace_fields_with_pubmed_values(reference.pubmed_data)
-        set_additional_author_values_in_dqm_data(reference)
-        merge_pubmed_xrefs_into_entry_xrefs(reference, reference.pubmed_data, mod, reference.original_primary_id, report_writer)
-        merge_pubmed_nlm_resource_info_into_entry(reference, mod, reference.pmid, reference.pubmed_data, resource_nlm_id_to_title,
-                                                  resource_to_nlm_id, report_writer)
+        reference.set_additional_author_values_in_dqm_data()
+        reference.update_xrefs_from_pubmed_data(mod)
+        reference.update_nlm_resource_info_from_pubmed_data(mod, resource_nlm_id_to_title, resource_to_nlm_id)
         reference.merge_keywords_from_pubmed(reference.pubmed_data, mod)
 
         if reference.pmid in pmid_multi_mods.keys():

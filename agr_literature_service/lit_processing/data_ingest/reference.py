@@ -204,6 +204,52 @@ class Reference:
                                          message="Warning: PMID %s does not have PubMed xml, from Mod %s primary_id "
                                                  "%s\n" % (self.pmid, mod, self.original_primary_id))
 
+    def set_additional_author_values_in_dqm_data(self):
+        # needs to happen after "replace_fields_in_dqm_data_with_pubmed_values"
+        if 'authors' in self.data:
+            for author in self.data['authors']:
+                author['correspondingAuthor'] = False
+                author['firstAuthor'] = False
+
+    def update_xrefs_from_pubmed_data(self, mod):
+        prefix_xrefs_dict = {}
+        if 'crossReferences' in self.pubmed_data:
+            for xref in self.pubmed_data['crossReferences']:
+                prefix, identifier, _ = split_identifier(xref["id"])
+                prefix_xrefs_dict[prefix] = (xref, identifier)
+        if 'crossReferences' in self.data:
+            for cross_reference in self.data['crossReferences']:
+                prefix, identifier, separator = split_identifier(cross_reference['id'])
+                if prefix not in prefix_xrefs_dict:
+                    prefix_xrefs_dict[prefix] = cross_reference, identifier
+                else:
+                    if prefix_xrefs_dict[prefix][1].lower() != identifier.lower():
+                        self.report_writer.write(
+                            mod=mod, report_type="generic",
+                            message="primaryId %s has xref %s PubMed has %s%s%s\n" % (
+                                self.original_primary_id, cross_reference['id'], prefix, separator,
+                                prefix_xrefs_dict[prefix][1]))
+        self.data['crossReferences'] = [cross_reference[0] for cross_reference in prefix_xrefs_dict.values()]
+
+    def update_nlm_resource_info_from_pubmed_data(self, mod, resource_nlm_id_to_title, resource_to_nlm_id):
+        if 'nlm' in self.pubmed_data:
+            nlm_identifier = self.pubmed_data['nlm']
+            self.data['nlm'] = ['NLM:' + nlm_identifier]
+            self.data['resource'] = 'NLM:' + nlm_identifier
+            if nlm_identifier in resource_nlm_id_to_title:
+                # logger.info("PMID %s has NLM %s setting to title %s", pmid, nlm, resource_nlm_to_title[nlm])
+                self.data['resourceAbbreviation'] = resource_nlm_id_to_title[nlm_identifier]
+            nlm_id_simplified = simplify_text_keep_digits(nlm_identifier)
+            if nlm_id_simplified not in resource_to_nlm_id:
+                self.report_writer.write(
+                    mod=mod, report_type="generic",
+                    message="NLM value %s from PMID %s XML does not map to a proper resource.\n" % (
+                        self.pubmed_data['nlm'], self.pmid))
+        else:
+            if 'is_journal' in self.pubmed_data:
+                self.report_writer.write(mod=mod, report_type="generic",
+                                         message="PMID %s does not have an NLM resource.\n" % self.pmid)
+
     def merge_pubmed_single_value_fields_from_pubmed_ref(self, pubmed_data, mod, pmid, report_writer,
                                                          compare_if_dqm_empty):
         for single_value_field in SINGLE_VALUE_FIELDS:
