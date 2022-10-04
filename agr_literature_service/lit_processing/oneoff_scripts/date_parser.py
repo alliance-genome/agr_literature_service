@@ -294,7 +294,7 @@ def get_xrefs(curie):
     return ", ".join([xref[0] for xref in xrefs])
 
 
-references_not_found = {}
+# references_not_found = {}
 # rs = db_session.execute("SELECT curie, date_published FROM reference WHERE date_published IS NOT NULL AND date_published !~ '^\d\d\d\d-\d\d-\d\d$' AND date_published ~ '[a-zA-Z]' AND date_published != 'Unknown' ORDER BY curie")
 # rs = db_session.execute("SELECT curie, date_published FROM reference WHERE date_published IS NOT NULL AND date_published !~ '^\d\d\d\d-\d\d-\d\d$' AND date_published ~ '[a-zA-Z]' ORDER BY curie")
 # rs = db_session.execute("SELECT curie, date_published FROM reference WHERE date_published IS NOT NULL AND date_published !~ '^\d\d\d\d-\d\d-\d\d$' AND date_published !~ '[a-zA-Z]' ORDER BY curie")  # process non-text dates
