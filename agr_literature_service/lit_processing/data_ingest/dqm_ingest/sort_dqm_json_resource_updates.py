@@ -409,7 +409,7 @@ if __name__ == "__main__":
     # mods and special NLM
     mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB', 'NLM']
     for mod in mods:
-        base_path = environ.get('XML_PATH')
+        base_path = environ.get('XML_PATH', 'undefined')
         filename = base_path + 'sanitized_resource_json/RESOURCE_' + mod + '.json'
         update_sanitized_resources(db_session, mod, filename)
 

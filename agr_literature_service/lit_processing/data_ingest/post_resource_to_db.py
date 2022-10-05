@@ -4,7 +4,7 @@ import logging.config
 import sqlalchemy
 import sys
 from os import environ
-
+from typing import Dict
 from dotenv import load_dotenv
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session, \
@@ -50,11 +50,11 @@ logger = logging.getLogger(__name__)
 
 base_path = environ.get('XML_PATH', "")
 
-remap_editor_keys = dict()                # global, set where used if empty
-remap_cross_references_keys = dict()      # global, set where used if empty
-cross_references_keys_to_remove = dict()  # global, set where used it empty
+remap_editor_keys: Dict[str, str] = dict()                # global, set where used if empty
+remap_cross_references_keys: Dict[str, str] = dict()      # global, set where used if empty
+cross_references_keys_to_remove: Dict[str, str] = dict()  # global, set where used it empty
 
-remap_keys = dict()
+remap_keys: Dict[str, str] = dict()
 
 
 def process_editors(db_session, resource_id, new_entry):
