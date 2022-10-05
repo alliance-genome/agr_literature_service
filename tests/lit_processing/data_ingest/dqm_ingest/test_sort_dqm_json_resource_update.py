@@ -48,4 +48,4 @@ class TestParseDqmJsonResource:
         res = db.query(ResourceModel).filter_by(title='Advances in biology laboratory education : p1').one_or_none()
         print(dir(res))
         print(res)
-        assert res.print_issn == "2769-1810-NOOOOOOO"
+        assert res.print_issn == "2769-1810"
