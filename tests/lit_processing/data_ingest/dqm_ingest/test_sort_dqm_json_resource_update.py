@@ -23,11 +23,11 @@ class TestParseDqmJsonResource:
         filename = sample_file_path + 'RESOURCE_' + datatype + '.json'
         # This produces a json fiel fro new resources and writes to the db
         # changes of those that exist already.
-       
+
         update_sanitized_resources(db, 'ZFIN', filename)
 
         # So check the json for the correct info.
-        
+
         # now load the file
         # /usr/local/bin/src/literature/agr_literature_service/lit_processing/tests/tmp/sanitized_resource_json_updates/
         f = open("/usr/local/bin/src/literature/agr_literature_service/lit_processing/tests/tmp/sanitized_resource_json_updates/RESOURCE_ZFIN.json")
