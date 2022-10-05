@@ -21,7 +21,6 @@ omit =
         agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_all_mods.py
         agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_single_mod.py
         agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_resources_nlm.py
-        agr_literature_service/lit_processing/data_ingest/utils/db_write_utils.py
 	agr_literature_service/lit_processing/utils/db_read_utils.py
 
 
