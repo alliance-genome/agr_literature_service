@@ -130,7 +130,7 @@ def remap_keys_get_new_entry(entry: Dict) -> Dict:
     return new_entry
 
 
-def process_entry(db_session: Session, entry: Dict, xref_ref: Dict) -> Tuple:
+def process_resource_entry(db_session: Session, entry: Dict, xref_ref: Dict) -> Tuple:
     """Process json and add to db.
     Adds resourses, cross references and editors.
 
@@ -240,7 +240,7 @@ def post_resources(db_session: Session, input_path: str, input_mod: str, base_in
             f = open(filename)
             resource_data = json.load(f)
             for entry in resource_data['data']:
-                process_okay, message = process_entry(db_session, entry, xref_ref)
+                process_okay, message = process_resource_entry(db_session, entry, xref_ref)
                 if process_okay:
                     if message:
                         mapping_fh.write(message)

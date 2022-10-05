@@ -1,13 +1,13 @@
 import json
 import logging.config
 import warnings
-from os import environ, makedirs, path
+from os import environ, path
 
 from dotenv import load_dotenv
 from fastapi.encoders import jsonable_encoder
 
 from agr_literature_service.api.models import ResourceModel, CrossReferenceModel
-from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import save_resource_file
+# from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import save_resource_file
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session,\
     sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
@@ -15,7 +15,8 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_proc
     compare_authors_or_editors
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
-
+from agr_literature_service.lit_processing.data_ingest.post_resource_to_db import \
+    process_resource_entry
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
@@ -80,17 +81,17 @@ def update_sanitized_resources(db_session, datatype, filename):
 
     logger.info("update_sanitized_resources for %s", datatype)
 
-    base_path = environ.get('XML_PATH')
+    # base_path = environ.get('XML_PATH')
 
-    json_storage_path = base_path + 'sanitized_resource_json_updates/'
-    if not path.exists(json_storage_path):
-        makedirs(json_storage_path)
-    print(f"json storage path is {json_storage_path}")
+    # json_storage_path = base_path + 'sanitized_resource_json_updates/'
+    # if not path.exists(json_storage_path):
+    #    makedirs(json_storage_path)
+    # print(f"json storage path is {json_storage_path}")
     xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
 
     sanitized_resources = load_sanitized_resource(datatype, filename)
     resources_to_update = dict()
-    resources_to_create = dict()
+    # resources_to_create = dict()
 
     # e.g. create ZFIN:ZDB-JRNL-210824-1
     counter = 0
@@ -116,10 +117,18 @@ def update_sanitized_resources(db_session, datatype, filename):
                 found = True
         if not found:
             # logger.info("create primary_id %s", primary_id)
-            resources_to_create[primary_id] = resource_dict
+            # resources_to_create[primary_id] = resource_dict
+            # load directly
+            process_okay, message = process_resource_entry(db_session, resource_dict, xref_ref)
+            if process_okay:
+                if message:
+                    logger.info(message)
+                else:
+                    logger.error(message)
+
     print(f"{counter} resources seen.")
-    if resources_to_create:
-        save_resource_file(json_storage_path, resources_to_create, datatype)  # this needs to post_resource_to_api, figure out appending to resource_primary_id_to_curie
+    # if resources_to_create:
+    #    save_resource_file(json_storage_path, resources_to_create, datatype)  # this needs to post_resource_to_api, figure out appending to resource_primary_id_to_curie
 
     update_resources(db_session, live_changes, resources_to_update)
 

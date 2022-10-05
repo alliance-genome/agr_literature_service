@@ -3,12 +3,12 @@ import os
 # from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.sort_dqm_json_resource_updates \
     import update_sanitized_resources
-from agr_literature_service.lit_processing.data_ingest.post_resource_to_db \
-    import post_resources
+# from agr_literature_service.lit_processing.data_ingest.post_resource_to_db \
+#    import post_resources
 from agr_literature_service.api.models import ResourceModel
 from ....fixtures import db # noqa
 
-import json
+# import json
 
 
 class TestParseDqmJsonResource:
@@ -30,15 +30,17 @@ class TestParseDqmJsonResource:
 
         # now load the file
         # /usr/local/bin/src/literature/agr_literature_service/lit_processing/tests/tmp/sanitized_resource_json_updates/
-        f = open("/usr/local/bin/src/literature/agr_literature_service/lit_processing/tests/tmp/sanitized_resource_json_updates/RESOURCE_ZFIN.json")
-        resource_data = json.load(f)
-        print(resource_data)
+        # f = open("/usr/local/bin/src/literature/agr_literature_service/lit_processing/tests/tmp/sanitized_resource_json_updates/RESOURCE_ZFIN.json")
+        # resource_data = json.load(f)
+        # print(resource_data)
 
-        post_resources(db, "sanitized_resource_json_updates", "ZFIN")
-        json_storage_path = sample_file_path + '/'
-        json_filename = json_storage_path + 'RESOURCE_' + datatype + '.json'
-        print(f"fake path for now is {json_filename}")
-        print("resources are:-")
+        # post_resources(db, "sanitized_resource_json_updates", "ZFIN")
+        # json_storage_path = sample_file_path + '/'
+        # json_filename = json_storage_path + 'RESOURCE_' + datatype + '.json'
+        # print(f"fake path for now is {json_filename}")
+        # print("resources are:-")
+
+        #    SHOULD now be loaded without the json file intermediate....
         for bob in db.query(ResourceModel).all():
             print(bob)
             print(bob.title)
