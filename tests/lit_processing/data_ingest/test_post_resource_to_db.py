@@ -1,5 +1,5 @@
 from os import path
-
+from os import environ
 from agr_literature_service.api.models import ResourceModel, CrossReferenceModel
 from agr_literature_service.lit_processing.data_ingest.post_resource_to_db import \
     post_resources
@@ -28,3 +28,23 @@ class TestPostResourceToDb:
         resource_id = res_rows[4].resource_id
         crossRef = db.query(CrossReferenceModel).filter_by(resource_id=resource_id).first()
         assert crossRef.curie == 'NLM:101759238'
+
+        # Check the log files.
+        base_path = environ.get('XML_PATH', "")
+        resource_primary_id_to_curie_file = base_path + 'resource_primary_id_to_curie'
+        errors_in_posting_resource_file = base_path + 'errors_in_posting_resource'
+
+        with open(resource_primary_id_to_curie_file, 'r') as mapping_fh:
+            lines = mapping_fh.readlines()
+            mapping_fh.close()
+        for line in lines:
+            print(f"mapping:\t {line}")
+        assert len(lines) == 5
+
+        with open(errors_in_posting_resource_file, 'r') as error_fh:
+            lines = error_fh.readlines()
+            error_fh.close()
+        for line in lines:
+            print(f"error:\t {line}")
+
+        assert len(lines) == 0

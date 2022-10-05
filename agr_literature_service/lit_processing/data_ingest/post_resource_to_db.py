@@ -1,10 +1,12 @@
 import argparse
 import json
 import logging.config
+# from requests import Session
+from sqlalchemy.orm import Session
 import sqlalchemy
 import sys
 from os import environ
-from typing import Dict
+from typing import Dict, Tuple
 from dotenv import load_dotenv
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session, \
@@ -57,7 +59,7 @@ cross_references_keys_to_remove: Dict[str, str] = dict()  # global, set where us
 remap_keys: Dict[str, str] = dict()
 
 
-def process_editors(db_session, resource_id, editors):
+def process_editors(db_session: Session, resource_id: int, editors: Dict) -> None:
     global remap_editor_keys
     if not remap_editor_keys:
         remap_editor_keys['authorRank'] = 'order'
@@ -84,7 +86,7 @@ def process_editors(db_session, resource_id, editors):
             db_session.add(editor_obj)
 
 
-def process_cross_references(db_session, resource_id, cross_references):
+def process_cross_references(db_session: Session, resource_id: int, cross_references: Dict) -> None:
     global remap_cross_references_keys
     if not remap_cross_references_keys:
         remap_cross_references_keys['id'] = 'curie'
@@ -106,7 +108,7 @@ def process_cross_references(db_session, resource_id, cross_references):
         logger.info("Adding resource info into cross_reference table for " + new_xref['curie'])
 
 
-def remap_keys_get_new_entry(entry):
+def remap_keys_get_new_entry(entry: Dict) -> Dict:
     global remap_keys
     if not remap_keys:
         remap_keys['isoAbbreviation'] = 'iso_abbreviation'
@@ -128,7 +130,16 @@ def remap_keys_get_new_entry(entry):
     return new_entry
 
 
-def process_entry(db_session, entry, xref_ref):
+def process_entry(db_session: Session, entry: Dict, xref_ref: Dict) -> Tuple:
+    """Process json and add to db.
+    Adds resourses, cross references and editors.
+
+    :param db_session: database session
+    :param entry:      json format of dqm resource
+    :param xref_ref:   in the format xref_ref[prefix][identifier] = agr
+                       Used to ensure xrefs only connect to 1 resource.
+                       NOTE: Does not seem to get updated as resources are added.
+    """
     primary_id = entry['primaryId']
     prefix, identifier, separator = split_identifier(primary_id)
     if prefix in xref_ref:
@@ -149,6 +160,8 @@ def process_entry(db_session, entry, xref_ref):
 
         # cross_references and editors done seperately
         # so do not want to pass them to the resource creator
+        # make a copy and deal with them after we have a resource_id
+        # to attach too.
         cross_references = new_entry.get('cross_references', [])
         if "cross_references" in new_entry:
             del new_entry["cross_references"]
@@ -168,19 +181,27 @@ def process_entry(db_session, entry, xref_ref):
         process_editors(db_session, resource_id, editors)
 
         logger.info("Adding resource into database for '" + new_entry['iso_abbreviation'] + "'")
-        # mapping_fh.write("%s\t%s\n" % (primary_id, curie))
         db_session.commit()
         return True, f"{primary_id}\t{curie}\n"
     except Exception as e:
         message = f"An error occurred when adding resource into database for '{new_entry['iso_abbreviation']}'. {e}\n"
         logger.info(message)
-        # error_fh.write("An error occurred when adding resource into database for '" + new_entry['iso_abbreviation'] + "'. " + str(e) + "\n")
         db_session.rollback()
         return False, message
 
 
-def post_resources(db_session, input_path, input_mod, base_input_dir=base_path):      # noqa: C901
+def post_resources(db_session: Session, input_path: str, input_mod: str, base_input_dir: str = base_path) -> None:      # noqa: C901
     """
+    Parse the json file and load the data into the db after some remapping of keys etc.
+    i.e.
+    base_input_dir = "/user/bob/")
+    json_path = "sanitized_resources/"
+    post_resources(db, json_path, 'ZFIN', base_input_dir)
+
+    reads the file
+    /user/bob/sanitized_resource_json_updates/RESOURCE_ZFIN.json"
+
+    If base_input_dir not defined environment value of XML_BASE used.
 
     :param input_path:
     :return:
@@ -190,8 +211,6 @@ def post_resources(db_session, input_path, input_mod, base_input_dir=base_path):
     filesets = ['NLM', 'FB', 'ZFIN']
     if input_mod in filesets:
         filesets = [input_mod]
-    print(f"mod is {input_mod}")
-    print(f"set is {filesets}")
 
     resource_primary_id_to_curie_file = base_path + 'resource_primary_id_to_curie'
     errors_in_posting_resource_file = base_path + 'errors_in_posting_resource'
