@@ -111,12 +111,12 @@ class TestDbReadUtils:
 
         ## test add_mca_to_existing_references()
         r = db.query(ReferenceModel).first()
-        add_mca_to_existing_references(db, [r.curie], 'WB', logger)
+        add_mca_to_existing_references(db, [r.curie], 'XB', logger)
         db.commit()
-        mrt_rows = db.query(ModCorpusAssociationModel).filter_by(reference_id=r.reference_id).all()
-        assert len(mrt_rows) == 2
-        assert mrt_rows[1].corpus is None
-        assert mrt_rows[1].mod_corpus_sort_source == 'mod_pubmed_search'
+        mca_rows = db.query(ModCorpusAssociationModel).filter_by(reference_id=r.reference_id).all()
+        assert len(mca_rows) == 2
+        assert mca_rows[1].corpus is None
+        assert mca_rows[1].mod_corpus_sort_source == 'mod_pubmed_search'
 
         ## getting things ready for pubmed update specific functions
         # base_path = environ.get('XML_PATH')
