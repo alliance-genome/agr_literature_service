@@ -57,14 +57,13 @@ cross_references_keys_to_remove: Dict[str, str] = dict()  # global, set where us
 remap_keys: Dict[str, str] = dict()
 
 
-def process_editors(db_session, resource_id, new_entry):
+def process_editors(db_session, resource_id, editors):
     global remap_editor_keys
     if not remap_editor_keys:
         remap_editor_keys['authorRank'] = 'order'
         remap_editor_keys['firstName'] = 'first_name'
         remap_editor_keys['lastName'] = 'last_name'
 
-    editors = new_entry.get('editors', [])
     editor_keys_to_remove = {'referenceId'}
     for editor in editors:
         new_editor = dict()
@@ -83,16 +82,13 @@ def process_editors(db_session, resource_id, new_entry):
             new_editor['resource_id'] = resource_id
             editor_obj = EditorModel(**new_editor)
             db_session.add(editor_obj)
-    if "editors" in new_entry:
-        del new_entry["editors"]
 
 
-def process_cross_references(db_session, resource_id, new_entry):
+def process_cross_references(db_session, resource_id, cross_references):
     global remap_cross_references_keys
     if not remap_cross_references_keys:
         remap_cross_references_keys['id'] = 'curie'
 
-    cross_references = new_entry.get('cross_references', [])
     for xref in cross_references:
         new_xref = dict()
         for subkey in xref:
@@ -104,12 +100,10 @@ def process_cross_references(db_session, resource_id, new_entry):
         if db_session.query(CrossReferenceModel).filter_by(curie=new_xref['curie']).first():
             logger.info("CrossReference with curie = " + new_xref['curie'] + " already exists")
             db_session.rollback()
-            break
+            return
         cr = CrossReferenceModel(**new_xref)
         db_session.add(cr)
         logger.info("Adding resource info into cross_reference table for " + new_xref['curie'])
-        if "cross_references" in new_entry:
-            del new_entry["cross_references"]
 
 
 def remap_keys_get_new_entry(entry):
@@ -153,9 +147,14 @@ def process_entry(db_session, entry, xref_ref):
             last_curie = last_curie_row[0]
         curie = create_next_curie(last_curie)
 
-        process_cross_references(db_session, resource_id, new_entry)
-
-        process_editors(db_session, resource_id, new_entry)
+        # cross_references and editors done seperately
+        # so do not want to pass them to the resource creator
+        cross_references = new_entry.get('cross_references', [])
+        if "cross_references" in new_entry:
+            del new_entry["cross_references"]
+        editors = new_entry.get('editors', [])
+        if "editors" in new_entry:
+            del new_entry["editors"]
 
         new_entry['curie'] = curie
         x = ResourceModel(**new_entry)
@@ -163,6 +162,11 @@ def process_entry(db_session, entry, xref_ref):
         db_session.flush()
         db_session.refresh(x)
         resource_id = x.resource_id
+
+        process_cross_references(db_session, resource_id, cross_references)
+
+        process_editors(db_session, resource_id, editors)
+
         logger.info("Adding resource into database for '" + new_entry['iso_abbreviation'] + "'")
         # mapping_fh.write("%s\t%s\n" % (primary_id, curie))
         db_session.commit()
