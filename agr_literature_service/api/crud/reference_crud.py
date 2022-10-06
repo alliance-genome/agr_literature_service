@@ -20,12 +20,12 @@ from agr_literature_service.api.crud import (cross_reference_crud,
                                              reference_comment_and_correction_crud)
 from agr_literature_service.api.crud.reference_resource import create_obj
 from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
-                                               MeshDetailModel, ModReferenceTypeModel,
+                                               MeshDetailModel,
                                                ObsoleteReferenceModel,
                                                ReferenceCommentAndCorrectionModel,
                                                ReferenceModel,
-                                               ResourceModel)
-from agr_literature_service.api.schemas import ReferenceSchemaPost
+                                               ResourceModel, ModModel)
+from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaCreate
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.workflow_tag_crud import (
     create as create_workflow_tag,
@@ -124,7 +124,14 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     if db_obj.name:
                         author_names_order.append((db_obj.name, db_obj.order))
                 elif field == "mod_reference_types":
-                    db_obj = ModReferenceTypeModel(**obj_data)
+                    mod = db.query(ModModel).filter(ModModel.abbreviation == obj_data['source']).one_or_none()
+                    ref_type = db_session.query(ReferenceTypeModel).filter(ReferenceTypeModel.label ==
+                                                                           x['referenceType']).one_or_none()
+                    if ref_type is None:
+                        ref_type = ReferenceTypeModel(label=x['referenceType'])
+                    mrt = ModReferenceTypeAssociationModel(mod=mod, referencetype=ref_type)
+                    rmrt = ReferenceModReferenceTypeAssociationModel(reference_id=reference_id, mod_referencetype=mrt)
+                    # db_obj = ModReferenceTypeModel(**obj_data)
                 elif field == "mesh_terms":
                     db_obj = MeshDetailModel(**obj_data)
                 elif field == "cross_references":
@@ -338,13 +345,13 @@ def show(db: Session, curie: str, http_request=True):  # noqa
             cross_references.append(cross_reference_show)
         reference_data["cross_references"] = cross_references
 
-    if reference.mod_reference_type:
-        mrt = []
-        for mod_reference_type in reference_data["mod_reference_type"]:
-            del mod_reference_type["reference_id"]
-            mrt.append(mod_reference_type)
-        reference_data['mod_reference_types'] = mrt
-
+    if reference.mod_referencetypes:
+        reference_data["mod_referencetypes"] = []
+        for mod_referencetype in reference.mod_referencetypes:
+            reference_data["mod_referencetypes"].append(
+                ModReferenceTypeSchemaCreate(reference_type=mod_referencetype.referencetype.label,
+                                             source=mod_referencetype.mod.abbreviation)
+            )
     reference_data["obsolete_references"] = [obs_reference["curie"] for obs_reference in
                                              reference_data["obsolete_reference"]]
     del reference_data["obsolete_reference"]
