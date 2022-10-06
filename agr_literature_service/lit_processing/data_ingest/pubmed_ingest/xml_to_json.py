@@ -7,6 +7,7 @@ from os import environ, makedirs, path
 from typing import List, Set
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import load_s3_md5data, save_s3_md5data, generate_md5sum_from_dict
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json
+from agr_literature_service.lit_processing.data_ingest.utils.date_utils import month_name_to_number_string
 
 # pipenv run python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 #
@@ -81,35 +82,6 @@ def represents_int(s):
         return True
     except ValueError:
         return False
-
-
-def month_name_to_number_string(string):
-    """
-
-    :param string:
-    :return:
-    """
-
-    m = {
-        'jan': '01',
-        'feb': '02',
-        'mar': '03',
-        'apr': '04',
-        'may': '05',
-        'jun': '06',
-        'jul': '07',
-        'aug': '08',
-        'sep': '09',
-        'oct': '10',
-        'nov': '11',
-        'dec': '12'}
-    s = string.strip()[:3].lower()
-
-    try:
-        out = m[s]
-        return out
-    except ValueError:
-        raise ValueError(string + ' is not a month')
 
 
 def get_year_month_day_from_xml_date(pub_date):
