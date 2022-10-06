@@ -22,12 +22,16 @@ def parse_date(date_string, validate_flag=False):
     if not result or validate_flag is False:
         return result, None
     else:
-        try:
-            datetime.strptime(result[0], '%Y-%m-%d').date()
-            datetime.strptime(result[1], '%Y-%m-%d').date()
-            return result, None
-        except ValueError:
-            return False, f"date_string to {result[0]} {result[1]} is not a date"
+        return validate_date_format(date_string, result)
+
+
+def validate_date_format(date_string, result):
+    try:
+        datetime.strptime(result[0], '%Y-%m-%d').date()
+        datetime.strptime(result[1], '%Y-%m-%d').date()
+        return result, None
+    except ValueError:
+        return False, f"{date_string} to {result} is not a date"
 
 
 def parse_numeric_date(date_string):
@@ -89,7 +93,7 @@ def parse_hardcoded_pubmed_exceptions(date_string):
 
 def parse_year_space_mon_space_mon(date_string):
     # year space three letter month abbreviation space three letter month abbreviation
-    # 1985 Aug 1-7   ('1985-08-1', '1985-08-7')      1985-08-01      1985-08-07      AGR:AGR-Reference-0000134630
+    # 1999 Nov Dec   ('1999-11-01', '1999-12-31')
     re_output = re.search(r"^(\d{4}) ([A-Za-z]{3}) ([A-Za-z]{3})$", date_string)
     if re_output is not None:
         year = re_output.group(1)
