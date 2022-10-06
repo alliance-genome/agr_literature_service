@@ -317,7 +317,7 @@ def add_mca_to_existing_references(db_session, agr_curies_to_corpus, mod, logger
     db_session.commit()
 
 
-def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref_xref_obsolete, logger):
+def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref_xref_obsolete, logger):  # pragma: no cover
 
     # check for papers with same doi in the database
     # print ("ref_xref_valid=", str(ref_xref_valid['AGR:AGR-Reference-0000167781']))
@@ -385,7 +385,7 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref
     return (log_path, log_url, not_loaded_pmids)
 
 
-def insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):
+def _insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
 
     ## check to see if any newly added ones matches this entry
     rows = db_session.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to).all()
@@ -403,7 +403,7 @@ def insert_comment_correction(db_session, fw, pmid, reference_id_from, reference
         fw.write("PMID:" + str(pmid) + ": INSERT CommentsAndCorrections: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + " failed: " + str(e) + "\n")
 
 
-def update_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):
+def _update_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
 
     all = db_session.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to).all()
 
@@ -413,10 +413,10 @@ def update_comment_correction(db_session, fw, pmid, reference_id_from, reference
     for x in all:
         db_session.delete(x)
 
-    insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
+    _insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
 
 
-def delete_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):
+def _delete_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
 
     for x in db_session.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to, reference_comment_and_correction_type=type).all():
         try:
@@ -471,11 +471,11 @@ def update_comment_corrections(db_session, fw, pmid, reference_id, pmid_to_refer
             if reference_ids_to_comment_correction_type[key] == new_reference_ids_to_comment_correction_type[key]:
                 continue
             (reference_id_from, reference_id_to) = key
-            update_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
+            _update_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
             update_log['comment_erratum'] = update_log['comment_erratum'] + 1
             update_log['pmids_updated'].append(pmid)
         else:
-            insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
+            _insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
             update_log['comment_erratum'] = update_log['comment_erratum'] + 1
             update_log['pmids_updated'].append(pmid)
 
@@ -485,12 +485,12 @@ def update_comment_corrections(db_session, fw, pmid, reference_id, pmid_to_refer
         (reference_id_from, reference_id_to) = key
         if reference_id in [reference_id_from, reference_id_to]:
             ## only remove the ones that are associated with given PMIDs
-            delete_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
+            _delete_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
             update_log['comment_erratum'] = update_log['comment_erratum'] + 1
             update_log['pmids_updated'].append(pmid)
 
 
-def insert_mesh_term(db_session, fw, pmid, reference_id, terms):
+def _insert_mesh_term(db_session, fw, pmid, reference_id, terms):  # pragma: no cover
 
     (heading_term, qualifier_term) = terms
 
@@ -506,7 +506,7 @@ def insert_mesh_term(db_session, fw, pmid, reference_id, terms):
         fw.write("PMID:" + str(pmid) + ": INSERT mesh term: " + str(terms) + " failed: " + str(e) + "\n")
 
 
-def delete_mesh_term(db_session, fw, pmid, reference_id, terms):
+def _delete_mesh_term(db_session, fw, pmid, reference_id, terms):  # pragma: no cover
 
     (heading_term, qualifier_term) = terms
 
@@ -550,19 +550,19 @@ def update_mesh_terms(db_session, fw, pmid, reference_id, mesh_terms_in_db, mesh
         if m in mesh_terms_in_db:
             continue
         else:
-            insert_mesh_term(db_session, fw, pmid, reference_id, m)
+            _insert_mesh_term(db_session, fw, pmid, reference_id, m)
 
     for m in mesh_terms_in_db:
         if m in mesh_terms_in_json:
             continue
         else:
-            delete_mesh_term(db_session, fw, pmid, reference_id, m)
+            _delete_mesh_term(db_session, fw, pmid, reference_id, m)
 
     update_log['mesh_term'] = update_log['mesh_term'] + 1
     update_log['pmids_updated'].append(pmid)
 
 
-def update_doi(db_session, fw, pmid, reference_id, old_doi, new_doi):
+def _update_doi(db_session, fw, pmid, reference_id, old_doi, new_doi):  # pragma: no cover
 
     try:
         x = db_session.query(CrossReferenceModel).filter_by(reference_id=reference_id).filter(CrossReferenceModel.curie == 'DOI:' + old_doi).one_or_none()
@@ -575,7 +575,7 @@ def update_doi(db_session, fw, pmid, reference_id, old_doi, new_doi):
         fw.write("PMID:" + str(pmid) + ": UPDATE DOI from " + old_doi + " to " + new_doi + " failed: " + str(e) + "\n")
 
 
-def insert_doi(db_session, fw, pmid, reference_id, doi, logger=None):
+def _insert_doi(db_session, fw, pmid, reference_id, doi, logger=None):  # pragma: no cover
 
     ## for some reason, we need to add this check to make sure it is not in db
     x = db_session.query(CrossReferenceModel).filter_by(curie="DOI:" + doi).one_or_none()
@@ -594,7 +594,7 @@ def insert_doi(db_session, fw, pmid, reference_id, doi, logger=None):
         fw.write("PMID:" + str(pmid) + ": INSERT DOI:" + doi + " failed: " + str(e) + "\n")
 
 
-def update_pmcid(db_session, fw, pmid, reference_id, old_pmcid, new_pmcid):
+def _update_pmcid(db_session, fw, pmid, reference_id, old_pmcid, new_pmcid):  # pragma: no cover
 
     try:
         x = db_session.query(CrossReferenceModel).filter_by(reference_id=reference_id).filter(CrossReferenceModel.curie == 'PMCID:' + old_pmcid).one_or_none()
@@ -607,7 +607,7 @@ def update_pmcid(db_session, fw, pmid, reference_id, old_pmcid, new_pmcid):
         fw.write("PMID:" + str(pmid) + ": UPDATE PMCID from " + old_pmcid + " to " + new_pmcid + " failed: " + str(e) + "\n")
 
 
-def insert_pmcid(db_session, fw, pmid, reference_id, pmcid, logger=None):
+def _insert_pmcid(db_session, fw, pmid, reference_id, pmcid, logger=None):  # pragma: no cover
 
     ## for some reason, we need to add this check to make sure it is not in db
     x = db_session.query(CrossReferenceModel).filter_by(curie="PMCID:" + pmcid).one_or_none()
@@ -637,9 +637,9 @@ def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_
     else:
         if doi_json and doi_json != doi_db:
             if doi_db is None:
-                insert_doi(db_session, fw, pmid, reference_id, doi_json, logger)
+                _insert_doi(db_session, fw, pmid, reference_id, doi_json, logger)
             else:
-                update_doi(db_session, fw, pmid, reference_id, doi_db, doi_json)
+                _update_doi(db_session, fw, pmid, reference_id, doi_db, doi_json)
             update_log['doi'] = update_log['doi'] + 1
             update_log['pmids_updated'].append(pmid)
 
@@ -661,9 +661,9 @@ def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_
         fw.write("PMID:" + str(pmid) + ": PMC:" + pmcid_json + " is in the database for another paper.\n")
     else:
         if pmcid_db:
-            update_pmcid(db_session, fw, pmid, reference_id, pmcid_db, pmcid_json)
+            _update_pmcid(db_session, fw, pmid, reference_id, pmcid_db, pmcid_json)
         else:
-            insert_pmcid(db_session, fw, pmid, reference_id, pmcid_json, logger)
+            _insert_pmcid(db_session, fw, pmid, reference_id, pmcid_json, logger)
 
         update_log['pmcid'] = update_log['pmcid'] + 1
         update_log['pmids_updated'].append(pmid)
