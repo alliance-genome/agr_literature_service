@@ -94,6 +94,8 @@ class ReferenceModel(Base, AuditedModel):
         cascade="all, delete, delete-orphan"
     )
 
+    mod_referencetypes = relationship("NewReferenceModReferenceTypeAssociationModel")
+
     mod_corpus_association = relationship(
         "ModCorpusAssociationModel",
         lazy="joined",
