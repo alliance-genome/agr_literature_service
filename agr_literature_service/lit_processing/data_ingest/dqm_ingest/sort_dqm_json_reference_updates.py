@@ -734,6 +734,7 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
             update_mod_reference_types(db_session, db_entry['reference_id'],
                                        db_entry.get('mod_reference_type', []),
                                        dqm_entry.get('MODReferenceTypes', []),
+                                       set(db_entry.get('pubmed_types')) | set(dqm_entry.get('pubmedTypes')),
                                        logger)
 
             if processing_flag == 'mod_biblio_all':

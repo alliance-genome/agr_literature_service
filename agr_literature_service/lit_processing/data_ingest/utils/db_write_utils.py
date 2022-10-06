@@ -1,3 +1,4 @@
+import math
 from os import environ, makedirs, path
 import json
 
@@ -6,8 +7,8 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_reference_id_by_curie, get_reference_id_by_pmid
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
-    CrossReferenceModel, ModCorpusAssociationModel, ModReferenceTypeModel, \
-    ModModel, ReferenceCommentAndCorrectionModel, MeshDetailModel
+    CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceCommentAndCorrectionModel, MeshDetailModel, \
+    ReferenceTypeModel, ModReferenceTypeAssociationModel, ReferenceModReferenceTypeAssociationModel
 
 batch_size_for_commit = 250
 
@@ -227,7 +228,7 @@ def update_mod_corpus_associations(db_session, mod_to_mod_id, reference_id, mod_
                 logger.info("An error occurred when updating mod_corpus_association row for mod_corpus_association_id = " + str(mod_corpus_association_id) + " " + str(e))
 
 
-def update_mod_reference_types(db_session, reference_id, db_mod_ref_types, json_mod_ref_types, logger):  # noqa: C901
+def update_mod_reference_types(db_session, reference_id, db_mod_ref_types, json_mod_ref_types, pubmed_types, logger):  # noqa: C901
 
     db_mrt_data = {}
     to_delete_duplicate_rows = []
@@ -245,25 +246,37 @@ def update_mod_reference_types(db_session, reference_id, db_mod_ref_types, json_
     json_mrt_data = dict()
     for mrt in json_mod_ref_types:
         source = mrt['source']
-        ref_type = mrt['referenceType']
+        ref_type_label = mrt['referenceType']
         if source not in json_mrt_data:
             json_mrt_data[source] = []
         # just in case there is any duplicate in json
-        if ref_type not in json_mrt_data[source]:
-            json_mrt_data[source].append(ref_type)
+        if ref_type_label not in json_mrt_data[source]:
+            json_mrt_data[source].append(ref_type_label)
 
     for mod in json_mrt_data:
         lc_json = [x.lower() for x in json_mrt_data[mod]]
         lc_db = []
         if mod in db_mrt_data:
-            lc_db = [x.lower() for x in db_mrt_data[mod].keys()]
-        for ref_type in json_mrt_data[mod]:
-            if ref_type.lower() not in lc_db:
+            lc_db = {x.lower() for x in db_mrt_data[mod].keys()}
+        for ref_type_label in json_mrt_data[mod]:
+            if ref_type_label.lower() not in lc_db:
                 try:
-                    x = ModReferenceTypeModel(reference_id=reference_id,
-                                              reference_type=ref_type,
-                                              source=mod)
-                    db_session.add(x)
+                    mod = db_session.query(ModModel).filter(ModModel.abbreviation == mod).one_or_none()
+                    ref_type = db_session.query(ReferenceTypeModel).filter(
+                        ReferenceTypeModel.label == ref_type_label).one_or_none()
+                    mrt = db_session.query(ModReferenceTypeAssociationModel).filter(
+                        ModReferenceTypeAssociationModel.mod == mod,
+                        ModReferenceTypeAssociationModel.referencetype == ref_type).one_or_none()
+                    if ref_type is None and mod.abbreviation == "SGD":
+                        if ref_type_label in set(pubmed_types):
+                            ref_type = ReferenceTypeModel(label=ref_type_label)
+                            max_display_order = max((mod_ref_type.display_order for mod_ref_type in mod.referencetypes),
+                                                    default=0)
+                            mrt = ModReferenceTypeAssociationModel(
+                                mod=mod, referencetype=ref_type,
+                                display_order=max_display_order + math.ceil(max_display_order / 10) * 10)
+                    rmrt = ReferenceModReferenceTypeAssociationModel(reference_id=reference_id, mod_referencetype=mrt)
+                    db_session.add(rmrt)
                     logger.info("The mod_reference_type for reference_id = " + str(reference_id) + " has been added into the database.")
                 except Exception as e:
                     logger.info("An error occurred when adding mod_reference_type row for reference_id = " + str(reference_id) + " has been a\
