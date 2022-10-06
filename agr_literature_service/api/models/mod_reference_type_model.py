@@ -84,10 +84,14 @@ class NewModReferenceTypeAssociationModel(Base):
         nullable=False
     )
 
+    mod = relationship("ModModel")
+
     referencetype_id = Column(
         ForeignKey("referencetype.referencetype_id", ondelete="CASCADE"),
         nullable=False
     )
+
+    referencetype = relationship("NewReferenceTypeModel")
 
     display_order = Column(
         Integer,
@@ -108,3 +112,5 @@ class NewReferenceModReferenceTypeAssociationModel(Base):
         ForeignKey("mod_referencetype.mod_referencetype_id"),
         primary_key=True
     )
+
+    mod_referencetype = relationship("NewModReferenceTypeAssociationModel")
