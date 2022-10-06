@@ -3,6 +3,7 @@ reference_crud.py
 =================
 """
 import logging
+import math
 from datetime import datetime
 from typing import Any, Dict, List
 import re
@@ -24,7 +25,9 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ObsoleteReferenceModel,
                                                ReferenceCommentAndCorrectionModel,
                                                ReferenceModel,
-                                               ResourceModel, ModModel)
+                                               ResourceModel, ModModel, ReferenceTypeModel,
+                                               ModReferenceTypeAssociationModel,
+                                               ReferenceModReferenceTypeAssociationModel)
 from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaCreate
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.workflow_tag_crud import (
@@ -83,8 +86,8 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
 
     logger.debug("creating reference")
     logger.debug(reference)
-    add_separately_fields = ["mod_corpus_associations", "workflow_tags", "topic_entity_tags"]
-    list_fields = ["authors", "mod_reference_types", "tags", "mesh_terms", "cross_references"]
+    add_separately_fields = ["mod_corpus_associations", "workflow_tags", "topic_entity_tags", "mod_reference_types"]
+    list_fields = ["authors", "tags", "mesh_terms", "cross_references"]
     remap = {'authors': 'author',
              'mesh_terms': 'mesh_term',
              'cross_references': 'cross_reference',
@@ -123,15 +126,6 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
                     if db_obj.name:
                         author_names_order.append((db_obj.name, db_obj.order))
-                elif field == "mod_reference_types":
-                    mod = db.query(ModModel).filter(ModModel.abbreviation == obj_data['source']).one_or_none()
-                    ref_type = db_session.query(ReferenceTypeModel).filter(ReferenceTypeModel.label ==
-                                                                           x['referenceType']).one_or_none()
-                    if ref_type is None:
-                        ref_type = ReferenceTypeModel(label=x['referenceType'])
-                    mrt = ModReferenceTypeAssociationModel(mod=mod, referencetype=ref_type)
-                    rmrt = ReferenceModReferenceTypeAssociationModel(reference_id=reference_id, mod_referencetype=mrt)
-                    # db_obj = ModReferenceTypeModel(**obj_data)
                 elif field == "mesh_terms":
                     db_obj = MeshDetailModel(**obj_data)
                 elif field == "cross_references":
@@ -207,6 +201,27 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     except HTTPException:
                         logger.warning("skipping topic_entity_tag as that is already associated to "
                                        "the reference")
+        elif field == "mod_reference_types":
+            for obj in value:
+                mod = db.query(ModModel).filter(ModModel.abbreviation == obj.source).one_or_none()
+                ref_type = db.query(ReferenceTypeModel).filter(
+                    ReferenceTypeModel.label == obj.reference_type).one_or_none()
+                mrt = db.query(ModReferenceTypeAssociationModel).filter(
+                    ModReferenceTypeAssociationModel.mod == mod,
+                    ModReferenceTypeAssociationModel.referencetype == ref_type).one_or_none()
+                if ref_type is None and mod.abbreviation == "SGD":
+                    if obj.reference_type in set(reference.pubmed_types):
+                        ref_type = ReferenceTypeModel(label=obj.reference_type)
+                        max_display_order = max(
+                            (mod_ref_type.display_order for mod_ref_type in mod.referencetypes),
+                            default=0)
+                        mrt = ModReferenceTypeAssociationModel(
+                            mod=mod, referencetype=ref_type,
+                            display_order=math.ceil(max_display_order / 10) * 10)
+                rmrt = ReferenceModReferenceTypeAssociationModel(reference=reference_db_obj,
+                                                                 mod_referencetype=mrt)
+                db.add(rmrt)
+            db.commit()
     return curie
 
 
