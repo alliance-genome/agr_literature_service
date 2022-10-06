@@ -155,7 +155,7 @@ def insert_mod_reference_types(db_session, primaryId, reference_id, mod_ref_type
                                             default=0)
                     mrt = ModReferenceTypeAssociationModel(
                         mod=mod, referencetype=ref_type,
-                        display_order=max_display_order + math.ceil(max_display_order / 10) * 10)
+                        display_order=math.ceil(max_display_order / 10) * 10)
             rmrt = ReferenceModReferenceTypeAssociationModel(reference_id=reference_id, mod_referencetype=mrt)
             db_session.add(rmrt)
             log.info(primaryId + ": INSERT MOD_REFERENCE_TYPE: for reference_id = " + str(reference_id) + ", source = " + x['source'] + ", reference_type = " + x['referenceType'])

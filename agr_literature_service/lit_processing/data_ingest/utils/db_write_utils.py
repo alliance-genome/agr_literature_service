@@ -274,7 +274,7 @@ def update_mod_reference_types(db_session, reference_id, db_mod_ref_types, json_
                                                     default=0)
                             mrt = ModReferenceTypeAssociationModel(
                                 mod=mod, referencetype=ref_type,
-                                display_order=max_display_order + math.ceil(max_display_order / 10) * 10)
+                                display_order=math.ceil(max_display_order / 10) * 10)
                     rmrt = ReferenceModReferenceTypeAssociationModel(reference_id=reference_id, mod_referencetype=mrt)
                     db_session.add(rmrt)
                     logger.info("The mod_reference_type for reference_id = " + str(reference_id) + " has been added into the database.")
