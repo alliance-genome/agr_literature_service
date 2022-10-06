@@ -142,10 +142,6 @@ class TestDateUtils:
         assert parse_date('1998-11-01', True) == (('1998-11-01', '1998-11-01'), None)
         assert parse_date('2016', True) == (('2016-01-01', '2016-12-31'), None)
 
-    def test_parse_date_valid_validation_success(self):
-        assert parse_date('1998-11-01', True) == (('1998-11-01', '1998-11-01'), None)
-        assert parse_date('2016', True) == (('2016-01-01', '2016-12-31'), None)
-
     def test_validate_date_format_success(self):
         assert validate_date_format('2007-01-01', ('2007-01-01', '2007-01-01')) == \
             (('2007-01-01', '2007-01-01'), None)
