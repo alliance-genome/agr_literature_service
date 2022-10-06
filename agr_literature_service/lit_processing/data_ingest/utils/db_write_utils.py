@@ -293,8 +293,8 @@ dded into the database. " + str(e))
     for row in to_delete_duplicate_rows:
         (mod_reference_type_id, ref_type) = row
         try:
-            x = db_session.query(ModReferenceTypeModel).filter_by(
-                mod_reference_type_id=mod_reference_type_id).one_or_none()
+            x = db_session.query(ReferenceModReferenceTypeAssociationModel).filter_by(
+                reference_mod_referencetype_id=mod_reference_type_id).one_or_none()
             if x:
                 db_session.delete(x)
                 logger.info("The mod_reference_type for mod_reference_type_id = " + str(mod_reference_type_id) + " has been deleted from the database.")
