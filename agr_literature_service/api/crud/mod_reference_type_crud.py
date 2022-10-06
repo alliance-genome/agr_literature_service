@@ -8,7 +8,8 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.models import ModReferenceTypeModel, ReferenceModel
+from agr_literature_service.api.models import ReferenceModel, ReferenceModReferenceTypeAssociationModel, ModModel, \
+    ReferenceTypeModel, ModReferenceTypeAssociationModel
 from agr_literature_service.api.schemas import ModReferenceTypeSchemaPost
 
 
@@ -28,8 +29,11 @@ def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost) -> int:
     if not reference:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Reference with curie {reference_curie} does not exist")
-
-    db_obj = ModReferenceTypeModel(**mod_reference_type_data)
+    mod = db.query(ModModel).filter(ModModel.abbreviation == mod_reference_type_data["source"]).one_or_none()
+    ref_type = db.query(ReferenceTypeModel).filter(ReferenceTypeModel.label == mod_reference_type_data["referenceType"])
+    mrt = ModReferenceTypeAssociationModel(mod_id=mod.mod_id, referencetype_id=ref_type.referencetype_id)
+    db_obj = ReferenceModReferenceTypeAssociationModel(reference_id=reference.reference_id,
+                                                       mod_referencetype_id=mrt.mod_referencetype_id)
     db_obj.reference = reference
     db.add(db_obj)
     db.commit()
@@ -45,7 +49,8 @@ def destroy(db: Session, mod_reference_type_id: int) -> None:
     :return:
     """
 
-    mod_reference_type = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
+    mod_reference_type = db.query(ReferenceModReferenceTypeAssociationModel).filter(
+        ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id == mod_reference_type_id).first()
     if not mod_reference_type:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with mod_reference_type_id {mod_reference_type_id} not found")
@@ -65,8 +70,9 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update):
     """
 
     mrt_data = jsonable_encoder(mod_reference_type_update)
-    mod_reference_type_db_obj = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
-    if not mod_reference_type_db_obj:
+    ref_mod_ref_type_obj = db.query(ReferenceModReferenceTypeAssociationModel).filter(
+        ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id == mod_reference_type_id).first()
+    if not ref_mod_ref_type_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with mod_reference_type_id {mod_reference_type_id} not found")
 
@@ -77,11 +83,10 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update):
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Reference with curie {reference_curie} does not exist")
-            mod_reference_type_db_obj.reference = reference
+            ref_mod_ref_type_obj.reference = reference
         else:
-            setattr(mod_reference_type_db_obj, field, value)
+            setattr(ref_mod_ref_type_obj, field, value)
 
-    mod_reference_type_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
     return {"message": "updated"}
 
@@ -94,7 +99,8 @@ def show(db: Session, mod_reference_type_id: int):
     :return:
     """
 
-    mod_reference_type = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
+    mod_reference_type = db.query(ReferenceModReferenceTypeAssociationModel).filter(
+        ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id == mod_reference_type_id).first()
     mod_reference_type_data = jsonable_encoder(mod_reference_type)
 
     if not mod_reference_type:
@@ -116,7 +122,8 @@ def show_changesets(db: Session, mod_reference_type_id: int):
     :return:
     """
 
-    mod_reference_type = db.query(ModReferenceTypeModel).filter(ModReferenceTypeModel.mod_reference_type_id == mod_reference_type_id).first()
+    mod_reference_type = db.query(ReferenceModReferenceTypeAssociationModel).filter(
+        ReferenceModReferenceTypeAssociationModel.mod_reference_type_id == mod_reference_type_id).first()
     if not mod_reference_type:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with the mod_reference_type_id {mod_reference_type_id} is not available")

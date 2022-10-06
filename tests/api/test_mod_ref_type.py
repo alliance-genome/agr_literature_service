@@ -5,7 +5,7 @@ from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models import ModReferenceTypeModel
+from agr_literature_service.api.models import ModReferenceTypeAssociationModel
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
@@ -38,8 +38,8 @@ class TestModReferenceType:
     def test_create_mrt(self, db, test_mod_ref_type): # noqa
         assert test_mod_ref_type.response.status_code == status.HTTP_201_CREATED
         # check db for mrt
-        mrt = db.query(ModReferenceTypeModel).filter(
-            ModReferenceTypeModel.mod_reference_type_id == test_mod_ref_type.new_mod_ref_type_id).one()
+        mrt = db.query(ModReferenceTypeAssociationModel).filter(
+            ModReferenceTypeAssociationModel.mod_reference_type_id == test_mod_ref_type.new_mod_ref_type_id).one()
         assert mrt.reference_type == "string1"
         assert mrt.reference.curie == test_mod_ref_type.related_ref_curie
         assert mrt.source == "string2"

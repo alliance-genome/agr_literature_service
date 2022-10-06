@@ -1,11 +1,13 @@
 import argparse
 import logging
+import math
 from os import listdir, path
 import json
+from typing import List
 
-from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel,\
-    AuthorModel, ModCorpusAssociationModel, ModReferenceTypeModel, ModModel,\
-    ReferenceCommentAndCorrectionModel, MeshDetailModel
+from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
+    AuthorModel, ModCorpusAssociationModel, ModModel, ReferenceCommentAndCorrectionModel, MeshDetailModel, \
+    ReferenceModReferenceTypeAssociationModel, ModReferenceTypeAssociationModel, ReferenceTypeModel
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.utils.db_read_utils import get_orcid_data,\
     get_journal_data, get_doi_data, get_reference_by_pmid
@@ -96,7 +98,7 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
             if entry.get('MODReferenceTypes'):
 
                 insert_mod_reference_types(db_session, primaryId, reference_id,
-                                           entry['MODReferenceTypes'])
+                                           entry['MODReferenceTypes'], entry['pubmedTypes'])
 
             if entry.get('modCorpusAssociations'):
 
@@ -132,7 +134,7 @@ def insert_mod_corpus_associations(db_session, primaryId, reference_id, mod_to_m
             log.info(primaryId + ": INSERT MOD_CORPUS_ASSOCIATION: for reference_id = " + str(reference_id) + ", mod_id = " + str(mod_id) + ", mod_corpus_sort_source = " + x['modCorpusSortSource'] + " " + str(e))
 
 
-def insert_mod_reference_types(db_session, primaryId, reference_id, mod_ref_types_from_json):
+def insert_mod_reference_types(db_session, primaryId, reference_id, mod_ref_types_from_json, pubmed_types: List[str]):
 
     found = {}
     for x in mod_ref_types_from_json:
@@ -140,10 +142,21 @@ def insert_mod_reference_types(db_session, primaryId, reference_id, mod_ref_type
             continue
         found[(reference_id, x['source'], x['referenceType'])] = 1
         try:
-            mrt = ModReferenceTypeModel(reference_id=reference_id,
-                                        source=x['source'],
-                                        reference_type=x['referenceType'])
-            db_session.add(mrt)
+            mod = db_session.query(ModModel).filter(ModModel.abbreviation == x['source']).one_or_none()
+            ref_type = db_session.query(ReferenceTypeModel).filter(ReferenceTypeModel.label ==
+                                                                   x['referenceType']).one_or_none()
+            mrt = db_session.query(ModReferenceTypeAssociationModel).filter(
+                ModReferenceTypeAssociationModel.mod == mod,
+                ModReferenceTypeAssociationModel.referencetype == ref_type).one_or_none()
+            if ref_type is None and mod.abbreviation == "SGD":
+                if x['referenceType'] in set(pubmed_types):
+                    ref_type = ReferenceTypeModel(label=x['referenceType'])
+                    max_display_order = max(mod_ref_type.display_order for mod_ref_type in mod.referencetypes)
+                    mrt = ModReferenceTypeAssociationModel(
+                        mod=mod, referencetype=ref_type,
+                        display_order=max_display_order + math.ceil(max_display_order / 10) * 10)
+            rmrt = ReferenceModReferenceTypeAssociationModel(reference_id=reference_id, mod_referencetype=mrt)
+            db_session.add(rmrt)
             log.info(primaryId + ": INSERT MOD_REFERENCE_TYPE: for reference_id = " + str(reference_id) + ", source = " + x['source'] + ", reference_type = " + x['referenceType'])
         except Exception as e:
             log.info(primaryId + ": INSERT MOD_REFERENCE_TYPE: for reference_id = " + str(reference_id) + ", source = " + x['source'] + ", reference_type = " + x['referenceType'] + " " + str(e))
