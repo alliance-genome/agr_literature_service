@@ -24,10 +24,10 @@ class TestDbReadUtils:
         refs = db.query(ReferenceModel).all()
         ref_curie_list = [refs[0].curie, refs[1].curie]
         cross_references_to_add = [{'reference_curie': refs[0].curie,
-                                    'curie': 'NLM:88888',
+                                    'curie': 'ISBN:88888',
                                     'pages': {}},
                                    {'reference_curie': refs[1].curie,
-                                    'curie': 'NLM:66666',
+                                    'curie': 'ISBN:66666',
                                     'pages': {}}]
         reference_id = refs[0].reference_id
         reference_id2 = refs[1].reference_id
@@ -37,9 +37,9 @@ class TestDbReadUtils:
         db.commit()
         for x in db.query(CrossReferenceModel).filter(CrossReferenceModel.curie.like('NLM:%')).all():
             if x.reference == reference_id:
-                assert x.curie == 'NLM:88888'
+                assert x.curie == 'ISBN:88888'
             elif x.reference == reference_id2:
-                assert x.curie == 'NLM:66666'
+                assert x.curie == 'ISBN:66666'
 
         ## test update_authors()
         db_entries = get_references_by_curies(db, [refs[0].curie, refs[1].curie])
@@ -102,7 +102,8 @@ class TestDbReadUtils:
                                    db_entry.get('mod_reference_type', []),
                                    mod_reference_types, logger)
         db.commit()
-        mrt_rows = db.query(ModReferenceTypeModel).filter_by(reference_id=reference_id).all()
+        mrt_rows = db.query(ModReferenceTypeModel).filter_by(reference_id=reference_id).order_by(
+            ModReferenceTypeModel.mod_reference_type_id).all()
         assert len(mrt_rows) == 2
         assert mrt_rows[0].source == 'ZFIN'
         assert mrt_rows[1].source == 'SGD'
@@ -113,7 +114,8 @@ class TestDbReadUtils:
         r = db.query(ReferenceModel).first()
         add_mca_to_existing_references(db, [r.curie], 'XB', logger)
         db.commit()
-        mca_rows = db.query(ModCorpusAssociationModel).filter_by(reference_id=r.reference_id).all()
+        mca_rows = db.query(ModCorpusAssociationModel).filter_by(reference_id=r.reference_id).order_by(
+            ModCorpusAssociationModel.mod_corpus_association_id).all()
         assert len(mca_rows) == 2
         assert mca_rows[1].corpus is None
         assert mca_rows[1].mod_corpus_sort_source == 'mod_pubmed_search'
@@ -134,7 +136,6 @@ class TestDbReadUtils:
         reference_id_to_pmid = {}
         mod = 'ZFIN'
         get_pmid_to_reference_id(db, mod, pmid_to_reference_id, reference_id_to_pmid)
-        # pmid_to_reference_id = {'33622238': 2778, '34354223': 2779, '35151207': 2780}
         reference_id = pmid_to_reference_id[pmid]
 
         ## test update_comment_corrections()
@@ -165,7 +166,8 @@ class TestDbReadUtils:
         update_mesh_terms(db, fw, pmid, reference_id, [],
                           mesh_terms_in_json_data, update_log)
         db.commit()
-        mt_rows = db.query(MeshDetailModel).filter_by(reference_id=reference_id).all()
+        mt_rows = db.query(MeshDetailModel).filter_by(reference_id=reference_id).order_by(
+            MeshDetailModel.mesh_detail_id).all()
         assert len(mt_rows) == 25
         assert mt_rows[24].heading_term == 'Fibroblast Growth Factors'
         assert mt_rows[24].qualifier_term == 'genetics'
