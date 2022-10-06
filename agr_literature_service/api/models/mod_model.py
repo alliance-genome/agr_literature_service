@@ -44,4 +44,4 @@ class ModModel(Base, AuditedModel):
         nullable=False
     )
 
-    referencetypes = relationship("NewModReferenceTypeAssociationModel")
+    referencetypes = relationship("ModReferenceTypeAssociationModel")

@@ -16,43 +16,7 @@ from agr_literature_service.api.database.versioning import enable_versioning
 enable_versioning()
 
 
-class ModReferenceTypeModel(Base):
-    __tablename__ = "mod_reference_type"
-    __versioned__: Dict = {}
-    __table_args__ = (UniqueConstraint('reference_id', 'reference_type', 'source', name='uniq_mrt'),)
-
-    mod_reference_type_id = Column(
-        Integer,
-        primary_key=True,
-        autoincrement=True
-    )
-
-    reference_id = Column(
-        Integer,
-        ForeignKey("reference.reference_id",
-                   ondelete="CASCADE"),
-        index=True
-    )
-
-    reference = relationship(
-        "ReferenceModel",
-        back_populates="mod_reference_type"
-    )
-
-    reference_type = Column(
-        String(),
-        unique=False,
-        nullable=False
-    )
-
-    source = Column(
-        String(),
-        unique=False,
-        nullable=True
-    )
-
-
-class NewReferenceTypeModel(Base):
+class ReferenceTypeModel(Base):
     __tablename__ = "referencetype"
     __versioned__: Dict = {}
 
@@ -69,7 +33,7 @@ class NewReferenceTypeModel(Base):
     )
 
 
-class NewModReferenceTypeAssociationModel(Base):
+class ModReferenceTypeAssociationModel(Base):
     __tablename__ = "mod_referencetype"
     __versioned__: Dict = {}
 
@@ -91,15 +55,15 @@ class NewModReferenceTypeAssociationModel(Base):
         nullable=False
     )
 
-    referencetype = relationship("NewReferenceTypeModel")
+    referencetype = relationship("ReferenceTypeModel")
 
     display_order = Column(
         Integer,
-        nullable=True
+        nullable=False
     )
 
 
-class NewReferenceModReferenceTypeAssociationModel(Base):
+class ReferenceModReferenceTypeAssociationModel(Base):
     __tablename__ = "reference_mod_referencetype"
     __versioned__: Dict = {}
 
@@ -108,9 +72,11 @@ class NewReferenceModReferenceTypeAssociationModel(Base):
         primary_key=True
     )
 
+    reference = relationship("ReferenceModel")
+
     mod_referencetype_id = Column(
         ForeignKey("mod_referencetype.mod_referencetype_id"),
         primary_key=True
     )
 
-    mod_referencetype = relationship("NewModReferenceTypeAssociationModel")
+    mod_referencetype = relationship("ModReferenceTypeAssociationModel")
