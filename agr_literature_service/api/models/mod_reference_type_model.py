@@ -67,16 +67,20 @@ class ReferenceModReferenceTypeAssociationModel(Base):
     __tablename__ = "reference_mod_referencetype"
     __versioned__: Dict = {}
 
-    reference_id = Column(
-        ForeignKey("reference.reference_id"),
+    reference_mod_reference_type_id = Column(
+        Integer,
+        autoincrement=True,
         primary_key=True
+    )
+
+    reference_id = Column(
+        ForeignKey("reference.reference_id")
     )
 
     reference = relationship("ReferenceModel")
 
     mod_referencetype_id = Column(
-        ForeignKey("mod_referencetype.mod_referencetype_id"),
-        primary_key=True
+        ForeignKey("mod_referencetype.mod_referencetype_id")
     )
 
     mod_referencetype = relationship("ModReferenceTypeAssociationModel")

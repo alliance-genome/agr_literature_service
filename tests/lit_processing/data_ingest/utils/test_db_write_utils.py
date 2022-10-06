@@ -1,9 +1,9 @@
 import logging
 from os import path
 
-from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel,\
-    AuthorModel, ModModel, ModCorpusAssociationModel, ModReferenceTypeModel, \
-    MeshDetailModel, ReferenceCommentAndCorrectionModel
+from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
+    AuthorModel, ModModel, ModCorpusAssociationModel, MeshDetailModel, ReferenceCommentAndCorrectionModel, \
+    ReferenceModReferenceTypeAssociationModel
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_references_by_curies, get_pmid_to_reference_id
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
@@ -100,13 +100,13 @@ class TestDbReadUtils:
         ]
         update_mod_reference_types(db, reference_id,
                                    db_entry.get('mod_reference_type', []),
-                                   mod_reference_types, logger)
+                                   mod_reference_types, {'Journal'}, logger)
         db.commit()
-        mrt_rows = db.query(ModReferenceTypeModel).filter_by(reference_id=reference_id).order_by(
-            ModReferenceTypeModel.mod_reference_type_id).all()
+        mrt_rows = db.query(ReferenceModReferenceTypeAssociationModel).filter_by(reference_id=reference_id).order_by(
+            ReferenceModReferenceTypeAssociationModel.reference_mod_reference_type_id).all()
         assert len(mrt_rows) == 2
-        assert mrt_rows[0].source == 'ZFIN'
-        assert mrt_rows[1].source == 'SGD'
+        assert mrt_rows[0].mod_referencetype.mod.abbreviation == 'ZFIN'
+        assert mrt_rows[1].mod_referencetype.mod.abbreviation == 'SGD'
 
     def test_pubmed_search_update_functions(self, db, load_sanitized_references): # noqa
 
