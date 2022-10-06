@@ -151,7 +151,8 @@ def insert_mod_reference_types(db_session, primaryId, reference_id, mod_ref_type
             if ref_type is None and mod.abbreviation == "SGD":
                 if x['referenceType'] in set(pubmed_types):
                     ref_type = ReferenceTypeModel(label=x['referenceType'])
-                    max_display_order = max(mod_ref_type.display_order for mod_ref_type in mod.referencetypes)
+                    max_display_order = max((mod_ref_type.display_order for mod_ref_type in mod.referencetypes),
+                                            default=0)
                     mrt = ModReferenceTypeAssociationModel(
                         mod=mod, referencetype=ref_type,
                         display_order=max_display_order + math.ceil(max_display_order / 10) * 10)
