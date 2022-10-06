@@ -277,6 +277,62 @@ def get_comment_correction_data(db_session, mod, reference_id_list):
     return reference_ids_to_comment_correction_type
 
 
+def get_all_comment_correction_data(db_session, logger=None):
+
+    reference_id_to_comment_correction_data = {}
+
+    type_mapping = {'ErratumFor': 'ErratumIn',
+                    'RepublishedFrom': 'RepublishedIn',
+                    'RetractionOf': 'RetractionIn',
+                    'ExpressionOfConcernFor': 'ExpressionOfConcernIn',
+                    'ReprintOf': 'ReprintIn',
+                    'UpdateOf': 'UpdateIn'}
+
+    reference_id_to_curies = {}
+    rs = db_session.execute("select cc.reference_id, cc.curie, r.curie from cross_reference cc, reference r where cc.reference_id = r.reference_id and (cc.reference_id in (select reference_id_from from reference_comments_and_corrections) or cc.reference_id in (select reference_id_to from reference_comments_and_corrections))")
+    rows = rs.fetchall()
+    for x in rows:
+        if x[1].startswith('PMID:'):
+            reference_id_to_curies[x[0]] = (x[1], x[2])
+
+    rs = db_session.execute("select reference_id_from, reference_id_to, reference_comment_and_correction_type from reference_comments_and_corrections")
+
+    for x in rs:
+
+        type_db = x[2]
+        type_db = type_db.replace("ReferenceCommentAndCorrectionType.", "")
+        reference_id_from = x[0]
+        reference_id_to = x[1]
+
+        ## for reference_id_from
+        data = {}
+        if reference_id_from in reference_id_to_comment_correction_data:
+            data = reference_id_to_comment_correction_data[reference_id_from]
+        if reference_id_from in reference_id_to_curies:
+            (pmid, ref_curie) = reference_id_to_curies[reference_id_from]
+            data[type_db] = {"PMID": pmid,
+                             "reference_curie": ref_curie}
+            reference_id_to_comment_correction_data[reference_id_from] = data
+
+        ## for reference_id_to
+        data = {}
+        if reference_id_to in reference_id_to_comment_correction_data:
+            data = reference_id_to_comment_correction_data[reference_id_to]
+
+        if reference_id_to in reference_id_to_curies:
+            (pmid, ref_curie) = reference_id_to_curies[reference_id_to]
+            type = type_mapping.get(type_db)
+            if type is None:
+                if logger:
+                    logger.info(type_db + " is not in type_mapping.")
+            else:
+                data[type] = {"PMID": pmid,
+                              "reference_curie": ref_curie}
+                reference_id_to_comment_correction_data[reference_id_to] = data
+
+    return reference_id_to_comment_correction_data
+
+
 def get_journal_data(db_session):
 
     journal_to_resource_id = {}
@@ -344,3 +400,133 @@ def get_reference_by_pmid(db_session, pmid):
     if x:
         return x.reference_id
     return None
+
+
+def get_journal_by_resource_id(db_session):
+
+    resource_id_to_journal = {}
+
+    rs = db_session.execute("SELECT resource_id, curie, title FROM resource")
+
+    rows = rs.fetchall()
+
+    for x in rows:
+        resource_id_to_journal[x[0]] = (x[1], x[2])
+
+    return resource_id_to_journal
+
+
+def get_mod_corpus_association_data_for_ref_ids(db_session, ref_ids):
+
+    reference_id_to_mod_corpus_data = {}
+
+    rs = db_session.execute("SELECT mca.reference_id, mca.mod_corpus_association_id, m.abbreviation, mca.corpus, mca.mod_corpus_sort_source, mca.date_created, mca.date_updated FROM mod_corpus_association mca, mod m WHERE m.mod_id = mca.mod_id and mca.reference_id IN (" + ref_ids + ")")
+
+    rows = rs.fetchall()
+
+    for x in rows:
+        data = []
+        reference_id = x[0]
+        if reference_id in reference_id_to_mod_corpus_data:
+            data = reference_id_to_mod_corpus_data[reference_id]
+        data.append({"mod_corpus_association_id": x[1],
+                     "mod_abbreviation": x[2],
+                     "corpus": x[3],
+                     "mod_corpus_sort_source": x[4],
+                     "date_created": str(x[5]),
+                     "date_updated": str(x[6])})
+        reference_id_to_mod_corpus_data[reference_id] = data
+
+    return reference_id_to_mod_corpus_data
+
+
+def get_cross_reference_data_for_ref_ids(db_session, ref_ids):
+
+    reference_id_to_xrefs = {}
+
+    rs = db_session.execute("SELECT reference_id, curie, is_obsolete FROM cross_reference WHERE reference_id IN (" + ref_ids + ")")
+
+    rows = rs.fetchall()
+
+    for x in rows:
+        data = []
+        reference_id = x[0]
+        if reference_id in reference_id_to_xrefs:
+            data = reference_id_to_xrefs[reference_id]
+        row = {"curie": x[1],
+               "is_obsolete": x[2]}
+        data.append(row)
+        reference_id_to_xrefs[reference_id] = data
+
+    return reference_id_to_xrefs
+
+
+def get_author_data_for_ref_ids(db_session, ref_ids):
+
+    reference_id_to_authors = {}
+
+    rs = db_session.execute("SELECT a.author_id, a.reference_id, a.orcid, a.first_author, a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, a.last_name, a.date_updated, a.date_created FROM author a WHERE reference_id IN (" + ref_ids + ") order by a.reference_id, a.order")
+
+    rows = rs.fetchall()
+
+    for x in rows:
+        data = []
+        reference_id = x[1]
+        if reference_id in reference_id_to_authors:
+            data = reference_id_to_authors[reference_id]
+        data.append({"author_id": x[0],
+                     "orcid": x[2],
+                     "first_author": x[3],
+                     "order": x[4],
+                     "corresponding_author": x[5],
+                     "name": x[6],
+                     "affilliations": x[7] if x[7] else [],
+                     "first_name": x[8],
+                     "last_name": x[9],
+                     "date_updated": str(x[10]),
+                     "date_created": str(x[11])})
+        reference_id_to_authors[reference_id] = data
+
+    return reference_id_to_authors
+
+
+def get_mesh_term_data_for_ref_ids(db_session, ref_ids):
+
+    reference_id_to_mesh_terms = {}
+
+    rs = db_session.execute("SELECT mesh_detail_id, reference_id, heading_term, qualifier_term FROM mesh_detail WHERE reference_id IN (" + ref_ids + ") order by reference_id, mesh_detail_id")
+
+    rows = rs.fetchall()
+
+    for x in rows:
+        reference_id = x[1]
+        data = []
+        if reference_id in reference_id_to_mesh_terms:
+            data = reference_id_to_mesh_terms[reference_id]
+        data.append({"heading_term": x[2],
+                     "qualifier_term": x[3],
+                     "mesh_detail_id": x[0]})
+        reference_id_to_mesh_terms[reference_id] = data
+
+    return reference_id_to_mesh_terms
+
+
+def get_mod_reference_type_data_for_ref_ids(db_session, ref_ids):
+
+    reference_id_to_mod_reference_types = {}
+
+    rs = db_session.execute("SELECT mod_reference_type_id, reference_id, reference_type, source FROM mod_reference_type WHERE reference_id IN (" + ref_ids + ")")
+
+    rows = rs.fetchall()
+
+    for x in rows:
+        reference_id = x[1]
+        data = []
+        if reference_id in reference_id_to_mod_reference_types:
+            data = reference_id_to_mod_reference_types[reference_id]
+        data.append({"reference_type": x[2],
+                     "source": x[3],
+                     "mod_reference_type_id": x[0]})
+        reference_id_to_mod_reference_types[reference_id] = data
+
+    return reference_id_to_mod_reference_types
