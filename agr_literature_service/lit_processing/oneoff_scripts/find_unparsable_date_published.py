@@ -2,9 +2,7 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
 import logging
 import sys
-# import re
 
-# from calendar import monthrange
 from datetime import datetime
 
 
@@ -24,8 +22,8 @@ def get_xrefs(curie):
     return ", ".join([xref[0] for xref in xrefs])
 
 
-# rs = db_session.execute("SELECT curie, date_published FROM reference WHERE date_published IS NOT NULL AND date_published !~ '^\d\d\d\d-\d\d-\d\d$' AND date_published ~ '[a-zA-Z]' AND date_published != 'Unknown' ORDER BY curie")
-# rs = db_session.execute("SELECT curie, date_published FROM reference WHERE date_published IS NOT NULL AND date_published !~ '^\d\d\d\d-\d\d-\d\d$' AND date_published ~ '[a-zA-Z]' ORDER BY curie")
+# rs = db_session.execute("SELECT curie, date_published FROM reference WHERE date_published IS NOT NULL AND date_published !~ '^\d\d\d\d-\d\d-\d\d$' AND date_published ~ '[a-zA-Z]' AND date_published != 'Unknown' ORDER BY curie")  # process text dates that are not Unknown
+# rs = db_session.execute("SELECT curie, date_published FROM reference WHERE date_published IS NOT NULL AND date_published !~ '^\d\d\d\d-\d\d-\d\d$' AND date_published ~ '[a-zA-Z]' ORDER BY curie")  # process text dates
 # rs = db_session.execute("SELECT curie, date_published FROM reference WHERE date_published IS NOT NULL AND date_published !~ '^\d\d\d\d-\d\d-\d\d$' AND date_published !~ '[a-zA-Z]' ORDER BY curie")  # process non-text dates
 # rs = db_session.execute("SELECT curie, date_published FROM reference WHERE date_published IS NOT NULL ORDER BY curie LIMIT 5")  # process sample
 
