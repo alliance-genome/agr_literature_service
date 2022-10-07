@@ -43,7 +43,7 @@ from agr_literature_service.lit_processing.utils.okta_utils import (
 logger = logging.getLogger(__name__)
 
 
-def get_next_curie():
+def get_next_curie():  # pragma: no cover
 
     token = get_authentication_token()
     headers = generate_headers(token)
