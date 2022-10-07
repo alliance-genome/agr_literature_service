@@ -86,11 +86,11 @@ class TestReference:
 
     def test_update_reference(self, auth_headers, test_reference): # noqa
         with TestClient(app) as client:
-
             # patch docs says it needs a ReferenceSchemaUpdate
             # but does not work with this.
             # with pytest.raises(AttributeError):
-            updated_fields = {"title": "new title", "category": "book", "language": "New"}
+            updated_fields = {"title": "new title", "category": "book", "language": "New", \
+                              "date_published_start": "2022-10-01 00:00:01"}
             response = client.patch(url=f"/reference/{test_reference.new_ref_curie}", json=updated_fields,
                                     headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
@@ -102,8 +102,17 @@ class TestReference:
             assert updated_ref["category"] == "book"
             assert updated_ref["language"] == "New"
             assert updated_ref["abstract"] == "3"
+            assert updated_ref["date_published_start"] == "2022-10-01T00:00:01"
             # Do we have a new citation
             assert updated_ref["citation"] == ", () new title.   (): "
+
+    def test_update_reference_date_published_start_failure(self, auth_headers, test_reference): # noqa
+        with TestClient(app) as client:
+            # incorrect datetime format, must have time, not just date
+            updated_fields = {"date_published_start": "2022-10-01"}
+            response = client.patch(url=f"/reference/{test_reference.new_ref_curie}", json=updated_fields,
+                                    headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_changesets(self, test_reference, auth_headers): # noqa
         with TestClient(app) as client:
@@ -136,6 +145,8 @@ class TestReference:
             full_xml = {
                 "category": "research_article",
                 "abstract": "The Hippo (Hpo) pathway is a conserved tumor suppressor pathway",
+                "date_published_start": "2022-10-01 00:00:01",
+                "date_published_end": "2022-10-02T00:00:01",
                 "authors": [
                     {
                         "order": 2,
@@ -203,13 +214,15 @@ class TestReference:
 
             new_curie = client.post(url="/reference/", json=full_xml, headers=auth_headers).json()
             # fetch the new record.
-            res = client.get(url=f"/reference/{new_curie}").json()
-            assert res['abstract'] == 'The Hippo (Hpo) pathway is a conserved tumor suppressor pathway'
-            assert res['category'] == 'research_article'
+            response = client.get(url=f"/reference/{new_curie}").json()
+            assert response['abstract'] == 'The Hippo (Hpo) pathway is a conserved tumor suppressor pathway'
+            assert response['category'] == 'research_article'
+            assert response['date_published_start'] == '2022-10-01T00:00:01'
+            assert response['date_published_end'] == '2022-10-02T00:00:01'
 
             # Not sure of order in array of the authors so:-
-            assert len(res['authors']) == 2
-            for author in res['authors']:
+            assert len(response['authors']) == 2
+            for author in response['authors']:
                 if author['first_name'] == 'D.':
                     assert author['name'] == 'D. Wu'
                     assert author['order'] == 1
@@ -223,28 +236,28 @@ class TestReference:
             author = db.query(AuthorModel).filter(AuthorModel.name == "S. Wu").one()
             assert author.first_name == 'S.'
 
-            assert res['citation'] == "D. Wu; S. Wu, () Some test 001 title.  433 (): 538--541"
+            assert response['citation'] == "D. Wu; S. Wu, () Some test 001 title.  433 (): 538--541"
 
-            assert res['cross_references'][0]['curie'] == 'FB:FBrf0221304'
+            assert response['cross_references'][0]['curie'] == 'FB:FBrf0221304'
 
-            assert res['mod_reference_types'][0]['reference_type'] == "mrt_rt"
+            assert response['mod_reference_types'][0]['reference_type'] == "mrt_rt"
 
-            assert res['mesh_terms'][0]['heading_term'] == "hterm"
+            assert response['mesh_terms'][0]['heading_term'] == "hterm"
 
             # cross references in the db?
             xref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "FB:FBrf0221304").one()
             assert xref.reference.curie == new_curie
 
-            assert res["issue_name"] == "4"
-            assert res["language"] == "English"
-            assert res["page_range"] == "538--541"
-            assert res["title"] == "Some test 001 title"
-            assert res["volume"] == "433"
-            assert res['open_access']
+            assert response["issue_name"] == "4"
+            assert response["language"] == "English"
+            assert response["page_range"] == "538--541"
+            assert response["title"] == "Some test 001 title"
+            assert response["volume"] == "433"
+            assert response['open_access']
 
             print("BOB................")
-            print(res)
-            for ont in res["workflow_tags"]:
+            print(response)
+            for ont in response["workflow_tags"]:
                 if ont['mod_abbreviation'] == "001_RGD":
                     assert ont['workflow_tag_id'] == "workflow_tag2"
                 elif ont['mod_abbreviation'] == "001_FB":
