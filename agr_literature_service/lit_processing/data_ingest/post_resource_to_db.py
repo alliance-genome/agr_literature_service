@@ -162,7 +162,7 @@ def post_resources(input_path, input_mod, base_input_dir=base_path):      # noqa
                     db_session.flush()
                     db_session.refresh(x)
                     resource_id = x.resource_id
-                    logger.info("Adding resource into database for '" + new_entry['iso_abbreviation'] + "'")
+                    logger.info("Adding resource into database for '" + new_entry.get('iso_abbreviation', 'None') + "'")
                     mapping_fh.write("%s\t%s\n" % (primary_id, curie))
 
                     for xref in cross_references:
@@ -200,8 +200,8 @@ def post_resources(input_path, input_mod, base_input_dir=base_path):      # noqa
                         db_session.add(editor_obj)
                     db_session.commit()
                 except Exception as e:
-                    logger.info("An error occurred when adding resource into database for '" + new_entry['iso_abbreviation'] + "'. " + str(e))
-                    error_fh.write("An error occurred when adding resource into database for '" + new_entry['iso_abbreviation'] + "'. " + str(e) + "\n")
+                    logger.info("An error occurred when adding resource into database for '" + new_entry['curie'] + "'. " + str(e))
+                    error_fh.write("An error occurred when adding resource into database for '" + new_entry['curie'] + "'. " + str(e) + "\n")
                     db_session.rollback()
 
         mapping_fh.close
