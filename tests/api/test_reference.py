@@ -252,6 +252,9 @@ class TestReference:
                 else:
                     assert 1 == 0  # Not RGD or FB ?
 
+            delete_response = client.delete(url=f"/reference/{new_curie}", headers=auth_headers)
+            assert delete_response.status_code == status.HTTP_204_NO_CONTENT
+
     def test_reference_merging(self, db, test_resource, auth_headers): # noqa
         with TestClient(app) as client:
             ref1_data = {
