@@ -1,7 +1,7 @@
 from os import environ, makedirs, path
 import json
 
-from agr_literature_service.api.crud.reference_crud import insert_mod_reference_type
+from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.lit_processing.utils.db_read_utils import \
@@ -261,7 +261,7 @@ def update_mod_reference_types(db_session, reference_id, db_mod_ref_types, json_
         for ref_type_label in json_mrt_data[mod]:
             if ref_type_label.lower() not in lc_db:
                 try:
-                    insert_mod_reference_type(db_session, pubmed_types, mod, ref_type_label, reference_id)
+                    insert_mod_reference_type_into_db(db_session, pubmed_types, mod, ref_type_label, reference_id)
                     logger.info("The mod_reference_type for reference_id = " + str(reference_id) + " has been added into the database.")
                 except Exception as e:
                     logger.info("An error occurred when adding mod_reference_type row for reference_id = " + str(reference_id) + " has been a\

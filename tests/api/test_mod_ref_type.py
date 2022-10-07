@@ -5,8 +5,9 @@ from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models import ModReferenceTypeAssociationModel
-from ..fixtures import db # noqa
+from agr_literature_service.api.models import ModReferenceTypeAssociationModel, \
+    ReferenceModReferenceTypeAssociationModel
+from ..fixtures import db, populate_test_mod_reference_types # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 
@@ -16,13 +17,13 @@ TestModRefTypeData = namedtuple('TestModRefTypeData', ['response', 'new_mod_ref_
 
 
 @pytest.fixture
-def test_mod_ref_type(db, auth_headers, test_reference): # noqa
+def test_mod_ref_type(db, auth_headers, test_reference, populate_test_mod_reference_types): # noqa
     print("***** Adding a test mod reference type *****")
     with TestClient(app) as client:
         new_mod_ref_type = {
             "reference_curie": test_reference.new_ref_curie,
-            "reference_type": "string1",
-            "source": "string2"
+            "reference_type": "Journal",
+            "source": "ZFIN"
         }
         response = client.post(url="/reference/mod_reference_type/", json=new_mod_ref_type, headers=auth_headers)
         yield TestModRefTypeData(response, response.json(), test_reference.new_ref_curie)
@@ -38,18 +39,19 @@ class TestModReferenceType:
     def test_create_mrt(self, db, test_mod_ref_type): # noqa
         assert test_mod_ref_type.response.status_code == status.HTTP_201_CREATED
         # check db for mrt
-        mrt = db.query(ModReferenceTypeAssociationModel).filter(
-            ModReferenceTypeAssociationModel.mod_reference_type_id == test_mod_ref_type.new_mod_ref_type_id).one()
-        assert mrt.reference_type == "string1"
+        mrt = db.query(ReferenceModReferenceTypeAssociationModel).filter(
+            ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id ==
+            test_mod_ref_type.new_mod_ref_type_id).one()
+        assert mrt.mod_referencetype.referencetype.label == "Journal"
         assert mrt.reference.curie == test_mod_ref_type.related_ref_curie
-        assert mrt.source == "string2"
+        assert mrt.mod_referencetype.mod.abbreviation == "ZFIN"
 
     def test_patch_mrt(self, test_mod_ref_type, test_reference2, auth_headers): # noqa
         with TestClient(app) as client:
             patch_data = {
                 "reference_curie": test_reference2.new_ref_curie,
-                "reference_type": "string3",
-                "source": "string4"
+                "reference_type": "Review",
+                "source": "ZFIN"
             }
             response = client.patch(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}",
                                     json=patch_data, headers=auth_headers)
@@ -57,9 +59,9 @@ class TestModReferenceType:
             assert response.status_code == status.HTTP_202_ACCEPTED
             response = client.get(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}")
             mrt = response.json()
-            assert mrt["reference_type"] == "string3"
+            assert mrt["reference_type"] == "Review"
             assert mrt["reference_curie"] == test_reference2.new_ref_curie
-            assert mrt["source"] == "string4"
+            assert mrt["source"] == "ZFIN"
 
             from_id = client.get(url=f"/reference/{test_mod_ref_type.related_ref_curie}").json()["reference_id"]
             to_id = client.get(url=f"/reference/{test_reference2.new_ref_curie}").json()["reference_id"]
@@ -67,11 +69,11 @@ class TestModReferenceType:
             response = client.get(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}/versions")
             transactions = response.json()
             assert transactions[0]['changeset']['reference_id'][1] == from_id
-            assert transactions[0]['changeset']['reference_type'][1] == "string1"
-            assert transactions[0]['changeset']['source'][1] == "string2"
+            assert transactions[0]['changeset']['reference_type'][1] == "Journal"
+            assert transactions[0]['changeset']['source'][1] == "ZFIN"
             assert transactions[1]['changeset']['reference_id'][1] == to_id
-            assert transactions[1]['changeset']['reference_type'][1] == "string3"
-            assert transactions[1]['changeset']['source'][1] == "string4"
+            assert transactions[1]['changeset']['reference_type'][1] == "Review"
+            assert transactions[1]['changeset']['source'][1] == "ZFIN"
 
     # NOTE: BAD... recursion error. NEEDS fixing.
     def test_show_mrt(self, test_mod_ref_type): # noqa

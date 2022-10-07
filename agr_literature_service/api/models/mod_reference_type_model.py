@@ -67,7 +67,7 @@ class ReferenceModReferenceTypeAssociationModel(Base):
     __tablename__ = "reference_mod_referencetype"
     __versioned__: Dict = {}
 
-    reference_mod_reference_type_id = Column(
+    reference_mod_referencetype_id = Column(
         Integer,
         autoincrement=True,
         primary_key=True

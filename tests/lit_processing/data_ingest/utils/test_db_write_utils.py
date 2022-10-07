@@ -103,7 +103,7 @@ class TestDbReadUtils:
                                    mod_reference_types, {'Journal'}, logger)
         db.commit()
         mrt_rows = db.query(ReferenceModReferenceTypeAssociationModel).filter_by(reference_id=reference_id).order_by(
-            ReferenceModReferenceTypeAssociationModel.reference_mod_reference_type_id).all()
+            ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id).all()
         assert len(mrt_rows) == 2
         assert mrt_rows[0].mod_referencetype.mod.abbreviation == 'ZFIN'
         assert mrt_rows[1].mod_referencetype.mod.abbreviation == 'SGD'

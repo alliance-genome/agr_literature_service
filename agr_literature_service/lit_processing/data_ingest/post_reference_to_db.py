@@ -4,13 +4,13 @@ from os import listdir, path
 import json
 from typing import List
 
+from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
     AuthorModel, ModCorpusAssociationModel, ModModel, ReferenceCommentAndCorrectionModel, MeshDetailModel
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.utils.db_read_utils import get_orcid_data,\
     get_journal_data, get_doi_data, get_reference_by_pmid
-from agr_literature_service.api.crud.reference_crud import get_citation_from_args, get_next_curie, \
-    insert_mod_reference_type
+from agr_literature_service.api.crud.reference_crud import get_citation_from_args, get_next_curie
 
 logging.basicConfig(format='%(message)s')
 log = logging.getLogger()
@@ -142,7 +142,7 @@ def insert_mod_reference_types(db_session, primaryId, reference_id, mod_ref_type
             continue
         found[(reference_id, x['source'], x['referenceType'])] = 1
         try:
-            insert_mod_reference_type(db_session, pubmed_types, x['source'], x['referenceType'], reference_id)
+            insert_mod_reference_type_into_db(db_session, pubmed_types, x['source'], x['referenceType'], reference_id)
             log.info(primaryId + ": INSERT MOD_REFERENCE_TYPE: for reference_id = " + str(reference_id) + ", source = " + x['source'] + ", reference_type = " + x['referenceType'])
         except Exception as e:
             log.info(primaryId + ": INSERT MOD_REFERENCE_TYPE: for reference_id = " + str(reference_id) + ", source = " + x['source'] + ", reference_type = " + x['referenceType'] + " " + str(e))

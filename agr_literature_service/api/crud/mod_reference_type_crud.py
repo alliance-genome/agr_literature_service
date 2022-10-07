@@ -2,7 +2,7 @@
 mod_reference_type_crud.py
 ===========================
 """
-from datetime import datetime
+import math
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -11,6 +11,28 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api.models import ReferenceModel, ReferenceModReferenceTypeAssociationModel, ModModel, \
     ReferenceTypeModel, ModReferenceTypeAssociationModel
 from agr_literature_service.api.schemas import ModReferenceTypeSchemaPost
+
+
+def insert_mod_reference_type_into_db(db_session, pubmed_types, mod_abbreviation, referencetype_label, reference_id):
+    mod = db_session.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
+    ref_type = db_session.query(ReferenceTypeModel).filter(ReferenceTypeModel.label ==
+                                                           referencetype_label).one_or_none()
+    mrt = db_session.query(ModReferenceTypeAssociationModel).filter(
+        ModReferenceTypeAssociationModel.mod == mod,
+        ModReferenceTypeAssociationModel.referencetype == ref_type).one_or_none()
+    if (ref_type is None or mrt is None) and mod.abbreviation == "SGD":
+        if referencetype_label in set(pubmed_types):
+            if ref_type is None:
+                ref_type = ReferenceTypeModel(label=referencetype_label)
+            max_display_order = max((mod_ref_type.display_order for mod_ref_type in mod.referencetypes),
+                                    default=0)
+            mrt = ModReferenceTypeAssociationModel(
+                mod=mod, referencetype=ref_type,
+                display_order=math.ceil(max_display_order / 10) * 10)
+    rmrt = ReferenceModReferenceTypeAssociationModel(reference_id=reference_id, mod_referencetype=mrt)
+    db_session.add(rmrt)
+    db_session.commit()
+    return rmrt.reference_mod_referencetype_id
 
 
 def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost) -> int:
@@ -29,16 +51,8 @@ def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost) -> int:
     if not reference:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Reference with curie {reference_curie} does not exist")
-    mod = db.query(ModModel).filter(ModModel.abbreviation == mod_reference_type_data["source"]).one_or_none()
-    ref_type = db.query(ReferenceTypeModel).filter(ReferenceTypeModel.label == mod_reference_type_data["referenceType"])
-    mrt = ModReferenceTypeAssociationModel(mod_id=mod.mod_id, referencetype_id=ref_type.referencetype_id)
-    db_obj = ReferenceModReferenceTypeAssociationModel(reference_id=reference.reference_id,
-                                                       mod_referencetype_id=mrt.mod_referencetype_id)
-    db_obj.reference = reference
-    db.add(db_obj)
-    db.commit()
-
-    return db_obj.mod_reference_type_id
+    return insert_mod_reference_type_into_db(db, reference.pubmed_types, mod_reference_type_data["source"],
+                                             mod_reference_type_data["reference_type"], reference.reference_id)
 
 
 def destroy(db: Session, mod_reference_type_id: int) -> None:
@@ -76,17 +90,34 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with mod_reference_type_id {mod_reference_type_id} not found")
 
-    for field, value in mrt_data.items():
-        if field == "reference_curie" and value:
-            reference_curie = value
-            reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
-            if not reference:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                    detail=f"Reference with curie {reference_curie} does not exist")
-            ref_mod_ref_type_obj.reference = reference
+    reference = None
+    if "reference_curie" in mrt_data:
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == mrt_data["reference_curie"]).first()
+        if not reference:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"Reference with curie {mrt_data['reference_curie']} does not exist")
+        ref_mod_ref_type_obj.reference = reference
+    if "reference_type" in mrt_data or "source" in mrt_data:
+        if reference is None:
+            reference = ref_mod_ref_type_obj.reference
+        if "source" in mrt_data:
+            mod = db.query(ModModel).filter(ModModel.abbreviation == mrt_data["source"]).first()
         else:
-            setattr(ref_mod_ref_type_obj, field, value)
-
+            mod = ref_mod_ref_type_obj.mod_referencetype.mod
+        if "reference_type" in mrt_data:
+            referencetype = db.query(ReferenceTypeModel).filter(
+                ReferenceTypeModel.label == mrt_data["reference_type"]).first()
+        else:
+            referencetype = ref_mod_ref_type_obj.mod_referencetype.referencetype
+        mod_ref_type = db.query(ModReferenceTypeAssociationModel).filter(
+            ModReferenceTypeAssociationModel.mod_id == mod.mod_id,
+            ModReferenceTypeAssociationModel.referencetype_id == referencetype.referencetype_id).one_or_none()
+        if mod_ref_type is None:
+            new_mod_ref_type_id = insert_mod_reference_type_into_db(db, reference.pubmed_types, mod.abbreviation,
+                                                                    referencetype.label, reference.reference_id)
+            mod_ref_type = db.query(ModReferenceTypeAssociationModel).filter(
+                ModReferenceTypeAssociationModel.mod_referencetype_id == new_mod_ref_type_id).first()
+        ref_mod_ref_type_obj.mod_referencetype = mod_ref_type
     db.commit()
     return {"message": "updated"}
 
