@@ -55,7 +55,7 @@ def get_next_curie():
     res = requests.post(url, headers=headers)
     res_json = res.json()
     new_curie = res_json['first']['curie']
-    
+
     return new_curie
 
 
