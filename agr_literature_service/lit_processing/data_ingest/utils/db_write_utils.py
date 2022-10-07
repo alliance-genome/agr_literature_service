@@ -267,9 +267,10 @@ def update_mod_reference_types(db_session, reference_id, db_mod_ref_types, json_
                     mrt = db_session.query(ModReferenceTypeAssociationModel).filter(
                         ModReferenceTypeAssociationModel.mod == mod,
                         ModReferenceTypeAssociationModel.referencetype == ref_type).one_or_none()
-                    if ref_type is None and mod.abbreviation == "SGD":
+                    if (ref_type is None or mrt is None) and mod.abbreviation == "SGD":
                         if ref_type_label in set(pubmed_types):
-                            ref_type = ReferenceTypeModel(label=ref_type_label)
+                            if ref_type is None:
+                                ref_type = ReferenceTypeModel(label=ref_type_label)
                             max_display_order = max((mod_ref_type.display_order for mod_ref_type in mod.referencetypes),
                                                     default=0)
                             mrt = ModReferenceTypeAssociationModel(

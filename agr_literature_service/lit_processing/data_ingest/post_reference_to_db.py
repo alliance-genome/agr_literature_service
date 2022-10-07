@@ -98,7 +98,8 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
             if entry.get('MODReferenceTypes'):
 
                 insert_mod_reference_types(db_session, primaryId, reference_id,
-                                           entry['MODReferenceTypes'], entry['pubmedTypes'])
+                                           entry['MODReferenceTypes'],
+                                           entry['pubmedType'] if 'pubmedType' in entry else [])
 
             if entry.get('modCorpusAssociations'):
 
@@ -148,9 +149,10 @@ def insert_mod_reference_types(db_session, primaryId, reference_id, mod_ref_type
             mrt = db_session.query(ModReferenceTypeAssociationModel).filter(
                 ModReferenceTypeAssociationModel.mod == mod,
                 ModReferenceTypeAssociationModel.referencetype == ref_type).one_or_none()
-            if ref_type is None and mod.abbreviation == "SGD":
+            if (ref_type is None or mrt is None) and mod.abbreviation == "SGD":
                 if x['referenceType'] in set(pubmed_types):
-                    ref_type = ReferenceTypeModel(label=x['referenceType'])
+                    if ref_type is None:
+                        ref_type = ReferenceTypeModel(label=x['referenceType'])
                     max_display_order = max((mod_ref_type.display_order for mod_ref_type in mod.referencetypes),
                                             default=0)
                     mrt = ModReferenceTypeAssociationModel(

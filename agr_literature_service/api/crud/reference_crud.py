@@ -209,9 +209,10 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                 mrt = db.query(ModReferenceTypeAssociationModel).filter(
                     ModReferenceTypeAssociationModel.mod == mod,
                     ModReferenceTypeAssociationModel.referencetype == ref_type).one_or_none()
-                if ref_type is None and mod.abbreviation == "SGD":
+                if (ref_type is None or mrt is None) and mod.abbreviation == "SGD":
                     if obj.reference_type in set(reference.pubmed_types):
-                        ref_type = ReferenceTypeModel(label=obj.reference_type)
+                        if ref_type is None:
+                            ref_type = ReferenceTypeModel(label=obj.reference_type)
                         max_display_order = max(
                             (mod_ref_type.display_order for mod_ref_type in mod.referencetypes),
                             default=0)

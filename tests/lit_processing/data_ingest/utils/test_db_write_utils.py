@@ -10,7 +10,7 @@ from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils impo
     add_cross_references, update_authors, update_mod_corpus_associations, \
     update_mod_reference_types, add_mca_to_existing_references, \
     update_comment_corrections, update_mesh_terms, update_cross_reference
-from ....fixtures import db, load_sanitized_references # noqa
+from ....fixtures import db, load_sanitized_references, populate_test_mod_reference_types # noqa
 
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
@@ -19,7 +19,7 @@ logger.setLevel(logging.INFO)
 
 class TestDbReadUtils:
 
-    def test_dqm_update_functions(self, db, load_sanitized_references): # noqa
+    def test_dqm_update_functions(self, db, load_sanitized_references, populate_test_mod_reference_types): # noqa
 
         refs = db.query(ReferenceModel).all()
         ref_curie_list = [refs[0].curie, refs[1].curie]
@@ -90,7 +90,7 @@ class TestDbReadUtils:
                 assert mod == 'SGD'
 
         ## test update_mod_reference_types()
-        mrt_rows = db.query(ModReferenceTypeModel).filter_by(reference_id=reference_id).all()
+        mrt_rows = db.query(ReferenceModReferenceTypeAssociationModel).filter_by(reference_id=reference_id).all()
         assert len(mrt_rows) == 1
         mod_reference_types = [
             {

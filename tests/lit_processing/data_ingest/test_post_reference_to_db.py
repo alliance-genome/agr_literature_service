@@ -12,7 +12,7 @@ from agr_literature_service.lit_processing.data_ingest.post_reference_to_db impo
     insert_mod_corpus_associations, read_data_and_load_references, \
     insert_comment_corrections
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
-from ...fixtures import db # noqa
+from ...fixtures import db, populate_test_mod_reference_types # noqa
 
 
 class TestPostReferenceToDb:
@@ -62,7 +62,7 @@ class TestPostReferenceToDb:
         assert cc.reference_id_to == refs[1].reference_id
         assert cc.reference_comment_and_correction_type == 'RepublishedFrom'
 
-    def test_load_one_reference(self, db): # noqa
+    def test_load_one_reference(self, db, populate_test_mod_reference_types): # noqa
         populate_test_mods()
 
         json_file = path.join(path.dirname(path.abspath(__file__)), "../sample_data",
@@ -118,7 +118,8 @@ class TestPostReferenceToDb:
         assert mt.heading_term == 'Animals'
 
         ## test insert_mod_reference_types()
-        insert_mod_reference_types(db, primaryId, reference_id, entry['MODReferenceTypes'], entry['pubmedTypes'])
+        insert_mod_reference_types(db, primaryId, reference_id, entry['MODReferenceTypes'],
+                                   entry['pubmedType'] if 'pubmedType' in entry else [])
         db.commit()
         mrt = db.query(ReferenceModReferenceTypeAssociationModel).filter_by(reference_id=reference_id).first()
         assert mrt.mod_referencetype.referencetype.label == 'Journal'
