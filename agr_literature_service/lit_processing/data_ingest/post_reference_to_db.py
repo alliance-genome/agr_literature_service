@@ -292,7 +292,7 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
 
         citation = generate_citation(entry, journal_title)
 
-        curie = get_next_curie(db_session)
+        curie = get_next_curie()
 
         refData = {"curie": curie,
                    "resource_id": resource_id,

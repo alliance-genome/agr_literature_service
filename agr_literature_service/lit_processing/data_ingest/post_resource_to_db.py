@@ -1,7 +1,6 @@
 import argparse
 import json
 import logging.config
-import sqlalchemy
 import sys
 from os import environ
 
@@ -150,13 +149,7 @@ def post_resources(input_path, input_mod, base_input_dir=base_path):      # noqa
                         new_entry[key] = entry[key]
                 try:
                     resource_id = None
-                    last_curie_row = db_session.query(
-                        ResourceModel.curie).order_by(
-                            sqlalchemy.desc(ResourceModel.curie)).first()
-                    last_curie = 'AGR:AGR-Resource-0000000000'
-                    if last_curie_row:
-                        last_curie = last_curie_row[0]
-                    curie = create_next_curie(last_curie)
+                    curie = create_next_curie()
                     cross_references = new_entry.get('cross_references', [])
                     editors = new_entry.get('editors', [])
                     if "cross_references" in new_entry:
