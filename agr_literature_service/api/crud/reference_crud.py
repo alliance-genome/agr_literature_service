@@ -40,7 +40,28 @@ from agr_literature_service.api.crud.topic_entity_tag_crud import (
     patch as update_topic_entity_tag,
     create as create_topic_entity_tag
 )
+
 logger = logging.getLogger(__name__)
+
+
+def insert_mod_reference_type(db_session, pubmed_types, mod_abbreviation, referencetype_label, reference_id):
+    mod = db_session.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
+    ref_type = db_session.query(ReferenceTypeModel).filter(ReferenceTypeModel.label ==
+                                                           referencetype_label).one_or_none()
+    mrt = db_session.query(ModReferenceTypeAssociationModel).filter(
+        ModReferenceTypeAssociationModel.mod == mod,
+        ModReferenceTypeAssociationModel.referencetype == ref_type).one_or_none()
+    if (ref_type is None or mrt is None) and mod.abbreviation == "SGD":
+        if referencetype_label in set(pubmed_types):
+            if ref_type is None:
+                ref_type = ReferenceTypeModel(label=referencetype_label)
+            max_display_order = max((mod_ref_type.display_order for mod_ref_type in mod.referencetypes),
+                                    default=0)
+            mrt = ModReferenceTypeAssociationModel(
+                mod=mod, referencetype=ref_type,
+                display_order=math.ceil(max_display_order / 10) * 10)
+    rmrt = ReferenceModReferenceTypeAssociationModel(reference_id=reference_id, mod_referencetype=mrt)
+    db_session.add(rmrt)
 
 
 def get_next_curie(db: Session) -> str:
@@ -163,6 +184,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
     db.add(reference_db_obj)
     logger.debug("saved")
     db.commit()
+    db.refresh(reference_db_obj)
     for field, value in vars(reference).items():
         logger.debug("Processing mod corpus asso")
         if field == "mod_corpus_associations":
@@ -202,27 +224,11 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                         logger.warning("skipping topic_entity_tag as that is already associated to "
                                        "the reference")
         elif field == "mod_reference_types":
-            for obj in value:
-                mod = db.query(ModModel).filter(ModModel.abbreviation == obj.source).one_or_none()
-                ref_type = db.query(ReferenceTypeModel).filter(
-                    ReferenceTypeModel.label == obj.reference_type).one_or_none()
-                mrt = db.query(ModReferenceTypeAssociationModel).filter(
-                    ModReferenceTypeAssociationModel.mod == mod,
-                    ModReferenceTypeAssociationModel.referencetype == ref_type).one_or_none()
-                if (ref_type is None or mrt is None) and mod.abbreviation == "SGD":
-                    if obj.reference_type in set(reference.pubmed_types):
-                        if ref_type is None:
-                            ref_type = ReferenceTypeModel(label=obj.reference_type)
-                        max_display_order = max(
-                            (mod_ref_type.display_order for mod_ref_type in mod.referencetypes),
-                            default=0)
-                        mrt = ModReferenceTypeAssociationModel(
-                            mod=mod, referencetype=ref_type,
-                            display_order=math.ceil(max_display_order / 10) * 10)
-                rmrt = ReferenceModReferenceTypeAssociationModel(reference=reference_db_obj,
-                                                                 mod_referencetype=mrt)
-                db.add(rmrt)
-            db.commit()
+            if value is not None:
+                for obj in value:
+                    insert_mod_reference_type(db, reference.pubmed_types, obj.source, obj.reference_type,
+                                              reference_db_obj.reference_id)
+                db.commit()
     return curie
 
 

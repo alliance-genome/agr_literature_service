@@ -1,17 +1,16 @@
 import argparse
 import logging
-import math
 from os import listdir, path
 import json
 from typing import List
 
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
-    AuthorModel, ModCorpusAssociationModel, ModModel, ReferenceCommentAndCorrectionModel, MeshDetailModel, \
-    ReferenceModReferenceTypeAssociationModel, ModReferenceTypeAssociationModel, ReferenceTypeModel
+    AuthorModel, ModCorpusAssociationModel, ModModel, ReferenceCommentAndCorrectionModel, MeshDetailModel
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.utils.db_read_utils import get_orcid_data,\
     get_journal_data, get_doi_data, get_reference_by_pmid
-from agr_literature_service.api.crud.reference_crud import get_citation_from_args, get_next_curie
+from agr_literature_service.api.crud.reference_crud import get_citation_from_args, get_next_curie, \
+    insert_mod_reference_type
 
 logging.basicConfig(format='%(message)s')
 log = logging.getLogger()
@@ -143,23 +142,7 @@ def insert_mod_reference_types(db_session, primaryId, reference_id, mod_ref_type
             continue
         found[(reference_id, x['source'], x['referenceType'])] = 1
         try:
-            mod = db_session.query(ModModel).filter(ModModel.abbreviation == x['source']).one_or_none()
-            ref_type = db_session.query(ReferenceTypeModel).filter(ReferenceTypeModel.label ==
-                                                                   x['referenceType']).one_or_none()
-            mrt = db_session.query(ModReferenceTypeAssociationModel).filter(
-                ModReferenceTypeAssociationModel.mod == mod,
-                ModReferenceTypeAssociationModel.referencetype == ref_type).one_or_none()
-            if (ref_type is None or mrt is None) and mod.abbreviation == "SGD":
-                if x['referenceType'] in set(pubmed_types):
-                    if ref_type is None:
-                        ref_type = ReferenceTypeModel(label=x['referenceType'])
-                    max_display_order = max((mod_ref_type.display_order for mod_ref_type in mod.referencetypes),
-                                            default=0)
-                    mrt = ModReferenceTypeAssociationModel(
-                        mod=mod, referencetype=ref_type,
-                        display_order=math.ceil(max_display_order / 10) * 10)
-            rmrt = ReferenceModReferenceTypeAssociationModel(reference_id=reference_id, mod_referencetype=mrt)
-            db_session.add(rmrt)
+            insert_mod_reference_type(db_session, pubmed_types, x['source'], x['referenceType'], reference_id)
             log.info(primaryId + ": INSERT MOD_REFERENCE_TYPE: for reference_id = " + str(reference_id) + ", source = " + x['source'] + ", reference_type = " + x['referenceType'])
         except Exception as e:
             log.info(primaryId + ": INSERT MOD_REFERENCE_TYPE: for reference_id = " + str(reference_id) + ", source = " + x['source'] + ", reference_type = " + x['referenceType'] + " " + str(e))
