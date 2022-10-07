@@ -89,7 +89,7 @@ class TestReference:
             # patch docs says it needs a ReferenceSchemaUpdate
             # but does not work with this.
             # with pytest.raises(AttributeError):
-            updated_fields = {"title": "new title", "category": "book", "language": "New", \
+            updated_fields = {"title": "new title", "category": "book", "language": "New",
                               "date_published_start": "2022-10-01 00:00:01"}
             response = client.patch(url=f"/reference/{test_reference.new_ref_curie}", json=updated_fields,
                                     headers=auth_headers)
