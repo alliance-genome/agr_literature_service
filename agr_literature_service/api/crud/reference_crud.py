@@ -3,18 +3,17 @@ reference_crud.py
 =================
 """
 import logging
+import re
+import requests
 from datetime import datetime
 from typing import Any, Dict, List
-import re
+from os import environ
 
-
-import sqlalchemy
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import ARRAY, Boolean, String, func
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast
-from sqlalchemy.orm.exc import NoResultFound
 
 from agr_literature_service.api.crud import (cross_reference_crud,
                                              reference_comment_and_correction_crud)
@@ -37,39 +36,26 @@ from agr_literature_service.api.crud.topic_entity_tag_crud import (
     patch as update_topic_entity_tag,
     create as create_topic_entity_tag
 )
+from agr_literature_service.lit_processing.utils.okta_utils import (
+    get_authentication_token,
+    generate_headers
+)
 logger = logging.getLogger(__name__)
 
 
-def get_next_curie(db: Session) -> str:
-    """
+def get_next_curie():
 
-    :param db:
-    :return:
-    """
-    last_curie = db.query(ReferenceModel.curie).order_by(sqlalchemy.desc(ReferenceModel.curie)).first()
+    token = get_authentication_token()
+    headers = generate_headers(token)
+    headers['subdomain'] = 'reference'
 
-    if not last_curie:
-        last_curie = "AGR:AGR-Reference-0000000000"
-    else:
-        last_curie = last_curie[0]
+    url = environ['ID_MATI_URL']
 
-    curie_parts = last_curie.rsplit("-", 1)
-    number_part = curie_parts[1]
-    number = int(number_part)
-
-    # So we need to check that a later one was not obsoleted as we
-    # do not want to use that curie then.
-    checked = False
-    new_curie = ''
-    while not checked:
-        number += 1
-        new_curie = "-".join([curie_parts[0], str(number).rjust(10, "0")])
-        try:
-            db.query(ObsoleteReferenceModel).filter(ObsoleteReferenceModel.curie == new_curie).one()
-        except NoResultFound:
-            checked = True
-    logger.debug("created new curie {new_curie}")
-
+    headers['value'] = '1'
+    res = requests.post(url, headers=headers)
+    res_json = res.json()
+    new_curie = res_json['first']['curie']
+    
     return new_curie
 
 
@@ -98,7 +84,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"CrossReference with id {cross_reference.curie} already exists")
     logger.debug("done x ref")
-    curie = get_next_curie(db)
+    curie = get_next_curie()
     reference_data["curie"] = curie
 
     for field, value in vars(reference).items():
