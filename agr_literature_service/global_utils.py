@@ -72,20 +72,19 @@ def get_next_local_curie(subdomain, db):
     # if db is None:
     #    db_session = create_postgres_session(False)
     curie_start = "AGRKB:102"
-    last_curie = None
+    rs = None
     if subdomain == 'reference':
         curie_start = "AGRKB:101"
         rs = db.execute("SELECT curie FROM reference order by reference_id desc")
-        rows = rs.fetchall()
-        last_curie = rows[0][0]
     else:
         rs = db.execute("SELECT curie FROM resource order by resource_id desc")
+    rows = None
+    if rs:
         rows = rs.fetchall()
+    if rows and len(rows) > 0:
         last_curie = rows[0][0]
-    if not last_curie:
-        last_curie = curie_start + "000000000000"
     else:
-        last_curie = last_curie[0]
+        last_curie = curie_start + "000000000000"
     number_part = last_curie.replace(curie_start, "")
     number = int(number_part)
     number += 1
