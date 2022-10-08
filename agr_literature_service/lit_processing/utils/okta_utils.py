@@ -61,12 +61,15 @@ def update_okta_token():  # pragma: no cover
 def get_authentication_token():  # pragma: no cover
     okta_file = base_path + 'okta_token'
     token = ''
-    one_day_ago = datetime.now() - relativedelta(days=1)
-    file_time = datetime.fromtimestamp(path.getmtime(okta_file))
-    if path.isfile(okta_file) and file_time > one_day_ago:
-        with open(okta_file, 'r') as okta_fh:
-            token = okta_fh.read().replace("\n", "")
-            okta_fh.close
+    if path.isfile(okta_file):
+        one_day_ago = datetime.now() - relativedelta(days=1)
+        file_time = datetime.fromtimestamp(path.getmtime(okta_file))
+        if file_time > one_day_ago:
+            with open(okta_file, 'r') as okta_fh:
+                token = okta_fh.read().replace("\n", "")
+                okta_fh.close
+        else:
+            token = update_okta_token()
     else:
         token = update_okta_token()
     return token
