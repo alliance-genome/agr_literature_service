@@ -4,10 +4,8 @@ reference_crud.py
 """
 import logging
 import re
-import requests
 from datetime import datetime
 from typing import Any, Dict, List
-from os import environ
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -36,27 +34,9 @@ from agr_literature_service.api.crud.topic_entity_tag_crud import (
     patch as update_topic_entity_tag,
     create as create_topic_entity_tag
 )
-from agr_literature_service.lit_processing.utils.okta_utils import (
-    get_authentication_token,
-    generate_headers
-)
+from agr_literature_service.global_utils import get_next_reference_curie
+
 logger = logging.getLogger(__name__)
-
-
-def get_next_curie():  # pragma: no cover
-
-    token = get_authentication_token()
-    headers = generate_headers(token)
-    headers['subdomain'] = 'reference'
-
-    url = environ['ID_MATI_URL']
-
-    headers['value'] = '1'
-    res = requests.post(url, headers=headers)
-    res_json = res.json()
-    new_curie = res_json['first']['curie']
-
-    return new_curie
 
 
 def create(db: Session, reference: ReferenceSchemaPost):  # noqa
@@ -84,7 +64,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"CrossReference with id {cross_reference.curie} already exists")
     logger.debug("done x ref")
-    curie = get_next_curie()
+    curie = get_next_reference_curie(db)
     reference_data["curie"] = curie
 
     for field, value in vars(reference).items():

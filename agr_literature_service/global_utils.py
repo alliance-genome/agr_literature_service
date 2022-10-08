@@ -1,5 +1,13 @@
 import collections
 import functools
+from os import environ
+import requests
+# from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
+#    create_postgres_session
+from agr_literature_service.lit_processing.utils.okta_utils import (
+    get_authentication_token,
+    generate_headers
+)
 
 
 class memoized(object):
@@ -40,3 +48,57 @@ def execute_once(f):
             return f(*args, **kwargs)
     wrapper.has_run = False
     return wrapper
+
+
+def get_next_curie(subdomain, db=None):  # pragma: no cover
+
+    if environ.get('ENV_STATE') and environ.get('ENV_STATE') != 'test':
+        token = get_authentication_token()
+        headers = generate_headers(token)
+        headers['subdomain'] = subdomain
+        url = environ['ID_MATI_URL']
+        headers['value'] = '1'
+        res = requests.post(url, headers=headers)
+        res_json = res.json()
+        new_curie = res_json['first']['curie']
+        return new_curie
+    return get_next_local_curie(subdomain, db)
+
+
+def get_next_local_curie(subdomain, db):
+
+    ### it is only for testing purpose
+    # db_session = db
+    # if db is None:
+    #    db_session = create_postgres_session(False)
+    curie_start = "AGRKB:102"
+    last_curie = None
+    if subdomain == 'reference':
+        curie_start = "AGRKB:101"
+        rs = db.execute("SELECT curie FROM reference order by reference_id desc")
+        rows = rs.fetchall()
+        last_curie = rows[0][0]
+    else:
+        rs = db.execute("SELECT curie FROM resource order by resource_id desc")
+        rows = rs.fetchall()
+        last_curie = rows[0][0]
+    if not last_curie:
+        last_curie = curie_start + "000000000000"
+    else:
+        last_curie = last_curie[0]
+    number_part = last_curie.replace(curie_start, "")
+    number = int(number_part)
+    number += 1
+    new_curie = curie_start + str(number).rjust(12, "0")
+
+    return new_curie
+
+
+def get_next_reference_curie(db=None):  # pragma: no cover
+
+    return get_next_curie('reference', db)
+
+
+def get_next_resource_curie(db=None):  # pragma: no cover
+
+    return get_next_curie('resource', db)
