@@ -96,9 +96,8 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
 
             if entry.get('MODReferenceTypes'):
 
-                insert_mod_reference_types(db_session, primaryId, reference_id,
-                                           entry['MODReferenceTypes'],
-                                           entry['pubmedType'] if 'pubmedType' in entry else [])
+                insert_mod_reference_types(db_session, primaryId, reference_id, entry['MODReferenceTypes'],
+                                           entry.get('pubmedType', []))
 
             if entry.get('modCorpusAssociations'):
 
