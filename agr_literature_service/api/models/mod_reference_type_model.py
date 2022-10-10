@@ -77,8 +77,6 @@ class ReferenceModReferenceTypeAssociationModel(Base):
         ForeignKey("reference.reference_id")
     )
 
-    reference = relationship("ReferenceModel")
-
     mod_referencetype_id = Column(
         ForeignKey("mod_referencetype.mod_referencetype_id")
     )

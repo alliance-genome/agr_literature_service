@@ -6,7 +6,7 @@ from fastapi import status
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import ModReferenceTypeAssociationModel, \
-    ReferenceModReferenceTypeAssociationModel
+    ReferenceModReferenceTypeAssociationModel, ReferenceModel
 from ..fixtures import db, populate_test_mod_reference_types # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
@@ -39,14 +39,16 @@ class TestModReferenceType:
     def test_create_mrt(self, db, test_mod_ref_type): # noqa
         assert test_mod_ref_type.response.status_code == status.HTTP_201_CREATED
         # check db for mrt
-        mrt = db.query(ReferenceModReferenceTypeAssociationModel).filter(
+        rmrt = db.query(ReferenceModReferenceTypeAssociationModel).filter(
             ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id ==
             test_mod_ref_type.new_mod_ref_type_id).one()
-        assert mrt.mod_referencetype.referencetype.label == "Journal"
-        assert mrt.reference.curie == test_mod_ref_type.related_ref_curie
-        assert mrt.mod_referencetype.mod.abbreviation == "ZFIN"
+        assert rmrt.mod_referencetype.referencetype.label == "Journal"
+        ref_curie = db.query(ReferenceModel.curie).filter(
+            ReferenceModel.reference_id == rmrt.reference_id).one_or_none()[0]
+        assert ref_curie == test_mod_ref_type.related_ref_curie
+        assert rmrt.mod_referencetype.mod.abbreviation == "ZFIN"
 
-    def test_patch_mrt(self, test_mod_ref_type, test_reference2, auth_headers): # noqa
+    def test_patch_mrt(self, db, test_mod_ref_type, test_reference2, auth_headers): # noqa
         with TestClient(app) as client:
             patch_data = {
                 "reference_curie": test_reference2.new_ref_curie,
@@ -69,11 +71,17 @@ class TestModReferenceType:
             response = client.get(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}/versions")
             transactions = response.json()
             assert transactions[0]['changeset']['reference_id'][1] == from_id
-            assert transactions[0]['changeset']['reference_type'][1] == "Journal"
-            assert transactions[0]['changeset']['source'][1] == "ZFIN"
+            mod_referencetype_id_orig = db.execute("SELECT mod_referencetype_id from mod_referencetype where mod_id = "
+                                                   "(select mod_id from mod where abbreviation = 'ZFIN') and "
+                                                   "referencetype_id = (select referencetype_id from referencetype "
+                                                   "where label = 'Journal')").first()[0]
+            assert transactions[0]['changeset']['mod_referencetype_id'][1] == mod_referencetype_id_orig
             assert transactions[1]['changeset']['reference_id'][1] == to_id
-            assert transactions[1]['changeset']['reference_type'][1] == "Review"
-            assert transactions[1]['changeset']['source'][1] == "ZFIN"
+            mod_referencetype_id_new = db.execute("SELECT mod_referencetype_id from mod_referencetype where mod_id = "
+                                                  "(select mod_id from mod where abbreviation = 'ZFIN') and "
+                                                  "referencetype_id = (select referencetype_id from referencetype "
+                                                  "where label = 'Review')").first()[0]
+            assert transactions[1]['changeset']['mod_referencetype_id'][1] == mod_referencetype_id_new
 
     # NOTE: BAD... recursion error. NEEDS fixing.
     def test_show_mrt(self, test_mod_ref_type): # noqa

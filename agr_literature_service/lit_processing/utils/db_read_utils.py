@@ -8,7 +8,7 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.api.models import ReferenceModel, ResourceModel, \
     CrossReferenceModel, ModCorpusAssociationModel, ModModel, \
-    ReferenceCommentAndCorrectionModel
+    ReferenceCommentAndCorrectionModel, ReferenceModReferenceTypeAssociationModel
 
 
 def get_pmid_association_to_mod_via_reference(db_session, pmids, mod_abbreviation):
@@ -515,7 +515,11 @@ def get_mod_reference_type_data_for_ref_ids(db_session, ref_ids):
 
     reference_id_to_mod_reference_types = {}
 
-    rs = db_session.execute("SELECT mod_reference_type_id, reference_id, reference_type, source FROM mod_reference_type WHERE reference_id IN (" + ref_ids + ")")
+    rs = db_session.execute("SELECT rmrt.reference_mod_referencetype_id, rmrt.reference_id, rt.label, "
+                            "mod.abbreviation FROM reference_mod_referencetype rmrt JOIN mod_referencetype mrt "
+                            "ON rmrt.mod_referencetype_id = mrt.mod_referencetype_id JOIN referencetype rt "
+                            "ON mrt.referencetype_id = rt.referencetype_id JOIN mod on mrt.mod_id = mod.mod_id "
+                            "WHERE rmrt.reference_id IN (" + ref_ids + ")")
 
     rows = rs.fetchall()
 

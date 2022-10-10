@@ -26,7 +26,7 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ReferenceCommentAndCorrectionModel,
                                                ReferenceModel,
                                                ResourceModel)
-from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaCreate
+from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.workflow_tag_crud import (
     create as create_workflow_tag,
@@ -344,12 +344,13 @@ def show(db: Session, curie: str, http_request=True):  # noqa
         reference_data["cross_references"] = cross_references
 
     if reference.mod_referencetypes:
-        reference_data["mod_referencetypes"] = []
-        for mod_referencetype in reference.mod_referencetypes:
-            reference_data["mod_referencetypes"].append(
-                ModReferenceTypeSchemaCreate(reference_type=mod_referencetype.referencetype.label,
-                                             source=mod_referencetype.mod.abbreviation)
-            )
+        reference_data["mod_reference_types"] = []
+        for ref_mod_referencetype in reference.mod_referencetypes:
+            reference_data["mod_reference_types"].append(
+                jsonable_encoder(ModReferenceTypeSchemaRelated(
+                    mod_reference_type_id=ref_mod_referencetype.reference_mod_referencetype_id,
+                    reference_type=ref_mod_referencetype.mod_referencetype.referencetype.label,
+                    source=ref_mod_referencetype.mod_referencetype.mod.abbreviation)))
     reference_data["obsolete_references"] = [obs_reference["curie"] for obs_reference in
                                              reference_data["obsolete_reference"]]
     del reference_data["obsolete_reference"]

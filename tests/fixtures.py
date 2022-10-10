@@ -50,15 +50,19 @@ def cleanup_tmp_files_when_done():
 @pytest.fixture
 def populate_test_mod_reference_types(db):
     populate_test_mods()
-    mod_reference_types = {'ZFIN': ['Journal', 'Review'], 'FB': ['book'], 'WB': ['Journal_article', 'Micropublication']}
+    mod_reference_types = {'ZFIN': ['Journal', 'Review'], 'FB': ['book'], 'WB': ['Journal_article', 'Micropublication'],
+                           'SGD': ['Journal']}
     for mod, reference_types in mod_reference_types.items():
         mod = db.query(ModModel).filter(ModModel.abbreviation == mod).one()
         display_order = 1
         for reference_type in reference_types:
-            rt_obj = ReferenceTypeModel(label=reference_type)
+            rt_obj = db.query(ReferenceTypeModel).filter(ReferenceTypeModel.label == reference_type).one_or_none()
+            if rt_obj is None:
+                rt_obj = ReferenceTypeModel(label=reference_type)
+                db.add(rt_obj)
             mod_reference_type_obj = ModReferenceTypeAssociationModel(mod=mod, referencetype=rt_obj,
-                                                                      display_order=display_order)
-            db.add_all((rt_obj, mod_reference_type_obj))
+                                                          display_order=display_order)
+            db.add(mod_reference_type_obj)
             display_order = math.ceil(display_order / 10) * 10
     db.commit()
 

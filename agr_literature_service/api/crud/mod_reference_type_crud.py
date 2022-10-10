@@ -63,12 +63,12 @@ def destroy(db: Session, mod_reference_type_id: int) -> None:
     :return:
     """
 
-    mod_reference_type = db.query(ReferenceModReferenceTypeAssociationModel).filter(
+    ref_mod_reference_type = db.query(ReferenceModReferenceTypeAssociationModel).filter(
         ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id == mod_reference_type_id).first()
-    if not mod_reference_type:
+    if not ref_mod_reference_type:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with mod_reference_type_id {mod_reference_type_id} not found")
-    db.delete(mod_reference_type)
+    db.delete(ref_mod_reference_type)
     db.commit()
 
     return None
@@ -96,10 +96,11 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update):
         if not reference:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"Reference with curie {mrt_data['reference_curie']} does not exist")
-        ref_mod_ref_type_obj.reference = reference
+        ref_mod_ref_type_obj.reference_id = reference.reference_id
     if "reference_type" in mrt_data or "source" in mrt_data:
         if reference is None:
-            reference = ref_mod_ref_type_obj.reference
+            reference = db.query(ReferenceModel).filter(
+                ReferenceModel.reference_id == ref_mod_ref_type_obj.reference_id).first()
         if "source" in mrt_data:
             mod = db.query(ModModel).filter(ModModel.abbreviation == mrt_data["source"]).first()
         else:
@@ -130,18 +131,20 @@ def show(db: Session, mod_reference_type_id: int):
     :return:
     """
 
-    mod_reference_type = db.query(ReferenceModReferenceTypeAssociationModel).filter(
+    ref_mod_reference_type = db.query(ReferenceModReferenceTypeAssociationModel).filter(
         ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id == mod_reference_type_id).first()
-    mod_reference_type_data = jsonable_encoder(mod_reference_type)
+    mod_reference_type_data = {}
 
-    if not mod_reference_type:
+    if not ref_mod_reference_type:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with the mod_reference_type_id {mod_reference_type_id} is not available")
 
-    if mod_reference_type_data["reference_id"]:
-        mod_reference_type_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == mod_reference_type_data["reference_id"]).first()[0]
-        del mod_reference_type_data["reference_id"]
-
+    ref_curie = db.query(ReferenceModel.curie).filter(
+        ReferenceModel.reference_id == ref_mod_reference_type.reference_id).one_or_none()[0]
+    mod_reference_type_data["mod_reference_type_id"] = ref_mod_reference_type.reference_mod_referencetype_id
+    mod_reference_type_data["reference_curie"] = ref_curie
+    mod_reference_type_data["reference_type"] = ref_mod_reference_type.mod_referencetype.referencetype.label
+    mod_reference_type_data["source"] = ref_mod_reference_type.mod_referencetype.mod.abbreviation
     return mod_reference_type_data
 
 
@@ -153,14 +156,14 @@ def show_changesets(db: Session, mod_reference_type_id: int):
     :return:
     """
 
-    mod_reference_type = db.query(ReferenceModReferenceTypeAssociationModel).filter(
-        ReferenceModReferenceTypeAssociationModel.mod_reference_type_id == mod_reference_type_id).first()
-    if not mod_reference_type:
+    ref_mod_reference_type = db.query(ReferenceModReferenceTypeAssociationModel).filter(
+        ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id == mod_reference_type_id).first()
+    if not ref_mod_reference_type:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with the mod_reference_type_id {mod_reference_type_id} is not available")
 
     history = []
-    for version in mod_reference_type.versions:
+    for version in ref_mod_reference_type.versions:
         tx = version.transaction
         history.append({"transaction": {"id": tx.id,
                                         "issued_at": tx.issued_at,
