@@ -61,7 +61,7 @@ def populate_test_mod_reference_types(db):
                 rt_obj = ReferenceTypeModel(label=reference_type)
                 db.add(rt_obj)
             mod_reference_type_obj = ModReferenceTypeAssociationModel(mod=mod, referencetype=rt_obj,
-                                                          display_order=display_order)
+                                                                      display_order=display_order)
             db.add(mod_reference_type_obj)
             display_order = math.ceil(display_order / 10) * 10
     db.commit()
