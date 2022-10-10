@@ -14,7 +14,7 @@ def initialize_elasticsearch():
     print("***** Initializing Elasticsearch Data *****")
     es = Elasticsearch(hosts=config.ELASTICSEARCH_HOST + ":" + config.ELASTICSEARCH_PORT)
     doc1 = {
-        "curie": "AGR:AGR-Reference-0000000001",
+        "curie": "AGRKB:101000000000001", 
         "title": "test title",
         "pubmed_types": ["Journal Article", "Review"],
         "abstract": "Really quite a lot of great information in this article",
@@ -23,7 +23,7 @@ def initialize_elasticsearch():
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}]
     }
     doc2 = {
-        "curie": "AGR:AGR-Reference-0000000002",
+        "curie": "AGRKB:101000000000002",
         "title": "cell title",
         "pubmed_types": ["Book"],
         "abstract": "Its really worth reading this article",
@@ -32,7 +32,7 @@ def initialize_elasticsearch():
         "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}]
     }
     doc3 = {
-        "curie": "AGR:AGR-Reference-0000000003",
+        "curie": "AGRKB:101000000000003",
         "title": "Book 1",
         "pubmed_types": ["Book", "Abstract", "Category1", "Category2", "Category3"],
         "abstract": "A book written about science",
@@ -41,7 +41,7 @@ def initialize_elasticsearch():
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "SGD:S000000123", "is_obsolete": "true"}]
     }
     doc4 = {
-        "curie": "AGR:AGR-Reference-0000000004",
+        "curie": "AGRKB:101000000000004",
         "title": "Book 2",
         "pubmed_types": ["Book", "Category4", "Test", "category5", "Category6", "Category7"],
         "abstract": "The other book written about science",
