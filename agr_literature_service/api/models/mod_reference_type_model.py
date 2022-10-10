@@ -11,7 +11,7 @@ from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
-
+from agr_literature_service.api.models.audited_model import AuditedModel
 
 enable_versioning()
 
@@ -63,7 +63,7 @@ class ModReferenceTypeAssociationModel(Base):
     )
 
 
-class ReferenceModReferenceTypeAssociationModel(Base):
+class ReferenceModReferenceTypeAssociationModel(Base, AuditedModel):
     __tablename__ = "reference_mod_referencetype"
     __versioned__: Dict = {}
 
