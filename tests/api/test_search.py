@@ -14,7 +14,7 @@ def initialize_elasticsearch():
     print("***** Initializing Elasticsearch Data *****")
     es = Elasticsearch(hosts=config.ELASTICSEARCH_HOST + ":" + config.ELASTICSEARCH_PORT)
     doc1 = {
-        "curie": "AGRKB:101000000000001", 
+        "curie": "AGRKB:101000000000001",
         "title": "test title",
         "pubmed_types": ["Journal Article", "Review"],
         "abstract": "Really quite a lot of great information in this article",
