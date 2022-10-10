@@ -15,8 +15,8 @@ from agr_literature_service.api.schemas import ModReferenceTypeSchemaPost
 
 def insert_mod_reference_type_into_db(db_session, pubmed_types, mod_abbreviation, referencetype_label, reference_id):
     mod = db_session.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
-    ref_type = db_session.query(ReferenceTypeModel).filter(ReferenceTypeModel.label ==
-                                                           referencetype_label).one_or_none()
+    ref_type = db_session.query(ReferenceTypeModel).filter(ReferenceTypeModel.label == referencetype_label)\
+        .one_or_none()
     mrt = db_session.query(ModReferenceTypeAssociationModel).filter(
         ModReferenceTypeAssociationModel.mod == mod,
         ModReferenceTypeAssociationModel.referencetype == ref_type).one_or_none()

@@ -7,8 +7,7 @@ import json
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.api.models import ReferenceModel, ResourceModel, \
-    CrossReferenceModel, ModCorpusAssociationModel, ModModel, \
-    ReferenceCommentAndCorrectionModel, ReferenceModReferenceTypeAssociationModel
+    CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceCommentAndCorrectionModel
 
 
 def get_pmid_association_to_mod_via_reference(db_session, pmids, mod_abbreviation):

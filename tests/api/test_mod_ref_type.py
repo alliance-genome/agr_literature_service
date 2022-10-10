@@ -5,8 +5,7 @@ from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models import ModReferenceTypeAssociationModel, \
-    ReferenceModReferenceTypeAssociationModel, ReferenceModel
+from agr_literature_service.api.models import ReferenceModReferenceTypeAssociationModel, ReferenceModel
 from ..fixtures import db, populate_test_mod_reference_types # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
@@ -40,8 +39,8 @@ class TestModReferenceType:
         assert test_mod_ref_type.response.status_code == status.HTTP_201_CREATED
         # check db for mrt
         rmrt = db.query(ReferenceModReferenceTypeAssociationModel).filter(
-            ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id ==
-            test_mod_ref_type.new_mod_ref_type_id).one()
+            ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id == test_mod_ref_type
+            .new_mod_ref_type_id).one()
         assert rmrt.mod_referencetype.referencetype.label == "Journal"
         ref_curie = db.query(ReferenceModel.curie).filter(
             ReferenceModel.reference_id == rmrt.reference_id).one_or_none()[0]
