@@ -54,7 +54,7 @@ def populate_test_mod_reference_types(db):
                            'SGD': ['Journal']}
     for mod, reference_types in mod_reference_types.items():
         mod = db.query(ModModel).filter(ModModel.abbreviation == mod).one()
-        display_order = 1
+        display_order = 10
         for reference_type in reference_types:
             rt_obj = db.query(ReferenceTypeModel).filter(ReferenceTypeModel.label == reference_type).one_or_none()
             if rt_obj is None:
