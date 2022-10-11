@@ -197,5 +197,3 @@ class TestParseDqmJsonResource:
         assert not res.cross_reference[0].is_obsolete
         assert res.cross_reference[0].pages[0] == 'journal'
         assert res.cross_reference[0].pages[1] == 'journal/references'
-
-        assert 1 == 2
