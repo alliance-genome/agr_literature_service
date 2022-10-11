@@ -731,10 +731,17 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
                                            dqm_entry.get('mod_corpus_associations', []),
                                            logger)
 
+            db_entry_pubmed_types = db_entry.get('pubmed_types', [])
+            if db_entry_pubmed_types is None:
+                db_entry_pubmed_types = []
+            dqm_entry_pubmed_types = dqm_entry.get('pubmedTypes', [])
+            if dqm_entry_pubmed_types is None:
+                dqm_entry_pubmed_types = []
+
             update_mod_reference_types(db_session, db_entry['reference_id'],
                                        db_entry.get('mod_reference_type', []),
                                        dqm_entry.get('MODReferenceTypes', []),
-                                       set(db_entry.get('pubmed_types', [])) | set(dqm_entry.get('pubmedTypes', [])),
+                                       set(db_entry_pubmed_types) | set(dqm_entry_pubmed_types),
                                        logger)
 
             if processing_flag == 'mod_biblio_all':

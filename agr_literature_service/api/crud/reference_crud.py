@@ -3,18 +3,15 @@ reference_crud.py
 =================
 """
 import logging
+import re
 from datetime import datetime
 from typing import Any, Dict, List
-import re
 
-
-import sqlalchemy
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import ARRAY, Boolean, String, func
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast
-from sqlalchemy.orm.exc import NoResultFound
 
 from agr_literature_service.api.crud import (cross_reference_crud,
                                              reference_comment_and_correction_crud)
@@ -38,41 +35,9 @@ from agr_literature_service.api.crud.topic_entity_tag_crud import (
     patch as update_topic_entity_tag,
     create as create_topic_entity_tag
 )
+from agr_literature_service.global_utils import get_next_reference_curie
 
 logger = logging.getLogger(__name__)
-
-
-def get_next_curie(db: Session) -> str:
-    """
-
-    :param db:
-    :return:
-    """
-    last_curie = db.query(ReferenceModel.curie).order_by(sqlalchemy.desc(ReferenceModel.curie)).first()
-
-    if not last_curie:
-        last_curie = "AGR:AGR-Reference-0000000000"
-    else:
-        last_curie = last_curie[0]
-
-    curie_parts = last_curie.rsplit("-", 1)
-    number_part = curie_parts[1]
-    number = int(number_part)
-
-    # So we need to check that a later one was not obsoleted as we
-    # do not want to use that curie then.
-    checked = False
-    new_curie = ''
-    while not checked:
-        number += 1
-        new_curie = "-".join([curie_parts[0], str(number).rjust(10, "0")])
-        try:
-            db.query(ObsoleteReferenceModel).filter(ObsoleteReferenceModel.curie == new_curie).one()
-        except NoResultFound:
-            checked = True
-    logger.debug("created new curie {new_curie}")
-
-    return new_curie
 
 
 def create(db: Session, reference: ReferenceSchemaPost):  # noqa
@@ -100,7 +65,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"CrossReference with id {cross_reference.curie} already exists")
     logger.debug("done x ref")
-    curie = get_next_curie(db)
+    curie = get_next_reference_curie(db)
     reference_data["curie"] = curie
 
     for field, value in vars(reference).items():

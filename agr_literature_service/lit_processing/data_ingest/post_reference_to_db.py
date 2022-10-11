@@ -10,7 +10,8 @@ from agr_literature_service.api.models import CrossReferenceModel, ReferenceMode
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.utils.db_read_utils import get_orcid_data,\
     get_journal_data, get_doi_data, get_reference_by_pmid
-from agr_literature_service.api.crud.reference_crud import get_citation_from_args, get_next_curie
+from agr_literature_service.api.crud.reference_crud import get_citation_from_args
+from agr_literature_service.global_utils import get_next_reference_curie
 
 logging.basicConfig(format='%(message)s')
 log = logging.getLogger()
@@ -290,7 +291,9 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
 
         citation = generate_citation(entry, journal_title)
 
-        curie = get_next_curie(db_session)
+        curie = get_next_reference_curie(db_session)
+
+        log.info("NEW REFERENCE curie = " + str(curie))
 
         refData = {"curie": curie,
                    "resource_id": resource_id,

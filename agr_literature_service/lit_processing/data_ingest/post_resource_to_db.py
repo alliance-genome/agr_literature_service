@@ -1,7 +1,6 @@
 import argparse
 import json
 import logging.config
-import sqlalchemy
 import sys
 from os import environ
 
@@ -10,9 +9,9 @@ from dotenv import load_dotenv
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session, \
     sqlalchemy_load_ref_xref
 from agr_literature_service.api.models import ResourceModel, CrossReferenceModel, EditorModel
-from agr_literature_service.api.crud.resource_crud import create_next_curie
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
+from agr_literature_service.global_utils import get_next_resource_curie
 
 load_dotenv()
 init_tmp_dir()
@@ -150,13 +149,8 @@ def post_resources(input_path, input_mod, base_input_dir=base_path):      # noqa
                         new_entry[key] = entry[key]
                 try:
                     resource_id = None
-                    last_curie_row = db_session.query(
-                        ResourceModel.curie).order_by(
-                            sqlalchemy.desc(ResourceModel.curie)).first()
-                    last_curie = 'AGR:AGR-Resource-0000000000'
-                    if last_curie_row:
-                        last_curie = last_curie_row[0]
-                    curie = create_next_curie(last_curie)
+                    curie = get_next_resource_curie(db_session)
+                    logger.info("NEW RESOURCE curie = " + str(curie))
                     cross_references = new_entry.get('cross_references', [])
                     editors = new_entry.get('editors', [])
                     if "cross_references" in new_entry:
@@ -169,7 +163,7 @@ def post_resources(input_path, input_mod, base_input_dir=base_path):      # noqa
                     db_session.flush()
                     db_session.refresh(x)
                     resource_id = x.resource_id
-                    logger.info("Adding resource into database for '" + new_entry['iso_abbreviation'] + "'")
+                    logger.info("Adding resource into database for '" + primary_id + "'")
                     mapping_fh.write("%s\t%s\n" % (primary_id, curie))
 
                     for xref in cross_references:
@@ -207,8 +201,8 @@ def post_resources(input_path, input_mod, base_input_dir=base_path):      # noqa
                         db_session.add(editor_obj)
                     db_session.commit()
                 except Exception as e:
-                    logger.info("An error occurred when adding resource into database for '" + new_entry['iso_abbreviation'] + "'. " + str(e))
-                    error_fh.write("An error occurred when adding resource into database for '" + new_entry['iso_abbreviation'] + "'. " + str(e) + "\n")
+                    logger.info("An error occurred when adding resource into database for '" + primary_id + "'. " + str(e))
+                    error_fh.write("An error occurred when adding resource into database for '" + primary_id + "'. " + str(e) + "\n")
                     db_session.rollback()
 
         mapping_fh.close

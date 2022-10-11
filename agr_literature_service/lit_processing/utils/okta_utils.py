@@ -3,6 +3,8 @@ from json import loads
 from os import environ, path
 import logging
 import logging.config
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 import requests
@@ -51,8 +53,7 @@ def update_okta_token():  # pragma: no cover
     okta_file = base_path + 'okta_token'
     os.makedirs(base_path, exist_ok=True)
     with open(okta_file, 'w') as okta_fh:
-        okta_fh.write("%s" % (token))
-        okta_fh.close
+        okta_fh.write("%s" % token)
     return token
 
 
@@ -60,9 +61,13 @@ def get_authentication_token():  # pragma: no cover
     okta_file = base_path + 'okta_token'
     token = ''
     if path.isfile(okta_file):
-        with open(okta_file, 'r') as okta_fh:
-            token = okta_fh.read().replace("\n", "")
-            okta_fh.close
+        one_day_ago = datetime.now() - relativedelta(days=1)
+        file_time = datetime.fromtimestamp(path.getmtime(okta_file))
+        if file_time > one_day_ago:
+            with open(okta_file, 'r') as okta_fh:
+                token = okta_fh.read().replace("\n", "")
+        else:
+            token = update_okta_token()
     else:
         token = update_okta_token()
     return token

@@ -12,14 +12,14 @@ class ReferenceCommentAndCorrectionSchemaPost(BaseModel):
 
     @validator('reference_curie_from')
     def from_must_be_alliance_reference_curie(cls, v):
-        if not v.startswith("AGR:AGR-Reference-"):
-            raise ValueError('must start with AGR:AGR-Reference-<number>')
+        if not v.startswith("AGRKB:101"):
+            raise ValueError('must start with AGRKB:101')
         return v
 
     @validator('reference_curie_to')
     def to_must_be_alliance_reference_curie(cls, v):
-        if not v.startswith("AGR:AGR-Reference-"):
-            raise ValueError('must start with AGR:AGR-Reference-<number>')
+        if not v.startswith("AGRKB:101"):
+            raise ValueError('must start with AGRKB:101')
         return v
 
     class Config():
