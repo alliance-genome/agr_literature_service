@@ -104,7 +104,7 @@ class TestModReferenceType:
                                      headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_display_order(self, db, test_mod_ref_type, auth_headers):
+    def test_display_order(self, db, test_mod_ref_type, auth_headers): # noqa
         mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == "ZFIN").one_or_none()
         mrts = db.query(ModReferenceTypeAssociationModel).filter(
             ModReferenceTypeAssociationModel.mod_id == mod_id).all()
@@ -123,5 +123,3 @@ class TestModReferenceType:
         new_ref_mod_reftype = db.query(ReferenceModReferenceTypeAssociationModel).filter(
             ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id == new_ref_mod_reftype_id).one()
         assert new_ref_mod_reftype.mod_referencetype.display_order == 30
-
-
