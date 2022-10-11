@@ -53,8 +53,7 @@ def update_okta_token():  # pragma: no cover
     okta_file = base_path + 'okta_token'
     os.makedirs(base_path, exist_ok=True)
     with open(okta_file, 'w') as okta_fh:
-        okta_fh.write("%s" % (token))
-        okta_fh.close
+        okta_fh.write("%s" % token)
     return token
 
 
@@ -67,7 +66,6 @@ def get_authentication_token():  # pragma: no cover
         if file_time > one_day_ago:
             with open(okta_file, 'r') as okta_fh:
                 token = okta_fh.read().replace("\n", "")
-                okta_fh.close
         else:
             token = update_okta_token()
     else:
