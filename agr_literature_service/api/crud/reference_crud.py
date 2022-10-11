@@ -35,7 +35,7 @@ from agr_literature_service.api.crud.topic_entity_tag_crud import (
     patch as update_topic_entity_tag,
     create as create_topic_entity_tag
 )
-from agr_literature_service.global_utils import get_next_reference_curi
+from agr_literature_service.global_utils import get_next_reference_curie
 
 logger = logging.getLogger(__name__)
 
