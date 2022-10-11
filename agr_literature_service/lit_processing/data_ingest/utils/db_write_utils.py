@@ -1,13 +1,14 @@
 from os import environ, makedirs, path
 import json
 
+from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_reference_id_by_curie, get_reference_id_by_pmid
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
-    CrossReferenceModel, ModCorpusAssociationModel, ModReferenceTypeModel, \
-    ModModel, ReferenceCommentAndCorrectionModel, MeshDetailModel
+    CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceCommentAndCorrectionModel, MeshDetailModel, \
+    ReferenceModReferenceTypeAssociationModel
 
 batch_size_for_commit = 250
 
@@ -227,7 +228,7 @@ def update_mod_corpus_associations(db_session, mod_to_mod_id, reference_id, mod_
                 logger.info("An error occurred when updating mod_corpus_association row for mod_corpus_association_id = " + str(mod_corpus_association_id) + " " + str(e))
 
 
-def update_mod_reference_types(db_session, reference_id, db_mod_ref_types, json_mod_ref_types, logger):  # noqa: C901
+def update_mod_reference_types(db_session, reference_id, db_mod_ref_types, json_mod_ref_types, pubmed_types, logger):  # noqa: C901
 
     db_mrt_data = {}
     to_delete_duplicate_rows = []
@@ -245,25 +246,22 @@ def update_mod_reference_types(db_session, reference_id, db_mod_ref_types, json_
     json_mrt_data = dict()
     for mrt in json_mod_ref_types:
         source = mrt['source']
-        ref_type = mrt['referenceType']
+        ref_type_label = mrt['referenceType']
         if source not in json_mrt_data:
             json_mrt_data[source] = []
         # just in case there is any duplicate in json
-        if ref_type not in json_mrt_data[source]:
-            json_mrt_data[source].append(ref_type)
+        if ref_type_label not in json_mrt_data[source]:
+            json_mrt_data[source].append(ref_type_label)
 
     for mod in json_mrt_data:
         lc_json = [x.lower() for x in json_mrt_data[mod]]
         lc_db = []
         if mod in db_mrt_data:
-            lc_db = [x.lower() for x in db_mrt_data[mod].keys()]
-        for ref_type in json_mrt_data[mod]:
-            if ref_type.lower() not in lc_db:
+            lc_db = {x.lower() for x in db_mrt_data[mod].keys()}
+        for ref_type_label in json_mrt_data[mod]:
+            if ref_type_label.lower() not in lc_db:
                 try:
-                    x = ModReferenceTypeModel(reference_id=reference_id,
-                                              reference_type=ref_type,
-                                              source=mod)
-                    db_session.add(x)
+                    insert_mod_reference_type_into_db(db_session, pubmed_types, mod, ref_type_label, reference_id)
                     logger.info("The mod_reference_type for reference_id = " + str(reference_id) + " has been added into the database.")
                 except Exception as e:
                     logger.info("An error occurred when adding mod_reference_type row for reference_id = " + str(reference_id) + " has been a\
@@ -280,8 +278,8 @@ dded into the database. " + str(e))
     for row in to_delete_duplicate_rows:
         (mod_reference_type_id, ref_type) = row
         try:
-            x = db_session.query(ModReferenceTypeModel).filter_by(
-                mod_reference_type_id=mod_reference_type_id).one_or_none()
+            x = db_session.query(ReferenceModReferenceTypeAssociationModel).filter_by(
+                reference_mod_referencetype_id=mod_reference_type_id).one_or_none()
             if x:
                 db_session.delete(x)
                 logger.info("The mod_reference_type for mod_reference_type_id = " + str(mod_reference_type_id) + " has been deleted from the database.")

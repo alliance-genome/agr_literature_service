@@ -10,7 +10,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_mesh_term_data_for_ref_ids, get_mod_corpus_association_data_for_ref_ids, \
     get_mod_reference_type_data_for_ref_ids
 
-from ...fixtures import cleanup_tmp_files_when_done, load_sanitized_references, db # noqa
+from ...fixtures import cleanup_tmp_files_when_done, load_sanitized_references, db, populate_test_mod_reference_types # noqa
 
 
 class TestExportSingleModReferencesToJson:

@@ -7,6 +7,7 @@ mod_model.py
 from typing import Dict
 
 from sqlalchemy import Column, Integer, String
+from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -42,3 +43,5 @@ class ModModel(Base, AuditedModel):
         unique=True,
         nullable=False
     )
+
+    referencetypes = relationship("ModReferenceTypeAssociationModel")
