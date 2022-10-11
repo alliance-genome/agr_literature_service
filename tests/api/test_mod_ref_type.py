@@ -70,13 +70,13 @@ class TestModReferenceType:
             response = client.get(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}/versions")
             transactions = response.json()
             assert transactions[0]['changeset']['reference_id'][1] == from_id
-            mod_referencetype_id_orig = db.execute("SELECT mod_referencetype_id from mod_referencetype where mod_id = "
+            mod_referencetype_id_orig = db.execute("select mod_referencetype_id from mod_referencetype where mod_id = "
                                                    "(select mod_id from mod where abbreviation = 'ZFIN') and "
                                                    "referencetype_id = (select referencetype_id from referencetype "
                                                    "where label = 'Journal')").first()[0]
             assert transactions[0]['changeset']['mod_referencetype_id'][1] == mod_referencetype_id_orig
             assert transactions[1]['changeset']['reference_id'][1] == to_id
-            mod_referencetype_id_new = db.execute("SELECT mod_referencetype_id from mod_referencetype where mod_id = "
+            mod_referencetype_id_new = db.execute("select mod_referencetype_id from mod_referencetype where mod_id = "
                                                   "(select mod_id from mod where abbreviation = 'ZFIN') and "
                                                   "referencetype_id = (select referencetype_id from referencetype "
                                                   "where label = 'Review')").first()[0]
