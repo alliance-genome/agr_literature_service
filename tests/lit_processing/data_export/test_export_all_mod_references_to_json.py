@@ -3,7 +3,7 @@ from os import stat, path, environ
 
 from agr_literature_service.lit_processing.data_export.export_all_mod_references_to_json import \
     dump_all_data
-from ...fixtures import db, load_sanitized_references, cleanup_tmp_files_when_done # noqa
+from ...fixtures import db, load_sanitized_references, cleanup_tmp_files_when_done, populate_test_mod_reference_types # noqa
 
 
 class TestExportAllModReferencesToJson:

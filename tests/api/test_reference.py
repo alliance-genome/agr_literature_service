@@ -8,7 +8,7 @@ from fastapi import status
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, CrossReferenceModel
-from ..fixtures import db # noqa
+from ..fixtures import db, populate_test_mod_reference_types # noqa
 from .fixtures import auth_headers # noqa
 from .test_resource import test_resource # noqa
 
@@ -140,7 +140,7 @@ class TestReference:
             delete_response = client.delete(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             assert delete_response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_reference_large(self, db, auth_headers): # noqa
+    def test_reference_large(self, db, auth_headers, populate_test_mod_reference_types): # noqa
         with TestClient(app) as client:
             full_xml = {
                 "category": "research_article",
@@ -171,8 +171,8 @@ class TestReference:
                 ],
                 "mod_reference_types": [
                     {
-                        "reference_type": "mrt_rt",
-                        "source": "mrt_s"
+                        "reference_type": "Journal",
+                        "source": "ZFIN"
                     }
                 ],
                 "cross_references": [
@@ -240,7 +240,7 @@ class TestReference:
 
             assert response['cross_references'][0]['curie'] == 'FB:FBrf0221304'
 
-            assert response['mod_reference_types'][0]['reference_type'] == "mrt_rt"
+            assert response['mod_reference_types'][0]['reference_type'] == "Journal"
 
             assert response['mesh_terms'][0]['heading_term'] == "hterm"
 

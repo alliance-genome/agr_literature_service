@@ -1,16 +1,16 @@
 import logging
 from os import path
 
-from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel,\
-    AuthorModel, ModModel, ModCorpusAssociationModel, ModReferenceTypeModel, \
-    MeshDetailModel, ReferenceCommentAndCorrectionModel
+from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
+    AuthorModel, ModModel, ModCorpusAssociationModel, MeshDetailModel, ReferenceCommentAndCorrectionModel, \
+    ReferenceModReferenceTypeAssociationModel
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_references_by_curies, get_pmid_to_reference_id
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     add_cross_references, update_authors, update_mod_corpus_associations, \
     update_mod_reference_types, add_mca_to_existing_references, \
     update_comment_corrections, update_mesh_terms, update_cross_reference
-from ....fixtures import db, load_sanitized_references # noqa
+from ....fixtures import db, load_sanitized_references, populate_test_mod_reference_types # noqa
 
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
@@ -19,7 +19,7 @@ logger.setLevel(logging.INFO)
 
 class TestDbReadUtils:
 
-    def test_dqm_update_functions(self, db, load_sanitized_references): # noqa
+    def test_dqm_update_functions(self, db, load_sanitized_references, populate_test_mod_reference_types): # noqa
 
         refs = db.query(ReferenceModel).all()
         ref_curie_list = [refs[0].curie, refs[1].curie]
@@ -90,7 +90,7 @@ class TestDbReadUtils:
                 assert mod == 'SGD'
 
         ## test update_mod_reference_types()
-        mrt_rows = db.query(ModReferenceTypeModel).filter_by(reference_id=reference_id).all()
+        mrt_rows = db.query(ReferenceModReferenceTypeAssociationModel).filter_by(reference_id=reference_id).all()
         assert len(mrt_rows) == 1
         mod_reference_types = [
             {
@@ -100,13 +100,13 @@ class TestDbReadUtils:
         ]
         update_mod_reference_types(db, reference_id,
                                    db_entry.get('mod_reference_type', []),
-                                   mod_reference_types, logger)
+                                   mod_reference_types, {'Journal'}, logger)
         db.commit()
-        mrt_rows = db.query(ModReferenceTypeModel).filter_by(reference_id=reference_id).order_by(
-            ModReferenceTypeModel.mod_reference_type_id).all()
+        mrt_rows = db.query(ReferenceModReferenceTypeAssociationModel).filter_by(reference_id=reference_id).order_by(
+            ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id).all()
         assert len(mrt_rows) == 2
-        assert mrt_rows[0].source == 'ZFIN'
-        assert mrt_rows[1].source == 'SGD'
+        assert mrt_rows[0].mod_referencetype.mod.abbreviation == 'ZFIN'
+        assert mrt_rows[1].mod_referencetype.mod.abbreviation == 'SGD'
 
     def test_pubmed_search_update_functions(self, db, load_sanitized_references): # noqa
 

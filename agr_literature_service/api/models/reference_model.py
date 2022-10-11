@@ -87,6 +87,8 @@ class ReferenceModel(Base, AuditedModel):
         nullable=True
     )
 
+    mod_referencetypes = relationship("ReferenceModReferenceTypeAssociationModel")
+
     mod_reference_type = relationship(
         "ModReferenceTypeModel",
         lazy="joined",
