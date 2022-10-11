@@ -77,7 +77,7 @@ class TestPostReferenceToDb:
         assert isinstance(journal_to_resource_id, dict)
 
         ## test insert_reference()
-        reference_id = insert_reference(db, primaryId, journal_to_resource_id, entry)
+        reference_id, _ = insert_reference(db, primaryId, journal_to_resource_id, entry)
         assert isinstance(reference_id, int)
         db.commit()
         x = db.query(ReferenceModel).filter_by(title=entry['title']).one_or_none()
