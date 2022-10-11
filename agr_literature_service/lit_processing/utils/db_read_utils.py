@@ -517,7 +517,7 @@ def get_mod_reference_type_data_for_ref_ids(db_session, ref_ids):
     rs = db_session.execute("SELECT rmrt.reference_mod_referencetype_id, rmrt.reference_id, rt.label, "
                             "mod.abbreviation FROM reference_mod_referencetype rmrt JOIN mod_referencetype mrt "
                             "ON rmrt.mod_referencetype_id = mrt.mod_referencetype_id JOIN referencetype rt "
-                            "ON mrt.referencetype_id = rt.referencetype_id JOIN mod on mrt.mod_id = mod.mod_id "
+                            "ON mrt.referencetype_id = rt.referencetype_id JOIN mod ON mrt.mod_id = mod.mod_id "
                             "WHERE rmrt.reference_id IN (" + ref_ids + ")")
 
     rows = rs.fetchall()
