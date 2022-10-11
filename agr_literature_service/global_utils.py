@@ -75,9 +75,9 @@ def get_next_local_curie(subdomain, db):
     rs = None
     if subdomain == 'reference':
         curie_start = "AGRKB:101"
-        rs = db.execute("SELECT curie FROM reference order by reference_id desc")
+        rs = db.execute("SELECT curie FROM reference order by reference_id desc limit 1")
     else:
-        rs = db.execute("SELECT curie FROM resource order by resource_id desc")
+        rs = db.execute("SELECT curie FROM resource order by resource_id desc limit 1")
     rows = None
     if rs:
         rows = rs.fetchall()
