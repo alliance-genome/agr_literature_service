@@ -2,7 +2,7 @@ import json
 import logging.config
 import warnings
 from os import environ, path
-from typing import Dict
+from typing import Dict, List, Tuple
 
 from dotenv import load_dotenv
 from fastapi.encoders import jsonable_encoder
@@ -26,9 +26,9 @@ load_dotenv()
 init_tmp_dir()
 
 remap_keys: Dict = {}
-simple_fields = []
-list_fields = []
-xref_ref = {}
+simple_fields: List = []
+list_fields: List = []
+xref_ref: Dict = {}
 ref_xref_valid = {}
 ref_xref_obsolete = {}
 # pipenv run python sort_dqm_json_resource_updates.py
@@ -179,7 +179,7 @@ def update_resource(db_session, dqm_entry, db_entry) -> None:
     return
 
 
-def process_update_resource(db_session, dqm_entry, agr) -> Dict:
+def process_update_resource(db_session, dqm_entry, agr) -> Tuple:
     global xref_ref, ref_xref_valid, ref_xref_obsolete
     if not xref_ref:
         xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
@@ -209,6 +209,7 @@ def process_update_resource(db_session, dqm_entry, agr) -> Dict:
     #        logger.info("add to %s create_dict %s", agr, create_dict)
     #        editor_post_url = 'http://localhost:' + api_port + '/editor/'
     #        headers = generic_api_post(live_changes, editor_post_url, headers, create_dict, agr, None, None)
+    return True, "Okay"
 
 
 def update_resources(db_session, live_changes, resources_to_update):
