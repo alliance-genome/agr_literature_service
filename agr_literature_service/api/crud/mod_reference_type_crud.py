@@ -28,7 +28,7 @@ def insert_mod_reference_type_into_db(db_session, pubmed_types, mod_abbreviation
                                     default=0)
             mrt = ModReferenceTypeAssociationModel(
                 mod=mod, referencetype=ref_type,
-                display_order=math.ceil(max_display_order / 10) * 10)
+                display_order=math.ceil((max_display_order + 1) / 10) * 10)
     rmrt = ReferenceModReferenceTypeAssociationModel(reference_id=reference_id, mod_referencetype=mrt)
     db_session.add(rmrt)
     db_session.commit()
