@@ -31,6 +31,7 @@ def process_pmid(pmid):
     db_session = create_postgres_session(False)
     exists = db_session.query(CrossReferenceModel).filter_by(curie="PMID:" + pmid).one_or_none()
     db_session.close()
+    added_curie = None
     if not exists:
         base_path = environ.get('XML_PATH')
         pmids_wanted = [pmid]
@@ -39,8 +40,9 @@ def process_pmid(pmid):
         sanitize_pubmed_json_list(pmids_wanted, [])
         # json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_' + pmid + '.json'
         json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_PMID.json'
-        post_references(json_filepath)
+        added_curie = post_references(json_filepath)[0]
         upload_xml_file_to_s3(pmid)
+    return added_curie
 
 
 if __name__ == "__main__":

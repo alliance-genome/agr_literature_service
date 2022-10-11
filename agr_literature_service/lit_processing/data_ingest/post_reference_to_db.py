@@ -45,29 +45,32 @@ def post_references(json_path, live_change=True):  # noqa: C901
 
     log.info("Reading json data and loading data into database...")
 
+    new_ref_curies = []
     for json_file in sorted(files_to_process):
         if not path.exists(json_file):
             continue
         f = open(json_file)
         json_data = json.load(f)
-        read_data_and_load_references(db_session, json_data, journal_to_resource_id,
-                                      orcid_dict, newly_added_orcid, doi_to_reference_id,
-                                      mod_to_mod_id, live_change)
+        new_ref_curies.extend(read_data_and_load_references(db_session, json_data, journal_to_resource_id,
+                                                            orcid_dict, newly_added_orcid, doi_to_reference_id,
+                                                            mod_to_mod_id, live_change))
 
     db_session.close()
     log.info("DONE!\n\n")
+    return new_ref_curies
 
 
 def read_data_and_load_references(db_session, json_data, journal_to_resource_id, orcid_dict, newly_added_orcid, doi_to_reference_id, mod_to_mod_id, live_change):
 
+    new_ref_curies = []
     for entry in json_data:
 
         primaryId = set_primaryId(entry)
 
         try:
 
-            reference_id = insert_reference(db_session, primaryId,
-                                            journal_to_resource_id, entry)
+            reference_id, curie = insert_reference(db_session, primaryId, journal_to_resource_id, entry)
+            new_ref_curies.append(curie)
 
             if reference_id is None:
                 log.info(primaryId + ": Error loading reference table")
@@ -114,6 +117,7 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
         except Exception as e:
             log.info("An error occurred when adding the new reference into database for primaryId = " + primaryId + " " + str(e))
             db_session.rollback()
+    return new_ref_curies
 
 
 def insert_mod_corpus_associations(db_session, primaryId, reference_id, mod_to_mod_id, mod_corpus_associations_from_json):
@@ -281,6 +285,7 @@ def insert_authors(db_session, primaryId, reference_id, author_list_from_json, o
 def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
 
     reference_id = None
+    curie = None
 
     try:
         resource_id = None
@@ -325,7 +330,7 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
     except Exception as e:
         log.info(primaryId + ": INSERT REFERENCE failed " + str(e))
 
-    return reference_id
+    return reference_id, curie
 
 
 def generate_citation(entry, journal_title):
