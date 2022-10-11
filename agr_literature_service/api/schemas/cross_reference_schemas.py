@@ -40,7 +40,7 @@ class CrossReferenceSchemaPost(CrossReferenceSchemaRelated):
                 "pages": [
                     "reference"
                 ],
-                "reference_curie": "AGR:AGRReference<number>"
+                "reference_curie": "AGRKB:101"
             }
         }
 
