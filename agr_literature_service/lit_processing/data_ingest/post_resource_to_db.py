@@ -81,9 +81,9 @@ def process_editors(db_session: Session, resource_id: int, editors: Dict) -> Non
                 if not cross_reference_obj:
                     cross_reference_obj = CrossReferenceModel(curie=new_editor['orcid'])
                     db_session.add(cross_reference_obj)
-            new_editor['resource_id'] = resource_id
-            editor_obj = EditorModel(**new_editor)
-            db_session.add(editor_obj)
+        new_editor['resource_id'] = resource_id
+        editor_obj = EditorModel(**new_editor)
+        db_session.add(editor_obj)
 
 
 def process_cross_references(db_session: Session, resource_id: int, cross_references: Dict) -> None:
@@ -184,7 +184,7 @@ def process_resource_entry(db_session: Session, entry: Dict, xref_ref: Dict) -> 
         db_session.commit()
         return True, f"{primary_id}\t{curie}\n"
     except Exception as e:
-        message = f"An error occurred when adding resource into database for '{new_entry['iso_abbreviation']}'. {e}\n"
+        message = f"An error occurred when adding resource into database for '{entry}'. {e}\n"
         logger.info(message)
         db_session.rollback()
         return False, message
@@ -246,9 +246,6 @@ def post_resources(db_session: Session, input_path: str, input_mod: str, base_in
                         mapping_fh.write(message)
                 else:
                     error_fh.write(message)
-
-        mapping_fh.close
-        error_fh.close
         db_session.close()
 
 

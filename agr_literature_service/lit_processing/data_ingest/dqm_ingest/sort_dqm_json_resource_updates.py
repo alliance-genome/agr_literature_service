@@ -2,6 +2,7 @@ import json
 import logging.config
 import warnings
 from os import environ, path
+from typing import Dict
 
 from dotenv import load_dotenv
 from fastapi.encoders import jsonable_encoder
@@ -10,6 +11,7 @@ from agr_literature_service.api.models import ResourceModel, CrossReferenceModel
 # from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import save_resource_file
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session,\
     sqlalchemy_load_ref_xref
+from sqlalchemy.orm.exc import NoResultFound
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_processing_utils import \
     compare_authors_or_editors
@@ -23,6 +25,12 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 load_dotenv()
 init_tmp_dir()
 
+remap_keys: Dict = {}
+simple_fields = []
+list_fields = []
+xref_ref = {}
+ref_xref_valid = {}
+ref_xref_obsolete = {}
 # pipenv run python sort_dqm_json_resource_updates.py
 
 # first run  get_datatypes_cross_references.py  to generate mappings from references to xrefs and resources to xrefs
@@ -59,8 +67,6 @@ def load_sanitized_resource(datatype, filename):
                 sanitized_resources = whole_dict['data']
     except IOError as e:
         logger.warning(f"Unable to read file {filename}. Error {e}")
-        print(f"Unable to read file {filename}. Error {e}")
-        pass
     return sanitized_resources
 
 
@@ -74,27 +80,19 @@ def update_sanitized_resources(db_session, datatype, filename):
     :param datatype:
     :return:
     """
-    print(type(db_session))
-    print(dir(db_session))
     scriptNm = path.basename(__file__).replace(".py", "")
     set_global_user_id(db_session, scriptNm)
 
     logger.info("update_sanitized_resources for %s", datatype)
 
-    # base_path = environ.get('XML_PATH')
-
-    # json_storage_path = base_path + 'sanitized_resource_json_updates/'
-    # if not path.exists(json_storage_path):
-    #    makedirs(json_storage_path)
-    # print(f"json storage path is {json_storage_path}")
     xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
 
     sanitized_resources = load_sanitized_resource(datatype, filename)
     resources_to_update = dict()
-    # resources_to_create = dict()
 
-    # e.g. create ZFIN:ZDB-JRNL-210824-1
     counter = 0
+    new = 0
+    updated = 0
     # make this True for live changes
     # live_changes = False
     live_changes = True
@@ -115,6 +113,7 @@ def update_sanitized_resources(db_session, datatype, filename):
                     resources_to_update[agr] = resource_dict
                 logger.info("update primary_id %s db %s", primary_id, agr)
                 found = True
+                updated += 1
         if not found:
             # logger.info("create primary_id %s", primary_id)
             # resources_to_create[primary_id] = resource_dict
@@ -125,14 +124,91 @@ def update_sanitized_resources(db_session, datatype, filename):
                     logger.info(message)
                 else:
                     logger.error(message)
-
-    print(f"{counter} resources seen.")
-    # if resources_to_create:
-    #    save_resource_file(json_storage_path, resources_to_create, datatype)  # this needs to post_resource_to_api, figure out appending to resource_primary_id_to_curie
+            new += 1
+    logger.info(f"{counter} resources seen. {new} new, {updated} updated.")
 
     update_resources(db_session, live_changes, resources_to_update)
 
     db_session.close()
+
+
+def update_resource(db_session, dqm_entry, db_entry) -> None:
+    global simple_fields
+    global list_fields
+    global remap_keys
+    if not simple_fields:
+        simple_fields = ['title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN',
+                         'onlineISSN', 'publisher', 'pages']
+    if not list_fields:
+        list_fields = ['abbreviationSynonyms', 'titleSynonyms', 'volumes']
+    if not remap_keys:
+        remap_keys['isoAbbreviation'] = 'iso_abbreviation'
+        remap_keys['medlineAbbreviation'] = 'medline_abbreviation'
+        remap_keys['printISSN'] = 'print_issn'
+        remap_keys['onlineISSN'] = 'online_issn'
+        remap_keys['abbreviationSynonyms'] = 'abbreviation_synonyms'
+        remap_keys['titleSynonyms'] = 'title_synonyms'
+        remap_keys['crossReferences'] = 'cross_references'
+        remap_keys['editorsOrAuthors'] = 'editors'
+
+    agr = db_entry['curie']
+    update_json = dict()
+    for field_camel in simple_fields:
+        field_snake = camel_to_snake(field_camel, remap_keys)
+        dqm_value = None
+        db_value = None
+        if field_camel in dqm_entry:
+            dqm_value = dqm_entry[field_camel]
+        if field_snake in db_entry:
+            db_value = db_entry[field_snake]
+        if dqm_value != db_value:
+            logger.info(f"patch {agr} field {field_snake} from db {db_value} to pm {dqm_value}")
+            update_json[field_snake] = dqm_value
+    for field_camel in list_fields:
+        list_changed = compare_list(db_entry, dqm_entry, field_camel, remap_keys)
+        if list_changed[0]:
+            logger.info("patch %s field %s from db %s to dqm %s", agr, list_changed[3], list_changed[2], list_changed[1])
+            update_json[list_changed[3]] = list_changed[1]
+    if update_json:
+        try:
+            db_session.query(ResourceModel).filter_by(curie=agr).update(update_json)
+            db_session.commit()
+            logger.info("The resource row for curie = " + agr + " has been updated.")
+        except Exception as e:
+            logger.error("An error occurred when updating resource row for curie = " + agr + " " + str(e))
+    return
+
+
+def process_update_resource(db_session, dqm_entry, agr) -> Dict:
+    global xref_ref, ref_xref_valid, ref_xref_obsolete
+    if not xref_ref:
+        xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
+    try:
+        db_entry = db_session.query(ResourceModel).filter(ResourceModel.curie == agr).one()
+    except NoResultFound:
+        return False, f"Unable to find unique resource with curie {agr}."
+    db_entry = jsonable_encoder(db_entry)
+    update_resource(db_session, dqm_entry, db_entry)
+    if 'crossReferences' in dqm_entry:
+        compare_xref(db_session, agr, db_entry['resource_id'], dqm_entry,
+                     xref_ref, ref_xref_valid, ref_xref_obsolete)
+    editors_changed = compare_authors_or_editors(db_entry, dqm_entry, 'editors')
+    # editor API needs updates.  reference_curie required to post reference authors but for some reason resource_curie not allowed here, cannot connect new editor to resource if resource_curie is not passed in
+    if editors_changed[0]:
+        pass
+    #    # live_changes = True
+    #    # e.g. FB:FBmultipub_7448
+    #    for patch_data in editors_changed[1]:
+    #        patch_dict = patch_data['patch_dict']
+    #        # patch_dict['resource_curie'] = agr   # reference_curie required to patch reference authors but for some reason not allowed here
+    #        logger.info("patch %s editor_id %s patch_dict %s", agr, patch_data['editor_id'], patch_dict)
+    #        editor_patch_url = 'http://localhost:' + api_port + '/editor/' + str(patch_data['editor_id'])
+    #        headers = generic_api_patch(live_changes, editor_patch_url, headers, patch_dict, str(patch_data['editor_id']), None, None)
+    #    for create_dict in editors_changed[2]:
+    #        create_dict['resource_curie'] = agr   # reference_curie required to post reference authors but for some reason not allowed here
+    #        logger.info("add to %s create_dict %s", agr, create_dict)
+    #        editor_post_url = 'http://localhost:' + api_port + '/editor/'
+    #        headers = generic_api_post(live_changes, editor_post_url, headers, create_dict, agr, None, None)
 
 
 def update_resources(db_session, live_changes, resources_to_update):
@@ -147,125 +223,8 @@ def update_resources(db_session, live_changes, resources_to_update):
     :return:
     """
 
-    # pubmed_fields = ['isoAbbreviation', 'crossReferences', 'onlineISSN',
-    # 'medlineAbbreviation', 'printISSN', 'title', 'primaryId', 'nlm']
-    # keys_to_remove = {'nlm', 'primaryId', 'crossReferences'}
-    # these are all the nlm, which is the key to find this, so it cannot change
-    remap_keys = dict()
-    remap_keys['isoAbbreviation'] = 'iso_abbreviation'
-    remap_keys['medlineAbbreviation'] = 'medline_abbreviation'
-    remap_keys['printISSN'] = 'print_issn'
-    remap_keys['onlineISSN'] = 'online_issn'
-    remap_keys['abbreviationSynonyms'] = 'abbreviation_synonyms'
-    remap_keys['titleSynonyms'] = 'title_synonyms'
-    remap_keys['crossReferences'] = 'cross_references'
-    remap_keys['editorsOrAuthors'] = 'editors'
-
-    # to account for editors and xrefs later
-    # editor_keys_to_remove = {'referenceId'}
-    # remap_editor_keys = dict()
-    # remap_editor_keys['authorRank'] = 'order'
-    # remap_editor_keys['firstName'] = 'first_name'
-    # remap_editor_keys['lastName'] = 'last_name'
-    # remap_editor_keys['middleNames'] = 'middle_names'
-    # cross_references_keys_to_remove = dict()
-    # remap_cross_references_keys = dict()
-    # remap_cross_references_keys['id'] = 'curie'
-
-    # no one is sending abstractOrSummary / 'abstract', 'summary' ; titleSynonyms ; copyrightDate data
-    simple_fields = ['title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN',
-                     'publisher', 'pages']
-    list_fields = ['abbreviationSynonyms', 'titleSynonyms', 'volumes']
-    # complex_fields = ['crossReferences', 'editorsOrAuthors']
-    # TODO deal with editors, example AGR:AGR-Resource-0000034288     FB:FBmultipub_7448
-
-    xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
-
-    counter = 0
-    max_counter = 10000000
-    # max_counter = 1
-
-    # agr_to_resource_obj = dict([(x.curie, x) for x in db_session.query(ResourceModel).all()])
-    agr_to_resource_dict = {}
-    for x in db_session.query(ResourceModel).all():
-        agr = x.curie
-        json_data = jsonable_encoder(x)
-        agr_to_resource_dict[x.curie] = json_data
-
-    i = 0
-
     for agr in resources_to_update:
-        counter = counter + 1
-        if counter > max_counter:
-            break
-
-        # to test only on something that gets a new online_issn
-        # if agr != 'AGR:AGR-Resource-0000015274':
-        #     continue
-
-        if i > batch_size_for_commit:
-            i = 0
-            if live_changes:
-                db_session.commit()
-            else:
-                db_session.rollback()
-
-        dqm_entry = resources_to_update[agr]
-        db_entry = agr_to_resource_dict[agr]
-
-        # logger.info("pm title %s", dqm_entry['title'])   # for debugging which reference was found
-        # logger.info("%s", dqm_entry)
-#         live_changes = True
-
-        update_json = dict()
-        for field_camel in simple_fields:
-            field_snake = camel_to_snake(field_camel, remap_keys)
-            dqm_value = None
-            db_value = None
-            if field_camel in dqm_entry:
-                dqm_value = dqm_entry[field_camel]
-            if field_snake in db_entry:
-                db_value = db_entry[field_snake]
-            if dqm_value != db_value:
-                logger.info("patch %s field %s from db %s to pm %s", agr, field_snake, db_value, dqm_value)
-                update_json[field_snake] = dqm_value
-        for field_camel in list_fields:
-            list_changed = compare_list(db_entry, dqm_entry, field_camel, remap_keys)
-            if list_changed[0]:
-                logger.info("patch %s field %s from db %s to dqm %s", agr, list_changed[3], list_changed[2], list_changed[1])
-                update_json[list_changed[3]] = list_changed[1]
-        if 'crossReferences' in dqm_entry:
-            compare_xref(db_session, agr, db_entry['resource_id'], dqm_entry, xref_ref, ref_xref_valid,
-                         ref_xref_obsolete)
-        editors_changed = compare_authors_or_editors(db_entry, dqm_entry, 'editors')
-        # editor API needs updates.  reference_curie required to post reference authors but for some reason resource_curie not allowed here, cannot connect new editor to resource if resource_curie is not passed in
-        if editors_changed[0]:
-            pass
-        #    # live_changes = True
-        #    # e.g. FB:FBmultipub_7448
-        #    for patch_data in editors_changed[1]:
-        #        patch_dict = patch_data['patch_dict']
-        #        # patch_dict['resource_curie'] = agr   # reference_curie required to patch reference authors but for some reason not allowed here
-        #        logger.info("patch %s editor_id %s patch_dict %s", agr, patch_data['editor_id'], patch_dict)
-        #        editor_patch_url = 'http://localhost:' + api_port + '/editor/' + str(patch_data['editor_id'])
-        #        headers = generic_api_patch(live_changes, editor_patch_url, headers, patch_dict, str(patch_data['editor_id']), None, None)
-        #    for create_dict in editors_changed[2]:
-        #        create_dict['resource_curie'] = agr   # reference_curie required to post reference authors but for some reason not allowed here
-        #        logger.info("add to %s create_dict %s", agr, create_dict)
-        #        editor_post_url = 'http://localhost:' + api_port + '/editor/'
-        #        headers = generic_api_post(live_changes, editor_post_url, headers, create_dict, agr, None, None)
-        if update_json:
-            i += 1
-            try:
-                db_session.query(ResourceModel).filter_by(curie=agr).update(update_json)
-                logger.info("The resource row for curie = " + agr + " has been updated.")
-            except Exception as e:
-                logger.info("An error occurred when updating resource row for curie = " + agr + " " + str(e))
-
-    if live_changes:
-        db_session.commit()
-    else:
-        db_session.rollback()
+        process_update_resource(db_session, resources_to_update[agr], agr)
 
 
 def camel_to_snake(field_camel, remap_keys):
@@ -378,34 +337,6 @@ def compare_list(db_entry, dqm_entry, field_camel, remap_keys):
         return False, None, None
     else:
         return True, dqm_values, db_values, field_snake
-
-
-# def test_get_from_list():
-#    """
-#    To test making a GET on :4005 to get multiple references at once vs
-#    one-by-one.  It's just as slow, but leaving it in to test future different
-#    methods for getting data from database
-#    20 seconds for 1000 resources
-#    13.5 minutes for all 42513 resources
-#    :return:
-#    """
-#
-#    print('json_data')
-#    method = 'GET'
-#    headers = {
-#        'Content-Type': 'application/json',
-#        'Accept': 'application/json'
-#    }
-#    json_data = []
-#    # for i in range(1, 1001):
-#    for i in range(1, 42514):
-#        agr_id = 'AGR:AGR-Resource-' + str(i).zfill(10)
-#        url = 'http://dev.alliancegenome.org:4005/resource/' + agr_id
-#        print(url)
-#        request_return = requests.request(method, url=url, headers=headers, json=json_data)
-#        process_text = str(request_return.text)
-#        print(process_text)
-#    # print(json_data)
 
 
 if __name__ == "__main__":
