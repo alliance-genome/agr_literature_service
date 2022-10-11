@@ -67,11 +67,9 @@ def find_data_mappings(db_session):
 
 def update_db_dates(db_session, reference_id, start_date_string, end_date_string):
     try:
-        # 1.7 sec to process 1k entries with raw sql  24 min 31 sec for about 906358 references
-        db_session.execute(f"UPDATE reference SET date_published_start = '{start_date_string}' WHERE reference_id = '{reference_id}'")
-        logger.info(f"UPDATE reference SET date_published_start = '{start_date_string}' WHERE reference_id = '{reference_id}'")
-        db_session.execute(f"UPDATE reference SET date_published_end = '{end_date_string}' WHERE reference_id = '{reference_id}'")
-        logger.info(f"UPDATE reference SET date_published_end = '{end_date_string}' WHERE reference_id = '{reference_id}'")
+        # 0.8 sec to process 1k entries with raw sql  12 min 33 sec for about 906358 references
+        db_session.execute(f"UPDATE reference SET date_published_start = '{start_date_string}', date_published_end = '{end_date_string}' WHERE reference_id = '{reference_id}'")
+        logger.info(f"UPDATE reference SET date_published_start = '{start_date_string}', date_published_end = '{end_date_string}' WHERE reference_id = '{reference_id}'")
 
         # 2 min 20 sec to process 1k entries with sql alchemy
         # x = db_session.query(ReferenceModel).filter_by(reference_id=reference_id).one_or_none()
