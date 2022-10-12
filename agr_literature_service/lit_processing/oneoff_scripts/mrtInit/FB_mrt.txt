@@ -1,0 +1,42 @@
+FlyBase reference types	Number of entries in database
+paper	107635
+DNA/RNA sequence record	40243
+abstract	37642
+review	14604
+thesis	9248
+personal communication to FlyBase	7000
+stock list	2974
+protein sequence record	2730
+note	2058
+book	858
+supplementary material	658
+erratum	562
+letter	409
+patent	396
+conference report	320
+FlyBase analysis	241
+unpublished	206
+book review	190
+film	186
+news article	163
+obituary	149
+teaching note	142
+biography	124
+bibliographic list	102
+editorial	100
+poster	80
+curated genome annotation	71
+interview	55
+website	45
+retraction	31
+autobiography	22
+micropublication	16
+press release	13
+species list	8
+spoof	8
+poem	7
+database	6
+white paper	6
+preprint	2
+newspaper article	0
+sequence record	0
