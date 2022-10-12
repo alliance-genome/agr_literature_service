@@ -1,0 +1,60 @@
+SGD reference types:	number
+Journal Article	102483
+Research Support, Non-U.S. Gov't	62893
+Research Support, U.S. Gov't, P.H.S.	19084
+Research Support, N.I.H., Extramural	14581
+Review	9744
+Research Support, U.S. Gov't, Non-P.H.S.	9112
+Comparative Study	7474
+Comment	1280
+Evaluation Study	949
+Research Support, N.I.H., Intramural	796
+English Abstract	746
+News	475
+Letter	344
+Validation Study	316
+Personal Communication to SGD	255
+Editorial	150
+Published Erratum	149
+Video-Audio Media	147
+Historical Article	135
+Case Reports	126
+Biography	46
+Congress	41
+Research Support, American Recovery and Reinvestment Act	36
+Introductory Journal Article	35
+Portrait	30
+Thesis	29
+Chapter	27
+Meta-Analysis	25
+Autobiography	19
+Lecture	16
+Technical Report	15
+Corrected and Republished Article	13
+Retracted Publication	13
+Book	12
+Randomized Controlled Trial	12
+Clinical Trial	11
+Bibliography	9
+Multicenter Study	9
+Interview	7
+Dataset	6
+Personal Communication in Publication	5
+Classical Article	4
+Retraction of Publication	3
+Systematic Review	3
+Book Chapter	2
+Controlled Clinical Trial	2
+Directory	2
+Duplicate Publication	2
+Clinical Conference	1
+Clinical Trial Protocol	1
+Consensus Development Conference	1
+Corrected And Republished Article	1
+Direct Submission to SGD	1
+Festschrift	1
+Government Publications	1
+Monograph	1
+Overall	1
+Personal Narrative	1
+Webcast	1

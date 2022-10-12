@@ -1,0 +1,13 @@
+ZFIN Types	#of each
+Journal (article)	32950
+Review	3229
+Thesis	3148
+Other	933
+Chapter	860
+Abstract	481
+Curation	94
+Book	77
+Unknown	76
+Unpublished	41
+Active Curation	33
+Movie	13

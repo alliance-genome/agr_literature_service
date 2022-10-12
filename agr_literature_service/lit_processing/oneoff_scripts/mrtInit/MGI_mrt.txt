@@ -1,0 +1,16 @@
+MGI reference types:	Num References
+Peer Reviewed Article	386545
+isReviewArticle	14956
+MGI Curation Record	2260
+MGI Direct Data Submission	1845
+Newsletter	1525
+Book	316
+Conference Proceedings/Abstracts	306
+Personal Communication	175
+MGI Data Load	78
+Unreviewed Article	72
+Annual Report/Bulletin	30
+External Resource	19
+Dissertation/Thesis	17
+JAX Notes	10
+Not Specified	2
