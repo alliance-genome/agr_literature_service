@@ -50,7 +50,7 @@ class TestParseDqmJsonResource:
             xref_ref = []
             ref_xref_valid = {}
             okay, message = process_resource_entry(db, entry, xref_ref, ref_xref_valid)
-            assert message == f"ZFIN:prim{count}\tAGR:AGR-Resource-000000000{count}\n"
+            assert message == f"ZFIN:prim{count}\tAGRKB:10200000000000{count}\n"
             assert okay
 
     # @pytest.fixture
@@ -205,13 +205,13 @@ class TestParseDqmJsonResource:
                  "pages" : ["new journal", "new journal/references"]}]}]
 
         try:
-            okay, mess = process_update_resource(db, update_data[0], "AGR:AGR-Resource-0000000001")
+            okay, mess = process_update_resource(db, update_data[0], "AGRKB:102000000000001")
         except Exception as e:
             assert e == 'Exception'
         assert not okay
         assert mess == "Prefix ZFIN is already assigned to for this resource"
         try:
-            res = db.query(ResourceModel).filter_by(curie='AGR:AGR-Resource-0000000001').one()
+            res = db.query(ResourceModel).filter_by(curie='AGRKB:102000000000001').one()
         except Exception as e:
             assert e == 'Exception2'
 
@@ -241,16 +241,16 @@ class TestParseDqmJsonResource:
                  {"id" : "ZFIN:ZDB-JRNL-001-1",
                   "pages" : ["new journal", "new journal/references"]}]}]
         # try:
-        okay, mess = process_update_resource(db, update_data[0], "AGR:AGR-Resource-0000000002")
+        okay, mess = process_update_resource(db, update_data[0], "AGRKB:102000000000002")
         db.flush()
         db.commit()
-        assert mess == "Prefix ZFIN is already assigned to another resource AGR:AGR-Resource-0000000001. Cannot be assigned to more than one."
+        assert mess == "Prefix ZFIN is already assigned to another resource AGRKB:102000000000001. Cannot be assigned to more than one."
         assert not okay
 
         # except Exception as e:
         #     assert e == 'Exception'
         try:
-            res = db.query(ResourceModel).filter_by(curie='AGR:AGR-Resource-0000000002').one()
+            res = db.query(ResourceModel).filter_by(curie='AGRKB:102000000000002').one()
         except Exception as e:
             assert e == 'Exception2'
 
