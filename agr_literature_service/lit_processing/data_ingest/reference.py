@@ -14,7 +14,6 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_proc
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.report_writer import ReportWriter
 from agr_literature_service.lit_processing.data_ingest.utils.alliance_utils import get_schema_data_from_alliance
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json, chunks
-from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 
 logger = logging.getLogger(__name__)
@@ -22,16 +21,14 @@ logger = logging.getLogger(__name__)
 REPLACE_VALUE_FIELDS = ['authors', 'pubMedType', 'meshTerms']
 
 SINGLE_VALUE_FIELDS = ['volume', 'title', 'pages', 'issueName', 'datePublished',
-                       'datePublishedStart', 'datePublishedEnd',
-                       'dateArrivedInPubmed', 'dateLastModified', 'abstract',
-                       'publisher', 'plainLanguageAbstract', 'pubmedAbstractLanguages',
+                       'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher',
+                       'plainLanguageAbstract', 'pubmedAbstractLanguages',
                        'publicationStatus', 'allianceCategory', 'journal']
 
 DATE_FIELDS = ['dateArrivedInPubmed', 'dateLastModified']
 
 PMID_FIELDS = ['authors', 'volume', 'title', 'pages', 'issueName', 'datePublished',
-               'datePublishedStart', 'datePublishedEnd', 'dateArrivedInPubmed',
-               'dateLastModified', 'abstract', 'pubMedType', 'publisher',
+               'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher',
                'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages',
                'publicationStatus', 'allianceCategory', 'journal']
 
@@ -436,12 +433,6 @@ class Reference:
                     self.data['keywords'].append(pubmed_keyword)
 
     def process_pubmod_authors_xrefs_keywords(self, mod):
-        if 'datePublished' in self.data:
-            date_range, error_message = parse_date(self.data['datePublished'], False)
-            if date_range is not False:
-                (datePublishedStart, datePublishedEnd) = date_range
-                self.data['datePublishedStart'] = datePublishedStart
-                self.data['datePublishedEnd'] = datePublishedEnd
         if 'authors' in self.data:
             all_authors_have_rank = all(['authorRank' in author for author in self.data['authors']])
             for author in self.data['authors']:
