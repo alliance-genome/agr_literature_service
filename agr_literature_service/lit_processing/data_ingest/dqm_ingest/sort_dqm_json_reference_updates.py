@@ -31,6 +31,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     add_cross_references, update_authors, update_mod_corpus_associations, \
     update_mod_reference_types
+from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
 from agr_literature_service.api.user import set_global_user_id
 
 # For WB needing 57578 references checked for updating,
@@ -620,12 +621,23 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 
 def find_unparsable_date_published(json_file, bad_date_published):
 
-    if path.exists(json_file): 
+    if path.exists(json_file):
         json_data = json.load(open(json_file))
+        json_new_data = []
         for entry in json_data:
             primaryId = entry.get('primaryId')
-            if entry.get('datePublished') and entry.get('datePublishedStart') is None:
-                bad_date_published[primaryId] = entry['datePublished']
+            if entry.get('datePublished'):
+                date_range, error_message = parse_date(entry['datePublished'].strip(), False)
+                if date_range is not False:
+                    (datePublishedStart, datePublishedEnd) = date_range
+                    entry['datePublishedStart'] = datePublishedStart
+                    entry['datePublishedEnd'] = datePublishedEnd
+                else:
+                    bad_date_published[primaryId] = entry['datePublished']
+                json_new_data.append(entry)
+        fw = open(json_file, 'w')
+        fw.write(json.dumps(json_new_data, indent=4, sort_keys=True))
+        fw.close()
 
 
 def read_pmid_file(local_path):
@@ -762,6 +774,13 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
             if processing_flag == 'mod_biblio_all':
                 update_json = dict()
                 for field_camel in fields_simple_camel:
+                    if field_camel == 'datePublished' and dqm_entry.get(field_camel):
+                        datePublished = str(dqm_entry[field_camel])
+                        date_range, error_message = parse_date(datePublished.strip(), False)
+                        if date_range is not False:
+                            (datePublishedStart, datePublishedEnd) = date_range
+                            dqm_entry['datePublishedStart'] = datePublishedStart
+                            dqm_entry['datePublishedEnd'] = datePublishedEnd
                     field_snake = field_camel
                     if field_camel in remap_keys:
                         field_snake = remap_keys[field_camel]
