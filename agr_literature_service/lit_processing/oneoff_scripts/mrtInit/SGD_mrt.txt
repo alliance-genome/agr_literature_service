@@ -43,18 +43,23 @@ Personal Communication in Publication	5
 Classical Article	4
 Retraction of Publication	3
 Systematic Review	3
+Preprint	3
 Book Chapter	2
 Controlled Clinical Trial	2
 Directory	2
 Duplicate Publication	2
 Clinical Conference	1
+Clinical Study	1
 Clinical Trial Protocol	1
 Consensus Development Conference	1
 Corrected And Republished Article	1
 Direct Submission to SGD	1
+Expression of Concern	1
 Festschrift	1
 Government Publications	1
 Monograph	1
+Observational Study	1
 Overall	1
 Personal Narrative	1
+Randomized Controlled Trial, Veterinary	1
 Webcast	1

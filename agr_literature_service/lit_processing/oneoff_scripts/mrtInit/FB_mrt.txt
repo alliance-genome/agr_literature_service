@@ -38,5 +38,6 @@ poem	7
 database	6
 white paper	6
 preprint	2
+lecture	1
 newspaper article	0
 sequence record	0
