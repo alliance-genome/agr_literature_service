@@ -51,9 +51,13 @@ def post_references(json_path, live_change=True):  # noqa: C901
             continue
         f = open(json_file)
         json_data = json.load(f)
-        new_ref_curies.extend(read_data_and_load_references(db_session, json_data, journal_to_resource_id,
-                                                            orcid_dict, newly_added_orcid, doi_to_reference_id,
-                                                            mod_to_mod_id, live_change))
+        newly_added_curies = read_data_and_load_references(db_session, json_data,
+                                                           journal_to_resource_id,
+                                                           orcid_dict, newly_added_orcid,
+                                                           doi_to_reference_id,
+                                                           mod_to_mod_id, live_change)
+        if newly_added_curies:
+            new_ref_curies.extend(newly_added_curies)
 
     db_session.close()
     log.info("DONE!\n\n")
@@ -314,6 +318,8 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
                    "pubmed_abstract_languages": entry.get('pubmedAbstractLanguages', []),
                    "language": entry.get('language', ''),
                    "date_published": entry.get('datePublished', ''),
+                   "date_published_start": entry.get('datePublishedStart', ''),
+                   "date_published_end": entry.get('datePublishedEnd', ''),
                    "date_arrived_in_pubmed": entry.get('dateArrivedInPubmed', ''),
                    "date_last_modified_in_pubmed": entry.get('dateLastModified', ''),
                    "publisher": entry.get('publisher', ''),
