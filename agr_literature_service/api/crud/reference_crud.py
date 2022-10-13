@@ -3,29 +3,27 @@ reference_crud.py
 =================
 """
 import logging
+import re
 from datetime import datetime
 from typing import Any, Dict, List
-import re
 
-
-import sqlalchemy
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import ARRAY, Boolean, String, func
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast
-from sqlalchemy.orm.exc import NoResultFound
 
 from agr_literature_service.api.crud import (cross_reference_crud,
                                              reference_comment_and_correction_crud)
+from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.api.crud.reference_resource import create_obj
 from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
-                                               MeshDetailModel, ModReferenceTypeModel,
+                                               MeshDetailModel,
                                                ObsoleteReferenceModel,
                                                ReferenceCommentAndCorrectionModel,
                                                ReferenceModel,
                                                ResourceModel)
-from agr_literature_service.api.schemas import ReferenceSchemaPost
+from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.workflow_tag_crud import (
     create as create_workflow_tag,
@@ -37,40 +35,9 @@ from agr_literature_service.api.crud.topic_entity_tag_crud import (
     patch as update_topic_entity_tag,
     create as create_topic_entity_tag
 )
+from agr_literature_service.global_utils import get_next_reference_curie
+
 logger = logging.getLogger(__name__)
-
-
-def get_next_curie(db: Session) -> str:
-    """
-
-    :param db:
-    :return:
-    """
-    last_curie = db.query(ReferenceModel.curie).order_by(sqlalchemy.desc(ReferenceModel.curie)).first()
-
-    if not last_curie:
-        last_curie = "AGR:AGR-Reference-0000000000"
-    else:
-        last_curie = last_curie[0]
-
-    curie_parts = last_curie.rsplit("-", 1)
-    number_part = curie_parts[1]
-    number = int(number_part)
-
-    # So we need to check that a later one was not obsoleted as we
-    # do not want to use that curie then.
-    checked = False
-    new_curie = ''
-    while not checked:
-        number += 1
-        new_curie = "-".join([curie_parts[0], str(number).rjust(10, "0")])
-        try:
-            db.query(ObsoleteReferenceModel).filter(ObsoleteReferenceModel.curie == new_curie).one()
-        except NoResultFound:
-            checked = True
-    logger.debug("created new curie {new_curie}")
-
-    return new_curie
 
 
 def create(db: Session, reference: ReferenceSchemaPost):  # noqa
@@ -83,8 +50,8 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
 
     logger.debug("creating reference")
     logger.debug(reference)
-    add_separately_fields = ["mod_corpus_associations", "workflow_tags", "topic_entity_tags"]
-    list_fields = ["authors", "mod_reference_types", "tags", "mesh_terms", "cross_references"]
+    add_separately_fields = ["mod_corpus_associations", "workflow_tags", "topic_entity_tags", "mod_reference_types"]
+    list_fields = ["authors", "tags", "mesh_terms", "cross_references"]
     remap = {'authors': 'author',
              'mesh_terms': 'mesh_term',
              'cross_references': 'cross_reference',
@@ -98,7 +65,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"CrossReference with id {cross_reference.curie} already exists")
     logger.debug("done x ref")
-    curie = get_next_curie(db)
+    curie = get_next_reference_curie(db)
     reference_data["curie"] = curie
 
     for field, value in vars(reference).items():
@@ -123,8 +90,6 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
                     if db_obj.name:
                         author_names_order.append((db_obj.name, db_obj.order))
-                elif field == "mod_reference_types":
-                    db_obj = ModReferenceTypeModel(**obj_data)
                 elif field == "mesh_terms":
                     db_obj = MeshDetailModel(**obj_data)
                 elif field == "cross_references":
@@ -162,6 +127,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
     db.add(reference_db_obj)
     logger.debug("saved")
     db.commit()
+    db.refresh(reference_db_obj)
     for field, value in vars(reference).items():
         logger.debug("Processing mod corpus asso")
         if field == "mod_corpus_associations":
@@ -200,6 +166,10 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     except HTTPException:
                         logger.warning("skipping topic_entity_tag as that is already associated to "
                                        "the reference")
+        elif field == "mod_reference_types":
+            for obj in value or []:
+                insert_mod_reference_type_into_db(db, reference.pubmed_types, obj.source, obj.reference_type,
+                                                  reference_db_obj.reference_id)
     return curie
 
 
@@ -338,13 +308,14 @@ def show(db: Session, curie: str, http_request=True):  # noqa
             cross_references.append(cross_reference_show)
         reference_data["cross_references"] = cross_references
 
-    if reference.mod_reference_type:
-        mrt = []
-        for mod_reference_type in reference_data["mod_reference_type"]:
-            del mod_reference_type["reference_id"]
-            mrt.append(mod_reference_type)
-        reference_data['mod_reference_types'] = mrt
-
+    if reference.mod_referencetypes:
+        reference_data["mod_reference_types"] = []
+        for ref_mod_referencetype in reference.mod_referencetypes:
+            reference_data["mod_reference_types"].append(
+                jsonable_encoder(ModReferenceTypeSchemaRelated(
+                    mod_reference_type_id=ref_mod_referencetype.reference_mod_referencetype_id,
+                    reference_type=ref_mod_referencetype.mod_referencetype.referencetype.label,
+                    source=ref_mod_referencetype.mod_referencetype.mod.abbreviation)))
     reference_data["obsolete_references"] = [obs_reference["curie"] for obs_reference in
                                              reference_data["obsolete_reference"]]
     del reference_data["obsolete_reference"]

@@ -1,7 +1,8 @@
+import math
 import shutil
 
 import pytest
-from agr_literature_service.api.models import initialize
+from agr_literature_service.api.models import initialize, ReferenceTypeModel, ModReferenceTypeAssociationModel, ModModel
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from sqlalchemy import create_engine
@@ -46,8 +47,27 @@ def cleanup_tmp_files_when_done():
 
 
 @pytest.fixture
-def load_sanitized_references():
+def populate_test_mod_reference_types(db):
     populate_test_mods()
+    mod_reference_types = {'ZFIN': ['Journal', 'Review'], 'FB': ['book'], 'WB': ['Journal_article', 'Micropublication'],
+                           'SGD': ['Journal']}
+    for mod, reference_types in mod_reference_types.items():
+        mod = db.query(ModModel).filter(ModModel.abbreviation == mod).one()
+        display_order = 10
+        for reference_type in reference_types:
+            rt_obj = db.query(ReferenceTypeModel).filter(ReferenceTypeModel.label == reference_type).one_or_none()
+            if rt_obj is None:
+                rt_obj = ReferenceTypeModel(label=reference_type)
+                db.add(rt_obj)
+            mod_reference_type_obj = ModReferenceTypeAssociationModel(mod=mod, referencetype=rt_obj,
+                                                                      display_order=display_order)
+            db.add(mod_reference_type_obj)
+            display_order = math.ceil((display_order + 1) / 10) * 10
+    db.commit()
+
+
+@pytest.fixture
+def load_sanitized_references(populate_test_mod_reference_types):
     json_file_path = path.join(path.dirname(path.abspath(__file__)), "lit_processing", "sample_data",
                                "sanitized_references/")
     post_references(json_path=json_file_path)

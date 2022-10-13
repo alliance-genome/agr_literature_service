@@ -1,9 +1,10 @@
 import argparse
 import json
 import logging.config
-# from requests import Session
+
 from sqlalchemy.orm import Session
 import sqlalchemy
+
 import sys
 from os import environ
 from typing import Dict, Tuple
@@ -12,9 +13,9 @@ from dotenv import load_dotenv
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session, \
     sqlalchemy_load_ref_xref
 from agr_literature_service.api.models import ResourceModel, CrossReferenceModel, EditorModel
-from agr_literature_service.api.crud.resource_crud import create_next_curie
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
+from agr_literature_service.global_utils import get_next_resource_curie
 
 load_dotenv()
 init_tmp_dir()

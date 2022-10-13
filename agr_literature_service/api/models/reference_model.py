@@ -7,7 +7,7 @@ reference_model.py
 from typing import Dict
 
 from sqlalchemy import (ARRAY, Column, Enum, ForeignKey, Integer,
-                        String)
+                        String, DateTime)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
 
@@ -87,6 +87,8 @@ class ReferenceModel(Base, AuditedModel):
         nullable=True
     )
 
+    mod_referencetypes = relationship("ReferenceModReferenceTypeAssociationModel")
+
     mod_reference_type = relationship(
         "ModReferenceTypeModel",
         lazy="joined",
@@ -110,6 +112,18 @@ class ReferenceModel(Base, AuditedModel):
 
     date_published = Column(
         String(),
+        unique=False,
+        nullable=True
+    )
+
+    date_published_start = Column(
+        DateTime,
+        unique=False,
+        nullable=True
+    )
+
+    date_published_end = Column(
+        DateTime,
         unique=False,
         nullable=True
     )

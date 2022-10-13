@@ -6,7 +6,6 @@ resource_crud.py
 from datetime import datetime
 from typing import Dict, Union
 
-import sqlalchemy
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import ARRAY, Boolean, String, func
@@ -18,19 +17,7 @@ from agr_literature_service.api.crud.reference_resource import create_obj
 from agr_literature_service.api.models import (CrossReferenceModel, EditorModel,
                                                MeshDetailModel, ResourceModel)
 from agr_literature_service.api.schemas import ResourceSchemaPost, ResourceSchemaUpdate
-
-
-def create_next_curie(curie):
-    """
-    Creates the next curie in the sequence.
-    :param curie:
-    :return:
-    """
-
-    curie_parts = curie.rsplit('-', 1)
-    number_part = curie_parts[1]
-    number = int(number_part) + 1
-    return "-".join([curie_parts[0], str(number).rjust(10, '0')])
+from agr_literature_service.global_utils import get_next_resource_curie
 
 
 def create(db: Session, resource: ResourceSchemaPost):
@@ -52,14 +39,7 @@ def create(db: Session, resource: ResourceSchemaPost):
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail=f"CrossReference with curie {cross_reference.curie} already exists")
 
-    last_curie = db.query(ResourceModel.curie).order_by(sqlalchemy.desc(ResourceModel.curie)).first()
-
-    if not last_curie:
-        last_curie = 'AGR:AGR-Resource-0000000000'
-    else:
-        last_curie = last_curie[0]
-
-    curie = create_next_curie(last_curie)
+    curie = get_next_resource_curie(db)
     resource_data['curie'] = curie
 
     for field, value in vars(resource).items():

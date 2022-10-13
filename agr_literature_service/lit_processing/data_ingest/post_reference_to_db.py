@@ -2,14 +2,16 @@ import argparse
 import logging
 from os import listdir, path
 import json
+from typing import List
 
-from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel,\
-    AuthorModel, ModCorpusAssociationModel, ModReferenceTypeModel, ModModel,\
-    ReferenceCommentAndCorrectionModel, MeshDetailModel
+from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
+from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
+    AuthorModel, ModCorpusAssociationModel, ModModel, ReferenceCommentAndCorrectionModel, MeshDetailModel
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.utils.db_read_utils import get_orcid_data,\
     get_journal_data, get_doi_data, get_reference_by_pmid
-from agr_literature_service.api.crud.reference_crud import get_citation_from_args, get_next_curie
+from agr_literature_service.api.crud.reference_crud import get_citation_from_args
+from agr_literature_service.global_utils import get_next_reference_curie
 
 logging.basicConfig(format='%(message)s')
 log = logging.getLogger()
@@ -43,29 +45,32 @@ def post_references(json_path, live_change=True):  # noqa: C901
 
     log.info("Reading json data and loading data into database...")
 
+    new_ref_curies = []
     for json_file in sorted(files_to_process):
         if not path.exists(json_file):
             continue
         f = open(json_file)
         json_data = json.load(f)
-        read_data_and_load_references(db_session, json_data, journal_to_resource_id,
-                                      orcid_dict, newly_added_orcid, doi_to_reference_id,
-                                      mod_to_mod_id, live_change)
+        new_ref_curies.extend(read_data_and_load_references(db_session, json_data, journal_to_resource_id,
+                                                            orcid_dict, newly_added_orcid, doi_to_reference_id,
+                                                            mod_to_mod_id, live_change))
 
     db_session.close()
     log.info("DONE!\n\n")
+    return new_ref_curies
 
 
 def read_data_and_load_references(db_session, json_data, journal_to_resource_id, orcid_dict, newly_added_orcid, doi_to_reference_id, mod_to_mod_id, live_change):
 
+    new_ref_curies = []
     for entry in json_data:
 
         primaryId = set_primaryId(entry)
 
         try:
 
-            reference_id = insert_reference(db_session, primaryId,
-                                            journal_to_resource_id, entry)
+            reference_id, curie = insert_reference(db_session, primaryId, journal_to_resource_id, entry)
+            new_ref_curies.append(curie)
 
             if reference_id is None:
                 log.info(primaryId + ": Error loading reference table")
@@ -95,8 +100,8 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
 
             if entry.get('MODReferenceTypes'):
 
-                insert_mod_reference_types(db_session, primaryId, reference_id,
-                                           entry['MODReferenceTypes'])
+                insert_mod_reference_types(db_session, primaryId, reference_id, entry['MODReferenceTypes'],
+                                           entry.get('pubmedType', []))
 
             if entry.get('modCorpusAssociations'):
 
@@ -112,6 +117,7 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
         except Exception as e:
             log.info("An error occurred when adding the new reference into database for primaryId = " + primaryId + " " + str(e))
             db_session.rollback()
+    return new_ref_curies
 
 
 def insert_mod_corpus_associations(db_session, primaryId, reference_id, mod_to_mod_id, mod_corpus_associations_from_json):
@@ -132,7 +138,7 @@ def insert_mod_corpus_associations(db_session, primaryId, reference_id, mod_to_m
             log.info(primaryId + ": INSERT MOD_CORPUS_ASSOCIATION: for reference_id = " + str(reference_id) + ", mod_id = " + str(mod_id) + ", mod_corpus_sort_source = " + x['modCorpusSortSource'] + " " + str(e))
 
 
-def insert_mod_reference_types(db_session, primaryId, reference_id, mod_ref_types_from_json):
+def insert_mod_reference_types(db_session, primaryId, reference_id, mod_ref_types_from_json, pubmed_types: List[str]):
 
     found = {}
     for x in mod_ref_types_from_json:
@@ -140,10 +146,7 @@ def insert_mod_reference_types(db_session, primaryId, reference_id, mod_ref_type
             continue
         found[(reference_id, x['source'], x['referenceType'])] = 1
         try:
-            mrt = ModReferenceTypeModel(reference_id=reference_id,
-                                        source=x['source'],
-                                        reference_type=x['referenceType'])
-            db_session.add(mrt)
+            insert_mod_reference_type_into_db(db_session, pubmed_types, x['source'], x['referenceType'], reference_id)
             log.info(primaryId + ": INSERT MOD_REFERENCE_TYPE: for reference_id = " + str(reference_id) + ", source = " + x['source'] + ", reference_type = " + x['referenceType'])
         except Exception as e:
             log.info(primaryId + ": INSERT MOD_REFERENCE_TYPE: for reference_id = " + str(reference_id) + ", source = " + x['source'] + ", reference_type = " + x['referenceType'] + " " + str(e))
@@ -282,6 +285,7 @@ def insert_authors(db_session, primaryId, reference_id, author_list_from_json, o
 def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
 
     reference_id = None
+    curie = None
 
     try:
         resource_id = None
@@ -292,7 +296,9 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
 
         citation = generate_citation(entry, journal_title)
 
-        curie = get_next_curie(db_session)
+        curie = get_next_reference_curie(db_session)
+
+        log.info("NEW REFERENCE curie = " + str(curie))
 
         refData = {"curie": curie,
                    "resource_id": resource_id,
@@ -324,7 +330,7 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
     except Exception as e:
         log.info(primaryId + ": INSERT REFERENCE failed " + str(e))
 
-    return reference_id
+    return reference_id, curie
 
 
 def generate_citation(entry, journal_title):
