@@ -12,6 +12,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import get_orcid_
     get_journal_data, get_doi_data, get_reference_by_pmid
 from agr_literature_service.api.crud.reference_crud import get_citation_from_args
 from agr_literature_service.global_utils import get_next_reference_curie
+from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
 
 logging.basicConfig(format='%(message)s')
 log = logging.getLogger()
@@ -304,6 +305,15 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
 
         log.info("NEW REFERENCE curie = " + str(curie))
 
+        date_published_start = entry.get('datePublishedStart')
+        date_published_end = entry.get('datePublishedEnd')
+        ## this is only for unit tests.
+        ## The dqm loading & PubMed search have already set these two fields
+        if date_published_start is None and entry.get('datePublished'):
+            date_range, error_message = parse_date(entry['datePublished'], False)
+            if date_range is not False:
+                (date_published_start, date_published_end) = date_range
+
         refData = {"curie": curie,
                    "resource_id": resource_id,
                    "title": entry.get('title', ''),
@@ -318,8 +328,8 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
                    "pubmed_abstract_languages": entry.get('pubmedAbstractLanguages', []),
                    "language": entry.get('language', ''),
                    "date_published": entry.get('datePublished', ''),
-                   "date_published_start": entry.get('datePublishedStart'),
-                   "date_published_end": entry.get('datePublishedEnd'),
+                   "date_published_start": date_published_start,
+                   "date_published_end": date_published_end,
                    "date_arrived_in_pubmed": entry.get('dateArrivedInPubmed', ''),
                    "date_last_modified_in_pubmed": entry.get('dateLastModified', ''),
                    "publisher": entry.get('publisher', ''),
