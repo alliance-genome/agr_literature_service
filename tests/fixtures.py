@@ -22,7 +22,6 @@ def delete_all_table_content(engine):
 
 @pytest.fixture
 def db() -> Session:
-    print("***** Creating DB session *****")
     engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
     initialize()
     delete_all_table_content(engine)
@@ -30,7 +29,6 @@ def db() -> Session:
     yield db
     db.commit()
     delete_all_table_content(engine)
-    print("***** Closing DB session *****")
     db.close()
 
 

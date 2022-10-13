@@ -86,11 +86,13 @@ def process_editors(db_session: Session, resource_id: int, editors: Dict) -> Non
         db_session.add(editor_obj)
 
 
-def process_cross_references(db_session: Session, resource_id: int, cross_references: Dict) -> None:
+def process_cross_references(db_session: Session, resource_id: int, agr: str, cross_references: Dict, ref_xref_valid: Dict) -> bool:
     global remap_cross_references_keys
     if not remap_cross_references_keys:
         remap_cross_references_keys['id'] = 'curie'
 
+    okay = True
+    error_mess = ""
     for xref in cross_references:
         new_xref = dict()
         for subkey in xref:
@@ -99,13 +101,31 @@ def process_cross_references(db_session: Session, resource_id: int, cross_refere
             elif subkey not in cross_references_keys_to_remove:
                 new_xref[subkey] = xref[subkey]
         new_xref['resource_id'] = resource_id
-        if db_session.query(CrossReferenceModel).filter_by(curie=new_xref['curie']).first():
-            logger.info("CrossReference with curie = " + new_xref['curie'] + " already exists")
-            db_session.rollback()
-            return
-        cr = CrossReferenceModel(**new_xref)
-        db_session.add(cr)
-        logger.info("Adding resource info into cross_reference table for " + new_xref['curie'])
+        xref = db_session.query(CrossReferenceModel).filter_by(curie=new_xref['curie']).first()
+        prefix, identifier, separator = split_identifier(new_xref['curie'])
+        if xref:
+            # Just duplicated not an error as to same resource
+            if xref.resource_id == resource_id:
+                continue
+            mess = f"CrossReference with curie = {new_xref['curie']} already exists with a different resource -> {xref.resource}"
+            logger.error(mess)
+            # db_session.rollback()  # But how far back are we rolling back?
+            okay = False
+            error_mess += mess
+        elif agr in ref_xref_valid and prefix in ref_xref_valid[agr]:  # Duplicate prefix
+            okay = False
+            error_mess += f"Not allowed same prefix {prefix} multiple time for the same resource"
+        else:
+            cr = CrossReferenceModel(**new_xref)
+            db_session.add(cr)
+            logger.info("Adding resource info into cross_reference table for " + new_xref['curie'])
+            if agr not in ref_xref_valid:
+                ref_xref_valid[agr] = {}
+                if prefix:
+                    ref_xref_valid[agr][prefix] = agr
+    if not okay:
+        return okay, error_mess
+    return okay, "Cross References processed successfully"
 
 
 def remap_keys_get_new_entry(entry: Dict) -> Dict:
@@ -130,7 +150,7 @@ def remap_keys_get_new_entry(entry: Dict) -> Dict:
     return new_entry
 
 
-def process_resource_entry(db_session: Session, entry: Dict, xref_ref: Dict) -> Tuple:
+def process_resource_entry(db_session: Session, entry: Dict, xref_ref: Dict, ref_xref_valid: Dict) -> Tuple:
     """Process json and add to db.
     Adds resourses, cross references and editors.
 
@@ -139,6 +159,7 @@ def process_resource_entry(db_session: Session, entry: Dict, xref_ref: Dict) -> 
     :param xref_ref:   in the format xref_ref[prefix][identifier] = agr
                        Used to ensure xrefs only connect to 1 resource.
                        NOTE: Does not seem to get updated as resources are added.
+    :param ref_xref_valid: in the format ref_xref[agr][prefix]
     """
     primary_id = entry['primaryId']
     prefix, identifier, separator = split_identifier(primary_id)
@@ -170,18 +191,21 @@ def process_resource_entry(db_session: Session, entry: Dict, xref_ref: Dict) -> 
             del new_entry["editors"]
 
         new_entry['curie'] = curie
+        logger.info("Adding resource into database for '" + new_entry['iso_abbreviation'] + "'")
         x = ResourceModel(**new_entry)
         db_session.add(x)
         db_session.flush()
+        db_session.commit()
         db_session.refresh(x)
         resource_id = x.resource_id
 
-        process_cross_references(db_session, resource_id, cross_references)
+        xref_okay, message = process_cross_references(db_session, resource_id, curie, cross_references, ref_xref_valid)
 
+        # Still process editors if xrefs fail?
         process_editors(db_session, resource_id, editors)
 
-        logger.info("Adding resource into database for '" + new_entry['iso_abbreviation'] + "'")
-        db_session.commit()
+        if not xref_okay:
+            return xref_okay, message
         return True, f"{primary_id}\t{curie}\n"
     except Exception as e:
         message = f"An error occurred when adding resource into database for '{entry}'. {e}\n"
@@ -240,7 +264,7 @@ def post_resources(db_session: Session, input_path: str, input_mod: str, base_in
             f = open(filename)
             resource_data = json.load(f)
             for entry in resource_data['data']:
-                process_okay, message = process_resource_entry(db_session, entry, xref_ref)
+                process_okay, message = process_resource_entry(db_session, entry, xref_ref, ref_xref_valid)
                 if process_okay:
                     if message:
                         mapping_fh.write(message)

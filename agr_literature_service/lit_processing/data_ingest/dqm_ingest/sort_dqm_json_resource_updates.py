@@ -167,7 +167,7 @@ def update_resource(db_session, dqm_entry, db_entry) -> None:
     for field_camel in list_fields:
         list_changed = compare_list(db_entry, dqm_entry, field_camel, remap_keys)
         if list_changed[0]:
-            logger.info("patch %s field %s from db %s to dqm %s", agr, list_changed[3], list_changed[2], list_changed[1])
+            logger.info(f"patch {agr} field {list_changed[3]} from db {list_changed[2]} to dqm {list_changed[1]}")
             update_json[list_changed[3]] = list_changed[1]
     if update_json:
         try:
@@ -189,9 +189,12 @@ def process_update_resource(db_session, dqm_entry, agr) -> Tuple:
         return False, f"Unable to find unique resource with curie {agr}."
     db_entry = jsonable_encoder(db_entry)
     update_resource(db_session, dqm_entry, db_entry)
+    okay = True
+    error_message = ""
     if 'crossReferences' in dqm_entry:
-        compare_xref(db_session, agr, db_entry['resource_id'], dqm_entry,
-                     xref_ref, ref_xref_valid, ref_xref_obsolete)
+        okay, error_message = compare_xref(db_session, agr, db_entry['resource_id'], dqm_entry,
+                                           xref_ref, ref_xref_valid, ref_xref_obsolete)
+
     editors_changed = compare_authors_or_editors(db_entry, dqm_entry, 'editors')
     # editor API needs updates.  reference_curie required to post reference authors but for some reason resource_curie not allowed here, cannot connect new editor to resource if resource_curie is not passed in
     if editors_changed[0]:
@@ -209,7 +212,7 @@ def process_update_resource(db_session, dqm_entry, agr) -> Tuple:
     #        logger.info("add to %s create_dict %s", agr, create_dict)
     #        editor_post_url = 'http://localhost:' + api_port + '/editor/'
     #        headers = generic_api_post(live_changes, editor_post_url, headers, create_dict, agr, None, None)
-    return True, "Okay"
+    return okay, error_message
 
 
 def update_resources(db_session, live_changes, resources_to_update):
@@ -264,9 +267,8 @@ def compare_xref(db_session, agr, resource_id, dqm_entry, xref_ref, ref_xref_val
     :return:
     """
 
-    # api_port = environ.get('API_PORT')
-    # url = 'http://' + api_server + ':' + api_port + '/cross_reference/'
-
+    okay = True
+    error_mess = ""
     for xref in dqm_entry['crossReferences']:
         curie = xref['id']
         prefix, identifier, separator = split_identifier(curie)
@@ -276,13 +278,17 @@ def compare_xref(db_session, agr, resource_id, dqm_entry, xref_ref, ref_xref_val
                 agr_db_from_xref = xref_ref[prefix][identifier]
         # depending on what curators want for reports, these commented out logger.info should go into reports
         if agr_db_from_xref == agr:
-            pass
+            # Okay just duplication of same data, so should be okay
+            logger.info(f"Prefix found {prefix} in xref_ref for {identifier} and agr {agr_db_from_xref}")
             # logger.info("GOOD1: cross_reference %s good in %s", curie, agr)
-        elif agr_db_from_xref != '':
-            pass
-            # these are probably useful to curators, have conflicts of xref mapping to
-            # different agr resources before and after
-            # logger.info("REMAP: cross_reference %s already exists in %s", curie, agr_db_from_xref)
+        elif agr in ref_xref_valid and prefix in ref_xref_valid[agr]:
+            mess = f"Prefix {prefix} is already assigned to for this resource"
+            error_mess += mess
+            okay = False
+        elif agr_db_from_xref:
+            mess = f"Prefix {prefix} is already assigned to another resource {agr_db_from_xref}. Cannot be assigned to more than one."
+            error_mess += mess
+            okay = False
         else:
             dqm_xref_obsolete_found = False
             dqm_xref_valid_found = False    # noqa: F841
@@ -290,26 +296,23 @@ def compare_xref(db_session, agr, resource_id, dqm_entry, xref_ref, ref_xref_val
                 if prefix in ref_xref_obsolete[agr]:
                     if identifier.lower() in ref_xref_obsolete[agr][prefix]:
                         dqm_xref_obsolete_found = True    # noqa: F841
-                        # logger.info("OBSOLETE: cross_reference %s obsolete in %s", curie, agr)
-            elif agr in ref_xref_valid:
-                if prefix in ref_xref_valid[agr]:
-                    if identifier.lower() == ref_xref_valid[agr][prefix].lower():
-                        # this should never happen, equivalent to GOOD1 unless something went wrong somewhere
-                        pass
-                        # logger.info("GOOD2: cross_reference %s good in %s", curie, agr)
-                    else:
-                        pass
-                        # logger.info("RENAMED: cross_reference %s prefix %s was %s new dqm value %s in %s", curie, prefix, ref_xref_valid[agr][prefix], identifier, agr)
-                else:
-                    try:
-                        logger.info("CREATE: add cross_reference %s to %s", curie, agr)
-                        x = CrossReferenceModel(curie=curie,
-                                                resource_id=resource_id,
-                                                pages=xref.get('pages', []))
-                        db_session.add(x)
-                        logger.info("The cross_reference row for curie = " + curie + " and resource_curie = " + agr + " has been added into database.")
-                    except Exception as e:
-                        logger.info("An error occurred when adding cross_reference row for curie = " + curie + " and resource_curie = " + agr + " " + str(e))
+            else:
+                try:
+                    logger.info("CREATE: add cross_reference %s to %s", curie, agr)
+                    x = CrossReferenceModel(curie=curie,
+                                            resource_id=resource_id,
+                                            pages=xref.get('pages', []))
+                    db_session.add(x)
+                    db_session.commit()
+                    # NOTE: ref_xref etc need updatig.
+                    # Postpone until constaints are added as this will make this all alot easier.
+                    logger.info("The cross_reference row for curie = " + curie + " and resource_curie = " + agr + " has been added into database.")
+                except Exception as e:
+                    okay = False
+                    mess = f"An error occurred when adding cross_reference row for curie = {curie} and resource_curie = {agr} Error:{e}"
+                    logger.info(mess)
+                    error_mess += mess
+    return okay, error_mess
 
 
 def compare_list(db_entry, dqm_entry, field_camel, remap_keys):

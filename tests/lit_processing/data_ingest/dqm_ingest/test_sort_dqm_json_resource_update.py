@@ -1,22 +1,18 @@
-# import os
-# import pytest
-# from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
-# from agr_literature_service.lit_processing.data_ingest.dqm_ingest.# # sort_dqm_json_resource_updates \
-#     import update_sanitized_resources
-# from agr_literature_service.lit_processing.data_ingest.post_resource_to_db \
-#    import post_resources
 from agr_literature_service.api.models import ResourceModel
 from agr_literature_service.lit_processing.data_ingest.post_resource_to_db import process_resource_entry
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.sort_dqm_json_resource_updates import process_update_resource
+from agr_literature_service.lit_processing.utils.sqlalchemy_utils import sqlalchemy_load_ref_xref
 
 from ....fixtures import db # noqa
-from fastapi.encoders import jsonable_encoder
-# import json
 
 
 class TestParseDqmJsonResource:
-    # @pytest.fixture
-    def test_zfin_resource_parse_new(self, db): # noqa
+    def initialise_data(self, db):  # noqa
+        """
+        Initial data to check and also to check update mechanisms.
+        NOTE: primaryId is not stored any where?
+              But used as a test, so no idea about that bit.
+        """
         new_data = [
             {"primaryId" : "ZFIN:prim1",
              "title" : "title1",
@@ -26,12 +22,12 @@ class TestParseDqmJsonResource:
                  {"authorRank": 1,
                   "firstName": "f1",
                   "lastName": "last1",
-                  "name": "diff f1 last1",
+                  "name": "f1 last1",
                   "referenceId": "FB:FBmultipub_1"},
                  {"authorRank": 2,
                   "firstName": "f2",
                   "lastName": "last2",
-                  "name": "diff f2 last2",
+                  "name": "f2 last2",
                   "referenceId": "FB:FBmultipub_2"}],
              "crossReferences" : [
                  {"id" : "ZFIN:ZDB-JRNL-001-1",
@@ -51,20 +47,24 @@ class TestParseDqmJsonResource:
         count = 0
         for entry in new_data:
             count += 1
-            okay, message = process_resource_entry(db, entry, [])
-            assert okay
+            xref_ref = []
+            ref_xref_valid = {}
+            okay, message = process_resource_entry(db, entry, xref_ref, ref_xref_valid)
             assert message == f"ZFIN:prim{count}\tAGR:AGR-Resource-000000000{count}\n"
+            assert okay
+
+    # @pytest.fixture
+    def test_zfin_resource_parse_new(self, db): # noqa
+        """
+        Check the inital data gets loaded correctly.
+        """
+        self.initialise_data(db)
 
         res = db.query(ResourceModel).filter_by(title='title1').one()
-        print(dir(res))
-        print(res)
+
         assert not res.print_issn
         assert res.medline_abbreviation == "medline1"
         assert res.iso_abbreviation == "iso1"
-        print(res.cross_reference[0])
-        print(dir(res.cross_reference[0]))
-        print(res.editor[0])
-        print(dir(res.editor[0]))
 
         # check the cross reference
         assert res.cross_reference[0].curie == "ZFIN:ZDB-JRNL-001-1"
@@ -72,29 +72,33 @@ class TestParseDqmJsonResource:
         assert res.cross_reference[0].pages[0] == 'journal'
         assert res.cross_reference[0].pages[1] == 'journal/references'
 
-        print(res.editor[0])
-        print(res.editor[1])
         # check the editors
         if res.editor[0].first_name == "f1":
             assert res.editor[0].last_name == "last1"
-            assert res.editor[0].name == "diff f1 last1"
+            assert res.editor[0].name == "f1 last1"
             assert res.editor[0].order == 1
             assert res.editor[1].last_name == "last2"
-            assert res.editor[1].name == "diff f2 last2"
+            assert res.editor[1].name == "f2 last2"
             assert res.editor[1].order == 2
         else:
             assert res.editor[0].first_name == "f2"
             assert res.editor[0].last_name == "last2"
-            assert res.editor[0].name == "diff f2 last2"
+            assert res.editor[0].name == "f2 last2"
             assert res.editor[0].order == 2
             assert res.editor[1].last_name == "last1"
-            assert res.editor[1].name == "diff f1 last1"
+            assert res.editor[1].name == "f1 last1"
             assert res.editor[1].order == 1
+
+    def test_zfin_resource_duplicate_bad(self, db): # noqa
+        """
+        New resource has cross refernce that is already attached to another resource
+        """
+        self.initialise_data(db)
         duplicate_data = [
-            {"primaryId" : "ZFIN:prim1",
-             "title" : "title1",
+            {"primaryId" : "ZFIN:prim_new",
+             "title" : "new title",
              "medlineAbbreviation" : "medline1",
-             "isoAbbreviation" : "iso1",
+             "isoAbbreviation" : "new iso",
              "editorsOrAuthors": [
                  {"authorRank": 1,
                   "firstName": "f3",
@@ -114,15 +118,19 @@ class TestParseDqmJsonResource:
         count = 0
         for entry in duplicate_data:
             count += 1
-            okay, message = process_resource_entry(db, entry, [])
+            xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
+            okay, message = process_resource_entry(db, entry, xref_ref, ref_xref_valid)
+            assert message.startswith("CrossReference with curie = ZFIN:ZDB-JRNL-001-1 already exists with a different resource")
             assert not okay
-            assert message.startswith("An error occurred when adding resource")
 
+    def test_zfin_resource_bad_key_process(self, db): # noqa
+        self.initialise_data(db)
         bad_key_data = [
-            {"primaryId" : "ZFIN:prim1",
-             "title" : "title1",
+            {"primaryId" : "ZFIN:prim3",
+             "title" : "another title",
              "medlineAbbreviation" : "medline1",
              "UnKnownKey" : "iso1",
+             "isoAbbreviation" : "new iso",
              "editorsOrAuthors": [
                  {"authorRank": 1,
                   "firstName": "f3",
@@ -135,65 +143,128 @@ class TestParseDqmJsonResource:
                   "name": "diff f4 last4",
                   "referenceId": "FB:FBmultipub_2"}],
              "crossReferences" : [
-                 {"id" : "ZFIN:ZDB-JRNL-001-1",
-                  "pages" : ["journal", "journal/references"]}]},
+                 {"id" : "ZFIN:ZDB-JRNL-001-TZRB1",
+                  "pages" : ["journal", "journal/references"]},
+                 {"id" : "ZFIN:ZDB-JRNL-001-TZRB2",
+                  "pages" : ["journal", "journal/references"]}]}
         ]
         count = 0
         for entry in bad_key_data:
             count += 1
-            okay, message = process_resource_entry(db, entry, [])
+            xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
+
+            okay, message = process_resource_entry(db, entry, xref_ref, ref_xref_valid)
             assert not okay
             assert message.startswith("An error occurred when adding resource")
+            assert 'UnKnownKey' in message
 
-        update_data = [
-            {"primaryId" : "ZFIN:prim1",
-             "title" : "title1",
-             "medlineAbbreviation" : "new medline1",
-             "isoAbbreviation" : "new iso1",
+    def test_zfin_resource_bad_double_prefix_process_okay(self, db): # noqa
+        self.initialise_data(db)
+        dup_xref_data = [
+            {"primaryId" : "ZFIN:prim3",
+             "title" : "another title",
+             "medlineAbbreviation" : "medline1",
+             "isoAbbreviation" : "iso1",
              "editorsOrAuthors": [
                  {"authorRank": 1,
-                  "firstName": "new f1",
-                  "lastName": "new last1",
-                  "name": "new diff f1 last1",
-                  "referenceId": "FB:FBmultipub_1"},
+                  "firstName": "f3",
+                  "lastName": "last3",
+                  "name": "diff f3 last3",
+                  "referenceId": "FB:FBmultipub_3"},
                  {"authorRank": 2,
-                  "firstName": "new f2",
-                  "lastName": "new last2",
-                  "name": "new diff f2 last2",
+                  "firstName": "f4",
+                  "lastName": "last4",
+                  "name": "diff f4 last4",
                   "referenceId": "FB:FBmultipub_2"}],
              "crossReferences" : [
-                 {"id" : "NEW ZFIN:ZDB-JRNL-001-1",
+                 {"id" : "ZFIN:ZDB-JRNL-001-TZRB1",
+                  "pages" : ["journal", "journal/references"]},
+                 {"id" : "ZFIN:ZDB-JRNL-001-TZRB2",
+                  "pages" : ["journal", "journal/references"]}]}
+        ]
+        count = 0
+        for entry in dup_xref_data:
+            count += 1
+
+            xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
+            okay, message = process_resource_entry(db, entry, xref_ref, ref_xref_valid)
+            assert not okay
+            assert message == "Not allowed same prefix ZFIN multiple time for the same resource"
+
+    def test_zfin_resource_two_xrefs_of_same_prefix_update_bad(self, db): # noqa
+        """
+           It should NOT be okay to add multiple cross references to an existing
+           resource.
+        """
+        self.initialise_data(db)
+        update_data = [
+            {"crossReferences" : [
+                {"id" : "ZFIN:ZDB-JRNL-001-NEW1",
+                 "pages" : ["new journal", "new journal/references"]},
+                {"id" : "NEWPREFIX:ZDB-JRNL-001-NEW2",
+                 "pages" : ["new journal", "new journal/references"]}]}]
+
+        try:
+            okay, mess = process_update_resource(db, update_data[0], "AGR:AGR-Resource-0000000001")
+        except Exception as e:
+            assert e == 'Exception'
+        assert not okay
+        assert mess == "Prefix ZFIN is already assigned to for this resource"
+        try:
+            res = db.query(ResourceModel).filter_by(curie='AGR:AGR-Resource-0000000001').one()
+        except Exception as e:
+            assert e == 'Exception2'
+
+        count = 0
+        for xref in res.cross_reference:
+            if xref.curie == "NEWPREFIX:ZDB-JRNL-001-NEW2":
+                assert not xref.is_obsolete
+                assert xref.pages[0] == 'new journal'
+                assert xref.pages[1] == 'new journal/references'
+                count += 1
+            elif xref.curie == "ZFIN:ZDB-JRNL-001-1":
+                assert not xref.is_obsolete
+                assert xref.pages[0] == 'journal'
+                assert xref.pages[1] == 'journal/references'
+                count += 1
+            else:
+                assert "unknown xref" == xref.curie
+        assert count == 2
+
+    def test_zfin_resource_same_xref_diff_resource(self, db): # noqa
+        self.initialise_data(db)        # What happens if we pass the same xrf with a diff resource?
+        update_data = [
+            {"title" : "new title 3",
+             "crossReferences" : [
+                 {"id" : "BOB:ShouldBeOkay",
                   "pages" : ["new journal", "new journal/references"]},
                  {"id" : "ZFIN:ZDB-JRNL-001-1",
                   "pages" : ["new journal", "new journal/references"]}]}]
+        # try:
+        okay, mess = process_update_resource(db, update_data[0], "AGR:AGR-Resource-0000000002")
+        db.flush()
+        db.commit()
+        assert mess == "Prefix ZFIN is already assigned to another resource AGR:AGR-Resource-0000000001. Cannot be assigned to more than one."
+        assert not okay
+
+        # except Exception as e:
+        #     assert e == 'Exception'
         try:
-            process_update_resource(db, update_data[0], "AGR:AGR-Resource-0000000001")
-        except Exception as e:
-            assert e == 'Exception'
-        try:
-            res = db.query(ResourceModel).filter_by(title='title1').one()
+            res = db.query(ResourceModel).filter_by(curie='AGR:AGR-Resource-0000000002').one()
         except Exception as e:
             assert e == 'Exception2'
-        print(dir(res))
-        print(res)
-        print(jsonable_encoder(res))
-        assert not res.print_issn
-        assert res.medline_abbreviation == "new medline1"
-        assert res.iso_abbreviation == "new iso1"
-        print(res.cross_reference[0])
-        print(dir(res.cross_reference[0]))
-        for editor in res.editor:
-            print(editor)
 
+        # So we should have still added BOB:ShouldBeOkay
+        # and there was an original ZFIN:ZDB-JRNL-001-2
+        # BUT ZFIN:ZDB-JRNL-001-1 will not have been added
+        # as it was already assigned to another resource
+        count = 0
         for xref in res.cross_reference:
-            print(xref)
-        # New cross reference
-        assert res.cross_reference[1].curie == "NEW ZFIN:ZDB-JRNL-001-1"
-        assert not res.cross_reference[1].is_obsolete
-        assert res.cross_reference[1].pages[0] == 'new journal'
-        assert res.cross_reference[1].pages[1] == 'new journal/references'
-        # NOTE: Old one stays unchanged
-        assert res.cross_reference[0].curie == "ZFIN:ZDB-JRNL-001-1"
-        assert not res.cross_reference[0].is_obsolete
-        assert res.cross_reference[0].pages[0] == 'journal'
-        assert res.cross_reference[0].pages[1] == 'journal/references'
+            count += 1
+            if xref.curie == 'ZFIN:ZDB-JRNL-001-2':
+                assert xref.pages[0] == 'journal'
+            elif xref.curie == 'BOB:ShouldBeOkay':
+                assert xref.pages[0] == 'new journal'
+            else:
+                assert 'UnExpected curie' == xref.curie
+        assert count == 2
