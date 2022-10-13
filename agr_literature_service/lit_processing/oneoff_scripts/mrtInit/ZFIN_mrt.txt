@@ -1,5 +1,5 @@
 ZFIN Types	#of each
-Journal (article)	32950
+Journal	32950
 Review	3229
 Thesis	3148
 Other	933
