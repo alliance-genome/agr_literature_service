@@ -172,13 +172,7 @@ def process_resource_entry(db_session: Session, entry: Dict, xref_ref: Dict, ref
     new_entry = remap_keys_get_new_entry(entry)
     try:
         resource_id = None
-        last_curie_row = db_session.query(
-            ResourceModel.curie).order_by(
-                sqlalchemy.desc(ResourceModel.curie)).first()
-        last_curie = 'AGR:AGR-Resource-0000000000'
-        if last_curie_row:
-            last_curie = last_curie_row[0]
-        curie = create_next_curie(last_curie)
+        curie = get_next_resource_curie(db_session)
 
         # cross_references and editors done seperately
         # so do not want to pass them to the resource creator
