@@ -219,7 +219,7 @@ def post_resources(db_session: Session, input_path: str, input_mod: str, base_in
     reads the file
     /user/bob/sanitized_resource_json_updates/RESOURCE_ZFIN.json"
 
-    If base_input_dir not defined environment value of XML_BASE used.
+    If base_input_dir not defined environment value of XML_PATH used.
 
     :param input_path:
     :return:
