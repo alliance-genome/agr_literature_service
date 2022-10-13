@@ -34,7 +34,7 @@ def send_data_export_report(status, email, mod, email_message, logger):
         logger.info("Failed sending email to " + email_recipients + ": " + message + "\n")
 
 
-def _report_unparsable_data_published(bad_date_published, is_pubmed, logger):
+def _report_unparsable_date_published(bad_date_published, is_pubmed, logger):
 
     email_message = ''
     i = 0
@@ -114,7 +114,7 @@ def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmi
             email_message = email_message + "<p><strong>Following new PMID(s) were not added to ABC from PubMed Search</strong><p>"
             email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
 
-        msg = _report_unparsable_data_published(bad_date_published, True, logger)
+        msg = _report_unparsable_date_published(bad_date_published, True, logger)
         email_message = email_message + msg
 
         if log_url:
@@ -213,7 +213,7 @@ def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_t
 
         email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
 
-        msg = _report_unparsable_data_published(bad_date_published, False, logger)
+        msg = _report_unparsable_date_published(bad_date_published, False, logger)
         email_message = email_message + msg
 
         if log_url:
@@ -292,7 +292,7 @@ def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, upda
 
         fw.write("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the following PMID list:\n" + ", ".join(pmids_updated) + "\n")
 
-    msg = _report_unparsable_data_published(bad_date_published, True, logger)
+    msg = _report_unparsable_date_published(bad_date_published, True, logger)
     email_message = email_message + msg
 
     if len(authors_with_first_or_corresponding_flag) > 0:
