@@ -679,7 +679,7 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
     remap_keys = dict()
     remap_keys['datePublished'] = 'date_published'
     remap_keys['datePublishedStart'] = 'date_published_start'
-    remap_keys['datePublishedStart'] = 'date_published_end'
+    remap_keys['datePublishedEnd'] = 'date_published_end'
     remap_keys['dateArrivedInPubmed'] = 'date_arrived_in_pubmed'
     remap_keys['dateLastModified'] = 'date_last_modified_in_pubmed'
     remap_keys['crossReferences'] = 'cross_references'
@@ -792,6 +792,13 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
                             dqm_value = dqm_value.lower().replace(" ", "_")
                     if field_snake in db_entry:
                         db_value = db_entry[field_snake]
+                    if field_camel in ['datePublishedStart', 'datePublishedEnd']:
+                        ## db_value looks something like 2020-05-15 00:00:00
+                        ## dqm_value looks something like 2020-05-15
+                        ## so we don't want to update this
+                        db_value = str(db_value)[0:10]
+                        if db_value == str(dqm_value):
+                            continue
                     if dqm_value != db_value:
                         logger.info(f"patch {agr} {dqm_entry['primaryId']} field {field_snake} from db {db_value} to dqm {dqm_value}")
                         update_json[field_snake] = dqm_value
