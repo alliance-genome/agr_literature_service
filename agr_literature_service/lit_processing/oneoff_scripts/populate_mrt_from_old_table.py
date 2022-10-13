@@ -24,8 +24,8 @@ def populate_mrt_from_old_table():
             break
         for old_rmrt in old_rmrts:
             db_session.add(ReferenceModReferenceTypeAssociationModel(
-               reference_id=old_rmrt.reference_id,
-               mod_referencetype_id=modabbr_mrtlabel__mrtid[(old_rmrt.source, old_rmrt.reference_type)]))
+                reference_id=old_rmrt.reference_id,
+                mod_referencetype_id=modabbr_mrtlabel__mrtid[(old_rmrt.source, old_rmrt.reference_type)]))
         db_session.commit()
         end_time = datetime.datetime.now()
         print("batch processed in", end_time - start_time, "seconds")
