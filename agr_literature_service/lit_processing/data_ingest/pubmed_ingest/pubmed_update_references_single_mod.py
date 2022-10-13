@@ -39,6 +39,7 @@ refColName_to_update = ['title', 'volume', 'issue_name', 'page_range', 'citation
                         'abstract', 'pubmed_types', 'pubmed_publication_status',
                         'keywords', 'category', 'plain_language_abstract',
                         'pubmed_abstract_languages', 'language', 'date_published',
+                        'date_published_start', 'date_published_end',
                         'date_arrived_in_pubmed', 'date_last_modified_in_pubmed',
                         'publisher', 'resource_id']
 
@@ -179,15 +180,18 @@ def update_data(mod, pmids, md5dict=None, newly_added_pmids=None):  # noqa: C901
     log.info("Updating database...")
 
     pmids_with_json_updated = []
+    bad_date_published = {}
     authors_with_first_or_corresponding_flag = update_database(fw, mod,
                                                                reference_id_list,
                                                                reference_id_to_pmid,
                                                                pmid_to_reference_id,
                                                                update_log, new_md5sum,
                                                                old_md5sum, json_path,
-                                                               pmids_with_json_updated)
+                                                               pmids_with_json_updated,
+                                                               bad_date_published)
 
     write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, update_log,
+                                            bad_date_published,
                                             authors_with_first_or_corresponding_flag,
                                             not_found_xml_list, log_url, log_path,
                                             email_subject, email_recipients,
@@ -208,7 +212,7 @@ def update_data(mod, pmids, md5dict=None, newly_added_pmids=None):  # noqa: C901
     fw.close()
 
 
-def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, update_log, new_md5sum, old_md5sum, json_path, pmids_with_json_updated):   # noqa: C901
+def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, update_log, new_md5sum, old_md5sum, json_path, pmids_with_json_updated, bad_date_published):   # noqa: C901
 
     ## 1. do nothing if a field has no value in pubmed xml/json
     ##    so won't delete whatever in the database
@@ -282,13 +286,14 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
                                                                            authors_with_first_or_corresponding_flag,
                                                                            json_path,
                                                                            pmids_with_json_updated,
+                                                                           bad_date_published,
                                                                            update_log,
                                                                            offset)
 
     return authors_with_first_or_corresponding_flag
 
 
-def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, authors_with_first_or_corresponding_flag, json_path, pmids_with_json_updated, update_log, offset):
+def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, authors_with_first_or_corresponding_flag, json_path, pmids_with_json_updated, bad_date_published, update_log, offset):
 
     ## only update 3000 references per session (set in max_rows_per_db_session)
     ## just in case the database get disconnected during the update process
@@ -371,7 +376,7 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
 
         update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id,
                                journal_title, reference_id_to_authors.get(x.reference_id),
-                               update_log, count)
+                               bad_date_published, update_log, count)
 
         ## update cross_reference table for reference
         if json_data.get('doi') or json_data.get('pmc'):
@@ -432,6 +437,7 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
                                                                                authors_with_first_or_corresponding_flag,
                                                                                json_path,
                                                                                pmids_with_json_updated,
+                                                                               bad_date_published,
                                                                                update_log,
                                                                                offset)
 
@@ -451,11 +457,13 @@ def create_new_citation(authors, date_published, title, journal, volume, issue, 
     return citation
 
 
-def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, journal_title, authors, update_log, count):   # noqa: C901
+def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, journal_title, authors, bad_date_published, update_log, count):   # noqa: C901
 
     colName_to_json_key = {'issue_name': 'issueName',
                            'page_range': 'pages',
                            'date_published': 'datePublished',
+                           'date_published_start': 'datePublishedStart',
+                           'date_published_end': 'datePublishedEnd',
                            'pubmed_publication_status': 'publicationStatus',
                            'date_last_modified_in_pubmed': 'dateLastModified',
                            'date_arrived_in_pubmed': 'dateArrivedInPubmed',
@@ -523,6 +531,9 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
             j_key = colName_to_json_key[colName] if colName_to_json_key.get(colName) else colName
             old_value = getattr(x, colName)
             new_value = json_data.get(j_key)
+            if colName == 'date_published':
+                if new_value and json_data.get('datePublishedStart') is None:
+                    bad_date_published[pmid] = new_value
             if new_value is None:
                 continue
             if colName == 'category':

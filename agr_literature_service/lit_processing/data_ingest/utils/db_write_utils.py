@@ -324,7 +324,7 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref
     # xref_ref['DOI'][doi]= AGR:AGR-Reference-0000167781
 
     from datetime import datetime
-    base_path = environ.get('XML', '')
+    base_path = environ.get('XML_PATH', '')
     json_path = base_path + "pubmed_json/"
     log_path = base_path + 'pubmed_search_logs/'
     log_url = None
