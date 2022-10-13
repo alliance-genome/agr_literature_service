@@ -270,6 +270,7 @@ def post_resources(db_session: Session, input_path: str, input_mod: str, base_in
                         mapping_fh.write(message)
                 else:
                     error_fh.write(message)
+        db_session.commit()
         db_session.close()
 
 

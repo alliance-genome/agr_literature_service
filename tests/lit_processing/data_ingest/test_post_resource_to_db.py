@@ -10,7 +10,7 @@ from ...fixtures import db, cleanup_tmp_files_when_done # noqa
 
 class TestPostResourceToDb:
 
-    def test_post_resources(self, db): # noqa
+    def test_post_resources(self, db, cleanup_tmp_files_when_done): # noqa
         init_tmp_dir()
         populate_test_mods()
 
