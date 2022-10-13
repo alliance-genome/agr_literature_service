@@ -3,7 +3,6 @@ import json
 import logging.config
 
 from sqlalchemy.orm import Session
-import sqlalchemy
 
 import sys
 from os import environ
