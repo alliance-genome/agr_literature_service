@@ -86,7 +86,7 @@ def process_editors(db_session: Session, resource_id: int, editors: Dict) -> Non
         db_session.add(editor_obj)
 
 
-def process_cross_references(db_session: Session, resource_id: int, agr: str, cross_references: Dict, ref_xref_valid: Dict) -> bool:
+def process_cross_references(db_session: Session, resource_id: int, agr: str, cross_references: Dict, ref_xref_valid: Dict) -> Tuple:
     global remap_cross_references_keys
     if not remap_cross_references_keys:
         remap_cross_references_keys['id'] = 'curie'
