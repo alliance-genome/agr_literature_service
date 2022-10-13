@@ -8,6 +8,7 @@ from typing import List, Set
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import load_s3_md5data, save_s3_md5data, generate_md5sum_from_dict
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import month_name_to_number_string
+from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
 
 # pipenv run python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 #
@@ -411,6 +412,11 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                     date_dict['day'] = date_list[2]
                     # datePublished is a string, not a date-time
                     data_dict['datePublished'] = date_string
+                    date_range, error_message = parse_date(date_string, False)
+                    if date_range is not False:
+                        (datePublishedStart, datePublishedEnd) = date_range
+                        data_dict['datePublishedStart'] = datePublishedStart
+                        data_dict['datePublishedEnd'] = datePublishedEnd
                     # data_dict['issueDate'] = date_dict
                 else:
                     # 1524678 2993907 have MedlineDate instead of Year Month Day
@@ -418,6 +424,11 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                     if medline_date:
                         data_dict['date_string'] = medline_date
                         data_dict['datePublished'] = medline_date
+                        date_range, error_message = parse_date(medline_date, False)
+                        if date_range is not False:
+                            (datePublishedStart, datePublishedEnd) = date_range
+                            data_dict['datePublishedStart'] = datePublishedStart
+                            data_dict['datePublishedEnd'] = datePublishedEnd
 
             date_revised_re_output = re.search("<DateRevised>(.+?)</DateRevised>", xml, re.DOTALL)
             if date_revised_re_output is not None:

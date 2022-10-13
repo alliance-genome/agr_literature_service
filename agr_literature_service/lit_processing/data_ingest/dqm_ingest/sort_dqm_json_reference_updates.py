@@ -31,6 +31,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     add_cross_references, update_authors, update_mod_corpus_associations, \
     update_mod_reference_types
+from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
 from agr_literature_service.api.user import set_global_user_id
 
 # For WB needing 57578 references checked for updating,
@@ -589,14 +590,15 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         # python3 parse_pubmed_json_reference.py -f inputs/pubmed_only_pmids > logs/log_parse_pubmed_json_reference_update_create
         # sanitize_pubmed_json_list(pmids_wanted, [])
 
+        bad_date_published = {}
         # load new PubMed papers (REFERENCE_PUBMED_<mod>_1.json) into database
         json_filepath = base_path + 'process_dqm_update_' + mod + '/sanitized_reference_json/REFERENCE_PUBMED_' + mod + '_1.json'
-        # process_results = post_references(json_filepath, 'yes_file_check'
+        find_unparsable_date_published(json_filepath, bad_date_published)
         post_references(json_filepath, live_change)
 
         # load new non PubMed papers (REFERENCE_PUBMOD_<mod>_1.json) into database
         json_filepath = base_path + 'process_dqm_update_' + mod + '/sanitized_reference_json/REFERENCE_PUBMOD_' + mod + '_1.json'
-        # process_results = post_references(json_filepath, 'yes_file_check')
+        find_unparsable_date_published(json_filepath, bad_date_published)
         post_references(json_filepath, live_change)
 
         # update s3 md5sum only if prod, to test develop copy file from s3 prod to s3 develop
@@ -613,7 +615,29 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 
         agr_to_title = get_curie_to_title_mapping(missing_agr_in_mod[mod])
         send_dqm_loading_report(mod, report[mod], missing_papers_in_mod[mod],
-                                agr_to_title, report_file_path, logger)
+                                agr_to_title, bad_date_published,
+                                report_file_path, logger)
+
+
+def find_unparsable_date_published(json_file, bad_date_published):
+
+    if path.exists(json_file):
+        json_data = json.load(open(json_file))
+        json_new_data = []
+        for entry in json_data:
+            primaryId = entry.get('primaryId')
+            if entry.get('datePublished'):
+                date_range, error_message = parse_date(entry['datePublished'].strip(), False)
+                if date_range is not False:
+                    (datePublishedStart, datePublishedEnd) = date_range
+                    entry['datePublishedStart'] = datePublishedStart
+                    entry['datePublishedEnd'] = datePublishedEnd
+                else:
+                    bad_date_published[primaryId] = entry['datePublished']
+                json_new_data.append(entry)
+        fw = open(json_file, 'w')
+        fw.write(json.dumps(json_new_data, indent=4, sort_keys=True))
+        fw.close()
 
 
 def read_pmid_file(local_path):
@@ -654,6 +678,8 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
 
     remap_keys = dict()
     remap_keys['datePublished'] = 'date_published'
+    remap_keys['datePublishedStart'] = 'date_published_start'
+    remap_keys['datePublishedEnd'] = 'date_published_end'
     remap_keys['dateArrivedInPubmed'] = 'date_arrived_in_pubmed'
     remap_keys['dateLastModified'] = 'date_last_modified_in_pubmed'
     remap_keys['crossReferences'] = 'cross_references'
@@ -680,7 +706,8 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
     #                        'datePublished', 'dateLastModified']
     # removed some fields that Ceri and Kimberly don't want to update anymore  2022 04 25
     fields_simple_camel = ['title', 'allianceCategory', 'volume', 'pageRange', 'language',
-                           'abstract', 'publisher', 'issueName', 'datePublished']
+                           'abstract', 'publisher', 'issueName', 'datePublished',
+                           'datePublishedStart', 'datePublishedEnd']
 
     # always use sqlalchemy in batch mode to speed up the database query
     batch_db_connection_size = 7500
@@ -747,6 +774,13 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
             if processing_flag == 'mod_biblio_all':
                 update_json = dict()
                 for field_camel in fields_simple_camel:
+                    if field_camel == 'datePublished' and dqm_entry.get(field_camel):
+                        datePublished = str(dqm_entry[field_camel])
+                        date_range, error_message = parse_date(datePublished.strip(), False)
+                        if date_range is not False:
+                            (datePublishedStart, datePublishedEnd) = date_range
+                            dqm_entry['datePublishedStart'] = datePublishedStart
+                            dqm_entry['datePublishedEnd'] = datePublishedEnd
                     field_snake = field_camel
                     if field_camel in remap_keys:
                         field_snake = remap_keys[field_camel]
@@ -758,6 +792,13 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
                             dqm_value = dqm_value.lower().replace(" ", "_")
                     if field_snake in db_entry:
                         db_value = db_entry[field_snake]
+                    if field_camel in ['datePublishedStart', 'datePublishedEnd']:
+                        ## db_value looks something like 2020-05-15 00:00:00
+                        ## dqm_value looks something like 2020-05-15
+                        ## so we don't want to update this
+                        db_value = str(db_value)[0:10]
+                        if db_value == str(dqm_value):
+                            continue
                     if dqm_value != db_value:
                         logger.info(f"patch {agr} {dqm_entry['primaryId']} field {field_snake} from db {db_value} to dqm {dqm_value}")
                         update_json[field_snake] = dqm_value

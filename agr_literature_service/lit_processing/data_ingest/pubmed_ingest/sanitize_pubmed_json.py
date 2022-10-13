@@ -21,17 +21,22 @@ def sanitize_pubmed_json_list(pmids, inject_list):
         makedirs(sanitized_reference_json_path)
 
     pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'datePublished',
-                   'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'pubMedType', 'publisher',
-                   'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages', 'crossReferences',
-                   'publicationStatus', 'commentsCorrections', 'allianceCategory', 'journal']
+                   'datePublishedStart', 'datePublishedEnd', 'dateArrivedInPubmed',
+                   'dateLastModified', 'abstract', 'pubMedType', 'publisher',
+                   'meshTerms', 'plainLanguageAbstract', 'pubmedAbstractLanguages',
+                   'crossReferences', 'publicationStatus', 'commentsCorrections',
+                   'allianceCategory', 'journal']
     single_value_fields = ['volume', 'title', 'pages', 'issueName', 'datePublished',
-                           'dateArrivedInPubmed', 'dateLastModified', 'abstract', 'publisher',
+                           'datePublishedStart', 'datePublishedEnd', 'dateArrivedInPubmed',
+                           'dateLastModified', 'abstract', 'publisher',
                            'plainLanguageAbstract', 'pubmedAbstractLanguages',
                            'publicationStatus', 'allianceCategory', 'journal']
-    replace_value_fields = ['authors', 'pubMedType', 'meshTerms', 'crossReferences', 'commentsCorrections']
+    replace_value_fields = ['authors', 'pubMedType', 'meshTerms', 'crossReferences',
+                            'commentsCorrections']
     date_fields = ['dateArrivedInPubmed', 'dateLastModified']
 
     sanitized_data = []
+    bad_date_published = {}
     for pmid in pmids:
         pubmed_json_filepath = base_path + 'pubmed_json/' + pmid + '.json'
         try:
@@ -45,6 +50,9 @@ def sanitize_pubmed_json_list(pmids, inject_list):
                 entry['resource'] = 'NLM:' + pubmed_data['nlm']
             # entry['category'] = 'unknown'
             for pmid_field in pmid_fields:
+                if pmid_field == 'datePublished' and pubmed_data.get(pmid_field):
+                    if pubmed_data.get('datePublishedStart') is None:
+                        bad_date_published[pmid] = pubmed_data.get(pmid_field)
                 if pmid_field in single_value_fields:
                     pmid_data = ''
                     if pmid_field in pubmed_data:
@@ -67,3 +75,5 @@ def sanitize_pubmed_json_list(pmids, inject_list):
     json_filename = sanitized_reference_json_path + 'REFERENCE_PUBMED_PMID.json'
 
     write_json(json_filename, sanitized_data)
+
+    return bad_date_published
