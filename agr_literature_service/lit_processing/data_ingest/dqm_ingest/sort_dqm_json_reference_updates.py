@@ -589,14 +589,15 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         # python3 parse_pubmed_json_reference.py -f inputs/pubmed_only_pmids > logs/log_parse_pubmed_json_reference_update_create
         # sanitize_pubmed_json_list(pmids_wanted, [])
 
+        bad_date_published = {}
         # load new PubMed papers (REFERENCE_PUBMED_<mod>_1.json) into database
         json_filepath = base_path + 'process_dqm_update_' + mod + '/sanitized_reference_json/REFERENCE_PUBMED_' + mod + '_1.json'
-        # process_results = post_references(json_filepath, 'yes_file_check'
+        find_unparsable_date_published(json_filepath, bad_date_published)
         post_references(json_filepath, live_change)
 
         # load new non PubMed papers (REFERENCE_PUBMOD_<mod>_1.json) into database
         json_filepath = base_path + 'process_dqm_update_' + mod + '/sanitized_reference_json/REFERENCE_PUBMOD_' + mod + '_1.json'
-        # process_results = post_references(json_filepath, 'yes_file_check')
+        find_unparsable_date_published(json_filepath, bad_date_published)
         post_references(json_filepath, live_change)
 
         # update s3 md5sum only if prod, to test develop copy file from s3 prod to s3 develop
@@ -613,7 +614,17 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 
         agr_to_title = get_curie_to_title_mapping(missing_agr_in_mod[mod])
         send_dqm_loading_report(mod, report[mod], missing_papers_in_mod[mod],
-                                agr_to_title, report_file_path, logger)
+                                agr_to_title, bad_date_published,
+                                report_file_path, logger)
+
+
+def find_unparsable_date_published(json_file, bad_date_published):
+
+    json_data = json.load(open(json_file))
+    for entry in json_data:
+        primaryId = entry.get('primaryId')
+        if entry.get('datePublished') and entry.get('datePublishedStart') is None:
+            bad_date_published[primaryId] = entry['datePublished']
 
 
 def read_pmid_file(local_path):
@@ -654,6 +665,8 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
 
     remap_keys = dict()
     remap_keys['datePublished'] = 'date_published'
+    remap_keys['datePublishedStart'] = 'date_published_start'
+    remap_keys['datePublishedStart'] = 'date_published_end'
     remap_keys['dateArrivedInPubmed'] = 'date_arrived_in_pubmed'
     remap_keys['dateLastModified'] = 'date_last_modified_in_pubmed'
     remap_keys['crossReferences'] = 'cross_references'
@@ -680,7 +693,8 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
     #                        'datePublished', 'dateLastModified']
     # removed some fields that Ceri and Kimberly don't want to update anymore  2022 04 25
     fields_simple_camel = ['title', 'allianceCategory', 'volume', 'pageRange', 'language',
-                           'abstract', 'publisher', 'issueName', 'datePublished']
+                           'abstract', 'publisher', 'issueName', 'datePublished',
+                           'datePublishedStart', 'datePublishedEnd']
 
     # always use sqlalchemy in batch mode to speed up the database query
     batch_db_connection_size = 7500
