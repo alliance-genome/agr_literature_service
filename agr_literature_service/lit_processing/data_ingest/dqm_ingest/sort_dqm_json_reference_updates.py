@@ -620,11 +620,12 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 
 def find_unparsable_date_published(json_file, bad_date_published):
 
-    json_data = json.load(open(json_file))
-    for entry in json_data:
-        primaryId = entry.get('primaryId')
-        if entry.get('datePublished') and entry.get('datePublishedStart') is None:
-            bad_date_published[primaryId] = entry['datePublished']
+    if path.exists(json_file): 
+        json_data = json.load(open(json_file))
+        for entry in json_data:
+            primaryId = entry.get('primaryId')
+            if entry.get('datePublished') and entry.get('datePublishedStart') is None:
+                bad_date_published[primaryId] = entry['datePublished']
 
 
 def read_pmid_file(local_path):
