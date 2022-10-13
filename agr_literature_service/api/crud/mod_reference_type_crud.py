@@ -29,10 +29,13 @@ def insert_mod_reference_type_into_db(db_session, pubmed_types, mod_abbreviation
             mrt = ModReferenceTypeAssociationModel(
                 mod=mod, referencetype=ref_type,
                 display_order=math.ceil((max_display_order + 1) / 10) * 10)
-    rmrt = ReferenceModReferenceTypeAssociationModel(reference_id=reference_id, mod_referencetype=mrt)
-    db_session.add(rmrt)
-    db_session.commit()
-    return rmrt.reference_mod_referencetype_id
+    if mrt is not None:
+        rmrt = ReferenceModReferenceTypeAssociationModel(reference_id=reference_id, mod_referencetype=mrt)
+        db_session.add(rmrt)
+        db_session.commit()
+        return rmrt.reference_mod_referencetype_id
+    else:
+        return None
 
 
 def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost) -> int:
