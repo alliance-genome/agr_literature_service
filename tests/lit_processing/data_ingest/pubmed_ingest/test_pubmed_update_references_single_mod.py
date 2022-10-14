@@ -18,6 +18,7 @@ class TestPubmedUpdateReferenceSingleMod:
         log_file = path.join(path.dirname(__file__), 'pubmed_update.log')
         fw = open(log_file, "w")
         update_log = {}
+        bad_date_published = {}
         field_names_to_report = ['title', 'volume', 'issue_name', 'page_range', 'citation',
                                  'language', 'pmids_updated']
         for field_name in field_names_to_report:
@@ -51,7 +52,8 @@ class TestPubmedUpdateReferenceSingleMod:
 
         update_database(fw, mod, reference_id_list, reference_id_to_pmid,
                         pmid_to_reference_id, update_log, new_md5sum,
-                        old_md5sum, json_path, pmids_with_json_updated)
+                        old_md5sum, json_path, pmids_with_json_updated,
+                        bad_date_published)
         ref = None
         for x in db.query(ReferenceModel).all():
             if x.reference_id == pmid_to_reference_id[pmid]:
@@ -93,6 +95,7 @@ class TestPubmedUpdateReferenceSingleMod:
         log_file = path.join(path.dirname(__file__), 'pubmed_update.log')
         fw = open(log_file, "w")
         update_log = {}
+        bad_date_published = {}
         field_names_to_report = ['title', 'volume', 'issue_name', 'page_range', 'citation',
                                  'language', 'pmids_updated']
         for field_name in field_names_to_report:
@@ -116,7 +119,7 @@ class TestPubmedUpdateReferenceSingleMod:
         reference_id_to_authors = get_author_data(db, mod, reference_id_list, 50)
         authors = reference_id_to_authors.get(reference_id, [])
         update_reference_table(db, fw, pmid, ref, json_data, None, None,
-                               authors, update_log, 1)
+                               authors, bad_date_published, update_log, 1)
         db.commit()
 
         for x in db.query(ReferenceModel).all():
