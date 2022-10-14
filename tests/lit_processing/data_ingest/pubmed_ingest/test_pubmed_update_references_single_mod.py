@@ -6,13 +6,12 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_upda
     update_database, create_new_citation, update_reference_table, generate_pmids_with_info
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_pmid_to_reference_id, get_author_data
-from ....fixtures import cleanup_tmp_files_when_done, load_sanitized_references, \
-    populate_test_mod_reference_types, db # noqa
+from ....fixtures import load_sanitized_references, populate_test_mod_reference_types, db # noqa
 
 
 class TestPubmedUpdateReferenceSingleMod:
 
-    def test_update_database(self, db, load_sanitized_references, cleanup_tmp_files_when_done): # noqa
+    def test_update_database(self, db, load_sanitized_references): # noqa
 
         ## getting things ready for pubmed update specific functions
         log_file = path.join(path.dirname(__file__), 'pubmed_update.log')
