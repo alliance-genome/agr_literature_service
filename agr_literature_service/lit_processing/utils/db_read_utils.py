@@ -74,9 +74,9 @@ def get_references_by_curies(db_session, curie_list):
             joinedload(ReferenceModel.mod_referencetypes).subqueryload(
                 ReferenceModReferenceTypeAssociationModel.mod_referencetype).subqueryload(
                 ModReferenceTypeAssociationModel.mod)).options(
-                joinedload(ReferenceModel.mod_referencetypes).subqueryload(
-                    ReferenceModReferenceTypeAssociationModel.mod_referencetype).subqueryload(
-                    ModReferenceTypeAssociationModel.referencetype)).filter(ReferenceModel.curie.in_(curie_list)).all():
+        joinedload(ReferenceModel.mod_referencetypes).subqueryload(
+            ReferenceModReferenceTypeAssociationModel.mod_referencetype).subqueryload(
+            ModReferenceTypeAssociationModel.referencetype)).filter(ReferenceModel.curie.in_(curie_list)).all():
         ref_curie_to_reference[x.curie] = jsonable_encoder(x)
 
     return ref_curie_to_reference
