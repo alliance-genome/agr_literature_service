@@ -4,10 +4,13 @@ from typing import Dict, Tuple, Union
 from datetime import datetime, timedelta
 import json
 
+from sqlalchemy.orm import joinedload
+
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.api.models import ReferenceModel, ResourceModel, \
-    CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceCommentAndCorrectionModel
+    CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceCommentAndCorrectionModel, \
+    ReferenceModReferenceTypeAssociationModel, ModReferenceTypeAssociationModel
 
 
 def get_pmid_association_to_mod_via_reference(db_session, pmids, mod_abbreviation):
@@ -67,7 +70,13 @@ def get_references_by_curies(db_session, curie_list):
 
     ref_curie_to_reference = {}
 
-    for x in db_session.query(ReferenceModel).filter(ReferenceModel.curie.in_(curie_list)).all():
+    for x in db_session.query(ReferenceModel).options(
+            joinedload(ReferenceModel.mod_referencetypes).subqueryload(
+                ReferenceModReferenceTypeAssociationModel.mod_referencetype).subqueryload(
+                ModReferenceTypeAssociationModel.mod)).options(
+                joinedload(ReferenceModel.mod_referencetypes).subqueryload(
+                    ReferenceModReferenceTypeAssociationModel.mod_referencetype).subqueryload(
+                    ModReferenceTypeAssociationModel.referencetype)).filter(ReferenceModel.curie.in_(curie_list)).all():
         ref_curie_to_reference[x.curie] = jsonable_encoder(x)
 
     return ref_curie_to_reference
