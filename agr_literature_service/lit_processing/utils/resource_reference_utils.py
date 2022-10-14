@@ -68,7 +68,7 @@ def update_xref_dicts(agr: str, xref: str, is_obsolete: bool = False) -> None:
 def reset_xref():
     xref_ref.clear()
     ref_xref_valid.clear()
-    ref_xref_obsolete.clear()   
+    ref_xref_obsolete.clear()
 
 
 def load_xref_dicts() -> None:
