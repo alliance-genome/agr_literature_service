@@ -34,7 +34,30 @@ def send_data_export_report(status, email, mod, email_message, logger):
         logger.info("Failed sending email to " + email_recipients + ": " + message + "\n")
 
 
-def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod, logger):
+def _report_unparsable_date_published(bad_date_published, is_pubmed, logger):
+
+    email_message = ''
+    i = 0
+    id_type = "paper(s)"
+    if is_pubmed:
+        id_type = "PMID(s)"
+    for ID in bad_date_published:
+        id_with_prefix = ID
+        if is_pubmed:
+            id_with_prefix = "PMID:" + str(ID)
+        i += 1
+        if i == 1:
+            logger.info("Following " + id_type + " have unparsable date_published field:")
+            email_message = email_message + "<p>Following " + id_type + " have unparsable date_published field:<p>"
+        logger.info(id_with_prefix + ": " + str(bad_date_published[ID]))
+        email_message = email_message + id_with_prefix + ": " + str(bad_date_published[ID]) + "<br>"
+    if i > 0:
+        email_message = email_message + "<p>"
+
+    return email_message
+
+
+def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod, bad_date_published, logger):
 
     email_recipients = None
     if environ.get('CRONTAB_EMAIL'):
@@ -91,6 +114,9 @@ def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmi
             email_message = email_message + "<p><strong>Following new PMID(s) were not added to ABC from PubMed Search</strong><p>"
             email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
 
+        msg = _report_unparsable_date_published(bad_date_published, True, logger)
+        email_message = email_message + msg
+
         if log_url:
             email_message = email_message + "<p>Log file(s) are available at " + "<a href=" + log_url + ">" + log_url + "</a><p>"
         else:
@@ -111,7 +137,7 @@ def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmi
         logger.info("Failed sending email to slack: " + message + "\n")
 
 
-def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_title, log_path, logger):
+def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_title, bad_date_published, log_path, logger):
 
     email_recipients = None
     if environ.get('CRONTAB_EMAIL'):
@@ -187,6 +213,9 @@ def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_t
 
         email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
 
+        msg = _report_unparsable_date_published(bad_date_published, False, logger)
+        email_message = email_message + msg
+
         if log_url:
             log_url = log_url + log_file
             email_message = email_message + "<p>The full list of missing papers is available at " + "<a href=" + log_url + ">" + log_url + "</a><p>"
@@ -227,7 +256,7 @@ def write_log_and_send_pubmed_no_update_report(fw, mod, email_subject, email_rec
         logger.info("Failed sending email to slack: " + message + "\n")
 
 
-def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, update_log, authors_with_first_or_corresponding_flag, not_found_xml_list, log_url, log_dir, email_subject, email_recipients, sender_email, sender_password, reply_to, logger):
+def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, update_log, bad_date_published, authors_with_first_or_corresponding_flag, not_found_xml_list, log_url, log_dir, email_subject, email_recipients, sender_email, sender_password, reply_to, logger):
 
     message = None
     if mod:
@@ -262,6 +291,9 @@ def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, upda
             email_message = email_message + "<b>The log files are available at: </b><a href=" + log_url + ">" + log_url + "</a><p>"
 
         fw.write("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the following PMID list:\n" + ", ".join(pmids_updated) + "\n")
+
+    msg = _report_unparsable_date_published(bad_date_published, True, logger)
+    email_message = email_message + msg
 
     if len(authors_with_first_or_corresponding_flag) > 0:
 

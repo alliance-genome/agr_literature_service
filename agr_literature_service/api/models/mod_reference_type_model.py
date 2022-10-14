@@ -72,6 +72,7 @@ class ReferenceTypeModel(Base):
 class ModReferenceTypeAssociationModel(Base):
     __tablename__ = "mod_referencetype"
     __versioned__: Dict = {}
+    __table_args__ = (UniqueConstraint('mod_id', 'referencetype_id', name='uniq_mrt_new'),)
 
     mod_referencetype_id = Column(
         Integer,
@@ -102,6 +103,7 @@ class ModReferenceTypeAssociationModel(Base):
 class ReferenceModReferenceTypeAssociationModel(Base, AuditedModel):
     __tablename__ = "reference_mod_referencetype"
     __versioned__: Dict = {}
+    __table_args__ = (UniqueConstraint('reference_id', 'mod_referencetype_id', name='uniq_rmrt'),)
 
     reference_mod_referencetype_id = Column(
         Integer,
