@@ -7,10 +7,8 @@ from typing import Dict, List, Tuple
 from dotenv import load_dotenv
 from fastapi.encoders import jsonable_encoder
 
-from agr_literature_service.api.models import ResourceModel, CrossReferenceModel
-# from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import save_resource_file
-from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session,\
-    sqlalchemy_load_ref_xref
+from agr_literature_service.api.models import ResourceModel
+from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from sqlalchemy.orm.exc import NoResultFound
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_processing_utils import \
@@ -19,7 +17,13 @@ from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 from agr_literature_service.lit_processing.data_ingest.post_resource_to_db import \
     process_resource_entry
-
+from agr_literature_service.lit_processing.utils.resource_reference_utils import (
+    get_agr_for_xref,
+    agr_has_xref_of_prefix,
+    is_obsolete,
+    load_xref_data,
+    add_xref
+)
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 load_dotenv()
@@ -28,9 +32,6 @@ init_tmp_dir()
 remap_keys: Dict = {}
 simple_fields: List = []
 list_fields: List = []
-xref_ref: Dict = {}
-ref_xref_valid = {}
-ref_xref_obsolete = {}
 # pipenv run python sort_dqm_json_resource_updates.py
 
 # first run  get_datatypes_cross_references.py  to generate mappings from references to xrefs and resources to xrefs
@@ -84,9 +85,6 @@ def update_sanitized_resources(db_session, datatype, filename):
     set_global_user_id(db_session, scriptNm)
 
     logger.info("update_sanitized_resources for %s", datatype)
-
-    xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
-
     sanitized_resources = load_sanitized_resource(datatype, filename)
     resources_to_update = dict()
 
@@ -104,21 +102,19 @@ def update_sanitized_resources(db_session, datatype, filename):
         primary_id = resource_dict['primaryId']
         prefix, identifier, separator = split_identifier(primary_id)
         logger.info("primary_id %s pubmed %s", primary_id, resource_dict)
-        if prefix in xref_ref:
-            if identifier in xref_ref[prefix]:
-                agr = xref_ref[prefix][identifier]
-                if agr in resources_to_update:
-                    logger.info("ERROR agr %s has multiple values to update %s %s", agr, primary_id, resources_to_update[agr]['primaryId'])
-                else:
-                    resources_to_update[agr] = resource_dict
+
+        agr = get_agr_for_xref(prefix, identifier)
+        if agr:
+            if agr in resources_to_update:
+                logger.info(f"ERROR agr {agr} has multiple values to update {primary_id} {resources_to_update[agr]['primaryId']}")
+            else:
+                resources_to_update[agr] = resource_dict
                 logger.info("update primary_id %s db %s", primary_id, agr)
-                found = True
-                updated += 1
+            found = True
+            updated += 1
+
         if not found:
-            # logger.info("create primary_id %s", primary_id)
-            # resources_to_create[primary_id] = resource_dict
-            # load directly
-            process_okay, message = process_resource_entry(db_session, resource_dict, xref_ref)
+            process_okay, message = process_resource_entry(db_session, resource_dict)
             if process_okay:
                 if message:
                     logger.info(message)
@@ -180,9 +176,6 @@ def update_resource(db_session, dqm_entry, db_entry) -> None:
 
 
 def process_update_resource(db_session, dqm_entry, agr) -> Tuple:
-    global xref_ref, ref_xref_valid, ref_xref_obsolete
-    if not xref_ref:
-        xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
     try:
         db_entry = db_session.query(ResourceModel).filter(ResourceModel.curie == agr).one()
     except NoResultFound:
@@ -192,8 +185,7 @@ def process_update_resource(db_session, dqm_entry, agr) -> Tuple:
     okay = True
     error_message = ""
     if 'crossReferences' in dqm_entry:
-        okay, error_message = compare_xref(db_session, agr, db_entry['resource_id'], dqm_entry,
-                                           xref_ref, ref_xref_valid, ref_xref_obsolete)
+        okay, error_message = compare_xref(db_session, agr, db_entry['resource_id'], dqm_entry)
 
     editors_changed = compare_authors_or_editors(db_entry, dqm_entry, 'editors')
     # editor API needs updates.  reference_curie required to post reference authors but for some reason resource_curie not allowed here, cannot connect new editor to resource if resource_curie is not passed in
@@ -245,7 +237,7 @@ def camel_to_snake(field_camel, remap_keys):
     return field_snake
 
 
-def compare_xref(db_session, agr, resource_id, dqm_entry, xref_ref, ref_xref_valid, ref_xref_obsolete):
+def compare_xref(db_session, agr, resource_id, dqm_entry):
     """
     We're running dqm resource updates mod by mod instead of aggregating all their data into
     one entry and comparing that to the database.  Since we cannot track which mod submission
@@ -259,11 +251,6 @@ def compare_xref(db_session, agr, resource_id, dqm_entry, xref_ref, ref_xref_val
     :param agr:
     :param resource_id
     :param dqm_entry:
-    :param xref_ref:
-    :param ref_xref_valid:
-    :param ref_xref_obsolete:
-    :param headers:
-    :param live_changes:
     :return:
     """
 
@@ -272,16 +259,12 @@ def compare_xref(db_session, agr, resource_id, dqm_entry, xref_ref, ref_xref_val
     for xref in dqm_entry['crossReferences']:
         curie = xref['id']
         prefix, identifier, separator = split_identifier(curie)
-        agr_db_from_xref = ''
-        if prefix in xref_ref:
-            if identifier in xref_ref[prefix]:
-                agr_db_from_xref = xref_ref[prefix][identifier]
-        # depending on what curators want for reports, these commented out logger.info should go into reports
+        agr_db_from_xref = get_agr_for_xref(prefix, identifier)
         if agr_db_from_xref == agr:
             # Okay just duplication of same data, so should be okay
-            logger.info(f"Prefix found {prefix} in xref_ref for {identifier} and agr {agr_db_from_xref}")
+            logger.info(f"Prefix found {prefix} for {identifier} and agr {agr_db_from_xref}")
             # logger.info("GOOD1: cross_reference %s good in %s", curie, agr)
-        elif agr in ref_xref_valid and prefix in ref_xref_valid[agr]:
+        elif agr_has_xref_of_prefix(agr, prefix):
             mess = f"Prefix {prefix} is already assigned to for this resource"
             error_mess += mess
             okay = False
@@ -290,22 +273,15 @@ def compare_xref(db_session, agr, resource_id, dqm_entry, xref_ref, ref_xref_val
             error_mess += mess
             okay = False
         else:
-            dqm_xref_obsolete_found = False
-            dqm_xref_valid_found = False    # noqa: F841
-            if agr in ref_xref_obsolete:
-                if prefix in ref_xref_obsolete[agr]:
-                    if identifier.lower() in ref_xref_obsolete[agr][prefix]:
-                        dqm_xref_obsolete_found = True    # noqa: F841
+            if is_obsolete(agr, prefix, identifier):
+                pass
             else:
                 try:
                     logger.info("CREATE: add cross_reference %s to %s", curie, agr)
-                    x = CrossReferenceModel(curie=curie,
-                                            resource_id=resource_id,
-                                            pages=xref.get('pages', []))
-                    db_session.add(x)
-                    db_session.commit()
-                    # NOTE: ref_xref etc need updatig.
-                    # Postpone until constaints are added as this will make this all alot easier.
+                    entry = {'curie': curie,
+                             'resource_id': resource_id,
+                             'pages': xref.get('pages', [])}
+                    add_xref(agr, entry)
                     logger.info("The cross_reference row for curie = " + curie + " and resource_curie = " + agr + " has been added into database.")
                 except Exception as e:
                     okay = False
@@ -352,6 +328,8 @@ if __name__ == "__main__":
     db_session = create_postgres_session(False)
     # mods and special NLM
     mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB', 'NLM']
+    load_xref_data(db_session, 'resource')
+
     for mod in mods:
         base_path = environ.get('XML_PATH', 'undefined')
         filename = base_path + 'sanitized_resource_json/RESOURCE_' + mod + '.json'

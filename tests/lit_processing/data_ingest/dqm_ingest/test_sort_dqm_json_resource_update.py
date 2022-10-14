@@ -1,9 +1,10 @@
 from agr_literature_service.api.models import ResourceModel
 from agr_literature_service.lit_processing.data_ingest.post_resource_to_db import process_resource_entry
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.sort_dqm_json_resource_updates import process_update_resource
-from agr_literature_service.lit_processing.utils.sqlalchemy_utils import sqlalchemy_load_ref_xref
 
 from ....fixtures import db # noqa
+
+from agr_literature_service.lit_processing.utils.resource_reference_utils import dump_xrefs, load_xref_data, reset_xref
 
 
 class TestParseDqmJsonResource:
@@ -13,6 +14,9 @@ class TestParseDqmJsonResource:
         NOTE: primaryId is not stored any where?
               But used as a test, so no idea about that bit.
         """
+        print("Start Initialisation")
+        reset_xref()
+        load_xref_data(db, 'resource')
         new_data = [
             {"primaryId" : "ZFIN:prim1",
              "title" : "title1",
@@ -47,11 +51,11 @@ class TestParseDqmJsonResource:
         count = 0
         for entry in new_data:
             count += 1
-            xref_ref = []
-            ref_xref_valid = {}
-            okay, message = process_resource_entry(db, entry, xref_ref, ref_xref_valid)
+            okay, message = process_resource_entry(db, entry)
             assert message == f"ZFIN:prim{count}\tAGRKB:10200000000000{count}\n"
             assert okay
+        dump_xrefs()
+        print("End Initialisation")
 
     # @pytest.fixture
     def test_zfin_resource_parse_new(self, db): # noqa
@@ -118,8 +122,9 @@ class TestParseDqmJsonResource:
         count = 0
         for entry in duplicate_data:
             count += 1
-            xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
-            okay, message = process_resource_entry(db, entry, xref_ref, ref_xref_valid)
+            okay, message = process_resource_entry(db, entry)
+            print(f"okay = {okay}")
+            print(message)
             assert message.startswith("CrossReference with curie = ZFIN:ZDB-JRNL-001-1 already exists with a different resource")
             assert not okay
 
@@ -151,14 +156,13 @@ class TestParseDqmJsonResource:
         count = 0
         for entry in bad_key_data:
             count += 1
-            xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
 
-            okay, message = process_resource_entry(db, entry, xref_ref, ref_xref_valid)
+            okay, message = process_resource_entry(db, entry)
             assert not okay
             assert message.startswith("An error occurred when adding resource")
             assert 'UnKnownKey' in message
 
-    def test_zfin_resource_bad_double_prefix_process_okay(self, db): # noqa
+    def test_zfin_resource_double_prefix_process_bad(self, db): # noqa
         self.initialise_data(db)
         dup_xref_data = [
             {"primaryId" : "ZFIN:prim3",
@@ -186,8 +190,7 @@ class TestParseDqmJsonResource:
         for entry in dup_xref_data:
             count += 1
 
-            xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
-            okay, message = process_resource_entry(db, entry, xref_ref, ref_xref_valid)
+            okay, message = process_resource_entry(db, entry)
             assert not okay
             assert message == "Not allowed same prefix ZFIN multiple time for the same resource"
 
@@ -244,7 +247,7 @@ class TestParseDqmJsonResource:
         okay, mess = process_update_resource(db, update_data[0], "AGRKB:102000000000002")
         db.flush()
         db.commit()
-        assert mess == "Prefix ZFIN is already assigned to another resource AGRKB:102000000000001. Cannot be assigned to more than one."
+        assert mess == "Prefix ZFIN is already assigned to for this resource"
         assert not okay
 
         # except Exception as e:
@@ -261,6 +264,7 @@ class TestParseDqmJsonResource:
         count = 0
         for xref in res.cross_reference:
             count += 1
+            print(xref.curie)
             if xref.curie == 'ZFIN:ZDB-JRNL-001-2':
                 assert xref.pages[0] == 'journal'
             elif xref.curie == 'BOB:ShouldBeOkay':

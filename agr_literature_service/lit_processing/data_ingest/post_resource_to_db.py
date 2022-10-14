@@ -1,7 +1,7 @@
 import argparse
 import json
 import logging.config
-
+import traceback
 from sqlalchemy.orm import Session
 
 import sys
@@ -9,12 +9,18 @@ from os import environ
 from typing import Dict, Tuple
 from dotenv import load_dotenv
 
-from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session, \
-    sqlalchemy_load_ref_xref
+from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.models import ResourceModel, CrossReferenceModel, EditorModel
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 from agr_literature_service.global_utils import get_next_resource_curie
+from agr_literature_service.lit_processing.utils.resource_reference_utils import (
+    get_agr_for_xref,
+    agr_has_xref_of_prefix,
+    add_xref,
+    load_xref_data,
+    dump_xrefs
+)
 
 load_dotenv()
 init_tmp_dir()
@@ -86,7 +92,7 @@ def process_editors(db_session: Session, resource_id: int, editors: Dict) -> Non
         db_session.add(editor_obj)
 
 
-def process_cross_references(db_session: Session, resource_id: int, agr: str, cross_references: Dict, ref_xref_valid: Dict) -> Tuple:
+def process_cross_references(db_session: Session, resource_id: int, agr: str, cross_references: Dict) -> Tuple:
     global remap_cross_references_keys
     if not remap_cross_references_keys:
         remap_cross_references_keys['id'] = 'curie'
@@ -101,28 +107,28 @@ def process_cross_references(db_session: Session, resource_id: int, agr: str, cr
             elif subkey not in cross_references_keys_to_remove:
                 new_xref[subkey] = xref[subkey]
         new_xref['resource_id'] = resource_id
-        xref = db_session.query(CrossReferenceModel).filter_by(curie=new_xref['curie']).first()
-        prefix, identifier, separator = split_identifier(new_xref['curie'])
-        if xref:
+        prefix, identifier, _ = split_identifier(new_xref['curie'])
+        print(f"Processing {prefix} {identifier}")
+        xrefs_agr = get_agr_for_xref(prefix, identifier)
+        if xrefs_agr:
+            print(f"{prefix} {identifier} ALREADY EXISTS?")
             # Just duplicated not an error as to same resource
-            if xref.resource_id == resource_id:
+            if xrefs_agr == agr:
                 continue
-            mess = f"CrossReference with curie = {new_xref['curie']} already exists with a different resource -> {xref.resource}"
+            mess = f"CrossReference with curie = {new_xref['curie']} already exists with a different resource -> {xrefs_agr}"
             logger.error(mess)
-            # db_session.rollback()  # But how far back are we rolling back?
             okay = False
             error_mess += mess
-        elif agr in ref_xref_valid and prefix in ref_xref_valid[agr]:  # Duplicate prefix
+        # elif agr in ref_xref_valid and prefix in ref_xref_valid[agr]:  # Duplicate prefix
+        elif agr_has_xref_of_prefix(agr, prefix):
             okay = False
             error_mess += f"Not allowed same prefix {prefix} multiple time for the same resource"
         else:
-            cr = CrossReferenceModel(**new_xref)
-            db_session.add(cr)
-            logger.info("Adding resource info into cross_reference table for " + new_xref['curie'])
-            if agr not in ref_xref_valid:
-                ref_xref_valid[agr] = {}
-                if prefix:
-                    ref_xref_valid[agr][prefix] = agr
+            print("pre add xref")
+            dump_xrefs()
+            add_xref(agr, new_xref)
+            print("post add xref")
+            dump_xrefs()
     if not okay:
         return okay, error_mess
     return okay, "Cross References processed successfully"
@@ -150,23 +156,17 @@ def remap_keys_get_new_entry(entry: Dict) -> Dict:
     return new_entry
 
 
-def process_resource_entry(db_session: Session, entry: Dict, xref_ref: Dict, ref_xref_valid: Dict) -> Tuple:
+def process_resource_entry(db_session: Session, entry: Dict) -> Tuple:
     """Process json and add to db.
     Adds resourses, cross references and editors.
 
     :param db_session: database session
     :param entry:      json format of dqm resource
-    :param xref_ref:   in the format xref_ref[prefix][identifier] = agr
-                       Used to ensure xrefs only connect to 1 resource.
-                       NOTE: Does not seem to get updated as resources are added.
-    :param ref_xref_valid: in the format ref_xref[agr][prefix]
     """
     primary_id = entry['primaryId']
     prefix, identifier, separator = split_identifier(primary_id)
-    if prefix in xref_ref:
-        if identifier in xref_ref[prefix]:
-            logger.info("%s\talready in", primary_id)
-            return True, ""
+    if get_agr_for_xref(prefix, identifier):
+        return True, ""
 
     new_entry = remap_keys_get_new_entry(entry)
     try:
@@ -193,7 +193,7 @@ def process_resource_entry(db_session: Session, entry: Dict, xref_ref: Dict, ref
         db_session.refresh(x)
         resource_id = x.resource_id
 
-        xref_okay, message = process_cross_references(db_session, resource_id, curie, cross_references, ref_xref_valid)
+        xref_okay, message = process_cross_references(db_session, resource_id, curie, cross_references)
 
         # Still process editors if xrefs fail?
         process_editors(db_session, resource_id, editors)
@@ -202,6 +202,7 @@ def process_resource_entry(db_session: Session, entry: Dict, xref_ref: Dict, ref
             return xref_okay, message
         return True, f"{primary_id}\t{curie}\n"
     except Exception as e:
+        traceback.print_exc()
         message = f"An error occurred when adding resource into database for '{entry}'. {e}\n"
         logger.info(message)
         db_session.rollback()
@@ -233,21 +234,7 @@ def post_resources(db_session: Session, input_path: str, input_mod: str, base_in
     resource_primary_id_to_curie_file = base_path + 'resource_primary_id_to_curie'
     errors_in_posting_resource_file = base_path + 'errors_in_posting_resource'
 
-    # generate_cross_references_file('resource')
-    # this updates from resources in the database, and takes 4 seconds.
-    # if updating this script, comment it out after running it once
-    # xref_ref, ref_xref_valid, ref_xref_obsolete = load_ref_xref_api_flatfile('resource')
-    xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
-
-    # populating already_processed_primary_id from file generated by this script
-    # to log created agr resource curies and identifiers, obsoleted by xref_ref
-    # already_processed_primary_id = set()
-    # if path.isfile(resource_primary_id_to_curie_file):
-    #     with open(resource_primary_id_to_curie_file, 'r') as read_fh:
-    #         for line in read_fh:
-    #             line_data = line.split("\t")
-    #             if line_data[0]:
-    #                 already_processed_primary_id.add(line_data[0].rstrip())
+    load_xref_data(db_session, 'resource')
 
     with open(resource_primary_id_to_curie_file, 'a') as mapping_fh, open(errors_in_posting_resource_file, 'a') as error_fh:
 
@@ -258,7 +245,7 @@ def post_resources(db_session: Session, input_path: str, input_mod: str, base_in
             f = open(filename)
             resource_data = json.load(f)
             for entry in resource_data['data']:
-                process_okay, message = process_resource_entry(db_session, entry, xref_ref, ref_xref_valid)
+                process_okay, message = process_resource_entry(db_session, entry)
                 if process_okay:
                     if message:
                         mapping_fh.write(message)
