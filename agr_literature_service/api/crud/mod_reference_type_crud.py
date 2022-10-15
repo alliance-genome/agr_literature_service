@@ -60,7 +60,7 @@ def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost) -> int:
                                                             reference.reference_id)
     if new_mod_ref_type_id is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"Invalid reference type")
+                            detail="Invalid reference type")
     return new_mod_ref_type_id
 
 
@@ -122,7 +122,7 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update):
                 ReferenceTypeModel.label == mrt_data["reference_type"]).first()
             if referencetype is None:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                    detail=f"The provided reference type is not valid")
+                                    detail="The provided reference type is not valid")
         else:
             referencetype = ref_mod_ref_type_obj.mod_referencetype.referencetype
         mod_ref_type = db.query(ModReferenceTypeAssociationModel).filter(
@@ -130,7 +130,7 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update):
             ModReferenceTypeAssociationModel.referencetype_id == referencetype.referencetype_id).one_or_none()
         if mod_ref_type is None:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail=f"The provided reference type and mod combination is not valid")
+                                detail="The provided reference type and mod combination is not valid")
         ref_mod_ref_type_obj.mod_referencetype = mod_ref_type
     db.commit()
     return {"message": "updated"}
