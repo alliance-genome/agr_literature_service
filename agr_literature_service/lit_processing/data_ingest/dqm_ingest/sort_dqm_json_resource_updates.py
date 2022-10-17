@@ -32,6 +32,11 @@ init_tmp_dir()
 remap_keys: Dict = {}
 simple_fields: List = []
 list_fields: List = []
+resources_to_update = dict()
+# Flags for the end processing result
+PROCESSED_NEW = 0
+PROCESSED_UPDATED = 1
+PROCESSED_FAILED = 2
 # pipenv run python sort_dqm_json_resource_updates.py
 
 # first run  get_datatypes_cross_references.py  to generate mappings from references to xrefs and resources to xrefs
@@ -71,6 +76,31 @@ def load_sanitized_resource(datatype, filename):
     return sanitized_resources
 
 
+def process_single_resource(db_session, resource_dict) -> Tuple:
+    found = False
+    primary_id = resource_dict['primaryId']
+    prefix, identifier, _ = split_identifier(primary_id)
+    logger.info("primary_id %s pubmed %s", primary_id, resource_dict)
+
+    agr = get_agr_for_xref(prefix, identifier)
+    if agr:
+        if agr in resources_to_update:
+            logger.info(f"ERROR agr {agr} has multiple values to update {primary_id} {resources_to_update[agr]['primaryId']}")
+        else:
+            # resources_to_update[agr] = resource_dict
+            okay, message = process_update_resource(db_session, resource_dict, agr)
+            logger.info("update primary_id %s db %s", primary_id, agr)
+        return PROCESSED_UPDATED, okay, message
+    if not found:
+        process_okay, message = process_resource_entry(db_session, resource_dict)
+        if process_okay:
+            if message:
+                logger.info(message)
+            else:
+                logger.error(message)
+        return PROCESSED_NEW, process_okay, message
+
+
 def update_sanitized_resources(db_session, datatype, filename):
     """
     datatype is a MOD or NLM.  sort against resource_curie_to_xref from
@@ -86,45 +116,18 @@ def update_sanitized_resources(db_session, datatype, filename):
 
     logger.info("update_sanitized_resources for %s", datatype)
     sanitized_resources = load_sanitized_resource(datatype, filename)
-    resources_to_update = dict()
 
     counter = 0
-    new = 0
-    updated = 0
-    # make this True for live changes
-    # live_changes = False
-    live_changes = True
+    process_count = [0, 0, 0]
     for resource_dict in sanitized_resources:
         counter = counter + 1
         # if counter > 2:
         #     break
-        found = False
-        primary_id = resource_dict['primaryId']
-        prefix, identifier, separator = split_identifier(primary_id)
-        logger.info("primary_id %s pubmed %s", primary_id, resource_dict)
-
-        agr = get_agr_for_xref(prefix, identifier)
-        if agr:
-            if agr in resources_to_update:
-                logger.info(f"ERROR agr {agr} has multiple values to update {primary_id} {resources_to_update[agr]['primaryId']}")
-            else:
-                resources_to_update[agr] = resource_dict
-                logger.info("update primary_id %s db %s", primary_id, agr)
-            found = True
-            updated += 1
-
-        if not found:
-            process_okay, message = process_resource_entry(db_session, resource_dict)
-            if process_okay:
-                if message:
-                    logger.info(message)
-                else:
-                    logger.error(message)
-            new += 1
-    logger.info(f"{counter} resources seen. {new} new, {updated} updated.")
-
-    update_resources(db_session, live_changes, resources_to_update)
-
+        update_status, okay, message = process_single_resource(db_session, resource_dict)
+        process_count[update_status] += 1
+        if not okay:
+            logger.warning(message)
+    logger.info(f"New: {process_count[PROCESSED_NEW]}, Updated {process_count[PROCESSED_UPDATED]}. Problems {process_count[PROCESSED_FAILED]}")
     db_session.close()
 
 
