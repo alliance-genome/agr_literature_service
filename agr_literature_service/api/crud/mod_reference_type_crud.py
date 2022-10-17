@@ -54,6 +54,8 @@ def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost) -> int:
     if not reference:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Reference with curie {reference_curie} does not exist")
+    # this is going to create a new mod_referencetype entry and possibly a new referencetype if the entry is not in the
+    # db and mod is SGD and the label is a valid pubmed type
     new_mod_ref_type_id = insert_mod_reference_type_into_db(db, reference.pubmed_types,
                                                             mod_reference_type_data["source"],
                                                             mod_reference_type_data["reference_type"],
@@ -92,6 +94,7 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update):
     :return:
     """
 
+    # can only patch to an existing mod_referencetype even for SGD
     mrt_data = jsonable_encoder(mod_reference_type_update)
     ref_mod_ref_type_obj = db.query(ReferenceModReferenceTypeAssociationModel).filter(
         ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id == mod_reference_type_id).first()
