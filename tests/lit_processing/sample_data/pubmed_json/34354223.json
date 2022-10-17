@@ -1,0 +1,161 @@
+{
+    "abstract": "Lung cancer is the main cause of cancer death worldwide, with lung squamous cell carcinoma (LUSC) being the second most frequent subtype. Preclinical LUSC models recapitulating human disease pathogenesis are key for the development of early intervention approaches and improved therapies. Here, we review advances and challenges in the generation of LUSC models, from 2D and 3D cultures, to murine models. We discuss how molecular profiling of premalignant lesions and invasive LUSC has contributed to the refinement of in vitro and in vivo models, and in turn, how these systems have increased our understanding of LUSC biology and therapeutic vulnerabilities.",
+    "allianceCategory": "Review_Article",
+    "authors": [
+        {
+            "affiliations": [
+                "Lungs for Living Research Centre, UCL Respiratory, University College London, London, UK."
+            ],
+            "authorRank": 1,
+            "crossReferences": [
+                {
+                    "id": "ORCID:0000-0001-5163-6066",
+                    "pages": [
+                        "person/orcid"
+                    ]
+                }
+            ],
+            "firstinit": "S",
+            "firstname": "Sandra",
+            "lastname": "G\u00f3mez-L\u00f3pez",
+            "name": "Sandra G\u00f3mez-L\u00f3pez",
+            "orcid": "0000-0001-5163-6066"
+        },
+        {
+            "affiliations": [
+                "Lungs for Living Research Centre, UCL Respiratory, University College London, London, UK.",
+                "Cancer Research UK UCL Centre, UCL Cancer Institute, University College London, London, UK."
+            ],
+            "authorRank": 2,
+            "crossReferences": [
+                {
+                    "id": "ORCID:0000-0002-1098-6120",
+                    "pages": [
+                        "person/orcid"
+                    ]
+                }
+            ],
+            "firstinit": "ZE",
+            "firstname": "Zoe E",
+            "lastname": "Whiteman",
+            "name": "Zoe E Whiteman",
+            "orcid": "0000-0002-1098-6120"
+        },
+        {
+            "affiliations": [
+                "Lungs for Living Research Centre, UCL Respiratory, University College London, London, UK. s.janes@ucl.ac.uk."
+            ],
+            "authorRank": 3,
+            "crossReferences": [
+                {
+                    "id": "ORCID:0000-0002-6634-5939",
+                    "pages": [
+                        "person/orcid"
+                    ]
+                }
+            ],
+            "firstinit": "SM",
+            "firstname": "Sam M",
+            "lastname": "Janes",
+            "name": "Sam M Janes",
+            "orcid": "0000-0002-6634-5939"
+        }
+    ],
+    "crossReferences": [
+        {
+            "id": "PMID:34354223"
+        },
+        {
+            "id": "DOI:10.1038/s42003-021-02470-x"
+        },
+        {
+            "id": "PMCID:PMC8342622"
+        },
+        {
+            "id": "NLM:101719179"
+        },
+        {
+            "id": "ISSN:2399-3642"
+        }
+    ],
+    "dateArrivedInPubmed": {
+        "date_string": "2021-02-03",
+        "day": "03",
+        "month": "02",
+        "year": "2021"
+    },
+    "dateLastModified": {
+        "date_string": "2022-04-20",
+        "day": "20",
+        "month": "04",
+        "year": "2022"
+    },
+    "datePublished": "2021-08-05",
+    "doi": "10.1038/s42003-021-02470-x",
+    "is_journal": "journal",
+    "issn": "2399-3642",
+    "issueName": "1",
+    "journal": "Commun Biol",
+    "language": "eng",
+    "meshTerms": [
+        {
+            "meshHeadingTerm": "Animals",
+            "referenceId": "PMID:34354223"
+        },
+        {
+            "meshHeadingTerm": "Carcinoma, Bronchogenic",
+            "meshQualifierTerm": "etiology",
+            "referenceId": "PMID:34354223"
+        },
+        {
+            "meshHeadingTerm": "Carcinoma, Bronchogenic",
+            "meshQualifierTerm": "pathology",
+            "referenceId": "PMID:34354223"
+        },
+        {
+            "meshHeadingTerm": "Carcinoma, Bronchogenic",
+            "meshQualifierTerm": "physiopathology",
+            "referenceId": "PMID:34354223"
+        },
+        {
+            "meshHeadingTerm": "Embryo, Nonmammalian",
+            "referenceId": "PMID:34354223"
+        },
+        {
+            "meshHeadingTerm": "Lung Neoplasms",
+            "meshQualifierTerm": "etiology",
+            "referenceId": "PMID:34354223"
+        },
+        {
+            "meshHeadingTerm": "Lung Neoplasms",
+            "meshQualifierTerm": "pathology",
+            "referenceId": "PMID:34354223"
+        },
+        {
+            "meshHeadingTerm": "Lung Neoplasms",
+            "meshQualifierTerm": "physiopathology",
+            "referenceId": "PMID:34354223"
+        },
+        {
+            "meshHeadingTerm": "Rats",
+            "referenceId": "PMID:34354223"
+        },
+        {
+            "meshHeadingTerm": "Rats, Wistar",
+            "referenceId": "PMID:34354223"
+        }
+    ],
+    "nlm": "101719179",
+    "pages": "937",
+    "pmc": "PMC8342622",
+    "pubMedType": [
+        "Journal Article",
+        "Research Support, Non-U.S. Gov't",
+        "Review"
+    ],
+    "publicationStatus": "epublish",
+    "pubmed": "34354223",
+    "resourceAbbreviation": "Commun Biol",
+    "title": "Mapping lung squamous cell carcinoma pathogenesis through in vitro and in vivo models.",
+    "volume": "4"
+}

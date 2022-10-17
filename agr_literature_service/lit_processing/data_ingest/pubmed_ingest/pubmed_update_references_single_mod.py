@@ -564,7 +564,7 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
         log.info(str(count) + " PMID:" + str(pmid) + " No Change in Reference table")
 
 
-def get_md5sum(md5sum_path):
+def get_md5sum(md5sum_path):  # pragma: no cover
 
     file = md5sum_path + "md5sum"
     pmid_to_md5sum = {}
@@ -576,7 +576,7 @@ def get_md5sum(md5sum_path):
     return pmid_to_md5sum
 
 
-def set_paths():
+def set_paths():  # pragma: no cover
 
     load_dotenv()
 
