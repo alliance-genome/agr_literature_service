@@ -32,7 +32,7 @@ init_tmp_dir()
 remap_keys: Dict = {}
 simple_fields: List = []
 list_fields: List = []
-resources_to_update = dict()
+resources_to_update: Dict = dict()
 # Flags for the end processing result
 PROCESSED_NEW = 0
 PROCESSED_UPDATED = 1
@@ -85,12 +85,15 @@ def process_single_resource(db_session, resource_dict) -> Tuple:
     agr = get_agr_for_xref(prefix, identifier)
     if agr:
         if agr in resources_to_update:
-            logger.info(f"ERROR agr {agr} has multiple values to update {primary_id} {resources_to_update[agr]['primaryId']}")
+            message = f"ERROR agr {agr} has multiple values to update {primary_id} {resources_to_update[agr]['primaryId']}"
+            stat = PROCESSED_FAILED
+            process_okay = False
         else:
             # resources_to_update[agr] = resource_dict
-            okay, message = process_update_resource(db_session, resource_dict, agr)
+            process_okay, message = process_update_resource(db_session, resource_dict, agr)
             logger.info("update primary_id %s db %s", primary_id, agr)
-        return PROCESSED_UPDATED, okay, message
+            found = True
+            stat = PROCESSED_UPDATED
     if not found:
         process_okay, message = process_resource_entry(db_session, resource_dict)
         if process_okay:
@@ -98,7 +101,8 @@ def process_single_resource(db_session, resource_dict) -> Tuple:
                 logger.info(message)
             else:
                 logger.error(message)
-        return PROCESSED_NEW, process_okay, message
+        stat = PROCESSED_UPDATED
+    return stat, process_okay, message
 
 
 def update_sanitized_resources(db_session, datatype, filename):
