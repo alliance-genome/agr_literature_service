@@ -99,7 +99,7 @@ class TestDbReadUtils:
             }
         ]
         update_mod_reference_types(db, reference_id,
-                                   db_entry.get('mod_reference_type', []),
+                                   db_entry.get('mod_referencetypes', []),
                                    mod_reference_types, {'Journal'}, logger)
         db.commit()
         mrt_rows = db.query(ReferenceModReferenceTypeAssociationModel).filter_by(reference_id=reference_id).order_by(

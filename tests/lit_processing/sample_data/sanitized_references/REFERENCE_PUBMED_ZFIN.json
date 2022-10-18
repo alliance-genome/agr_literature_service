@@ -206,7 +206,7 @@
         "nlm": [
             "NLM:101262417"
         ],
-        "pages": "8",
+        "pages": "88",
         "primaryId": "PMID:33622238",
         "pubMedType": [
             "Journal Article"
@@ -214,8 +214,8 @@
         "publicationStatus": "epublish",
         "resource": "NLM:101262417",
         "resourceAbbreviation": "The journal of physiological sciences : JPS",
-        "title": "Role of PGE<sub>2</sub> in colonic motility: PGE<sub>2</sub> attenuates spontaneous contractions of circular smooth muscle via EP<sub>4</sub> receptors in the rat colon.",
-        "volume": "71"
+        "title": "OLD: Role of PGE<sub>2</sub> in colonic motility: PGE<sub>2</sub> attenuates spontaneous contractions of circular smooth muscle via EP<sub>4</sub> receptors in the rat colon.",
+        "volume": "888"
     },
     {
         "MODReferenceTypes": [
@@ -318,7 +318,7 @@
         "dateArrivedInPubmed": "2021-02-03",
         "dateLastModified": "2022-04-20",
         "datePublished": "2021-08-05",
-        "issueName": "1",
+        "issueName": "66",
         "keywords": [],
         "meshTerms": [
             {
@@ -395,7 +395,7 @@
         "publicationStatus": "epublish",
         "resource": "NLM:101719179",
         "resourceAbbreviation": "Communications biology",
-        "title": "Mapping lung squamous cell carcinoma pathogenesis through in vitro and in vivo models.",
+        "title": "OLD2: Mapping lung squamous cell carcinoma pathogenesis through in vitro and in vivo models.",
         "volume": "4"
     },
     {
@@ -640,7 +640,7 @@
         "publicationStatus": "ppublish",
         "resource": "NLM:0372516",
         "resourceAbbreviation": "Biochemical and biophysical research communications",
-        "title": "The role of the histone methyltransferase SET domain bifurcated 1 during palatal development.",
+        "title": "UNIT_TEST3: The role of the histone methyltransferase SET domain bifurcated 1 during palatal development.",
         "volume": "598"
     }
 ]

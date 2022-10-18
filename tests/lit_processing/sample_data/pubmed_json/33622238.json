@@ -1,0 +1,200 @@
+{
+    "abstract": "Colonic motor activity is important for the formation and propulsion of feces. The production of prostaglandins (PGs) in colonic tissue is considered to play a critical role in the generation and regulation of colonic motility. In this study, we investigated the inhibitory effects of PGE<sub>2</sub> and selective agonists of four EP receptors on the spontaneous phasic contractions, called 'giant contractions' (GCs), of mucosa-free circular smooth muscle strips from the rat middle colon. Neural blockade with tetrodotoxin (TTX) increased the frequency and amplitude of the GCs by about twofold. However, inhibiting PG production with piroxicam reduced the GC frequency in the presence of TTX, but did not affect the GC amplitude. In the presence of both TTX and piroxicam, exogenous PGE<sub>2</sub> and each EP receptor agonist were cumulatively added to the tissue bath. In this setting, PGE<sub>2</sub>, the EP<sub>2</sub> agonist ONO-AE1-259, and the EP<sub>4</sub> agonist ONO-AE1-329, but not the EP<sub>1</sub> agonist ONO-AE-DI-004 or the EP<sub>3</sub> agonist ONO-AE-248, concentration-dependently reduced the GC frequency and amplitude. The PGE<sub>2</sub>-induced inhibition of GC frequency and amplitude was inhibited by the EP<sub>4</sub> antagonist ONO-AE3-208, but not by the EP<sub>1/2</sub> antagonist AH6809. Immunohistochemistry revealed the EP<sub>2</sub> and EP<sub>4</sub> receptors were localized in perinuclear sites in circular smooth muscle cells. EP<sub>2</sub> immunoreactivity was also located in GFAP-immunoreactive enteroglia, whereas EP<sub>4</sub> immunoreactivity was also located in HU (embryonic lethal, abnormal vision [ELAV] protein; a marker of all myenteric neurons)-immunoreactive myenteric nerve cell bodies. These results suggest that the PGs produced in the colonic tissue inhibit the GC frequency and amplitude of circular muscle in the rat middle colon, and is mediated by EP<sub>4</sub> receptors expressed in the smooth muscle cells.",
+    "allianceCategory": "Research_Article",
+    "authors": [
+        {
+            "affiliations": [
+                "Laboratory of Physiology, Department of Environmental Life Sciences, University of Shizuoka, 52-1 Yada, Suruga-ku, Shizuoka, 422-8526, Japan. karaki@u-shizuoka-ken.ac.jp."
+            ],
+            "authorRank": 1,
+            "crossReferences": [
+                {
+                    "id": "ORCID:0000-0002-8525-2965",
+                    "pages": [
+                        "person/orcid"
+                    ]
+                }
+            ],
+            "firstinit": "SI",
+            "firstname": "Shin-Ichiro",
+            "lastname": "Karaki",
+            "name": "Shin-Ichiro Karaki",
+            "orcid": "0000-0002-8525-2965"
+        },
+        {
+            "affiliations": [
+                "Laboratory of Physiology, Department of Environmental Life Sciences, University of Shizuoka, 52-1 Yada, Suruga-ku, Shizuoka, 422-8526, Japan.",
+                "Testing and Research Laboratories, HAMRI Co., Ltd., 2654-3 Osaki, Koga, Ibaraki, 306-0101, Japan."
+            ],
+            "authorRank": 2,
+            "firstinit": "R",
+            "firstname": "Ryo",
+            "lastname": "Tanaka",
+            "name": "Ryo Tanaka"
+        }
+    ],
+    "crossReferences": [
+        {
+            "id": "PMID:33622238"
+        },
+        {
+            "id": "DOI:10.1186/s12576-021-00791-4"
+        },
+        {
+            "id": "NLM:101262417"
+        },
+        {
+            "id": "ISSN:1880-6546"
+        }
+    ],
+    "dateArrivedInPubmed": {
+        "date_string": "2020-10-09",
+        "day": "09",
+        "month": "10",
+        "year": "2020"
+    },
+    "dateLastModified": {
+        "date_string": "2021-11-10",
+        "day": "10",
+        "month": "11",
+        "year": "2021"
+    },
+    "datePublished": "2021-02-23",
+    "doi": "10.1186/s12576-021-00791-4",
+    "is_journal": "journal",
+    "issn": "1880-6546",
+    "issueName": "1",
+    "journal": "J Physiol Sci",
+    "keywords": [
+        "Colonic motility",
+        "EP receptor",
+        "Giant contraction",
+        "Giant migrating contraction",
+        "Prostaglandin"
+    ],
+    "language": "eng",
+    "meshTerms": [
+        {
+            "meshHeadingTerm": "Animals",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Carbachol",
+            "meshQualifierTerm": "pharmacology",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Cholinergic Agonists",
+            "meshQualifierTerm": "pharmacology",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Colon",
+            "meshQualifierTerm": "drug effects",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Colon",
+            "meshQualifierTerm": "physiology",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Dinoprostone",
+            "meshQualifierTerm": "pharmacology",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Gastrointestinal Motility",
+            "meshQualifierTerm": "physiology",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Immunohistochemistry",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Male",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Muscle, Smooth",
+            "meshQualifierTerm": "drug effects",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Piroxicam",
+            "meshQualifierTerm": "pharmacology",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Rats",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Rats, Wistar",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Receptors, Prostaglandin E, EP1 Subtype",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Receptors, Prostaglandin E, EP2 Subtype",
+            "meshQualifierTerm": "agonists",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Receptors, Prostaglandin E, EP2 Subtype",
+            "meshQualifierTerm": "antagonists &amp; inhibitors",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Receptors, Prostaglandin E, EP2 Subtype",
+            "meshQualifierTerm": "metabolism",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Receptors, Prostaglandin E, EP3 Subtype",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Receptors, Prostaglandin E, EP4 Subtype",
+            "meshQualifierTerm": "agonists",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Receptors, Prostaglandin E, EP4 Subtype",
+            "meshQualifierTerm": "antagonists &amp; inhibitors",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Receptors, Prostaglandin E, EP4 Subtype",
+            "meshQualifierTerm": "metabolism",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Sodium Channel Blockers",
+            "meshQualifierTerm": "pharmacology",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Tetrodotoxin",
+            "meshQualifierTerm": "pharmacology",
+            "referenceId": "PMID:33622238"
+        },
+        {
+            "meshHeadingTerm": "Zebrafish Proteins",
+            "referenceId": "PMID:33622238"
+        }
+    ],
+    "nlm": "101262417",
+    "pages": "8",
+    "pubMedType": [
+        "Journal Article"
+    ],
+    "publicationStatus": "epublish",
+    "pubmed": "33622238",
+    "resourceAbbreviation": "J Physiol Sci",
+    "title": "Role of PGE<sub>2</sub> in colonic motility: PGE<sub>2</sub> attenuates spontaneous contractions of circular smooth muscle via EP<sub>4</sub> receptors in the rat colon.",
+    "volume": "71"
+}

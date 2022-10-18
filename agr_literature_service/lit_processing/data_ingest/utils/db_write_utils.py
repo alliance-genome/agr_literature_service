@@ -233,9 +233,9 @@ def update_mod_reference_types(db_session, reference_id, db_mod_ref_types, json_
     db_mrt_data = {}
     to_delete_duplicate_rows = []
     for mrt in db_mod_ref_types:
-        source = mrt['source']
-        ref_type = mrt['reference_type']
-        mrt_id = mrt['mod_reference_type_id']
+        source = mrt['mod_referencetype']['mod']['abbreviation']
+        ref_type = mrt['mod_referencetype']['referencetype']['label']
+        mrt_id = mrt['reference_mod_referencetype_id']
         if source not in db_mrt_data:
             db_mrt_data[source] = {}
         if ref_type not in db_mrt_data[source]:
@@ -324,7 +324,7 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref
     # xref_ref['DOI'][doi]= AGR:AGR-Reference-0000167781
 
     from datetime import datetime
-    base_path = environ.get('XML', '')
+    base_path = environ.get('XML_PATH', '')
     json_path = base_path + "pubmed_json/"
     log_path = base_path + 'pubmed_search_logs/'
     log_url = None

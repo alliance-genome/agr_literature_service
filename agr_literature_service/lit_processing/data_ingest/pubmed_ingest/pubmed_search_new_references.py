@@ -288,7 +288,7 @@ def query_mods(input_mod, reldate):
         # pmids_to_process = ['34849855']	# test a single pmid
 
         # generate json to post for these pmids and inject data not from pubmed
-        sanitize_pubmed_json_list(pmids_to_process, [inject_object])
+        bad_date_published = sanitize_pubmed_json_list(pmids_to_process, [inject_object])
 
         # load new papers into database
         json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_PMID.json'
@@ -303,7 +303,8 @@ def query_mods(input_mod, reldate):
         set_pmid_list(db_session, mod, pmids4mod, json_filepath)
 
     logger.info("Sending Report")
-    send_pubmed_search_report(pmids4mod, mods_to_query, log_path, log_url, not_loaded_pmids4mod, logger)
+    send_pubmed_search_report(pmids4mod, mods_to_query, log_path, log_url, not_loaded_pmids4mod,
+                              bad_date_published, logger)
 
     # do not need to recursively process downloading errata and corrections,
     # but if they exist, connect them.
