@@ -28,7 +28,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
     es_body: Dict[str, Any] = {
         "query": {
-            "min_score": 11.6,
             "bool": {
                 "must": [],
                 "filter": {
@@ -36,6 +35,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 }
             }
         },
+        "min_score": 11.6,
         "aggregations": {
             "pubmed_types.keyword": {
                 "terms": {
