@@ -35,7 +35,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 }
             }
         },
-        "min_score": 11.6,
         "aggregations": {
             "pubmed_types.keyword": {
                 "terms": {
@@ -82,7 +81,17 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
         return {"hits": [], "aggregations": res["aggregations"]}
     if query:
-        es_body["query"]["bool"]["must"].append({"match": {"title": query}})
+        es_body["query"]["bool"]["must"].append(
+            {
+                "function_score": {
+                    "query": {
+                        "match": {
+                            "title": query
+                        }
+                    },
+                    "min_score": 11.6
+                }
+            })
     if facets_values:
         for facet_field, facet_list_values in facets_values.items():
             if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
