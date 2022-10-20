@@ -63,7 +63,39 @@ def process_nlm(nlm, entry, pubmed_by_nlm):
                 pubmed_by_nlm[nlm][field] = entry[field]
 
 
-def load_mod_resource(db_session, pubmed_by_nlm, nlm_by_issn, mod):      # noqa: C901
+def process_entry(db_session, entry, pubmed_by_nlm, nlm_by_issn):
+    nlm = ''
+    if 'primaryId' in entry:
+        primary_id = entry['primaryId']
+    if primary_id in pubmed_by_nlm:
+        nlm = primary_id
+    elif 'crossReferences' in entry:
+        nlm = get_nlm_from_xref(entry, nlm_by_issn)
+    if nlm != '':
+        process_nlm(nlm, entry, pubmed_by_nlm)
+    else:
+        if 'primaryId' in entry:
+            entry_cross_refs = set()
+            if 'crossReferences' in entry:
+                for cross_ref in entry['crossReferences']:
+                    entry_cross_refs.add(cross_ref['id'])
+            if entry['primaryId'] not in entry_cross_refs:
+                entry_cross_refs.add(entry['primaryId'])
+                cross_ref = dict()
+                cross_ref['id'] = entry['primaryId']
+                if 'crossReferences' in entry:
+                    entry['crossReferences'].append(cross_ref)
+                else:
+                    entry['crossReferences'] = [cross_ref]
+        # sanitized_data.append(entry)
+        update_status, okay, message = process_single_resource(db_session, entry)
+        # process_count[update_status] += 1
+        if not okay:
+            logger.warning(message)
+    return update_status, okay, message
+
+
+def load_mod_resource(db_session, pubmed_by_nlm, nlm_by_issn, mod):
     """
 
     :param json_storage_path:
@@ -80,39 +112,15 @@ def load_mod_resource(db_session, pubmed_by_nlm, nlm_by_issn, mod):      # noqa:
     try:
         with open(filename, 'r') as f:
             dqm_data = json.load(f)
-            # sanitized_data = []
             for entry in dqm_data['data']:
-                nlm = ''
-                if 'primaryId' in entry:
-                    primary_id = entry['primaryId']
-                if primary_id in pubmed_by_nlm:
-                    nlm = primary_id
-                elif 'crossReferences' in entry:
-                    nlm = get_nlm_from_xref(entry, nlm_by_issn)
-                if nlm != '':
-                    process_nlm(nlm, entry, pubmed_by_nlm)
-                else:
-                    if 'primaryId' in entry:
-                        entry_cross_refs = set()
-                        if 'crossReferences' in entry:
-                            for cross_ref in entry['crossReferences']:
-                                entry_cross_refs.add(cross_ref['id'])
-                        if entry['primaryId'] not in entry_cross_refs:
-                            entry_cross_refs.add(entry['primaryId'])
-                            cross_ref = dict()
-                            cross_ref['id'] = entry['primaryId']
-                            if 'crossReferences' in entry:
-                                entry['crossReferences'].append(cross_ref)
-                            else:
-                                entry['crossReferences'] = [cross_ref]
-                    # sanitized_data.append(entry)
-                    update_status, okay, message = process_single_resource(db_session, entry)
-                    process_count[update_status] += 1
-                    if not okay:
-                        logger.warning(message)
+                update_status, okay, message = process_entry(db_session, entry, pubmed_by_nlm, nlm_by_issn)
+                process_count[update_status] += 1
+                if not okay:
+                    logger.warning(message)
     except IOError:
-        # Some mods have no resources so excpetion here is okay.
-        pass
+        # Some mods have no resources so exception here is okay.
+        if mod in ['FB', 'ZFIN']:
+            logger.error("Could not open file {filename}.")
     return pubmed_by_nlm, process_count
 
 
