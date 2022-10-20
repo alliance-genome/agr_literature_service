@@ -1,13 +1,14 @@
 import json
 import logging.config
 from os import environ, path
-
+import sys
 from dotenv import load_dotenv
 
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import load_pubmed_resource_basic
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
+from agr_literature_service.lit_processing.utils.resource_reference_utils import load_xref_data
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.sort_dqm_json_resource_updates import (
     process_single_resource,
     PROCESSED_NEW,
@@ -17,10 +18,22 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.sort_dqm_json_
 load_dotenv()
 init_tmp_dir()
 
-
+process_count = [0, 0, 0]
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../../logging.conf')
+print(log_file_path)
 logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+logger = logging.getLogger('literature_logger')
+# logging.basicConfig(level=logging.INFO,
+#                    stream=sys.stdout,
+#                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
+#                    datefmt='%Y-%m-%d %H:%M:%S')
+# logger = logging.getLogger(__name__)
+print(logger)
+print(dir(logger))
+
+logger.error("Error")
+logger.warn("Warn")
+logger.debug("Debug")
 
 
 def get_nlm_from_xref(entry, nlm_by_issn) -> str:
@@ -65,6 +78,10 @@ def process_nlm(nlm, entry, pubmed_by_nlm):
 
 def process_entry(db_session, entry, pubmed_by_nlm, nlm_by_issn):
     nlm = ''
+    update_status = PROCESSED_FAILED
+    okay = True
+    message = ""
+
     if 'primaryId' in entry:
         primary_id = entry['primaryId']
     if primary_id in pubmed_by_nlm:
@@ -108,7 +125,6 @@ def load_mod_resource(db_session, pubmed_by_nlm, nlm_by_issn, mod):
     base_path = environ.get('XML_PATH')
 
     filename = base_path + 'dqm_data/RESOURCE_' + mod + '.json'
-    process_count[0, 0, 0]
     try:
         with open(filename, 'r') as f:
             dqm_data = json.load(f)
@@ -136,16 +152,28 @@ if __name__ == "__main__":
     mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB']
 
     pubmed_by_nlm, nlm_by_issn = load_pubmed_resource_basic()
-    for mod in mods:
-        pubmed_by_nlm, process_count = load_mod_resource(db_session, pubmed_by_nlm, nlm_by_issn, mod)
-        logger.info(f"{mod}:  New: {process_count[PROCESSED_NEW]}, Updated {process_count[PROCESSED_UPDATED]}. Problems {process_count[PROCESSED_FAILED]}")
+    load_xref_data(db_session, 'resource')
+    try:
+        for mod in mods:
+            pubmed_by_nlm, process_count = load_mod_resource(db_session, pubmed_by_nlm, nlm_by_issn, mod)
+            logger.info(f"{mod}:  New: {process_count[PROCESSED_NEW]}, Updated {process_count[PROCESSED_UPDATED]}. Problems {process_count[PROCESSED_FAILED]}")
+            print(f"{mod}:  New: {process_count[PROCESSED_NEW]}, Updated {process_count[PROCESSED_UPDATED]}. Problems {process_count[PROCESSED_FAILED]}")
+            process_count[PROCESSED_NEW] = 0
+            process_count[PROCESSED_UPDATED] = 0
+            process_count[PROCESSED_FAILED] = 0
+    except Exception as e:
+        mess = f"Error Loading mod resource {mod} with error {e}"
+        logger.error(mess)
+        print(mess)
+        exit(-1)
 
     # Process the nlm ones.
-    process_count = [0, 0, 0]
-    for entry in pubmed_by_nlm:
+    for entry_key in pubmed_by_nlm:
+        entry = pubmed_by_nlm[entry_key]
         update_status, okay, message = process_single_resource(db_session, entry)
         process_count[update_status] += 1
         if not okay:
             logger.warning(message)
     logger.info(f"NLM: New: {process_count[PROCESSED_NEW]}, Updated {process_count[PROCESSED_UPDATED]}. Problems {process_count[PROCESSED_FAILED]}")
+
     logger.info("ending load_dqm_resource.py")
