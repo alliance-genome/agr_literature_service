@@ -1,7 +1,7 @@
 import json
 import logging.config
 from os import environ, path
-import sys
+import sys  # noqa F401
 from dotenv import load_dotenv
 
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import load_pubmed_resource_basic
