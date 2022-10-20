@@ -1,7 +1,8 @@
 from agr_literature_service.api.models import ResourceModel
-from agr_literature_service.lit_processing.data_ingest.post_resource_to_db import process_resource_entry
-from agr_literature_service.lit_processing.data_ingest.dqm_ingest.sort_dqm_json_resource_updates import process_update_resource
-
+# from agr_literature_service.lit_processing.data_ingest.post_resource_to_db import process_resource_entry
+from agr_literature_service.lit_processing.data_ingest.dqm_ingest.load_dqm_resource import (
+    process_entry
+)
 from ....fixtures import db # noqa
 
 from agr_literature_service.lit_processing.utils.resource_reference_utils import dump_xrefs, load_xref_data, reset_xref
@@ -11,14 +12,12 @@ class TestParseDqmJsonResource:
     def initialise_data(self, db):  # noqa
         """
         Initial data to check and also to check update mechanisms.
-        NOTE: primaryId is not stored any where here.
-              This is used in the sanitize json bit.
         """
         print("Start Initialisation")
         reset_xref()
         load_xref_data(db, 'resource')
         new_data = [
-            {"primaryId" : "ZFIN:prim1",
+            {"primaryId" : "ZFIN:ZDB-JRNL-001-1",
              "title" : "title1",
              "medlineAbbreviation" : "medline1",
              "isoAbbreviation" : "iso1",
@@ -37,7 +36,7 @@ class TestParseDqmJsonResource:
                  {"id" : "ZFIN:ZDB-JRNL-001-1",
                   "pages" : ["journal", "journal/references"]}]},
 
-            {"primaryId" : "ZFIN:prim2",
+            {"primaryId" : "ZFIN:ZDB-JRNL-001-2",
              "title" : "title2",
              "medlineAbbreviation" : "medline2",
              "isoAbbreviation" : "iso2",
@@ -49,10 +48,12 @@ class TestParseDqmJsonResource:
         ]
 
         count = 0
+        self.pubmed_by_nlm = dict()
+        self.nlm_by_issn = dict()
         for entry in new_data:
             count += 1
-            okay, message = process_resource_entry(db, entry)
-            assert message == f"ZFIN:prim{count}\tAGRKB:10200000000000{count}\n"
+            update_status, okay, message = process_entry(db, entry, self.pubmed_by_nlm, self.nlm_by_issn)
+            assert message == f"ZFIN:ZDB-JRNL-001-{count}\tAGRKB:10200000000000{count}\n"
             assert okay
         dump_xrefs()
         print("End Initialisation")
@@ -122,7 +123,7 @@ class TestParseDqmJsonResource:
         count = 0
         for entry in duplicate_data:
             count += 1
-            okay, message = process_resource_entry(db, entry)
+            update_status, okay, message = process_entry(db, entry, self.pubmed_by_nlm, self.nlm_by_issn)
             print(f"okay = {okay}")
             print(message)
             assert message.startswith("CrossReference with curie = ZFIN:ZDB-JRNL-001-1 already exists with a different resource")
@@ -131,7 +132,7 @@ class TestParseDqmJsonResource:
     def test_zfin_resource_bad_key_process(self, db): # noqa
         self.initialise_data(db)
         bad_key_data = [
-            {"primaryId" : "ZFIN:prim3",
+            {"primaryId" : "ZFIN:ZDB-JRNL-001-TZRB1",
              "title" : "another title",
              "medlineAbbreviation" : "medline1",
              "UnKnownKey" : "iso1",
@@ -157,7 +158,7 @@ class TestParseDqmJsonResource:
         for entry in bad_key_data:
             count += 1
 
-            okay, message = process_resource_entry(db, entry)
+            update_status, okay, message = process_entry(db, entry, self.pubmed_by_nlm, self.nlm_by_issn)
             assert not okay
             assert message.startswith("An error occurred when adding resource")
             assert 'UnKnownKey' in message
@@ -165,7 +166,7 @@ class TestParseDqmJsonResource:
     def test_zfin_resource_double_prefix_process_bad(self, db): # noqa
         self.initialise_data(db)
         dup_xref_data = [
-            {"primaryId" : "ZFIN:prim3",
+            {"primaryId" : "ZFIN:ZDB-JRNL-001-TZRB1",
              "title" : "another title",
              "medlineAbbreviation" : "medline1",
              "isoAbbreviation" : "iso1",
@@ -190,85 +191,6 @@ class TestParseDqmJsonResource:
         for entry in dup_xref_data:
             count += 1
 
-            okay, message = process_resource_entry(db, entry)
+            update_status, okay, message = process_entry(db, entry, self.pubmed_by_nlm, self.nlm_by_issn)
             assert not okay
             assert message == "Not allowed same prefix ZFIN multiple time for the same resource"
-
-    def test_zfin_resource_two_xrefs_of_same_prefix_update_bad(self, db): # noqa
-        """
-           It should NOT be okay to add multiple cross references to an existing
-           resource.
-        """
-        self.initialise_data(db)
-        update_data = [
-            {"crossReferences" : [
-                {"id" : "ZFIN:ZDB-JRNL-001-NEW1",
-                 "pages" : ["new journal", "new journal/references"]},
-                {"id" : "NEWPREFIX:ZDB-JRNL-001-NEW2",
-                 "pages" : ["new journal", "new journal/references"]}]}]
-
-        try:
-            okay, mess = process_update_resource(db, update_data[0], "AGRKB:102000000000001")
-        except Exception as e:
-            assert e == 'Exception'
-        assert not okay
-        assert mess == "Prefix ZFIN is already assigned to for this resource"
-        try:
-            res = db.query(ResourceModel).filter_by(curie='AGRKB:102000000000001').one()
-        except Exception as e:
-            assert e == 'Exception2'
-
-        count = 0
-        for xref in res.cross_reference:
-            if xref.curie == "NEWPREFIX:ZDB-JRNL-001-NEW2":
-                assert not xref.is_obsolete
-                assert xref.pages[0] == 'new journal'
-                assert xref.pages[1] == 'new journal/references'
-                count += 1
-            elif xref.curie == "ZFIN:ZDB-JRNL-001-1":
-                assert not xref.is_obsolete
-                assert xref.pages[0] == 'journal'
-                assert xref.pages[1] == 'journal/references'
-                count += 1
-            else:
-                assert "unknown xref" == xref.curie
-        assert count == 2
-
-    def test_zfin_resource_same_xref_diff_resource(self, db): # noqa
-        self.initialise_data(db)        # What happens if we pass the same xrf with a diff resource?
-        update_data = [
-            {"title" : "new title 3",
-             "crossReferences" : [
-                 {"id" : "BOB:ShouldBeOkay",
-                  "pages" : ["new journal", "new journal/references"]},
-                 {"id" : "ZFIN:ZDB-JRNL-001-1",
-                  "pages" : ["new journal", "new journal/references"]}]}]
-        # try:
-        okay, mess = process_update_resource(db, update_data[0], "AGRKB:102000000000002")
-        db.flush()
-        db.commit()
-        assert mess == "Prefix ZFIN is already assigned to for this resource"
-        assert not okay
-
-        # except Exception as e:
-        #     assert e == 'Exception'
-        try:
-            res = db.query(ResourceModel).filter_by(curie='AGRKB:102000000000002').one()
-        except Exception as e:
-            assert e == 'Exception2'
-
-        # So we should have still added BOB:ShouldBeOkay
-        # and there was an original ZFIN:ZDB-JRNL-001-2
-        # BUT ZFIN:ZDB-JRNL-001-1 will not have been added
-        # as it was already assigned to another resource
-        count = 0
-        for xref in res.cross_reference:
-            count += 1
-            print(xref.curie)
-            if xref.curie == 'ZFIN:ZDB-JRNL-001-2':
-                assert xref.pages[0] == 'journal'
-            elif xref.curie == 'BOB:ShouldBeOkay':
-                assert xref.pages[0] == 'new journal'
-            else:
-                assert 'UnExpected curie' == xref.curie
-        assert count == 2
