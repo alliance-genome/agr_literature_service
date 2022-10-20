@@ -76,6 +76,7 @@ def load_xref_dicts() -> None:
     Search the database and load the dicts.
     """
     query = None
+    print("load_xref_dicts")
     if datatype == 'reference':
         # 14 seconds to load all xref through sqlalchemy
         query = db_session.query(
@@ -89,6 +90,7 @@ def load_xref_dicts() -> None:
         )
 
     elif datatype == 'resource':
+        print("Loading resource cross reference db data.")
         query = db_session.query(
             ResourceModel.curie,
             CrossReferenceModel.curie,
@@ -103,6 +105,7 @@ def load_xref_dicts() -> None:
         results = query.all()
 
         for result in results:
+            print(result)
             update_xref_dicts(result[0], result[1], result[2])
 
 
@@ -113,7 +116,9 @@ def load_xref_data(db_session_set: Session, load_datatype: str) -> None:
     have to be passed around all the time.
     """
     global db_session
+    global datatype
 
+    print(f"lxd db:{db_session} datatype: {load_datatype}")
     db_session = db_session_set
     allowed_types = ["resource", "reference"]
     datatype = load_datatype

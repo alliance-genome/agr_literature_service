@@ -18,8 +18,7 @@ from agr_literature_service.lit_processing.utils.resource_reference_utils import
     get_agr_for_xref,
     agr_has_xref_of_prefix,
     add_xref,
-    load_xref_data,
-    dump_xrefs
+    load_xref_data
 )
 
 load_dotenv()
@@ -124,11 +123,11 @@ def process_cross_references(db_session: Session, resource_id: int, agr: str, cr
             okay = False
             error_mess += f"Not allowed same prefix {prefix} multiple time for the same resource"
         else:
-            print("pre add xref")
-            dump_xrefs()
+            # print("pre add xref")
+            # dump_xrefs()
             add_xref(agr, new_xref)
-            print("post add xref")
-            dump_xrefs()
+            # print("post add xref")
+            # dump_xrefs()
     if not okay:
         return okay, error_mess
     return okay, "Cross References processed successfully"
@@ -185,7 +184,10 @@ def process_resource_entry(db_session: Session, entry: Dict) -> Tuple:
             del new_entry["editors"]
 
         new_entry['curie'] = curie
-        logger.info("Adding resource into database for '" + new_entry['iso_abbreviation'] + "'")
+        if 'iso_abbreviation' in new_entry:
+            logger.info("Adding resource into database for '" + new_entry['iso_abbreviation'] + "'")
+        else:
+            logger.info(" NOOO iso_abbreviation: Adding resource into database for '" + new_entry['curie'] + "'")
         x = ResourceModel(**new_entry)
         db_session.add(x)
         db_session.flush()
