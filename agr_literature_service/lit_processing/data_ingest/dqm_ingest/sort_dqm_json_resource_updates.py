@@ -2,7 +2,7 @@
 Functions to update and create resources.
 
 sanitized json entry mentioned in the docs is the original dqm entry that has been
-modified only wrt its primary_id and a cross reference added of the primary id if 
+modified only wrt its primary_id and a cross reference added of the primary id if
 it was not already in the cross references in the file.
 
 NOTE:The script part of this has been removed as it is no longer used that way.
@@ -97,7 +97,7 @@ def update_resource(db_session: Session, dqm_entry: dict, db_entry: dict) -> Non
 
     :param db_session: db connection
     :param dqm_entry: sanitized dqm entry in json format
-    "param db_entry: db entry in json format. 
+    "param db_entry: db entry in json format.
     """
     global simple_fields
     global list_fields
