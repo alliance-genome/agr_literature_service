@@ -6,7 +6,7 @@ cross_reference_model.py
 
 from typing import Dict
 
-from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String
+from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -35,7 +35,8 @@ class CrossReferenceModel(Base, AuditedModel):
 
     curie_prefix = Column(
         String(),
-        nullable=False
+        nullable=False,
+        default=curie.split(":")[0]
     )
 
     is_obsolete = Column(
@@ -69,6 +70,21 @@ class CrossReferenceModel(Base, AuditedModel):
     pages = Column(
         ARRAY(String()),
         nullable=True
+    )
+
+    __table_args__ = (
+        Index('idx_curie_prefix_reference',
+              'curie_prefix', 'reference_id',
+              unique=True,
+              postgresql_where=(is_obsolete.is_(False))),
+        Index('idx_curie_prefix_resource',
+              'curie_prefix', 'resource_id',
+              unique=True,
+              postgresql_where=(is_obsolete.is_(False))),
+        Index('idx_curie',
+              'curie',
+              unique=True,
+              postgresql_where=(is_obsolete.is_(False)))
     )
 
     def __str__(self):
