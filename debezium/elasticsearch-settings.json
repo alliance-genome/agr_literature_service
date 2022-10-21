@@ -181,24 +181,14 @@
         }
       },
       "date_arrived_in_pubmed": {
-        "type": "text",
-        "fields": {
-          "keyword": {
-            "type": "keyword",
-            "normalizer": "sortNormalizer",
-            "ignore_above": 256
-          }
-        }
+        "type": "date",
+        "format": "date_optional_time||epoch_millis",
+        "null_value": null
       },
       "date_last_modified_in_pubmed": {
-        "type": "text",
-        "fields": {
-          "keyword": {
-            "type": "keyword",
-            "normalizer": "sortNormalizer",
-            "ignore_above": 256
-          }
-        }
+        "type": "date",
+        "format": "date_optional_time||epoch_millis",
+        "null_value": null
       },
       "cross_references.curie": {
         "type": "text",
