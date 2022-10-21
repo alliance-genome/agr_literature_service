@@ -178,6 +178,7 @@ def post_resources(input_path, input_mod, base_input_dir=base_path):      # noqa
                             logger.info("CrossReference with curie = " + new_xref['curie'] + " already exists")
                             db_session.rollback()
                             break
+                        new_xref['curie_prefix'] = new_xref['curie'].split(":")[0]
                         cr = CrossReferenceModel(**new_xref)
                         db_session.add(cr)
                         logger.info("Adding resource info into cross_reference table for " + new_xref['curie'])
@@ -189,13 +190,6 @@ def post_resources(input_path, input_mod, base_input_dir=base_path):      # noqa
                                 new_editor[remap_editor_keys[subkey]] = editor[subkey]
                             elif subkey not in editor_keys_to_remove:
                                 new_editor[subkey] = editor[subkey]
-                        if new_editor.get('orcid') and new_editor['orcid']:
-                            cross_reference_obj = db_session.query(
-                                CrossReferenceModel).filter_by(
-                                    curie=new_editor['orcid']).first()
-                            if not cross_reference_obj:
-                                cross_reference_obj = CrossReferenceModel(curie=new_editor['orcid'])
-                                db_session.add(cross_reference_obj)
                         new_editor['resource_id'] = resource_id
                         editor_obj = EditorModel(**new_editor)
                         db_session.add(editor_obj)

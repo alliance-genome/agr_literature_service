@@ -335,6 +335,7 @@ def compare_xref(db_session, agr, resource_id, dqm_entry, xref_ref, ref_xref_val
                     try:
                         logger.info("CREATE: add cross_reference %s to %s", curie, agr)
                         x = CrossReferenceModel(curie=curie,
+                                                curie_prefix=curie.split(":")[0],
                                                 resource_id=resource_id,
                                                 pages=xref.get('pages', []))
                         db_session.add(x)
