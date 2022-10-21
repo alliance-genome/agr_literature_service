@@ -11,8 +11,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.reference_resource import add, create_obj, stripout
-from agr_literature_service.api.models import (CrossReferenceModel, EditorModel,
-                                               ResourceModel)
+from agr_literature_service.api.models import EditorModel, ResourceModel
 from agr_literature_service.api.schemas import EditorSchemaPost
 
 
@@ -26,20 +25,12 @@ def create(db: Session, editor: EditorSchemaPost) -> int:
 
     editor_data = jsonable_encoder(editor)
 
-    orcid = None
-    if "orcid" in editor_data:
-        orcid = editor_data["orcid"]
-        del editor_data["orcid"]
+    # orcid = None
+    # if "orcid" in editor_data:
+    #    orcid = editor_data["orcid"]
+    #    del editor_data["orcid"]
 
     db_obj = create_obj(db, EditorModel, editor_data)
-
-    if orcid:
-        cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
-        if not cross_reference_obj:
-            cross_reference_obj = CrossReferenceModel(curie=orcid)
-            db.add(cross_reference_obj)
-        db_obj.orcid_cross_reference = cross_reference_obj
-
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)
@@ -83,15 +74,7 @@ def patch(db: Session, editor_id: int, editor_update) -> dict:
     add(res_ref, editor_db_obj)
 
     for field, value in editor_data.items():
-        if field == "orcid" and value:
-            orcid = value
-            cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
-            if not cross_reference_obj:
-                cross_reference_obj = CrossReferenceModel(curie=orcid)
-                db.add(cross_reference_obj)
-            editor_db_obj.orcid_cross_reference = cross_reference_obj
-        else:
-            setattr(editor_db_obj, field, value)
+        setattr(editor_db_obj, field, value)
 
     editor_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
