@@ -183,12 +183,14 @@
       "date_arrived_in_pubmed": {
         "type": "date",
         "format": "date_optional_time||epoch_millis",
-        "null_value": null
+        "null_value": null,
+        "ignore_malformed": true
       },
       "date_last_modified_in_pubmed": {
         "type": "date",
         "format": "date_optional_time||epoch_millis",
-        "null_value": null
+        "null_value": null,
+        "ignore_malformed": true
       },
       "cross_references.curie": {
         "type": "text",

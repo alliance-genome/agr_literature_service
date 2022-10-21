@@ -2,7 +2,7 @@
   "name": "elastic-sink",
   "config": {
     "connector.class": "io.confluent.connect.elasticsearch.ElasticsearchSinkConnector",
-    "tasks.max": "1",
+    "tasks.max": "10",
     "topics": "reference_joined",
     "connection.url": "http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}",
     "transforms": "dropPrefix",
