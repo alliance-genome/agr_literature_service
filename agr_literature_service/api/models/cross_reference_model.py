@@ -10,19 +10,32 @@ from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.database.versioning import enable_versioning
 
 
 enable_versioning()
 
 
-class CrossReferenceModel(Base):
+class CrossReferenceModel(Base, AuditedModel):
     __tablename__ = "cross_reference"
     __versioned__: Dict = {}
 
+    cross_reference_id = Column(
+        Integer,
+        primary_key=True,
+        autoincrement=True
+    )
+
     curie = Column(
-        String,
-        primary_key=True
+        String(),
+        nullable=False,
+        index=True
+    )
+
+    curie_prefix = Column(
+        String(),
+        nullable=False
     )
 
     is_obsolete = Column(
@@ -51,16 +64,6 @@ class CrossReferenceModel(Base):
     resource = relationship(
         "ResourceModel",
         back_populates="cross_reference"
-    )
-
-    author = relationship(
-        "AuthorModel",
-        back_populates="orcid_cross_reference"
-    )
-
-    editor = relationship(
-        "EditorModel",
-        back_populates="orcid_cross_reference"
     )
 
     pages = Column(

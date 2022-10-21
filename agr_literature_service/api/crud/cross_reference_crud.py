@@ -103,17 +103,6 @@ def show(db: Session, curie: str, indirect=True) -> dict:
         cross_reference_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == cross_reference_data['reference_id']).first().curie
     del cross_reference_data["reference_id"]
 
-    author_ids = []
-    editor_ids = []
-    if not indirect:
-        for author in cross_reference.author:
-            author_ids.append(author.author_id)
-
-        for editor in cross_reference.editor:
-            editor_ids.append(editor.editor_id)
-    cross_reference_data["author_ids"] = author_ids
-    cross_reference_data["editor_ids"] = editor_ids
-
     [db_prefix, local_id] = curie.split(":", 1)
     resource_descriptor = db.query(ResourceDescriptorModel).filter(ResourceDescriptorModel.db_prefix == db_prefix).first()
     if resource_descriptor:
