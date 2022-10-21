@@ -37,7 +37,7 @@ class CrossReferenceModel(Base, AuditedModel):
         String(),
         nullable=False,
         # default=curie.split(":")[0]       this doesn't work. 'Comparator' object has an attribute 'split'
-        default=self.curie.split(":")[0]
+        default=curie
     )
 
     is_obsolete = Column(
