@@ -1,8 +1,10 @@
 import json
 import logging.config
-from os import environ, path
-import sys  # noqa F401
+from os import environ
+import sys
 from dotenv import load_dotenv
+from sqlalchemy.orm import Session
+from typing import Dict, Tuple
 
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import load_pubmed_resource_basic
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
@@ -19,24 +21,21 @@ load_dotenv()
 init_tmp_dir()
 
 process_count = [0, 0, 0]
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../../logging.conf')
-print(log_file_path)
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature_logger')
-# logging.basicConfig(level=logging.INFO,
-#                    stream=sys.stdout,
-#                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
-#                    datefmt='%Y-%m-%d %H:%M:%S')
-# logger = logging.getLogger(__name__)
-print(logger)
-print(dir(logger))
 
-logger.error("Error")
-logger.warn("Warn")
-logger.debug("Debug")
+logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
+                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
+                    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
 
 
-def get_nlm_from_xref(entry, nlm_by_issn) -> str:
+def get_nlm_from_xref(entry: Dict, nlm_by_issn: Dict) -> str:
+    """
+    Get the nlm vsalue in the entry if it exists
+
+    :param entry: dqm entry in json format
+    :param nlm_by_issn: dict of nlm from a issn
+    """
     nlm = ''
     for cross_ref in entry['crossReferences']:
         if 'id' in cross_ref:
@@ -48,7 +47,14 @@ def get_nlm_from_xref(entry, nlm_by_issn) -> str:
     return nlm
 
 
-def process_nlm(nlm, entry, pubmed_by_nlm):
+def process_nlm(nlm: str, entry: dict, pubmed_by_nlm: dict) -> None:
+    """
+    Update the dict pubmed_by_nlm using the entry's data.
+
+    :param nlm: nlm value to process
+    :param entry: dqm entry in json format
+    :param pubmed_by_nlm: dict of nlm's to entry fields.
+    """
     resource_fields_not_in_pubmed = ['titleSynonyms', 'abbreviationSynonyms', 'copyrightDate',
                                      'publisher', 'editorsOrAuthors', 'volumes', 'pages', 'abstractOrSummary']
     if nlm in pubmed_by_nlm:
@@ -76,7 +82,17 @@ def process_nlm(nlm, entry, pubmed_by_nlm):
                 pubmed_by_nlm[nlm][field] = entry[field]
 
 
-def process_entry(db_session, entry, pubmed_by_nlm, nlm_by_issn):
+def process_entry(db_session: Session, entry: dict, pubmed_by_nlm: dict, nlm_by_issn: dict) -> Tuple:
+    """
+    Process the original dqm json entry.
+    First we "sanitize the entry and then process it according
+    to wether it has nlm in it or not.
+
+    :param db_session: db connection
+    :param entry: dqm entry unaltered in json format
+    :param pubmed_by_nlm: pubmed entry by nlm, pubmed_by_nlm processed at the end.
+    :param nlm_by_issn: dict to look up nlm vis issn
+    """
     nlm = ''
     update_status = PROCESSED_FAILED
     okay = True
@@ -104,25 +120,24 @@ def process_entry(db_session, entry, pubmed_by_nlm, nlm_by_issn):
                     entry['crossReferences'].append(cross_ref)
                 else:
                     entry['crossReferences'] = [cross_ref]
-        # sanitized_data.append(entry)
+
         update_status, okay, message = process_single_resource(db_session, entry)
-        # process_count[update_status] += 1
         if not okay:
             logger.warning(message)
     return update_status, okay, message
 
 
-def load_mod_resource(db_session, pubmed_by_nlm, nlm_by_issn, mod):
+def load_mod_resource(db_session: Session, pubmed_by_nlm: Dict, nlm_by_issn: Dict, mod: str) -> Tuple:
     """
 
-    :param json_storage_path:
-    :param pubmed_by_nlm:
-    :param nlm_by_issn:
-    :param mod:
+    :param db_session: db connection
+    :param pubmed_by_nlm: pubmed entry by nlm, pubmed_by_nlm processed at the end.
+    :param nlm_by_issn: dict to look up nlm vis issn
+    :param mod: mod to be processed
     :return:
     """
 
-    base_path = environ.get('XML_PATH')
+    base_path = environ.get('XML_PATH', '')
 
     filename = base_path + 'dqm_data/RESOURCE_' + mod + '.json'
     try:
@@ -134,7 +149,7 @@ def load_mod_resource(db_session, pubmed_by_nlm, nlm_by_issn, mod):
                 if not okay:
                     logger.warning(message)
     except IOError:
-        # Some mods have no resources so exception here is okay.
+        # Some mods have no resources so exception here is okay but give message anyway.
         if mod in ['FB', 'ZFIN']:
             logger.error("Could not open file {filename}.")
     return pubmed_by_nlm, process_count
@@ -157,7 +172,6 @@ if __name__ == "__main__":
         for mod in mods:
             pubmed_by_nlm, process_count = load_mod_resource(db_session, pubmed_by_nlm, nlm_by_issn, mod)
             logger.info(f"{mod}:  New: {process_count[PROCESSED_NEW]}, Updated {process_count[PROCESSED_UPDATED]}. Problems {process_count[PROCESSED_FAILED]}")
-            print(f"{mod}:  New: {process_count[PROCESSED_NEW]}, Updated {process_count[PROCESSED_UPDATED]}. Problems {process_count[PROCESSED_FAILED]}")
             process_count[PROCESSED_NEW] = 0
             process_count[PROCESSED_UPDATED] = 0
             process_count[PROCESSED_FAILED] = 0
