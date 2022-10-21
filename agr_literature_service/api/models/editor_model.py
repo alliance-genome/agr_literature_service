@@ -40,7 +40,7 @@ class EditorModel(Base, AuditedModel):
 
     orcid = Column(
         String(),
-        unique=False,
+        index=True,
         nullable=True
     )
 
