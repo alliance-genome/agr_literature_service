@@ -44,9 +44,9 @@ def upgrade():
     op.add_column('cross_reference_version', sa.Column('updated_by', sa.String(), autoincrement=False, nullable=True))
     op.add_column('cross_reference_version', sa.Column('updated_by_mod', sa.Boolean(), server_default=sa.text('false'), nullable=False))
     op.alter_column('cross_reference_version', 'curie',
-               existing_type=sa.VARCHAR(),
-               nullable=True,
-               autoincrement=False)
+                    existing_type=sa.VARCHAR(),
+                    nullable=True,
+                    autoincrement=False)
     op.create_index(op.f('ix_cross_reference_version_curie'), 'cross_reference_version', ['curie'], unique=False)
     op.create_index(op.f('ix_editor_orcid'), 'editor', ['orcid'], unique=False)
     op.drop_constraint('editors_orcid_fkey', 'editor', type_='foreignkey')
@@ -61,9 +61,9 @@ def downgrade():
     op.drop_index(op.f('ix_editor_orcid'), table_name='editor')
     op.drop_index(op.f('ix_cross_reference_version_curie'), table_name='cross_reference_version')
     op.alter_column('cross_reference_version', 'curie',
-               existing_type=sa.VARCHAR(),
-               nullable=False,
-               autoincrement=False)
+                    existing_type=sa.VARCHAR(),
+                    nullable=False,
+                    autoincrement=False)
     op.drop_column('cross_reference_version', 'updated_by_mod')
     op.drop_column('cross_reference_version', 'updated_by')
     op.drop_column('cross_reference_version', 'date_updated_mod')
