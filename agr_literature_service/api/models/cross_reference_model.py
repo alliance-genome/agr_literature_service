@@ -8,8 +8,7 @@ from typing import Dict
 
 # from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index,\
 #    Sequence
-from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, \
-    Sequence
+from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -26,9 +25,15 @@ class CrossReferenceModel(Base, AuditedModel):
 
     cross_reference_id = Column(
         Integer,
-        Sequence('cross_reference_id_seq', start=0, increment=1),
-        primary_key=True
+        primary_key=True,
+        autoincrement=True
     )
+
+    # cross_reference_id = Column(
+    #    Integer,
+    #    Sequence('cross_reference_id_seq', start=0, increment=1),
+    #    primary_key=True
+    # )
 
     curie = Column(
         String(),
