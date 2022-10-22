@@ -22,9 +22,9 @@ class CrossReferenceModel(Base, AuditedModel):
     __versioned__: Dict = {}
 
     cross_reference_id = Column(
-        Integer,
-        primary_key=True,
-        autoincrement=True
+        Integer, 
+        Sequence('cross_reference_id_seq', start=0, increment=1),   
+        primary_key=True)
     )
 
     curie = Column(
