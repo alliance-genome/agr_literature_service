@@ -6,7 +6,8 @@ cross_reference_model.py
 
 from typing import Dict
 
-from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index
+from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index,\
+    Sequence
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -22,9 +23,9 @@ class CrossReferenceModel(Base, AuditedModel):
     __versioned__: Dict = {}
 
     cross_reference_id = Column(
-        Integer, 
-        Sequence('cross_reference_id_seq', start=0, increment=1),   
-        primary_key=True)
+        Integer,
+        Sequence('cross_reference_id_seq', start=0, increment=1),
+        primary_key=True
     )
 
     curie = Column(
