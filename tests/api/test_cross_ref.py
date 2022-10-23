@@ -22,6 +22,7 @@ def test_cross_reference(db, auth_headers, test_reference): # noqa
                    "VALUES ('XREF', 'Madeup', 'http://www.bob.com/[%s]')")
         db.commit()
         new_cross_ref = {
+            "curie_prefix": "XREF",
             "curie": "XREF:123456",
             "reference_curie": test_reference.new_ref_curie,
             "pages": ["reference"]
