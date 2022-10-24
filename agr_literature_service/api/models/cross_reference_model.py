@@ -6,6 +6,8 @@ cross_reference_model.py
 
 from typing import Dict
 
+# from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index,\
+#    Sequence
 from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
@@ -27,6 +29,12 @@ class CrossReferenceModel(Base, AuditedModel):
         autoincrement=True
     )
 
+    # cross_reference_id = Column(
+    #    Integer,
+    #    Sequence('cross_reference_id_seq', start=0, increment=1),
+    #    primary_key=True
+    # )
+
     curie = Column(
         String(),
         nullable=False,
@@ -35,8 +43,13 @@ class CrossReferenceModel(Base, AuditedModel):
 
     curie_prefix = Column(
         String(),
-        nullable=False
+        nullable=True
     )
+
+    # curie_prefix = Column(
+    #    String(),
+    #    nullable=False
+    # )
 
     is_obsolete = Column(
         Boolean,
@@ -70,6 +83,21 @@ class CrossReferenceModel(Base, AuditedModel):
         ARRAY(String()),
         nullable=True
     )
+
+    # __table_args__ = (
+    #    Index('idx_curie_prefix_reference',
+    #          'curie_prefix', 'reference_id',
+    #          unique=True,
+    #          postgresql_where=(is_obsolete.is_(False))),
+    #    Index('idx_curie_prefix_resource',
+    #          'curie_prefix', 'resource_id',
+    #          unique=True,
+    #          postgresql_where=(is_obsolete.is_(False))),
+    #    Index('idx_curie',
+    #          'curie',
+    #          unique=True,
+    #          postgresql_where=(is_obsolete.is_(False)))
+    # )
 
     def __str__(self):
         """

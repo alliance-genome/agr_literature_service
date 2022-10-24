@@ -354,9 +354,6 @@ def show(db: Session, curie: str, http_request=True):  # noqa
     if reference.author:
         authors = []
         for author in reference_data["author"]:
-            if author["orcid"]:
-                author["orcid"] = jsonable_encoder(cross_reference_crud.show(db, author["orcid"]))
-            del author["orcid_cross_reference"]
             del author["reference_id"]
             authors.append(author)
         reference_data['authors'] = authors

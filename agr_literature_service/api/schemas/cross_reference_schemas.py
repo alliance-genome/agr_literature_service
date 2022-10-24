@@ -1,6 +1,7 @@
 from typing import List, Optional
 
 from pydantic import BaseModel, validator
+from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
 
 class CrossReferenceSchemaRelated(BaseModel):
@@ -61,13 +62,13 @@ class CrossReferenceSchemaShow(BaseModel):
     is_obsolete: Optional[bool]
 
 
-class CrossReferenceSchema(BaseModel):
+class CrossReferenceSchema(AuditedObjectModelSchema):
     cross_reference_id: int
     curie: str
+    curie_prefix: str
     pages: Optional[List[CrossReferencePageSchemaShow]] = None
     url: Optional[str] = None
     is_obsolete: Optional[bool] = False
-    curie_prefix: str
 
     resource_curie: Optional[str] = None
     reference_curie: Optional[str] = None
