@@ -79,15 +79,6 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                 obj_data = jsonable_encoder(obj)
                 db_obj = None
                 if field in ["authors"]:
-                    if obj_data["orcid"]:
-                        cross_reference_obj = db.query(CrossReferenceModel).filter(
-                            CrossReferenceModel.curie == obj_data["orcid"]).first()
-                        if not cross_reference_obj:
-                            cross_reference_obj = CrossReferenceModel(curie=obj_data["orcid"])
-                            db.add(cross_reference_obj)
-
-                        obj_data["orcid_cross_reference"] = cross_reference_obj
-                    del obj_data["orcid"]
                     db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
                     if db_obj.name:
                         author_names_order.append((db_obj.name, db_obj.order))
