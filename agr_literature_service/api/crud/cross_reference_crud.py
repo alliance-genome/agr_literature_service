@@ -3,8 +3,6 @@ cross_reference_crud.py
 =======================
 """
 
-from datetime import datetime
-
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
