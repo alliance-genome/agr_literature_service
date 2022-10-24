@@ -8,8 +8,8 @@ from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_r
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
     AuthorModel, ModCorpusAssociationModel, ModModel, ReferenceCommentAndCorrectionModel, MeshDetailModel
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
-from agr_literature_service.lit_processing.utils.db_read_utils import get_orcid_data,\
-    get_journal_data, get_doi_data, get_reference_by_pmid
+from agr_literature_service.lit_processing.utils.db_read_utils import get_journal_data, \
+    get_doi_data, get_reference_by_pmid
 from agr_literature_service.api.crud.reference_crud import get_citation_from_args
 from agr_literature_service.global_utils import get_next_reference_curie
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
@@ -34,10 +34,6 @@ def post_references(json_path, live_change=True):  # noqa: C901
     log.info("Getting journal info from database...")
     journal_to_resource_id = get_journal_data(db_session)
 
-    log.info("Getting orcid info from database...")
-    orcid_dict = get_orcid_data(db_session)
-    newly_added_orcid = []
-
     log.info("Getting DOI info from database...")
     doi_to_reference_id = get_doi_data(db_session)
 
@@ -54,7 +50,6 @@ def post_references(json_path, live_change=True):  # noqa: C901
         json_data = json.load(f)
         newly_added_curies = read_data_and_load_references(db_session, json_data,
                                                            journal_to_resource_id,
-                                                           orcid_dict, newly_added_orcid,
                                                            doi_to_reference_id,
                                                            mod_to_mod_id, live_change)
         if newly_added_curies:
@@ -65,7 +60,7 @@ def post_references(json_path, live_change=True):  # noqa: C901
     return new_ref_curies
 
 
-def read_data_and_load_references(db_session, json_data, journal_to_resource_id, orcid_dict, newly_added_orcid, doi_to_reference_id, mod_to_mod_id, live_change):
+def read_data_and_load_references(db_session, json_data, journal_to_resource_id, doi_to_reference_id, mod_to_mod_id, live_change):
 
     new_ref_curies = []
     for entry in json_data:
@@ -85,8 +80,7 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
 
             if entry.get('authors'):
 
-                insert_authors(db_session, primaryId, reference_id, entry['authors'],
-                               orcid_dict, newly_added_orcid)
+                insert_authors(db_session, primaryId, reference_id, entry['authors'])
 
             if entry.get('crossReferences'):
 
@@ -240,16 +234,21 @@ def insert_cross_references(db_session, primaryId, reference_id, doi_to_referenc
         try:
             cross_ref = None
             if c.get('pages'):
-                cross_ref = CrossReferenceModel(curie=curie, reference_id=reference_id, pages=c['pages'])
+                cross_ref = CrossReferenceModel(curie=curie,
+                                                curie_prefix=curie.split(":")[0],
+                                                reference_id=reference_id,
+                                                pages=c['pages'])
             else:
-                cross_ref = CrossReferenceModel(curie=curie, reference_id=reference_id)
+                cross_ref = CrossReferenceModel(curie=curie,
+                                                curie_prefix=curie.split(":")[0],
+                                                reference_id=reference_id)
             db_session.add(cross_ref)
             log.info(primaryId + ": INSERT CROSS_REFERENCE: " + curie)
         except Exception as e:
             log.info(primaryId + ": INSERT CROSS_REFERENCE: " + curie + " failed: " + str(e))
 
 
-def insert_authors(db_session, primaryId, reference_id, author_list_from_json, orcid_dict, newly_added_orcid):
+def insert_authors(db_session, primaryId, reference_id, author_list_from_json):
 
     for x in author_list_from_json:
         orcid = 'ORCID:' + x['orcid'] if x.get('orcid') else ''
@@ -260,16 +259,6 @@ def insert_authors(db_session, primaryId, reference_id, author_list_from_json, o
         rank = x.get('authorRank')
         if rank is None:
             continue
-        if orcid and orcid not in orcid_dict and orcid not in newly_added_orcid:
-            ## not in cross_reference table
-            try:
-                c = CrossReferenceModel(curie=orcid)
-                db_session.add(c)
-                log.info(primaryId + ": INSERT CROSS_REFERENCE: " + orcid)
-                newly_added_orcid.append(orcid)
-            except Exception as e:
-                log.info(primaryId + ": INSERT CROSS_REFERENCE: " + orcid + " failed: " + str(e))
-
         authorData = {"reference_id": reference_id,
                       "name": name,
                       "first_name": firstname,

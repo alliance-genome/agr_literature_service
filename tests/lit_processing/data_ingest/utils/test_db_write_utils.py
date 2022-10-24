@@ -2,8 +2,8 @@ import logging
 from os import path
 
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
-    AuthorModel, ModModel, ModCorpusAssociationModel, MeshDetailModel, ReferenceCommentAndCorrectionModel, \
-    ReferenceModReferenceTypeAssociationModel
+    AuthorModel, ModModel, ModCorpusAssociationModel, MeshDetailModel, \
+    ReferenceCommentAndCorrectionModel, ReferenceModReferenceTypeAssociationModel
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_references_by_curies, get_pmid_to_reference_id
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
@@ -57,10 +57,8 @@ class TestDbReadUtils:
                 "name": "Hello There"
             }
         ]
-        orcid_dict = {}
-        newly_added_orcid = []
-        update_authors(db, reference_id, db_entry.get('author', []), author_list_in_json, orcid_dict,
-                       newly_added_orcid, logger)
+        update_authors(db, reference_id, db_entry.get('author', []), author_list_in_json,
+                       logger)
         db.commit()
         for x in db.query(AuthorModel).filter_by(reference_id=reference_id).all():
             if x.order == 1:

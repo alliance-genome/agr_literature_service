@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api.crud.reference_resource import add, create_obj, stripout
 from agr_literature_service.api.models import (
     AuthorModel,
-    CrossReferenceModel,
     ReferenceModel
 )
 from agr_literature_service.api.schemas import AuthorSchemaPost
@@ -28,18 +27,12 @@ def create(db: Session, author: AuthorSchemaPost):
 
     author_data = jsonable_encoder(author)
 
-    orcid = None
-    if "orcid" in author_data:
-        orcid = author_data["orcid"]
-        del author_data["orcid"]
+    # orcid = None
+    # if "orcid" in author_data:
+    #    orcid = author_data["orcid"]
+    #    del author_data["orcid"]
 
     author_model = create_obj(db, AuthorModel, author_data)  # type: AuthorModel
-    if orcid:
-        cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
-        if not cross_reference_obj:
-            cross_reference_obj = CrossReferenceModel(curie=orcid)
-            db.add(cross_reference_obj)
-        author_model.orcid_cross_reference = cross_reference_obj
 
     db.add(author_model)
     db.commit()
@@ -90,15 +83,7 @@ def patch(db: Session, author_id: int, author_patch) -> dict:
     add(res_ref, author_db_obj)
 
     for field, value in author_data.items():
-        if field == "orcid" and value:
-            orcid = value
-            cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == orcid).first()
-            if not cross_reference_obj:
-                cross_reference_obj = CrossReferenceModel(curie=orcid)
-                db.add(cross_reference_obj)
-            author_db_obj.orcid_cross_reference = cross_reference_obj
-        else:
-            setattr(author_db_obj, field, value)
+        setattr(author_db_obj, field, value)
 
     author_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
@@ -124,9 +109,6 @@ def show(db: Session, author_id: int):
     if author_data["reference_id"]:
         author_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == author_data["reference_id"]).first()
     del author_data["reference_id"]
-
-    author_data["orcid"] = author_data["orcid_cross_reference"]
-    del author_data["orcid_cross_reference"]
     del author_data["reference_curie"]
     return author_data
 
