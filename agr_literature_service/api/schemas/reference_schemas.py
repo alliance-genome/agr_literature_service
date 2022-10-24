@@ -14,6 +14,7 @@ from agr_literature_service.api.schemas import (AuthorSchemaPost, AuthorSchemaSh
                                                 PubMedPublicationStatus, ReferenceCategory,
                                                 ReferenceCommentAndCorrectionSchemaRelated,
                                                 ModCorpusAssociationSchemaRelated)
+from agr_literature_service.api.schemas.cross_reference_schemas import CrossReferenceSchemaCreate
 from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagSchemaCreate, WorkflowTagSchemaRelated
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaCreate, TopicEntityTagSchemaRelated
 
@@ -41,7 +42,7 @@ class ReferenceSchemaPost(BaseModel):
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     mesh_terms: Optional[List[MeshDetailSchemaCreate]] = None
-    cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
+    cross_references: Optional[List[CrossReferenceSchemaCreate]] = None
     authors: Optional[List[AuthorSchemaPost]] = None
     resource: Optional[str] = None
     open_access: Optional[bool] = None
@@ -137,7 +138,7 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     mesh_terms: Optional[List[MeshDetailSchemaRelated]] = None
-    cross_references: Optional[List[CrossReferenceSchemaShow]] = None
+    cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
     resource_curie: Optional[str] = None
     resource_title: Optional[str] = None
     authors: Optional[List[AuthorSchemaShow]] = None

@@ -15,6 +15,10 @@ from agr_literature_service.api.models import (CrossReferenceModel, ReferenceMod
                                                ResourceDescriptorModel, ResourceModel)
 
 
+def set_curie_prefix(xref_db_obj: CrossReferenceModel):
+    xref_db_obj.curie_prefix = xref_db_obj.curie.split(":")[0]
+
+
 def create(db: Session, cross_reference) -> str:
     """
 
@@ -30,7 +34,7 @@ def create(db: Session, cross_reference) -> str:
                             detail=f"CrossReference with curie {cross_reference_data['curie']} already exists")
 
     db_obj = create_obj(db, CrossReferenceModel, cross_reference_data)
-    db_obj.curie_prefix = db_obj.curie.split(":")[0]
+    set_curie_prefix(db_obj)
     db.add(db_obj)
     db.commit()
 
@@ -75,7 +79,7 @@ def patch(db: Session, curie: str, cross_reference_update) -> dict:
         setattr(cross_reference_db_obj, field, value)
 
     if "curie" in cross_reference_update:
-        cross_reference_db_obj.curie_prefix = cross_reference_db_obj.curie.split(":")[0]
+        set_curie_prefix(cross_reference_db_obj)
     db.commit()
 
     return {"message": "updated"}
@@ -126,11 +130,6 @@ def show(db: Session, curie: str, indirect=True) -> dict:
         for cr_page in cross_reference_data["pages"]:
             pages_data.append({"name": cr_page})
         cross_reference_data["pages"] = pages_data
-
-    del cross_reference_data["date_updated"]
-    del cross_reference_data["date_created"]
-    del cross_reference_data["created_by"]
-    del cross_reference_data["updated_by"]
 
     return cross_reference_data
 

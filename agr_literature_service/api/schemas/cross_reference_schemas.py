@@ -4,9 +4,21 @@ from pydantic import BaseModel, validator
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
 
-class CrossReferenceSchemaRelated(BaseModel):
+class CrossReferencePageSchemaShow(BaseModel):
+    name: Optional[str] = None
+    url: Optional[str] = None
+
+    class Config():
+        orm_mode = True
+        extra = "forbid"
+
+
+class CrossReferenceSchemaRelated(AuditedObjectModelSchema):
+    cross_reference_id: int
     curie: str
-    pages: Optional[List[str]] = None
+    curie_prefix: str
+    url: Optional[str] = None
+    pages: Optional[List[CrossReferencePageSchemaShow]] = None
     is_obsolete: Optional[bool] = None
 
     @validator('curie')
@@ -28,7 +40,13 @@ class CrossReferenceSchemaRelated(BaseModel):
         }
 
 
-class CrossReferenceSchemaPost(CrossReferenceSchemaRelated):
+class CrossReferenceSchemaCreate(BaseModel):
+    curie: str
+    pages: Optional[List[str]] = None
+    is_obsolete: Optional[bool]
+
+
+class CrossReferenceSchemaPost(CrossReferenceSchemaCreate):
     resource_curie: Optional[str] = None
     reference_curie: Optional[str] = None
 
@@ -46,36 +64,15 @@ class CrossReferenceSchemaPost(CrossReferenceSchemaRelated):
         }
 
 
-class CrossReferencePageSchemaShow(BaseModel):
-    name: Optional[str] = None
-    url: Optional[str] = None
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
-
-
-class CrossReferenceSchemaShow(BaseModel):
-    curie: str
-    url: Optional[str] = None
-    pages: Optional[List[CrossReferencePageSchemaShow]] = None
-    is_obsolete: Optional[bool]
-
-
-class CrossReferenceSchema(AuditedObjectModelSchema):
+class CrossReferenceSchemaShow(AuditedObjectModelSchema):
     cross_reference_id: int
     curie: str
     curie_prefix: str
-    pages: Optional[List[CrossReferencePageSchemaShow]] = None
     url: Optional[str] = None
-    is_obsolete: Optional[bool] = False
-
-    resource_curie: Optional[str] = None
+    pages: Optional[List[CrossReferencePageSchemaShow]] = None
     reference_curie: Optional[str] = None
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    resource_curie: Optional[str] = None
+    is_obsolete: Optional[bool]
 
 
 class CrossReferenceSchemaUpdate(BaseModel):

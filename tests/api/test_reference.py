@@ -276,10 +276,12 @@ class TestReference:
                 "authors": [
                     {
                         "name": "S. K",
+                        "order": 1
                         # "orcid": 'ORCID:1234-1234-1234-123X'
                     },
                     {
                         "name": "S. W",
+                        "order": 2
                         # "orcid": 'ORCID:1111-2222-3333-444X'  # New
                     }
                 ],

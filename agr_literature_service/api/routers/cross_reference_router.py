@@ -5,9 +5,9 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import cross_reference_crud
 from agr_literature_service.api.routers.authentication import auth
-from agr_literature_service.api.schemas import (CrossReferenceSchema, CrossReferenceSchemaPost,
+from agr_literature_service.api.schemas import (CrossReferenceSchemaPost,
                                                 CrossReferenceSchemaUpdate,
-                                                ResponseMessageSchema)
+                                                ResponseMessageSchema, CrossReferenceSchemaShow)
 from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
@@ -60,7 +60,7 @@ def show_version(curie: str,
 
 
 @router.get('/{curie:path}',
-            response_model=CrossReferenceSchema,
+            response_model=CrossReferenceSchemaShow,
             status_code=200)
 def show(curie: str,
          db: Session = db_session):

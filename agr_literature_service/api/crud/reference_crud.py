@@ -15,6 +15,7 @@ from sqlalchemy.sql.expression import cast
 
 from agr_literature_service.api.crud import (cross_reference_crud,
                                              reference_comment_and_correction_crud)
+from agr_literature_service.api.crud.cross_reference_crud import set_curie_prefix
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.api.crud.reference_resource import create_obj
 from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
@@ -94,6 +95,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     db_obj = MeshDetailModel(**obj_data)
                 elif field == "cross_references":
                     db_obj = CrossReferenceModel(**obj_data)
+                    set_curie_prefix(db_obj)
                 db.add(db_obj)
                 db_objs.append(db_obj)
             if field in remap:
