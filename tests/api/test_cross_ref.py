@@ -124,3 +124,17 @@ class TestCrossRef:
             # Deleting it again should give an error as the lookup will fail.
             response = client.delete(url="/cross_reference/XREF:123456", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_curie_prefix(self, db, test_cross_reference, auth_headers):
+        new_cross_ref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "XREF:123456").one()
+        assert new_cross_ref.curie_prefix == new_cross_ref.curie.split(":")[0]
+
+        patched_xref = {
+            "curie": "TESTXREF:1234"
+        }
+        with TestClient(app) as client:
+            client.patch(url="/cross_reference/XREF:123456", json=patched_xref, headers=auth_headers)
+            patched_cross_ref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "TESTXREF:1234").one()
+            assert patched_cross_ref.curie_prefix == patched_cross_ref.curie.split(":")[0]
+            assert new_cross_ref.cross_reference_id == patched_cross_ref.cross_reference_id
+

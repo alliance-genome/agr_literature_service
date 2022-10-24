@@ -62,10 +62,12 @@ class CrossReferenceSchemaShow(BaseModel):
 
 
 class CrossReferenceSchema(BaseModel):
+    cross_reference_id: int
     curie: str
     pages: Optional[List[CrossReferencePageSchemaShow]] = None
     url: Optional[str] = None
     is_obsolete: Optional[bool] = False
+    curie_prefix: str
 
     resource_curie: Optional[str] = None
     reference_curie: Optional[str] = None
@@ -80,6 +82,7 @@ class CrossReferenceSchemaUpdate(BaseModel):
     resource_curie: Optional[str] = None
     reference_curie: Optional[str] = None
     is_obsolete: Optional[bool] = None
+    curie: Optional[str] = None
 
     class Config():
         orm_mode = True
