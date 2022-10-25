@@ -8,7 +8,9 @@ from typing import Dict
 
 # from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index,\
 #    Sequence
-from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index
+# from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index
+from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index,\
+    and_
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -83,11 +85,12 @@ class CrossReferenceModel(Base, AuditedModel):
         Index('idx_curie_prefix_reference',
               'curie_prefix', 'reference_id',
               unique=True,
-              postgresql_where=(is_obsolete.is_(False))),
-        # Index('idx_curie_prefix_resource',
-        #       'curie_prefix', 'resource_id',
-        #       unique=True,
-        #       postgresql_where=(is_obsolete.is_(False))),
+              postgresql_where=(and_(is_obsolete.is_(False),
+                                     reference_id.isnot(None)))),
+        Index('idx_curie_prefix_resource',
+               'curie_prefix', 'resource_id',
+               unique=True,
+               postgresql_where=(and_(is_obsolete.is_(False), resource_id.isnot(None), curie_prefix == 'NLM'))),
         Index('idx_curie',
               'curie',
               unique=True,
