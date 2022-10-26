@@ -71,7 +71,7 @@ def show_versions(mod_reference_type_id: int,
     return mod_reference_type_crud.show_changesets(db, mod_reference_type_id)
 
 
-@router.get('/by_mod/{abreviation}',
+@router.get('/by_mod/{abbreviation}',
             response_model=List[str],
             status_code=200)
 def show_by_mod(abbreviation: str,
