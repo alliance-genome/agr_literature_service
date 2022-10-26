@@ -187,3 +187,12 @@ def show_changesets(db: Session, mod_reference_type_id: int):
                         "changeset": version.changeset})
 
     return history
+
+
+def show_by_mod(db: Session, mod_abbreviation: str):
+    mod_reference_types = db.query(
+        ModReferenceTypeAssociationModel).filter(
+        ModReferenceTypeAssociationModel.mod.has(
+            abbreviation=mod_abbreviation)
+    ).order_by(ModReferenceTypeAssociationModel.display_order).all()
+    return [mod_reference_type.referencetype.label for mod_reference_type in mod_reference_types]

@@ -1,3 +1,5 @@
+from typing import List
+
 from fastapi import APIRouter, Depends, Response, Security, status
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
@@ -67,3 +69,11 @@ def show(mod_reference_type_id: int,
 def show_versions(mod_reference_type_id: int,
                   db: Session = db_session):
     return mod_reference_type_crud.show_changesets(db, mod_reference_type_id)
+
+
+@router.get('/by_mod/{abreviation}',
+            response_model=List[str],
+            status_code=200)
+def show_by_mod(abbreviation: str,
+                db: Session = db_session):
+    return mod_reference_type_crud.show_by_mod(db=db, mod_abbreviation=abbreviation)
