@@ -523,6 +523,11 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
             if colName == 'date_published':
                 if new_value and json_data.get('datePublishedStart') is None:
                     bad_date_published[pmid] = new_value
+            elif colName in ['date_published_start', 'date_published_end']:
+                if old_value:
+                    old_value = str(old_value)[0:10]
+                if new_value:
+                    new_value = str(new_value)[0:10]
             if new_value is None:
                 continue
             if colName == 'category':
