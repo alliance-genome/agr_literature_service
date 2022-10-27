@@ -44,4 +44,11 @@ class ModModel(Base, AuditedModel):
         nullable=False
     )
 
+    reference_mod_md5sum = relationship(
+        "ReferenceModMd5sumModel",
+        lazy="joined",
+        back_populates="mod",
+        cascade="all, delete, delete-orphan"
+    )
+
     referencetypes = relationship("ModReferenceTypeAssociationModel")

@@ -2,6 +2,7 @@
 import json
 import hashlib
 import argparse
+from pickle import FALSE
 import sys
 from os import environ, path, makedirs, listdir
 import logging.config
@@ -10,6 +11,7 @@ from agr_literature_service.lit_processing.data_ingest.utils.file_processing_uti
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_s3, download_file_from_s3
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
+from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 
 from dotenv import load_dotenv
 
@@ -178,6 +180,45 @@ def load_s3_md5data(mods):
                     f.close()
             except IOError:
                 logger.info(f"No md5sum data to update from s3 {s3_file_location}")
+    # debug
+    # json_data = json.dumps(md5dict, indent=4, sort_keys=True)
+    # print(json_data)
+    return md5dict
+
+# input ["FB", "WB", "ZFIN", "SGD", "MGI", "RGD", "XB", "PMID"]
+
+
+def load_database_md5data(mods):
+    """
+
+
+    :param mods:
+    :return:
+    """
+
+    md5dict = {}
+    try:
+        db_session = create_postgres_session(FALSE)
+    except Exception as e:
+        print('Error: ' + str(type(e)))
+    for mod in mods:
+        if (mod == "FB") or (mod == "WB") or (mod == "ZFIN") or (mod == "SGD") or (mod == "MGI") or (mod == "RGD") or (mod == "XB") or (mod == "GO"):
+            mod_results = db_session.execute(f"select mod_id from mod where abbreviation = '{mod}'")
+            mods = mod_results.fetchall()
+            mod_id = mods[0]["mod_id"]
+            md5dict[mod] = {}
+            md5sum_results = db_session.execute(f"select r.curie, rmm.md5sum from cross_reference r, reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and rmm.mod_id  = {mod_id} and (r.curie like 'PMID:%' or r.curie like '{mod}:%') ")
+        elif (mod == "PMID"):
+            md5dict[mod] = {}
+            md5sum_results = db_session.execute("select r.curie, rmm.md5sum from cross_reference r, reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and rmm.mod_id is null and r.curie like 'PMID:%' ")
+        else:
+            print("invalid mod:" + mod)
+            continue
+        md5sums = md5sum_results.fetchall()
+        for row in md5sums:
+            curie = row["curie"]
+            md5sum = row["md5sum"]
+            md5dict[mod][curie] = md5sum
     # debug
     # json_data = json.dumps(md5dict, indent=4, sort_keys=True)
     # print(json_data)
