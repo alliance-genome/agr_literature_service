@@ -60,7 +60,7 @@ cross_references_keys_to_remove: Dict[str, str] = dict()  # global, set where us
 remap_keys: Dict[str, str] = dict()
 
 
-def process_editors(db_session: Session, resource_id: int, editors: Dict) -> None:
+def process_editors(db_session: Session, resource_id: int, editors: Dict) -> Tuple:
     global remap_editor_keys
     if not remap_editor_keys:
         remap_editor_keys['authorRank'] = 'order'
