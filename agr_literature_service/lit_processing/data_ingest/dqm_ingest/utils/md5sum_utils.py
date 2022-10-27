@@ -207,7 +207,10 @@ def load_database_md5data(mods):
             mods = mod_results.fetchall()
             mod_id = mods[0]["mod_id"]
             md5dict[mod] = {}
-            md5sum_results = db_session.execute(f"select r.curie, rmm.md5sum from cross_reference r, reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and rmm.mod_id  = {mod_id} and (r.curie like 'PMID:%' or r.curie like '{mod}:%') ")
+            if (mod =="XB"):
+                md5sum_results = db_session.execute(f"select r.curie, rmm.md5sum from cross_reference r, reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and rmm.mod_id  = {mod_id} and (r.curie like 'PMID:%' or r.curie like 'Xenbase:%') ")
+            else:
+                md5sum_results = db_session.execute(f"select r.curie, rmm.md5sum from cross_reference r, reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and rmm.mod_id  = {mod_id} and (r.curie like 'PMID:%' or r.curie like '{mod}:%') ")
         elif (mod == "PMID"):
             md5dict[mod] = {}
             md5sum_results = db_session.execute("select r.curie, rmm.md5sum from cross_reference r, reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and rmm.mod_id is null and r.curie like 'PMID:%' ")
