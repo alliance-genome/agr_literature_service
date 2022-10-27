@@ -1,0 +1,102 @@
+{
+    "data": [
+      {
+        "abbreviationSynonyms": [
+          "Oncologia"
+        ],
+        "crossReferences": [
+          {
+            "id": "ISSN:0369-7606"
+          }
+        ],
+        "primaryId": "FB:FBmultipub_2805",
+        "title": "Oncologia",
+        "volumes": [
+          "1-20"
+        ]
+      },
+      {
+        "abbreviationSynonyms": [
+          "Zool. Jb. Abt. Anat. u. Ont. Tiere"
+        ],
+        "crossReferences": [
+          {
+            "id": "ISSN:0044-5177"
+          }
+        ],
+        "primaryId": "FB:FBmultipub_4224",
+        "title": "Zoologische Jahrbucher",
+        "volumes": [
+          "3-"
+        ]
+      },
+      {
+        "abbreviationSynonyms": [
+          "Hoy, McKelvey, 1979"
+        ],
+        "editorsOrAuthors": [
+          {
+            "authorRank": 1,
+            "firstName": "M.A.",
+            "lastName": "Hoy",
+            "name": "M.A. Hoy",
+            "referenceId": "FB:FBmultipub_1703"
+          },
+          {
+            "authorRank": 2,
+            "firstName": "J.J.",
+            "lastName": "McKelvey",
+            "name": "J.J. McKelvey",
+            "referenceId": "FB:FBmultipub_1703"
+          }
+        ],
+        "pages": "179pp",
+        "primaryId": "FB:FBmultipub_1703",
+        "publisher": "Rockefeller Foundation (New York)",
+        "title": "Genetics in Relation to Insect Management: a Rockefeller Foundation conference, March 31-April 5, 1978, Bellagio, Italy"
+      },
+      {
+        "abbreviationSynonyms": [
+          "Latorre, Saez, 1997"
+        ],
+        "crossReferences": [
+          {
+            "id": "ISBN:9780306456053"
+          }
+        ],
+        "editorsOrAuthors": [
+          {
+            "authorRank": 2,
+            "firstName": "J.C.",
+            "lastName": "Saez",
+            "name": "J.C. Saez",
+            "referenceId": "FB:FBmultipub_7920"
+          },
+          {
+            "authorRank": 1,
+            "firstName": "R.",
+            "lastName": "Latorre",
+            "name": "R. Latorre",
+            "referenceId": "FB:FBmultipub_7920"
+          }
+        ],
+        "pages": "xxvii + 504pp",
+        "primaryId": "FB:FBmultipub_7920",
+        "publisher": "Plenum Press (New York)",
+        "title": "Ion channels to Cell-to-Cell Conversations."
+      }
+    ],
+    "metaData": {
+      "dataProvider": {
+        "crossReference": {
+          "id": "FB",
+          "pages": [
+            "homepage"
+          ]
+        },
+        "type": "curated"
+      },
+      "dateProduced": "2022-08-31T11:17:08-04:00",
+      "release": "2022_04"
+    }
+  }
