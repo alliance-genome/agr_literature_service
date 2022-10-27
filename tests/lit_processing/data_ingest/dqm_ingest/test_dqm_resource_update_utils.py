@@ -3,7 +3,7 @@ from agr_literature_service.lit_processing.data_ingest.post_resource_to_db impor
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_resource_update_utils import \
     process_update_resource
 
-from .....fixtures import db # noqa
+from ....fixtures import db # noqa
 
 from agr_literature_service.lit_processing.utils.resource_reference_utils import dump_xrefs, load_xref_data, reset_xref
 
