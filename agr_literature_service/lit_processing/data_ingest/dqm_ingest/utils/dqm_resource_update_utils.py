@@ -11,7 +11,6 @@ So no files are read anymore.
 """
 import logging
 import warnings
-from os import path
 from typing import Dict, List, Tuple
 from sqlalchemy.orm import Session
 

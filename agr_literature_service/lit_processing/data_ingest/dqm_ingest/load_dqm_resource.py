@@ -1,7 +1,6 @@
 import json
 import logging
 from os import environ, path
-import sys
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from typing import Dict, Tuple
@@ -165,9 +164,9 @@ if __name__ == "__main__":
 
     scriptNm = path.basename(__file__).replace(".py", "")
     set_global_user_id(db_session, scriptNm)
-    
+
     base_path = environ.get('XML_PATH', "")
-    
+
     mods = ['FB', 'ZFIN']
 
     logger.info("Starting PubMed NLM resource update")
@@ -178,7 +177,7 @@ if __name__ == "__main__":
 
     logger.info("Loading database resource into memory")
     load_xref_data(db_session, 'resource')
-    
+
     try:
         for mod in mods:
             pubmed_by_nlm, process_count = load_mod_resource(db_session, pubmed_by_nlm, nlm_by_issn, mod)
