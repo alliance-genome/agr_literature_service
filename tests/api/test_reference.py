@@ -379,7 +379,7 @@ class TestReference:
 
     def test_show_mod_reference_types_by_mod(self, populate_test_mod_reference_types): # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/reference/mod_reference_type/by_mod/WB")
+            response = client.get(url="/reference/mod_reference_type/by_mod/WB")
             assert response.status_code == 200
             wb_ref_types = response.json()
             assert len(wb_ref_types) > 0
