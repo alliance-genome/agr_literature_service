@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, validator
 
-from agr_literature_service.api.schemas import AuditedObjectModelSchema, CrossReferenceSchemaShow
+from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
 
 class AuthorSchemaPost(BaseModel):
@@ -52,7 +52,7 @@ class AuthorSchemaShow(AuditedObjectModelSchema):
     last_name: Optional[str] = None
 
     first_author: Optional[bool]
-    orcid: Optional[CrossReferenceSchemaShow] = None
+    orcid: Optional[str] = None
     affiliations: Optional[List[str]] = None
 
     corresponding_author: Optional[bool] = None

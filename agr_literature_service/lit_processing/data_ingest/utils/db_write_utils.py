@@ -7,8 +7,8 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_reference_id_by_curie, get_reference_id_by_pmid
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
-    CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceCommentAndCorrectionModel, MeshDetailModel, \
-    ReferenceModReferenceTypeAssociationModel
+    CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceCommentAndCorrectionModel, \
+    MeshDetailModel, ReferenceModReferenceTypeAssociationModel
 
 batch_size_for_commit = 250
 
@@ -54,6 +54,7 @@ def add_cross_references(cross_references_to_add, ref_curie_list, logger, live_c
 
         try:
             x = CrossReferenceModel(reference_id=reference_id,
+                                    curie_prefix=entry["curie"].split(':')[0],
                                     curie=entry["curie"],
                                     pages=entry.get("pages"))
             db_session.add(x)
@@ -80,7 +81,7 @@ def _write_log_message(reference_id, log_message, pmid, logger, fw):
         fw.write(log_message + "\n")
 
 
-def update_authors(db_session, reference_id, author_list_in_db, author_list_in_json, orcid_dict, newly_added_orcid, logger=None, fw=None, pmid=None, update_log=None):  # noqa: C901
+def update_authors(db_session, reference_id, author_list_in_db, author_list_in_json, logger=None, fw=None, pmid=None, update_log=None):  # noqa: C901
     # If any of the author fields are different, check if any of our ABC authors
     # have a different corresponding_author or first_author, in which case do not
     # update the authors at all (in theory, eventually send a message to a curator,
@@ -156,19 +157,6 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
         affiliation_list = affiliations.split('|')
         if len(affiliation_list) == 0 or (len(affiliation_list) == 1 and affiliation_list[0] == ''):
             affiliation_list = None
-        if orcid and orcid not in orcid_dict and orcid not in newly_added_orcid:
-            ## not in cross_reference table
-            data = {"curie": orcid, "is_obsolete": False}
-            try:
-                c = CrossReferenceModel(**data)
-                db_session.add(c)
-                log_message = ": INSERT CROSS_REFERENCE: " + orcid
-                _write_log_message(reference_id, log_message, pmid, logger, fw)
-                newly_added_orcid.append(orcid)
-            except Exception as e:
-                log_message = ": INSERT CROSS_REFERENCE: " + orcid + " failed: " + str(e)
-                _write_log_message(reference_id, log_message, pmid, logger, fw)
-
         data = {"reference_id": reference_id,
                 "name": name,
                 "first_name": firstname,
@@ -369,7 +357,9 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref
                 if reference_id is None:
                     logger.info("The reference curie: " + agr + " is not in the database.")
                 try:
-                    cross_ref = CrossReferenceModel(curie="PMID:" + pmid, reference_id=reference_id)
+                    cross_ref = CrossReferenceModel(curie="PMID:" + pmid,
+                                                    curie_prefix='PMID',
+                                                    reference_id=reference_id)
                     db_session.add(cross_ref)
                     fw.write(str(datetime.now()) + ": adding PMID:" + pmid + " to the row with doi = " + doi + " in the database\n")
                 except Exception as e:
@@ -583,7 +573,10 @@ def _insert_doi(db_session, fw, pmid, reference_id, doi, logger=None):  # pragma
                 logger.info("The DOI:" + doi + " is associated with two papers: reference_ids=" + str(reference_id) + ", " + str(x.reference_id))
         return
 
-    data = {"curie": "DOI:" + doi, "reference_id": reference_id, "is_obsolete": False}
+    data = {"curie": "DOI:" + doi,
+            "curie_prefix": "DOI",
+            "reference_id": reference_id,
+            "is_obsolete": False}
     try:
         x = CrossReferenceModel(**data)
         db_session.add(x)
@@ -615,7 +608,10 @@ def _insert_pmcid(db_session, fw, pmid, reference_id, pmcid, logger=None):  # pr
                 logger.info("The PMCID:" + pmcid + " is associated with two papers: reference_ids=" + str(reference_id) + ", " + str(x.reference_id))
         return
 
-    data = {"curie": "PMCID:" + pmcid, "reference_id": reference_id, "is_obsolete": False}
+    data = {"curie": "PMCID:" + pmcid,
+            "curie_prefix": "PMCID",
+            "reference_id": reference_id,
+            "is_obsolete": False}
     try:
         x = CrossReferenceModel(**data)
         db_session.add(x)

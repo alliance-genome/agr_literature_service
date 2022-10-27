@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast
 
 from agr_literature_service.api.crud import cross_reference_crud
+from agr_literature_service.api.crud.cross_reference_crud import set_curie_prefix
 from agr_literature_service.api.crud.reference_resource import create_obj
 from agr_literature_service.api.models import (CrossReferenceModel, EditorModel,
                                                MeshDetailModel, ResourceModel)
@@ -51,17 +52,10 @@ def create(db: Session, resource: ResourceSchemaPost):
                 obj_data = jsonable_encoder(obj)
                 db_obj = None
                 if field == 'editors':
-                    if obj_data['orcid']:
-                        cross_reference_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == obj_data['orcid']).first()
-                        if not cross_reference_obj:
-                            cross_reference_obj = CrossReferenceModel(curie=obj_data['orcid'])
-                            db.add(cross_reference_obj)
-
-                        obj_data['orcid_cross_reference'] = cross_reference_obj
-                    del obj_data['orcid']
                     db_obj = create_obj(db, EditorModel, obj_data, non_fatal=True)
                 elif field == 'cross_references':
                     db_obj = CrossReferenceModel(**obj_data)
+                    set_curie_prefix(db_obj)
                 elif field == 'mesh_terms':
                     db_obj = MeshDetailModel(**obj_data)
                 db.add(db_obj)
@@ -185,9 +179,6 @@ def show(db: Session, curie: str):
     if resource.editor:
         editors = []
         for editor in resource_data['editor']:
-            if editor['orcid']:
-                editor['orcid'] = jsonable_encoder(cross_reference_crud.show(db, editor['orcid']))
-            del editor['orcid_cross_reference']
             del editor['resource_id']
             editors.append(editor)
         resource_data['editors'] = editors

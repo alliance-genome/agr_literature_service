@@ -43,7 +43,6 @@ class TestAuthor:
         assert author.first_name == "string"
         assert author.reference.curie == test_author.related_ref_curie
         assert author.orcid == "ORCID:1234-1234-1234-123X"
-        assert author.orcid_cross_reference.curie == "ORCID:1234-1234-1234-123X"
 
     def test_update_author(self, db, auth_headers, test_author): # noqa
         with TestClient(app) as client:
@@ -56,7 +55,7 @@ class TestAuthor:
             mod_author = client.get(url=f"/author/{author.author_id}").json()
             assert author.author_id == mod_author["author_id"]
             assert mod_author["first_name"] == "003_TUA"
-            assert mod_author["orcid"]["curie"] == "ORCID:4321-4321-4321-321X"
+            assert mod_author["orcid"] == "ORCID:4321-4321-4321-321X"
             res = client.get(url=f"/author/{test_author.new_author_id}/versions").json()
             # Orcid changed from None -> ORCID:1234-1234-1234-123X -> ORCID:4321-4321-4321-321X
             for transaction in res:
@@ -69,7 +68,7 @@ class TestAuthor:
     def test_show_author(self, test_author): # noqa
         with TestClient(app) as client:
             response = client.get(url=f"/author/{test_author.new_author_id}")
-            assert response.json()['orcid']['curie'] == "ORCID:1234-1234-1234-123X"
+            assert response.json()['orcid'] == "ORCID:1234-1234-1234-123X"
 
     def test_destroy_author(self, test_author, auth_headers): # noqa
         with TestClient(app) as client:

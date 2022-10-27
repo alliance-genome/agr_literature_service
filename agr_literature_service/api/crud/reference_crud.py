@@ -15,6 +15,7 @@ from sqlalchemy.sql.expression import cast
 
 from agr_literature_service.api.crud import (cross_reference_crud,
                                              reference_comment_and_correction_crud)
+from agr_literature_service.api.crud.cross_reference_crud import set_curie_prefix
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.api.crud.reference_resource import create_obj
 from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
@@ -78,15 +79,6 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                 obj_data = jsonable_encoder(obj)
                 db_obj = None
                 if field in ["authors"]:
-                    if obj_data["orcid"]:
-                        cross_reference_obj = db.query(CrossReferenceModel).filter(
-                            CrossReferenceModel.curie == obj_data["orcid"]).first()
-                        if not cross_reference_obj:
-                            cross_reference_obj = CrossReferenceModel(curie=obj_data["orcid"])
-                            db.add(cross_reference_obj)
-
-                        obj_data["orcid_cross_reference"] = cross_reference_obj
-                    del obj_data["orcid"]
                     db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
                     if db_obj.name:
                         author_names_order.append((db_obj.name, db_obj.order))
@@ -94,6 +86,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     db_obj = MeshDetailModel(**obj_data)
                 elif field == "cross_references":
                     db_obj = CrossReferenceModel(**obj_data)
+                    set_curie_prefix(db_obj)
                 db.add(db_obj)
                 db_objs.append(db_obj)
             if field in remap:
@@ -354,9 +347,6 @@ def show(db: Session, curie: str, http_request=True):  # noqa
     if reference.author:
         authors = []
         for author in reference_data["author"]:
-            if author["orcid"]:
-                author["orcid"] = jsonable_encoder(cross_reference_crud.show(db, author["orcid"]))
-            del author["orcid_cross_reference"]
             del author["reference_id"]
             authors.append(author)
         reference_data['authors'] = authors

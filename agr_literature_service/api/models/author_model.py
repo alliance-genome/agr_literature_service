@@ -38,15 +38,9 @@ class AuthorModel(Base, AuditedModel):
     )
 
     orcid = Column(
-        String,
-        ForeignKey("cross_reference.curie"),
-        index=True
-    )
-
-    orcid_cross_reference = relationship(
-        "CrossReferenceModel",
-        lazy="joined",
-        back_populates="author"
+        String(),
+        index=True,
+        nullable=True
     )
 
     first_author = Column(

@@ -39,14 +39,9 @@ class EditorModel(Base, AuditedModel):
     )
 
     orcid = Column(
-        String,
-        ForeignKey("cross_reference.curie")
-    )
-
-    orcid_cross_reference = relationship(
-        "CrossReferenceModel",
-        lazy="joined",
-        back_populates="editor"
+        String(),
+        index=True,
+        nullable=True
     )
 
     order = Column(

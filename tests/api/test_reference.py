@@ -275,10 +275,14 @@ class TestReference:
                 "abstract": "013 - abs A",
                 "authors": [
                     {
-                        "orcid": 'ORCID:1234-1234-1234-123X'
+                        "name": "S. K",
+                        "order": 1
+                        # "orcid": 'ORCID:1234-1234-1234-123X'
                     },
                     {
-                        "orcid": 'ORCID:1111-2222-3333-444X'  # New
+                        "name": "S. W",
+                        "order": 2
+                        # "orcid": 'ORCID:1111-2222-3333-444X'  # New
                     }
                 ],
                 "resource": test_resource.new_resource_curie,

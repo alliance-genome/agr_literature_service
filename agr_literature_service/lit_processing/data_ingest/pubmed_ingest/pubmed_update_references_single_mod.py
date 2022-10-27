@@ -19,7 +19,7 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_u
     load_s3_md5data
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3
 from agr_literature_service.lit_processing.utils.db_read_utils import \
-    get_orcid_data, get_author_data, get_mesh_term_data, get_cross_reference_data, \
+    get_author_data, get_mesh_term_data, get_cross_reference_data, \
     get_cross_reference_data_for_resource, get_comment_correction_data, get_journal_data, \
     get_reference_ids_by_pmids, get_pmid_to_reference_id_for_papers_not_associated_with_mod, \
     get_pmid_to_reference_id
@@ -226,11 +226,6 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
     log.info("Getting author info from database...")
     reference_id_to_authors = get_author_data(db_session, mod, reference_id_list, query_cutoff)
 
-    ## ORCID ID => is_obsolete
-    fw.write("Getting ORCID info from database...\n")
-    log.info("Getting ORCID info from database...")
-    orcid_dict = get_orcid_data(db_session)
-
     ## (reference_id_from, reference_id_to) => a list of reference_comment_and_correction_type
     fw.write("Getting comment/correction info from database...\n")
     log.info("Getting comment/correction info from database...")
@@ -260,7 +255,6 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
 
     db_session.close()
 
-    newly_added_orcid = []
     count = 0
     offset = 0
 
@@ -278,11 +272,9 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
                                                                            journal_to_resource_id,
                                                                            resource_id_to_issn,
                                                                            resource_id_to_nlm,
-                                                                           orcid_dict,
                                                                            old_md5sum,
                                                                            new_md5sum,
                                                                            count,
-                                                                           newly_added_orcid,
                                                                            authors_with_first_or_corresponding_flag,
                                                                            json_path,
                                                                            pmids_with_json_updated,
@@ -293,7 +285,7 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
     return authors_with_first_or_corresponding_flag
 
 
-def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, orcid_dict, old_md5sum, new_md5sum, count, newly_added_orcid, authors_with_first_or_corresponding_flag, json_path, pmids_with_json_updated, bad_date_published, update_log, offset):
+def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, old_md5sum, new_md5sum, count, authors_with_first_or_corresponding_flag, json_path, pmids_with_json_updated, bad_date_published, update_log, offset):
 
     ## only update 3000 references per session (set in max_rows_per_db_session)
     ## just in case the database get disconnected during the update process
@@ -394,7 +386,6 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
         authors = update_authors(db_session, x.reference_id,
                                  reference_id_to_authors.get(x.reference_id),
                                  json_data.get('authors'),
-                                 orcid_dict, newly_added_orcid,
                                  None, fw, pmid, update_log)
 
         authors_with_first_or_corresponding_flag = authors_with_first_or_corresponding_flag + authors
@@ -429,11 +420,9 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
                                                                                journal_to_resource_id,
                                                                                resource_id_to_issn,
                                                                                resource_id_to_nlm,
-                                                                               orcid_dict,
                                                                                old_md5sum,
                                                                                new_md5sum,
                                                                                count,
-                                                                               newly_added_orcid,
                                                                                authors_with_first_or_corresponding_flag,
                                                                                json_path,
                                                                                pmids_with_json_updated,
@@ -534,6 +523,11 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
             if colName == 'date_published':
                 if new_value and json_data.get('datePublishedStart') is None:
                     bad_date_published[pmid] = new_value
+            elif colName in ['date_published_start', 'date_published_end']:
+                if old_value:
+                    old_value = str(old_value)[0:10]
+                if new_value:
+                    new_value = str(new_value)[0:10]
             if new_value is None:
                 continue
             if colName == 'category':
