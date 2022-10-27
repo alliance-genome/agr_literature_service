@@ -143,10 +143,6 @@ def compare_dqm_pubmed(mod, report_type, pmid, field, dqm_data, pubmed_data, rep
         report_writer.write(
             mod=mod, report_type=report_type,
             message="dqm and pubmed differ\t%s\t%s\t%s\t%s\n" % (field, pmid, dqm_data, pubmed_data))
-        # logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_clean, pubmed_clean)
-        # logger.info("%s\t%s\t%s\t%s", field, pmid, dqm_data, pubmed_data)
-    # else:
-    #     logger.info("%s\t%s\t%s", field, pmid, 'GOOD')
 
 
 def strip_string_to_integer(string):
