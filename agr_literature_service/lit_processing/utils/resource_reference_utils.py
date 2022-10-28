@@ -27,7 +27,7 @@ from typing import Dict, Union
 import logging.config
 from sqlalchemy.orm import Session
 from agr_literature_service.api.models import ResourceModel, ReferenceModel, CrossReferenceModel
-from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
+# from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 
 xref_ref: Dict = {}
 ref_xref_valid: Dict = {}
@@ -42,11 +42,11 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 
-def update_xref_dicts(agr: str, xref: str, is_obsolete: bool = False) -> None:
+def update_xref_dicts(agr: str, prefix: str, identifier: str, is_obsolete: bool = False) -> None:
     """
     Update the three dicts.
     """
-    prefix, identifier, _ = split_identifier(xref, True)
+    # prefix, identifier, _ = split_identifier(xref, True)
     if is_obsolete is False:
         if agr not in ref_xref_valid:
             ref_xref_valid[agr] = dict()
@@ -81,6 +81,7 @@ def load_xref_dicts() -> None:
         # 14 seconds to load all xref through sqlalchemy
         query = db_session.query(
             ReferenceModel.curie,
+            CrossReferenceModel.curie_prefix,
             CrossReferenceModel.curie,
             CrossReferenceModel.is_obsolete
         ).join(
@@ -93,6 +94,7 @@ def load_xref_dicts() -> None:
         print("Loading resource cross reference db data.")
         query = db_session.query(
             ResourceModel.curie,
+            CrossReferenceModel.curie_prefix,
             CrossReferenceModel.curie,
             CrossReferenceModel.is_obsolete
         ).join(
@@ -106,7 +108,7 @@ def load_xref_dicts() -> None:
 
         for result in results:
             print(result)
-            update_xref_dicts(result[0], result[1], result[2])
+            update_xref_dicts(result[0], result[1], result[2], result[3])
 
 
 def load_xref_data(db_session_set: Session, load_datatype: str) -> None:
@@ -181,7 +183,7 @@ def add_xref(agr: str, new_xref: Dict) -> None:
     db_session.add(cr)
     db_session.commit()
     logger.info("Adding resource info into cross_reference table for " + new_xref['curie'])
-    update_xref_dicts(agr, new_xref['curie'])
+    update_xref_dicts(agr, new_xref['curie_prefix'], new_xref['curie'])
 
 
 def is_obsolete(agr: str, prefix: str, identifier: str) -> bool:
