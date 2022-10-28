@@ -137,7 +137,8 @@ def show_need_review(mod_abbreviation, count, db: Session):
                                        mca.mod.abbreviation == mod_abbreviation][0],
             resource_title=reference.resource.title if reference.resource else "",
             cross_references=[CrossReferenceSchemaShow(
-                curie=xref.curie, url=convert_xref_curie_to_url(xref.curie, resource_descriptor_default_urls_dict),
+                cross_reference_id=xref.cross_reference_id, curie=xref.curie, curie_prefix=xref.curie_prefix,
+                url=convert_xref_curie_to_url(xref.curie, resource_descriptor_default_urls_dict),
                 is_obsolete=xref.is_obsolete, pages=xref.pages) for xref in reference.cross_reference],
             workflow_tags=[{"reference_workflow_tag_id": wft.reference_workflow_tag_id, "workflow_tag_id": wft.workflow_tag_id, "mod_abbreviation": mod_id_to_mod.get(wft.mod_id, '')} for wft in reference.workflow_tag])
         for reference in references]
