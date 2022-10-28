@@ -165,11 +165,11 @@ def show(curie_or_reference_id: str,
     return reference_crud.show(db, curie_or_reference_id)
 
 
-@router.get('/{curie}/versions',
+@router.get('/{curie_or_reference_id}/versions',
             status_code=200)
-def show_versions(curie: str,
+def show_versions(curie_or_reference_id: str,
                   db: Session = db_session):
-    return reference_crud.show_changesets(db, curie)
+    return reference_crud.show_changesets(db, curie_or_reference_id)
 
 
 @router.post('/merge/{old_curie}/{new_curie}',

@@ -380,18 +380,20 @@ def show(db: Session, curie_or_reference_id: str, http_request=True):  # noqa
     return reference_data
 
 
-def show_changesets(db: Session, curie: str):
+def show_changesets(db: Session, curie_or_reference_id: str):
     """
 
     :param db:
-    :param curie:
+    :param curie_or_reference_id:
     :return:
     """
-
-    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
+    reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
+    reference = db.query(ReferenceModel).filter(or_(
+            ReferenceModel.curie == curie_or_reference_id,
+            ReferenceModel.reference_id == reference_id)).one_or_none()
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Reference with the id {curie} is not available")
+                            detail=f"Reference with the reference id or curie {curie_or_reference_id} is not available")
     history = []
     for version in reference.versions:
         tx = version.transaction
