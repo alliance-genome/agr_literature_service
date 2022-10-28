@@ -56,26 +56,26 @@ def add(pubmed_id: str,
     return process_pmid(pubmed_id)
 
 
-@router.delete('/{curie}',
+@router.delete('/{curie_or_reference_id}',
                status_code=status.HTTP_204_NO_CONTENT)
-def destroy(curie: str,
+def destroy(curie_or_reference_id: str,
             user: OktaUser = db_user,
             db: Session = db_session):
     set_global_user_from_okta(db, user)
-    reference_crud.destroy(db, curie)
+    reference_crud.destroy(db, curie_or_reference_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.patch('/{curie}',
+@router.patch('/{curie_or_reference_id}',
               status_code=status.HTTP_202_ACCEPTED,
               response_model=ResponseMessageSchema)
-async def patch(curie: str,
+async def patch(curie_or_reference_id: str,
                 request: ReferenceSchemaUpdate,
                 user: OktaUser = db_user,
                 db: Session = db_session):
     set_global_user_from_okta(db, user)
     patch = request.dict(exclude_unset=True)
-    return reference_crud.patch(db, curie, patch)
+    return reference_crud.patch(db, curie_or_reference_id, patch)
 
 
 @router.get('/dumps/latest/{mod}',
@@ -157,12 +157,12 @@ def show_xref(curie: str,
     return reference_crud.show(db, cross_reference['reference_curie'])
 
 
-@router.get('/{curie}',
+@router.get('/{curie_or_reference_id}',
             status_code=200,
             response_model=ReferenceSchemaShow)
-def show(curie: str,
+def show(curie_or_reference_id: str,
          db: Session = db_session):
-    return reference_crud.show(db, curie)
+    return reference_crud.show(db, curie_or_reference_id)
 
 
 @router.get('/{curie}/versions',
