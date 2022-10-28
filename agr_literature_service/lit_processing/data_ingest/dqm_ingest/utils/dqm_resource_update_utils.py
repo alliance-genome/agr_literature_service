@@ -264,7 +264,8 @@ def compare_xref(agr, resource_id, dqm_entry):
             else:
                 try:
                     logger.info("CREATE: add cross_reference %s to %s", curie, agr)
-                    entry = {'curie': curie,
+                    entry = {'curie': identifier,
+                             'curie_prefix': prefix,
                              'resource_id': resource_id,
                              'pages': xref.get('pages', [])}
                     add_xref(agr, entry)

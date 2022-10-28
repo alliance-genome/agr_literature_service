@@ -105,12 +105,14 @@ def process_cross_references(db_session: Session, resource_id: int, agr: str, cr
         prefix, identifier, _ = split_identifier(new_xref['curie'])
         logger.info(f"Processing {prefix} {identifier}")
         xrefs_agr = get_agr_for_xref(prefix, identifier)
+        new_xref['curie'] = identifier
+        new_xref['curie_prefix'] = prefix
         if xrefs_agr:
             logger.info(f"{prefix} {identifier} ALREADY EXISTS?")
             # Just duplicated not an error as to same resource
             if xrefs_agr == agr:
                 continue
-            mess = f"CrossReference with curie = {new_xref['curie']} already exists with a different resource -> {xrefs_agr}"
+            mess = f"CrossReference with curie = {xref['curie']} already exists with a different resource -> {xrefs_agr}"
             logger.error(mess)
             okay = False
             error_mess += mess
