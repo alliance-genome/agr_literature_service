@@ -248,18 +248,16 @@ def show_all_references_external_ids(db: Session):
             for reference in references_query.all()]
 
 
-def get_merged(db: Session, curie_or_reference_id):
-    logger.debug("Looking up if '{}' is a merged entry".format(curie_or_reference_id))
+def get_merged(db: Session, curie):
+    logger.debug("Looking up if '{}' is a merged entry".format(curie))
     # Is the curie in the merged set
     try:
-        reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
         obs_ref_cur: ObsoleteReferenceModel = db.query(ObsoleteReferenceModel).filter(
-            or_(ObsoleteReferenceModel.curie == curie_or_reference_id,
-                ObsoleteReferenceModel.reference_id == reference_id)).one_or_none()
+            ObsoleteReferenceModel.curie == curie).one_or_none()
     except Exception:
         logger.debug("No merge data found so give error message")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Reference with the reference id or curie {curie_or_reference_id} is not available")
+                            detail=f"Reference with the id {curie} is not available")
 
     # If found in merge then get new reference.
     if obs_ref_cur:
@@ -268,7 +266,7 @@ def get_merged(db: Session, curie_or_reference_id):
         reference = db.query(ReferenceModel).filter(ReferenceModel.reference_id == obs_ref_cur.new_id).one_or_none()
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Reference with the reference id or curie {curie_or_reference_id} is not available")
+                            detail=f"Reference with the id {curie} is not available")
     return reference
 
 
@@ -276,18 +274,20 @@ def show(db: Session, curie_or_reference_id: str, http_request=True):  # noqa
     """
 
     :param db:
-    :param curie:
+    :param curie_or_reference_id:
     :param http_request:
     :return:
     """
+    reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
+    reference = None
     try:
-        reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
         reference = db.query(ReferenceModel).filter(or_(
             ReferenceModel.curie == curie_or_reference_id,
-            ReferenceModel.reference_id == reference_id)).one_or_none()
+            ReferenceModel.reference_id == reference_id)).one()
     except Exception:
-        reference = get_merged(db, curie_or_reference_id)
-        logger.debug("Found from merged '{}'".format(reference))
+        if reference_id is None:
+            reference = get_merged(db, curie_or_reference_id)
+            logger.debug("Found from merged '{}'".format(reference))
 
     if not reference:
         logger.warning("Reference not found for {}?".format(curie_or_reference_id))
@@ -462,7 +462,7 @@ def merge_comments_and_corrections(db, old_reference_id, new_reference_id, old_c
             else:
                 db.delete(x)
     except Exception as e:
-        logger.warning("An error occurred when tranferring the comments/corrections from " + old_curie + " to " + new_curie + " : " + str(e))
+        logger.warning("An error occurred when transferring the comments/corrections from " + old_curie + " to " + new_curie + " : " + str(e))
 
 
 def get_citation_from_args(authorNames, year, title, journal, volume, issue, page_range):
