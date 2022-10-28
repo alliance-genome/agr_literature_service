@@ -66,3 +66,9 @@ class EditorModel(Base, AuditedModel):
         unique=False,
         nullable=True
     )
+
+    def __str__(self):
+        """
+        Overwrite the default output.
+        """
+        return f"{self.name} 1st({self.first_name}) last({self.last_name}) order({self.order})"
