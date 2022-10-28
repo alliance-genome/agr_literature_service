@@ -112,7 +112,7 @@ def process_cross_references(db_session: Session, resource_id: int, agr: str, cr
             # Just duplicated not an error as to same resource
             if xrefs_agr == agr:
                 continue
-            mess = f"CrossReference with curie = {xref['curie']} already exists with a different resource -> {xrefs_agr}"
+            mess = f"CrossReference with curie = {xref['id']} already exists with a different resource -> {xrefs_agr}"
             logger.error(mess)
             okay = False
             error_mess += mess
