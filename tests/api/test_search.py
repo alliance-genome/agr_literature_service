@@ -6,6 +6,10 @@ from starlette.testclient import TestClient
 from fastapi import status
 from agr_literature_service.api.config import config
 from agr_literature_service.api.main import app
+from .test_mod_corpus_association import test_mca # noqa
+from ..fixtures import db # noqa
+from .test_reference import test_reference # noqa
+from .test_mod import test_mod # noqa
 from .fixtures import auth_headers # noqa
 
 
@@ -140,3 +144,10 @@ class TestSearch:
             }
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers)
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_search_need_review(self, test_mca): # noqa
+        with TestClient(app) as client:
+            res = client.get(url="/search/need_review", params={"mod_abbreviation": "0015_AtDB", "count": 10})
+            assert res.status_code == status.HTTP_200_OK
+            assert len(res.json()) > 0
+
