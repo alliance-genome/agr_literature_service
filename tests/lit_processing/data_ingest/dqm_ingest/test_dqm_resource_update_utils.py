@@ -73,7 +73,8 @@ class TestParseDqmJsonResource:
         assert res.iso_abbreviation == "iso1"
 
         # check the cross reference
-        assert res.cross_reference[0].curie == "ZFIN:ZDB-JRNL-001-1"
+        assert res.cross_reference[0].prefix_curie == "ZFIN"
+        assert res.cross_reference[0].curie == "ZDB-JRNL-001-1"
         assert not res.cross_reference[0].is_obsolete
         assert res.cross_reference[0].pages[0] == 'journal'
         assert res.cross_reference[0].pages[1] == 'journal/references'
@@ -222,12 +223,12 @@ class TestParseDqmJsonResource:
 
         count = 0
         for xref in res.cross_reference:
-            if xref.curie == "NEWPREFIX:ZDB-JRNL-001-NEW2":
+            if xref.curie == "ZDB-JRNL-001-NEW2":
                 assert not xref.is_obsolete
                 assert xref.pages[0] == 'new journal'
                 assert xref.pages[1] == 'new journal/references'
                 count += 1
-            elif xref.curie == "ZFIN:ZDB-JRNL-001-1":
+            elif xref.curie == "ZDB-JRNL-001-1":
                 assert not xref.is_obsolete
                 assert xref.pages[0] == 'journal'
                 assert xref.pages[1] == 'journal/references'
@@ -267,9 +268,9 @@ class TestParseDqmJsonResource:
         for xref in res.cross_reference:
             count += 1
             print(xref.curie)
-            if xref.curie == 'ZFIN:ZDB-JRNL-001-2':
+            if xref.curie == 'ZDB-JRNL-001-2':
                 assert xref.pages[0] == 'journal'
-            elif xref.curie == 'BOB:ShouldBeOkay':
+            elif xref.curie == 'ShouldBeOkay':
                 assert xref.pages[0] == 'new journal'
             else:
                 assert 'UnExpected curie' == xref.curie

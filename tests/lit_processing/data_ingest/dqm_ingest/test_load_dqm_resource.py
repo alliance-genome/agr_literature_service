@@ -72,7 +72,8 @@ class TestParseDqmJsonResource:
         assert res.iso_abbreviation == "iso1"
 
         # check the cross reference
-        assert res.cross_reference[0].curie == "ZFIN:ZDB-JRNL-001-1"
+        assert res.cross_reference[0].prefix_curie == "ZFIN"
+        assert res.cross_reference[0].curie == "ZDB-JRNL-001-1"
         assert not res.cross_reference[0].is_obsolete
         assert res.cross_reference[0].pages[0] == 'journal'
         assert res.cross_reference[0].pages[1] == 'journal/references'

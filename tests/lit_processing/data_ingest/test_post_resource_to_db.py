@@ -27,7 +27,8 @@ class TestPostResourceToDb:
 
         resource_id = res_rows[4].resource_id
         crossRef = db.query(CrossReferenceModel).filter_by(resource_id=resource_id).first()
-        assert crossRef.curie == 'NLM:101759238'
+        assert crossRef.curie == '101759238'
+        assert crossRef.prefix_curie == 'NLM'
 
         # Check the log files.
         base_path = environ.get('XML_PATH', "")
