@@ -389,8 +389,7 @@ def show_changesets(db: Session, curie_or_reference_id: str):
     """
     reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
     reference = db.query(ReferenceModel).filter(or_(
-            ReferenceModel.curie == curie_or_reference_id,
-            ReferenceModel.reference_id == reference_id)).one_or_none()
+        ReferenceModel.curie == curie_or_reference_id, ReferenceModel.reference_id == reference_id)).one_or_none()
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the reference id or curie {curie_or_reference_id} is not available")
