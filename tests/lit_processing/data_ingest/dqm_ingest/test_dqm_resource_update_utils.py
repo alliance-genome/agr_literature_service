@@ -1,7 +1,7 @@
 from agr_literature_service.api.models import ResourceModel
 from agr_literature_service.lit_processing.data_ingest.post_resource_to_db import process_resource_entry
-from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_resource_update_utils import \
-    process_update_resource
+# from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_resource_update_utils import \
+#    process_update_resource
 
 from ....fixtures import db # noqa
 
