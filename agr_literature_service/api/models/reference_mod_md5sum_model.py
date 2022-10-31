@@ -29,8 +29,7 @@ class ReferenceModMd5sumModel(Base):
     )
 
     reference = relationship(
-        "ReferenceModel",
-        back_populates="reference_mod_md5sum"
+        "ReferenceModel"
     )
 
     mod_id = Column(
@@ -41,8 +40,7 @@ class ReferenceModMd5sumModel(Base):
     )
 
     mod = relationship(
-        "ModModel",
-        back_populates="reference_mod_md5sum"
+        "ModModel"
     )
 
     md5sum = Column(

@@ -110,13 +110,6 @@ class ReferenceModel(Base, AuditedModel):
         cascade="all, delete, delete-orphan"
     )
 
-    reference_mod_md5sum = relationship(
-        "ReferenceModMd5sumModel",
-        # lazy="joined",
-        back_populates="reference",
-        cascade="all, delete, delete-orphan"
-    )
-
     date_published = Column(
         String(),
         unique=False,
