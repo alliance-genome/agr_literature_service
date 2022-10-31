@@ -24,9 +24,19 @@ from agr_literature_service.api.models.topic_entity_tag_model import (
     TopicEntityTagPropModel
 )
 from agr_literature_service.api.models.mod_taxon_model import ModTaxonModel
+from agr_literature_service.api.models.reference_mod_md5sum_model import ReferenceModMd5sumModel
+# import logging
 
 
 def initialize():
-    configure_mappers()
-    create_all_tables()
+    # logging.basicConfig(filename='/mnt/d/alliance/agr_literature_service/python.log',level=logging.DEBUG)
+    try:
+        configure_mappers()
+    except Exception as e:
+        print('Error: ' + str(type(e)))
+    try:
+        create_all_tables()
+    except Exception as e:
+        print('Error: ' + str(type(e)))
+        # logging.info(e)
     create_default_user()
