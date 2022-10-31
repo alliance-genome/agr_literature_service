@@ -1,13 +1,12 @@
 from agr_literature_service.api.models.reference_mod_md5sum_model import ReferenceModMd5sumModel
 from agr_literature_service.api.models import ReferenceModel, ModModel, CrossReferenceModel
-import pytest
 from ..fixtures import db, populate_test_mod_reference_types # noqa
 from sqlalchemy import and_
 
 
 class TestReferenceModMd5sum:
 
-    def test_reference_mod_md5sum(self, db):
+    def test_reference_mod_md5sum(self, db): # noqa
         mod_data = {
             "abbreviation": "FB",
             "short_name": "FlyBase",

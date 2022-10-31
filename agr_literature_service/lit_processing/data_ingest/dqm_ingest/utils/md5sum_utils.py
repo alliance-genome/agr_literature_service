@@ -11,7 +11,6 @@ from agr_literature_service.lit_processing.data_ingest.utils.file_processing_uti
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_s3, download_file_from_s3
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
-from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 
 from dotenv import load_dotenv
 
@@ -184,9 +183,6 @@ def load_s3_md5data(mods):
     # json_data = json.dumps(md5dict, indent=4, sort_keys=True)
     # print(json_data)
     return md5dict
-
-
-
 
 
 def pubmed_json_generate_md5sum_and_save():
