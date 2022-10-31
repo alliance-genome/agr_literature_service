@@ -2,7 +2,7 @@
 import json
 import hashlib
 import argparse
-from pickle import FALSE
+# from pickle import FALSE
 import sys
 from os import environ, path, makedirs, listdir
 import logging.config
@@ -185,47 +185,8 @@ def load_s3_md5data(mods):
     # print(json_data)
     return md5dict
 
-# input ["FB", "WB", "ZFIN", "SGD", "MGI", "RGD", "XB", "PMID"]
 
 
-def load_database_md5data(mods):
-    """
-
-
-    :param mods:
-    :return:
-    """
-
-    md5dict = {}
-    try:
-        db_session = create_postgres_session(FALSE)
-    except Exception as e:
-        print('Error: ' + str(type(e)))
-    for mod in mods:
-        if (mod == "FB") or (mod == "WB") or (mod == "ZFIN") or (mod == "SGD") or (mod == "MGI") or (mod == "RGD") or (mod == "XB") or (mod == "GO"):
-            mod_results = db_session.execute(f"select mod_id from mod where abbreviation = '{mod}'")
-            mods = mod_results.fetchall()
-            mod_id = mods[0]["mod_id"]
-            md5dict[mod] = {}
-            if (mod =="XB"):
-                md5sum_results = db_session.execute(f"select r.curie, rmm.md5sum from cross_reference r, reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and rmm.mod_id  = {mod_id} and (r.curie like 'PMID:%' or r.curie like 'Xenbase:%') ")
-            else:
-                md5sum_results = db_session.execute(f"select r.curie, rmm.md5sum from cross_reference r, reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and rmm.mod_id  = {mod_id} and (r.curie like 'PMID:%' or r.curie like '{mod}:%') ")
-        elif (mod == "PMID"):
-            md5dict[mod] = {}
-            md5sum_results = db_session.execute("select r.curie, rmm.md5sum from cross_reference r, reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and rmm.mod_id is null and r.curie like 'PMID:%' ")
-        else:
-            print("invalid mod:" + mod)
-            continue
-        md5sums = md5sum_results.fetchall()
-        for row in md5sums:
-            curie = row["curie"]
-            md5sum = row["md5sum"]
-            md5dict[mod][curie] = md5sum
-    # debug
-    # json_data = json.dumps(md5dict, indent=4, sort_keys=True)
-    # print(json_data)
-    return md5dict
 
 
 def pubmed_json_generate_md5sum_and_save():

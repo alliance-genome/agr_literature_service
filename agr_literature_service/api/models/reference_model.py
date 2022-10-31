@@ -112,7 +112,7 @@ class ReferenceModel(Base, AuditedModel):
 
     reference_mod_md5sum = relationship(
         "ReferenceModMd5sumModel",
-        lazy="joined",
+        # lazy="joined",
         back_populates="reference",
         cascade="all, delete, delete-orphan"
     )
