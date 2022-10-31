@@ -1,0 +1,72 @@
+{
+    "metaData" : {
+      "dateProduced" : "2022-09-01T13:32:11-07:00",
+      "dataProvider" : {
+        "crossReference" : {
+          "id" : "ZFIN",
+          "pages" : [ "homepage" ]
+        },
+        "type" : "curated"
+      }
+    },
+    "data" : [ {
+      "primaryId" : "ZFIN:ZDB-JRNL-050621-190",
+      "title" : "13th European J. Muscle Res. Cell Motil.",
+      "medlineAbbreviation" : "13th European J. Muscle Res. Cell Motil.",
+      "isoAbbreviation" : "13th European J. Muscle Res. Cell Motil.",
+      "crossReferences" : [ {
+        "id" : "ZFIN:ZDB-JRNL-050621-190",
+        "pages" : [ "journal", "journal/references" ]
+      } ]
+    }, {
+      "primaryId" : "101565857",
+      "title" : "3 Biotech",
+      "medlineAbbreviation" : "3 Biotech",
+      "isoAbbreviation" : "3 Biotech",
+      "printISSN" : "2190-572X",
+      "onlineISSN" : "2190-5738",
+      "crossReferences" : [ {
+        "id" : "ZFIN:ZDB-JRNL-180918-1",
+        "pages" : [ "journal", "journal/references" ]
+      } ]
+    }, {
+        "primaryId" : "ZFIN:ZDB-JRNL-220706-1",
+        "title" : "Advances in biology laboratory education : p1",
+        "medlineAbbreviation" : "Adv Biol Lab Educ",
+        "isoAbbreviation" : "Adv Biol Lab Educ",
+        "printISSN" : "2769-1810",
+        "crossReferences" : [ {
+          "id" : "ZFIN:ZDB-JRNL-220706-1",
+          "pages" : [ "journal", "journal/references" ]
+        } ]
+    }, {
+        "primaryId" : "9309124",
+        "title" : "Zygote (Cambridge, England)",
+        "medlineAbbreviation" : "Zygote",
+        "isoAbbreviation" : "Zygote",
+        "printISSN" : "0967-1994",
+        "onlineISSN" : "1469-8730",
+        "crossReferences" : [ {
+          "id" : "ZFIN:ZDB-JRNL-050621-1409",
+          "pages" : [ "journal", "journal/references" ]
+        } ]
+      }, {
+        "primaryId" : "ZFIN:ZDB-JRNL-050621-1389",
+        "title" : "Z. Zellforsch.",
+        "medlineAbbreviation" : "Z. Zellforsch.",
+        "isoAbbreviation" : "Z. Zellforsch.",
+        "crossReferences" : [ {
+          "id" : "ZFIN:ZDB-JRNL-050621-1389",
+          "pages" : [ "journal", "journal/references" ]
+        } ]
+      }, {
+        "primaryId" : "ZFIN:ZDB-JRNL-050621-1388",
+        "title" : "Z. Zell. Mikro. Anat.",
+        "medlineAbbreviation" : "Z. Zell. Mikro. Anat.",
+        "isoAbbreviation" : "Z. Zell. Mikro. Anat.",
+        "crossReferences" : [ {
+          "id" : "ZFIN:ZDB-JRNL-050621-1388",
+          "pages" : [ "journal", "journal/references" ]
+        } ]
+      } ]
+    }
