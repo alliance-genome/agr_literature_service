@@ -7,7 +7,7 @@ from agr_literature_service.api.models.cross_reference_model import CrossReferen
 from agr_literature_service.api.models.editor_model import EditorModel
 from agr_literature_service.api.models.mesh_detail_model import MeshDetailModel
 from agr_literature_service.api.models.mod_reference_type_model import ReferenceTypeModel, \
-    ModReferenceTypeAssociationModel, ReferenceModReferenceTypeAssociationModel, ModReferenceTypeModel
+    ModReferenceTypeAssociationModel, ReferenceModReferenceTypeAssociationModel
 from agr_literature_service.api.models.mod_model import ModModel
 from agr_literature_service.api.models.mod_corpus_association_model import ModCorpusAssociationModel
 from agr_literature_service.api.models.reference_comment_and_correction_model import \
