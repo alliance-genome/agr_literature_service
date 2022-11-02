@@ -6,8 +6,8 @@ from fastapi import status
 
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models import ReferenceModReferenceTypeAssociationModel, ReferenceModel, \
-    ModReferenceTypeAssociationModel, ModModel
+from agr_literature_service.api.models import ReferenceModReferencetypeAssociationModel, ReferenceModel, \
+    ModReferencetypeAssociationModel, ModModel
 from ..fixtures import db, populate_test_mod_reference_types # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
@@ -40,8 +40,8 @@ class TestModReferenceType:
     def test_create_mrt(self, db, test_mod_ref_type): # noqa
         assert test_mod_ref_type.response.status_code == status.HTTP_201_CREATED
         # check db for mrt
-        rmrt = db.query(ReferenceModReferenceTypeAssociationModel).filter(
-            ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id == test_mod_ref_type
+        rmrt = db.query(ReferenceModReferencetypeAssociationModel).filter(
+            ReferenceModReferencetypeAssociationModel.reference_mod_referencetype_id == test_mod_ref_type
             .new_mod_ref_type_id).one()
         assert rmrt.mod_referencetype.referencetype.label == "Journal"
         ref_curie = db.query(ReferenceModel.curie).filter(
@@ -106,8 +106,8 @@ class TestModReferenceType:
 
     def test_display_order(self, db, test_mod_ref_type, auth_headers): # noqa
         mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == "ZFIN").one_or_none()
-        mrts = db.query(ModReferenceTypeAssociationModel).filter(
-            ModReferenceTypeAssociationModel.mod_id == mod_id).all()
+        mrts = db.query(ModReferencetypeAssociationModel).filter(
+            ModReferencetypeAssociationModel.mod_id == mod_id).all()
         for idx, mrt in enumerate(mrts):
             assert mrt.display_order == (idx + 1) * 10
 
@@ -120,6 +120,6 @@ class TestModReferenceType:
         new_ref_mod_reftype_id = insert_mod_reference_type_into_db(
             db, pubmed_types=allowed_pubmed_types, mod_abbreviation="SGD", referencetype_label="test2",
             reference_id=reference_id)
-        new_ref_mod_reftype = db.query(ReferenceModReferenceTypeAssociationModel).filter(
-            ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id == new_ref_mod_reftype_id).one()
+        new_ref_mod_reftype = db.query(ReferenceModReferencetypeAssociationModel).filter(
+            ReferenceModReferencetypeAssociationModel.reference_mod_referencetype_id == new_ref_mod_reftype_id).one()
         assert new_ref_mod_reftype.mod_referencetype.display_order == 30

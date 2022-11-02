@@ -2,7 +2,7 @@ import math
 import shutil
 
 import pytest
-from agr_literature_service.api.models import initialize, ReferenceTypeModel, ModReferenceTypeAssociationModel, ModModel
+from agr_literature_service.api.models import initialize, ReferencetypeModel, ModReferencetypeAssociationModel, ModModel
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from sqlalchemy import create_engine
@@ -56,11 +56,11 @@ def populate_test_mod_reference_types(db):
         mod = db.query(ModModel).filter(ModModel.abbreviation == mod).one()
         display_order = 10
         for reference_type in reference_types:
-            rt_obj = db.query(ReferenceTypeModel).filter(ReferenceTypeModel.label == reference_type).one_or_none()
+            rt_obj = db.query(ReferencetypeModel).filter(ReferencetypeModel.label == reference_type).one_or_none()
             if rt_obj is None:
-                rt_obj = ReferenceTypeModel(label=reference_type)
+                rt_obj = ReferencetypeModel(label=reference_type)
                 db.add(rt_obj)
-            mod_reference_type_obj = ModReferenceTypeAssociationModel(mod=mod, referencetype=rt_obj,
+            mod_reference_type_obj = ModReferencetypeAssociationModel(mod=mod, referencetype=rt_obj,
                                                                       display_order=display_order)
             db.add(mod_reference_type_obj)
             display_order = math.ceil((display_order + 1) / 10) * 10

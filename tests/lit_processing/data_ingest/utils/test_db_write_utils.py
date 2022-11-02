@@ -3,7 +3,7 @@ from os import path
 
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
     AuthorModel, ModModel, ModCorpusAssociationModel, MeshDetailModel, \
-    ReferenceCommentAndCorrectionModel, ReferenceModReferenceTypeAssociationModel
+    ReferenceCommentAndCorrectionModel, ReferenceModReferencetypeAssociationModel
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_references_by_curies, get_pmid_to_reference_id
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
@@ -88,7 +88,7 @@ class TestDbReadUtils:
                 assert mod == 'SGD'
 
         ## test update_mod_reference_types()
-        mrt_rows = db.query(ReferenceModReferenceTypeAssociationModel).filter_by(reference_id=reference_id).all()
+        mrt_rows = db.query(ReferenceModReferencetypeAssociationModel).filter_by(reference_id=reference_id).all()
         assert len(mrt_rows) == 1
         mod_reference_types = [
             {
@@ -100,8 +100,8 @@ class TestDbReadUtils:
                                    db_entry.get('mod_referencetypes', []),
                                    mod_reference_types, {'Journal'}, logger)
         db.commit()
-        mrt_rows = db.query(ReferenceModReferenceTypeAssociationModel).filter_by(reference_id=reference_id).order_by(
-            ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id).all()
+        mrt_rows = db.query(ReferenceModReferencetypeAssociationModel).filter_by(reference_id=reference_id).order_by(
+            ReferenceModReferencetypeAssociationModel.reference_mod_referencetype_id).all()
         assert len(mrt_rows) == 2
         assert mrt_rows[0].mod_referencetype.mod.abbreviation == 'ZFIN'
         assert mrt_rows[1].mod_referencetype.mod.abbreviation == 'SGD'
