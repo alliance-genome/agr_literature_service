@@ -8,7 +8,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_reference_id_by_curie, get_reference_id_by_pmid
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceCommentAndCorrectionModel, \
-    MeshDetailModel, ReferenceModReferenceTypeAssociationModel
+    MeshDetailModel, ReferenceModReferencetypeAssociationModel
 
 batch_size_for_commit = 250
 
@@ -266,7 +266,7 @@ dded into the database. " + str(e))
     for row in to_delete_duplicate_rows:
         (mod_reference_type_id, ref_type) = row
         try:
-            x = db_session.query(ReferenceModReferenceTypeAssociationModel).filter_by(
+            x = db_session.query(ReferenceModReferencetypeAssociationModel).filter_by(
                 reference_mod_referencetype_id=mod_reference_type_id).one_or_none()
             if x:
                 db_session.delete(x)

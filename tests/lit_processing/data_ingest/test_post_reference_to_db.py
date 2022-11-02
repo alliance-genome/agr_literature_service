@@ -3,7 +3,7 @@ from os import path
 
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
     AuthorModel, ModCorpusAssociationModel, MeshDetailModel, \
-    ModModel, ReferenceCommentAndCorrectionModel, ReferenceModReferenceTypeAssociationModel
+    ModModel, ReferenceCommentAndCorrectionModel, ReferenceModReferencetypeAssociationModel
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_journal_data
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import \
@@ -115,7 +115,7 @@ class TestPostReferenceToDb:
         insert_mod_reference_types(db, primaryId, reference_id, entry['MODReferenceTypes'],
                                    entry['pubmedType'] if 'pubmedType' in entry else [])
         db.commit()
-        mrt = db.query(ReferenceModReferenceTypeAssociationModel).filter_by(reference_id=reference_id).first()
+        mrt = db.query(ReferenceModReferencetypeAssociationModel).filter_by(reference_id=reference_id).first()
         assert mrt.mod_referencetype.referencetype.label == 'Journal'
         assert mrt.mod_referencetype.mod.abbreviation == 'ZFIN'
 

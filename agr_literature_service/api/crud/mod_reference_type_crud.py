@@ -8,29 +8,29 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.models import ReferenceModel, ReferenceModReferenceTypeAssociationModel, ModModel, \
-    ReferenceTypeModel, ModReferenceTypeAssociationModel
+from agr_literature_service.api.models import ReferenceModel, ReferenceModReferencetypeAssociationModel, ModModel, \
+    ReferencetypeModel, ModReferencetypeAssociationModel
 from agr_literature_service.api.schemas import ModReferenceTypeSchemaPost
 
 
 def insert_mod_reference_type_into_db(db_session, pubmed_types, mod_abbreviation, referencetype_label, reference_id):
     mod = db_session.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
-    ref_type = db_session.query(ReferenceTypeModel).filter(ReferenceTypeModel.label == referencetype_label)\
+    ref_type = db_session.query(ReferencetypeModel).filter(ReferencetypeModel.label == referencetype_label)\
         .one_or_none()
-    mrt = db_session.query(ModReferenceTypeAssociationModel).filter(
-        ModReferenceTypeAssociationModel.mod == mod,
-        ModReferenceTypeAssociationModel.referencetype == ref_type).one_or_none()
+    mrt = db_session.query(ModReferencetypeAssociationModel).filter(
+        ModReferencetypeAssociationModel.mod == mod,
+        ModReferencetypeAssociationModel.referencetype == ref_type).one_or_none()
     if (ref_type is None or mrt is None) and mod.abbreviation == "SGD":
         if referencetype_label in set(pubmed_types):
             if ref_type is None:
-                ref_type = ReferenceTypeModel(label=referencetype_label)
+                ref_type = ReferencetypeModel(label=referencetype_label)
             max_display_order = max((mod_ref_type.display_order for mod_ref_type in mod.referencetypes),
                                     default=0)
-            mrt = ModReferenceTypeAssociationModel(
+            mrt = ModReferencetypeAssociationModel(
                 mod=mod, referencetype=ref_type,
                 display_order=math.ceil((max_display_order + 1) / 10) * 10)
     if mrt is not None:
-        rmrt = ReferenceModReferenceTypeAssociationModel(reference_id=reference_id, mod_referencetype=mrt)
+        rmrt = ReferenceModReferencetypeAssociationModel(reference_id=reference_id, mod_referencetype=mrt)
         db_session.add(rmrt)
         db_session.commit()
         return rmrt.reference_mod_referencetype_id
@@ -74,8 +74,8 @@ def destroy(db: Session, mod_reference_type_id: int) -> None:
     :return:
     """
 
-    ref_mod_reference_type = db.query(ReferenceModReferenceTypeAssociationModel).filter(
-        ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id == mod_reference_type_id).first()
+    ref_mod_reference_type = db.query(ReferenceModReferencetypeAssociationModel).filter(
+        ReferenceModReferencetypeAssociationModel.reference_mod_referencetype_id == mod_reference_type_id).first()
     if not ref_mod_reference_type:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with mod_reference_type_id {mod_reference_type_id} not found")
@@ -96,8 +96,8 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update):
 
     # can only patch to an existing mod_referencetype even for SGD
     mrt_data = jsonable_encoder(mod_reference_type_update)
-    ref_mod_ref_type_obj = db.query(ReferenceModReferenceTypeAssociationModel).filter(
-        ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id == mod_reference_type_id).first()
+    ref_mod_ref_type_obj = db.query(ReferenceModReferencetypeAssociationModel).filter(
+        ReferenceModReferencetypeAssociationModel.reference_mod_referencetype_id == mod_reference_type_id).first()
     if not ref_mod_ref_type_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with mod_reference_type_id {mod_reference_type_id} not found")
@@ -121,16 +121,16 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update):
         else:
             mod = ref_mod_ref_type_obj.mod_referencetype.mod
         if "reference_type" in mrt_data:
-            referencetype = db.query(ReferenceTypeModel).filter(
-                ReferenceTypeModel.label == mrt_data["reference_type"]).first()
+            referencetype = db.query(ReferencetypeModel).filter(
+                ReferencetypeModel.label == mrt_data["reference_type"]).first()
             if referencetype is None:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail="The provided reference type is not valid")
         else:
             referencetype = ref_mod_ref_type_obj.mod_referencetype.referencetype
-        mod_ref_type = db.query(ModReferenceTypeAssociationModel).filter(
-            ModReferenceTypeAssociationModel.mod_id == mod.mod_id,
-            ModReferenceTypeAssociationModel.referencetype_id == referencetype.referencetype_id).one_or_none()
+        mod_ref_type = db.query(ModReferencetypeAssociationModel).filter(
+            ModReferencetypeAssociationModel.mod_id == mod.mod_id,
+            ModReferencetypeAssociationModel.referencetype_id == referencetype.referencetype_id).one_or_none()
         if mod_ref_type is None:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail="The provided reference type and mod combination is not valid")
@@ -147,8 +147,8 @@ def show(db: Session, mod_reference_type_id: int):
     :return:
     """
 
-    ref_mod_reference_type = db.query(ReferenceModReferenceTypeAssociationModel).filter(
-        ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id == mod_reference_type_id).first()
+    ref_mod_reference_type = db.query(ReferenceModReferencetypeAssociationModel).filter(
+        ReferenceModReferencetypeAssociationModel.reference_mod_referencetype_id == mod_reference_type_id).first()
     mod_reference_type_data = {}
 
     if not ref_mod_reference_type:
@@ -172,8 +172,8 @@ def show_changesets(db: Session, mod_reference_type_id: int):
     :return:
     """
 
-    ref_mod_reference_type = db.query(ReferenceModReferenceTypeAssociationModel).filter(
-        ReferenceModReferenceTypeAssociationModel.reference_mod_referencetype_id == mod_reference_type_id).first()
+    ref_mod_reference_type = db.query(ReferenceModReferencetypeAssociationModel).filter(
+        ReferenceModReferencetypeAssociationModel.reference_mod_referencetype_id == mod_reference_type_id).first()
     if not ref_mod_reference_type:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with the mod_reference_type_id {mod_reference_type_id} is not available")
@@ -191,8 +191,8 @@ def show_changesets(db: Session, mod_reference_type_id: int):
 
 def show_by_mod(db: Session, mod_abbreviation: str):
     mod_reference_types = db.query(
-        ModReferenceTypeAssociationModel).filter(
-        ModReferenceTypeAssociationModel.mod.has(
+        ModReferencetypeAssociationModel).filter(
+        ModReferencetypeAssociationModel.mod.has(
             abbreviation=mod_abbreviation)
-    ).order_by(ModReferenceTypeAssociationModel.display_order).all()
+    ).order_by(ModReferencetypeAssociationModel.display_order).all()
     return [mod_reference_type.referencetype.label for mod_reference_type in mod_reference_types]
