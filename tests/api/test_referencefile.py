@@ -22,7 +22,7 @@ def test_referencefile(db, auth_headers, test_reference): # noqa
     with TestClient(app) as client:
         new_referencefile = {
             "display_name": "Bob",
-            "reference_id": test_reference.new_ref_curie,
+            "reference_curie": test_reference.new_ref_curie,
             "file_class": "main",
             "file_publication_status": "final",
             "file_extension": "pdf",
@@ -36,7 +36,7 @@ def test_referencefile(db, auth_headers, test_reference): # noqa
 class TestReferencefile():
 
     def test_create_referencefile(self, test_referencefile): # noqa
-        assert test_referencefile.response.status == status.HTTP_201_CREATED
+        assert test_referencefile.response.status_code == status.HTTP_201_CREATED
 
     def test_show_referencefile(self, test_referencefile):
         with TestClient(app) as client:
@@ -50,10 +50,11 @@ class TestReferencefile():
             "display_name": "Bob2"
         }
         with TestClient(app) as client:
-            client.patch(url=f"/reference/referencefile/{test_referencefile.new_referencefile_id}",
-                         json=patch_referencefile, headers=auth_headers)
-            response = client.get(url=f"/reference/referencefile/{test_referencefile.new_referencefile_id}")
+            response = client.patch(url=f"/reference/referencefile/{test_referencefile.new_referencefile_id}",
+                                    json=patch_referencefile, headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
+            response = client.get(url=f"/reference/referencefile/{test_referencefile.new_referencefile_id}")
+            assert response.json()["display_name"] == patch_referencefile["display_name"]
             ref_file_obj = db.query(ReferencefileModel).filter(
                 ReferencefileModel.referencefile_id == test_referencefile.new_referencefile_id).one_or_none()
             assert ref_file_obj.display_name == patch_referencefile["display_name"]
