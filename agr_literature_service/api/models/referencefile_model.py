@@ -69,7 +69,7 @@ class ReferencefileModel(Base, AuditedModel):
 
     pdf_type = Column(
         String(),
-        nullable=False,
+        nullable=True,
         index=True
     )
 
@@ -105,7 +105,7 @@ class ReferencefileModAssociationModel(Base, AuditedModel):
 
     mod_id = Column(
         ForeignKey("mod.mod_id", ondelete="CASCADE"),
-        nullable=False
+        nullable=True
     )
 
     mod = relationship("ModModel")
