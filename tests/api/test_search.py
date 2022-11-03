@@ -19,7 +19,7 @@ def initialize_elasticsearch():
     es = Elasticsearch(hosts=config.ELASTICSEARCH_HOST + ":" + config.ELASTICSEARCH_PORT)
     doc1 = {
         "curie": "AGRKB:101000000000001",
-        "title": "test title",
+        "title": "superlongword super super super super test test test",
         "pubmed_types": ["Journal Article", "Review"],
         "abstract": "Really quite a lot of great information in this article",
         "date_published": "1901",
@@ -99,7 +99,7 @@ class TestSearch:
     def test_search_result_count(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
             search_data = {
-                "query": "test",
+                "query": "superlongword super super super super test test test",
                 "facets_values": {
                     "pubmed_types.keyword": ["Journal Article", "Review"]
                 },
