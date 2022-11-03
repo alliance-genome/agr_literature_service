@@ -87,14 +87,7 @@ class ReferenceModel(Base, AuditedModel):
         nullable=True
     )
 
-    mod_referencetypes = relationship("ReferenceModReferenceTypeAssociationModel")
-
-    mod_reference_type = relationship(
-        "ModReferenceTypeModel",
-        lazy="joined",
-        back_populates="reference",
-        cascade="all, delete, delete-orphan"
-    )
+    mod_referencetypes = relationship("ReferenceModReferencetypeAssociationModel")
 
     mod_corpus_association = relationship(
         "ModCorpusAssociationModel",
@@ -237,6 +230,13 @@ class ReferenceModel(Base, AuditedModel):
         foreign_keys="TopicEntityTagModel.reference_id",
         back_populates="reference",
         cascade="all, delete, delete-orphan"
+    )
+
+    referencefiles = relationship(
+        "ReferencefileModel",
+        foreign_keys="ReferencefileModel.reference_id",
+        back_populates="reference",
+        cascade="all, delete, delete-orphan",
     )
 
     def __str__(self):

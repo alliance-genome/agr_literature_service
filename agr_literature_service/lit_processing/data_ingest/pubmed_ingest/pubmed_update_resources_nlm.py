@@ -26,11 +26,10 @@ def update_resource_pubmed_nlm(set_user=None):
     download J_Medline file, convert to json, compare to existing resources, post new ones to api and database
     """
 
+    db_session = create_postgres_session(False)
     if set_user:
-        db_session = create_postgres_session(False)
         scriptNm = path.basename(__file__).replace(".py", "")
         set_global_user_id(db_session, scriptNm)
-        db_session.close()
 
     upload_to_s3 = True
     file_data = populate_from_url()
@@ -54,7 +53,8 @@ def update_resource_pubmed_nlm(set_user=None):
     if not path.exists(json_storage_path):
         makedirs(json_storage_path)
     save_resource_file(json_storage_path, resources_to_create, 'NLM')
-    post_resources('sanitized_resource_json', 'NLM')
+    post_resources(db_session, 'sanitized_resource_json', 'NLM')
+    db_session.close()
 
 
 if __name__ == "__main__":

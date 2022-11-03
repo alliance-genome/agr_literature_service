@@ -3,8 +3,6 @@ cross_reference_crud.py
 =======================
 """
 
-from datetime import datetime
-
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
@@ -13,6 +11,10 @@ from agr_literature_service.api.crud.reference_resource import (add_reference_re
                                                                 create_obj)
 from agr_literature_service.api.models import (CrossReferenceModel, ReferenceModel,
                                                ResourceDescriptorModel, ResourceModel)
+
+
+def set_curie_prefix(xref_db_obj: CrossReferenceModel):
+    xref_db_obj.curie_prefix = xref_db_obj.curie.split(":")[0]
 
 
 def create(db: Session, cross_reference) -> str:
@@ -30,7 +32,7 @@ def create(db: Session, cross_reference) -> str:
                             detail=f"CrossReference with curie {cross_reference_data['curie']} already exists")
 
     db_obj = create_obj(db, CrossReferenceModel, cross_reference_data)
-
+    set_curie_prefix(db_obj)
     db.add(db_obj)
     db.commit()
 
@@ -74,7 +76,8 @@ def patch(db: Session, curie: str, cross_reference_update) -> dict:
     for field, value in cross_reference_data.items():
         setattr(cross_reference_db_obj, field, value)
 
-    cross_reference_db_obj.date_updated = datetime.utcnow()
+    if "curie" in cross_reference_update:
+        set_curie_prefix(cross_reference_db_obj)
     db.commit()
 
     return {"message": "updated"}
@@ -102,17 +105,6 @@ def show(db: Session, curie: str, indirect=True) -> dict:
     if cross_reference_data["reference_id"]:
         cross_reference_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == cross_reference_data['reference_id']).first().curie
     del cross_reference_data["reference_id"]
-
-    author_ids = []
-    editor_ids = []
-    if not indirect:
-        for author in cross_reference.author:
-            author_ids.append(author.author_id)
-
-        for editor in cross_reference.editor:
-            editor_ids.append(editor.editor_id)
-    cross_reference_data["author_ids"] = author_ids
-    cross_reference_data["editor_ids"] = editor_ids
 
     [db_prefix, local_id] = curie.split(":", 1)
     resource_descriptor = db.query(ResourceDescriptorModel).filter(ResourceDescriptorModel.db_prefix == db_prefix).first()

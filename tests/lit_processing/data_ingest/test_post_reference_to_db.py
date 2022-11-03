@@ -3,9 +3,9 @@ from os import path
 
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
     AuthorModel, ModCorpusAssociationModel, MeshDetailModel, \
-    ModModel, ReferenceCommentAndCorrectionModel, ReferenceModReferenceTypeAssociationModel
+    ModModel, ReferenceCommentAndCorrectionModel, ReferenceModReferencetypeAssociationModel
 from agr_literature_service.lit_processing.utils.db_read_utils import \
-    get_orcid_data, get_journal_data
+    get_journal_data
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import \
     insert_reference, insert_authors, insert_cross_references, get_doi_data, \
     set_primaryId, insert_mesh_terms, insert_mod_reference_types, \
@@ -27,14 +27,11 @@ class TestPostReferenceToDb:
         json_data = json.load(open(json_file))
         # TODO: populate test resources
         journal_to_resource_id = get_journal_data(db)
-        orcid_dict = get_orcid_data(db)
-        newly_added_orcid = []
         doi_to_reference_id = get_doi_data(db)
         mod_to_mod_id = dict([(x.abbreviation, x.mod_id) for x in db.query(ModModel).all()])
 
         ## test read_data_and_load_references()
         read_data_and_load_references(db, json_data, journal_to_resource_id,
-                                      orcid_dict, newly_added_orcid,
                                       doi_to_reference_id,
                                       mod_to_mod_id, True)
         refs = db.query(ReferenceModel).order_by(ReferenceModel.reference_id).all()
@@ -86,10 +83,7 @@ class TestPostReferenceToDb:
         assert x.reference_id == reference_id
 
         ## test insert_authors()
-        orcid_dict = get_orcid_data(db)
-        newly_added_orcid = []
-        insert_authors(db, primaryId, reference_id, entry['authors'],
-                       orcid_dict, newly_added_orcid)
+        insert_authors(db, primaryId, reference_id, entry['authors'])
         db.commit()
         x = db.query(AuthorModel).filter_by(last_name='Karaki', order=1).one_or_none()
         assert x is not None
@@ -121,7 +115,7 @@ class TestPostReferenceToDb:
         insert_mod_reference_types(db, primaryId, reference_id, entry['MODReferenceTypes'],
                                    entry['pubmedType'] if 'pubmedType' in entry else [])
         db.commit()
-        mrt = db.query(ReferenceModReferenceTypeAssociationModel).filter_by(reference_id=reference_id).first()
+        mrt = db.query(ReferenceModReferencetypeAssociationModel).filter_by(reference_id=reference_id).first()
         assert mrt.mod_referencetype.referencetype.label == 'Journal'
         assert mrt.mod_referencetype.mod.abbreviation == 'ZFIN'
 

@@ -275,10 +275,14 @@ class TestReference:
                 "abstract": "013 - abs A",
                 "authors": [
                     {
-                        "orcid": 'ORCID:1234-1234-1234-123X'
+                        "name": "S. K",
+                        "order": 1
+                        # "orcid": 'ORCID:1234-1234-1234-123X'
                     },
                     {
-                        "orcid": 'ORCID:1111-2222-3333-444X'  # New
+                        "name": "S. W",
+                        "order": 2
+                        # "orcid": 'ORCID:1111-2222-3333-444X'  # New
                     }
                 ],
                 "resource": test_resource.new_resource_curie,
@@ -372,3 +376,12 @@ class TestReference:
             ########################################
             # 3) changesets, see test_001_reference.
             ########################################
+
+    def test_show_mod_reference_types_by_mod(self, populate_test_mod_reference_types): # noqa
+        with TestClient(app) as client:
+            response = client.get(url="/reference/mod_reference_type/by_mod/WB")
+            assert response.status_code == 200
+            wb_ref_types = response.json()
+            assert len(wb_ref_types) > 0
+            assert 'Journal_article' in wb_ref_types
+            assert 'Micropublication' in wb_ref_types

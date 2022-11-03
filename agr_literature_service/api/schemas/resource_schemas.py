@@ -3,9 +3,10 @@ from typing import List, Optional
 
 from pydantic import BaseModel, validator
 
-from agr_literature_service.api.schemas import (AuditedObjectModelSchema, CrossReferenceSchema,
+from agr_literature_service.api.schemas import (AuditedObjectModelSchema,
                                                 CrossReferenceSchemaRelated, EditorSchemaPost,
                                                 EditorSchemaShow)
+from agr_literature_service.api.schemas.cross_reference_schemas import CrossReferenceSchemaCreate
 
 
 class ResourceSchemaPost(BaseModel):
@@ -23,7 +24,7 @@ class ResourceSchemaPost(BaseModel):
     volumes: Optional[List[str]] = None
     abstract: Optional[str] = None
     summary: Optional[str] = None
-    cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
+    cross_references: Optional[List[CrossReferenceSchemaCreate]] = None
     editors: Optional[List[EditorSchemaPost]] = None
     open_access: Optional[bool] = False
 
@@ -83,6 +84,6 @@ class ResourceSchemaShow(AuditedObjectModelSchema):
     volumes: Optional[List[str]] = None
     abstract: Optional[str] = None
     summary: Optional[str] = None
-    cross_references: Optional[List[CrossReferenceSchema]] = None
+    cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
     editors: Optional[List[EditorSchemaShow]] = None
     open_access: Optional[bool] = None

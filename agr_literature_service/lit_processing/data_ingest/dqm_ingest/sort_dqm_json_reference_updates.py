@@ -27,7 +27,7 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_upda
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.get_dqm_data import \
     download_dqm_json
 from agr_literature_service.lit_processing.utils.db_read_utils import \
-    get_references_by_curies, get_curie_to_title_mapping, get_orcid_data
+    get_references_by_curies, get_curie_to_title_mapping
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     add_cross_references, update_authors, update_mod_corpus_associations, \
     update_mod_reference_types
@@ -718,8 +718,6 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
     j = 0
     k = 0
     db_session = create_postgres_session(False)
-    orcid_dict = get_orcid_data(db_session)
-    newly_added_orcid = []
     while start_index < curies_count:
         if k > batch_db_connection_size:
             k = 0
@@ -814,7 +812,6 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
                 update_authors(db_session, db_entry['reference_id'],
                                db_entry.get('author', []),
                                dqm_entry.get('authors', []),
-                               orcid_dict, newly_added_orcid,
                                logger)
 
                 # if curators want to get reports of how resource change, put this back,

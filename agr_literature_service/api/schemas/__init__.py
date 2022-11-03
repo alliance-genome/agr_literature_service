@@ -6,7 +6,6 @@ from agr_literature_service.api.schemas.cross_reference_schemas import (
     CrossReferenceSchemaRelated,
     CrossReferenceSchemaUpdate,
     CrossReferenceSchemaShow,
-    CrossReferenceSchema,
     CrossReferenceSchemaPost)
 
 from agr_literature_service.api.schemas.author_schemas import (

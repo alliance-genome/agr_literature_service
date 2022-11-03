@@ -11,10 +11,11 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import ARRAY, Boolean, String, func
 from sqlalchemy.orm import Session
-from sqlalchemy.sql.expression import cast
+from sqlalchemy.sql.expression import cast, or_
 
 from agr_literature_service.api.crud import (cross_reference_crud,
                                              reference_comment_and_correction_crud)
+from agr_literature_service.api.crud.cross_reference_crud import set_curie_prefix
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.api.crud.reference_resource import create_obj
 from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
@@ -78,15 +79,6 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                 obj_data = jsonable_encoder(obj)
                 db_obj = None
                 if field in ["authors"]:
-                    if obj_data["orcid"]:
-                        cross_reference_obj = db.query(CrossReferenceModel).filter(
-                            CrossReferenceModel.curie == obj_data["orcid"]).first()
-                        if not cross_reference_obj:
-                            cross_reference_obj = CrossReferenceModel(curie=obj_data["orcid"])
-                            db.add(cross_reference_obj)
-
-                        obj_data["orcid_cross_reference"] = cross_reference_obj
-                    del obj_data["orcid"]
                     db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
                     if db_obj.name:
                         author_names_order.append((db_obj.name, db_obj.order))
@@ -94,6 +86,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     db_obj = MeshDetailModel(**obj_data)
                 elif field == "cross_references":
                     db_obj = CrossReferenceModel(**obj_data)
+                    set_curie_prefix(db_obj)
                 db.add(db_obj)
                 db_objs.append(db_obj)
             if field in remap:
@@ -173,40 +166,46 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
     return curie
 
 
-def destroy(db: Session, curie: str):
+def destroy(db: Session, curie_or_reference_id: str):
     """
 
     :param db:
-    :param curie:
+    :param curie_or_reference_id:
     :return:
     """
+    reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
+    reference = db.query(ReferenceModel).filter(or_(
+        ReferenceModel.curie == curie_or_reference_id,
+        ReferenceModel.reference_id == reference_id)).one_or_none()
 
-    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Reference with curie {curie} not found")
+                            detail=f"Reference with curie or reference_id {curie_or_reference_id} not found")
     db.delete(reference)
     db.commit()
 
     return None
 
 
-def patch(db: Session, curie: str, reference_update) -> dict:
+def patch(db: Session, curie_or_reference_id: str, reference_update) -> dict:
     """
 
     :param db:
-    :param curie:
+    :param curie_or_reference_id:
     :param reference_update:
     :return:
     """
 
     reference_data = jsonable_encoder(reference_update)
     logger.debug("reference_data = {}".format(reference_data))
-    reference_db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
+    reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
+    reference_db_obj = db.query(ReferenceModel).filter(or_(
+        ReferenceModel.curie == curie_or_reference_id,
+        ReferenceModel.reference_id == reference_id)).one_or_none()
 
     if not reference_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Reference with curie {curie} not found")
+                            detail=f"Reference with curie or reference_id {curie_or_reference_id} not found")
 
     for field, value in reference_data.items():
         if field == "resource" and value:
@@ -219,7 +218,7 @@ def patch(db: Session, curie: str, reference_update) -> dict:
         else:
             setattr(reference_db_obj, field, value)
 
-    # currently do not update citation on patches. code will call update_citation seperately when all done
+    # currently do not update citation on patches. code will call update_citation separately when all done
     # reference_db_obj.citation = get_citation_from_obj(db, reference_db_obj)
     reference_db_obj.dateUpdated = datetime.utcnow()
     db.commit()
@@ -271,25 +270,30 @@ def get_merged(db: Session, curie):
     return reference
 
 
-def show(db: Session, curie: str, http_request=True):  # noqa
+def show(db: Session, curie_or_reference_id: str, http_request=True):  # noqa
     """
 
     :param db:
-    :param curie:
+    :param curie_or_reference_id:
     :param http_request:
     :return:
     """
+    reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
+    reference = None
     try:
-        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one()
+        reference = db.query(ReferenceModel).filter(or_(
+            ReferenceModel.curie == curie_or_reference_id,
+            ReferenceModel.reference_id == reference_id)).one()
     except Exception:
-        reference = get_merged(db, curie)
-        logger.debug("Found from merged '{}'".format(reference))
+        if reference_id is None:
+            reference = get_merged(db, curie_or_reference_id)
+            logger.debug("Found from merged '{}'".format(reference))
 
     if not reference:
-        logger.warning("Reference not found for {}?".format(curie))
+        logger.warning("Reference not found for {}?".format(curie_or_reference_id))
         if http_request:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"Reference with the id {curie} is not available")
+                                detail=f"Reference with the reference_id or curie {curie_or_reference_id} is not available")
         else:
             return None
 
@@ -354,9 +358,6 @@ def show(db: Session, curie: str, http_request=True):  # noqa
     if reference.author:
         authors = []
         for author in reference_data["author"]:
-            if author["orcid"]:
-                author["orcid"] = jsonable_encoder(cross_reference_crud.show(db, author["orcid"]))
-            del author["orcid_cross_reference"]
             del author["reference_id"]
             authors.append(author)
         reference_data['authors'] = authors
@@ -379,18 +380,19 @@ def show(db: Session, curie: str, http_request=True):  # noqa
     return reference_data
 
 
-def show_changesets(db: Session, curie: str):
+def show_changesets(db: Session, curie_or_reference_id: str):
     """
 
     :param db:
-    :param curie:
+    :param curie_or_reference_id:
     :return:
     """
-
-    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
+    reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
+    reference = db.query(ReferenceModel).filter(or_(
+        ReferenceModel.curie == curie_or_reference_id, ReferenceModel.reference_id == reference_id)).one_or_none()
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Reference with the id {curie} is not available")
+                            detail=f"Reference with the reference id or curie {curie_or_reference_id} is not available")
     history = []
     for version in reference.versions:
         tx = version.transaction
@@ -461,7 +463,7 @@ def merge_comments_and_corrections(db, old_reference_id, new_reference_id, old_c
             else:
                 db.delete(x)
     except Exception as e:
-        logger.warning("An error occurred when tranferring the comments/corrections from " + old_curie + " to " + new_curie + " : " + str(e))
+        logger.warning("An error occurred when transferring the comments/corrections from " + old_curie + " to " + new_curie + " : " + str(e))
 
 
 def get_citation_from_args(authorNames, year, title, journal, volume, issue, page_range):

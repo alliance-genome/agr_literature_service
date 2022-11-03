@@ -6,8 +6,8 @@ from agr_literature_service.api.models.author_model import AuthorModel
 from agr_literature_service.api.models.cross_reference_model import CrossReferenceModel
 from agr_literature_service.api.models.editor_model import EditorModel
 from agr_literature_service.api.models.mesh_detail_model import MeshDetailModel
-from agr_literature_service.api.models.mod_reference_type_model import ReferenceTypeModel, \
-    ModReferenceTypeAssociationModel, ReferenceModReferenceTypeAssociationModel, ModReferenceTypeModel
+from agr_literature_service.api.models.mod_reference_type_model import ReferencetypeModel, \
+    ModReferencetypeAssociationModel, ReferenceModReferencetypeAssociationModel
 from agr_literature_service.api.models.mod_model import ModModel
 from agr_literature_service.api.models.mod_corpus_association_model import ModCorpusAssociationModel
 from agr_literature_service.api.models.reference_comment_and_correction_model import \
@@ -24,9 +24,20 @@ from agr_literature_service.api.models.topic_entity_tag_model import (
     TopicEntityTagPropModel
 )
 from agr_literature_service.api.models.mod_taxon_model import ModTaxonModel
+from agr_literature_service.api.models.reference_mod_md5sum_model import ReferenceModMd5sumModel
+from agr_literature_service.api.models.referencefile_model import ReferencefileModel, ReferencefileModAssociationModel
+# import logging
 
 
 def initialize():
-    configure_mappers()
-    create_all_tables()
+    # logging.basicConfig(filename='/mnt/d/alliance/agr_literature_service/python.log',level=logging.DEBUG)
+    try:
+        configure_mappers()
+    except Exception as e:
+        print('Error: ' + str(type(e)))
+    try:
+        create_all_tables()
+    except Exception as e:
+        print('Error: ' + str(type(e)))
+        # logging.info(e)
     create_default_user()

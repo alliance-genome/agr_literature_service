@@ -39,14 +39,9 @@ class EditorModel(Base, AuditedModel):
     )
 
     orcid = Column(
-        String,
-        ForeignKey("cross_reference.curie")
-    )
-
-    orcid_cross_reference = relationship(
-        "CrossReferenceModel",
-        lazy="joined",
-        back_populates="editor"
+        String(),
+        index=True,
+        nullable=True
     )
 
     order = Column(
@@ -71,3 +66,9 @@ class EditorModel(Base, AuditedModel):
         unique=False,
         nullable=True
     )
+
+    def __str__(self):
+        """
+        Overwrite the default output.
+        """
+        return f"{self.name} 1st({self.first_name}) last({self.last_name}) order({self.order})"
