@@ -13,4 +13,3 @@ def patch():
 
 def destroy():
     pass
-

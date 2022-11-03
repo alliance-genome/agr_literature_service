@@ -34,7 +34,7 @@ def test_referencefile(db, auth_headers, test_reference): # noqa
 
 
 class TestReferencefile():
-    
+
     def test_create_referencefile(self, test_referencefile): # noqa
         assert test_referencefile.response.status == status.HTTP_201_CREATED
 
