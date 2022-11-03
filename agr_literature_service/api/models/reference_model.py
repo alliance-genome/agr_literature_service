@@ -232,6 +232,13 @@ class ReferenceModel(Base, AuditedModel):
         cascade="all, delete, delete-orphan"
     )
 
+    referencefiles = relationship(
+        "ReferencefileModel",
+        foreign_keys="ReferencefileModel.reference_id",
+        back_populates="reference",
+        cascade="all, delete, delete-orphan",
+    )
+
     def __str__(self):
         """
         Overwrite the default output.
