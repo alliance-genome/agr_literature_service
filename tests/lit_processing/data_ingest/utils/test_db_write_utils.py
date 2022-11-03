@@ -21,7 +21,7 @@ class TestDbReadUtils:
 
     def test_dqm_update_functions(self, db, load_sanitized_references, populate_test_mod_reference_types): # noqa
 
-        refs = db.query(ReferenceModel).all()
+        refs = db.query(ReferenceModel).order_by(ReferenceModel.curie).all()
         ref_curie_list = [refs[0].curie, refs[1].curie]
         cross_references_to_add = [{'reference_curie': refs[0].curie,
                                     'curie': 'ISBN:88888',
