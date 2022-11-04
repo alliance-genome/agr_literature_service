@@ -66,3 +66,11 @@ class TestReferencefile():
             assert response.status_code == status.HTTP_204_NO_CONTENT
             response = client.get(url=f"/reference/referencefile/{test_referencefile.new_referencefile_id}")
             assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_show_reference_referencefiles(self, db, test_referencefile): # noqa
+        with TestClient(app) as client:
+            response_file = client.get(url=f"/reference/referencefile/{test_referencefile.new_referencefile_id}")
+            response_ref = client.get(url=f"/reference/{response_file.json()['reference_curie']}")
+            assert "referencefiles" in response_ref.json()
+            assert response_ref.json()["referencefiles"][0]["display_name"] == "Bob"
+

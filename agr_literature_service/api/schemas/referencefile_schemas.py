@@ -35,3 +35,18 @@ class ReferencefileSchemaUpdate(BaseModel):
 
     class Config:
         extra = "forbid"
+
+
+class ReferencefileSchemaRelated(AuditedObjectModelSchema):
+    referencefile_id: int
+    display_name: str
+    file_class: str
+    file_publication_status: str
+    file_extension: str
+    pdf_type: str
+    md5sum: str
+    is_annotation: bool
+
+    class Config:
+        orm_mode = True
+        extra = "forbid"

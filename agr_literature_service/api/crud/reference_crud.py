@@ -5,7 +5,7 @@ reference_crud.py
 import logging
 import re
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -376,6 +376,14 @@ def show(db: Session, curie_or_reference_id: str, http_request=True):  # noqa
         comment_and_corrections_data["from_references"].append(comment_and_correction_data)
 
     reference_data["comment_and_corrections"] = comment_and_corrections_data
+
+    reference_data['referencefiles'] = []
+    if reference.referencefiles:
+        for ref_file in reference.referencefiles:
+            ref_file_dict = jsonable_encoder(ref_file)
+            del ref_file_dict["reference_id"]
+            reference_data["referencefiles"].append(ref_file_dict)
+
     logger.debug("returning {}".format(reference_data))
     return reference_data
 
