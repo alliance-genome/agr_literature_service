@@ -74,3 +74,9 @@ class TestReferencefile():
             assert "referencefiles" in response_ref.json()
             assert response_ref.json()["referencefiles"][0]["display_name"] == "Bob"
 
+    def test_delete_reference_cascade(self, test_referencefile, auth_headers):
+        with TestClient(app) as client:
+            response_file = client.get(url=f"/reference/referencefile/{test_referencefile.new_referencefile_id}")
+            client.delete(url=f"/reference/{response_file.json()['reference_curie']}", headers=auth_headers)
+            response_file = client.get(url=f"/reference/referencefile/{test_referencefile.new_referencefile_id}")
+            assert response_file.status_code == status.HTTP_404_NOT_FOUND
