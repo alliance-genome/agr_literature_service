@@ -2,29 +2,17 @@ import logging
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from agr_literature_service.api.crud.referencefile_utils import read_referencefile_db_obj_from_md5sum_or_id
 from agr_literature_service.api.models import ReferencefileModel, ReferenceModel
-from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost, ReferencefileSchemaShow, \
+from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
+from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost, \
     ReferencefileSchemaUpdate
 from agr_literature_service.api.schemas.response_message_schemas import messageEnum
+from agr_literature_service.api.crud.referencefile_mod_crud import create as create_referencefile_mod
 
 logger = logging.getLogger(__name__)
-
-
-def read_referencefile_db_obj_from_md5sum_or_id(db: Session, md5sum_or_referencefile_id: str):
-    referencefile_id = int(md5sum_or_referencefile_id) if md5sum_or_referencefile_id.isdigit() else None
-    referencefile = db.query(ReferencefileModel).filter(or_(
-        ReferencefileModel.md5sum == md5sum_or_referencefile_id,
-        ReferencefileModel.referencefile_id == referencefile_id)).one_or_none()
-
-    if not referencefile:
-        logger.warning(f"Referencefile not found for {md5sum_or_referencefile_id}")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Referencefile with the referencefile_id or md5sum {md5sum_or_referencefile_id} "
-                                   f"is not available")
-    return referencefile
 
 
 def create(db: Session, request: ReferencefileSchemaPost):
@@ -35,9 +23,14 @@ def create(db: Session, request: ReferencefileSchemaPost):
                             detail=f"Reference with curie {request.reference_curie} does not exist")
     del request_dict["reference_curie"]
     request_dict["reference_id"] = ref_obj.reference_id
+    mod_abbreviation = request_dict["mod_abbreviation"]
+    del request_dict["mod_abbreviation"]
     new_ref_file_obj = ReferencefileModel(**request_dict)
     db.add(new_ref_file_obj)
     db.commit()
+    if mod_abbreviation is not None:
+        create_referencefile_mod(db, ReferencefileModSchemaPost(referencefile_id=new_ref_file_obj.referencefile_id,
+                                                                mod_abbreviation=mod_abbreviation))
     return new_ref_file_obj.referencefile_id
 
 
@@ -47,7 +40,13 @@ def show(db: Session, md5sum_or_referencefile_id: str):
     referencefile_dict["reference_curie"] = db.query(ReferenceModel.curie).filter(
         ReferenceModel.reference_id == referencefile_dict["reference_id"]).one()[0]
     del referencefile_dict["reference_id"]
-
+    referencefile_dict["referencefile_mods"] = []
+    if referencefile.referencefile_mods:
+        for ref_file_mod in referencefile.referencefile_mods:
+            ref_file_mod_dict = jsonable_encoder(ref_file_mod)
+            del ref_file_mod_dict["mod_id"]
+            ref_file_mod_dict["mod_abbreviation"] = ref_file_mod.mod.abbreviation
+            referencefile_dict["referencefile_mods"].append(ref_file_mod_dict)
     return referencefile_dict
 
 

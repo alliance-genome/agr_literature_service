@@ -8,6 +8,7 @@ from agr_literature_service.api.main import app
 from fastapi import status
 
 from agr_literature_service.api.models import ReferencefileModel
+from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from .test_reference import test_reference # noqa
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
@@ -74,9 +75,28 @@ class TestReferencefile():
             assert "referencefiles" in response_ref.json()
             assert response_ref.json()["referencefiles"][0]["display_name"] == "Bob"
 
-    def test_delete_reference_cascade(self, test_referencefile, auth_headers):
+    def test_delete_reference_cascade(self, test_referencefile, auth_headers): # noqa
         with TestClient(app) as client:
             response_file = client.get(url=f"/reference/referencefile/{test_referencefile.new_referencefile_id}")
             client.delete(url=f"/reference/{response_file.json()['reference_curie']}", headers=auth_headers)
             response_file = client.get(url=f"/reference/referencefile/{test_referencefile.new_referencefile_id}")
             assert response_file.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_create_referencefile_with_mod(self, test_reference, auth_headers): # noqa
+        populate_test_mods()
+        new_referencefile = {
+            "display_name": "Bob",
+            "reference_curie": test_reference.new_ref_curie,
+            "file_class": "main",
+            "file_publication_status": "final",
+            "file_extension": "pdf",
+            "pdf_type": "pdf",
+            "md5sum": "1234567890",
+            "mod_abbreviation": "WB"
+        }
+        with TestClient(app) as client:
+            response = client.post(url="/reference/referencefile/", json=new_referencefile, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            response_file = client.get(url=f"/reference/referencefile/{response.json()}")
+            assert response_file.status_code == status.HTTP_200_OK
+            assert response_file.json()["referencefile_mods"][0]["mod_abbreviation"] == "WB"

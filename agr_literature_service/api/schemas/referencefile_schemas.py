@@ -1,8 +1,9 @@
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel
 
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
+from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaRelated
 
 
 class ReferencefileSchemaPost(BaseModel):
@@ -14,6 +15,7 @@ class ReferencefileSchemaPost(BaseModel):
     pdf_type: Optional[str] = None
     md5sum: str
     is_annotation: Optional[bool]
+    mod_abbreviation: Optional[str]
 
     class Config:
         orm_mode = True
@@ -22,6 +24,7 @@ class ReferencefileSchemaPost(BaseModel):
 
 class ReferencefileSchemaShow(AuditedObjectModelSchema, ReferencefileSchemaPost):
     referencefile_id: int
+    referencefile_mods: Optional[List[ReferencefileModSchemaRelated]]
 
 
 class ReferencefileSchemaUpdate(BaseModel):
@@ -46,6 +49,7 @@ class ReferencefileSchemaRelated(AuditedObjectModelSchema):
     pdf_type: str
     md5sum: str
     is_annotation: bool
+    referencefile_mods: Optional[List[ReferencefileModSchemaRelated]]
 
     class Config:
         orm_mode = True

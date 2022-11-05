@@ -85,6 +85,11 @@ class ReferencefileModel(Base, AuditedModel):
         default=False
     )
 
+    referencefile_mods = relationship(
+        "ReferencefileModAssociationModel",
+        back_populates="referencefile"
+    )
+
     def __str__(self):
         """
         Overwrite the default output.
