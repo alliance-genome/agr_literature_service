@@ -7,8 +7,7 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api.crud.referencefile_utils import read_referencefile_db_obj_from_md5sum_or_id
 from agr_literature_service.api.models import ReferencefileModel, ReferenceModel
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
-from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost, \
-    ReferencefileSchemaUpdate
+from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost
 from agr_literature_service.api.schemas.response_message_schemas import messageEnum
 from agr_literature_service.api.crud.referencefile_mod_crud import create as create_referencefile_mod
 
