@@ -50,19 +50,18 @@ def show(db: Session, md5sum_or_referencefile_id: str):
     return referencefile_dict
 
 
-def patch(db: Session, md5sum_or_referencefile_id: str, request: ReferencefileSchemaUpdate):
+def patch(db: Session, md5sum_or_referencefile_id: str, request):
     referencefile = read_referencefile_db_obj_from_md5sum_or_id(db, md5sum_or_referencefile_id)
-    request_dict = dict(request)
-    if "reference_curie" in request_dict:
+    if "reference_curie" in request:
         res = db.query(ReferenceModel.reference_id).filter(
             ReferenceModel.curie == request.reference_curie).one_or_none()
         if res is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f"Reference with curie {request.reference_curie} is not available")
 
-        request_dict["reference_id"] = res[0]
-        del request_dict["reference_curie"]
-    for field, value in request_dict.items():
+        request["reference_id"] = res[0]
+        del request["reference_curie"]
+    for field, value in request.items():
         setattr(referencefile, field, value)
     db.commit()
     return {"message": messageEnum.updated}
