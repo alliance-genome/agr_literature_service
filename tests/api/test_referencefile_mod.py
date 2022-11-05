@@ -1,4 +1,3 @@
-import abc
 from collections import namedtuple
 
 import pytest
@@ -68,4 +67,3 @@ class TestReferencefileMod():
             response_ref = client.get(url=f"/reference/{response_file.json()['reference_curie']}")
             assert "referencefile_mods" in response_ref.json()["referencefiles"][0]
             assert response_ref.json()["referencefiles"][0]["referencefile_mods"][0]["mod_abbreviation"] == "WB"
-
