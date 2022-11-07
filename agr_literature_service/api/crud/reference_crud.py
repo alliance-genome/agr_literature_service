@@ -386,7 +386,10 @@ def show(db: Session, curie_or_reference_id: str, http_request=True):  # noqa
                 for ref_file_mod in ref_file.referencefile_mods:
                     ref_file_mod_dict = jsonable_encoder(ref_file_mod)
                     del ref_file_mod_dict["mod_id"]
-                    ref_file_mod_dict["mod_abbreviation"] = ref_file_mod.mod.abbreviation
+                    if ref_file_mod.mod is not None:
+                        ref_file_mod_dict["mod_abbreviation"] = ref_file_mod.mod.abbreviation
+                    else:
+                        ref_file_mod_dict["mod_abbreviation"] = None
                     ref_file_dict["referencefile_mods"].append(ref_file_mod_dict)
             del ref_file_dict["reference_id"]
             reference_data["referencefiles"].append(ref_file_dict)

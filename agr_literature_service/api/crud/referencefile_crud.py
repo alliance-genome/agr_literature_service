@@ -27,9 +27,8 @@ def create(db: Session, request: ReferencefileSchemaPost):
     new_ref_file_obj = ReferencefileModel(**request_dict)
     db.add(new_ref_file_obj)
     db.commit()
-    if mod_abbreviation is not None:
-        create_referencefile_mod(db, ReferencefileModSchemaPost(referencefile_id=new_ref_file_obj.referencefile_id,
-                                                                mod_abbreviation=mod_abbreviation))
+    create_referencefile_mod(db, ReferencefileModSchemaPost(referencefile_id=new_ref_file_obj.referencefile_id,
+                                                            mod_abbreviation=mod_abbreviation))
     return new_ref_file_obj.referencefile_id
 
 
@@ -44,7 +43,10 @@ def show(db: Session, md5sum_or_referencefile_id: str):
         for ref_file_mod in referencefile.referencefile_mods:
             ref_file_mod_dict = jsonable_encoder(ref_file_mod)
             del ref_file_mod_dict["mod_id"]
-            ref_file_mod_dict["mod_abbreviation"] = ref_file_mod.mod.abbreviation
+            if ref_file_mod.mod is not None:
+                ref_file_mod_dict["mod_abbreviation"] = ref_file_mod.mod.abbreviation
+            else:
+                ref_file_mod_dict["mod_abbreviation"] = None
             referencefile_dict["referencefile_mods"].append(ref_file_mod_dict)
     return referencefile_dict
 

@@ -99,3 +99,61 @@ class TestReferencefile():
             response_file = client.get(url=f"/reference/referencefile/{response.json()}")
             assert response_file.status_code == status.HTTP_200_OK
             assert response_file.json()["referencefile_mods"][0]["mod_abbreviation"] == "WB"
+
+    def test_create_referencefile_pmc(self, test_reference, auth_headers):  # noqa
+        populate_test_mods()
+        new_referencefile = {
+            "display_name": "Bob",
+            "reference_curie": test_reference.new_ref_curie,
+            "file_class": "main",
+            "file_publication_status": "final",
+            "file_extension": "pdf",
+            "pdf_type": "pdf",
+            "md5sum": "1234567890",
+            "mod_abbreviation": None
+        }
+        with TestClient(app) as client:
+            response = client.post(url="/reference/referencefile/", json=new_referencefile, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            response_file = client.get(url=f"/reference/referencefile/{response.json()}")
+            assert response_file.status_code == status.HTTP_200_OK
+            assert response_file.json()["referencefile_mods"][0]["mod_abbreviation"] is None
+
+    def test_create_referencefile_annotation(self, test_reference, auth_headers):  # noqa
+        populate_test_mods()
+        new_referencefile = {
+            "display_name": "Bob",
+            "reference_curie": test_reference.new_ref_curie,
+            "file_class": "main",
+            "file_publication_status": "final",
+            "file_extension": "pdf",
+            "pdf_type": "pdf",
+            "md5sum": "1234567890",
+            "mod_abbreviation": "WB",
+            "is_annotation": True
+        }
+        with TestClient(app) as client:
+            response = client.post(url="/reference/referencefile/", json=new_referencefile, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            response_file = client.get(url=f"/reference/referencefile/{response.json()}")
+            assert response_file.status_code == status.HTTP_200_OK
+            assert response_file.json()["is_annotation"] is True
+
+    def test_create_referencefile_pdf_type(self, test_reference, auth_headers):  # noqa
+        populate_test_mods()
+        new_referencefile = {
+            "display_name": "Bob",
+            "reference_curie": test_reference.new_ref_curie,
+            "file_class": "main",
+            "file_publication_status": "final",
+            "file_extension": "pdf",
+            "pdf_type": None,
+            "md5sum": "1234567890",
+            "mod_abbreviation": "WB"
+        }
+        with TestClient(app) as client:
+            response = client.post(url="/reference/referencefile/", json=new_referencefile, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            response_file = client.get(url=f"/reference/referencefile/{response.json()}")
+            assert response_file.status_code == status.HTTP_200_OK
+            assert response_file.json()["pdf_type"] is None

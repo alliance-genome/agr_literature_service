@@ -87,7 +87,8 @@ class ReferencefileModel(Base, AuditedModel):
 
     referencefile_mods = relationship(
         "ReferencefileModAssociationModel",
-        back_populates="referencefile"
+        back_populates="referencefile",
+        cascade="all, delete, delete-orphan"
     )
 
     def __str__(self):

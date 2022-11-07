@@ -66,4 +66,17 @@ class TestReferencefileMod():
             response_file = client.get(url=f"/reference/referencefile/{response_file_mod.json()['referencefile_id']}")
             response_ref = client.get(url=f"/reference/{response_file.json()['reference_curie']}")
             assert "referencefile_mods" in response_ref.json()["referencefiles"][0]
-            assert response_ref.json()["referencefiles"][0]["referencefile_mods"][0]["mod_abbreviation"] == "WB"
+            assert response_ref.json()["referencefiles"][0]["referencefile_mods"][1]["mod_abbreviation"] == "WB"
+
+    def test_add_referencefile_to_mod(self, test_referencefile_mod, auth_headers): # noqa
+        with TestClient(app) as client:
+            response_file_mod = client.get(url=f"/reference/referencefile_mod/"
+                                               f"{test_referencefile_mod.new_referencefile_mod_id}")
+            new_referencefile_mod = {
+                "referencefile_id": int(response_file_mod.json()['referencefile_id']),
+                "mod_abbreviation": "FB"
+            }
+            response = client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod,
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+

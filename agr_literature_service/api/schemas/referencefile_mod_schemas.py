@@ -7,7 +7,7 @@ from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
 class ReferencefileModSchemaPost(BaseModel):
     referencefile_id: int
-    mod_abbreviation: str
+    mod_abbreviation: Optional[str] = None
 
     class Config:
         orm_mode = True

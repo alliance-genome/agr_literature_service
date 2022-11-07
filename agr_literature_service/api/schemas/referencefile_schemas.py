@@ -15,7 +15,7 @@ class ReferencefileSchemaPost(BaseModel):
     pdf_type: Optional[str] = None
     md5sum: str
     is_annotation: Optional[bool]
-    mod_abbreviation: Optional[str]
+    mod_abbreviation: Optional[str] = None
 
     class Config:
         orm_mode = True
