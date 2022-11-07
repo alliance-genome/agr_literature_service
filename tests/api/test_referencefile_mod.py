@@ -79,4 +79,3 @@ class TestReferencefileMod():
             response = client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod,
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-
