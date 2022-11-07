@@ -376,6 +376,24 @@ def show(db: Session, curie_or_reference_id: str, http_request=True):  # noqa
         comment_and_corrections_data["from_references"].append(comment_and_correction_data)
 
     reference_data["comment_and_corrections"] = comment_and_corrections_data
+
+    reference_data['referencefiles'] = []
+    if reference.referencefiles:
+        for ref_file in reference.referencefiles:
+            ref_file_dict = jsonable_encoder(ref_file)
+            ref_file_dict["referencefile_mods"] = []
+            if ref_file.referencefile_mods:
+                for ref_file_mod in ref_file.referencefile_mods:
+                    ref_file_mod_dict = jsonable_encoder(ref_file_mod)
+                    del ref_file_mod_dict["mod_id"]
+                    if ref_file_mod.mod is not None:
+                        ref_file_mod_dict["mod_abbreviation"] = ref_file_mod.mod.abbreviation
+                    else:
+                        ref_file_mod_dict["mod_abbreviation"] = None
+                    ref_file_dict["referencefile_mods"].append(ref_file_mod_dict)
+            del ref_file_dict["reference_id"]
+            reference_data["referencefiles"].append(ref_file_dict)
+
     logger.debug("returning {}".format(reference_data))
     return reference_data
 
