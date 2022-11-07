@@ -29,7 +29,7 @@ def test_referencefile_mod(db, auth_headers, test_referencefile): # noqa
         yield TestReferencefileModData(response, response.json())
 
 
-class TestReferencefileMod():
+class TestReferencefileMod:
 
     def test_create_referencefile_mod(self, test_referencefile_mod): # noqa
         assert test_referencefile_mod.response.status_code == status.HTTP_201_CREATED
@@ -53,11 +53,21 @@ class TestReferencefileMod():
 
     def test_destroy_referencefile_mod(self, test_referencefile_mod, auth_headers): # noqa
         with TestClient(app) as client:
+            response = client.get(url=f"/reference/referencefile_mod/{test_referencefile_mod.new_referencefile_mod_id}")
+            referencefile_id = response.json()['referencefile_id']
             response = client.delete(url=f"/reference/referencefile_mod/"
                                          f"{test_referencefile_mod.new_referencefile_mod_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
             response = client.get(url=f"/reference/referencefile_mod/{test_referencefile_mod.new_referencefile_mod_id}")
             assert response.status_code == status.HTTP_404_NOT_FOUND
+            response_file = client.get(url=f"/reference/referencefile/{referencefile_id}")
+            for referencefile_mod in response_file.json()["referencefile_mods"]:
+                referencefile_mod_id = referencefile_mod["referencefile_mod_id"]
+                response = client.delete(url=f"/reference/referencefile_mod/"
+                                             f"{referencefile_mod_id}", headers=auth_headers)
+                assert response.status_code == status.HTTP_204_NO_CONTENT
+            response_file = client.get(url=f"/reference/referencefile/{referencefile_id}")
+            assert response_file.status_code == status.HTTP_404_NOT_FOUND
 
     def test_show_reference_referencefiles_referencefile_mods(self, db, test_referencefile_mod): # noqa
         with TestClient(app) as client:

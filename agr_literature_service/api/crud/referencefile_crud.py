@@ -9,7 +9,7 @@ from agr_literature_service.api.models import ReferencefileModel, ReferenceModel
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost
 from agr_literature_service.api.schemas.response_message_schemas import messageEnum
-from agr_literature_service.api.crud.referencefile_mod_crud import create as create_referencefile_mod
+from agr_literature_service.api.crud.referencefile_mod_utils import create as create_referencefile_mod
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +69,7 @@ def patch(db: Session, md5sum_or_referencefile_id: str, request):
 
 
 def destroy(db: Session, md5sum_or_referencefile_id: str):
+    # TODO: delete from s3 through api call
     referencefile = read_referencefile_db_obj_from_md5sum_or_id(db, md5sum_or_referencefile_id)
     db.delete(referencefile)
     db.commit()

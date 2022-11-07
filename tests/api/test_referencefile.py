@@ -146,7 +146,7 @@ class TestReferencefile():
             "reference_curie": test_reference.new_ref_curie,
             "file_class": "main",
             "file_publication_status": "final",
-            "file_extension": "pdf",
+            "file_extension": "doc",
             "pdf_type": None,
             "md5sum": "1234567890",
             "mod_abbreviation": "WB"
