@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/reference/referencefile",
-    tags=['Referencefile'])
+    tags=['Reference'])
 
 
 get_db = database.get_db
