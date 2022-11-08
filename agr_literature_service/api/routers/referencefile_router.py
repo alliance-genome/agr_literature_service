@@ -1,6 +1,8 @@
+import json
 import logging
+from typing import Union
 
-from fastapi import APIRouter, Depends, Security, status
+from fastapi import APIRouter, Depends, Security, status, File, UploadFile
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
@@ -26,14 +28,45 @@ db_user = Security(auth.get_user)
 s3_session = Depends(s3_auth)
 
 
-@router.post('/',
+@router.post('/file_upload/',
              status_code=status.HTTP_201_CREATED,
-             response_model=str)
-def create(request: ReferencefileSchemaPost,
-           user: OktaUser = db_user,
-           db: Session = db_session):
+             response_model=str
+             )
+def file_upload(reference_curie: str = None,
+                display_name: str = None,
+                file_class: str = None,
+                file_publication_status: str = None,
+                file_extension: str = None,
+                pdf_type: str = None,
+                is_annotation: bool = False,
+                mod_abbreviation: str = None,
+                file: UploadFile = File(...),
+                metadata_file: Union[UploadFile, None] = File(default=None),
+                user: OktaUser = db_user,
+                db: Session = db_session):
     set_global_user_from_okta(db, user)
-    return referencefile_crud.create(db, request)
+    if reference_curie and display_name and file_class and file_publication_status and file_extension:
+        metadata = {
+            "reference_curie": reference_curie,
+            "display_name": display_name,
+            "file_class": file_class,
+            "file_publication_status": file_publication_status,
+            "file_extension": file_extension,
+            "pdf_type": pdf_type,
+            "is_annotation": is_annotation,
+            "mod_abbreviation": mod_abbreviation
+        }
+    else:
+        metadata = json.load(metadata_file.file)
+    return referencefile_crud.file_upload(db, metadata, file)
+
+
+@router.post('/file_delete/{md5sum}')
+def file_delete(md5sum: str,
+                user: OktaUser = db_user,
+                db: Session = db_session):
+    set_global_user_from_okta(db, user)
+    return referencefile_crud.destroy(db, md5sum, delete_file=True)
 
 
 @router.get('/{md5sum_or_referencefile_id}',

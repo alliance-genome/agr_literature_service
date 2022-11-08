@@ -1,35 +1,19 @@
 import logging
 
-from fastapi import HTTPException, status
+import boto3
+from fastapi import HTTPException, status, UploadFile
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.crud.referencefile_utils import read_referencefile_db_obj_from_md5sum_or_id
-from agr_literature_service.api.models import ReferencefileModel, ReferenceModel
-from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
+from agr_literature_service.api.crud.referencefile_utils import read_referencefile_db_obj_from_md5sum_or_id, \
+    create as create_metadata, get_s3_folder_from_md5sum
+from agr_literature_service.api.models import ReferenceModel
+from agr_literature_service.api.s3.delete import delete_file_in_bucket
+from agr_literature_service.api.s3.upload import upload_file_to_bucket
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost
 from agr_literature_service.api.schemas.response_message_schemas import messageEnum
-from agr_literature_service.api.crud.referencefile_mod_utils import create as create_referencefile_mod
 
 logger = logging.getLogger(__name__)
-
-
-def create(db: Session, request: ReferencefileSchemaPost):
-    request_dict = request.dict()
-    ref_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == request.reference_curie).one_or_none()
-    if ref_obj is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"Reference with curie {request.reference_curie} does not exist")
-    del request_dict["reference_curie"]
-    request_dict["reference_id"] = ref_obj.reference_id
-    mod_abbreviation = request_dict["mod_abbreviation"]
-    del request_dict["mod_abbreviation"]
-    new_ref_file_obj = ReferencefileModel(**request_dict)
-    db.add(new_ref_file_obj)
-    db.commit()
-    create_referencefile_mod(db, ReferencefileModSchemaPost(referencefile_id=new_ref_file_obj.referencefile_id,
-                                                            mod_abbreviation=mod_abbreviation))
-    return new_ref_file_obj.referencefile_id
 
 
 def show(db: Session, md5sum_or_referencefile_id: str):
@@ -68,8 +52,29 @@ def patch(db: Session, md5sum_or_referencefile_id: str, request):
     return {"message": messageEnum.updated}
 
 
-def destroy(db: Session, md5sum_or_referencefile_id: str):
-    # TODO: delete from s3 through api call
+def remove_file_from_s3(md5sum: str):
+    folder = get_s3_folder_from_md5sum(md5sum)
+    client = boto3.client('s3')
+    if not delete_file_in_bucket(s3_client=client, bucket="agr-literature", folder=folder, object_name=md5sum + ".gz"):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"File with md5sum {md5sum} is not available")
+
+
+def destroy(db: Session, md5sum_or_referencefile_id: str, delete_file: bool = False):
     referencefile = read_referencefile_db_obj_from_md5sum_or_id(db, md5sum_or_referencefile_id)
+    if delete_file:
+        remove_file_from_s3(referencefile.md5sum)
     db.delete(referencefile)
     db.commit()
+
+
+def file_upload(db: Session, metadata: dict, file: UploadFile):
+    # TODO: calculate md5sum and gzip file
+    md5sum = "random"
+    folder = get_s3_folder_from_md5sum(md5sum)
+    create_request = ReferencefileSchemaPost(md5sum=md5sum, **metadata)
+    create_metadata(db, create_request)
+    client = boto3.client('s3')
+    upload_file_to_bucket(s3_client=client, file_obj=file.file, bucket="agr-literature", folder=folder,
+                          object_name=md5sum)
+    return md5sum
