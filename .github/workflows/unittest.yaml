@@ -17,7 +17,7 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements.dev.txt
       - name: AWS credentials configuration
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v1-node16
         with:
           aws-access-key-id: ${{ secrets.aws_access_key_id }}
           aws-secret-access-key: ${{ secrets.aws_secret_access_key }}
