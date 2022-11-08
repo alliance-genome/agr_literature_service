@@ -60,21 +60,21 @@ def remove_file_from_s3(md5sum: str):
                             detail=f"File with md5sum {md5sum} is not available")
 
 
-def destroy(db: Session, md5sum_or_referencefile_id: str, delete_file: bool = False):
+def destroy(db: Session, md5sum_or_referencefile_id: str):
     referencefile = read_referencefile_db_obj_from_md5sum_or_id(db, md5sum_or_referencefile_id)
-    if delete_file:
-        remove_file_from_s3(referencefile.md5sum)
+    remove_file_from_s3(referencefile.md5sum)
     db.delete(referencefile)
     db.commit()
 
 
 def file_upload(db: Session, metadata: dict, file: UploadFile):
-    # TODO: calculate md5sum and gzip file
+    # TODO: calculate md5sum and then gzip file
+    # TODO: create webtest
     md5sum = "random"
     folder = get_s3_folder_from_md5sum(md5sum)
     create_request = ReferencefileSchemaPost(md5sum=md5sum, **metadata)
     create_metadata(db, create_request)
     client = boto3.client('s3')
     upload_file_to_bucket(s3_client=client, file_obj=file.file, bucket="agr-literature", folder=folder,
-                          object_name=md5sum)
+                          object_name=md5sum + ".gz")
     return md5sum

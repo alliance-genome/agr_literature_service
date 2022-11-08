@@ -61,12 +61,12 @@ def file_upload(reference_curie: str = None,
     return referencefile_crud.file_upload(db, metadata, file)
 
 
-@router.post('/file_delete/{md5sum}')
+@router.delete('/file_delete/{md5sum}')
 def file_delete(md5sum: str,
                 user: OktaUser = db_user,
                 db: Session = db_session):
     set_global_user_from_okta(db, user)
-    return referencefile_crud.destroy(db, md5sum, delete_file=True)
+    return referencefile_crud.destroy(db, md5sum)
 
 
 @router.get('/{md5sum_or_referencefile_id}',
@@ -86,12 +86,3 @@ def patch(md5sum_or_referencefile_id: str,
           db: Session = db_session):
     set_global_user_from_okta(db, user)
     return referencefile_crud.patch(db, md5sum_or_referencefile_id, request.dict(exclude_unset=True))
-
-
-@router.delete('/{md5sum_or_referencefile_id}',
-               status_code=status.HTTP_204_NO_CONTENT)
-def destroy(md5sum_or_referencefile_id: str,
-            user: OktaUser = db_user,
-            db: Session = db_session):
-    set_global_user_from_okta(db, user)
-    referencefile_crud.destroy(db, md5sum_or_referencefile_id)

@@ -47,10 +47,13 @@ def create(db: Session, request: ReferencefileSchemaPost):
 
 
 def get_s3_folder_from_md5sum(md5sum: str):
-    if environ.get("ENV_STATE", "test") == "test":
-        folder = "develop"
-    else:
+    env_state = environ.get("ENV_STATE", "")
+    if env_state == "" or env_state == "test":
+        folder = "test"
+    elif env_state == "prod":
         folder = "prod"
+    else:
+        folder = "develop"
     folder += "/reference/documents/"
     folder += "/".join([char for char in md5sum[0:4]])
     return folder
