@@ -46,7 +46,7 @@ class ReferencefileSchemaRelated(AuditedObjectModelSchema):
     file_class: str
     file_publication_status: str
     file_extension: str
-    pdf_type: str
+    pdf_type: Optional[str] = None
     md5sum: str
     is_annotation: bool
     referencefile_mods: Optional[List[ReferencefileModSchemaRelated]]
