@@ -157,3 +157,6 @@ class TestReferencefile():
             response_file = client.get(url=f"/reference/referencefile/{response.json()}")
             assert response_file.status_code == status.HTTP_200_OK
             assert response_file.json()["pdf_type"] is None
+            response_ref = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+            assert response_ref.status_code == status.HTTP_200_OK
+            assert response_ref.json()["referencefiles"][0]["pdf_type"] is None
