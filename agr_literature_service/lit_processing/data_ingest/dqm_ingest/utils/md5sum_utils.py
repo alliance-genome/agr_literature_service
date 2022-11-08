@@ -1,4 +1,3 @@
-
 import json
 import hashlib
 import argparse
@@ -42,6 +41,16 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 base_path = environ.get('XML_PATH')
+
+
+def get_md5sum(file_with_path):
+
+    md5_hash = hashlib.md5()
+    with open(file_with_path, "rb") as f:
+        # Read and update hash in chunks of 4K
+        for byte_block in iter(lambda: f.read(4096), b""):
+            md5_hash.update(byte_block)
+    return md5_hash.hexdigest()
 
 
 def get_json_storage_path(mod):
