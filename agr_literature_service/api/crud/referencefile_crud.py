@@ -81,7 +81,7 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):
     referencefile = db.query(ReferencefileModel).filter(ReferencefileModel.md5sum == md5sum).one_or_none()
     if referencefile is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail="The provided file and/or its metadata are already present in the system")
+                            detail="The provided file md5sum is already present in the system")
     create_request = ReferencefileSchemaPost(md5sum=md5sum, **metadata)
     create_metadata(db, create_request)
     file.file.seek(0)
