@@ -1,7 +1,7 @@
 from botocore.exceptions import ClientError
 
 
-def upload_file_to_bucket(s3_client, file_obj, bucket, folder, object_name=None):
+def upload_file_to_bucket(s3_client, file_obj, bucket, folder, object_name=None, **kwargs):
     """Upload a file to an S3 bucket
     :param file_obj: File to upload
     :param bucket: Bucket to upload to
@@ -15,7 +15,7 @@ def upload_file_to_bucket(s3_client, file_obj, bucket, folder, object_name=None)
 
     # Upload the file
     try:
-        s3_client.upload_fileobj(file_obj, bucket, f"{folder}/{object_name}")
+        s3_client.upload_fileobj(file_obj, bucket, f"{folder}/{object_name}", **kwargs)
     except ClientError as e:
         print(e)
         return False

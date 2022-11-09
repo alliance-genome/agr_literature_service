@@ -3,7 +3,7 @@ import logging
 from json import JSONDecodeError
 from typing import Union
 
-from fastapi import APIRouter, Depends, Security, status, File, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, Security, status, File, UploadFile, HTTPException, Response
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
@@ -70,12 +70,14 @@ def file_upload(reference_curie: str = None,
     return referencefile_crud.file_upload(db, metadata, file)
 
 
-@router.delete('/file_delete/{md5sum}')
+@router.delete('/file_delete/{md5sum}',
+               status_code=status.HTTP_204_NO_CONTENT)
 def file_delete(md5sum: str,
                 user: OktaUser = db_user,
                 db: Session = db_session):
     set_global_user_from_okta(db, user)
-    return referencefile_crud.destroy(db, md5sum)
+    referencefile_crud.destroy(db, md5sum)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get('/{md5sum_or_referencefile_id}',
