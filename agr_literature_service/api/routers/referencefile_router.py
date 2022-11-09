@@ -1,8 +1,9 @@
 import json
 import logging
+from json import JSONDecodeError
 from typing import Union
 
-from fastapi import APIRouter, Depends, Security, status, File, UploadFile
+from fastapi import APIRouter, Depends, Security, status, File, UploadFile, HTTPException
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
@@ -10,8 +11,7 @@ from agr_literature_service.api import database
 from agr_literature_service.api.deps import s3_auth
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import ResponseMessageSchema
-from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost, ReferencefileSchemaShow, \
-    ReferencefileSchemaUpdate
+from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, ReferencefileSchemaUpdate
 from agr_literature_service.api.user import set_global_user_from_okta
 from agr_literature_service.api.crud import referencefile_crud
 
@@ -57,7 +57,14 @@ def file_upload(reference_curie: str = None,
             "mod_abbreviation": mod_abbreviation
         }
     else:
-        metadata = json.load(metadata_file.file)
+        try:
+            metadata = json.load(metadata_file.file)
+        except JSONDecodeError:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"The provided metadata file is not a valid json file")
+    if not reference_curie or not display_name or not file_class or not file_publication_status or not file_extension:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"The provided metadata is not valid")
     return referencefile_crud.file_upload(db, metadata, file)
 
 

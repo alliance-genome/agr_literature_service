@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.referencefile_utils import read_referencefile_db_obj_from_md5sum_or_id, \
     create as create_metadata, get_s3_folder_from_md5sum
-from agr_literature_service.api.models import ReferenceModel
+from agr_literature_service.api.models import ReferenceModel, ReferencefileModel
 from agr_literature_service.api.s3.delete import delete_file_in_bucket
 from agr_literature_service.api.s3.upload import upload_file_to_bucket
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost
@@ -77,6 +77,10 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):
         md5sum.update(byte_block)
     md5sum = md5sum.hexdigest()
     folder = get_s3_folder_from_md5sum(md5sum)
+    referencefile = db.query(ReferencefileModel).filter(ReferencefileModel.md5sum == md5sum).one_or_none()
+    if referencefile is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail=f"The provided file and/or its metadata are already present in the system")
     file.file.seek(0)
     temp_file_name = metadata["display_name"] + "." + metadata["file_extension"] + ".gz"
     with gzip.open(temp_file_name, 'wb') as f_out:
