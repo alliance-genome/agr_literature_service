@@ -193,20 +193,32 @@ def save_database_md5data(md5dict, mods):
             print("mod not in database yet:" + mod)
             continue
         for PMID in md5sums:
-            if mod_id == None:
-                md5sum_results = db_session.execute(f"select rmm.md5sum, rmm.reference_mod_md5sum_id from cross_reference r, reference_mod_md5sum rmm where rmm.mod_id is null and r.reference_id=rmm.reference_id and r.curie='{PMID}' ")
-                md5sums = md5sum_results.fetchall() 
+            if mod_id == None: # PIMD could be either digial of PMID or reference_id
+                if PMID.isnumeric():
+                    PMID_temp = "PMID:" + PMID
+                    md5sum_results = db_session.execute(f"select rmm.md5sum, rmm.reference_mod_md5sum_id from cross_reference r, reference_mod_md5sum rmm where rmm.mod_id is null and r.reference_id=rmm.reference_id and (r.curie='{PMID_temp}' or r.reference_id = {PMID}) ")
+                    #print(f"select rmm.md5sum, rmm.reference_mod_md5sum_id from cross_reference r, reference_mod_md5sum rmm where rmm.mod_id is null and r.reference_id=rmm.reference_id and (r.curie='{PMID}' or r.reference_id = {PMID}) ")
+                    md5sums = md5sum_results.fetchall()
+                else:
+                    print("invalid PMID/reference_id for PMID:" + PMID)
+                    continue
             else:
-                md5sum_results = db_session.execute(f"select rmm.md5sum, rmm.reference_mod_md5sum_id from cross_reference r, reference_mod_md5sum rmm where rmm.mod_id = {mod_id} and r.reference_id=rmm.reference_id and r.curie='{PMID}' ")
+                if PMID.isnumeric(): # reference_id
+                    md5sum_results = db_session.execute(f"select rmm.md5sum, rmm.reference_mod_md5sum_id from reference_mod_md5sum rmm where rmm.mod_id = {mod_id} and rmm.reference_id = {PMID} ")
+                    #print(f"select rmm.md5sum, rmm.reference_mod_md5sum_id from reference_mod_md5sum rmm where rmm.mod_id = {mod_id} and rmm.reference_id = {PMID} ")
+                else:
+                    md5sum_results = db_session.execute(f"select rmm.md5sum, rmm.reference_mod_md5sum_id from cross_reference r, reference_mod_md5sum rmm where rmm.mod_id = {mod_id} and r.reference_id=rmm.reference_id and r.curie='{PMID}' ")
+                    #print(f"select rmm.md5sum, rmm.reference_mod_md5sum_id from cross_reference r, reference_mod_md5sum rmm where rmm.mod_id = {mod_id} and r.reference_id=rmm.reference_id and r.curie='{PMID}' ")
                 md5sums = md5sum_results.fetchall()
             if len(md5sums) == 0:
-                print('unable to find this in cross_reference:', PMID, '->', md5dict[mod][PMID])
+                print('unable to find this in cross_reference:', mod, '->', PMID, '->', md5dict[mod][PMID])
+                continue
             else:
                 md5sum = md5sums[0]["md5sum"]
                 if (md5sum == md5dict[mod][PMID]):
                     continue
                 else:
-                    print('need to update:', PMID, '->', md5dict[mod][PMID])
+                    #print('need to update:', PMID, '->', md5dict[mod][PMID])
                     reference_mod_md5sum_id = md5sums[0]["reference_mod_md5sum_id"]
                     try:
                         db_session.execute(f"update reference_mod_md5sum set md5sum='{md5dict[mod][PMID]}' where  reference_mod_md5sum_id ='{reference_mod_md5sum_id}' ")
@@ -249,12 +261,12 @@ def load_database_md5data(mods):
             mod_id = mod_ids[mod]
             md5dict[mod] = {}
             if (mod =="XB"):
-                md5sum_results = db_session.execute(f"select r.curie, rmm.md5sum from cross_reference r, reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and rmm.mod_id  = {mod_id} and (r.curie like 'PMID:%' or r.curie like 'Xenbase:%') ")
+                md5sum_results = db_session.execute(f"select r.curie, r.reference_id, rmm.md5sum from cross_reference r, reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and rmm.mod_id  = {mod_id} and (r.curie like 'PMID:%' or r.curie like 'Xenbase:%') ")
             else:
-                md5sum_results = db_session.execute(f"select r.curie, rmm.md5sum from cross_reference r, reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and rmm.mod_id  = {mod_id} and (r.curie like 'PMID:%' or r.curie like '{mod}:%') ")
+                md5sum_results = db_session.execute(f"select r.curie, r.reference_id, rmm.md5sum from cross_reference r, reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and rmm.mod_id  = {mod_id} and (r.curie like 'PMID:%' or r.curie like '{mod}:%') ")
         elif (mod == "PMID"):
             md5dict[mod] = {}
-            md5sum_results = db_session.execute("select r.curie, rmm.md5sum from cross_reference r, reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and rmm.mod_id is null and r.curie like 'PMID:%' ")
+            md5sum_results = db_session.execute("select r.curie, r.reference_id, rmm.md5sum from cross_reference r, reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and rmm.mod_id is null and r.curie like 'PMID:%' ")
         else:
             print("invalid mod:" + mod)
             continue
@@ -262,9 +274,11 @@ def load_database_md5data(mods):
         for row in md5sums:
             curie = row["curie"]
             md5sum = row["md5sum"]
+            reference_id = str(row["reference_id"])
             if mod == "PMID":
                 curie = re.sub("PMID:", "", curie) # remove prefix 'PMID' for PMID
             md5dict[mod][curie] = md5sum
+            md5dict[mod][reference_id] = md5sum
     # debug
     json_data = json.dumps(md5dict, indent=4, sort_keys=True)
     print(json_data)
