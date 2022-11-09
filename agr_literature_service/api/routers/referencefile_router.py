@@ -46,40 +46,42 @@ def file_upload(reference_curie: str = None,
                 db: Session = db_session):
     """
 
-    Sample usage with curl:
+    Sample usage with curl
 
-    metadata provided as file:
+    - metadata provided as file
 
         metadata file json format:
 
-        {
-            "reference_curie": "AGRKB:101000000000001",
-            "display_name": "test",
-            "file_class": "main",
-            "file_publication_status": "final",
-            "file_extension": "txt",
-            "pdf_type": null,
-            "is_annotation": "false",
-            "mod_abbreviation": "WB"
-        }
+            {
+                "reference_curie": "AGRKB:101000000000001",
+                "display_name": "test",
+                "file_class": "main",
+                "file_publication_status": "final",
+                "file_extension": "txt",
+                "pdf_type": null,
+                "is_annotation": "false",
+                "mod_abbreviation": "WB"
+            }
 
         request:
 
-        curl -X 'POST' 'http://localhost:8080/reference/referencefile/file_upload/' \
-         -H 'accept: application/json' \
-         -H 'Authorization: Bearer <okta_token>' \
-         -H 'Content-Type: multipart/form-data' \
-         -F 'file=@test2.txt;type=text/plain' \
-         -F 'metadata_file=@metadata_file.txt;type=text/plain'
+            curl -X 'POST' 'http://localhost:8080/reference/referencefile/file_upload/' \\
+             -H 'accept: application/json' \\
+             -H 'Authorization: Bearer <okta_token>' \\
+             -H 'Content-Type: multipart/form-data' \\
+             -F 'file=@test2.txt;type=text/plain' \\
+             -F 'metadata_file=@metadata_file.txt;type=text/plain'
 
-    metadata as url parameters:
+    - metadata as url parameters
 
-        curl -X 'POST' 'http://localhost:8080/reference/referencefile/file_upload/?reference_curie=AGRKB:101000000000001&display_name=test&file_class=main&file_publication_status=final&file_extension=txt&pdf_type=null&is_annotation=false' \
-         -H 'accept: application/json' \
-         -H 'Authorization: Bearer <okta_token>' \
-         -H 'Content-Type: multipart/form-data' \
-         -F 'file=@test2.txt;type=text/plain' \
-         -F 'metadata_file='
+        request:
+
+            curl -X 'POST' 'http://localhost:8080/reference/referencefile/file_upload/?reference_curie=AGRKB:101000000000001&display_name=test&file_class=main&file_publication_status=final&file_extension=txt&pdf_type=null&is_annotation=false' \\
+             -H 'accept: application/json' \\
+             -H 'Authorization: Bearer <okta_token>' \\
+             -H 'Content-Type: multipart/form-data' \\
+             -F 'file=@test2.txt;type=text/plain' \\
+             -F 'metadata_file='
 
     """
     if is_annotation is None:
