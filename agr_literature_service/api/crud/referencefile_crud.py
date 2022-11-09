@@ -73,15 +73,15 @@ def destroy(db: Session, md5sum_or_referencefile_id: str):
 
 
 def file_upload(db: Session, metadata: dict, file: UploadFile):
-    md5sum = hashlib.md5()
+    md5sum_hash = hashlib.md5()
     for byte_block in iter(lambda: file.file.read(4096), b""):
-        md5sum.update(byte_block)
-    md5sum = md5sum.hexdigest()
+        md5sum_hash.update(byte_block)
+    md5sum = md5sum_hash.hexdigest()
     folder = get_s3_folder_from_md5sum(md5sum)
     referencefile = db.query(ReferencefileModel).filter(ReferencefileModel.md5sum == md5sum).one_or_none()
     if referencefile is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail=f"The provided file and/or its metadata are already present in the system")
+                            detail="The provided file and/or its metadata are already present in the system")
     create_request = ReferencefileSchemaPost(md5sum=md5sum, **metadata)
     create_metadata(db, create_request)
     file.file.seek(0)

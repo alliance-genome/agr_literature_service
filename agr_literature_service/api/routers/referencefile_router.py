@@ -40,8 +40,8 @@ def file_upload(reference_curie: str = None,
                 pdf_type: str = None,
                 is_annotation: bool = False,
                 mod_abbreviation: str = None,
-                file: UploadFile = File(...),
-                metadata_file: Union[UploadFile, None] = File(default=None),
+                file: UploadFile = File(...),  # noqa: B008
+                metadata_file: Union[UploadFile, None] = File(default=None),  # noqa: B008
                 user: OktaUser = db_user,
                 db: Session = db_session):
     set_global_user_from_okta(db, user)
@@ -61,10 +61,10 @@ def file_upload(reference_curie: str = None,
             metadata = json.load(metadata_file.file)
         except JSONDecodeError:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail=f"The provided metadata file is not a valid json file")
+                                detail="The provided metadata file is not a valid json file")
     if not reference_curie or not display_name or not file_class or not file_publication_status or not file_extension:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"The provided metadata is not valid")
+                            detail="The provided metadata is not valid")
     return referencefile_crud.file_upload(db, metadata, file)
 
 

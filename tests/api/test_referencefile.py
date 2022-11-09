@@ -1,6 +1,3 @@
-from collections import namedtuple
-from tempfile import TemporaryFile
-
 import pytest
 from starlette.testclient import TestClient
 
