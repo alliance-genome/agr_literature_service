@@ -1,4 +1,8 @@
+import gzip
+import hashlib
 import logging
+import os
+import shutil
 
 import boto3
 from fastapi import HTTPException, status, UploadFile
@@ -68,13 +72,20 @@ def destroy(db: Session, md5sum_or_referencefile_id: str):
 
 
 def file_upload(db: Session, metadata: dict, file: UploadFile):
-    # TODO: calculate md5sum and then gzip file
-    # TODO: create webtest
-    md5sum = "random"
+    md5sum = hashlib.md5()
+    for byte_block in iter(lambda: file.file.read(4096), b""):
+        md5sum.update(byte_block)
+    md5sum = md5sum.hexdigest()
     folder = get_s3_folder_from_md5sum(md5sum)
+    file.file.seek(0)
+    temp_file_name = metadata["display_name"] + "." + metadata["file_extension"] + ".gz"
+    with gzip.open(temp_file_name, 'wb') as f_out:
+        shutil.copyfileobj(file.file, f_out)
     create_request = ReferencefileSchemaPost(md5sum=md5sum, **metadata)
     create_metadata(db, create_request)
     client = boto3.client('s3')
-    upload_file_to_bucket(s3_client=client, file_obj=file.file, bucket="agr-literature", folder=folder,
-                          object_name=md5sum + ".gz")
+    with open(temp_file_name, 'rb') as gzipped_file:
+        upload_file_to_bucket(s3_client=client, file_obj=gzipped_file, bucket="agr-literature", folder=folder,
+                              object_name=md5sum + ".gz")
+    os.remove(temp_file_name)
     return md5sum
