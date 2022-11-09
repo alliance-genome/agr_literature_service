@@ -38,12 +38,52 @@ def file_upload(reference_curie: str = None,
                 file_publication_status: str = None,
                 file_extension: str = None,
                 pdf_type: str = None,
-                is_annotation: bool = False,
+                is_annotation: bool = None,
                 mod_abbreviation: str = None,
                 file: UploadFile = File(...),  # noqa: B008
                 metadata_file: Union[UploadFile, None] = File(default=None),  # noqa: B008
                 user: OktaUser = db_user,
                 db: Session = db_session):
+    """
+
+    Sample usage with curl:
+
+    metadata provided as file:
+
+        metadata file json format:
+
+        {
+            "reference_curie": "AGRKB:101000000000001",
+            "display_name": "test",
+            "file_class": "main",
+            "file_publication_status": "final",
+            "file_extension": "txt",
+            "pdf_type": null,
+            "is_annotation": "false",
+            "mod_abbreviation": "WB"
+        }
+
+        request:
+
+        curl -X 'POST' 'http://localhost:8080/reference/referencefile/file_upload/' \
+         -H 'accept: application/json' \
+         -H 'Authorization: Bearer <okta_token>' \
+         -H 'Content-Type: multipart/form-data' \
+         -F 'file=@test2.txt;type=text/plain' \
+         -F 'metadata_file=@metadata_file.txt;type=text/plain'
+
+    metadata as url parameters:
+
+        curl -X 'POST' 'http://localhost:8080/reference/referencefile/file_upload/?reference_curie=test&display_name=test&file_class=test&file_publication_status=test&file_extension=test&pdf_type=test&is_annotation=false' \
+         -H 'accept: application/json' \
+         -H 'Authorization: Bearer <okta_token>' \
+         -H 'Content-Type: multipart/form-data' \
+         -F 'file=@test2.txt;type=text/plain' \
+         -F 'metadata_file='
+
+    """
+    if is_annotation in None:
+        is_annotation = False
     set_global_user_from_okta(db, user)
     metadata = None
     if reference_curie and display_name and file_class and file_publication_status and file_extension:
