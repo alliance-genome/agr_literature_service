@@ -2,10 +2,10 @@
 import json
 import hashlib
 import argparse
-# from pickle import FALSE
 import sys
 from os import environ, path, makedirs, listdir
 import logging.config
+import re
 
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
@@ -157,6 +157,18 @@ def save_s3_md5data(md5dict, mods):
 def save_database_md5data(md5dict, mods):
     """
     save md5sum from dict into database, insert if does exist, update if exist and different ?
+    md5sum_data = {"XB": {
+                    "PMID:9241": "TEST1-9177c6f32fb8a80ef5955543b9dafde6",
+                    "PMID:10735": "TEST2-5a24bf3a9e634fab93122b7c45a5d326"
+                    },
+                    "FB": {
+                     "FB:FBrf0251347": "TEST3-d70b2ce7c56deab14722fb4ac2e7d287",
+                     "FB:FBrf0251348": "9ca72344a115c9ce612cab87869ccd94"
+                    },
+                    "PMID": {
+                    "PMID:9241": "TEST5-6eac9538fafd9f73eff28dd0a28a2edf"
+                    }
+            }
     :param md5dict:
     :param mods:
     :return:
@@ -206,12 +218,21 @@ def save_database_md5data(md5dict, mods):
 def load_database_md5data(mods):
     """
 
-
     :param mods:["FB", "WB", "ZFIN", "SGD", "MGI", "RGD", "XB", "PMID"]
-    :return:
+    :return sample:
+    md5sum_data = {"XB": {
+                    "PMID:9241": "TEST1-9177c6f32fb8a80ef5955543b9dafde6",
+                    "PMID:10735": "TEST2-5a24bf3a9e634fab93122b7c45a5d326"
+                    },
+                    "FB": {
+                     "FB:FBrf0251347": "TEST3-d70b2ce7c56deab14722fb4ac2e7d287",
+                     "FB:FBrf0251348": "9ca72344a115c9ce612cab87869ccd94"
+                    },
+                    "PMID": {
+                    "PMID:9241": "TEST5-6eac9538fafd9f73eff28dd0a28a2edf"
+                    }
+            }
     """
-    for mod in mods:
-        md5sums=md5dict
 
     md5dict = {}
     mod_ids = {}
@@ -241,10 +262,12 @@ def load_database_md5data(mods):
         for row in md5sums:
             curie = row["curie"]
             md5sum = row["md5sum"]
+            if mod == "PMID":
+                curie = re.sub("PMID:", "", curie) # remove prefix 'PMID' for PMID
             md5dict[mod][curie] = md5sum
     # debug
-        json_data = json.dumps(md5dict, indent=4, sort_keys=True)
-        print(json_data)
+    json_data = json.dumps(md5dict, indent=4, sort_keys=True)
+    print(json_data)
     return md5dict
 
 def load_s3_md5data(mods):
