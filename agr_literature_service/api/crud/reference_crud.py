@@ -37,6 +37,7 @@ from agr_literature_service.api.crud.topic_entity_tag_crud import (
     create as create_topic_entity_tag
 )
 from agr_literature_service.global_utils import get_next_reference_curie
+from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +182,8 @@ def destroy(db: Session, curie_or_reference_id: str):
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie or reference_id {curie_or_reference_id} not found")
+    for referencefile in reference.referencefiles:
+        destroy_referencefile(db, str(referencefile.referencefile_id))
     db.delete(reference)
     db.commit()
 

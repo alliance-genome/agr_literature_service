@@ -66,7 +66,8 @@ def remove_file_from_s3(md5sum: str):
 
 def destroy(db: Session, md5sum_or_referencefile_id: str):
     referencefile = read_referencefile_db_obj_from_md5sum_or_id(db, md5sum_or_referencefile_id)
-    remove_file_from_s3(referencefile.md5sum)
+    if os.environ.get("ENV_STATE", "test") != "test":
+        remove_file_from_s3(referencefile.md5sum)
     db.delete(referencefile)
     db.commit()
 
@@ -81,12 +82,12 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):
     if referencefile is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail=f"The provided file and/or its metadata are already present in the system")
+    create_request = ReferencefileSchemaPost(md5sum=md5sum, **metadata)
+    create_metadata(db, create_request)
     file.file.seek(0)
     temp_file_name = metadata["display_name"] + "." + metadata["file_extension"] + ".gz"
     with gzip.open(temp_file_name, 'wb') as f_out:
         shutil.copyfileobj(file.file, f_out)
-    create_request = ReferencefileSchemaPost(md5sum=md5sum, **metadata)
-    create_metadata(db, create_request)
     client = boto3.client('s3')
     with open(temp_file_name, 'rb') as gzipped_file:
         upload_file_to_bucket(s3_client=client, file_obj=gzipped_file, bucket="agr-literature", folder=folder,
