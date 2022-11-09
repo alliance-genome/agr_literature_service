@@ -7,7 +7,7 @@ from os import environ, makedirs, path
 from dotenv import load_dotenv
 
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
-    load_s3_md5data, generate_new_md5, save_s3_md5data
+    load_database_md5data, generate_new_md5, save_database_md5data
 from agr_literature_service.api.models import ReferenceModel, ModModel
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
     write_json
@@ -290,7 +290,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         cross_reference_to_add = []
         agr_list_for_cross_refs_to_add = []
         logger.info("loading old md5")
-        old_md5dict = load_s3_md5data([mod])
+        old_md5dict = load_database_md5data([mod])
 
 #         print("old_md5dict")
 #         db_entry_text = json.dumps(old_md5dict, indent=4, sort_keys=True)
@@ -609,7 +609,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         if env_state == 'prod':
             merge_md5dict = {}
             merge_md5dict[mod] = {**old_md5dict[mod], **new_md5dict[mod]}
-            save_s3_md5data(merge_md5dict, [mod])
+            save_database_md5data(merge_md5dict, [mod])
 
         fh_mod_report[mod].close()
 
