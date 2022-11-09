@@ -74,7 +74,7 @@ def file_upload(reference_curie: str = None,
 
     metadata as url parameters:
 
-        curl -X 'POST' 'http://localhost:8080/reference/referencefile/file_upload/?reference_curie=test&display_name=test&file_class=test&file_publication_status=test&file_extension=test&pdf_type=test&is_annotation=false' \
+        curl -X 'POST' 'http://localhost:8080/reference/referencefile/file_upload/?reference_curie=AGRKB:101000000000001&display_name=test&file_class=main&file_publication_status=final&file_extension=txt&pdf_type=null&is_annotation=false' \
          -H 'accept: application/json' \
          -H 'Authorization: Bearer <okta_token>' \
          -H 'Content-Type: multipart/form-data' \
@@ -82,7 +82,7 @@ def file_upload(reference_curie: str = None,
          -F 'metadata_file='
 
     """
-    if is_annotation in None:
+    if is_annotation is None:
         is_annotation = False
     set_global_user_from_okta(db, user)
     metadata = None
