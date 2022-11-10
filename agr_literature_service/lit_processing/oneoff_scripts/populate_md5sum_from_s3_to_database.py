@@ -2,7 +2,7 @@
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_engine, \
     create_postgres_session
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
-    load_s3_md5data, save_database_md5data
+    load_s3_md5data
 
 
 # load md5sum from s3 to database table reference_mod_md5sum
@@ -55,19 +55,4 @@ def load_md5sum_from_s3_to_database():
 
 if __name__ == "__main__":
 
-    #load_md5sum_from_s3_to_database()
-    md5sum_data = {"XB": {
-                    "PMID:9241": "TEST1-19177c6f32fb8a80ef5955543b9dafde6",
-                    "PMID:10735": "TEST2-5a24bf3a9e634fab93122b7c45a5d326",
-                    },
-                    "FB": {
-                     "FB:FBrf0247859": "TEST3-d70b2ce7c56deab14722fb4ac2e7d287",
-                     "FB:FBrf0251348": "TEST4-9ca72344a115c9ce612cab87869ccd94",
-                    },
-                    "PMID": {
-                    "PMID:9241": "TEST5-6eac9538fafd9f73eff28dd0a28a2edf",
-                    "PMID:23524264": "TEST6-adf54b253e058d911139f7599116c24e"
-                    }
-            }
-    mods= ["FB", "XB", "PMID"]
-    save_database_md5data(md5sum_data, mods)
+    load_md5sum_from_s3_to_database()
