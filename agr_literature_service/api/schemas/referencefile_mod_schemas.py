@@ -23,5 +23,6 @@ class ReferencefileModSchemaUpdate(BaseModel):
     mod_abbreviation: Optional[str]
 
 
-class ReferencefileModSchemaRelated(ReferencefileModSchemaShow):
-    pass
+class ReferencefileModSchemaRelated(AuditedObjectModelSchema):
+    referencefile_mod_id: int
+    mod_abbreviation: Optional[str] = None
