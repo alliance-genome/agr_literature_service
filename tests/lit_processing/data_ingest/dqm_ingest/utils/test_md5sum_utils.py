@@ -10,15 +10,13 @@ class TestMd5sumUtil:
 
     def test_save_database_md5data(self, db): # noqa
         md5sum_data = {"XB": {
-                    "PMID:9241": "TEST1-9177c6f32fb8a80ef5955543b9dafde6",
-                    "PMID:10735": "TEST2-5a24bf3a9e634fab93122b7c45a5d326"
+                    "PMID:9241": "TEST1-XB-001"
                     },
                     "FB": {
-                     "FB:FBrf0251347": "TEST3-d70b2ce7c56deab14722fb4ac2e7d287",
-                     "FB:FBrf0251348": "9ca72344a115c9ce612cab87869ccd94"
+                     "FB:FBrf00000001": "TEST3-FB-001"
                     },
                     "PMID": {
-                    "9241": "TEST5-6eac9538fafd9f73eff28dd0a28a2edf"
+                    "PMID:9241": "TEST5-PMID-001"
                     }
             }
         try:
@@ -26,13 +24,14 @@ class TestMd5sumUtil:
             mod_results = db.execute("select abbreviation, mod_id from mod where abbreviation='FB'")
             ids = mod_results.fetchall()
             mod_id_FB = ids[0]["mod_id"]
-            print("mod_id for FB:" + str(mod_id_FB))
+            db.execute(f"insert into  mod (abbreviation, short_name, full_name, date_created) values ('XB', 'Xenbase', 'Xenbase', 'now()') ")
+
             db.execute(f"insert into  reference (title, curie, open_access, date_created) values ('Bob', 'AGR:AGR-Reference-0000808175', 'true', 'now()') ")
             ref_results = db.execute("select reference_id from reference where curie='AGR:AGR-Reference-0000808175'")
             refs = ref_results.fetchall()
             reference_id = refs[0]["reference_id"]
             print("reference_id here:" + str(reference_id))
-            db.execute(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created) values ({reference_id}, 'FB:FBrf0251347', 'FB', 'now()') ")
+            db.execute(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created) values ({reference_id}, 'FB:FBrf00000001', 'FB', 'now()') ")
             db.execute(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created) values ({reference_id}, 'PMID:9241', 'PMID', 'now()') ")
             db.execute(f"insert into  reference_mod_md5sum (reference_id, mod_id, md5sum, date_updated) values ({reference_id}, {mod_id_FB}, 'd70b2ce7c56deab14722fb4ac2e7d287', 'now()') ")
             db.execute(f"insert into  reference_mod_md5sum (reference_id, md5sum, date_updated) values ({reference_id}, 'd70b2ce7c56deab14722fb4ac2e7d288', 'now()') ")
@@ -46,35 +45,45 @@ class TestMd5sumUtil:
         print("here to assert update result for PMID")
         md5sum_results = db.execute(f"select rmm.md5sum from cross_reference r, reference_mod_md5sum rmm where rmm.mod_id is null and r.reference_id=rmm.reference_id and r.curie_prefix='PMID' and r.curie='PMID:9241' ")
         md5sums = md5sum_results.fetchall()
-        md5sum_PIMD = md5sums[0]["md5sum"] 
-        assert md5sum_PIMD == md5sum_data["PMID"]["9241"]
+        md5sum_PMID = md5sums[0]["md5sum"] 
+        assert md5sum_PMID == md5sum_data["PMID"]["PMID:9241"]
 
         print("here to assert md5sum for FB")
-        md5sum_results = db.execute(f"select rmm.md5sum from cross_reference r, reference_mod_md5sum rmm, mod m where rmm.mod_id=m.mod_id and m.abbreviation='FB' and r.reference_id=rmm.reference_id and r.curie_prefix='FB' and r.curie='FB:FBrf0251347' ")
+        md5sum_results = db.execute(f"select rmm.md5sum from cross_reference r, reference_mod_md5sum rmm, mod m where rmm.mod_id=m.mod_id and m.abbreviation='FB' and r.reference_id=rmm.reference_id and r.curie='FB:FBrf00000001' ")
         md5sums = md5sum_results.fetchall()
         md5sum_FB = md5sums[0]["md5sum"] 
-        assert md5sum_FB == md5sum_data["FB"]["FB:FBrf0251347"]
+        assert md5sum_FB == md5sum_data["FB"]["FB:FBrf00000001"]
+
+        print("here to assert md5sum for XB")
+        md5sum_results = db.execute(f"select rmm.md5sum from cross_reference r, reference_mod_md5sum rmm, mod m where rmm.mod_id=m.mod_id and m.abbreviation='XB' and r.reference_id=rmm.reference_id and r.curie='PMID:9241' ")
+        md5sums = md5sum_results.fetchall()
+        md5sum_XB = md5sums[0]["md5sum"] 
+        assert md5sum_XB == md5sum_data["XB"]["PMID:9241"]
+
+        md5sum_data_empty = {}
+        save_database_md5data(md5sum_data_empty, mods)
+        md5sum_results = db.execute(f"select rmm.md5sum from cross_reference r, reference_mod_md5sum rmm, mod m where rmm.mod_id=m.mod_id and m.abbreviation='XB' and r.reference_id=rmm.reference_id and r.curie='PMID:9241' ")
+        md5sums = md5sum_results.fetchall()
+        md5sum_XB = md5sums[0]["md5sum"] 
+        assert md5sum_XB == md5sum_data["XB"]["PMID:9241"]
+
 
 
     def test_load_database_md5data(self, db): # noqa
         reference_id = None
         try:
-            print("insert FB")
             db.execute(f"insert into  mod (abbreviation, short_name, full_name, date_created) values ('FB', 'FlyBase', 'FlyBase', 'now()') ")
             mod_results = db.execute("select abbreviation, mod_id from mod where abbreviation='FB'")
             ids = mod_results.fetchall()
             mod_id_FB = ids[0]["mod_id"]
-            print("insert XB")
             db.execute(f"insert into  mod (abbreviation, short_name, full_name, date_created) values ('XB', 'Xenbase', 'Xenbase', 'now()') ")
             mod_results = db.execute("select abbreviation, mod_id from mod where abbreviation='XB'")
             ids = mod_results.fetchall()
             mod_id_XB = ids[0]["mod_id"]
-            print("mod_id for XB:" + str(mod_id_XB))
             db.execute(f"insert into  reference (title, curie, open_access, date_created) values ('Bob', 'AGR:AGR-Reference-0000808175', 'true', 'now()') ")
             ref_results = db.execute("select reference_id from reference where curie='AGR:AGR-Reference-0000808175'")
             refs = ref_results.fetchall()
             reference_id = str(refs[0]["reference_id"])
-            print("reference_id here:" + str(reference_id))
             db.execute(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created) values ({reference_id}, 'FB:FBrf0001', 'FB', 'now()') ")
             db.execute(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created) values ({reference_id}, 'PMID:0001', 'PMID', 'now()') ")
             db.execute(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created) values ({reference_id}, 'Xenbase:XB-ART-0001', 'Xenbase', 'now()') ")
@@ -93,8 +102,7 @@ class TestMd5sumUtil:
         assert  dict_md5sum['FB'][reference_id] == 'TEST-md5sum-FB'
         assert  dict_md5sum['XB']['Xenbase:XB-ART-0001'] == 'TEST-md5sum-XB'
         assert  dict_md5sum['XB'][reference_id] == 'TEST-md5sum-XB'
-        # remove prefix 'PMID:' for PMID
-        assert  dict_md5sum['PMID']['0001'] == 'TEST-md5sum-PMID'
+        assert  dict_md5sum['PMID']['PMID:0001'] == 'TEST-md5sum-PMID'
         assert  dict_md5sum['PMID'][reference_id] == 'TEST-md5sum-PMID'
 
          
