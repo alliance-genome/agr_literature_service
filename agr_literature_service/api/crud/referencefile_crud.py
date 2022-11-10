@@ -31,6 +31,7 @@ def show(db: Session, md5sum_or_referencefile_id: str):
         for ref_file_mod in referencefile.referencefile_mods:
             ref_file_mod_dict = jsonable_encoder(ref_file_mod)
             del ref_file_mod_dict["mod_id"]
+            del ref_file_mod_dict["referencefile_id"]
             if ref_file_mod.mod is not None:
                 ref_file_mod_dict["mod_abbreviation"] = ref_file_mod.mod.abbreviation
             else:

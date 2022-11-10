@@ -22,8 +22,16 @@ class ReferencefileSchemaPost(BaseModel):
         extra = "forbid"
 
 
-class ReferencefileSchemaShow(AuditedObjectModelSchema, ReferencefileSchemaPost):
+class ReferencefileSchemaShow(AuditedObjectModelSchema):
     referencefile_id: int
+    reference_curie: str
+    display_name: str
+    file_class: str
+    file_publication_status: str
+    file_extension: str
+    pdf_type: Optional[str] = None
+    md5sum: str
+    is_annotation: bool
     referencefile_mods: Optional[List[ReferencefileModSchemaRelated]]
 
 
