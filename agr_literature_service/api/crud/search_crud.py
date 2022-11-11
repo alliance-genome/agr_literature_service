@@ -72,9 +72,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             },
             "authors.name.keyword": {
                 "terms": {
-                    "field": "authors.name.keyword",
-                    "size": facets_limits[
-                        "authors.name.keyword"] if "authors.name.keyword" in facets_limits else 10
+                    "field": "authors.name.keyword"
                 }
             }
         },
