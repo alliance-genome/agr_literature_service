@@ -606,7 +606,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         # env_state = environ.get('ENV_STATE', 'prod')
         # if env_state == 'build':
         env_state = environ.get('ENV_STATE', 'build')
-        if env_state == 'prod':
+        if env_state != 'test':
             merge_md5dict = {}
             merge_md5dict[mod] = {**old_md5dict[mod], **new_md5dict[mod]}
             save_database_md5data(merge_md5dict, [mod])
