@@ -10,3 +10,4 @@ class FacetsOptionsSchema(BaseModel):
     size_result_count: Optional[int]
     page: Optional[int]
     return_facets_only: bool = False
+    author_filter: Optional[str]
