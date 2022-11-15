@@ -8,7 +8,7 @@ import boto3
 from fastapi import HTTPException, status, UploadFile
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.referencefile_utils import read_referencefile_db_obj_from_md5sum_or_id, \
     create as create_metadata, get_s3_folder_from_md5sum
@@ -82,7 +82,7 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):
         md5sum_hash.update(byte_block)
     md5sum = md5sum_hash.hexdigest()
     folder = get_s3_folder_from_md5sum(md5sum)
-    referencefile = db.query(ReferencefileModel).options(joinedload(ReferencefileModel.reference)).filter(
+    referencefile = db.query(ReferencefileModel).filter(
         and_(
             ReferencefileModel.md5sum == md5sum,
             ReferencefileModel.reference.has(ReferenceModel.curie == metadata["reference_curie"])
