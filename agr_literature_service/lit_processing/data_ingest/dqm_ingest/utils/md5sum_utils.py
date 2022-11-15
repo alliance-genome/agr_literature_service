@@ -215,7 +215,7 @@ def save_database_md5data(md5dict, mods):
             md5sum_results = db_session.execute(f"select md5sum, reference_mod_md5sum_id from reference_mod_md5sum where {mod_id_sql} and reference_id = {reference_id} ")
             md5sums = md5sum_results.fetchall()
             if len(md5sums) == 0:
-                logger.info("insert new md5sum: " + mod + " primary_key:" + str(primary_key) + ' ' + md5dict[mod][primary_key])
+                print("insert new md5sum: " + mod + " primary_key:" + str(primary_key) + ' ' + md5dict[mod][primary_key])
                 if mod_id is None:
                     db_session.execute(f"insert into reference_mod_md5sum(reference_id, md5sum, date_updated) values ({reference_id}, '{md5dict[mod][primary_key]}', 'now()') ")
                 else:
@@ -225,7 +225,7 @@ def save_database_md5data(md5dict, mods):
             if (md5sum == md5dict[mod][primary_key]):
                 continue
             else:
-                logger.info('need to update: ' + mod + '->' + str(primary_key) + ' old:' + md5sum + '->new:' + md5dict[mod][primary_key])
+                print('need to update: ' + mod + '->' + str(primary_key) + ' old:' + md5sum + '->new:' + md5dict[mod][primary_key])
                 reference_mod_md5sum_id = md5sums[0]["reference_mod_md5sum_id"]
                 try:
                     db_session.execute(f"update reference_mod_md5sum set md5sum='{md5dict[mod][primary_key]}' where  reference_mod_md5sum_id ='{reference_mod_md5sum_id}' ")
