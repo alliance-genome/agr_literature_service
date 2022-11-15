@@ -1,7 +1,6 @@
 import json
 import hashlib
 import argparse
-import sys
 from collections import defaultdict
 from os import environ, path, makedirs, listdir
 import logging.config
@@ -195,8 +194,8 @@ def save_database_md5data(md5dict):
                 db_session.execute(f"insert into reference_mod_md5sum(reference_id, mod_id, md5sum, date_updated) "
                                    f"values ({reference_id}, {mod_id}, '{md5sum}', 'now()') ")
             elif md5sums[0]["md5sum"] != md5sum:
-                print('need to update: ' + mod + '->' + str(primary_id) + ' old:' + md5sums[0]["md5sum"] + '->new:' +
-                      md5sum)
+                print('need to update: ' + mod + '->' + str(primary_id) + ' old:' + md5sums[0][
+                    "md5sum"] + '->new:' + md5sum)
                 try:
                     db_session.execute(f"update reference_mod_md5sum set md5sum='{md5sum}' where  "
                                        f"reference_mod_md5sum_id ='{md5sums[0]['reference_mod_md5sum_id']}' ")
