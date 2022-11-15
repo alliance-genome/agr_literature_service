@@ -8,7 +8,8 @@ class TestMd5sumUtil:
         md5sum_data = {
             "XB":
             {
-                "PMID:9241": "TEST1-XB-001"
+                "PMID:9241": "TEST1-XB-001",
+                "Xenbase:XB-ART-58863": "TEST2-XB-001"
             },
             "FB":
             {
@@ -31,8 +32,9 @@ class TestMd5sumUtil:
             refs = ref_results.fetchall()
             reference_id = refs[0]["reference_id"]
             print("reference_id here:" + str(reference_id))
-            db.execute(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created) values ({reference_id}, 'FB:FBrf00000001', 'FB', 'now()') ")
-            db.execute(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created) values ({reference_id}, 'PMID:9241', 'PMID', 'now()') ")
+            db.execute(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created, is_obsolete) values ({reference_id}, 'FB:FBrf00000001', 'FB', 'now()', 'false') ")
+            db.execute(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created, is_obsolete) values ({reference_id}, 'PMID:9241', 'PMID', 'now()', 'false') ")
+            db.execute(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created, is_obsolete) values ({reference_id}, 'Xenbase:XB-ART-58863', 'Xenbase', 'now()', 'false') ")
             db.execute(f"insert into  reference_mod_md5sum (reference_id, mod_id, md5sum, date_updated) values ({reference_id}, {mod_id_FB}, 'd70b2ce7c56deab14722fb4ac2e7d287', 'now()') ")
             db.execute(f"insert into  reference_mod_md5sum (reference_id, md5sum, date_updated) values ({reference_id}, 'd70b2ce7c56deab14722fb4ac2e7d288', 'now()') ")
         except Exception as e:
@@ -55,17 +57,17 @@ class TestMd5sumUtil:
         assert md5sum_FB == md5sum_data["FB"]["FB:FBrf00000001"]
 
         print("here to assert md5sum for XB")
-        md5sum_results = db.execute("select rmm.md5sum from cross_reference r, reference_mod_md5sum rmm, mod m where rmm.mod_id=m.mod_id and m.abbreviation='XB' and r.reference_id=rmm.reference_id and r.curie='PMID:9241' ")
+        md5sum_results = db.execute("select rmm.md5sum from cross_reference r, reference_mod_md5sum rmm, mod m where rmm.mod_id=m.mod_id and m.abbreviation='XB' and r.reference_id=rmm.reference_id and r.curie='Xenbase:XB-ART-58863' ")
         md5sums = md5sum_results.fetchall()
         md5sum_XB = md5sums[0]["md5sum"]
-        assert md5sum_XB == md5sum_data["XB"]["PMID:9241"]
+        assert md5sum_XB == md5sum_data["XB"]["Xenbase:XB-ART-58863"]
 
         md5sum_data_empty = {}
         save_database_md5data(md5sum_data_empty, mods)
-        md5sum_results = db.execute("select rmm.md5sum from cross_reference r, reference_mod_md5sum rmm, mod m where rmm.mod_id=m.mod_id and m.abbreviation='XB' and r.reference_id=rmm.reference_id and r.curie='PMID:9241' ")
+        md5sum_results = db.execute("select rmm.md5sum from cross_reference r, reference_mod_md5sum rmm, mod m where rmm.mod_id=m.mod_id and m.abbreviation='FB' and r.reference_id=rmm.reference_id and r.curie='FB:FBrf00000001' ")
         md5sums = md5sum_results.fetchall()
         md5sum_XB = md5sums[0]["md5sum"]
-        assert md5sum_XB == md5sum_data["XB"]["PMID:9241"]
+        assert md5sum_XB == md5sum_data["FB"]["FB:FBrf00000001"]
 
 
 
