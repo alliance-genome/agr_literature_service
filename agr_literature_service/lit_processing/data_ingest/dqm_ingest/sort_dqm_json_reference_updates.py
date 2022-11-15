@@ -609,7 +609,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         if env_state != 'test':
             merge_md5dict = {}
             merge_md5dict[mod] = {**old_md5dict[mod], **new_md5dict[mod]}
-            save_database_md5data(merge_md5dict, [mod])
+            save_database_md5data(merge_md5dict)
 
         fh_mod_report[mod].close()
 

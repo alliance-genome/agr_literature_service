@@ -207,7 +207,7 @@ def update_data(mod, pmids, newly_added_pmids=None):  # noqa: C901 pragma: no co
             upload_xml_file_to_s3(pmid, 'latest')
 
     md5dict = {'PMID': pmid_to_md5sum}
-    save_database_md5data(md5dict, ['PMID'])
+    save_database_md5data(md5dict)
 
     log.info("DONE!\n\n")
     fw.write(str(datetime.now()) + "\n")

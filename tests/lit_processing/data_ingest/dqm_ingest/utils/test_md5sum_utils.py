@@ -42,8 +42,7 @@ class TestMd5sumUtil:
         db.commit()
 
         print(" here to update md5sum")
-        mods = ["FB", "XB", "PMID"]
-        save_database_md5data(md5sum_data, mods)
+        save_database_md5data(md5sum_data)
         print("here to assert update result for PMID")
         md5sum_results = db.execute("select rmm.md5sum from cross_reference r, reference_mod_md5sum rmm where rmm.mod_id is null and r.reference_id=rmm.reference_id and r.curie_prefix='PMID' and r.curie='PMID:9241' ")
         md5sums = md5sum_results.fetchall()
@@ -63,7 +62,7 @@ class TestMd5sumUtil:
         assert md5sum_XB == md5sum_data["XB"]["Xenbase:XB-ART-58863"]
 
         md5sum_data_empty = {}
-        save_database_md5data(md5sum_data_empty, mods)
+        save_database_md5data(md5sum_data_empty)
         md5sum_results = db.execute("select rmm.md5sum from cross_reference r, reference_mod_md5sum rmm, mod m where rmm.mod_id=m.mod_id and m.abbreviation='FB' and r.reference_id=rmm.reference_id and r.curie='FB:FBrf00000001' ")
         md5sums = md5sum_results.fetchall()
         md5sum_XB = md5sums[0]["md5sum"]
@@ -72,7 +71,6 @@ class TestMd5sumUtil:
 
 
     def test_load_database_md5data(self, db):  # noqa
-        reference_id = None
         try:
             db.execute("insert into  mod (abbreviation, short_name, full_name, date_created) values ('FB', 'FlyBase', 'FlyBase', 'now()') ")
             mod_results = db.execute("select abbreviation, mod_id from mod where abbreviation='FB'")
@@ -100,8 +98,5 @@ class TestMd5sumUtil:
         mods = ["FB", "XB", "PMID", "TEST"]
         dict_md5sum = load_database_md5data(mods)
         assert dict_md5sum['FB']['FB:FBrf0001'] == 'TEST-md5sum-FB'
-        assert dict_md5sum['FB'][reference_id] == 'TEST-md5sum-FB'
         assert dict_md5sum['XB']['Xenbase:XB-ART-0001'] == 'TEST-md5sum-XB'
-        assert dict_md5sum['XB'][reference_id] == 'TEST-md5sum-XB'
         assert dict_md5sum['PMID']['PMID:0001'] == 'TEST-md5sum-PMID'
-        assert dict_md5sum['PMID'][reference_id] == 'TEST-md5sum-PMID'

@@ -330,7 +330,7 @@ def add_md5sum_to_database(db_session, mod, pmids_to_process):  # pragma: no cov
             pieces = line.strip().split("\t")
             pmid_to_md5sum["PMID:" + pieces[0]] = pieces[1]
     md5dict = {"PMID": pmid_to_md5sum}
-    save_database_md5data(md5dict, ['PMID'])
+    save_database_md5data(md5dict)
 
 
 # find pmc articles for mice and 9 journals, get pmid mappings and list of pmc without pmid
