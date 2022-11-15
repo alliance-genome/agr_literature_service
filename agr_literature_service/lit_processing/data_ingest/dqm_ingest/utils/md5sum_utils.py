@@ -192,7 +192,7 @@ def save_database_md5data(md5dict):
             if len(md5sums) == 0:
                 print("insert new md5sum: " + mod + " primary_id:" + str(primary_id) + ' ' + md5sum)
                 db_session.execute(f"insert into reference_mod_md5sum(reference_id, mod_id, md5sum, date_updated) "
-                                   f"values ({reference_id}, {mod_id}, '{md5sum}', 'now()') ")
+                                   f"values ({reference_id}, {mod_id if mod_id else 'null'}, '{md5sum}', 'now()') ")
             elif md5sums[0]["md5sum"] != md5sum:
                 print('need to update: ' + mod + '->' + str(primary_id) + ' old:' + md5sums[0][
                     "md5sum"] + '->new:' + md5sum)
