@@ -21,8 +21,9 @@ class ReferencefileModel(Base, AuditedModel):
     __tablename__ = "referencefile"
     __versioned__: Dict = {}
     __table_args__ = (
-        Index('idx_md5sum', 'md5sum', unique=True),
+        Index('idx_md5sum', 'md5sum', unique=False),
         Index('idx_reference_id_display_name', 'reference_id', 'display_name', 'file_extension', unique=True),
+        Index('idx_md5sum_reference_id', 'md5sum', 'reference_id', unique=True),
     )
 
     referencefile_id = Column(
