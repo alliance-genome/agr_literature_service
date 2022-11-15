@@ -37,6 +37,7 @@ from agr_literature_service.api.crud.topic_entity_tag_crud import (
     create as create_topic_entity_tag
 )
 from agr_literature_service.global_utils import get_next_reference_curie
+from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +182,8 @@ def destroy(db: Session, curie_or_reference_id: str):
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie or reference_id {curie_or_reference_id} not found")
+    for referencefile in reference.referencefiles:
+        destroy_referencefile(db, str(referencefile.referencefile_id))
     db.delete(reference)
     db.commit()
 
@@ -376,6 +379,25 @@ def show(db: Session, curie_or_reference_id: str, http_request=True):  # noqa
         comment_and_corrections_data["from_references"].append(comment_and_correction_data)
 
     reference_data["comment_and_corrections"] = comment_and_corrections_data
+
+    reference_data['referencefiles'] = []
+    if reference.referencefiles:
+        for ref_file in reference.referencefiles:
+            ref_file_dict = jsonable_encoder(ref_file)
+            ref_file_dict["referencefile_mods"] = []
+            if ref_file.referencefile_mods:
+                for ref_file_mod in ref_file.referencefile_mods:
+                    ref_file_mod_dict = jsonable_encoder(ref_file_mod)
+                    del ref_file_mod_dict["mod_id"]
+                    del ref_file_mod_dict["referencefile_id"]
+                    if ref_file_mod.mod is not None:
+                        ref_file_mod_dict["mod_abbreviation"] = ref_file_mod.mod.abbreviation
+                    else:
+                        ref_file_mod_dict["mod_abbreviation"] = None
+                    ref_file_dict["referencefile_mods"].append(ref_file_mod_dict)
+            del ref_file_dict["reference_id"]
+            reference_data["referencefiles"].append(ref_file_dict)
+
     logger.debug("returning {}".format(reference_data))
     return reference_data
 

@@ -22,7 +22,7 @@ class ReferencefileModel(Base, AuditedModel):
     __versioned__: Dict = {}
     __table_args__ = (
         Index('idx_md5sum', 'md5sum', unique=True),
-        Index('idx_reference_id_display_name', 'reference_id', 'display_name', unique=True),
+        Index('idx_reference_id_display_name', 'reference_id', 'display_name', 'file_extension', unique=True),
     )
 
     referencefile_id = Column(
@@ -83,6 +83,12 @@ class ReferencefileModel(Base, AuditedModel):
         Boolean,
         unique=False,
         default=False
+    )
+
+    referencefile_mods = relationship(
+        "ReferencefileModAssociationModel",
+        back_populates="referencefile",
+        cascade="all, delete, delete-orphan"
     )
 
     def __str__(self):
