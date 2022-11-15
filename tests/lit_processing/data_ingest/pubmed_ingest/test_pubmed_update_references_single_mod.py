@@ -35,8 +35,8 @@ class TestPubmedUpdateReferenceSingleMod:
 
         ## test update_database()
         old_md5sum = {}
-        new_md5sum = {'33622238': '51ff265baf9919f9f944f5af8d17d036',
-                      '34354223': 'c306828a3ff618b21c95a0b8b3e67041'}
+        new_md5sum = {'PMID:33622238': '51ff265baf9919f9f944f5af8d17d036',
+                      'PMID:34354223': 'c306828a3ff618b21c95a0b8b3e67041'}
         pmids_with_json_updated = []
         reference_id_list = [pmid_to_reference_id[pmid], pmid_to_reference_id[pmid2]]
         json_path = path.join(path.dirname(path.abspath(__file__)), "../../sample_data/pubmed_json/")
@@ -78,9 +78,11 @@ class TestPubmedUpdateReferenceSingleMod:
         assert citation == ref.citation
 
         ## test generate_pmids_with_info()
-        ref_id_list = generate_pmids_with_info([pmid, pmid2], old_md5sum, new_md5sum,
-                                               pmid_to_reference_id)
+        (ref_id_list, pmid_to_md5sum) = generate_pmids_with_info([pmid, pmid2],
+                                                                 old_md5sum, new_md5sum,
+                                                                 pmid_to_reference_id)
         assert ref_id_list == reference_id_list
+        assert pmid_to_md5sum == new_md5sum
 
 
     def test_update_reference_table(self, db, load_sanitized_references): # noqa

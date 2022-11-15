@@ -101,3 +101,6 @@ alembic-create-migration:
 alembic-apply-latest-migration:
 	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app alembic upgrade head
 
+restart-automated-scripts:
+	docker-compose --env-file ${ENV_FILE} rm -s -f automated_scripts
+	docker-compose --env-file ${ENV_FILE} up --build -d automated_scripts

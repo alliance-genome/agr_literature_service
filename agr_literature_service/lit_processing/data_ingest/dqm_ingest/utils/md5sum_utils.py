@@ -1,14 +1,13 @@
 import json
 import hashlib
 import argparse
-# from pickle import FALSE
-import sys
+from collections import defaultdict
 from os import environ, path, makedirs, listdir
 import logging.config
-
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_s3, download_file_from_s3
+from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 from dotenv import load_dotenv
@@ -33,11 +32,6 @@ init_tmp_dir()
 # loads well, # update and append new md5sum to old md5sum and save to s3
 # (save_s3_md5data).
 
-
-logging.basicConfig(level=logging.INFO,
-                    stream=sys.stdout,
-                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
-                    datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
 base_path = environ.get('XML_PATH')
@@ -160,6 +154,95 @@ def save_s3_md5data(md5dict, mods):
             write_json(md5file, md5dict[mod])
             s3_file_location = env_state + '/reference/metadata/md5sum/' + mod + '_md5sum'
             upload_file_to_s3(md5file, bucketname, s3_file_location)
+
+
+def save_database_md5data(md5dict):
+    """
+    save md5sum from dict into database, insert if does exist, update if exist and different ?
+    dictionary of key (mod/pmid) to dictionary of key (primaryId) value actual_md5sum_value
+    examples:
+    md5dict['SGD']['SGD:0000000056'] = 'a1b7c6f32fb8a80ef5955543b9dafde8'
+    md5dict['PMID']['PMID:12345678'] = '6a7cbf3a9e634fab93122b7c45a5d326'
+    md5sum_data = {"XB":   {
+                              "PMID:9241":      "9177c6f32fb8a80ef5955543b9dafde6",
+                              "PMID:10735":     "5a24bf3a9e634fab93122b7c45a5d326"},
+                   "FB":   {
+                              "FBrf0251347":    "d70b2ce7c56deab14722fb4ac2e7d287",
+                              "FB:FBrf0251348": "9ca72344a115c9ce612cab87869ccd94"},
+                   "PMID": {
+                              "PMID:9241":      "6eac9538fafd9f73eff28dd0a28a2edf"}
+    }
+    :param md5dict:
+    :return:
+    """
+    db_session = create_postgres_session(False)
+    mod_ids = {mod_abbr_id["abbreviation"]: mod_abbr_id["mod_id"] for
+               mod_abbr_id in db_session.execute("select abbreviation, mod_id from mod").fetchall()}
+    for mod, md5sums in md5dict.items():
+        mod_id = mod_ids.get(mod)
+        mod_id_sql = "mod_id is null" if mod_id is None else f"mod_id = {mod_id}"
+        for primary_id, md5sum in md5sums.items():
+            refs = db_session.execute(f"select reference_id from cross_reference r where r.curie = '{primary_id}' "
+                                      f"and is_obsolete='false' ").fetchall()
+            if len(refs) == 0:
+                continue
+            reference_id = refs[0]["reference_id"]
+            md5sums = db_session.execute(f"select md5sum, reference_mod_md5sum_id from reference_mod_md5sum "
+                                         f"where {mod_id_sql} and reference_id = {reference_id} ").fetchall()
+            if len(md5sums) == 0:
+                print("insert new md5sum: " + mod + " primary_id:" + str(primary_id) + ' ' + md5sum)
+                db_session.execute(f"insert into reference_mod_md5sum(reference_id, mod_id, md5sum, date_updated) "
+                                   f"values ({reference_id}, {mod_id if mod_id else 'null'}, '{md5sum}', 'now()') ")
+            elif md5sums[0]["md5sum"] != md5sum:
+                print('need to update: ' + mod + '->' + str(primary_id) + ' old:' + md5sums[0][
+                    "md5sum"] + '->new:' + md5sum)
+                try:
+                    db_session.execute(f"update reference_mod_md5sum set md5sum='{md5sum}' where  "
+                                       f"reference_mod_md5sum_id ='{md5sums[0]['reference_mod_md5sum_id']}' ")
+                except Exception as e:
+                    logger.error('Error: ' + str(type(e)))
+    db_session.commit()
+    db_session.close()
+
+
+def load_database_md5data(mods):
+    """
+
+    :param mods:["FB", "WB", "ZFIN", "SGD", "MGI", "RGD", "XB", "PMID"]
+    :return sample:
+    md5sum_data = {"XB":   {
+                              "PMID:9241":      "9177c6f32fb8a80ef5955543b9dafde6",
+                              "PMID:10735":     "5a24bf3a9e634fab93122b7c45a5d326"},
+                   "FB":   {
+                              "FBrf0251347":    "d70b2ce7c56deab14722fb4ac2e7d287",
+                              "FB:FBrf0251348": "9ca72344a115c9ce612cab87869ccd94"},
+                   "PMID": {
+                              "PMID:9241":      "6eac9538fafd9f73eff28dd0a28a2edf"}
+    }
+    """
+
+    md5dict = defaultdict(dict)
+    db_session = create_postgres_session(False)
+    mod_ids = {mod_abbr_id["abbreviation"]: mod_abbr_id["mod_id"] for
+               mod_abbr_id in db_session.execute("select abbreviation, mod_id from mod").fetchall()}
+    for mod in mods:
+        mod_id = mod_ids.get(mod)
+        prefix = 'Xenbase' if mod == 'XB' else mod
+        if mod_id is not None:
+            md5sums = db_session.execute(f"select r.curie, rmm.md5sum from cross_reference r, "
+                                         f"reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and "
+                                         f"rmm.mod_id  = {mod_id} and (r.curie like 'PMID:%' or r.curie like "
+                                         f"'{prefix}:%') ").fetchall()
+        elif mod == "PMID":
+            md5sums = db_session.execute("select r.curie, rmm.md5sum from cross_reference r, "
+                                         "reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and "
+                                         "rmm.mod_id is null and r.curie like 'PMID:%' ").fetchall()
+        else:
+            logger.error("invalid mod:" + mod)
+            continue
+        for row in md5sums:
+            md5dict[mod][row["curie"]] = row["md5sum"]
+    return md5dict
 
 
 def load_s3_md5data(mods):
