@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.models import ReferencefileModel, ReferenceModel
+from agr_literature_service.api.models import ReferencefileModel, ReferenceModel, ModModel
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost
 from agr_literature_service.api.crud.referencefile_mod_utils import create as create_referencefile_mod
@@ -37,6 +37,11 @@ def create(db: Session, request: ReferencefileSchemaPost):
     del request_dict["reference_curie"]
     request_dict["reference_id"] = ref_obj.reference_id
     mod_abbreviation = request_dict["mod_abbreviation"]
+    if mod_abbreviation is not None:
+        mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
+        if mod is None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"Mod with abbreviation {request.mod_abbreviation} does not exist")
     del request_dict["mod_abbreviation"]
     new_ref_file_obj = ReferencefileModel(**request_dict)
     db.add(new_ref_file_obj)
