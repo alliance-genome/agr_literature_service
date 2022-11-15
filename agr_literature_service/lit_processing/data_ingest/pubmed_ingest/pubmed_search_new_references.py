@@ -301,7 +301,7 @@ def query_mods(input_mod, reldate):
             # logger.info(f"upload {pmid} to s3")
             upload_xml_file_to_s3(pmid)
 
-        add_md5sum_to_database(db_session, mod, pmids_to_process, json_filepath)
+        add_md5sum_to_database(db_session, mod, pmids_to_process)
 
         set_pmid_list(db_session, mod, pmids4mod, json_filepath)
 
@@ -320,9 +320,9 @@ def query_mods(input_mod, reldate):
     logger.info("end query_mods")
 
 
-def add_md5sum_to_database(db_session, mod, pmids_to_process, json_filepath):  # pragma: no cover
+def add_md5sum_to_database(db_session, mod, pmids_to_process):  # pragma: no cover
 
-    file = json_filepath + "md5sum"
+    file = base_path + "pubmed_json/md5sum"
     pmid_to_md5sum = {}
     if path.exists(file):
         f = open(file)

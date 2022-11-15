@@ -11,8 +11,8 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_
     download_pubmed_xml
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import \
     update_data
-from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
-    load_s3_md5data, save_s3_md5data
+# from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
+#    load_s3_md5data, save_s3_md5data
 from agr_literature_service.lit_processing.utils.db_read_utils import retrieve_newly_added_pmids,\
     retrieve_all_pmids
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
@@ -73,12 +73,13 @@ def update_all_data():  # pragma: no cover
             log.info("Updating pubmed papers that are not associated with a mod:")
         else:
             log.info("Updating pubmed papers for " + mod + ":")
-        md5dict = load_s3_md5data(['PMID'])
+        # md5dict = load_s3_md5data(['PMID'])
         try:
-            update_data(mod, None, md5dict, pmids_new)
+            # update_data(mod, None, md5dict, pmids_new)
+            update_data(mod, None, pmids_new)
         except Exception as e:
             log.info("Error occurred when updating pubmed papers for " + mod + "\n" + str(e))
-            save_s3_md5data(md5dict, ['PMID'])
+            # save_s3_md5data(md5dict, ['PMID'])
         time.sleep(sleep_time)
 
 

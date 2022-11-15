@@ -56,9 +56,10 @@ sleep_time = 60
 init_tmp_dir()
 
 
-def update_data(mod, pmids, md5dict=None, newly_added_pmids=None):  # noqa: C901 pragma: no cover
+# def update_data(mod, pmids, md5dict=None, newly_added_pmids=None):  # noqa: C901 pragma: no cover
+def update_data(mod, pmids, newly_added_pmids=None):  # noqa: C901 pragma: no cover
 
-    if md5dict is None and mod:
+    if newly_added_pmids is None and mod:
         update_resource_pubmed_nlm
 
     db_session = create_postgres_session(False)
@@ -114,7 +115,7 @@ def update_data(mod, pmids, md5dict=None, newly_added_pmids=None):  # noqa: C901
         else:
             update_log[field_name] = 0
 
-    if md5dict is None:
+    if newly_added_pmids is None:
         fw.write(str(datetime.now()) + "\n")
         fw.write("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...\n")
         log.info("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...")
@@ -128,10 +129,8 @@ def update_data(mod, pmids, md5dict=None, newly_added_pmids=None):  # noqa: C901
             download_pubmed_xml(pmids_all)
 
         fw.write(str(datetime.now()) + "\n")
-        fw.write("Downloading PMID_md5sum from s3...\n")
-        log.info("Downloading PMID_md5sum from s3...")
-        md5dict = load_database_md5data(['PMID'])
 
+    md5dict = load_database_md5data(['PMID'])
     old_md5sum = md5dict['PMID']
 
     ## for testing purpose, test run for SGD
@@ -625,11 +624,11 @@ def generate_pmids_with_info(pmids_all, old_md5sum, new_md5sum, pmid_to_referenc
         if pmid_with_prefix not in new_md5sum:
             continue
         if pmid_with_prefix not in old_md5sum:
-            pmid_to_md5sum[pmid_with_prefix] = new_md5sum[pmid]
+            pmid_to_md5sum[pmid_with_prefix] = new_md5sum[pmid_with_prefix]
             if pmid in pmid_to_reference_id:
                 reference_id_list.append(pmid_to_reference_id[pmid])
-        elif new_md5sum[pmid] != old_md5sum[pmid]:
-            pmid_to_md5sum[pmid_with_prefix] = new_md5sum[pmid]
+        elif new_md5sum[pmid_with_prefix] != old_md5sum[pmid_with_prefix]:
+            pmid_to_md5sum[pmid_with_prefix] = new_md5sum[pmid_with_prefix]
             if pmid in pmid_to_reference_id:
                 reference_id_list.append(pmid_to_reference_id[pmid])
     return (reference_id_list, pmid_to_md5sum)
