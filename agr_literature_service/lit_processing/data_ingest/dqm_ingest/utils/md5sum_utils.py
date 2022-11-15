@@ -256,14 +256,13 @@ def load_database_md5data(mods):
 
     md5dict = {}
     mod_ids = {}
-    try:
-        db_session = create_postgres_session(False)
-        mod_results = db_session.execute("select abbreviation, mod_id from mod")
-        ids = mod_results.fetchall()
-        for id in ids:
-            mod_ids[id["abbreviation"]] = id["mod_id"]
-    except Exception as e:
-        logger.error('Error: ' + str(type(e)))
+
+    db_session = create_postgres_session(False)
+    mod_results = db_session.execute("select abbreviation, mod_id from mod")
+    ids = mod_results.fetchall()
+    for id in ids:
+        mod_ids[id["abbreviation"]] = id["mod_id"]
+
     for mod in mods:
         md5dict[mod] = {}
         if mod in mod_ids.keys():
