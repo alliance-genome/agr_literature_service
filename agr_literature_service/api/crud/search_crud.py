@@ -111,7 +111,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     else:
         del es_body["query"]["bool"]["filter"]
     if author_filter:
-        es_body["aggregations"]["authors.name.keyword"]["terms"]["include"]= ".*" + author_filter + ".*"
+        es_body["aggregations"]["authors.name.keyword"]["terms"]["include"] = ".*" + author_filter + ".*"
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
     return {
         "hits": [{"curie": ref["_source"]["curie"], "title": ref["_source"]["title"], "date_published": ref["_source"]["date_published"], "abstract": ref["_source"]["abstract"], "cross_references": ref["_source"]["cross_references"], "authors": ref["_source"]["authors"]} for ref in res["hits"]["hits"]],
