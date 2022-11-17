@@ -13,8 +13,8 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_upda
     update_data
 # from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
 #    load_s3_md5data, save_s3_md5data
-from agr_literature_service.lit_processing.utils.db_read_utils import retrieve_newly_added_pmids,\
-    retrieve_all_pmids
+from agr_literature_service.lit_processing.utils.db_read_utils import retrieve_newly_added_pmids, \
+    retrieve_all_pmids, get_mod_abbreviations
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 logging.basicConfig(format='%(message)s')
@@ -68,7 +68,7 @@ def update_all_data():  # pragma: no cover
         log.info("Error occurred when downloading the xml files from PubMed.\n" + str(e))
         return
 
-    for mod in ['WB', 'ZFIN', 'XB', 'FB', 'SGD', 'RGD', 'MGI', 'NONE']:
+    for mod in [*get_mod_abbreviations(), 'NONE']:
         if mod == 'NONE':
             log.info("Updating pubmed papers that are not associated with a mod:")
         else:

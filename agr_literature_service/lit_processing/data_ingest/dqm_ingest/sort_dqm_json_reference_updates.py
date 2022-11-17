@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import sys
 import logging.config
 import warnings
@@ -27,7 +28,7 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_upda
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.get_dqm_data import \
     download_dqm_reference_json
 from agr_literature_service.lit_processing.utils.db_read_utils import \
-    get_references_by_curies, get_curie_to_title_mapping
+    get_references_by_curies, get_curie_to_title_mapping, get_mod_abbreviations
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     add_cross_references, update_authors, update_mod_corpus_associations, \
     update_mod_reference_types
@@ -206,7 +207,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
     url_ref_curie_prefix = make_url_ref_curie_prefix()
 
     # mods = ['RGD', 'MGI', 'XB', 'SGD', 'FB', 'ZFIN', 'WB']
-    mods = ['WB', 'SGD', 'ZFIN', 'FB']
+    mods = get_mod_abbreviations()
     if input_mod in mods:
         mods = [input_mod]
 
@@ -265,7 +266,9 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
     missing_agr_in_mod = {}
 
     for mod in sorted(mods):
-
+        filename = base_dir + input_path + '/REFERENCE_' + mod + '.json'
+        if not os.path.exists(filename):
+            continue
         xrefs_to_add = dict()
         aggregate_mod_specific_fields_only = dict()
         aggregate_mod_biblio_all = dict()
@@ -275,8 +278,8 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         # report2[mod] = []
         missing_papers_in_mod[mod] = []
         missing_agr_in_mod[mod] = []
-        filename = report_file_path + mod + '_dqm_loading.log'
-        fh_mod_report.setdefault(mod, open(filename, 'w'))
+        log_filename = report_file_path + mod + '_dqm_loading.log'
+        fh_mod_report.setdefault(mod, open(log_filename, 'w'))
         references_to_create = []
         cross_reference_to_add = []
         agr_list_for_cross_refs_to_add = []
@@ -286,7 +289,6 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         logger.info("generating new md5")
         new_md5dict = generate_new_md5(input_path, [mod], base_dir=base_dir)
 
-        filename = base_dir + input_path + '/REFERENCE_' + mod + '.json'
         logger.info(f"Processing {filename}")
         dqm_data = dict()
         with open(filename, 'r') as f:
@@ -863,7 +865,7 @@ if __name__ == "__main__":
     if args['mod']:
         sort_dqm_references(dqm_path, args['mod'])
     else:
-        for mod in ['WB', 'SGD', 'ZFIN', 'FB']:
+        for mod in get_mod_abbreviations():
             logger.info("Loading Reference data from " + mod)
             sort_dqm_references(dqm_path, mod)
 
