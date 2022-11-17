@@ -179,11 +179,19 @@ def add_xref(agr: str, new_xref: Dict) -> None:
     Create xref and update the 3 dicts.
     NOTE: new_xref['resource_id'] is used to link to resource
     """
-    cr = CrossReferenceModel(**new_xref)
-    db_session.add(cr)
-    db_session.commit()
-    logger.info("Adding resource info into cross_reference table for " + new_xref['curie'])
-    update_xref_dicts(agr, new_xref['curie_prefix'], new_xref['curie'])
+
+    crossRefs = db_session.query(CrossReferenceModel).filter_by(curie=new_xref['curie']).all()
+    if len(crossRefs) > 0:
+        return
+    
+    try:
+        cr = CrossReferenceModel(**new_xref)
+        db_session.add(cr)    
+        db_session.commit()
+        logger.info("Adding resource info into cross_reference table for " + new_xref['curie'])
+        update_xref_dicts(agr, new_xref['curie_prefix'], new_xref['curie'])
+    except Exception as e:
+        logger.error(e)
 
 
 def is_obsolete(agr: str, prefix: str, identifier: str) -> bool:
