@@ -18,6 +18,7 @@ from agr_literature_service.api.crud import (cross_reference_crud,
 from agr_literature_service.api.crud.cross_reference_crud import set_curie_prefix
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.api.crud.reference_resource import create_obj
+from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                MeshDetailModel,
                                                ObsoleteReferenceModel,
@@ -251,29 +252,7 @@ def show_all_references_external_ids(db: Session):
             for reference in references_query.all()]
 
 
-def get_merged(db: Session, curie):
-    logger.debug("Looking up if '{}' is a merged entry".format(curie))
-    # Is the curie in the merged set
-    try:
-        obs_ref_cur: ObsoleteReferenceModel = db.query(ObsoleteReferenceModel).filter(
-            ObsoleteReferenceModel.curie == curie).one_or_none()
-    except Exception:
-        logger.debug("No merge data found so give error message")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Reference with the id {curie} is not available")
-
-    # If found in merge then get new reference.
-    if obs_ref_cur:
-        logger.debug("Merge found looking up the id '{}' instead now".format(obs_ref_cur.new_id))
-    try:
-        reference = db.query(ReferenceModel).filter(ReferenceModel.reference_id == obs_ref_cur.new_id).one_or_none()
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Reference with the id {curie} is not available")
-    return reference
-
-
-def show(db: Session, curie_or_reference_id: str, http_request=True):  # noqa
+def show(db: Session, curie_or_reference_id: str):  # noqa
     """
 
     :param db:
@@ -281,25 +260,7 @@ def show(db: Session, curie_or_reference_id: str, http_request=True):  # noqa
     :param http_request:
     :return:
     """
-    reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
-    reference = None
-    try:
-        reference = db.query(ReferenceModel).filter(or_(
-            ReferenceModel.curie == curie_or_reference_id,
-            ReferenceModel.reference_id == reference_id)).one()
-    except Exception:
-        if reference_id is None:
-            reference = get_merged(db, curie_or_reference_id)
-            logger.debug("Found from merged '{}'".format(reference))
-
-    if not reference:
-        logger.warning("Reference not found for {}?".format(curie_or_reference_id))
-        if http_request:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"Reference with the reference_id or curie {curie_or_reference_id} is not available")
-        else:
-            return None
-
+    reference = get_reference(db, curie_or_reference_id)
     reference_data = jsonable_encoder(reference)
     if reference.resource_id:
         reference_data["resource_curie"] = \

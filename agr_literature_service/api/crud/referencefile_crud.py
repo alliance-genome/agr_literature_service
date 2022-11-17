@@ -10,7 +10,8 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.crud.referencefile_utils import read_referencefile_db_obj_from_md5sum_or_id, \
+from agr_literature_service.api.crud.reference_utils import get_reference
+from agr_literature_service.api.crud.referencefile_utils import read_referencefile_db_obj, \
     create as create_metadata, get_s3_folder_from_md5sum
 from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection
 from agr_literature_service.api.models import ReferenceModel, ReferencefileModel
@@ -23,11 +24,13 @@ from agr_literature_service.api.schemas.response_message_schemas import messageE
 logger = logging.getLogger(__name__)
 
 
-def show(db: Session, md5sum_or_referencefile_id: str):
-    referencefile = read_referencefile_db_obj_from_md5sum_or_id(db, md5sum_or_referencefile_id)
+def get_referencefile_show_dict(db, referencefile, reference_curie: str = None):
     referencefile_dict = jsonable_encoder(referencefile)
-    referencefile_dict["reference_curie"] = db.query(ReferenceModel.curie).filter(
-        ReferenceModel.reference_id == referencefile_dict["reference_id"]).one()[0]
+    if reference_curie is None:
+        referencefile_dict["reference_curie"] = db.query(ReferenceModel.curie).filter(
+            ReferenceModel.reference_id == referencefile_dict["reference_id"]).one()[0]
+    else:
+        referencefile_dict["reference_curie"] = reference_curie
     del referencefile_dict["reference_id"]
     referencefile_dict["referencefile_mods"] = []
     if referencefile.referencefile_mods:
@@ -43,8 +46,19 @@ def show(db: Session, md5sum_or_referencefile_id: str):
     return referencefile_dict
 
 
-def patch(db: Session, md5sum_or_referencefile_id: str, request):
-    referencefile = read_referencefile_db_obj_from_md5sum_or_id(db, md5sum_or_referencefile_id)
+def show(db: Session, referencefile_id: int):
+    referencefile = read_referencefile_db_obj(db, referencefile_id)
+    return get_referencefile_show_dict(db, referencefile)
+
+
+def show_all_referencefiles(db: Session, reference_curie_or_id: str, file_class: str = None):
+    reference = get_reference(db, reference_curie_or_id)
+    return [get_referencefile_show_dict(db, referencefile) for referencefile in reference.referencefiles if
+            file_class is None or referencefile.file_class == file_class]
+
+
+def patch(db: Session, referencefile_id: int, request):
+    referencefile = read_referencefile_db_obj(db, referencefile_id)
     if "reference_curie" in request:
         res = db.query(ReferenceModel.reference_id).filter(
             ReferenceModel.curie == request.reference_curie).one_or_none()
@@ -68,10 +82,11 @@ def remove_file_from_s3(md5sum: str):
                             detail=f"File with md5sum {md5sum} is not available")
 
 
-def destroy(db: Session, md5sum_or_referencefile_id: str):
-    referencefile = read_referencefile_db_obj_from_md5sum_or_id(db, md5sum_or_referencefile_id)
-    if os.environ.get("ENV_STATE", "test") != "test":
-        remove_file_from_s3(referencefile.md5sum)
+def destroy(db: Session, referencefile_id: int):
+    referencefile = read_referencefile_db_obj(db, referencefile_id)
+    if len(referencefile.reference.referencefiles) == 1:
+        if os.environ.get("ENV_STATE", "test") != "test":
+            remove_file_from_s3(referencefile.md5sum)
     db.delete(referencefile)
     db.commit()
 
