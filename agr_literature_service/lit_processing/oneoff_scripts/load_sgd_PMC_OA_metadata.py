@@ -26,7 +26,8 @@ def load_data():
     rows = rs.fetchall()
     referencefile_loaded = {}
     for x in rows:
-        referencefile_loaded[x[2]] = (x[0], x[1])
+        # (reference_id, md5sum) => referencefile_id
+        referencefile_loaded[(x[1], x[2])] = x[0]
 
     rs = db_session.execute("SELECT referencefile_id FROM referencefile_mod WHERE mod_id is null")
     rows = rs.fetchall()
@@ -45,11 +46,8 @@ def load_data():
         md5sum = pieces[3]
         file_name_with_suffix = pieces[4]
         referencefile_id = None
-        if md5sum in referencefile_loaded:
-            (this_referencefile_id, this_reference_id) = referencefile_loaded[md5sum]
-            if this_reference_id != reference_id:
-                logger.info("PMC_OA file for PMID:" + pmid + ": " + file_name_with_suffix + " matches a file that is associated with a different paper: reference_id = " + str(this_reference_id))
-                continue
+        if (reference_id, md5sum) in referencefile_loaded:
+            this_referencefile_id = referencefile_loaded[(reference_id, md5sum)]
             referencefile_id = this_referencefile_id
             if referencefile_id in referencefile_mod_loaded:
                 continue
@@ -67,7 +65,7 @@ def load_data():
         if referencefile_id:
             insert_referencefile_mod(db_session, pmid, file_name_with_suffix,
                                      referencefile_id)
-            referencefile_loaded[md5sum] = (referencefile_id, reference_id)
+            referencefile_loaded[(reference_id, md5sum)] = referencefile_id
             referencefile_mod_loaded[referencefile_id] = 1
 
     f.close()
