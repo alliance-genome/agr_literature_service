@@ -25,7 +25,7 @@ from agr_literature_service.lit_processing.data_ingest.post_reference_to_db impo
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import \
     update_resource_pubmed_nlm
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.get_dqm_data import \
-    download_dqm_json
+    download_dqm_reference_json
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_references_by_curies, get_curie_to_title_mapping
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
@@ -209,13 +209,14 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
     env_state = environ.get('ENV_STATE', 'build')
     if env_state != 'test':
         # download the dqm file(s) from mod(s)
-        download_dqm_json()
+        download_dqm_reference_json()
         # to pull in new journal info from pubmed
         update_resource_pubmed_nlm()
     # token = get_authentication_token()
     # headers = generate_headers(token)
 
-    mods = ['RGD', 'MGI', 'XB', 'SGD', 'FB', 'ZFIN', 'WB']
+    # mods = ['RGD', 'MGI', 'XB', 'SGD', 'FB', 'ZFIN', 'WB']
+    mods = ['WB', 'SGD', 'ZFIN', 'FB']
     if input_mod in mods:
         mods = [input_mod]
 
@@ -866,12 +867,10 @@ if __name__ == "__main__":
 
     logger.info("starting sort_dqm_json_reference_updates.py")
 
-#     test_ref_xref()
-
-    if args['file']:
-        if args['mod']:
-            sort_dqm_references(args['file'], args['mod'])
-        else:
-            sort_dqm_references(args['file'], 'all')
+    dqm_path = args['file'] if args['file'] else "dqm_data"
+    if args['mod']:
+        sort_dqm_references(dqm_path, args['mod'])
+    else:
+        sort_dqm_references(dqm_path, 'all')
 
     logger.info("ending sort_dqm_json_reference_updates.py")
