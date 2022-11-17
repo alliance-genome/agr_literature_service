@@ -20,6 +20,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
     set_pmid_list, get_pmid_association_to_mod_via_reference
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import \
     update_resource_pubmed_nlm
+from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import save_database_md5data
 from agr_literature_service.api.database.main import get_db
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.utils.report_utils import send_pubmed_search_report
@@ -300,6 +301,8 @@ def query_mods(input_mod, reldate):
             # logger.info(f"upload {pmid} to s3")
             upload_xml_file_to_s3(pmid)
 
+        add_md5sum_to_database(db_session, mod, pmids_to_process)
+
         set_pmid_list(db_session, mod, pmids4mod, json_filepath)
 
     logger.info("Sending Report")
@@ -315,6 +318,19 @@ def query_mods(input_mod, reldate):
     # post_comments_corrections(list(pmids_posted))
     db_session.close()
     logger.info("end query_mods")
+
+
+def add_md5sum_to_database(db_session, mod, pmids_to_process):  # pragma: no cover
+
+    file = base_path + "pubmed_json/md5sum"
+    pmid_to_md5sum = {}
+    if path.exists(file):
+        f = open(file)
+        for line in f:
+            pieces = line.strip().split("\t")
+            pmid_to_md5sum["PMID:" + pieces[0]] = pieces[1]
+    md5dict = {"PMID": pmid_to_md5sum}
+    save_database_md5data(md5dict)
 
 
 # find pmc articles for mice and 9 journals, get pmid mappings and list of pmc without pmid
