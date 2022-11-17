@@ -46,7 +46,7 @@ def patch(db: Session, referencefile_mod_id: int, request):
 def destroy(db: Session, referencefile_mod_id: int):
     referencefile_mod = read_referencefile_mod_obj_from_db(db, referencefile_mod_id)
     if len(referencefile_mod.referencefile.referencefile_mods) == 1:
-        destroy_referencefile(db, str(referencefile_mod.referencefile.referencefile_id))
+        destroy_referencefile(db, referencefile_mod.referencefile.referencefile_id)
     else:
         db.delete(referencefile_mod)
     db.commit()
