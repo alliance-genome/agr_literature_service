@@ -205,16 +205,6 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 
     url_ref_curie_prefix = make_url_ref_curie_prefix()
 
-    # download the dqm file(s) from mod(s)
-    env_state = environ.get('ENV_STATE', 'build')
-    if env_state != 'test':
-        # download the dqm file(s) from mod(s)
-        download_dqm_reference_json()
-        # to pull in new journal info from pubmed
-        update_resource_pubmed_nlm()
-    # token = get_authentication_token()
-    # headers = generate_headers(token)
-
     # mods = ['RGD', 'MGI', 'XB', 'SGD', 'FB', 'ZFIN', 'WB']
     mods = ['WB', 'SGD', 'ZFIN', 'FB']
     if input_mod in mods:
@@ -292,10 +282,6 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         agr_list_for_cross_refs_to_add = []
         logger.info("loading old md5")
         old_md5dict = load_database_md5data([mod])
-
-#         print("old_md5dict")
-#         db_entry_text = json.dumps(old_md5dict, indent=4, sort_keys=True)
-#         print(db_entry_text)
 
         logger.info("generating new md5")
         new_md5dict = generate_new_md5(input_path, [mod], base_dir=base_dir)
@@ -867,10 +853,18 @@ if __name__ == "__main__":
 
     logger.info("starting sort_dqm_json_reference_updates.py")
 
+    # download the dqm file(s) from mod(s)
+    env_state = environ.get('ENV_STATE', 'build')
+    if env_state != 'test':
+        download_dqm_reference_json()
+        update_resource_pubmed_nlm()
+
     dqm_path = args['file'] if args['file'] else "dqm_data"
     if args['mod']:
         sort_dqm_references(dqm_path, args['mod'])
     else:
-        sort_dqm_references(dqm_path, 'all')
+        for mod in ['WB', 'SGD', 'ZFIN', 'FB']:
+            logger.info("Loading Reference data from " + mod)
+            sort_dqm_references(dqm_path, mod)
 
     logger.info("ending sort_dqm_json_reference_updates.py")
