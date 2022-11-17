@@ -34,8 +34,6 @@ class TestReferencefile:
         with TestClient(app) as client:
             response = client.get(url=f"/reference/referencefile/{test_referencefile}")
             assert response.status_code == status.HTTP_200_OK
-            response2 = client.get(url="/reference/referencefile/1234567890")
-            assert response2.status_code == status.HTTP_200_OK
 
     def test_patch_referencefile(self, db, test_referencefile, auth_headers): # noqa
         patch_referencefile = {

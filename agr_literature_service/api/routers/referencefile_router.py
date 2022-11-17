@@ -1,7 +1,7 @@
 import json
 import logging
 from json import JSONDecodeError
-from typing import Union
+from typing import Union, List
 
 from fastapi import APIRouter, Depends, Security, status, File, UploadFile, HTTPException, Response
 from fastapi_okta import OktaUser
@@ -122,17 +122,6 @@ def delete(referencefile_id: int,
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get('/get_all_referencefiles/{reference_curie_or_id}',
-            status_code=status.HTTP_200_OK)
-def show_all_referencefiles(reference_curie_or_id: str,
-                            file_class: str = None,
-                            user: OktaUser = db_user,
-                            db: Session = db_session):
-    set_global_user_from_okta(db, user)
-    return referencefile_crud.show_all_referencefiles(db, reference_curie_or_id, file_class)
-
-
-
 @router.get('/{referencefile_id}',
             status_code=status.HTTP_200_OK,
             response_model=ReferencefileSchemaShow)
@@ -144,7 +133,7 @@ def show(referencefile_id: int,
 @router.patch('/{referencefile_id}',
               status_code=status.HTTP_202_ACCEPTED,
               response_model=ResponseMessageSchema)
-def patch(referencefile_id: str,
+def patch(referencefile_id: int,
           request: ReferencefileSchemaUpdate,
           user: OktaUser = db_user,
           db: Session = db_session):
