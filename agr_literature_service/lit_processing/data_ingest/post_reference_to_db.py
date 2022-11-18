@@ -66,7 +66,8 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
     for entry in json_data:
 
         primaryId = set_primaryId(entry)
-        crossRef = db_session.query(CrossReferenceModel).filter_by(curie=primaryId).one_or_none()
+        crossRef = db_session.query(CrossReferenceModel).filter_by(
+            curie=primaryId, is_obsolete=False).one_or_none()
         if crossRef:
             continue
 
