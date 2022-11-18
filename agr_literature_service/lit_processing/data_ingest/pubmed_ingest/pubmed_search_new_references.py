@@ -17,7 +17,7 @@ from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     check_handle_duplicate, add_mca_to_existing_references
 from agr_literature_service.lit_processing.utils.db_read_utils import \
-    set_pmid_list, get_pmid_association_to_mod_via_reference
+    set_pmid_list, get_pmid_association_to_mod_via_reference, get_mod_abbreviations
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import \
     update_resource_pubmed_nlm
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import save_database_md5data
@@ -193,7 +193,7 @@ def query_mods(input_mod, reldate):
     db_session = next(get_db())
     scriptNm = path.basename(__file__).replace(".py", "")
     set_global_user_id(db_session, scriptNm)
-    mods_to_query = ['ZFIN', 'WB', 'FB', 'SGD', 'XB']
+    mods_to_query = get_mod_abbreviations()
     if input_mod in mods_to_query:
         mods_to_query = [input_mod]
     pmids_posted = set()     # type: Set
@@ -202,7 +202,7 @@ def query_mods(input_mod, reldate):
     not_loaded_pmids4mod = {}
     pmids4mod = {}
     pmids4mod['all'] = set()
-    for mod in mods_to_query:
+    for mod in [mod for mod in mods_to_query if mod in mod_esearch_url]:
         pmids4mod[mod] = set()
         logger.info(f"Processing {mod}")
         fp_pmids = set()     # type: Set
