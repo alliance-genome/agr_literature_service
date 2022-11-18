@@ -133,5 +133,5 @@ def show_file_url(db: Session, referencefile_id: int, mod: str):
         return create_presigned_url(s3_client=client, bucket_name="agr-literature", object_name=object_name,
                                     expiration=60)
     else:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                             detail="The current user does not have permissions to get the requested file url")
