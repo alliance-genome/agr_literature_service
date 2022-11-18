@@ -1,6 +1,5 @@
 import argparse
 import json
-import os
 import sys
 import logging.config
 import warnings
@@ -206,7 +205,6 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 
     url_ref_curie_prefix = make_url_ref_curie_prefix()
 
-    # mods = ['RGD', 'MGI', 'XB', 'SGD', 'FB', 'ZFIN', 'WB']
     mods = get_mod_abbreviations()
     if input_mod in mods:
         mods = [input_mod]
@@ -267,7 +265,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 
     for mod in sorted(mods):
         filename = base_dir + input_path + '/REFERENCE_' + mod + '.json'
-        if not os.path.exists(filename):
+        if not path.exists(filename):
             continue
         xrefs_to_add = dict()
         aggregate_mod_specific_fields_only = dict()
@@ -866,7 +864,6 @@ if __name__ == "__main__":
         sort_dqm_references(dqm_path, args['mod'])
     else:
         for mod in get_mod_abbreviations():
-            logger.info("Loading Reference data from " + mod)
             sort_dqm_references(dqm_path, mod)
 
     logger.info("ending sort_dqm_json_reference_updates.py")
