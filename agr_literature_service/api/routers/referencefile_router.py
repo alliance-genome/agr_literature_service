@@ -112,30 +112,41 @@ def file_upload(reference_curie: str = None,
     return referencefile_crud.file_upload(db, metadata, file)
 
 
-@router.delete('/file_delete/{md5sum}',
-               status_code=status.HTTP_204_NO_CONTENT)
-def file_delete(md5sum: str,
-                user: OktaUser = db_user,
-                db: Session = db_session):
+@router.get('/file_url/{referencefile_id}',
+            status_code=status.HTTP_200_OK,
+            response_model=str)
+def show_file_url(referencefile_id: int,
+                  user: OktaUser = db_user,
+                  db: Session = db_session):
     set_global_user_from_okta(db, user)
-    referencefile_crud.destroy(db, md5sum)
+    # TODO: get user mod
+    return referencefile_crud.show_file_url(db, referencefile_id, "SGD")
+
+
+@router.delete('/{referencefile_id}',
+               status_code=status.HTTP_204_NO_CONTENT)
+def delete(referencefile_id: int,
+           user: OktaUser = db_user,
+           db: Session = db_session):
+    set_global_user_from_okta(db, user)
+    referencefile_crud.destroy(db, referencefile_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get('/{md5sum_or_referencefile_id}',
+@router.get('/{referencefile_id}',
             status_code=status.HTTP_200_OK,
             response_model=ReferencefileSchemaShow)
-def show(md5sum_or_referencefile_id: str,
+def show(referencefile_id: int,
          db: Session = db_session):
-    return referencefile_crud.show(db, md5sum_or_referencefile_id)
+    return referencefile_crud.show(db, referencefile_id)
 
 
-@router.patch('/{md5sum_or_referencefile_id}',
+@router.patch('/{referencefile_id}',
               status_code=status.HTTP_202_ACCEPTED,
               response_model=ResponseMessageSchema)
-def patch(md5sum_or_referencefile_id: str,
+def patch(referencefile_id: int,
           request: ReferencefileSchemaUpdate,
           user: OktaUser = db_user,
           db: Session = db_session):
     set_global_user_from_okta(db, user)
-    return referencefile_crud.patch(db, md5sum_or_referencefile_id, request.dict(exclude_unset=True))
+    return referencefile_crud.patch(db, referencefile_id, request.dict(exclude_unset=True))

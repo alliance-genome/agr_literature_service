@@ -10,11 +10,12 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.crud.referencefile_utils import read_referencefile_db_obj_from_md5sum_or_id, \
+from agr_literature_service.api.crud.referencefile_utils import read_referencefile_db_obj, \
     create as create_metadata, get_s3_folder_from_md5sum
 from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection
 from agr_literature_service.api.models import ReferenceModel, ReferencefileModel
 from agr_literature_service.api.s3.delete import delete_file_in_bucket
+from agr_literature_service.api.s3.download import create_presigned_url
 from agr_literature_service.api.s3.upload import upload_file_to_bucket
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost
@@ -23,8 +24,8 @@ from agr_literature_service.api.schemas.response_message_schemas import messageE
 logger = logging.getLogger(__name__)
 
 
-def show(db: Session, md5sum_or_referencefile_id: str):
-    referencefile = read_referencefile_db_obj_from_md5sum_or_id(db, md5sum_or_referencefile_id)
+def show(db: Session, referencefile_id: int):
+    referencefile = read_referencefile_db_obj(db, referencefile_id)
     referencefile_dict = jsonable_encoder(referencefile)
     referencefile_dict["reference_curie"] = db.query(ReferenceModel.curie).filter(
         ReferenceModel.reference_id == referencefile_dict["reference_id"]).one()[0]
@@ -43,8 +44,8 @@ def show(db: Session, md5sum_or_referencefile_id: str):
     return referencefile_dict
 
 
-def patch(db: Session, md5sum_or_referencefile_id: str, request):
-    referencefile = read_referencefile_db_obj_from_md5sum_or_id(db, md5sum_or_referencefile_id)
+def patch(db: Session, referencefile_id: int, request):
+    referencefile = read_referencefile_db_obj(db, referencefile_id)
     if "reference_curie" in request:
         res = db.query(ReferenceModel.reference_id).filter(
             ReferenceModel.curie == request.reference_curie).one_or_none()
@@ -68,10 +69,11 @@ def remove_file_from_s3(md5sum: str):
                             detail=f"File with md5sum {md5sum} is not available")
 
 
-def destroy(db: Session, md5sum_or_referencefile_id: str):
-    referencefile = read_referencefile_db_obj_from_md5sum_or_id(db, md5sum_or_referencefile_id)
-    if os.environ.get("ENV_STATE", "test") != "test":
-        remove_file_from_s3(referencefile.md5sum)
+def destroy(db: Session, referencefile_id: int):
+    referencefile = read_referencefile_db_obj(db, referencefile_id)
+    if len(referencefile.reference.referencefiles) == 1:
+        if os.environ.get("ENV_STATE", "test") != "test":
+            remove_file_from_s3(referencefile.md5sum)
     db.delete(referencefile)
     db.commit()
 
@@ -119,3 +121,17 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):
                                   object_name=md5sum + ".gz", ExtraArgs={'StorageClass': 'GLACIER_IR'})
         os.remove(temp_file_name)
     return md5sum
+
+
+def show_file_url(db: Session, referencefile_id: int, mod: str):
+    referencefile = read_referencefile_db_obj(db, referencefile_id)
+    if any(ref_file_mod.mod.abbreviation == mod for ref_file_mod in referencefile.referencefile_mods):
+        md5sum = referencefile.md5sum
+        folder = get_s3_folder_from_md5sum(md5sum)
+        object_name = folder + "/" + md5sum + ".gz"
+        client = boto3.client('s3')
+        return create_presigned_url(s3_client=client, bucket_name="agr-literature", object_name=object_name,
+                                    expiration=60)
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="The current user does not have permissions to get the requested file url")
