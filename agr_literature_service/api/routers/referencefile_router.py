@@ -112,6 +112,17 @@ def file_upload(reference_curie: str = None,
     return referencefile_crud.file_upload(db, metadata, file)
 
 
+@router.get('/file_url/{referencefile_id}',
+            status_code=status.HTTP_200_OK,
+            response_model=str)
+def show_file_url(referencefile_id: int,
+                  user: OktaUser = db_user,
+                  db: Session = db_session):
+    set_global_user_from_okta(db, user)
+    # TODO: get user mod
+    return referencefile_crud.show_file_url(db, referencefile_id, "SGD")
+
+
 @router.delete('/{referencefile_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def delete(referencefile_id: int,

@@ -1,3 +1,5 @@
+import logging
+
 from botocore.exceptions import ClientError
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
@@ -8,6 +10,8 @@ from agr_literature_service.api.config import config
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 init_tmp_dir()
+
+logger = logging.getLogger(__name__)
 
 
 def download_file_from_bucket(s3_client, bucket, folder, object_name=None):
@@ -59,3 +63,20 @@ def get_json_file(mod, json_file=None):
 
     file_with_path = getcwd() + "/" + json_file
     return FileResponse(path=file_with_path, filename=json_file, media_type='application/gzip')
+
+
+def create_presigned_url(s3_client, bucket_name, object_name, expiration=3600):
+    """Generate a presigned URL to share an S3 object"""
+
+    # Generate a presigned URL for the S3 object
+    try:
+        response = s3_client.generate_presigned_url('get_object',
+                                                    Params={'Bucket': bucket_name,
+                                                            'Key': object_name},
+                                                    ExpiresIn=expiration)
+    except ClientError as e:
+        logger.error(e)
+        return None
+
+    # The response contains the presigned URL
+    return response
