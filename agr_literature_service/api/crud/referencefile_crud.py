@@ -125,7 +125,8 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):
 
 def show_file_url(db: Session, referencefile_id: int, mod: str):
     referencefile = read_referencefile_db_obj(db, referencefile_id)
-    if any(ref_file_mod.mod.abbreviation == mod for ref_file_mod in referencefile.referencefile_mods):
+    if any(ref_file_mod.mod.abbreviation == mod if ref_file_mod.mod is not None else True for ref_file_mod in
+           referencefile.referencefile_mods):
         md5sum = referencefile.md5sum
         folder = get_s3_folder_from_md5sum(md5sum)
         object_name = folder + "/" + md5sum + ".gz"
