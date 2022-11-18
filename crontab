@@ -3,3 +3,5 @@ BASH_ENV=/container.env
 0 4 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_export/export_all_mod_references_to_json.py >> /var/log/automated_scripts/export_all_mod_references_to_json.log 2>&1
 0 7 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_search_new_references.py >> /var/log/automated_scripts/pubmed_search_new_references.log 2>&1
 0 10 * * 6 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_all_mods.py >> /var/log/automated_scripts/pubmed_update_references_all_mods.log 2>&1
+0 7 * * 7 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/dqm_ingest/load_dqm_resource.py > /var/log/automated_scripts/load_dqm_resource.log 2>&1
+0 9 * * 7 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/dqm_ingest/sort_dqm_json_reference_update.py > /var/log/automated_scripts/sort_dqm_json_reference_update.log 2>&1
