@@ -2,7 +2,6 @@ import logging
 from os import environ
 
 from fastapi import HTTPException, status
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import ReferencefileModel, ReferenceModel, ModModel

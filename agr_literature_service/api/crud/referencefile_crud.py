@@ -135,4 +135,3 @@ def show_file_url(db: Session, referencefile_id: int, mod: str):
     else:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="The current user does not have permissions to get the requested file url")
-

@@ -1,7 +1,7 @@
 import json
 import logging
 from json import JSONDecodeError
-from typing import Union, List
+from typing import Union
 
 from fastapi import APIRouter, Depends, Security, status, File, UploadFile, HTTPException, Response
 from fastapi_okta import OktaUser

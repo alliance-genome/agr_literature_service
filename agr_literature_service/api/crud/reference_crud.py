@@ -184,7 +184,7 @@ def destroy(db: Session, curie_or_reference_id: str):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie or reference_id {curie_or_reference_id} not found")
     for referencefile in reference.referencefiles:
-        destroy_referencefile(db, str(referencefile.referencefile_id))
+        destroy_referencefile(db, referencefile.referencefile_id)
     db.delete(reference)
     db.commit()
 

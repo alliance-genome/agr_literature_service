@@ -28,7 +28,7 @@ def show(db: Session, referencefile_mod_id):
 def patch(db: Session, referencefile_mod_id: int, request):
     referencefile_mod = read_referencefile_mod_obj_from_db(db, referencefile_mod_id)
     if "referencefile_id" in request:
-        if read_referencefile_db_obj(db, str(request["referencefile_id"])):
+        if read_referencefile_db_obj(db, request["referencefile_id"]):
             referencefile_mod.referencefile_id = request["referencefile_id"]
     if "mod_abbreviation" in request:
         if request["mod_abbreviation"] is not None:
