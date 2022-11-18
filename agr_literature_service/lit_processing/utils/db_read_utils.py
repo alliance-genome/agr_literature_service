@@ -4,7 +4,7 @@ from typing import Dict, Tuple, Union
 from datetime import datetime, timedelta
 import json
 
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, Session
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
@@ -542,3 +542,9 @@ def get_mod_reference_type_data_for_ref_ids(db_session, ref_ids):
         reference_id_to_mod_reference_types[reference_id] = data
 
     return reference_id_to_mod_reference_types
+
+
+def get_mod_abbreviations(db_session: Session = None):
+    if db_session is None:
+        db_session = create_postgres_session(False)
+    return [res[0] for res in db_session.query(ModModel.abbreviation).filter(ModModel.abbreviation != 'GO').all()]

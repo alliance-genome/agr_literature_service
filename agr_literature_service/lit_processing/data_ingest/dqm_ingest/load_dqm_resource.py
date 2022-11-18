@@ -13,7 +13,7 @@ from agr_literature_service.lit_processing.utils.resource_reference_utils import
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import \
     update_resource_pubmed_nlm
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.get_dqm_data import \
-    download_dqm_json
+    download_dqm_resource_json
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_resource_update_utils import (
     process_single_resource,
     PROCESSED_NEW,
@@ -170,7 +170,7 @@ if __name__ == "__main__":
     base_path = environ.get('XML_PATH', "")
 
     logger.info("Downloading DQM files...")
-    download_dqm_json()
+    download_dqm_resource_json()
 
     logger.info("Starting PubMed NLM resource update...")
     update_resource_pubmed_nlm()

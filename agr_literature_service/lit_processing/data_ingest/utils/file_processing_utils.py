@@ -1,5 +1,9 @@
 import json
 import logging
+import tarfile
+import gzip
+import shutil
+from urllib import request
 from os import environ
 
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
@@ -78,3 +82,40 @@ def write_json(json_filename, dict_to_output):
 def chunks(list, size):
     for i in range(0, len(list), size):
         yield list[i:i + size]
+
+
+def download_file(url, file):
+
+    try:
+        logger.info("Downloading " + url)
+        req = request.urlopen(url)
+        data = req.read()
+        with open(file, 'wb') as fh:
+            fh.write(data)
+    except Exception as e:
+        logger.error("Error downloading the file: " + file + ". Error=" + str(e))
+
+
+def gunzip_file(file_with_path, to_file_dir):
+
+    try:
+        file = tarfile.open(file_with_path)
+        file.extractall(to_file_dir)
+        return True
+    except Exception as e:
+        logger.error(e)
+        return False
+
+
+def gzip_file(file_with_path):
+
+    gzip_file_with_path = None
+    try:
+        gzip_file_with_path = file_with_path + ".gz"
+        with open(file_with_path, 'rb') as f_in, gzip.open(gzip_file_with_path, 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
+    except Exception as e:
+        logging.error(e)
+        gzip_file_with_path = None
+
+    return gzip_file_with_path

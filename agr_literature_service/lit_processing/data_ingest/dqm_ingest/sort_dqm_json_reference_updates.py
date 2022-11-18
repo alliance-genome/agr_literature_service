@@ -25,9 +25,9 @@ from agr_literature_service.lit_processing.data_ingest.post_reference_to_db impo
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import \
     update_resource_pubmed_nlm
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.get_dqm_data import \
-    download_dqm_json
+    download_dqm_reference_json
 from agr_literature_service.lit_processing.utils.db_read_utils import \
-    get_references_by_curies, get_curie_to_title_mapping
+    get_references_by_curies, get_curie_to_title_mapping, get_mod_abbreviations
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     add_cross_references, update_authors, update_mod_corpus_associations, \
     update_mod_reference_types
@@ -205,17 +205,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 
     url_ref_curie_prefix = make_url_ref_curie_prefix()
 
-    # download the dqm file(s) from mod(s)
-    env_state = environ.get('ENV_STATE', 'build')
-    if env_state != 'test':
-        # download the dqm file(s) from mod(s)
-        download_dqm_json()
-        # to pull in new journal info from pubmed
-        update_resource_pubmed_nlm()
-    # token = get_authentication_token()
-    # headers = generate_headers(token)
-
-    mods = ['RGD', 'MGI', 'XB', 'SGD', 'FB', 'ZFIN', 'WB']
+    mods = get_mod_abbreviations()
     if input_mod in mods:
         mods = [input_mod]
 
@@ -274,7 +264,9 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
     missing_agr_in_mod = {}
 
     for mod in sorted(mods):
-
+        filename = base_dir + input_path + '/REFERENCE_' + mod + '.json'
+        if not path.exists(filename):
+            continue
         xrefs_to_add = dict()
         aggregate_mod_specific_fields_only = dict()
         aggregate_mod_biblio_all = dict()
@@ -284,22 +276,17 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         # report2[mod] = []
         missing_papers_in_mod[mod] = []
         missing_agr_in_mod[mod] = []
-        filename = report_file_path + mod + '_dqm_loading.log'
-        fh_mod_report.setdefault(mod, open(filename, 'w'))
+        log_filename = report_file_path + mod + '_dqm_loading.log'
+        fh_mod_report.setdefault(mod, open(log_filename, 'w'))
         references_to_create = []
         cross_reference_to_add = []
         agr_list_for_cross_refs_to_add = []
         logger.info("loading old md5")
         old_md5dict = load_database_md5data([mod])
 
-#         print("old_md5dict")
-#         db_entry_text = json.dumps(old_md5dict, indent=4, sort_keys=True)
-#         print(db_entry_text)
-
         logger.info("generating new md5")
         new_md5dict = generate_new_md5(input_path, [mod], base_dir=base_dir)
 
-        filename = base_dir + input_path + '/REFERENCE_' + mod + '.json'
         logger.info(f"Processing {filename}")
         dqm_data = dict()
         with open(filename, 'r') as f:
@@ -866,12 +853,17 @@ if __name__ == "__main__":
 
     logger.info("starting sort_dqm_json_reference_updates.py")
 
-#     test_ref_xref()
+    # download the dqm file(s) from mod(s)
+    env_state = environ.get('ENV_STATE', 'build')
+    if env_state != 'test':
+        download_dqm_reference_json()
+        update_resource_pubmed_nlm()
 
-    if args['file']:
-        if args['mod']:
-            sort_dqm_references(args['file'], args['mod'])
-        else:
-            sort_dqm_references(args['file'], 'all')
+    dqm_path = args['file'] if args['file'] else "dqm_data"
+    if args['mod']:
+        sort_dqm_references(dqm_path, args['mod'])
+    else:
+        for mod in get_mod_abbreviations():
+            sort_dqm_references(dqm_path, mod)
 
     logger.info("ending sort_dqm_json_reference_updates.py")
