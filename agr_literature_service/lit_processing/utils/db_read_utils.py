@@ -562,9 +562,7 @@ def get_pmid_list_without_pmc_package(mods, db_session=None):
                               "WHERE rfm.mod_id is null "
                               "AND rf.referencefile_id = rfm.referencefile_id ").fetchall()
 
-    reference_ids_with_PMC = {}
-    for x in rows:
-        reference_ids_with_PMC[x[0]] = 1
+    reference_ids_with_PMC = {x[0] for x in rows}
 
     pmids = []
 
