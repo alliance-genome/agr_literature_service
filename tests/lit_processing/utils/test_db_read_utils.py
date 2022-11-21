@@ -3,8 +3,7 @@ from agr_literature_service.api.models import ReferenceModel, CrossReferenceMode
     ReferencefileModel
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_references_by_curies, get_curie_to_title_mapping, \
-    get_pmid_list_without_pmc_package, get_referencefile_rows, \
-    get_referencefile_mod_rows, get_pmid_to_reference_id_mapping
+    get_pmid_list_without_pmc_package, get_pmid_to_reference_id_mapping
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     insert_referencefile, insert_referencefile_mod_for_pmc
 from ...fixtures import db, load_sanitized_references, populate_test_mod_reference_types # noqa
@@ -60,13 +59,6 @@ class TestDbReadUtils:
 
         pmids = get_pmid_list_without_pmc_package(['ZFIN'], db)
         assert pmids == ['34354223', '35151207']
-
-        (referencefile_loaded, reference_id_file_name) = get_referencefile_rows(db)
-        assert referencefile_loaded[(reference_id, md5sum)] == referencefile_id
-        assert reference_id_file_name[(reference_id, file_name_with_suffix)] == 1
-
-        referencefile_mod_loaded = get_referencefile_mod_rows(db)
-        assert referencefile_mod_loaded[referencefile_id] == 1
 
         pmid_to_reference_id = get_pmid_to_reference_id_mapping(db)
         assert pmid_to_reference_id.get(pmid) == reference_id

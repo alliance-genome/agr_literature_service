@@ -10,7 +10,7 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_u
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
     download_file, gunzip_file, gzip_file
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.load_pmc_metadata import \
-    load_data
+    load_ref_file_metadata_into_db
 
 load_dotenv()
 
@@ -49,7 +49,7 @@ def download_pmc_files(mapping_file):  # pragma: no cover
 
     logger.info("Loading the metadata into database...")
 
-    load_data()
+    load_ref_file_metadata_into_db()
 
 
 def upload_suppl_files_to_s3():  # pragma: no cover

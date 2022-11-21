@@ -588,33 +588,11 @@ def get_pmid_list_without_pmc_package(mods, db_session=None):
     return pmids
 
 
-def get_referencefile_rows(db_session):
-
-    referencefile_loaded = {}
-    reference_id_file_name = {}
-    rows = db_session.execute("SELECT referencefile_id, reference_id, md5sum, display_name, file_extension FROM referencefile").fetchall()
-    for x in rows:
-        referencefile_loaded[(x["reference_id"], x["md5sum"])] = x["referencefile_id"]
-        file_name = x["display_name"] + "." + x["file_extension"]
-        reference_id_file_name[(x["reference_id"], file_name)] = 1
-
-    return (referencefile_loaded, reference_id_file_name)
-
-
-def get_referencefile_mod_rows(db_session):
-
-    referencefile_mod_loaded = {}
-    rows = db_session.execute("SELECT referencefile_id FROM referencefile_mod WHERE mod_id is null").fetchall()
-    for x in rows:
-        referencefile_mod_loaded[x["referencefile_id"]] = 1
-
-    return referencefile_mod_loaded
-
-
 def get_pmid_to_reference_id_mapping(db_session):
 
     pmid_to_reference_id = {}
-    rows = db_session.execute("SELECT curie, reference_id FROM cross_reference WHERE curie_prefix = 'PMID' and is_obsolete = False").fetchall()
+    rows = db_session.execute("SELECT curie, reference_id FROM cross_reference WHERE curie_prefix = 'PMID' and "
+                              "is_obsolete = False").fetchall()
     for x in rows:
         pmid = x["curie"].replace("PMID:", "")
         pmid_to_reference_id[pmid] = x["reference_id"]
