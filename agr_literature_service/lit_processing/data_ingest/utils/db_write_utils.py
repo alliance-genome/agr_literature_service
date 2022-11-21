@@ -8,7 +8,8 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_reference_id_by_curie, get_reference_id_by_pmid
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceCommentAndCorrectionModel, \
-    MeshDetailModel, ReferenceModReferencetypeAssociationModel
+    MeshDetailModel, ReferenceModReferencetypeAssociationModel, \
+    ReferencefileModel, ReferencefileModAssociationModel
 
 batch_size_for_commit = 250
 
@@ -661,3 +662,45 @@ def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_
 
         update_log['pmcid'] = update_log['pmcid'] + 1
         update_log['pmids_updated'].append(pmid)
+
+
+def insert_referencefile_mod_for_pmc(db_session, pmid, file_name_with_suffix, referencefile_id, logger):
+
+    try:
+        x = ReferencefileModAssociationModel(referencefile_id=referencefile_id)
+        db_session.add(x)
+        logger.info("PMID:" + pmid + ": pmc oa file = " + file_name_with_suffix + ": loaded into Referencefile_mod table")
+    except Exception as e:
+        logger.info("PMID:" + pmid + ": pmc oa file = " + file_name_with_suffix + ": an error occurred when loading data into Referencefile_modtable: " + str(e))
+
+
+def insert_referencefile(db_session, pmid, file_class, file_publication_status, file_name_with_suffix, reference_id, md5sum, logger):
+
+    file_extension = file_name_with_suffix.split(".")[-1].lower()
+    display_name = file_name_with_suffix.replace("." + file_extension, "")
+    pdf_type = None
+    if file_extension == 'pdf':
+        pdf_type = 'pdf'
+
+    logger.info(file_name_with_suffix + " | " + display_name + " | " + file_extension + " | " + str(pdf_type))
+
+    referencefile_id = None
+
+    try:
+        x = ReferencefileModel(display_name=display_name,
+                               reference_id=reference_id,
+                               md5sum=md5sum,
+                               file_class=file_class,
+                               file_publication_status=file_publication_status,
+                               file_extension=file_extension,
+                               pdf_type=pdf_type,
+                               is_annotation=False)
+        db_session.add(x)
+        db_session.flush()
+        db_session.refresh(x)
+        referencefile_id = x.referencefile_id
+        logger.info("PMID:" + pmid + ": pmc oa file = " + file_name_with_suffix + ": loaded into Referencefile table")
+    except Exception as e:
+        logger.info("PMID:" + pmid + ": pmc oa file = " + file_name_with_suffix + " an error occurred when loading data into Referencefile table. error: " + str(e))
+
+    return referencefile_id
