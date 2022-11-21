@@ -555,7 +555,7 @@ def get_pmid_list_without_pmc_package(mods, db_session=None):
     if db_session is None:
         db_session = create_postgres_session(False)
 
-    mod_to_mod_id = dict([(x.abbreviation, x.mod_id) for x in db_session.query(ModModel).all()])
+    mod_to_mod_id = {x.abbreviation: x.mod_id for x in db_session.query(ModModel).all()}
 
     rows = db_session.execute("SELECT distinct rf.reference_id "
                               "FROM referencefile rf, referencefile_mod rfm "
