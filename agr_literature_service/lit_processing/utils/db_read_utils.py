@@ -614,7 +614,7 @@ def get_referencefile_mod_rows(db_session):
 def get_pmid_to_reference_id_mapping(db_session):
 
     pmid_to_reference_id = {}
-    rows = db_session.execute("SELECT curie, reference_id FROM cross_reference WHERE curie_prefix = 'PMID'").fetchall()
+    rows = db_session.execute("SELECT curie, reference_id FROM cross_reference WHERE curie_prefix = 'PMID' and is_obsolete = False").fetchall()
     for x in rows:
         pmid = x["curie"].replace("PMID:", "")
         pmid_to_reference_id[pmid] = x["reference_id"]
