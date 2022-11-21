@@ -5,7 +5,7 @@ import sys
 import urllib.request
 from os import environ, makedirs, path
 from typing import List, Set
-from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import load_s3_md5data, save_s3_md5data, generate_md5sum_from_dict
+from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import generate_md5sum_from_dict
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import month_name_to_number_string
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
@@ -200,7 +200,7 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
     if not path.exists(json_storage_path):
         makedirs(json_storage_path)
 
-    md5dict = load_s3_md5data(['PMID'])
+    # md5dict = load_s3_md5data(['PMID'])
 
     new_pmids_set = set()
     ref_types_set = set()
@@ -617,10 +617,10 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
             json_filename = json_storage_path + pmid + '.json'
             write_json(json_filename, data_dict)
             md5sum = generate_md5sum_from_dict(data_dict)
-            md5dict['PMID'][pmid] = md5sum
+            # md5dict['PMID'][pmid] = md5sum
             md5data += pmid + "\t" + md5sum + "\n"
 
-    save_s3_md5data(md5dict, ['PMID'])
+    # save_s3_md5data(md5dict, ['PMID'])
 
     md5file = json_storage_path + 'md5sum'
     logger.info("Writing md5sum mappings to %s", md5file)
