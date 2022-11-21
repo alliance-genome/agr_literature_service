@@ -548,3 +548,51 @@ def get_mod_abbreviations(db_session: Session = None):
     if db_session is None:
         db_session = create_postgres_session(False)
     return [res[0] for res in db_session.query(ModModel.abbreviation).filter(ModModel.abbreviation != 'GO').all()]
+
+
+def get_pmid_list_without_pmc_package(mods, db_session=None):
+
+    if db_session is None:
+        db_session = create_postgres_session(False)
+
+    mod_to_mod_id = {x.abbreviation: x.mod_id for x in db_session.query(ModModel).all()}
+
+    rows = db_session.execute("SELECT distinct rf.reference_id "
+                              "FROM referencefile rf, referencefile_mod rfm "
+                              "WHERE rfm.mod_id is null "
+                              "AND rf.referencefile_id = rfm.referencefile_id ").fetchall()
+
+    reference_ids_with_PMC = {x[0] for x in rows}
+
+    pmids = []
+
+    for mod in mods:
+
+        mod_id = mod_to_mod_id[mod]
+
+        rows = db_session.execute(f"SELECT cr.reference_id, cr.curie "
+                                  f"FROM cross_reference cr, mod_corpus_association mca "
+                                  f"WHERE cr.curie_prefix = 'PMID' "
+                                  f"AND cr.is_obsolete is False "
+                                  f"AND cr.reference_id = mca.reference_id "
+                                  f"AND mca.corpus is True "
+                                  f"AND mca.mod_id = {mod_id} ").fetchall()
+        for x in rows:
+            if x["reference_id"] not in reference_ids_with_PMC:
+                pmid = x["curie"].replace("PMID:", "")
+                if pmid not in pmids:
+                    pmids.append(pmid)
+
+    return pmids
+
+
+def get_pmid_to_reference_id_mapping(db_session):
+
+    pmid_to_reference_id = {}
+    rows = db_session.execute("SELECT curie, reference_id FROM cross_reference WHERE curie_prefix = 'PMID' and "
+                              "is_obsolete = False").fetchall()
+    for x in rows:
+        pmid = x["curie"].replace("PMID:", "")
+        pmid_to_reference_id[pmid] = x["reference_id"]
+
+    return pmid_to_reference_id

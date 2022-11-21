@@ -22,8 +22,8 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import \
     generate_json
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import \
-    update_resource_pubmed_nlm
+# from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import \
+#    update_resource_pubmed_nlm
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.get_dqm_data import \
     download_dqm_reference_json
 from agr_literature_service.lit_processing.utils.db_read_utils import \
@@ -857,7 +857,7 @@ if __name__ == "__main__":
     env_state = environ.get('ENV_STATE', 'build')
     if env_state != 'test':
         download_dqm_reference_json()
-        update_resource_pubmed_nlm()
+        # update_resource_pubmed_nlm()
 
     dqm_path = args['file'] if args['file'] else "dqm_data"
     if args['mod']:
