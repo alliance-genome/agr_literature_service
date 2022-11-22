@@ -14,7 +14,7 @@ from fastapi import HTTPException, status
 def search_references(query: str = None, facets_values: Dict[str, List[str]] = None,
                       size_result_count: Optional[int] = 10, page: Optional[int] = 0,
                       facets_limits: Dict[str, int] = None, return_facets_only: bool = False,
-                      author_filter: Optional[str] = None):
+                      author_filter: Optional[str] = None, published_filter: Optional[Dict[str,str]] = None):
     if query is None and facets_values is None and not return_facets_only:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="requested a search but no query and no facets provided")
@@ -112,6 +112,15 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         del es_body["query"]["bool"]["filter"]
     if author_filter:
         es_body["aggregations"]["authors.name.keyword"]["terms"]["include"] = ".*" + author_filter + ".*"
+    if published_filter:
+        es_body["query"].append(
+            {"range": {
+                "timestamp": {
+                    "gte": "now-100d/d",
+                    "lt": "now/d"
+                }
+            }
+        })
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
     return {
         "hits": [{"curie": ref["_source"]["curie"], "title": ref["_source"]["title"], "date_published": ref["_source"]["date_published"], "abstract": ref["_source"]["abstract"], "cross_references": ref["_source"]["cross_references"], "authors": ref["_source"]["authors"]} for ref in res["hits"]["hits"]],
