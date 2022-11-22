@@ -115,7 +115,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     if published_filter:
         es_body["query"].append(
             {"range": {
-                "timestamp": {
+                "date_published": {
                     "gte": "now-100d/d",
                     "lt": "now/d"
                 }
