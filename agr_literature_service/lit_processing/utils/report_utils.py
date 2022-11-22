@@ -137,7 +137,7 @@ def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmi
         logger.info("Failed sending email to slack: " + message + "\n")
 
 
-def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_title, bad_date_published, log_path, logger):
+def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_title, bad_date_published, mod_ids_used_in_resource, log_path, logger):  # noqa: C901
 
     email_recipients = None
     if environ.get('CRONTAB_EMAIL'):
@@ -178,6 +178,17 @@ def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_t
         email_message = email_message + "<p>Loading log file is available at " + "<a href=" + log_url + ">" + log_url + "</a><p>"
     else:
         email_message = email_message + "<p>Loading log file is available at " + log_path
+
+    if len(mod_ids_used_in_resource) > 0:
+        rows = ''
+        i = 0
+        (dbid, XREF_ID) = mod_ids_used_in_resource[0]
+        width = len(dbid) * 11
+        for x in mod_ids_used_in_resource:
+            (dbid, XREF_ID) = x
+            rows = rows + "<tr><th style='text-align:left' width='" + str(width) + "'>" + dbid + ":</th><td>" + XREF_ID + "</td></tr>"
+        email_message = email_message + "<p><b>Following papers are not loaded since one of their XREF IDs is associated with a RESOURCE</b></p>"
+        email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
 
     # missing_papers_in_mod, agr_to_title, log_path
     if len(missing_papers_in_mod) > 0:
