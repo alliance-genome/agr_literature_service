@@ -1,10 +1,10 @@
 import logging
 
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, subqueryload
 from fastapi import HTTPException, status
 
-from agr_literature_service.api.models import ReferenceModel, ObsoleteReferenceModel
+from agr_literature_service.api.models import ReferenceModel, ObsoleteReferenceModel, ReferencefileModel
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +35,9 @@ def get_reference(db: Session, curie_or_reference_id: str):
     reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
     reference = None
     try:
-        reference = db.query(ReferenceModel).filter(or_(
-            ReferenceModel.curie == curie_or_reference_id,
-            ReferenceModel.reference_id == reference_id)).one()
+        reference = db.query(ReferenceModel).options(subqueryload(ReferenceModel.referencefiles).subqueryload(
+            ReferencefileModel.referencefile_mods)).filter(or_(ReferenceModel.curie == curie_or_reference_id,
+                                                               ReferenceModel.reference_id == reference_id)).one()
     except Exception:
         if reference_id is None:
             reference = get_merged(db, curie_or_reference_id)
