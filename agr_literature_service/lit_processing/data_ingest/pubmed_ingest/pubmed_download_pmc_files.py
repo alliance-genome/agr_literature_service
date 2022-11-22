@@ -103,17 +103,20 @@ def upload_suppl_file_to_s3(gzip_file_with_path, md5sum):  # pragma: no cover
 
     s3_file_path = "/reference/documents/"
 
+    storage = None
     if environ.get('ENV_STATE') == 'prod':
         s3_file_path = 'prod' + s3_file_path
+        storage = 'GLACIER_IR'
     else:
         s3_file_path = 'develop' + s3_file_path
+        storage = 'STANDARD'
     s3_file_path = s3_file_path + md5sum[0] + "/" + md5sum[1] + \
         "/" + md5sum[2] + "/" + md5sum[3] + "/"
     s3_file_location = s3_file_path + md5sum + ".gz"
 
     logger.info("Uploading " + gzip_file_with_path.split("/")[-1] + " to AGR s3: " + s3_file_location)
 
-    status = upload_file_to_s3(gzip_file_with_path, s3_bucket, s3_file_location, 'GLACIER_IR')
+    status = upload_file_to_s3(gzip_file_with_path, s3_bucket, s3_file_location, storage)
 
     return status
 

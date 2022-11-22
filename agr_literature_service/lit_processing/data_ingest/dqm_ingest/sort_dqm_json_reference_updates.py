@@ -200,7 +200,10 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
     db_session = create_postgres_session(False)
     scriptNm = path.basename(__file__).replace(".py", "")
     set_global_user_id(db_session, scriptNm)
-    mod_to_mod_id = dict([(x.abbreviation, x.mod_id) for x in db_session.query(ModModel).all()])
+    mod_to_mod_id = {x.abbreviation: x.mod_id for x in db_session.query(ModModel).all()}
+    XREF_to_resource_id = {x["curie"]: x["resource_id"] for x in db_session.execute(
+        "SELECT curie, resource_id FROM cross_reference WHERE resource_id is not null "
+        "AND is_obsolete is False").fetchall()}
     db_session.close()
 
     url_ref_curie_prefix = make_url_ref_curie_prefix()
@@ -287,6 +290,8 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         logger.info("generating new md5")
         new_md5dict = generate_new_md5(input_path, [mod], base_dir=base_dir)
 
+        mod_ids_used_in_resource = []
+
         logger.info(f"Processing {filename}")
         dqm_data = dict()
         with open(filename, 'r') as f:
@@ -356,6 +361,8 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
                 for cross_reference in entry['crossReferences']:
                     if "id" in cross_reference:
                         xrefs.append(cross_reference["id"])
+                        if cross_reference["id"] in XREF_to_resource_id:
+                            mod_ids_used_in_resource.append((dbid, cross_reference["id"]))
                         # logger.info("append xref %s", cross_reference["id"])
                         if "pages" in cross_reference:
                             xref_to_pages[cross_reference["id"]] = cross_reference["pages"]
@@ -392,8 +399,11 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
                 for key in dqm_keys_to_remove:
                     if key in entry:
                         del entry[key]
-                references_to_create.append(entry)
-                logger.info(f"create {entry['primaryId']}")
+                if dbid not in XREF_to_resource_id:
+                    references_to_create.append(entry)
+                    logger.info(f"create {entry['primaryId']}")
+                else:
+                    continue
             elif len(agrs_found) > 1:
                 # logger.info("Notify curator, dqm %s too many matches %s", entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found))))
                 fh_mod_report[mod].write("dqm %s too many matches %s\n" % (entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found)))))
@@ -603,7 +613,8 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         agr_to_title = get_curie_to_title_mapping(missing_agr_in_mod[mod])
         send_dqm_loading_report(mod, report[mod], missing_papers_in_mod[mod],
                                 agr_to_title, bad_date_published,
-                                report_file_path, logger)
+                                mod_ids_used_in_resource, report_file_path,
+                                logger)
 
 
 def find_unparsable_date_published(json_file, bad_date_published):
