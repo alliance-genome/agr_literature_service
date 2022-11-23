@@ -14,6 +14,7 @@ from agr_literature_service.api.crud.referencefile_utils import read_referencefi
     create as create_metadata, get_s3_folder_from_md5sum
 from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection
 from agr_literature_service.api.models import ReferenceModel, ReferencefileModel
+from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.s3.delete import delete_file_in_bucket
 from agr_literature_service.api.s3.download import create_presigned_url
 from agr_literature_service.api.s3.upload import upload_file_to_bucket
@@ -125,16 +126,17 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):
     return md5sum
 
 
-def show_file_url(db: Session, referencefile_id: int, mod: str):
+def show_file_url(db: Session, referencefile_id: int, mod_access: OktaAccess):
     referencefile = read_referencefile_db_obj(db, referencefile_id)
-    if any(ref_file_mod.mod.abbreviation == mod if ref_file_mod.mod is not None else True for ref_file_mod in
-           referencefile.referencefile_mods):
-        md5sum = referencefile.md5sum
-        folder = get_s3_folder_from_md5sum(md5sum)
-        object_name = folder + "/" + md5sum + ".gz"
-        client = boto3.client('s3')
-        return create_presigned_url(s3_client=client, bucket_name="agr-literature", object_name=object_name,
-                                    expiration=60)
-    else:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="The current user does not have permissions to get the requested file url")
+    if mod_access != OktaAccess.NO_ACCESS:
+        if mod_access == OktaAccess.ALL_ACCESS or any(
+                ref_file_mod.mod.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access] if ref_file_mod.mod is not None else
+                True for ref_file_mod in referencefile.referencefile_mods):
+            md5sum = referencefile.md5sum
+            folder = get_s3_folder_from_md5sum(md5sum)
+            object_name = folder + "/" + md5sum + ".gz"
+            client = boto3.client('s3')
+            return create_presigned_url(s3_client=client, bucket_name="agr-literature", object_name=object_name,
+                                        expiration=60)
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                        detail="The current user does not have permissions to get the requested file url")
