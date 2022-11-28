@@ -115,8 +115,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             {
                 "range": {
                     "date_last_modified_in_pubmed": {
-                        "gte": "now-100d/d",
-                        "lt": "now/d"
+                        "gte": date_pubmed_modified[0],
+                        "lt": date_pubmed_modified[1]
                     }
                 }
             })
