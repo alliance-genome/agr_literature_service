@@ -14,7 +14,7 @@ from fastapi import HTTPException, status
 def search_references(query: str = None, facets_values: Dict[str, List[str]] = None,
                       size_result_count: Optional[int] = 10, page: Optional[int] = 0,
                       facets_limits: Dict[str, int] = None, return_facets_only: bool = False,
-                      author_filter: Optional[str] = None, published_filter: Optional[Dict[str, str]] = None):
+                      author_filter: Optional[str] = None, date_pubmed_modified: Optional[List[str]] = None):
     if query is None and facets_values is None and not return_facets_only:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="requested a search but no query and no facets provided")
@@ -108,13 +108,13 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             for facet_value in facet_list_values:
                 es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"].append({"term": {}})
                 es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
-    elif published_filter:
+    elif date_pubmed_modified:
         if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
             es_body["query"]["bool"]["filter"]["bool"]["must"] = []
         es_body["query"]["bool"]["filter"]["bool"]["must"].append(
             {
                 "range": {
-                    "date_arrived_in_pubmed": {
+                    "date_last_modified_in_pubmed": {
                         "gte": "now-100d/d",
                         "lt": "now/d"
                     }
