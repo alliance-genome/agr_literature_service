@@ -123,13 +123,13 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 })
         if date_pubmed_arrive:
             if "range" not in es_body["query"]["bool"]["filter"]["bool"]["must"]:
-                es_body["query"]["bool"]["filter"]["bool"]["must"]["range"].append()
+                es_body["query"]["bool"]["filter"]["bool"]["must"]["range"].append(
                     {
                         "date_arrived_in_pubmed": {
                             "gte": date_pubmed_arrive[0],
                             "lt": date_pubmed_arrive[1]
                         }
-                    }
+                    })
             else:
                 es_body["query"]["bool"]["filter"]["bool"]["must"].append(
                     {
