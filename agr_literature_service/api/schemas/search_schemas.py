@@ -12,4 +12,3 @@ class FacetsOptionsSchema(BaseModel):
     return_facets_only: bool = False
     author_filter: Optional[str]
     date_pubmed_modified: Optional[List[str]] = None
-    date_pubmed_added: Optional[List[str]] = None
