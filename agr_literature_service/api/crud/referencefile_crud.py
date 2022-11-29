@@ -148,7 +148,6 @@ def show_file_url(db: Session, referencefile_id: int, mod_access: OktaAccess):
 
 
 def download_additional_files_tarball(db: Session, reference_id, mod_access: OktaAccess):
-    # 1. select all referencefiles that are "supplement" or "other" and match the provided mod_access
     ref_curie = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == reference_id).one_or_none()
     if not ref_curie:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -171,14 +170,10 @@ def download_additional_files_tarball(db: Session, reference_id, mod_access: Okt
             object_name = folder + "/" + md5sum + ".gz"
             tmp_file_gz_path = "tarball_tmp/" + referencefile.display_name + ".gz"
             tmp_file_path = "tarball_tmp/" + referencefile.display_name + "." + referencefile.file_extension
-            # 2. download file from s3 using the md5sums
             download_file_from_s3(tmp_file_gz_path, "agr-literature", object_name)
-            # 3. unzip file
             with gzip.open(tmp_file_gz_path, 'rb') as f_in, open(tmp_file_path) as f_out:
                 shutil.copyfileobj(f_in, f_out)
-            # 4. add file to tarball
             tar.add(tmp_file_path)
-
-    # 5. return FileResponse e.g., FileResponse(path=file_with_path, filename=json_file, media_type='application/gzip')
+            os.remove(tmp_file_path)
     return FileResponse(path=tar_file_path, filename=tar_file_path, media_type="application/gzip",
                         background=BackgroundTask(lambda tmp_tarball_path: os.remove(tmp_tarball_path)))
