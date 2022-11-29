@@ -15,7 +15,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                       size_result_count: Optional[int] = 10, page: Optional[int] = 0,
                       facets_limits: Dict[str, int] = None, return_facets_only: bool = False,
                       author_filter: Optional[str] = None, date_pubmed_modified: Optional[List[str]] = None,
-                      date_pubmed_added: Optional[List[str]]):
+                      date_pubmed_arrive: Optional[List[str]]):
     if query is None and facets_values is None and not return_facets_only:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="requested a search but no query and no facets provided")
