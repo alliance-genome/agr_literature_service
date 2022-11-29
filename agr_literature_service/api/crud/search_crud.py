@@ -108,18 +108,41 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             for facet_value in facet_list_values:
                 es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"].append({"term": {}})
                 es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
-    elif date_pubmed_modified:
+    elif date_pubmed_modified || date_pubmed_arrive:
         if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
             es_body["query"]["bool"]["filter"]["bool"]["must"] = []
-        es_body["query"]["bool"]["filter"]["bool"]["must"].append(
-            {
-                "range": {
-                    "date_last_modified_in_pubmed": {
-                        "gte": date_pubmed_modified[0],
-                        "lt": date_pubmed_modified[1]
+        if date_pubmed_modified:
+            es_body["query"]["bool"]["filter"]["bool"]["must"].append(
+                {
+                    "range": {
+                        "date_last_modified_in_pubmed": {
+                            "gte": date_pubmed_modified[0],
+                            "lt": date_pubmed_modified[1]
+                        }
                     }
-                }
-            })
+                })
+        if date_pubmed_arrive:
+            if es_body["query"]["bool"]["filter"]["bool"]["must"]["range"]
+                es_body["query"]["bool"]["filter"]["bool"]["must"]["range"].append()
+                    {
+                        "date_arrived_in_pubmed": {
+                            "gte": date_pubmed_arrive[0],
+                            "lt": date_pubmed_arrive[1]
+                        }
+                    }
+            else:
+                es_body["query"]["bool"]["filter"]["bool"]["must"].append(
+                    {
+                        "range": {
+                            "date_arrived_in_pubmed": {
+                                "gte": date_pubmed_arrive[0],
+                                "lt": date_pubmed_arrive[1]
+                            }
+                        }
+                    })
+
+
+
     else:
         del es_body["query"]["bool"]["filter"]
     if author_filter:
