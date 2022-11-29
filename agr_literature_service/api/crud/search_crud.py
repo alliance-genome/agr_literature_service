@@ -140,9 +140,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                             }
                         }
                     })
-
-
-
     else:
         del es_body["query"]["bool"]["filter"]
     if author_filter:
