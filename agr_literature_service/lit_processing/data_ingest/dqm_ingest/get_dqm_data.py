@@ -1,7 +1,8 @@
 import gzip
+import zipfile
 import shutil
 import logging
-from os import environ, makedirs, path, remove
+from os import environ, makedirs, path, remove, rename
 
 from dotenv import load_dotenv
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
@@ -31,10 +32,11 @@ def download_dqm_json():  # pragma: no cover
 def download_dqm_reference_json():  # pragma: no cover
 
     mod_to_reference_url = {
-        "SGD": "https://sgd-prod-upload.s3.us-west-2.amazonaws.com//latest/REFERENCE_SGD.json",
+        "SGD": "https://sgd-prod-upload.s3.us-west-2.amazonaws.com/latest/REFERENCE_SGD.json",
         "WB": "https://tazendra.caltech.edu/~postgres/agr/lit/agr_wb_literature.json",
         "ZFIN": "https://zfin.org/downloads/ZFIN_1.0.1.4_Reference.json",
-        "FB": "http://ftp.flybase.net/flybase/associated_files/alliance/FB_reference.json.gz"
+        "FB": "http://ftp.flybase.net/flybase/associated_files/alliance/FB_reference.json.gz",
+        "XB": "https://ftp.xenbase.org/pub/DataExchange/AGR/XB_REFERENCE.json.zip"
     }
 
     for mod in mod_to_reference_url:
@@ -66,6 +68,17 @@ def download_dqm_file(mod, url, datatype):
                 with open(json_file, 'wb') as f_out:
                     shutil.copyfileobj(f_in, f_out)
             remove(gzip_json_file)
+        except Exception as e:
+            logger.error(e)
+    elif url.endswith('.zip'):
+        zip_json_file = json_file + ".zip"
+        download_file(url, zip_json_file)
+        try:
+            with zipfile.ZipFile(zip_json_file, 'r') as zip_ref:
+                zip_ref.extractall(dqm_json_path)
+            orig_json_file = dqm_json_path + "filepart_abc_meta_data_merged.json"
+            rename(orig_json_file, json_file)
+            remove(zip_json_file)
         except Exception as e:
             logger.error(e)
     else:

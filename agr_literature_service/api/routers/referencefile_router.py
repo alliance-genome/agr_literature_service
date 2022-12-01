@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api import database
 from agr_literature_service.api.deps import s3_auth
 from agr_literature_service.api.routers.authentication import auth
+from agr_literature_service.api.routers.okta_utils import get_okta_mod_access
 from agr_literature_service.api.schemas import ResponseMessageSchema
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, ReferencefileSchemaUpdate
 from agr_literature_service.api.user import set_global_user_from_okta
@@ -119,8 +120,7 @@ def show_file_url(referencefile_id: int,
                   user: OktaUser = db_user,
                   db: Session = db_session):
     set_global_user_from_okta(db, user)
-    # TODO: get user mod
-    return referencefile_crud.show_file_url(db, referencefile_id, "SGD")
+    return referencefile_crud.show_file_url(db, referencefile_id, get_okta_mod_access(user))
 
 
 @router.delete('/{referencefile_id}',
