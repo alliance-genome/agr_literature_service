@@ -360,6 +360,8 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
             if 'crossReferences' in entry:
                 for cross_reference in entry['crossReferences']:
                     if "id" in cross_reference:
+                        if cross_reference["id"] in ["DOI:10.1042/", "DOI:10.1042"]:
+                            continue
                         xrefs.append(cross_reference["id"])
                         if cross_reference["id"] in XREF_to_resource_id:
                             mod_ids_used_in_resource.append((dbid, cross_reference["id"]))
