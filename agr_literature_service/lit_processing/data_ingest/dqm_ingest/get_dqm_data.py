@@ -36,7 +36,8 @@ def download_dqm_reference_json():  # pragma: no cover
         "WB": "https://tazendra.caltech.edu/~postgres/agr/lit/agr_wb_literature.json",
         "ZFIN": "https://zfin.org/downloads/ZFIN_1.0.1.4_Reference.json",
         "FB": "http://ftp.flybase.net/flybase/associated_files/alliance/FB_reference.json.gz",
-        "XB": "https://ftp.xenbase.org/pub/DataExchange/AGR/XB_REFERENCE.json.zip"
+        "XB": "https://ftp.xenbase.org/pub/DataExchange/AGR/XB_REFERENCE.json.zip",
+        "MGI": "http://www.informatics.jax.org/downloads/alliance/reference.json"
     }
 
     for mod in mod_to_reference_url:
