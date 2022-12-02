@@ -304,7 +304,7 @@ def add_mca_to_existing_references(db_session, agr_curies_to_corpus, mod, logger
     db_session.commit()
 
 
-def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref_xref_obsolete, logger):  # pragma: no cover
+def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref_xref_obsolete, logger):  # noqa: C901 # pragma: no cover
 
     # check for papers with same doi in the database
     # print ("ref_xref_valid=", str(ref_xref_valid['AGR:AGR-Reference-0000167781']))
@@ -352,7 +352,11 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref
             found_pmids_for_this_doi = []
             for prefix in all_ref_xref:
                 if prefix == 'PMID':
-                    found_pmids_for_this_doi.append(all_ref_xref[prefix])
+                    if type(all_ref_xref[prefix]) is set:
+                        for x in all_ref_xref[prefix]:
+                            found_pmids_for_this_doi.append(x)
+                    else:
+                        found_pmids_for_this_doi.append(all_ref_xref[prefix])
             if len(found_pmids_for_this_doi) == 0:
                 reference_id = get_reference_id_by_curie(db_session, agr)
                 if reference_id is None:
