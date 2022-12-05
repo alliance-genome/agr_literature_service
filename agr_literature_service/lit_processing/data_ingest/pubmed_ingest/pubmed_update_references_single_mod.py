@@ -623,14 +623,11 @@ def generate_pmids_with_info(pmids_all, old_md5sum, new_md5sum, pmid_to_referenc
         pmid_with_prefix = "PMID:" + pmid
         if pmid_with_prefix not in new_md5sum:
             continue
-        if pmid_with_prefix not in old_md5sum:
-            pmid_to_md5sum[pmid_with_prefix] = new_md5sum[pmid_with_prefix]
-            if pmid in pmid_to_reference_id:
-                reference_id_list.append(pmid_to_reference_id[pmid])
-        elif new_md5sum[pmid_with_prefix] != old_md5sum[pmid_with_prefix]:
-            pmid_to_md5sum[pmid_with_prefix] = new_md5sum[pmid_with_prefix]
-            if pmid in pmid_to_reference_id:
-                reference_id_list.append(pmid_to_reference_id[pmid])
+        if old_md5sum.get(pmid_with_prefix) and new_md5sum[pmid_with_prefix] == old_md5sum[pmid_with_prefix]:
+            continue
+        pmid_to_md5sum[pmid_with_prefix] = new_md5sum[pmid_with_prefix]
+        if pmid in pmid_to_reference_id:
+            reference_id_list.append(pmid_to_reference_id[pmid])
     return (reference_id_list, pmid_to_md5sum)
 
 
