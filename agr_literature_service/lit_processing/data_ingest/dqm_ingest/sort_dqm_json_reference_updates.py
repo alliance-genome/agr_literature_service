@@ -360,21 +360,19 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
             if 'crossReferences' in entry:
                 for cross_reference in entry['crossReferences']:
                     if "id" in cross_reference:
-                        if cross_reference["id"] in ["DOI:10.1042/", "DOI:10.1042"]:
+                        xref_id = cross_reference["id"]
+                        xref_id = xref_id.replace("DOI:http://dx.doi.org/", "DOI:")
+                        xref_id = xref_id.replace("DOI:https://doi.org/", "DOI:")
+                        xref_id = xref_id.replace("DOI:doi.org/", "DOI:").replace(" ", "")
+                        if xref_id in ["DOI:10.1042/", "DOI:10.1042"]:
                             continue
-                        xrefs.append(cross_reference["id"])
-                        if cross_reference["id"] in XREF_to_resource_id:
-                            mod_ids_used_in_resource.append((dbid, cross_reference["id"]))
-                        # logger.info("append xref %s", cross_reference["id"])
+                        xrefs.append(xref_id)
+                        if xref_id in XREF_to_resource_id:
+                            mod_ids_used_in_resource.append((dbid, xref_id))
                         if "pages" in cross_reference:
-                            xref_to_pages[cross_reference["id"]] = cross_reference["pages"]
-                        # items = cross_reference['id'].split(":")
-                        # if items[0] in dqm:
-                        #    dqm[items[0]].add(items[1])
-                        #    dbid = cross_reference['id']
+                            xref_to_pages[xref_id] = cross_reference["pages"]
             if entry['primaryId'] not in xrefs:
                 xrefs.append(entry['primaryId'])
-                # logger.info("append primaryId %s", entry['primaryId'])
             for cross_reference in xrefs:
                 prefix, identifier, separator = split_identifier(cross_reference, True)
                 if prefix not in dqm_xrefs:
@@ -426,7 +424,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
                                 # logger.info("Notify curator dqm has PMID not in PubMed %s %s in agr %s", prefix, ident, agr_url)
                                 fh_mod_report[mod].write("dqm has PMID not in PubMed %s %s in agr %s\n" % (prefix, ident, agr_url))
                             elif prefix in ref_xref_valid[agr]:
-                                agr_had_prefix = True
+                                # agr_had_prefix = True
                                 # logger.info("agr prefix found %s %s", agr, prefix)
                                 if ident.lower() == ref_xref_valid[agr][prefix].lower():
                                     # logger.info("agr prefix ident found %s %s %s", agr, prefix, ident)
@@ -437,6 +435,9 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
                                     if prefix in mods:
                                         flag_aggregate_biblio = True
                                         # logger.info("valid MOD xref %s %s to update agr %s", prefix, ident, agr)
+                                else:
+                                    agr_had_prefix = True
+
                         dqm_xref_obsolete_found = False
                         if agr in ref_xref_obsolete:
                             if prefix in ref_xref_obsolete[agr]:
@@ -449,7 +450,6 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 
                         if not dqm_xref_valid_found:
                             if agr_had_prefix:
-                                # logger.info("Notify curator, %s had %s %s, dqm submitted %s", agr_url, prefix, ref_xref_valid[agr][prefix], ident)
                                 fh_mod_report[mod].write("%s had %s:%s, dqm submitted %s:%s\n" % (agr_url, prefix, ref_xref_valid[agr][prefix], prefix, ident))
                                 report[mod].append((dbid, prefix + ":" + ref_xref_valid[agr][prefix] + " in the database doesn't match " + prefix + ":" + ident + " from dqm file"))
                             elif not dqm_xref_obsolete_found:
