@@ -561,7 +561,7 @@ def _update_doi(db_session, fw, pmid, reference_id, old_doi, new_doi):  # pragma
         x = db_session.query(CrossReferenceModel).filter_by(reference_id=reference_id).filter(CrossReferenceModel.curie == 'DOI:' + old_doi).one_or_none()
         if x is None:
             return
-        x.curie = new_doi
+        x.curie = "DOI:" + new_doi
         db_session.add(x)
         fw.write("PMID:" + str(pmid) + ": UPDATE DOI from " + old_doi + " to " + new_doi + "\n")
     except Exception as e:
@@ -596,7 +596,7 @@ def _update_pmcid(db_session, fw, pmid, reference_id, old_pmcid, new_pmcid):  # 
         x = db_session.query(CrossReferenceModel).filter_by(reference_id=reference_id).filter(CrossReferenceModel.curie == 'PMCID:' + old_pmcid).one_or_none()
         if x is None:
             return
-        x.curie = new_pmcid
+        x.curie = "PMCID:" + new_pmcid
         db_session.add(x)
         fw.write("PMID:" + str(pmid) + ": UPDATE PMCID from " + old_pmcid + " to " + new_pmcid + "\n")
     except Exception as e:
@@ -626,6 +626,9 @@ def _insert_pmcid(db_session, fw, pmid, reference_id, pmcid, logger=None):  # pr
 
 
 def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_in_db, doi_json, pmcid_db, pmcid_list_in_db, pmcid_json, update_log, logger=None):
+
+    doi_json = doi_json.replace("DOI:", "") if doi_json else None
+    pmcid_json = pmcid_json.replace("PMCID:", "") if pmcid_json else None
 
     if doi_json is None and pmcid_json is None:
         return
