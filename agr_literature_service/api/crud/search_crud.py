@@ -131,7 +131,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                         }
                     }
                 })
-    else:
+    if not facets_values and not date_pubmed_modified and not date_pubmed_arrive:
         del es_body["query"]["bool"]["filter"]
     if author_filter:
         es_body["aggregations"]["authors.name.keyword"]["terms"]["include"] = ".*" + author_filter + ".*"
