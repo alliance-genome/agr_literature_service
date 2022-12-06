@@ -87,6 +87,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 "title": { "type": "plain" }
             }
         }
+    }
     if return_facets_only:
         del es_body["query"]
         es_body["size"] = 0
