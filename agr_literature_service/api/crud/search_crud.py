@@ -81,8 +81,12 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         },
         "from": from_entry,
         "size": size_result_count,
-        "track_total_hits": True
-    }
+        "track_total_hits": True,
+        "highlight": {
+            "fields": {
+                "title": { "type": "plain" }
+            }
+        }
     if return_facets_only:
         del es_body["query"]
         es_body["size"] = 0
