@@ -1,4 +1,5 @@
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
+from agr_literature_service.api.models import ReferencefileModel
 import logging
 import sys
 
@@ -72,6 +73,12 @@ def find_data_mappings(db_session):
             logger.info(f"{md5}\t{fileclass}\t{db_md5_fileclass[md5]}\tis okay")
         else:
             logger.info(f"{md5}\t{fileclass}\t{db_md5_fileclass[md5]}\tis different")
+            x = db_session.query(ReferencefileModel).filter_by(md5sum=md5).one_or_none()
+            if x is None:
+                return
+            logger.info(f"UPDATE\t{x.md5sum} from {x.file_class} to {fileclass}")
+            x.file_class = fileclass
+    db_session.commit()
 
 
 if __name__ == "__main__":
