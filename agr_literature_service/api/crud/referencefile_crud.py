@@ -162,6 +162,7 @@ def download_additional_files_tarball(db: Session, reference_id, mod_access: Okt
             ReferencefileModel.referencefile_mods)
     ).filter(
         ReferencefileModel.reference_id == reference_id and ReferencefileModel.file_class != "main"
+        and ReferencefileModel.file_class != "correspondence"
         and ReferencefileModel.referencefile_mods.any(
             ReferencefileModAssociationModel.mod == None or # noqa
             ReferencefileModAssociationModel.mod.has(
