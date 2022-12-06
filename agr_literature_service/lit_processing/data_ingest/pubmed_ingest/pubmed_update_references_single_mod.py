@@ -486,8 +486,6 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
             x.resource_id = new_resource_id
             has_update = has_update + 1
             update_log['journal'] = update_log['journal'] + 1
-            # PMID:22479268: resource_id is updated from 41570 to 41570
-            # is it possible that this resource_id in database is a string?
         elif colName in ['date_last_modified_in_pubmed', 'date_arrived_in_pubmed']:
             j_key = colName_to_json_key[colName]
             if json_data.get('j_key'):
