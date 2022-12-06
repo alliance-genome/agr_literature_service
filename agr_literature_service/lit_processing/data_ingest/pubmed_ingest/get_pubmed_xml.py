@@ -170,7 +170,11 @@ def download_pubmed_xml(pmids_wanted: List[str]):  # pragma: no cover
         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
         parameters = {'db': 'pubmed', 'retmode': 'xml', 'id': pmids_joined}
 
-        download_pubmed_xml_slice(url, parameters, pmids_found, storage_path, md5dict, pmids_joined)
+        try:
+            download_pubmed_xml_slice(url, parameters, pmids_found, storage_path, md5dict, pmids_joined)
+        except requests.exceptions.RequestException as e:
+            logger.info("requests failure with input %s %s", pmids_joined, e)
+            raise SystemExit(e)
 
     # md5file = storage_path + 'md5sum'
     logger.info("Writing md5sum mappings to %s", md5file)
