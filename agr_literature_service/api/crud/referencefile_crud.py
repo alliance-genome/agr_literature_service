@@ -161,8 +161,8 @@ def download_additional_files_tarball(db: Session, reference_id, mod_access: Okt
         subqueryload(
             ReferencefileModel.referencefile_mods)
     ).filter(
-        ReferencefileModel.reference_id == reference_id and ReferencefileModel.file_class != "main" and
-        ReferencefileModel.referencefile_mods.any(
+        ReferencefileModel.reference_id == reference_id and ReferencefileModel.file_class != "main"
+        and ReferencefileModel.referencefile_mods.any(
             ReferencefileModAssociationModel.mod == None or # noqa
             ReferencefileModAssociationModel.mod.has(
                 ModModel.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access]))).all()
