@@ -36,6 +36,11 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 }
             }
         },
+        "highlight": {
+            "fields": {
+                "title": { "type": "plain" }
+            }
+        },
         "aggregations": {
             "pubmed_types.keyword": {
                 "terms": {
@@ -81,12 +86,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         },
         "from": from_entry,
         "size": size_result_count,
-        "track_total_hits": True,
-        "highlight": {
-            "fields": {
-                "title": { "type": "plain" }
-            }
-        }
+        "track_total_hits": True
     }
     if return_facets_only:
         del es_body["query"]
