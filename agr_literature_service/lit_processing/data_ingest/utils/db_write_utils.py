@@ -304,7 +304,7 @@ def add_mca_to_existing_references(db_session, agr_curies_to_corpus, mod, logger
     db_session.commit()
 
 
-def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref_xref_obsolete, logger):  # pragma: no cover
+def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref_xref_obsolete, logger):  # noqa: C901 # pragma: no cover
 
     # check for papers with same doi in the database
     # print ("ref_xref_valid=", str(ref_xref_valid['AGR:AGR-Reference-0000167781']))
@@ -352,7 +352,11 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref
             found_pmids_for_this_doi = []
             for prefix in all_ref_xref:
                 if prefix == 'PMID':
-                    found_pmids_for_this_doi.append(all_ref_xref[prefix])
+                    if type(all_ref_xref[prefix]) is set:
+                        for x in all_ref_xref[prefix]:
+                            found_pmids_for_this_doi.append(x)
+                    else:
+                        found_pmids_for_this_doi.append(all_ref_xref[prefix])
             if len(found_pmids_for_this_doi) == 0:
                 reference_id = get_reference_id_by_curie(db_session, agr)
                 if reference_id is None:
@@ -557,7 +561,7 @@ def _update_doi(db_session, fw, pmid, reference_id, old_doi, new_doi):  # pragma
         x = db_session.query(CrossReferenceModel).filter_by(reference_id=reference_id).filter(CrossReferenceModel.curie == 'DOI:' + old_doi).one_or_none()
         if x is None:
             return
-        x.curie = new_doi
+        x.curie = "DOI:" + new_doi
         db_session.add(x)
         fw.write("PMID:" + str(pmid) + ": UPDATE DOI from " + old_doi + " to " + new_doi + "\n")
     except Exception as e:
@@ -592,7 +596,7 @@ def _update_pmcid(db_session, fw, pmid, reference_id, old_pmcid, new_pmcid):  # 
         x = db_session.query(CrossReferenceModel).filter_by(reference_id=reference_id).filter(CrossReferenceModel.curie == 'PMCID:' + old_pmcid).one_or_none()
         if x is None:
             return
-        x.curie = new_pmcid
+        x.curie = "PMCID:" + new_pmcid
         db_session.add(x)
         fw.write("PMID:" + str(pmid) + ": UPDATE PMCID from " + old_pmcid + " to " + new_pmcid + "\n")
     except Exception as e:
@@ -622,6 +626,9 @@ def _insert_pmcid(db_session, fw, pmid, reference_id, pmcid, logger=None):  # pr
 
 
 def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_in_db, doi_json, pmcid_db, pmcid_list_in_db, pmcid_json, update_log, logger=None):
+
+    doi_json = doi_json.replace("DOI:", "") if doi_json else None
+    pmcid_json = pmcid_json.replace("PMCID:", "") if pmcid_json else None
 
     if doi_json is None and pmcid_json is None:
         return
