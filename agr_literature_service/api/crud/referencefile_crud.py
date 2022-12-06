@@ -3,17 +3,21 @@ import hashlib
 import logging
 import os
 import shutil
+import tarfile
 
 import boto3
 from fastapi import HTTPException, status, UploadFile
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, subqueryload
+from starlette.background import BackgroundTask
+from starlette.responses import FileResponse
 
 from agr_literature_service.api.crud.referencefile_utils import read_referencefile_db_obj, \
     create as create_metadata, get_s3_folder_from_md5sum
 from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection
-from agr_literature_service.api.models import ReferenceModel, ReferencefileModel
+from agr_literature_service.api.models import ReferenceModel, ReferencefileModel, ReferencefileModAssociationModel, \
+    ModModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.s3.delete import delete_file_in_bucket
 from agr_literature_service.api.s3.download import create_presigned_url
@@ -21,6 +25,7 @@ from agr_literature_service.api.s3.upload import upload_file_to_bucket
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost
 from agr_literature_service.api.schemas.response_message_schemas import messageEnum
+from agr_literature_service.lit_processing.utils.s3_utils import download_file_from_s3
 
 logger = logging.getLogger(__name__)
 
@@ -140,3 +145,44 @@ def show_file_url(db: Session, referencefile_id: int, mod_access: OktaAccess):
                                         expiration=60)
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                         detail="The current user does not have permissions to get the requested file url")
+
+
+def cleanup(file_path):
+    os.remove(file_path)
+
+
+def download_additional_files_tarball(db: Session, reference_id, mod_access: OktaAccess):
+    ref_curie = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == reference_id).one_or_none()
+    if not ref_curie:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="No reference found for the specified reference_id")
+    ref_curie = ref_curie.curie
+    all_referencefile_supp = db.query(ReferencefileModel).options(
+        subqueryload(
+            ReferencefileModel.referencefile_mods)
+    ).filter(
+        ReferencefileModel.reference_id == reference_id and ReferencefileModel.file_class != "main"
+        and ReferencefileModel.file_class != "correspondence"
+        and ReferencefileModel.referencefile_mods.any(
+            ReferencefileModAssociationModel.mod == None or # noqa
+            ReferencefileModAssociationModel.mod.has(
+                ModModel.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access]))).all()
+
+    tar_file_path = ref_curie.replace(":", "_") + "_additional_files.tar.gz"
+    os.makedirs("tarball_tmp", exist_ok=True)
+    with tarfile.open(tar_file_path, "w:gz") as tar:
+        for referencefile in all_referencefile_supp:
+            md5sum = referencefile.md5sum
+            folder = get_s3_folder_from_md5sum(md5sum)
+            object_name = folder + "/" + md5sum + ".gz"
+            tmp_file_gz_path = "tarball_tmp/" + referencefile.display_name + ".gz"
+            tmp_file_name = referencefile.display_name + "." + referencefile.file_extension
+            tmp_file_path = "tarball_tmp/" + tmp_file_name
+            download_file_from_s3(tmp_file_gz_path, "agr-literature", object_name)
+            with gzip.open(tmp_file_gz_path, 'rb') as f_in, open(tmp_file_path, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+            tar.add(tmp_file_path, arcname=tmp_file_name)
+            os.remove(tmp_file_path)
+    shutil.rmtree("tarball_tmp")
+    return FileResponse(path=tar_file_path, filename=tar_file_path, media_type="application/gzip",
+                        background=BackgroundTask(cleanup, tar_file_path))
