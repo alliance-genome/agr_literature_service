@@ -481,10 +481,11 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
                 has_update = has_update + 1
                 update_log['citation'] = update_log['citation'] + 1
         elif colName == 'resource_id' and new_resource_id and new_resource_id != x.resource_id:
+            fw.write("PMID:" + str(pmid) + ": resource_id is updated from " + str(x.resource_id) + " to " + str(
+                new_resource_id) + "\n")
             x.resource_id = new_resource_id
             has_update = has_update + 1
             update_log['journal'] = update_log['journal'] + 1
-            fw.write("PMID:" + str(pmid) + ": resource_id is updated from " + str(x.resource_id) + " to " + str(new_resource_id) + "\n")
             # PMID:22479268: resource_id is updated from 41570 to 41570
             # is it possible that this resource_id in database is a string?
         elif colName in ['date_last_modified_in_pubmed', 'date_arrived_in_pubmed']:
