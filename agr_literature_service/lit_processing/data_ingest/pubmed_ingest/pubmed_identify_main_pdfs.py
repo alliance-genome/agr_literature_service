@@ -12,6 +12,11 @@ logger.setLevel(logging.INFO)
 rootUrl = "https://www.ncbi.nlm.nih.gov"
 pmcRootUrl = 'https://ftp.ncbi.nlm.nih.gov/pub/pmc/'
 
+## the following file is created by main PMC downloading program
+## (pubmed_download_pmc_files.py) that calls this program
+## to identify the main PDFs after downloading PMC packages
+## from PubMed Central, uploading the files to s3, loading
+## the metadata into ABC
 infile = "data/pmc_oa_files_uploaded.txt"
 batch_size = 20
 
