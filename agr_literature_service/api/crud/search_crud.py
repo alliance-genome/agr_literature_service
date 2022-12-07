@@ -38,7 +38,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         },
         "highlight": {
             "fields": {
-                "title": { "type": "plain" }
+                "title": {"type": "plain"}
             }
         },
         "aggregations": {
@@ -143,7 +143,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
     return {
         "hits": [{"curie": ref["_source"]["curie"], "title": ref["_source"]["title"], "date_published": ref["_source"]["date_published"], "abstract": ref["_source"]["abstract"], "cross_references": ref["_source"]["cross_references"], "authors": ref["_source"]["authors"], "highlight":
-            ref["highlight"] if "highlight" in ref else ""
+                ref["highlight"] if "highlight" in ref else ""
         } for ref in res["hits"]["hits"]],
         "aggregations": res["aggregations"],
         "return_count": res["hits"]["total"]["value"]
