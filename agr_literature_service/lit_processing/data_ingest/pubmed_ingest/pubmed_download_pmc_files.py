@@ -11,6 +11,8 @@ from agr_literature_service.lit_processing.data_ingest.utils.file_processing_uti
     download_file, gunzip_file, gzip_file
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.load_pmc_metadata import \
     load_ref_file_metadata_into_db
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_identify_main_pdfs import \
+    identify_main_pdfs
 
 load_dotenv()
 
@@ -33,7 +35,7 @@ def download_pmc_files(mapping_file):  # pragma: no cover
 
     logger.info("Retrieving pmid list for papers that do not have PMC package downloaded...")
 
-    pmids = get_pmid_list_without_pmc_package(['SGD', 'WB', 'ZFIN'])
+    pmids = get_pmid_list_without_pmc_package(['SGD', 'WB', 'ZFIN', 'FB'])
 
     logger.info("Downloading PMC OA packages...")
 
@@ -50,6 +52,10 @@ def download_pmc_files(mapping_file):  # pragma: no cover
     logger.info("Loading the metadata into database...")
 
     load_ref_file_metadata_into_db()
+
+    logger.info("Identifying main PDF files in the database...")
+
+    identify_main_pdfs()
 
 
 def upload_suppl_files_to_s3():  # pragma: no cover
