@@ -123,7 +123,7 @@ def show_file_url(referencefile_id: int,
     return referencefile_crud.show_file_url(db, referencefile_id, get_okta_mod_access(user))
 
 
-@router.get('/additional_files_tarball{reference_id}',
+@router.get('/additional_files_tarball/{reference_id}',
             status_code=status.HTTP_200_OK)
 def download_additional_files_tarball(reference_id: int,
                                       user: OktaUser = db_user,
