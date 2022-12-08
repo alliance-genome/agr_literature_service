@@ -131,18 +131,22 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):
     return md5sum
 
 
-def show_file_url(db: Session, referencefile_id: int, mod_access: OktaAccess):
+def download_file(db: Session, referencefile_id: int, mod_access: OktaAccess):
     referencefile = read_referencefile_db_obj(db, referencefile_id)
     if mod_access != OktaAccess.NO_ACCESS:
         if mod_access == OktaAccess.ALL_ACCESS or any(
                 ref_file_mod.mod.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access] if ref_file_mod.mod is not None else
                 True for ref_file_mod in referencefile.referencefile_mods):
             md5sum = referencefile.md5sum
+            display_name = referencefile.display_name + "." + referencefile.file_extension
             folder = get_s3_folder_from_md5sum(md5sum)
             object_name = folder + "/" + md5sum + ".gz"
-            client = boto3.client('s3')
-            return create_presigned_url(s3_client=client, bucket_name="agr-literature", object_name=object_name,
-                                        expiration=60)
+            download_file_from_s3(md5sum + ".gz", bucketname="agr-literature", s3_file_location=object_name)
+            with gzip.open(md5sum + ".gz", 'rb') as f_in, open(display_name, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+            os.remove(md5sum + ".gz")
+            return FileResponse(path=display_name, filename=display_name, media_type="application/octet-stream",
+                                background=BackgroundTask(cleanup, display_name))
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                         detail="The current user does not have permissions to get the requested file url")
 
