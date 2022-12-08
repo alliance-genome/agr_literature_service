@@ -20,7 +20,6 @@ from agr_literature_service.api.models import ReferenceModel, ReferencefileModel
     ModModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.s3.delete import delete_file_in_bucket
-from agr_literature_service.api.s3.download import create_presigned_url
 from agr_literature_service.api.s3.upload import upload_file_to_bucket
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost
