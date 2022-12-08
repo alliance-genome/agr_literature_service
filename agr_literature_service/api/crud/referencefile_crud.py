@@ -66,7 +66,7 @@ def patch(db: Session, referencefile_id: int, request):
     return {"message": messageEnum.updated}
 
 
-def remove_file_from_s3(md5sum: str):
+def remove_file_from_s3(md5sum: str):  # pragma: no cover
     folder = get_s3_folder_from_md5sum(md5sum)
     client = boto3.client('s3')
     if not delete_file_in_bucket(s3_client=client, bucket="agr-literature", folder=folder, object_name=md5sum + ".gz"):
@@ -83,7 +83,7 @@ def destroy(db: Session, referencefile_id: int):
     db.commit()
 
 
-def file_upload(db: Session, metadata: dict, file: UploadFile):
+def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no cover
     md5sum_hash = hashlib.md5()
     for byte_block in iter(lambda: file.file.read(4096), b""):
         md5sum_hash.update(byte_block)
@@ -130,7 +130,7 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):
     return md5sum
 
 
-def download_file(db: Session, referencefile_id: int, mod_access: OktaAccess):
+def download_file(db: Session, referencefile_id: int, mod_access: OktaAccess):  # pragma: no cover
     referencefile = read_referencefile_db_obj(db, referencefile_id)
     if mod_access != OktaAccess.NO_ACCESS:
         if mod_access == OktaAccess.ALL_ACCESS or any(
