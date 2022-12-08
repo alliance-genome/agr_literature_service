@@ -8,7 +8,7 @@ import tarfile
 import boto3
 from fastapi import HTTPException, status, UploadFile
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, subqueryload
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
@@ -164,12 +164,19 @@ def download_additional_files_tarball(db: Session, reference_id, mod_access: Okt
         subqueryload(
             ReferencefileModel.referencefile_mods)
     ).filter(
-        ReferencefileModel.reference_id == reference_id and ReferencefileModel.file_class != "main"
-        and ReferencefileModel.file_class != "correspondence"
-        and ReferencefileModel.referencefile_mods.any(
-            ReferencefileModAssociationModel.mod == None or # noqa
-            ReferencefileModAssociationModel.mod.has(
-                ModModel.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access]))).all()
+        and_(
+            ReferencefileModel.reference_id == reference_id,
+            ReferencefileModel.file_class != "main",
+            ReferencefileModel.file_class != "correspondence",
+            ReferencefileModel.referencefile_mods.any(
+                or_(
+                    ReferencefileModAssociationModel.mod == None, # noqa
+                    ReferencefileModAssociationModel.mod.has(
+                    ModModel.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access])
+                )
+            )
+        )
+    ).all()
 
     tar_file_path = ref_curie.replace(":", "_") + "_additional_files.tar.gz"
     os.makedirs("tarball_tmp", exist_ok=True)
