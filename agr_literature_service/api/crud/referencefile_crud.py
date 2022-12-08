@@ -172,7 +172,7 @@ def download_additional_files_tarball(db: Session, reference_id, mod_access: Okt
                 or_(
                     ReferencefileModAssociationModel.mod == None, # noqa
                     ReferencefileModAssociationModel.mod.has(
-                    ModModel.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access])
+                        ModModel.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access])
                 )
             )
         )
