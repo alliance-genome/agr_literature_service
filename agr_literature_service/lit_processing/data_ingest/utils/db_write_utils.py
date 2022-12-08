@@ -558,7 +558,11 @@ def update_mesh_terms(db_session, fw, pmid, reference_id, mesh_terms_in_db, mesh
 def _update_doi(db_session, fw, pmid, reference_id, old_doi, new_doi):  # pragma: no cover
 
     try:
-        x = db_session.query(CrossReferenceModel).filter_by(reference_id=reference_id).filter(CrossReferenceModel.curie == 'DOI:' + old_doi).one_or_none()
+        x = db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie == 'DOI:' + new_doi).all()
+        if len(x) > 0:
+            fw.write('DOI:' + new_doi + " is already in the database.\n")
+            return
+        x = db_session.query(CrossReferenceModel).filter_by(reference_id=reference_id, is_obsolete=False).filter(CrossReferenceModel.curie == 'DOI:' + old_doi).one_or_none()
         if x is None:
             return
         x.curie = "DOI:" + new_doi
@@ -638,13 +642,15 @@ def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_
         fw.write("PMID:" + str(pmid) + ": DOI:" + doi_json + " is in the database for another paper.\n")
     else:
         if doi_json and doi_json != doi_db:
-            if doi_db is None:
-                _insert_doi(db_session, fw, pmid, reference_id, doi_json, logger)
-            else:
-                _update_doi(db_session, fw, pmid, reference_id, doi_db, doi_json)
-            update_log['doi'] = update_log['doi'] + 1
-            update_log['pmids_updated'].append(pmid)
-
+            try:
+                if doi_db is None:
+                    _insert_doi(db_session, fw, pmid, reference_id, doi_json, logger)
+                else:
+                    _update_doi(db_session, fw, pmid, reference_id, doi_db, doi_json)
+                update_log['doi'] = update_log['doi'] + 1
+                update_log['pmids_updated'].append(pmid)
+            except Exception as e:
+                logger.info(str(e))
     ## take care of PMCID
     if pmcid_json:
         if pmcid_json.startswith('PMC'):
