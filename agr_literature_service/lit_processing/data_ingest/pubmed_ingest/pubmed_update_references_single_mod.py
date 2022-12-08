@@ -190,6 +190,9 @@ def update_data(mod, pmids, newly_added_pmids=None):  # noqa: C901 pragma: no co
                                                                pmids_with_json_updated,
                                                                bad_date_published)
 
+    # to not report not_found_xml_list for now, but log it
+    log.info("not_found_xml_list count = " + str(len(not_found_xml_list)))
+    not_found_xml_list = []
     write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, update_log,
                                             bad_date_published,
                                             authors_with_first_or_corresponding_flag,
@@ -198,6 +201,9 @@ def update_data(mod, pmids, newly_added_pmids=None):  # noqa: C901 pragma: no co
                                             sender_email, sender_password,
                                             reply_to, log)
 
+    md5dict = {'PMID': pmid_to_md5sum}
+    save_database_md5data(md5dict)
+
     if environ.get('ENV_STATE') and environ['ENV_STATE'] == 'prod':
         fw.write(str(datetime.now()) + "\n")
         fw.write("Uploading xml files to s3...\n")
@@ -205,9 +211,6 @@ def update_data(mod, pmids, newly_added_pmids=None):  # noqa: C901 pragma: no co
         for pmid in pmids_with_json_updated:
             log.info("uploading xml file for PMID:" + pmid + " to s3")
             upload_xml_file_to_s3(pmid, 'latest')
-
-    md5dict = {'PMID': pmid_to_md5sum}
-    save_database_md5data(md5dict)
 
     log.info("DONE!\n\n")
     fw.write(str(datetime.now()) + "\n")
@@ -481,12 +484,10 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
                 has_update = has_update + 1
                 update_log['citation'] = update_log['citation'] + 1
         elif colName == 'resource_id' and new_resource_id and new_resource_id != x.resource_id:
+            fw.write("PMID:" + str(pmid) + ": resource_id is updated from " + str(x.resource_id) + " to " + str(new_resource_id) + "\n")
             x.resource_id = new_resource_id
             has_update = has_update + 1
             update_log['journal'] = update_log['journal'] + 1
-            fw.write("PMID:" + str(pmid) + ": resource_id is updated from " + str(x.resource_id) + " to " + str(new_resource_id) + "\n")
-            # PMID:22479268: resource_id is updated from 41570 to 41570
-            # is it possible that this resource_id in database is a string?
         elif colName in ['date_last_modified_in_pubmed', 'date_arrived_in_pubmed']:
             j_key = colName_to_json_key[colName]
             if json_data.get('j_key'):

@@ -243,6 +243,8 @@ def get_cross_reference_data(db_session, mod, reference_id_list):
         return (reference_id_to_doi, reference_id_to_pmcid)
 
     for x in allCrossRefs:
+        if x.is_obsolete is True:
+            continue
         if x.curie.startswith('DOI:'):
             reference_id_to_doi[x.reference_id] = x.curie.replace('DOI:', '')
         elif x.curie.startswith('PMCID:'):
@@ -345,8 +347,9 @@ def get_journal_data(db_session):
 
     journal_to_resource_id = {}
 
-    for x in db_session.query(ResourceModel).all():
-        journal_to_resource_id[x.iso_abbreviation] = (x.resource_id, x.title)
+    for x in db_session.query(ResourceModel).order_by(ResourceModel.resource_id).all():
+        if x.iso_abbreviation not in journal_to_resource_id:
+            journal_to_resource_id[x.iso_abbreviation] = (x.resource_id, x.title)
 
     return journal_to_resource_id
 
