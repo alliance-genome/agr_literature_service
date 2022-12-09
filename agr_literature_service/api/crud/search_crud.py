@@ -96,10 +96,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     if query:
         es_body["query"]["bool"]["must"].append(
             {
-                "query": {
-                    "wildcard": {
-                        "title": query
-                    }
+                "wildcard": {
+                    "title": query
                 }
             })
     if facets_values:
