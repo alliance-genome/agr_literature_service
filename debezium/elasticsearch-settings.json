@@ -53,6 +53,13 @@
           ],
           "type": "custom",
           "tokenizer": "ngram_tokenizer"
+        },
+        "lowercasespaceanalyzer": {
+          "type": "custom",
+          "tokenizer": "custom_pattern_tokenizer",
+          "filter": [
+            "lowercase"
+          ]
         }
       },
       "tokenizer": {
@@ -64,6 +71,10 @@
           "min_gram": "1",
           "type": "edge_ngram",
           "max_gram": "20"
+        },
+        "custom_pattern_tokenizer": {
+          "type": "pattern",
+          "pattern": "\\p{Punct}{0,1}\\s+"
         }
       }
     }
@@ -82,6 +93,8 @@
       },
       "title": {
         "type": "text",
+        "analyzer": "lowercasespaceanalyzer",
+        "search_analyzer": "lowercasespaceanalyzer",
         "fields": {
           "keyword": {
             "type": "keyword",
