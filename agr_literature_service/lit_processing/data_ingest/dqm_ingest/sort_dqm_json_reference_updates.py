@@ -394,6 +394,8 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
             if flag_dqm_prefix_fail:
                 continue
 
+            xref_conflict = False
+
             if len(agrs_found) == 0:
                 # logger.info("Action : Create New mod %s", entry['primaryId'])
                 for key in dqm_keys_to_remove:
@@ -452,6 +454,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
                             if agr_had_prefix:
                                 fh_mod_report[mod].write("%s had %s:%s, dqm submitted %s:%s\n" % (agr_url, prefix, ref_xref_valid[agr][prefix], prefix, ident))
                                 report[mod].append((dbid, prefix + ":" + ref_xref_valid[agr][prefix] + " in the database doesn't match " + prefix + ":" + ident + " from dqm file"))
+                                xref_conflict = True
                             elif not dqm_xref_obsolete_found:
                                 if agr not in xrefs_to_add:
                                     xrefs_to_add[agr] = dict()
@@ -461,6 +464,10 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
                                     xrefs_to_add[agr][prefix][ident] = set()
                                 xrefs_to_add[agr][prefix][ident].add(filename)
                                 # logger.info("Action : Add dqm xref %s %s to agr %s", prefix, ident, agr)  # dealt with below, not needed
+
+                ## do not do anything if there is any XREF ID conflict
+                if xref_conflict:
+                    continue
 
                 if flag_aggregate_mod_specific:
                     # logger.info("Action : aggregate PMID mod data %s", agr)
