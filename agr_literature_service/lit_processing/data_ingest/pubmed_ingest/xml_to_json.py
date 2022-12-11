@@ -67,7 +67,7 @@ known_article_id_types = {
 #     'pubmed': {'pages': 'PubMed', 'prefix': 'PMID:'},
 #     'doi': {'pages': 'DOI', 'prefix': 'DOI:'},
 #     'pmc': {'pages': 'PMC', 'prefix': 'PMCID:'}}
-ignore_article_id_types = {'bookaccession', 'mid', 'pii', 'pmcid'}
+ignore_article_id_types = {'bookaccession', 'mid', 'pii', 'pmcid', 'medline', 'sici'}
 unknown_article_id_types = set()   # type: Set
 
 
