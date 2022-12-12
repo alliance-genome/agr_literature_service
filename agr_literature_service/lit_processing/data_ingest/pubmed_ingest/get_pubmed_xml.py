@@ -8,7 +8,7 @@ import sys
 import time
 import urllib
 from os import environ, makedirs, path
-from typing import List
+from typing import List, Set
 
 import requests
 from dotenv import load_dotenv
@@ -123,7 +123,7 @@ def download_pubmed_xml(pmids_wanted: List[str]):  # pragma: no cover
         makedirs(storage_path)
 
     # comparing through a set instead of a list takes 2.6 seconds instead of 4256
-    pmids_found = set()
+    pmids_found: Set[str] = set()
 
     # this section reads pubmed xml files already acquired to skip downloading them.
     # to get full set, clear out storage_path, or comment out this section
