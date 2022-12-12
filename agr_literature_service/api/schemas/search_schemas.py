@@ -11,3 +11,5 @@ class FacetsOptionsSchema(BaseModel):
     page: Optional[int]
     return_facets_only: bool = False
     author_filter: Optional[str]
+    date_pubmed_modified: Optional[List[str]] = None
+    date_pubmed_arrive: Optional[List[str]] = None
