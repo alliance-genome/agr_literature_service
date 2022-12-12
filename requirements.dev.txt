@@ -16,3 +16,4 @@ types-requests
 types-ujson
 types-docutils
 types-python-dateutil
+types-retry
