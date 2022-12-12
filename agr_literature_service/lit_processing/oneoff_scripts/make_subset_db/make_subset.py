@@ -3,7 +3,6 @@ from sqlalchemy.orm import sessionmaker
 from os import environ
 
 from agr_literature_service.api.models import (
-    AuthorModel,
     ModModel,
     UserModel,
     ReferenceModel,
@@ -13,6 +12,7 @@ from agr_literature_service.api.models import (
 num_of_ref = 2000
 orig_db = 'literature-test'
 subset_db = 'literature_subset'
+
 
 def create_postgres_engine(verbose, db):
 
@@ -44,6 +44,7 @@ def create_postgres_session(verbose, db):
     session = Session()
 
     return session
+
 
 def start():
     db_orig_session = create_postgres_session(False, orig_db)
@@ -88,5 +89,6 @@ def start():
         db_subset_session.merge(ref)
     print("Be patient the commit can take a wee while.")
     db_subset_session.commit()
+
 
 start()
