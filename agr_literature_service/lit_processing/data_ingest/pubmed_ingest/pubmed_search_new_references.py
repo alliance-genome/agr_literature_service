@@ -215,6 +215,8 @@ def query_mods(input_mod, reldate):
                     fp_pmids.add(pmid)
         time.sleep(sleep_delay)
         url = mod_esearch_url[mod]
+        if environ.get('NCBI_API_KEY'):
+            url = url + "&api_key=" + environ['NCBI_API_KEY']
         if reldate:
             url = url + "&reldate=" + str(reldate)
         elif mod in mod_daterange:

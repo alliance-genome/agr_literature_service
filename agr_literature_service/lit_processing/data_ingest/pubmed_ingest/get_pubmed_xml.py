@@ -170,6 +170,9 @@ def download_pubmed_xml(pmids_wanted: List[str]):  # pragma: no cover
         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
         parameters = {'db': 'pubmed', 'retmode': 'xml', 'id': pmids_joined}
 
+        if environ.get('NCBI_API_KEY'):
+            parameters['api_key'] = environ['NCBI_API_KEY']
+
         try:
             download_pubmed_xml_slice(url, parameters, pmids_found, storage_path, md5dict, pmids_joined)
         except requests.exceptions.RequestException as e:

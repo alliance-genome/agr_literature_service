@@ -1,6 +1,7 @@
 import logging
 import time
 import requests
+from os import environ
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.api.models import CrossReferenceModel, ReferencefileModel
@@ -80,6 +81,9 @@ def get_pmcid_for_recent_downloaded_pmc_packages():
 def search_pmc_and_extract_pdf_file_names(pmcids, pmcid_to_pdf_name):
 
     url = rootUrl + "/pmc/?term=" + "+OR+".join(pmcids)
+
+    if environ.get('NCBI_API_KEY'):
+        url = url + "&api_key=" + environ['NCBI_API_KEY']
 
     response = requests.get(url)
     content = str(response.content)
