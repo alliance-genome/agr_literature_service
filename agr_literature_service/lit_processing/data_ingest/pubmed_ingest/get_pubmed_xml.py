@@ -124,7 +124,7 @@ def download_pubmed_xml(pmids_wanted: List[str]):  # pragma: no cover
 
     # comparing through a set instead of a list takes 2.6 seconds instead of 4256
     pmids_found: Set[str] = set()
-    
+
     # this section reads pubmed xml files already acquired to skip downloading them.
     # to get full set, clear out storage_path, or comment out this section
     logger.info("Reading PubMed XML previously acquired")
