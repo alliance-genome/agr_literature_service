@@ -124,7 +124,7 @@ def download_pubmed_xml(pmids_wanted: List[str]):  # pragma: no cover
 
     # comparing through a set instead of a list takes 2.6 seconds instead of 4256
     pmids_found: Set[str] = set()
-
+    
     # this section reads pubmed xml files already acquired to skip downloading them.
     # to get full set, clear out storage_path, or comment out this section
     logger.info("Reading PubMed XML previously acquired")
@@ -169,6 +169,9 @@ def download_pubmed_xml(pmids_wanted: List[str]):  # pragma: no cover
         # using post with requests library, works well for 10000 pmids
         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
         parameters = {'db': 'pubmed', 'retmode': 'xml', 'id': pmids_joined}
+
+        if environ.get('NCBI_API_KEY'):
+            parameters['api_key'] = environ['NCBI_API_KEY']
 
         try:
             download_pubmed_xml_slice(url, parameters, pmids_found, storage_path, md5dict, pmids_joined)
