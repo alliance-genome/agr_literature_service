@@ -153,7 +153,7 @@ def download_packages(pmids, pmid_to_oa_url):  # pragma: no cover
             download_file(pmc_url, pmc_file)
 
 
-def get_pmids_without_pmc_package():
+def get_pmids_without_pmc_package():  # pragma: no cover
 
     db_session = create_postgres_session(False)
 
