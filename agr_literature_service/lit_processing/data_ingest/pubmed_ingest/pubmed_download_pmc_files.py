@@ -2,8 +2,7 @@ import logging
 import shutil
 from os import path, environ, makedirs, listdir, remove
 from dotenv import load_dotenv
-from agr_literature_service.lit_processing.utils.db_read_utils import \
-    get_pmid_list_without_pmc_package
+from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_s3
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
     get_md5sum
@@ -35,7 +34,7 @@ def download_pmc_files(mapping_file):  # pragma: no cover
 
     logger.info("Retrieving pmid list for papers that do not have PMC package downloaded...")
 
-    pmids = get_pmid_list_without_pmc_package(['SGD', 'WB', 'ZFIN', 'FB'])
+    pmids = get_pmids_without_pmc_package()
 
     logger.info("Downloading PMC OA packages...")
 
@@ -152,6 +151,52 @@ def download_packages(pmids, pmid_to_oa_url):  # pragma: no cover
             pmc_url = pmcRootUrl + pmid_to_oa_url[pmid]
             logger.info("PMID:" + pmid + " " + pmc_url)
             download_file(pmc_url, pmc_file)
+
+
+def get_pmids_without_pmc_package():  # pragma: no cover
+
+    db_session = create_postgres_session(False)
+
+    rows = db_session.execute("SELECT distinct rf.reference_id "
+                              "FROM referencefile rf, referencefile_mod rfm "
+                              "WHERE rfm.mod_id is null "
+                              "AND rf.referencefile_id = rfm.referencefile_id ").fetchall()
+
+    reference_ids_with_PMC = {}
+    for x in rows:
+        reference_ids_with_PMC[x[0]] = 1
+
+    pmids = []
+
+    limit = 5000
+    loop_count = 200000
+    for index in range(loop_count):
+        offset = index * limit
+        logger.info(f"offset={offset} Retrieving pmids...")
+        rows = db_session.execute(f"SELECT cr.reference_id, cr.curie "
+                                  f"FROM cross_reference cr, mod_corpus_association mca, "
+                                  f"cross_reference cr2 "
+                                  f"WHERE cr.curie_prefix = 'PMID' "
+                                  f"AND cr.is_obsolete is False "
+                                  f"AND cr.reference_id = cr2.reference_id "
+                                  f"AND cr2.curie_prefix = 'PMCID' "
+                                  f"AND cr.reference_id = mca.reference_id "
+                                  f"AND mca.corpus is True "
+                                  f"order by cr.reference_id "
+                                  f"limit {limit} "
+                                  f"offset {offset}").fetchall()
+        if len(rows) == 0:
+            break
+
+        for x in rows:
+            if x["reference_id"] not in reference_ids_with_PMC:
+                pmid = x["curie"].replace("PMID:", "")
+                if pmid not in pmids:
+                    pmids.append(pmid)
+
+    db_session.close()
+
+    return pmids
 
 
 def get_pmid_to_pmc_url_mapping(mapping_file):  # pragma: no cover
