@@ -81,6 +81,8 @@
     "properties": {
       "curie": {
         "type": "text",
+        "analyzer": "autocompleteAnalyzer",
+        "search_analyzer": "autocompleteSearchAnalyzer",
         "fields": {
           "keyword": {
             "type": "keyword",
@@ -203,6 +205,8 @@
       },
       "cross_references.curie": {
         "type": "text",
+        "analyzer": "autocompleteAnalyzer",
+        "search_analyzer": "autocompleteSearchAnalyzer",
         "fields": {
           "keyword": {
             "type": "keyword",
