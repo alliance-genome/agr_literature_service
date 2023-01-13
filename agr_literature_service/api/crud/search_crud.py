@@ -37,10 +37,10 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             }
         },
         "highlight": {
-            "fields": {
-                "title": {"type": "plain"},
-                "abstract": {"type": "plain"}
-            }
+            "fields": {[
+                {"title": {"type": "unified"}},
+                {"abstract": {"type": "unified"}}
+            ]}
         },
         "aggregations": {
             "pubmed_types.keyword": {
