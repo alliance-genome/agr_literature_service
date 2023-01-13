@@ -38,7 +38,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         },
         "highlight": {
             "fields": {
-                "title": {"type": "plain"}
+                "title": {"type": "plain"},
+                "abstract": {"type": "plain"}
             }
         },
         "aggregations": {
@@ -98,8 +99,9 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             {
                 "function_score": {
                     "query": {
-                        "match": {
-                            "title": query
+                        "multi_match": {
+                            "query": query,
+                            "fields": ["title","abstract"]
                         }
                     },
                     "min_score": 11.6
