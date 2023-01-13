@@ -1,7 +1,7 @@
 ARG REG=agrdocker
 ARG ALLIANCE_RELEASE=latest
 
-FROM ${REG}/agr_base_linux_env:${ALLIANCE_RELEASE}
+FROM python:3.8-alpine3.16
 
 WORKDIR /usr/local/bin/src/literature
 
