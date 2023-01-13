@@ -1,0 +1,26 @@
+# This is a base script to look at and copy/paste to command line.
+# It has manual steps in so not easy to automate.
+# Here i am creating a new database literature_subset which is a subset of
+# the database literature-test (on the same sql instance
+# but in theory that shuld not matter but the connections would have to be changed)
+
+# dump schema
+pg_dump -s -h localhost --port 5433 -U postgres -d literature-test -f lit_schema.sql
+
+# Remove views from sql file
+See file mat_view.sql and remove all that.
+
+# create new subset database
+psql -Upostgres --port 5433 -h localhost -c 'CREATE DATABASE "literature_subset"'
+
+# add schema
+psql -Upostgres --port 5433 -h localhost -d literature_subset < lit_schema.sql
+
+# run the make subset script
+python3 make_subset.py
+
+# Add the mat view (just in case)
+psql -Upostgres --port 5433 -h localhost -d literature_subset < mat_view.sql
+
+# in agr_literature_service change PSQL_DATABASE to literature_subset in .env.test
+# or whar ever env file you are using.
