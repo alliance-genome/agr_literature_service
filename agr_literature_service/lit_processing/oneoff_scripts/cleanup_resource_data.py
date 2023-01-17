@@ -25,11 +25,11 @@ def fix_resource_data():
 
     logger.info("Updating resource_ids in EDITOR table...")
 
-    # update_editor_table(db_session, duplicate_resource_id_to_correct_resource_id)
+    update_editor_table(db_session, duplicate_resource_id_to_correct_resource_id)
 
     logger.info("Updating resource_ids in REFERENCE table...")
 
-    # update_reference_table(db_session, duplicate_resource_id_to_correct_resource_id)
+    update_reference_table(db_session, duplicate_resource_id_to_correct_resource_id)
 
     logger.info("Deleting duplicate RESOURCEs...")
 
