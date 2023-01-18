@@ -1,0 +1,73 @@
+Examples of queries on references_index
+
+- Simple title search
+
+{
+  "query": {
+    "match": {
+      "title": "Cell"
+    }
+  }
+}
+
+
+- Limit search to results with minimum score
+
+{
+  "query": {
+    "function_score": {
+      "query": {
+        "match": {
+          "title": "test"
+        }
+      },
+      "min_score": 11.6
+    }
+  }
+}
+
+
+- Aggregate documents by field and return buckets with counts only (for faceted search):
+
+{
+  "size": 0,
+  "aggregations": {
+    "pubmed_types.keyword": {
+      "terms": {
+        "field": "pubmed_types.keyword",
+        "size": 20
+      }
+    }
+  }
+}
+
+
+- Combine title search with filter on multiple facet values
+
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match": {
+          "title": "Cell"
+        }
+      },
+      "filter": {
+          "bool": {
+              "must": [
+                  {
+                      "term": {
+                          "category.keyword": "research_article"
+                      }
+                  },
+                  {    "term": {
+                          "pubmed_types.keyword": "journal article"
+                      }
+                  }
+              ]
+          }
+      }
+    }
+  }
+}
+
