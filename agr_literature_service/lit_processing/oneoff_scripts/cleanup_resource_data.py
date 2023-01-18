@@ -25,7 +25,8 @@ def fix_resource_data():
 
     logger.info("Updating resource_ids in EDITOR table...")
 
-    update_editor_table(db_session, duplicate_resource_id_to_correct_resource_id)
+    # update_editor_table(db_session, duplicate_resource_id_to_correct_resource_id)
+    delete_editor_rows(db_session, duplicate_resource_id_to_correct_resource_id)
 
     logger.info("Updating resource_ids in REFERENCE table...")
 
@@ -66,6 +67,28 @@ def get_duplicate_resources(db_session, resource_id_to_nlm):
             logger.info("duplicate one: " + str(resource_id) + " | " + curie + " | " + created_by + " | " + resource_id_to_nlm.get(resource_id, "None"))
 
     return duplicate_resource_id_to_correct_resource_id
+
+
+def delete_editor_rows(db_session, duplicate_resource_id_to_correct_resource_id):
+
+    rows = db_session.execute("SELECT editor_id, resource_id FROM editor").fetchall()
+    row_count = 0
+    for x in rows:
+        editor_id = x[0]
+        resource_id = x[1]
+        if resource_id in duplicate_resource_id_to_correct_resource_id:
+            row_count += 1
+            x = db_session.query(EditorModel).filter_by(editor_id=editor_id).one_or_none()
+            if x:
+                try:
+                    db_session.delete(x)
+                    if row_count % 300 == 0:
+                        db_session.commit()
+                    logger.info("DELETE EDITOR for editor_id = " + str(editor_id) + " resource_id = " + str(resource_id))
+                except Exception as e:
+                    logger.info("Error occurred when deleting EDITOR for editor_id = " + str(editor_id) + " error = " + str(e))
+
+    db_session.commit()
 
 
 def update_editor_table(db_session, duplicate_resource_id_to_correct_resource_id):
@@ -109,16 +132,18 @@ def update_reference_table(db_session, duplicate_resource_id_to_correct_resource
             reference_id = x[0]
             resource_id = x[1]
             if resource_id in duplicate_resource_id_to_correct_resource_id:
-                correct_resource_id = duplicate_resource_id_to_correct_resource_id[resource_id]
+                # correct_resource_id = duplicate_resource_id_to_correct_resource_id[resource_id]
                 row_count += 1
                 x = db_session.query(ReferenceModel).filter_by(reference_id=reference_id).one_or_none()
                 if x:
                     try:
-                        x.resource_id = correct_resource_id
+                        # x.resource_id = correct_resource_id
+                        x.resource_id = None
                         db_session.add(x)
                         if row_count % 300 == 0:
                             db_session.commit()
-                        logger.info("UPDATE REFERENCE for reference_id = " + str(reference_id) + " OLD resource_id = " + str(resource_id) + " NEW resource_id = " + str(correct_resource_id))
+                        # logger.info("UPDATE REFERENCE for reference_id = " + str(reference_id) + " OLD resource_id = " + str(resource_id) + " NEW resource_id = " + str(correct_resource_id))
+                        logger.info("UPDATE REFERENCE for reference_id = " + str(reference_id) + " OLD resource_id = " + str(resource_id) + " NEW resource_id = None")
                     except Exception as e:
                         logger.info("Error occurred when updating REFERENCE for reference_id = " + str(reference_id) + " error = " + str(e))
 
@@ -138,6 +163,7 @@ def remove_duplicate_ones(db_session, duplicate_resource_id_to_correct_resource_
         if duplicate_resource_id in resource_ids_with_XREF:
             logger.info("duplicate_resource_id: " + str(duplicate_resource_id) + " is still in CROSS_REFERENCE table so keep it")
         else:
+            ## remove from resource table
             row_count += 1
             x = db_session.query(ResourceModel).filter_by(resource_id=duplicate_resource_id).one_or_none()
             if x:
@@ -149,6 +175,12 @@ def remove_duplicate_ones(db_session, duplicate_resource_id_to_correct_resource_
                 except Exception as e:
                     logger.info("Error occurred when deleting RESOURCE for resource_id = " + str(duplicate_resource_id) + " error = " + str(e))
 
+            ## remove from resource_version table
+            try:
+                db_session.execute(f"DELETE from resource_version WHERE resource_id = {duplicate_resource_id}")
+                logger.info("DELETE RESOURCE_VERSION for resource_id = " + str(duplicate_resource_id))
+            except Exception as e:
+                logger.info("Error occurred when deleting RESOURCE_VERSION for resource_id = " + str(duplicate_resource_id) + " error = " + str(e))
     db_session.commit()
 
 
