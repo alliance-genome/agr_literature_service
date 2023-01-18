@@ -132,18 +132,16 @@ def update_reference_table(db_session, duplicate_resource_id_to_correct_resource
             reference_id = x[0]
             resource_id = x[1]
             if resource_id in duplicate_resource_id_to_correct_resource_id:
-                # correct_resource_id = duplicate_resource_id_to_correct_resource_id[resource_id]
+                correct_resource_id = duplicate_resource_id_to_correct_resource_id[resource_id]
                 row_count += 1
                 x = db_session.query(ReferenceModel).filter_by(reference_id=reference_id).one_or_none()
                 if x:
                     try:
-                        # x.resource_id = correct_resource_id
-                        x.resource_id = None
+                        x.resource_id = correct_resource_id
                         db_session.add(x)
                         if row_count % 300 == 0:
                             db_session.commit()
-                        # logger.info("UPDATE REFERENCE for reference_id = " + str(reference_id) + " OLD resource_id = " + str(resource_id) + " NEW resource_id = " + str(correct_resource_id))
-                        logger.info("UPDATE REFERENCE for reference_id = " + str(reference_id) + " OLD resource_id = " + str(resource_id) + " NEW resource_id = None")
+                        logger.info("UPDATE REFERENCE for reference_id = " + str(reference_id) + " OLD resource_id = " + str(resource_id) + " NEW resource_id = " + str(correct_resource_id))
                     except Exception as e:
                         logger.info("Error occurred when updating REFERENCE for reference_id = " + str(reference_id) + " error = " + str(e))
 
