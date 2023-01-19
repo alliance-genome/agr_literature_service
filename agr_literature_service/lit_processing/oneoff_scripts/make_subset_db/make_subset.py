@@ -51,7 +51,7 @@ def start():
 
     db_subset_session = create_postgres_session(False, subset_db)
 
-    # Uncommnet if not starting from a fesh db
+    # Uncomment if not starting from a fresh db
     # db_subset_session.execute("DELETE FROM cross_reference")
     # db_subset_session.execute("DELETE FROM resource")
     # db_subset_session.execute("DELETE FROM reference")
@@ -88,6 +88,38 @@ def start():
         print(f"Adding {ref}")
         db_subset_session.merge(ref)
     print("Be patient the commit can take a wee while.")
+    db_subset_session.commit()
+
+    # Need to set the initial seq values else we cannot add any more entries,
+    # which might be needed for testing the api.
+    seq_list = [
+        "author_author_id_seq",
+        "cross_reference_id_seq",
+        "editor_editor_id_seq",
+        "mesh_detail_mesh_detail_id_seq",
+        "mod_corpus_association_mod_corpus_association_id_seq",
+        "mod_mod_id_seq",
+        "mod_referencetype_mod_referencetype_id_seq",
+        "mod_taxon_mod_taxon_id_seq",
+        "obsolete_reference_curie_obsolete_id_seq",
+        "reference_comments_and_correc_reference_comment_and_correct_seq",
+        "reference_mod_md5sum_reference_mod_md5sum_id_seq",
+        "reference_mod_referencetype_reference_mod_referencetype_id_seq",
+        "reference_reference_id_seq",
+        "referencefile_mod_referencefile_mod_id_seq",
+        "referencefile_referencefile_id_seq",
+        "referencetype_referencetype_id_seq",
+        "resource_descriptor_pages_resource_descriptor_pages_id_seq",
+        "resource_descriptors_resource_descriptor_id_seq",
+        "resource_resource_id_seq",
+        "topic_entity_tag_prop_topic_entity_tag_prop_id_seq",
+        "topic_entity_tag_topic_entity_tag_id_seq",
+        "transaction_id_seq",
+        "workflow_tag_reference_workflow_tag_id_seq"
+    ]
+    for seq in seq_list:
+        com = f"ALTER SEQUENCE {seq} RESTART WITH {num_of_ref+1000}"
+        db_subset_session.execute(com)
     db_subset_session.commit()
 
 
