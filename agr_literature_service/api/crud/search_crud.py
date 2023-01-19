@@ -111,13 +111,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     elif query and query_fields=="title":
         es_body["query"]["bool"]["must"].append(
             {
-                "function_score": {
-                    "query": {
-                        "match": {
-                            "title": query
-                        }
-                    },
-                    "min_score": 11.6
+                "wildcard" if "*" in query or "?" in query else "match": {
+                    "title": query
                 }
             })
     if facets_values:
