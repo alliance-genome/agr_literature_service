@@ -23,7 +23,7 @@ def initialize_elasticsearch():
         "pubmed_types": ["Journal Article", "Review"],
         "abstract": "Really quite a lot of great information in this article",
         "date_published": "1901",
-        "authors" : [{"name": "John Q Public", "orcid": "null"}, {"name": "Socrates", "orcid": "null"}],
+        "authors": [{"name": "John Q Public", "orcid": "null"}, {"name": "Socrates", "orcid": "null"}],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}]
     }
     doc2 = {
@@ -32,7 +32,7 @@ def initialize_elasticsearch():
         "pubmed_types": ["Book"],
         "abstract": "Its really worth reading this article",
         "date_published": "2022",
-        "authors" : [{"name": "Jane Doe", "orcid": "null"}],
+        "authors": [{"name": "Jane Doe", "orcid": "null"}],
         "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}]
     }
     doc3 = {
@@ -41,7 +41,7 @@ def initialize_elasticsearch():
         "pubmed_types": ["Book", "Abstract", "Category1", "Category2", "Category3"],
         "abstract": "A book written about science",
         "date_published": "1950-06-03",
-        "authors" : [{"name": "Sam", "orcid": "null"}, {"name": "Plato", "orcid": "null"}],
+        "authors": [{"name": "Sam", "orcid": "null"}, {"name": "Plato", "orcid": "null"}],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "SGD:S000000123", "is_obsolete": "true"}]
     }
     doc4 = {
@@ -50,7 +50,7 @@ def initialize_elasticsearch():
         "pubmed_types": ["Book", "Category4", "Test", "category5", "Category6", "Category7"],
         "abstract": "The other book written about science",
         "date_published": "2010",
-        "authors" : [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
+        "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}]
     }
     es.index(index="references_index", id=1, body=doc1)
@@ -144,6 +144,16 @@ class TestSearch:
             }
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers)
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_search_references_wildcard(self, initialize_elasticsearch, auth_headers): # noqa
+        with TestClient(app) as client:
+            search_data = {
+                "query": "boo*",
+                "return_facets_only": False,
+                "facets_values": None
+            }
+            res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
+            assert len(res["hits"]) == 2
 
     def test_search_need_review(self, test_mca): # noqa
         with TestClient(app) as client:

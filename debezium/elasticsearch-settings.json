@@ -39,20 +39,25 @@
           "tokenizer": "ngram_tokenizer"
         },
         "default": {
-          "filter": [
-            "asciifolding",
-            "lowercase"
-          ],
           "type": "custom",
-          "tokenizer": "ngram_tokenizer"
+          "tokenizer": "custom_pattern_tokenizer",
+          "filter": [
+            "lowercase"
+          ]
         },
         "default_search": {
-          "filter": [
-            "asciifolding",
-            "lowercase"
-          ],
           "type": "custom",
-          "tokenizer": "ngram_tokenizer"
+          "tokenizer": "custom_pattern_tokenizer",
+          "filter": [
+            "lowercase"
+          ]
+        },
+        "lowercasespaceanalyzer": {
+          "type": "custom",
+          "tokenizer": "custom_pattern_tokenizer",
+          "filter": [
+            "lowercase"
+          ]
         }
       },
       "tokenizer": {
@@ -64,6 +69,10 @@
           "min_gram": "1",
           "type": "edge_ngram",
           "max_gram": "20"
+        },
+        "custom_pattern_tokenizer": {
+          "type": "pattern",
+          "pattern": "\\p{Punct}{0,1}\\s+"
         }
       }
     }
@@ -72,6 +81,8 @@
     "properties": {
       "curie": {
         "type": "text",
+        "analyzer": "autocompleteAnalyzer",
+        "search_analyzer": "autocompleteSearchAnalyzer",
         "fields": {
           "keyword": {
             "type": "keyword",
@@ -194,6 +205,8 @@
       },
       "cross_references.curie": {
         "type": "text",
+        "analyzer": "autocompleteAnalyzer",
+        "search_analyzer": "autocompleteSearchAnalyzer",
         "fields": {
           "keyword": {
             "type": "keyword",
