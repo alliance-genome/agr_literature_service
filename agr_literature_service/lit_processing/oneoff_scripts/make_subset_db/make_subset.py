@@ -118,8 +118,9 @@ def start():
         "workflow_tag_reference_workflow_tag_id_seq"
     ]
     for seq in seq_list:
-        com  = f"ALTER SEQUENCE {seq} RESTART WITH {num_of_ref+1000}"
+        com = f"ALTER SEQUENCE {seq} RESTART WITH {num_of_ref+1000}"
         db_subset_session.execute(com)
     db_subset_session.commit()
+
 
 start()
