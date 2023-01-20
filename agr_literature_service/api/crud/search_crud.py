@@ -146,6 +146,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             "curie": ref["_source"]["curie"],
             "title": ref["_source"]["title"],
             "date_published": ref["_source"]["date_published"],
+            "date_published_start": ref["_source"]["date_published_start"],
+            "date_published_end": ref["_source"]["date_published_end"],
             "abstract": ref["_source"]["abstract"],
             "cross_references": ref["_source"]["cross_references"],
             "authors": ref["_source"]["authors"],
