@@ -155,6 +155,17 @@ class TestSearch:
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert len(res["hits"]) == 2
 
+    def test_search_on_abstract(self, initialize_elasticsearch, auth_headers): # noqa
+        with TestClient(app) as client:
+            search_data = {
+                "query": "really",
+                "return_facets_only": False,
+                "facets_values": None,
+                "query_field": "abstract"
+            }
+            res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
+            assert len(res["hits"]) == 2
+
     def test_search_need_review(self, test_mca): # noqa
         with TestClient(app) as client:
             res = client.get(url="/search/need_review", params={"mod_abbreviation": "0015_AtDB", "count": 10})
