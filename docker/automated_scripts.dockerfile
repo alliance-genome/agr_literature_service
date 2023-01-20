@@ -1,6 +1,6 @@
 FROM ubuntu:20.04
 
-RUN apt-get update && apt-get install -y cron git
+RUN apt-get update && apt-get install -y cron git python3-pip
 
 WORKDIR /usr/src/app/
 
