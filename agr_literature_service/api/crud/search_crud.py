@@ -38,7 +38,7 @@ def search_date_range(es_body,
                 }
             })
     if date_published:
-        #TODO: need an or search for either start or end in the range
+        # TODO: need an or search for either start or end in the range
         es_body["query"]["bool"]["filter"]["bool"]["must"].append(
             {
                 "range": {
