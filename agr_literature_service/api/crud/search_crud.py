@@ -11,10 +11,51 @@ from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, Cr
 from fastapi import HTTPException, status
 
 
+def search_date_range(es_body,
+                      date_pubmed_modified: Optional[List[str]] = None,
+                      date_pubmed_arrive: Optional[List[str]] = None,
+                      date_published: Optional[List[str]] = None):
+    if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
+        es_body["query"]["bool"]["filter"]["bool"]["must"] = []
+    if date_pubmed_modified:
+        es_body["query"]["bool"]["filter"]["bool"]["must"].append(
+            {
+                "range": {
+                    "date_last_modified_in_pubmed": {
+                        "gte": date_pubmed_modified[0],
+                        "lt": date_pubmed_modified[1]
+                    }
+                }
+            })
+    if date_pubmed_arrive:
+        es_body["query"]["bool"]["filter"]["bool"]["must"].append(
+            {
+                "range": {
+                    "date_arrived_in_pubmed": {
+                        "gte": date_pubmed_arrive[0],
+                        "lt": date_pubmed_arrive[1]
+                    }
+                }
+            })
+    if date_published:
+        #TODO: need an or search for either start or end in the range
+        es_body["query"]["bool"]["filter"]["bool"]["must"].append(
+            {
+                "range": {
+                    "date_published_start": {
+                        "gte": date_published[0],
+                        "lte": date_published[1]
+                    }
+                }
+            })
+
+
 def search_references(query: str = None, facets_values: Dict[str, List[str]] = None,
                       size_result_count: Optional[int] = 10, page: Optional[int] = 0,
                       facets_limits: Dict[str, int] = None, return_facets_only: bool = False,
-                      author_filter: Optional[str] = None, date_pubmed_modified: Optional[List[str]] = None, date_pubmed_arrive: Optional[List[str]] = None):
+                      author_filter: Optional[str] = None, date_pubmed_modified: Optional[List[str]] = None,
+                      date_pubmed_arrive: Optional[List[str]] = None,
+                      date_published: Optional[List[str]] = None):
     if query is None and facets_values is None and not return_facets_only:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="requested a search but no query and no facets provided")
@@ -108,31 +149,14 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             for facet_value in facet_list_values:
                 es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"].append({"term": {}})
                 es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
-    if date_pubmed_modified or date_pubmed_arrive:
-        if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
-            es_body["query"]["bool"]["filter"]["bool"]["must"] = []
-        if date_pubmed_modified:
-            es_body["query"]["bool"]["filter"]["bool"]["must"].append(
-                {
-                    "range": {
-                        "date_last_modified_in_pubmed": {
-                            "gte": date_pubmed_modified[0],
-                            "lt": date_pubmed_modified[1]
-                        }
-                    }
-                })
-        if date_pubmed_arrive:
-            es_body["query"]["bool"]["filter"]["bool"]["must"].append(
-                {
-                    "range": {
-                        "date_arrived_in_pubmed": {
-                            "gte": date_pubmed_arrive[0],
-                            "lt": date_pubmed_arrive[1]
-                        }
-                    }
-                })
-    if not facets_values and not date_pubmed_modified and not date_pubmed_arrive:
+
+    date_range = False
+    if date_pubmed_modified or date_pubmed_arrive or date_published:
+        date_range = True
+        search_date_range(es_body, date_pubmed_modified, date_pubmed_arrive, date_published)
+    if not facets_values and not date_range:
         del es_body["query"]["bool"]["filter"]
+
     if author_filter:
         es_body["aggregations"]["authors.name.keyword"]["terms"]["include"] = ".*" + author_filter + ".*"
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
