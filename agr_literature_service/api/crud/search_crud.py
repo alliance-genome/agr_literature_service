@@ -11,6 +11,7 @@ from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, Cr
 from fastapi import HTTPException, status
 
 
+# flake8: noqa: C901
 def search_references(query: str = None, facets_values: Dict[str, List[str]] = None,
                       size_result_count: Optional[int] = 10, page: Optional[int] = 0,
                       facets_limits: Dict[str, int] = None, return_facets_only: bool = False,
