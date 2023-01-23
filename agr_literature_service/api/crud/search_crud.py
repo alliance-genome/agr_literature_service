@@ -41,7 +41,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         "highlight": {
             "fields": [
                 {"title": {"type": "unified"}},
-                {"abstract": {"type": "unified"}}
+                {"abstract": {"type": "unified"}},
+                {"keywords": {"type": "unified"}}
             ]
         },
         "aggregations": {
@@ -107,7 +108,12 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 "wildcard" if "*" in query or "?" in query else "match": {
                     "abstract": query
                 }
-            }
+            },
+            {
+                "wildcard" if "*" in query or "?" in query else "match": {
+                    "keywords": query
+                }
+            },
         ]
     elif query and query_fields == "Title":
         es_body["query"]["bool"]["must"].append(
@@ -127,7 +133,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         es_body["query"]["bool"]["must"].append(
             {
                 "wildcard" if "*" in query or "?" in query else "match": {
-                    "Keyword": query
+                    "keywords": query
                 }
             })
     if facets_values:
