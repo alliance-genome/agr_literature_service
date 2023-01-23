@@ -29,7 +29,8 @@ def search(body: FacetsOptionsSchema):
                                          return_facets_only=body.return_facets_only,
                                          author_filter=body.author_filter,
                                          date_pubmed_modified=body.date_pubmed_modified,
-                                         date_pubmed_arrive=body.date_pubmed_arrive)
+                                         date_pubmed_arrive=body.date_pubmed_arrive,
+                                         query_fields=body.query_fields)
 
 
 @router.get('/need_review',

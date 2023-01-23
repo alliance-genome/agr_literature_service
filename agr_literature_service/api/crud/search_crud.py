@@ -11,10 +11,12 @@ from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, Cr
 from fastapi import HTTPException, status
 
 
+# flake8: noqa: C901
 def search_references(query: str = None, facets_values: Dict[str, List[str]] = None,
                       size_result_count: Optional[int] = 10, page: Optional[int] = 0,
                       facets_limits: Dict[str, int] = None, return_facets_only: bool = False,
-                      author_filter: Optional[str] = None, date_pubmed_modified: Optional[List[str]] = None, date_pubmed_arrive: Optional[List[str]] = None):
+                      author_filter: Optional[str] = None, date_pubmed_modified: Optional[List[str]] = None,
+                      date_pubmed_arrive: Optional[List[str]] = None, query_fields: str = None):
     if query is None and facets_values is None and not return_facets_only:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="requested a search but no query and no facets provided")
@@ -31,15 +33,18 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         "query": {
             "bool": {
                 "must": [],
+                "should": [],
                 "filter": {
                     "bool": {}
                 }
             }
         },
         "highlight": {
-            "fields": {
-                "title": {"type": "plain"}
-            }
+            "fields": [
+                {"title": {"type": "unified"}},
+                {"abstract": {"type": "unified"}},
+                {"keywords": {"type": "unified"}}
+            ]
         },
         "aggregations": {
             "pubmed_types.keyword": {
@@ -93,11 +98,43 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         es_body["size"] = 0
         res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
         return {"hits": [], "aggregations": res["aggregations"]}
-    if query:
+    if query and (query_fields == "All" or query_fields is None):
+        es_body["query"]["bool"]["should"] = [
+            {
+                "wildcard" if "*" in query or "?" in query else "match": {
+                    "title": query
+                }
+            },
+            {
+                "wildcard" if "*" in query or "?" in query else "match": {
+                    "abstract": query
+                }
+            },
+            {
+                "wildcard" if "*" in query or "?" in query else "match": {
+                    "keywords": query
+                }
+            },
+        ]
+    elif query and query_fields == "Title":
         es_body["query"]["bool"]["must"].append(
             {
                 "wildcard" if "*" in query or "?" in query else "match": {
                     "title": query
+                }
+            })
+    elif query and query_fields == "Abstract":
+        es_body["query"]["bool"]["must"].append(
+            {
+                "wildcard" if "*" in query or "?" in query else "match": {
+                    "abstract": query
+                }
+            })
+    elif query and query_fields == "Keyword":
+        es_body["query"]["bool"]["must"].append(
+            {
+                "wildcard" if "*" in query or "?" in query else "match": {
+                    "keywords": query
                 }
             })
     if facets_values:
