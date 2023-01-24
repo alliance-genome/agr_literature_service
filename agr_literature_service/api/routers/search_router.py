@@ -1,11 +1,10 @@
-from typing import List
-
+from sqlalchemy.orm import Session
 from fastapi import APIRouter, Security, Depends
+from typing import List
 
 from agr_literature_service.api import database
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.crud import search_crud
-from sqlalchemy.orm import Session
 from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, FacetsOptionsSchema
 
 
