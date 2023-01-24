@@ -14,3 +14,4 @@ class FacetsOptionsSchema(BaseModel):
     date_pubmed_modified: Optional[List[str]] = None
     date_pubmed_arrive: Optional[List[str]] = None
     date_published: Optional[List[str]] = None
+    query_fields: Optional[str]
