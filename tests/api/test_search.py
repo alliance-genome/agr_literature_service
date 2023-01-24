@@ -169,3 +169,16 @@ class TestSearch:
             res = client.get(url="/search/need_review", params={"mod_abbreviation": "0015_AtDB", "count": 10})
             assert res.status_code == status.HTTP_200_OK
             assert len(res.json()) > 0
+
+    def test_search_references_with_date_pub(self, initialize_elasticsearch, auth_headers): # noqa
+        with TestClient(app) as client:
+            search_data = {
+                "query": "cell",
+                "facets_values": {
+                    "date_published_start": [1, 2]
+                },
+                "return_facets_only": False
+            }
+            res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
+            assert "hits" in res
+            assert "aggregations" in res
