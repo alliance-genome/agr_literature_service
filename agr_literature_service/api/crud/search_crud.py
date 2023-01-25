@@ -47,10 +47,10 @@ def search_date_range(es_body,
             # initial strings are in the format:- "2010-10-28T04:00:00.000"
             # So just grab chars before T and converts to seconds after epoch
             # then mulitply by 1000000 and convert to int.
-            start = datetime.strptime(date_published[0].split('T')[0], '%Y-%m-%d').timestamp()
-            end = datetime.strptime(date_published[1].split('T')[0], '%Y-%m-%d').timestamp()
-            start = int(start * 1000000)
-            end = int(end * 1000000)
+            start = int(datetime.strptime(date_published[0].split('T')[0], '%Y-%m-%d').timestamp())
+            end = int(datetime.strptime(date_published[1].split('T')[0], '%Y-%m-%d').timestamp())
+            start = start * 1000000
+            end = end * 1000000
         except Exception as e:
             start = date_published[0]
             end = date_published[1]
