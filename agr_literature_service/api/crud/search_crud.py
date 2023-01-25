@@ -14,6 +14,7 @@ from fastapi import HTTPException, status
 
 logger = logging.getLogger(__name__)
 
+
 def search_date_range(es_body,
                       date_pubmed_modified: Optional[List[str]] = None,
                       date_pubmed_arrive: Optional[List[str]] = None,
