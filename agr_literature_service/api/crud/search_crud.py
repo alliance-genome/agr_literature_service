@@ -1,4 +1,6 @@
 from typing import Dict, List, Any, Optional
+import logging
+from datetime import datetime
 
 from elasticsearch import Elasticsearch
 from agr_literature_service.api.config import config
@@ -10,6 +12,7 @@ from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, Cr
 
 from fastapi import HTTPException, status
 
+logger = logging.getLogger(__name__)
 
 def search_date_range(es_body,
                       date_pubmed_modified: Optional[List[str]] = None,
@@ -38,13 +41,27 @@ def search_date_range(es_body,
                 }
             })
     if date_published:
+        try:
+            # convert string to Datetime int that is stored in Elastic search
+            # initial strings are in the format:- "2010-10-28T04:00:00.000"
+            # So just grab chars before T and converts to seconds after epoch
+            # then mulitply by 1000000 and convert to int.
+            start = datetime.strptime(date_published[0].split('T')[0], '%Y-%m-%d').timestamp()
+            end = datetime.strptime(date_published[1].split('T')[0], '%Y-%m-%d').timestamp()
+            start = int(start * 1000000)
+            end = int(end * 1000000)
+        except Exception as e:
+            start = date_published[0]
+            end = date_published[1]
+            logger.error(f"Exception in conversion {e} for start={start} and end={end}")
+        logger.debug(f"Search date_published: start={start}, end={end}")
         # TODO: need an or search for either start or end in the range
         es_body["query"]["bool"]["filter"]["bool"]["must"].append(
             {
                 "range": {
                     "date_published_start": {
-                        "gte": date_published[0],
-                        "lte": date_published[1]
+                        "gte": start,
+                        "lte": end
                     }
                 }
             })
@@ -57,6 +74,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                       date_pubmed_arrive: Optional[List[str]] = None,
                       date_published: Optional[List[str]] = None,
                       query_fields: str = None):
+    logger.error(f"search_references called {date_pubmed_modified}")
     if query is None and facets_values is None and not return_facets_only:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="requested a search but no query and no facets provided")
