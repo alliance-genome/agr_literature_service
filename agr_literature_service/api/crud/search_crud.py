@@ -99,23 +99,28 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
         return {"hits": [], "aggregations": res["aggregations"]}
     if query and (query_fields == "All" or query_fields is None):
-        es_body["query"]["bool"]["should"] = [
-            {
-                "wildcard" if "*" in query or "?" in query else "match": {
-                    "title": query
-                }
-            },
-            {
-                "wildcard" if "*" in query or "?" in query else "match": {
-                    "abstract": query
-                }
-            },
-            {
-                "wildcard" if "*" in query or "?" in query else "match": {
-                    "keywords": query
-                }
-            },
-        ]
+        es_body["query"]["bool"]["must"].append({
+            "bool": {
+                "should":
+                    [
+                        {
+                            "wildcard" if "*" in query or "?" in query else "match": {
+                                "title": query
+                            }
+                        },
+                        {
+                            "wildcard" if "*" in query or "?" in query else "match": {
+                                "abstract": query
+                            }
+                        },
+                        {
+                            "wildcard" if "*" in query or "?" in query else "match": {
+                                "keywords": query
+                            }
+                        },
+                    ]
+            }
+        })
     elif query and query_fields == "Title":
         es_body["query"]["bool"]["must"].append(
             {
