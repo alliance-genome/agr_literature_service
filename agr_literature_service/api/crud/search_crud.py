@@ -52,9 +52,7 @@ def search_date_range(es_body,
             start = start * 1000000
             end = end * 1000000
         except Exception as e:
-            start = date_published[0]
-            end = date_published[1]
-            logger.error(f"Exception in conversion {e} for start={start} and end={end}")
+            logger.error(f"Exception in conversion {e} for start={date_published[0]} and end={date_published[1]}")
         logger.debug(f"Search date_published: start={start}, end={end}")
         # TODO: need an or search for either start or end in the range
         es_body["query"]["bool"]["filter"]["bool"]["must"].append(
