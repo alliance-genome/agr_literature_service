@@ -24,8 +24,6 @@ def initialize_elasticsearch():
         "pubmed_types": ["Journal Article", "Review"],
         "abstract": "Really quite a lot of great information in this article",
         "date_published": "1901",
-        "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
-        "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
         "authors": [{"name": "John Q Public", "orcid": "null"}, {"name": "Socrates", "orcid": "null"}],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}]
     }
