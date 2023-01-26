@@ -35,8 +35,6 @@ def initialize_elasticsearch():
         "pubmed_types": ["Book"],
         "abstract": "Its really worth reading this article",
         "date_published": "2022",
-        "date_published_start": datetime.strptime('10/10/2022', '%m/%d/%Y').timestamp(),
-        "date_published_end": datetime.strptime('10/10/2022', '%m/%d/%Y').timestamp(),
         "authors": [{"name": "Jane Doe", "orcid": "null"}],
         "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}]
     }
@@ -46,8 +44,6 @@ def initialize_elasticsearch():
         "pubmed_types": ["Book", "Abstract", "Category1", "Category2", "Category3"],
         "abstract": "A book written about science",
         "date_published": "1950-06-03",
-        "date_published_start": datetime.strptime('01/01/2023', '%m/%d/%Y').timestamp(),
-        "date_published_end": datetime.strptime('10/01/2023', '%m/%d/%Y').timestamp(),
         "authors": [{"name": "Sam", "orcid": "null"}, {"name": "Plato", "orcid": "null"}],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "SGD:S000000123", "is_obsolete": "true"}]
     }
@@ -56,8 +52,6 @@ def initialize_elasticsearch():
         "title": "Book 2",
         "pubmed_types": ["Book", "Category4", "Test", "category5", "Category6", "Category7"],
         "abstract": "The other book written about science",
-        "date_published_start": datetime.strptime('10/01/2021', '%m/%d/%Y').timestamp(),
-        "date_published_end": datetime.strptime('10/30/2022', '%m/%d/%Y').timestamp(),
         "date_published": "2010",
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}]
@@ -180,16 +174,3 @@ class TestSearch:
             res = client.get(url="/search/need_review", params={"mod_abbreviation": "0015_AtDB", "count": 10})
             assert res.status_code == status.HTTP_200_OK
             assert len(res.json()) > 0
-
-    def test_search_references_with_date_pub(self, initialize_elasticsearch, auth_headers): # noqa
-        with TestClient(app) as client:
-            search_data = {
-                "query": "cell",
-                "facets_values": {
-                    "date_published_start": [1, 2]
-                },
-                "return_facets_only": False
-            }
-            res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
-            assert "hits" in res
-            assert "aggregations" in res
