@@ -68,7 +68,7 @@ def initialize_elasticsearch():
         "title": "Book 2",
         "pubmed_types": ["Book", "Category4", "Test", "category5", "Category6", "Category7"],
         "abstract": "The other book written about science",
-        "date_published_start": date1,  # ful year
+        "date_published_start": date1,  # full year
         "date_published_end": date5,
         "date_published": date4_str,
         "date_arrived_in_pubmed": date4_str,
@@ -104,9 +104,11 @@ class TestSearch:
     def test_search_references_with_date_pubmed_arrive(self, initialize_elasticsearch, auth_headers): # noqa
         # search for pub date between 1st jan and march 28th
         # This should get 2 records date1 and date2 defined by "date_arrived_in_pubmed".
+        #
+        # date_pubmed_arrive[1] set to 2022-01-01T05:00:00.000Z and
         # date_pubmed_arrive[1] set to 2022-03-28T03:59:59.999Z as this is what the ui
         # would return.
-        # So this checks the whole end date is used.
+        # So this checks the whole dates are used and ignores the time bit.
         with TestClient(app) as client:
             search_data = {
                 "query": "",
@@ -116,10 +118,35 @@ class TestSearch:
                                   "authors.name.keyword": 10},
                 "author_filter": "",
                 "query_fields": "All",
-                "date_pubmed_arrive": ["2022-01-01T00:00:00.000Z",
+                "date_pubmed_arrive": ["2022-01-01T05:00:00.000Z",
                                        "2022-03-28T03:59:59.999Z"]
             }
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert "hits" in res
             assert "aggregations" in res
             assert res["return_count"] == 2
+
+    def test_search_references_with_date_start(self, initialize_elasticsearch, auth_headers): # noqa
+        # search for pub date between 1st jan and march 28th
+        # This should get 4 records.
+        #
+        # date_published[0] set to 2022-01-01T05:00:00.000Z and
+        # date_published[1] set to 2022-03-28T03:59:59.999Z as this is what the ui
+        # would return.
+        # So this checks the whole dates are used and ignores the time bit.
+        with TestClient(app) as client:
+            search_data = {
+                "query": "",
+                "facets_limits": {"pubmed_types.keyword": 10,
+                                  "category.keyword": 10,
+                                  "pubmed_publication_status.keyword": 10,
+                                  "authors.name.keyword": 10},
+                "author_filter": "",
+                "query_fields": "All",
+                "date_published": ["2022-01-01T04:00:00.000Z",
+                                   "2022-03-28T03:59:59.999Z"]
+            }
+            res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
+            assert "hits" in res
+            assert "aggregations" in res
+            assert res["return_count"] == 4
