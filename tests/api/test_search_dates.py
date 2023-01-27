@@ -24,7 +24,7 @@ def initialize_elasticsearch():
     date5_str = '2022-12-31'
     date1 = int(datetime.strptime(date1_str, '%Y-%m-%d').timestamp()) * 1000000
     date2 = int(datetime.strptime(date2_str, '%Y-%m-%d').timestamp()) * 1000000
-    date3 = int(datetime.strptime(date3_str, '%Y-%m-%d').timestamp()) * 1000000
+    # date3 = int(datetime.strptime(date3_str, '%Y-%m-%d').timestamp()) * 1000000
     date4 = int(datetime.strptime(date4_str, '%Y-%m-%d').timestamp()) * 1000000
     date5 = int(datetime.strptime(date5_str, '%Y-%m-%d').timestamp()) * 1000000
     doc1 = {
@@ -107,14 +107,14 @@ class TestSearch:
         with TestClient(app) as client:
             search_data = {
                 "query": "",
-                "facets_limits":{"pubmed_types.keyword":10,
-                                 "category.keyword":10,
-                                 "pubmed_publication_status.keyword":10,
-                                 "authors.name.keyword":10},
-                "author_filter":"",
-                "query_fields":"All",
-                "date_pubmed_arrive":["2022-01-01T00:00:00.000Z",
-                                      "2022-03-31T03:59:59.999Z"]
+                "facets_limits": {"pubmed_types.keyword": 10,
+                                  "category.keyword": 10,
+                                  "pubmed_publication_status.keyword": 10,
+                                  "authors.name.keyword": 10},
+                "author_filter": "",
+                "query_fields": "All",
+                "date_pubmed_arrive": ["2022-01-01T00:00:00.000Z",
+                                       "2022-03-31T03:59:59.999Z"]
             }
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert "hits" in res
