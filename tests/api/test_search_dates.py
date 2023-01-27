@@ -102,8 +102,11 @@ def initialize_elasticsearch():
 class TestSearch:
 
     def test_search_references_with_date_pubmed_arrive(self, initialize_elasticsearch, auth_headers): # noqa
-        # search for pub date between 1st jan and march 31st
-        # This should get 2 records date1 and date2 defined by "date_arrived_in_pubmed"
+        # search for pub date between 1st jan and march 28th
+        # This should get 2 records date1 and date2 defined by "date_arrived_in_pubmed".
+        # date_pubmed_arrive[1] set to 2022-03-28T03:59:59.999Z as this is what the ui
+        # would return.
+        # So this checks the whole end date is used.
         with TestClient(app) as client:
             search_data = {
                 "query": "",
@@ -114,7 +117,7 @@ class TestSearch:
                 "author_filter": "",
                 "query_fields": "All",
                 "date_pubmed_arrive": ["2022-01-01T00:00:00.000Z",
-                                       "2022-03-31T03:59:59.999Z"]
+                                       "2022-03-28T03:59:59.999Z"]
             }
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert "hits" in res
