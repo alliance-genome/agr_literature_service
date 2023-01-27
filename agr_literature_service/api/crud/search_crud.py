@@ -66,26 +66,26 @@ def search_date_range(es_body,
         logger.debug(f"Search date_published: start={start}, end={end}")
         es_body["query"]["bool"]["filter"]["bool"]["must"].append(
             {
-               "bool": {
-                   "should": [
-                       {
-                           "range": {
-                               "date_published_end": {
-                                   "gte": start,
-                                   "lte": end
-                               }
-                           }
-                       },
-                       {
-                           "range": {
-                               "date_published_start": {
-                                   "gte": start,
-                                   "lte": end
-                               }
-                           }
-                       }
-                   ]
-               }
+                "bool": {
+                    "should": [
+                        {
+                            "range": {
+                                "date_published_end": {
+                                    "gte": start,
+                                    "lte": end
+                                }
+                            }
+                        },
+                        {
+                            "range": {
+                                "date_published_start": {
+                                    "gte": start,
+                                    "lte": end
+                                }
+                            }
+                        }
+                    ]
+                }
             })
 
 
