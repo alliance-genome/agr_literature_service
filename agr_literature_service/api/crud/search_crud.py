@@ -27,7 +27,7 @@ def search_date_range(es_body,
                 "range": {
                     "date_last_modified_in_pubmed": {
                         "gte": date_pubmed_modified[0],
-                        "lt": date_pubmed_modified[1]
+                        "lte": date_pubmed_modified[1]
                     }
                 }
             })
@@ -37,7 +37,7 @@ def search_date_range(es_body,
                 "range": {
                     "date_arrived_in_pubmed": {
                         "gte": date_pubmed_arrive[0],
-                        "lt": date_pubmed_arrive[1]
+                        "lte": date_pubmed_arrive[1]
                     }
                 }
             })
