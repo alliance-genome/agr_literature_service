@@ -15,6 +15,19 @@ from fastapi import HTTPException, status
 logger = logging.getLogger(__name__)
 
 
+def date_str_to_micro_seconds(date_str: str, start_of_day: bool):
+    # convert string to Datetime int that is stored in Elastic search
+    # initial strings are in the format:- "2010-10-28T04:00:00.000"
+    # So just grab chars before T and converts to seconds after epoch
+    # then mulitply by 1000000 and convert to int.
+    date_time = datetime.strptime(date_str.split('T')[0], '%Y-%m-%d')
+    if start_of_day:
+        date_time = date_time.replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        date_time = date_time.replace(hour=23, minute=59, second=59, microsecond=0)
+    return int(date_time * 1000000)
+
+
 def search_date_range(es_body,
                       date_pubmed_modified: Optional[List[str]] = None,
                       date_pubmed_arrive: Optional[List[str]] = None,
@@ -43,18 +56,11 @@ def search_date_range(es_body,
             })
     if date_published:
         try:
-            # convert string to Datetime int that is stored in Elastic search
-            # initial strings are in the format:- "2010-10-28T04:00:00.000"
-            # So just grab chars before T and converts to seconds after epoch
-            # then mulitply by 1000000 and convert to int.
-            start = int(datetime.strptime(date_published[0].split('T')[0], '%Y-%m-%d').timestamp())
-            end = int(datetime.strptime(date_published[1].split('T')[0], '%Y-%m-%d').timestamp())
-            start = start * 1000000
-            end = end * 1000000
+            start = date_str_to_micro_seconds(date_published[0], True)
+            end = date_str_to_micro_seconds(date_published[1], False)
         except Exception as e:
             logger.error(f"Exception in conversion {e} for start={date_published[0]} and end={date_published[1]}")
         logger.debug(f"Search date_published: start={start}, end={end}")
-        # TODO: need an or search for either start or end in the range
         es_body["query"]["bool"]["filter"]["bool"]["must"].append(
             {
                 "range": {
