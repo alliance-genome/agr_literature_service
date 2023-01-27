@@ -32,6 +32,9 @@ def search_date_range(es_body,
                       date_pubmed_modified: Optional[List[str]] = None,
                       date_pubmed_arrive: Optional[List[str]] = None,
                       date_published: Optional[List[str]] = None):
+    # date_pubmed_X is split to just get the date and remove the time element
+    # as elastic search does a tr comparison and if the end date has the time
+    # element stil in it fails even if the date bits match as the string is longer.
     if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
         es_body["query"]["bool"]["filter"]["bool"]["must"] = []
     if date_pubmed_modified:
@@ -63,12 +66,22 @@ def search_date_range(es_body,
         logger.debug(f"Search date_published: start={start}, end={end}")
         es_body["query"]["bool"]["filter"]["bool"]["must"].append(
             {
-                "range": {
-                    "date_published_start": {
-                        "gte": start,
-                        "lte": end
+               "should":[ 
+                   {"range" : {
+                       "date_published_end" : {
+                          "gte" : start,
+                          "lte" : end
+                        }
                     }
-                }
+                   },
+                   {"range" : {
+                      "date_published_start" : {
+                          "gte" : start,
+                           "lte" : end
+                      }
+                     }
+                   }
+               ]
             })
 
 
@@ -79,7 +92,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                       date_pubmed_arrive: Optional[List[str]] = None,
                       date_published: Optional[List[str]] = None,
                       query_fields: str = None):
-    logger.error(f"search_references called {date_pubmed_modified}")
     if query is None and facets_values is None and not return_facets_only:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="requested a search but no query and no facets provided")
