@@ -25,7 +25,7 @@ def date_str_to_micro_seconds(date_str: str, start_of_day: bool):
         date_time = date_time.replace(hour=0, minute=0, second=0, microsecond=0)
     else:
         date_time = date_time.replace(hour=23, minute=59, second=59, microsecond=0)
-    return int(date_time * 1000000)
+    return int(date_time.timestamp() * 1000000)
 
 
 def search_date_range(es_body,
