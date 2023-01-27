@@ -180,4 +180,3 @@ class TestSearch:
             res = client.get(url="/search/need_review", params={"mod_abbreviation": "0015_AtDB", "count": 10})
             assert res.status_code == status.HTTP_200_OK
             assert len(res.json()) > 0
-
