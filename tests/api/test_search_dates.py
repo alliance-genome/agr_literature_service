@@ -4,7 +4,6 @@ from datetime import datetime
 from elasticsearch import Elasticsearch
 from starlette.testclient import TestClient
 
-from fastapi import status
 from agr_literature_service.api.config import config
 from agr_literature_service.api.main import app
 from .test_mod_corpus_association import test_mca # noqa
@@ -23,11 +22,11 @@ def initialize_elasticsearch():
     date3_str = '2022-06-28'
     date4_str = '2022-09-28'
     date5_str = '2022-12-31'
-    date1 = int(datetime.strptime(date1_str, '%Y-%m-%d').timestamp())* 1000000
-    date2 = int(datetime.strptime(date2_str, '%Y-%m-%d').timestamp())* 1000000
-    date3 = int(datetime.strptime(date3_str, '%Y-%m-%d').timestamp())* 1000000
-    date4 = int(datetime.strptime(date4_str, '%Y-%m-%d').timestamp())* 1000000
-    date5 = int(datetime.strptime(date5_str, '%Y-%m-%d').timestamp())* 1000000
+    date1 = int(datetime.strptime(date1_str, '%Y-%m-%d').timestamp()) * 1000000
+    date2 = int(datetime.strptime(date2_str, '%Y-%m-%d').timestamp()) * 1000000
+    date3 = int(datetime.strptime(date3_str, '%Y-%m-%d').timestamp()) * 1000000
+    date4 = int(datetime.strptime(date4_str, '%Y-%m-%d').timestamp()) * 1000000
+    date5 = int(datetime.strptime(date5_str, '%Y-%m-%d').timestamp()) * 1000000
     doc1 = {
         "curie": "AGRKB:101000000000100",
         "title": "superlongword super super super super test test test",
@@ -114,10 +113,10 @@ class TestSearch:
                                  "authors.name.keyword":10},
                 "author_filter":"",
                 "query_fields":"All",
-                "date_pubmed_arrive":["2022-01-01T04:00:00.000Z","2022-03-31T03:59:59.999Z"]
+                "date_pubmed_arrive":["2022-01-01T00:00:00.000Z",
+                                      "2022-03-31T03:59:59.999Z"]
             }
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert "hits" in res
             assert "aggregations" in res
-            assert "return_count" in res and res["return_count"] == 2
-
+            assert res["return_count"] == 2
