@@ -87,14 +87,20 @@ def search_date_range(es_body,
                         {
                             "bool": {
                                 "must": [
-                                    {"range": {
-                                        "date_published_start": {
-                                            "lte": start
-                                    }}},
-                                    {"range": {
-                                        "date_published_end": {
-                                            "gte": end
-                                    }}}
+                                    {
+                                        "range": {
+                                            "date_published_start": {
+                                                "lte": start
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "range": {
+                                            "date_published_end": {
+                                                "gte": end
+                                            }
+                                        }
+                                    }
                                 ]
                             }
                         }
