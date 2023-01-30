@@ -85,11 +85,13 @@ def search_date_range(es_body,
                             }
                         },
                         {
-                            "date_published_start": {
-                                "lte": start
-                            },
-                            "date_published_end": {
-                                "gte": end
+                            "bool": {
+                                "date_published_start": {
+                                    "lte": start
+                                },
+                                "date_published_end": {
+                                    "gte": end
+                                }
                             }
                         }
                     ]
