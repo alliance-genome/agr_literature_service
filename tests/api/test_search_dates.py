@@ -108,8 +108,8 @@ def initialize_elasticsearch():
         "title": "Book 6",
         "pubmed_types": ["Book", "Category4", "Test", "category5", "Category6", "Category7"],
         "abstract": "The other book written about science",
-        "date_published_start": date2,  # 28th Sep -> dec 31st
-        "date_published_end": date3,
+        "date_published_start": date3,  # 27th -> 28th Sept.
+        "date_published_end": date4,
         "date_published": date2_str,
         "date_arrived_in_pubmed": date5_str,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
