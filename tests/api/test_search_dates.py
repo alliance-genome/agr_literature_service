@@ -181,7 +181,7 @@ class TestSearch:
             assert res["return_count"] == 4
 
     def test_search_references_case2(self, initialize_elasticsearch, auth_headers): # noqa
-        # Should just find 1 record where the end is overlapped.
+        # Should just find 3 record where the end is overlapped.
         with TestClient(app) as client:
             search_data = {
                 "query": "",
@@ -197,10 +197,10 @@ class TestSearch:
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert "hits" in res
             assert "aggregations" in res
-            assert res["return_count"] == 1
+            assert res["return_count"] == 3
 
     def test_search_references_case3(self, initialize_elasticsearch, auth_headers): # noqa
-        # Should just find 1 record where that is whole overlapped.
+        # Should just find 3 record where the end is matched.
         with TestClient(app) as client:
             search_data = {
                 "query": "",
@@ -216,7 +216,7 @@ class TestSearch:
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert "hits" in res
             assert "aggregations" in res
-            assert res["return_count"] == 1
+            assert res["return_count"] == 3
 
     def test_search_references_case4(self, initialize_elasticsearch, auth_headers): # noqa
         # Should just find all 6 records.
