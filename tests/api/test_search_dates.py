@@ -21,12 +21,13 @@ from .fixtures import auth_headers # noqa
 # 1)       SS----SE
 # 2)                           SS---------SE
 # 3)                SS------SE
+# 4)       SS--------------------------SE (But is covered by 1 and 2 already)
+# These are the 4 cases of overlaps.
 #
-# These are the 3 cases of overlaps.
-# 
 # Need to check date SE before PS and SS after PE for NO results.
-# lets call these case 4 (before) and 5 (after).
+# lets call these case 5 (before) and 6 (after).
 #########################################################################
+
 
 @pytest.fixture(scope='module')
 def initialize_elasticsearch():
@@ -181,7 +182,6 @@ class TestSearch:
 
     def test_search_references_case2(self, initialize_elasticsearch, auth_headers): # noqa
         # Should just find 1 record where the end is overlapped.
-        # 
         with TestClient(app) as client:
             search_data = {
                 "query": "",
@@ -200,8 +200,7 @@ class TestSearch:
             assert res["return_count"] == 1
 
     def test_search_references_case3(self, initialize_elasticsearch, auth_headers): # noqa
-        # Should just find 1 record where that is whole overlapped
-        # 
+        # Should just find 1 record where that is whole overlapped.
         with TestClient(app) as client:
             search_data = {
                 "query": "",
@@ -220,8 +219,26 @@ class TestSearch:
             assert res["return_count"] == 1
 
     def test_search_references_case4(self, initialize_elasticsearch, auth_headers): # noqa
+        # Should just find all 6 records.
+        with TestClient(app) as client:
+            search_data = {
+                "query": "",
+                "facets_limits": {"pubmed_types.keyword": 10,
+                                  "category.keyword": 10,
+                                  "pubmed_publication_status.keyword": 10,
+                                  "authors.name.keyword": 10},
+                "author_filter": "",
+                "query_fields": "All",
+                "date_published": ["2019-01-01T04:00:00.000Z",
+                                   "2023-01-29T03:59:59.999Z"]
+            }
+            res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
+            assert "hits" in res
+            assert "aggregations" in res
+            assert res["return_count"] == 6
+
+    def test_search_references_case5(self, initialize_elasticsearch, auth_headers): # noqa
         # Should just find 0 records as before and records.
-        # 
         with TestClient(app) as client:
             search_data = {
                 "query": "",
@@ -239,9 +256,8 @@ class TestSearch:
             assert "aggregations" in res
             assert res["return_count"] == 0
 
-    def test_search_references_case5(self, initialize_elasticsearch, auth_headers): # noqa
+    def test_search_references_case6(self, initialize_elasticsearch, auth_headers): # noqa
         # Should just 0 records as after all records.
-        # 
         with TestClient(app) as client:
             search_data = {
                 "query": "",
