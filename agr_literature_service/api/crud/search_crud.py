@@ -85,8 +85,8 @@ def search_date_range(es_body,
                             }
                         },
                         {
-                            "bool":{
-                                "must":[
+                            "bool": {
+                                "must": [
                                     {"range": {
                                         "date_published_start": {
                                             "lte": start
