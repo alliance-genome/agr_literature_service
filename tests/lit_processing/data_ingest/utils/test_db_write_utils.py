@@ -9,7 +9,9 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     add_cross_references, update_authors, update_mod_corpus_associations, \
     update_mod_reference_types, add_mca_to_existing_references, \
-    update_comment_corrections, update_mesh_terms, update_cross_reference
+    update_comment_corrections, update_mesh_terms, update_cross_reference, \
+    unlink_false_positive_papers, mark_papers_as_out_of_corpus
+
 from ....fixtures import db, load_sanitized_references, populate_test_mod_reference_types # noqa
 
 logging.basicConfig(format='%(message)s')
@@ -106,6 +108,32 @@ class TestDbReadUtils:
         assert mrt_rows[0].mod_referencetype.mod.abbreviation == 'ZFIN'
         assert mrt_rows[1].mod_referencetype.mod.abbreviation == 'SGD'
 
+        ## test mark_papers_as_out_of_corpus()
+        mod_corpus_associations = [
+            {
+                "corpus": True,
+                "mod_abbreviation": "ZFIN",
+                "mod_corpus_sort_source": "dqm_files"
+            }
+        ]
+
+        update_mod_corpus_associations(db, mod_to_mod_id, reference_id,
+                                       db_entry.get('mod_corpus_association', []),
+                                       mod_corpus_associations, logger)
+        db.commit()
+
+        cr = db.query(CrossReferenceModel).filter_by(
+            reference_id=reference_id, curie_prefix='ZFIN', is_obsolete=False).one_or_none()
+        mod_xref_id = cr.curie
+        missing_papers_in_mod = [(mod_xref_id, 'test_AGR_ID', None)]
+        mark_papers_as_out_of_corpus('ZFIN', missing_papers_in_mod)
+
+        mod_id = mod_to_mod_id['ZFIN']
+        mca = db.query(ModCorpusAssociationModel).filter_by(
+            reference_id=reference_id, mod_id=mod_id).one_or_none()
+        assert mca.corpus is False
+
+
     def test_pubmed_search_update_functions(self, db, load_sanitized_references): # noqa
 
         ## test add_mca_to_existing_references()
@@ -185,3 +213,26 @@ class TestDbReadUtils:
                 assert x.curie == 'PMCID:PMC667788'
             elif x.curie.startswith('DOI:'):
                 assert x.curie == 'DOI:10.1186/s12576-021-00791-4'
+
+        ## test unlink_false_positive_papers
+        mca_rows = db.execute("SELECT cr.curie FROM cross_reference cr, mod_corpus_association mca, "
+                              "mod m WHERE mca.reference_id = cr.reference_id "
+                              "AND mca.mod_id = m.mod_id "
+                              "AND m.abbreviation = 'XB'").fetchall()
+        assert len(mca_rows) > 0
+
+        fp_pmids = set()
+        for x in mca_rows:
+            fp_pmids.add(x[0].replace("PMID:", ""))
+        unlink_false_positive_papers(db, 'XB', fp_pmids)
+
+        mca_rows = db.execute("SELECT cr.curie FROM cross_reference cr, mod_corpus_association mca, "
+                              "mod m WHERE mca.reference_id = cr.reference_id "
+                              "AND mca.mod_id = m.mod_id "
+                              "AND m.abbreviation = 'XB'").fetchall()
+        assert len(mca_rows) == 0
+
+        cr_rows = db.execute("SELECT is_obsolete FROM cross_reference "
+                             "WHERE curie_prefix = 'Xenbase'").fetchall()
+        for x in cr_rows:
+            assert x[0] is True
