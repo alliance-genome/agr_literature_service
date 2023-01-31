@@ -14,6 +14,95 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
 batch_size_for_commit = 250
 
 
+def mark_papers_as_out_of_corpus(mod, missing_papers_in_mod, logger=None):
+
+    db_session = create_postgres_session(False)
+
+    mod_id = _get_mod_id_by_mod(db_session, mod)
+
+    # xref_id: MOD database ID, eg. SGD:00000000005
+    for (xref_id, agr, pmid) in missing_papers_in_mod:
+        try:
+            cr = db_session.query(CrossReferenceModel).filter_by(curie=xref_id, is_obsolete=False).one_or_none()
+            if cr:
+                cr.is_obsolete = True
+                db_session.add(cr)
+                mca = db_session.query(ModCorpusAssociationModel).filter_by(reference_id=cr.reference_id, mod_id=mod_id).one_or_none()
+                if mca:
+                    mca.corpus = False
+                    db_session.add(mca)
+                    print(mod + ": marking", xref_id, "out of corpus")
+                    if logger:
+                        logger.info(mod + ": marking " + xref_id + "(AGR curie=" + agr + ", PMID=" + str(pmid) + ") as out of corpus")
+        except Exception as e:
+            if logger:
+                logger.info("An error occurred when marking paper " + xref_id + "as out of corpus. error=" + str(e))
+
+    db_session.commit()
+    # db_session.rollback()
+
+
+def unlink_false_positive_papers(db_session, mod, fp_pmids, logger=None):  # noqa: C901
+
+    mod_id = _get_mod_id_by_mod(db_session, mod)
+
+    rows = db_session.execute(f"SELECT cr.reference_id, cr.curie "
+                              f"FROM cross_reference cr, mod_corpus_association mca "
+                              f"WHERE cr.curie_prefix = 'PMID' "
+                              f"AND cr.reference_id = mca.reference_id "
+                              f"AND mca.mod_id = {mod_id}").fetchall()
+
+    to_unlink_reference_id_list = []
+    i = 0
+    for x in rows:
+        reference_id = x[0]
+        pmid = x[1].replace("PMID:", "")
+        i += 1
+        if i % 1000 == 0 and logger:
+            logger.info(str(i) + " Retrieving PMIDs from the database...")
+        if pmid in fp_pmids:
+            to_unlink_reference_id_list.append((pmid, reference_id))
+
+    i = 0
+    for (pmid, reference_id) in to_unlink_reference_id_list:
+        x = db_session.query(ModCorpusAssociationModel).filter_by(reference_id=reference_id, mod_id=mod_id).one_or_none()
+        if x:
+            i += 1
+            if i % 300 == 0:
+                db_session.commit()
+            try:
+                db_session.delete(x)
+                if logger:
+                    logger.info("PMID:" + pmid + " has been unlinked from " + mod)
+            except Exception as e:
+                if logger:
+                    logger.info("An error occurred when unlinking PMID:" + pmid + " with " + mod + ". error = " + str(e))
+
+    db_session.commit()
+
+    curie_prefix = mod
+    if mod == 'XB':
+        curie_prefix = 'Xenbase'
+
+    for (pmid, reference_id) in to_unlink_reference_id_list:
+        x = db_session.query(CrossReferenceModel).filter_by(reference_id=reference_id, curie_prefix=curie_prefix, is_obsolete=False).one_or_none()
+        if x:
+            i += 1
+            if i % 300 == 0:
+                db_session.commit()
+            try:
+                x.is_obsolete = True
+                db_session.add(x)
+                print(mod + ": PMID:" + pmid + " set " + x.curie + " to obsolete")
+                if logger:
+                    logger.info(mod + ": PMID:" + pmid + " set " + x.curie + " to obsolete")
+            except Exception as e:
+                if logger:
+                    logger.info(mod + ": An error occurred when setting PMID:" + pmid + " " + x.curie + " to obsolete. error = " + str(e))
+
+    db_session.commit()
+
+
 def add_cross_references(cross_references_to_add, ref_curie_list, logger, live_change=True):
 
     if len(ref_curie_list) == 0:
@@ -276,10 +365,16 @@ dded into the database. " + str(e))
             logger.info("An error occurred when deleting mod_reference_type row for mod_reference_type_id = " + str(mod_reference_type_id) + " has been deleted from the database. " + str(e))
 
 
-def add_mca_to_existing_references(db_session, agr_curies_to_corpus, mod, logger):
+def _get_mod_id_by_mod(db_session, mod):  # pragma: no cover
 
     m = db_session.query(ModModel).filter_by(abbreviation=mod).one_or_none()
-    mod_id = m.mod_id
+
+    return m.mod_id
+
+
+def add_mca_to_existing_references(db_session, agr_curies_to_corpus, mod, logger):
+
+    mod_id = _get_mod_id_by_mod(db_session, mod)
 
     curie_to_reference_id = {}
     for x in db_session.query(ReferenceModel).filter(
