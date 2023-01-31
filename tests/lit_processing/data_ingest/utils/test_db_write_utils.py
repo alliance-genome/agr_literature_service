@@ -10,7 +10,7 @@ from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils impo
     add_cross_references, update_authors, update_mod_corpus_associations, \
     update_mod_reference_types, add_mca_to_existing_references, \
     update_comment_corrections, update_mesh_terms, update_cross_reference, \
-    unlink_false_positive_papers, mark_papers_as_out_of_corpus
+    mark_false_positive_papers_as_out_of_corpus, mark_not_in_mod_papers_as_out_of_corpus
 
 from ....fixtures import db, load_sanitized_references, populate_test_mod_reference_types # noqa
 
@@ -108,7 +108,7 @@ class TestDbReadUtils:
         assert mrt_rows[0].mod_referencetype.mod.abbreviation == 'ZFIN'
         assert mrt_rows[1].mod_referencetype.mod.abbreviation == 'SGD'
 
-        ## test mark_papers_as_out_of_corpus()
+        ## test mark_not_in_mod_papers_as_out_of_corpus()
         mod_corpus_associations = [
             {
                 "corpus": True,
@@ -126,7 +126,7 @@ class TestDbReadUtils:
             reference_id=reference_id, curie_prefix='ZFIN', is_obsolete=False).one_or_none()
         mod_xref_id = cr.curie
         missing_papers_in_mod = [(mod_xref_id, 'test_AGR_ID', None)]
-        mark_papers_as_out_of_corpus('ZFIN', missing_papers_in_mod)
+        mark_not_in_mod_papers_as_out_of_corpus('ZFIN', missing_papers_in_mod)
 
         mod_id = mod_to_mod_id['ZFIN']
         mca = db.query(ModCorpusAssociationModel).filter_by(
@@ -214,7 +214,7 @@ class TestDbReadUtils:
             elif x.curie.startswith('DOI:'):
                 assert x.curie == 'DOI:10.1186/s12576-021-00791-4'
 
-        ## test unlink_false_positive_papers
+        ## test mark_false_positive_papers_as_out_of_corpus()
         mca_rows = db.execute("SELECT cr.curie FROM cross_reference cr, mod_corpus_association mca, "
                               "mod m WHERE mca.reference_id = cr.reference_id "
                               "AND mca.mod_id = m.mod_id "
@@ -224,7 +224,7 @@ class TestDbReadUtils:
         fp_pmids = set()
         for x in mca_rows:
             fp_pmids.add(x[0].replace("PMID:", ""))
-        unlink_false_positive_papers(db, 'XB', fp_pmids)
+        mark_false_positive_papers_as_out_of_corpus(db, 'XB', fp_pmids)
 
         mca_rows = db.execute("SELECT cr.curie FROM cross_reference cr, mod_corpus_association mca, "
                               "mod m WHERE mca.reference_id = cr.reference_id "
