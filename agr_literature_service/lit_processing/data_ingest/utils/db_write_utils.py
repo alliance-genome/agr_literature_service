@@ -14,7 +14,7 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
 batch_size_for_commit = 250
 
 
-def mark_papers_as_out_of_corpus(mod, missing_papers_in_mod, logger=None):
+def mark_not_in_mod_papers_as_out_of_corpus(mod, missing_papers_in_mod, logger=None):
 
     db_session = create_postgres_session(False)
 
@@ -42,7 +42,7 @@ def mark_papers_as_out_of_corpus(mod, missing_papers_in_mod, logger=None):
     # db_session.rollback()
 
 
-def unlink_false_positive_papers(db_session, mod, fp_pmids, logger=None):  # noqa: C901
+def mark_false_positive_papers_as_out_of_corpus(db_session, mod, fp_pmids, logger=None):  # noqa: C901
 
     mod_id = _get_mod_id_by_mod(db_session, mod)
 
@@ -71,12 +71,14 @@ def unlink_false_positive_papers(db_session, mod, fp_pmids, logger=None):  # noq
             if i % 300 == 0:
                 db_session.commit()
             try:
-                db_session.delete(x)
+                x.corpus = False
+                db_session.add(x)
+                print("PMID:" + pmid + " has been marked as out of corpus for " + mod)
                 if logger:
-                    logger.info("PMID:" + pmid + " has been unlinked from " + mod)
+                    logger.info("PMID:" + pmid + " has been marked as out of corpus for " + mod)
             except Exception as e:
                 if logger:
-                    logger.info("An error occurred when unlinking PMID:" + pmid + " with " + mod + ". error = " + str(e))
+                    logger.info("An error occurred when marking PMID:" + pmid + " as out of corpus for " + mod + ". error = " + str(e))
 
     db_session.commit()
 
