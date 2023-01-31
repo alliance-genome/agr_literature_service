@@ -30,7 +30,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_references_by_curies, get_curie_to_title_mapping, get_mod_abbreviations
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     add_cross_references, update_authors, update_mod_corpus_associations, \
-    update_mod_reference_types
+    update_mod_reference_types, mark_papers_as_out_of_corpus
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
 from agr_literature_service.api.user import set_global_user_id
 
@@ -619,7 +619,10 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 
         fh_mod_report[mod].close()
 
+        mark_papers_as_out_of_corpus(mod, missing_papers_in_mod[mod], logger)
+
         agr_to_title = get_curie_to_title_mapping(missing_agr_in_mod[mod])
+
         send_dqm_loading_report(mod, report[mod], missing_papers_in_mod[mod],
                                 agr_to_title, bad_date_published,
                                 mod_ids_used_in_resource, report_file_path,
