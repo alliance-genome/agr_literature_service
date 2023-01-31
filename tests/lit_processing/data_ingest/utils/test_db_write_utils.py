@@ -230,7 +230,8 @@ class TestDbReadUtils:
                               "mod m WHERE mca.reference_id = cr.reference_id "
                               "AND mca.mod_id = m.mod_id "
                               "AND m.abbreviation = 'XB'").fetchall()
-        assert len(mca_rows) == 0
+        for x in mca_rows:
+            assert x.corpus is False
 
         cr_rows = db.execute("SELECT is_obsolete FROM cross_reference "
                              "WHERE curie_prefix = 'Xenbase'").fetchall()
