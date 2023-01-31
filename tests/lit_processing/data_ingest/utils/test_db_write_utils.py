@@ -226,12 +226,11 @@ class TestDbReadUtils:
             fp_pmids.add(x[0].replace("PMID:", ""))
         mark_false_positive_papers_as_out_of_corpus(db, 'XB', fp_pmids)
 
-        mca_rows = db.execute("SELECT cr.curie FROM cross_reference cr, mod_corpus_association mca, "
-                              "mod m WHERE mca.reference_id = cr.reference_id "
-                              "AND mca.mod_id = m.mod_id "
+        mca_rows = db.execute("SELECT mca.coRpus FROM mod_corpus_association mca, mod m "
+                              "WHERE mca.mod_id = m.mod_id "
                               "AND m.abbreviation = 'XB'").fetchall()
         for x in mca_rows:
-            assert x.corpus is False
+            assert x[0] is False
 
         cr_rows = db.execute("SELECT is_obsolete FROM cross_reference "
                              "WHERE curie_prefix = 'Xenbase'").fetchall()
