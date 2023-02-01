@@ -291,7 +291,7 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
     return authors_with_first_or_corresponding_flag
 
 
-def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, old_md5sum, new_md5sum, count, authors_with_first_or_corresponding_flag, json_path, pmids_with_json_updated, bad_date_published, update_log, offset):
+def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, old_md5sum, new_md5sum, count, authors_with_first_or_corresponding_flag, json_path, pmids_with_json_updated, bad_date_published, update_log, offset):  # noqa: C901 pragma: no cover
 
     ## only update 3000 references per session (set in max_rows_per_db_session)
     ## just in case the database get disconnected during the update process
