@@ -10,10 +10,13 @@ omit =
         agr_literature_service/lit_processing/utils/s3_utils.py
         agr_literature_service/api/s3/*
         agr_literature_service/lit_processing/utils/report_utils.py
+
 	# we are no longer running load_dqm_resource.py and it calls the functions in
-	# dqm_resource_update_utils.py so skip the tests for these two files
+	# dqm_resource_update_utils.py and resource_reference_utils.py
+	# so skip the tests for these three files
 	agr_literature_service/lit_processing/data_ingest/dqm_ingest/load_dqm_resource.py
 	agr_literature_service/lit_processing/data_ingest/dqm_ingest/utils/dqm_resource_update_utils.py
+	agr_literature_service/lit_processing/utils/resource_reference_utils.py
 
 	# can't really test the following scripts, will look into these scripts at a later time
 	agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_download_pmc_files.py
