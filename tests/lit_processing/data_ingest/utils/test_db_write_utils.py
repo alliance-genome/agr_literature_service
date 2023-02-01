@@ -230,8 +230,10 @@ class TestDbReadUtils:
                              "WHERE curie_prefix = 'Xenbase'").fetchall()
         for x in cr_rows:
             assert x[0] is True
-
-        mca_rows = db.execute("SELECT mod_id, corpus FROM mod_corpus_association").fetchall()
+            
+        mca_rows = db.execute("SELECT mca.corpus FROM mod_corpus_association mca, mod m "
+                              "WHERE mca.mod_id = m.mod_id "
+                              "AND m.abbreviation = 'XB'").fetchall()
         for x in mca_rows:
-            if x[0] == mod_id:
-                print(x[0], x[1])
+            assert x[0] is False
+
