@@ -10,8 +10,11 @@ omit =
         agr_literature_service/lit_processing/utils/s3_utils.py
         agr_literature_service/api/s3/*
         agr_literature_service/lit_processing/utils/report_utils.py
+	# we are no longer running load_dqm_resource.py and it calls the functions in
+	# dqm_resource_update_utils.py so skip the tests for these two files
 	agr_literature_service/lit_processing/data_ingest/dqm_ingest/load_dqm_resource.py
-	
+	agr_literature_service/lit_processing/data_ingest/dqm_ingest/utils/dqm_resource_update_utils.py	
+
         # to be added back when we have unit tests for them
         agr_literature_service/lit_processing/data_ingest/dqm_ingest/sort_dqm_json_reference_updates.py
         agr_literature_service/lit_processing/data_ingest/dqm_ingest/sort_dqm_json_resource_updates.py
