@@ -31,7 +31,7 @@ omit =
         agr_literature_service/lit_processing/data_ingest/dqm_ingest/utils/md5sum_utils.py
         agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_search_new_references.py
         agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_resources_nlm.py
-
+	agr_literature_service/lit_processing/data_ingest/utils/file_processing_utils.py
 
 [report]
 exclude_lines =
