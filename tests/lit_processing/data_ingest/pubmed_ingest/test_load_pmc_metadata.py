@@ -1,11 +1,10 @@
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.load_pmc_metadata import \
     resolve_displayname_conflict
-from ....fixtures import cleanup_tmp_files_when_done # noqa
 
 
 class TestLoadPmcMetadata:
 
-    def test_resolve_displayname_conflict(self, cleanup_tmp_files_when_done): # noqa
+    def test_resolve_displayname_conflict(self):
 
         file_name_with_suffix = "test_filename.pdf"
         new_file_name = resolve_displayname_conflict(file_name_with_suffix)
