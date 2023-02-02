@@ -1,3 +1,5 @@
+from typing import List
+
 from fastapi import APIRouter, Depends, Response, Security, status
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
@@ -9,6 +11,7 @@ from agr_literature_service.api.schemas import (TopicEntityTagSchemaShow,
                                                 TopicEntityTagSchemaUpdate,
                                                 TopicEntityTagSchemaPost,
                                                 ResponseMessageSchema)
+from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated
 from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
@@ -60,3 +63,11 @@ async def patch(topic_entity_tag_id: int,
 def show(topic_entity_tag_id: int,
          db: Session = db_session):
     return topic_entity_tag_crud.show(db, topic_entity_tag_id)
+
+
+@router.get('/by_reference/{curie_or_reference_id}',
+            response_model=List[TopicEntityTagSchemaRelated],
+            status_code=200)
+def show_all_reference_tags(curie_or_reference_id: str,
+                            db: Session = db_session):
+    return topic_entity_tag_crud.show_all_reference_tags(db, curie_or_reference_id)

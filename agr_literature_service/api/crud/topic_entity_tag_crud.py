@@ -5,7 +5,7 @@ topic_entity_tag_crud.py
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
@@ -107,6 +107,19 @@ def show(db: Session, topic_entity_tag_id: int):
         prop_data = jsonable_encoder(prop)
         topic_entity_tag_data["props"].append(prop_data)
     return topic_entity_tag_data
+
+
+def show_all_reference_tags(db: Session, curie_or_reference_id):
+    reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
+    if reference_id is None:
+        reference_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == curie_or_reference_id).one_or_none()
+    if reference_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Reference with the reference_id or curie {curie_or_reference_id} is not available")
+    topics_and_entities = db.query(TopicEntityTagModel).options(joinedload(TopicEntityTagModel.props)).filter(
+        TopicEntityTagModel.reference_id == reference_id).all()
+    return [jsonable_encoder(tet) for tet in topics_and_entities]
 
 
 def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):

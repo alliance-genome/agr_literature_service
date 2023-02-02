@@ -147,7 +147,6 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     open_access: Optional[bool] = None
     citation: Optional[str] = None
     workflow_tags: Optional[List[WorkflowTagSchemaRelated]] = None
-    topic_entity_tags: Optional[List[TopicEntityTagSchemaRelated]] = None
     referencefiles: Optional[List[ReferencefileSchemaRelated]] = None
 
 

@@ -307,13 +307,6 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
 
             reference_data["workflow_tags"].append(ont_json)
 
-    reference_data["topic_entity_tags"] = []
-    if reference.topic_entity_tags:
-        for tet in reference.topic_entity_tags:
-            tet_json = show_topic_entity_tag(db, tet.topic_entity_tag_id)
-
-            reference_data["topic_entity_tags"].append(tet_json)
-
     if reference.mesh_term:
         for mesh_term in reference_data["mesh_term"]:
             del mesh_term["reference_id"]
