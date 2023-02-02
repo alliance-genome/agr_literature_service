@@ -248,6 +248,13 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "curie": query
                 }
             })
+    elif query and query_fields == "Xref":
+        es_body["query"]["bool"]["must"].append(
+            {
+                "wildcard" if "*" in query or "?" in query else "match": {
+                    "cross_references.curie": query
+                }
+            })
     if facets_values:
         for facet_field, facet_list_values in facets_values.items():
             if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
