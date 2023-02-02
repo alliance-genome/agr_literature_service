@@ -11,18 +11,19 @@ omit =
         agr_literature_service/api/s3/*
         agr_literature_service/lit_processing/utils/report_utils.py
 
-	# we are no longer running load_dqm_resource.py and it calls the functions in
-	# dqm_resource_update_utils.py and resource_reference_utils.py
-	# so skip the tests for these three files
+	# we are no longer running load_dqm_resource.py and this script calls the functions
+	# in dqm_resource_update_utils.py and resource_reference_utils.py
+	# so skip the tests for these three files for now until we are ready to revisit
+	# the dqm resource loading
 	agr_literature_service/lit_processing/data_ingest/dqm_ingest/load_dqm_resource.py
 	agr_literature_service/lit_processing/data_ingest/dqm_ingest/utils/dqm_resource_update_utils.py
 	agr_literature_service/lit_processing/utils/resource_reference_utils.py
 
-	# can't really test the following scripts, will look into these scripts at a later time
-	# agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_download_pmc_files.py
-	# agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_identify_main_pdfs.py
-	# agr_literature_service/lit_processing/data_ingest/utils/file_processing_utils.py
-
+	# can't really test the following files (download files from PMC and search PubMed/PMC)
+	# will look into these scripts/utils at a later time
+	agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_download_pmc_files.py
+	agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_identify_main_pdfs.py
+	
         # to be added back when we have unit tests for them
         agr_literature_service/lit_processing/data_ingest/dqm_ingest/sort_dqm_json_reference_updates.py
         agr_literature_service/lit_processing/data_ingest/dqm_ingest/sort_dqm_json_resource_updates.py
