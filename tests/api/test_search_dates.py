@@ -334,7 +334,7 @@ class TestSearch:
                 "author_filter": "",
                 "query_fields": "All",
                 "date_published": ["2019-08-31T04:00:00.000Z",
-                                   "2019-09-01T03:59:59.999Z"]
+                                   "2019-08-31T03:59:59.999Z"]
             }
             print("DAtes in epock thingys")
             print(date_str_to_micro_seconds("2019-08-31T04:00:00.000Z", True))

@@ -23,7 +23,7 @@ def date_str_to_micro_seconds(date_str: str, start_of_day: bool):
     if start_of_day:
         date_str = f"{date_str.split('T')[0]}T00:00:00"
     else:
-        date_str = f"{date_str.split('T')[0]}T18:59:00"
+        date_str = f"{date_str.split('T')[0]}T23:59:00"
 
     date_time = datetime.fromisoformat(date_str)
     date_time = date_time.astimezone(timezone.utc)
