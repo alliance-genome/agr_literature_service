@@ -65,7 +65,7 @@ def search_date_range(es_body,
             end = date_str_to_micro_seconds(date_published[1], False)
         except Exception as e:
             logger.error(f"Exception in conversion {e} for start={date_published[0]} and end={date_published[1]}")
-        logger.debug(f"Search date_published: start={start}, end={end}")
+        logger.error(f"Search date_published: start={start}, end={end}")
         es_body["query"]["bool"]["filter"]["bool"]["must"].append(
             {
                 "bool": {
