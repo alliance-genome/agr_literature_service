@@ -11,7 +11,7 @@ from ..fixtures import db # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 from .fixtures import auth_headers # noqa
-
+from agr_literature_service.api.crud import date_str_to_micro_seconds 
 #########################################################################
 # PS, PE published start and end dates.
 # SS, SE selected query start and end dates.
@@ -336,6 +336,10 @@ class TestSearch:
                 "date_published": ["2019-08-31T04:00:00.000Z",
                                    "2019-09-01T03:59:59.999Z"]
             }
+            print("DAtes in epock thingys")
+            print(date_str_to_micro_seconds("2019-08-31T04:00:00.000Z", True))
+            print(date_str_to_micro_seconds("2019-09-01T03:59:59.999Z", False))
+            
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert res == 0
             assert "hits" in res
