@@ -20,11 +20,16 @@ def date_str_to_micro_seconds(date_str: str, start_of_day: bool):
     # initial strings are in the format:- "2010-10-28T04:00:00.000"
     # So just grab chars before T and converts to seconds after epoch
     # then mulitply by 1000000 and convert to int.
-    date_time = datetime.strptime(date_str.split('T')[0], '%Y-%m-%d')
     if start_of_day:
-        date_time = date_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        date_time = f"{date_str.split('T')[0]}T00:00:00.000Z"
     else:
-        date_time = date_time.replace(hour=23, minute=59, second=59, microsecond=0)
+        date_time = f"{date_str.split('T')[0]}T23:59:00.000Z"
+
+    date_time = datetime.fromisoformat(date_time)
+    # if start_of_day:
+    #    date_time = date_time.replace(hour=0, minute=0, second=0, microsecond=0)
+    # else:
+    #    date_time = date_time.replace(hour=23, minute=59, second=59, microsecond=0)
     return int(date_time.timestamp() * 1000000)
 
 

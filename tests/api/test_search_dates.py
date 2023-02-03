@@ -333,7 +333,7 @@ class TestSearch:
                                   "authors.name.keyword": 10},
                 "author_filter": "",
                 "query_fields": "All",
-                "date_published": ["2019-09-01T04:00:00.000Z",
+                "date_published": ["2019-08-31T04:00:00.000Z",
                                    "2019-09-01T03:59:59.999Z"]
             }
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
