@@ -13,7 +13,7 @@ from fastapi import HTTPException, status
 
 # flake8: noqa: C901
 def search_references(query: str = None, facets_values: Dict[str, List[str]] = None,
-                      size_result_count: Optional[int] = 10, sort_by_published_date_order: str = None, page: Optional[int] = 0,
+                      size_result_count: Optional[int] = 10, sort_by_published_date_order: Optional[str] = "asc", page: Optional[int] = 0,
                       facets_limits: Dict[str, int] = None, return_facets_only: bool = False,
                       author_filter: Optional[str] = None, date_pubmed_modified: Optional[List[str]] = None,
                       date_pubmed_arrive: Optional[List[str]] = None, query_fields: str = None):
@@ -182,15 +182,12 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     if not facets_values and not date_pubmed_modified and not date_pubmed_arrive:
         del es_body["query"]["bool"]["filter"]
     if sort_by_published_date_order is None:
-        for i in range(len(es_body["sort"])):
-            if 'date_published.keyword' in es_body["sort"][i]:
-                del es_body["sort"][i]
-                break
+        del es_body["sort"]
     elif sort_by_published_date_order not in ["desc", "asc"]:
-        for i in range(len(es_body["sort"])):
-            if 'date_published.keyword' in es_body["sort"][i]:
-                del es_body["sort"][i]
-                break
+        del es_body["sort"]
+       #     if 'date_published.keyword' in es_body["sort"][i]:
+       #         del es_body["sort"][i]
+       #         break
     if author_filter:
         es_body["aggregations"]["authors.name.keyword"]["terms"]["include"] = ".*" + author_filter + ".*"
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
