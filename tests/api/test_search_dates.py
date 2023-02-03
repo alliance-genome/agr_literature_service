@@ -11,7 +11,7 @@ from ..fixtures import db # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 from .fixtures import auth_headers # noqa
-from agr_literature_service.api.crud import date_str_to_micro_seconds 
+from agr_literature_service.api.crud.search_crud import date_str_to_micro_seconds 
 #########################################################################
 # PS, PE published start and end dates.
 # SS, SE selected query start and end dates.
