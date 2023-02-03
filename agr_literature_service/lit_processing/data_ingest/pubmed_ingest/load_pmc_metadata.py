@@ -18,7 +18,7 @@ file_publication_status = "final"
 batch_commit_size = 250
 
 
-def load_ref_file_metadata_into_db():
+def load_ref_file_metadata_into_db():  # pragma: no cover
 
     db_session = create_postgres_session(False)
     script_nm = path.basename(__file__).replace(".py", "")

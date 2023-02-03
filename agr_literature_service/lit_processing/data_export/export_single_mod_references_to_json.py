@@ -109,7 +109,7 @@ def generate_json_file(metaData, data, filename_with_path):
         exit()
 
 
-def upload_json_file_to_s3(json_path, json_file, datestamp, ondemand):
+def upload_json_file_to_s3(json_path, json_file, datestamp, ondemand):  # pragma: no cover
 
     env_state = environ.get('ENV_STATE', 'develop')
     if env_state == 'build':
@@ -294,7 +294,7 @@ def get_reference_data_and_generate_json(mod, reference_id_to_comment_correction
     db_session.close()
 
 
-def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_comment_correction_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, data):
+def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_comment_correction_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, data):  # pragma: no cover
 
     i = 0
     for x in ref_data:

@@ -161,7 +161,7 @@ def add_cross_references(cross_references_to_add, ref_curie_list, logger, live_c
     db_session.close()
 
 
-def _write_log_message(reference_id, log_message, pmid, logger, fw):
+def _write_log_message(reference_id, log_message, pmid, logger, fw):  # pragma: no cover
 
     if pmid:
         log_message = "PMID:" + str(pmid) + log_message

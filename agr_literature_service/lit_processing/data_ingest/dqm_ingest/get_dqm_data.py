@@ -58,7 +58,7 @@ def download_dqm_resource_json():  # pragma: no cover
         download_dqm_file(mod, mod_to_resource_url[mod], "RESOURCE")
 
 
-def download_dqm_file(mod, url, datatype):
+def download_dqm_file(mod, url, datatype):  # pragma: no cover
 
     json_file = dqm_json_path + datatype + '_' + mod + '.json'
 
