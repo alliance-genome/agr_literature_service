@@ -110,6 +110,7 @@ def search_date_range(es_body,
             })
 
 
+# flake8: noqa: C901
 def search_references(query: str = None, facets_values: Dict[str, List[str]] = None,
                       size_result_count: Optional[int] = 10, sort_by_published_date_order: Optional[str] = "asc",
                       page: Optional[int] = 0,
