@@ -139,16 +139,6 @@ def get_reference_id_by_pmid(db_session, pmid):
         return None
 
 
-def get_orcid_data(db_session):
-
-    orcid_dict = {}
-
-    for x in db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie.like('ORCID:%')).all():
-        orcid_dict[x.curie] = x.is_obsolete
-
-    return orcid_dict
-
-
 def adding_author_row(x, reference_id_to_authors):
 
     authors = []

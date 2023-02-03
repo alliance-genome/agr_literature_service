@@ -193,7 +193,7 @@ def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_t
     # missing_papers_in_mod, agr_to_title, log_path
     if len(missing_papers_in_mod) > 0:
 
-        log_file = mod + "_papers_in_ABC_not_in_dqm.log"
+        log_file = mod + "_papers_marked_as_out_corpus.log"
 
         missing_papers_in_mod_log_file = log_path + log_file
 
@@ -201,7 +201,7 @@ def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_t
 
         fw.write("ARG_curie\tPMID\tMOD_ID\tTitle\n")
 
-        email_message = email_message + "<p><p><b>Following papers in ABC with MOD association that are not in the current " + mod + " DQM file</b><p>"
+        email_message = email_message + "<p><p><b>Following paper(s) have been marked as out of corpus since they are not in the current " + mod + " DQM file</b><p>"
 
         rows = ''
         i = 0
@@ -229,10 +229,10 @@ def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_t
 
         if log_url:
             log_url = log_url + log_file
-            email_message = email_message + "<p>The full list of missing papers is available at " + "<a href=" + log_url + ">" + log_url + "</a><p>"
+            email_message = email_message + "<p>The full list of newly marked out of corpus papers is available at " + "<a href=" + log_url + ">" + log_url + "</a><p>"
         else:
             log_path = log_path + log_file
-            email_message = email_message + "<p>The full list of missing papers is available at " + log_path
+            email_message = email_message + "<p>The full list of newly marked out of corpus papers is available at " + log_path
 
     (status, message) = send_email(email_subject, email_recipients,
                                    email_message, sender_email, sender_password, reply_to)

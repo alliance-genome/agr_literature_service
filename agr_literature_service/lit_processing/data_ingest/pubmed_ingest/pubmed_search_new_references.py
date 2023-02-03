@@ -15,12 +15,14 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.sanitize_pu
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
-    check_handle_duplicate, add_mca_to_existing_references
+    check_handle_duplicate, add_mca_to_existing_references, mark_false_positive_papers_as_out_of_corpus
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     set_pmid_list, get_pmid_association_to_mod_via_reference, get_mod_abbreviations
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import \
     update_resource_pubmed_nlm
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import save_database_md5data
+from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
+    download_file
 from agr_literature_service.api.database.main import get_db
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.utils.report_utils import send_pubmed_search_report
@@ -157,7 +159,7 @@ def query_pubmed_mod_updates(input_mod, reldate):
     query_mods(input_mod, reldate)			# query pubmed for mod references
 
 
-def query_mods(input_mod, reldate):
+def query_mods(input_mod, reldate):  # noqa: C901
     """
 
     :return:
@@ -184,8 +186,14 @@ def query_mods(input_mod, reldate):
         'FB': 'FB_false_positive_pmids.txt',
         'WB': 'WB_false_positive_pmids.txt',
         'SGD': 'SGD_false_positive_pmids.txt',
-        'XB': 'XB_false_positive_pmids.txt'
+        'XB': 'XB_false_positive_pmids.txt',
+        'ZFIN': 'ZFIN_false_positive_pmids.txt'
     }
+    mod_to_fp_pmids_url = {
+        "SGD": "https://sgd-prod-upload.s3.us-west-2.amazonaws.com/latest/SGD_false_positive_pmids.txt",
+        "XB": "https://ftp.xenbase.org/pub/DataExchange/AGR/XB_false_positive_pmids.txt"
+    }
+
     # source of WB FP file: https://tazendra.caltech.edu/~postgres/agr/lit/WB_false_positive_pmids
 
     # retrieve all cross_reference info from database
@@ -206,6 +214,13 @@ def query_mods(input_mod, reldate):
         pmids4mod[mod] = set()
         logger.info(f"Processing {mod}")
         fp_pmids = set()     # type: Set
+        if mod in mod_to_fp_pmids_url:
+            try:
+                fp_url = mod_to_fp_pmids_url[mod]
+                fp_file = search_path + mod_false_positive_file[mod]
+                download_file(fp_url, fp_file)
+            except Exception as e:
+                logger.error(e)
         if mod in mod_false_positive_file:
             infile = search_path + mod_false_positive_file[mod]
             with open(infile, "r") as infile_fh:
@@ -306,6 +321,8 @@ def query_mods(input_mod, reldate):
         add_md5sum_to_database(db_session, mod, pmids_to_process)
 
         set_pmid_list(db_session, mod, pmids4mod, json_filepath)
+
+        mark_false_positive_papers_as_out_of_corpus(db_session, mod, fp_pmids, logger)
 
     logger.info("Sending Report")
     send_pubmed_search_report(pmids4mod, mods_to_query, log_path, log_url, not_loaded_pmids4mod,

@@ -1,5 +1,8 @@
 Examples of queries on references_index
 
+See also https://coralogix.com/blog/42-elasticsearch-query-examples-hands-on-tutorial/
+
+
 - Simple title search
 
 {
@@ -41,6 +44,46 @@ Examples of queries on references_index
   }
 }
 
+- first line in aggregations gives the name of the return hash.
+{
+  "size": 0,
+  "aggregations": {
+    "giveme": {
+      "terms": {
+        "field": "mods_in_corpus.keyword",
+        "size": 20
+      }
+    }
+  }
+}
+
+returns 
+...
+  "aggregations": { - 
+    "giveme": { - 
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0,
+      "buckets": [ - 
+        { - 
+          "key": "FB",
+          "doc_count": 2000
+        },
+        { - 
+          "key": "XB",
+          "doc_count": 33
+        },
+        { - 
+          "key": "MGI",
+          "doc_count": 2
+        },
+        { - 
+          "key": "WB",
+          "doc_count": 1
+        }
+      ]
+    }
+  }
+  ...
 
 - Combine title search with filter on multiple facet values
 
@@ -71,3 +114,30 @@ Examples of queries on references_index
   }
 }
 
+{  
+   "query":{  
+      "bool":{  
+         "filter":[{  
+            "bool":{  
+               "should":[ 
+                   {"range" : {
+                       "date_published_end" : {
+                          "gte" : 1297123200000000,
+                          "lte" : 1297123200000000
+                        }
+                    }
+                   },
+                   {"range" : {
+                      "date_published_start" : {
+                          "gte" : 1297123200000000,
+                           "lte" : 1297123200000000
+                      }
+                     }
+                   }
+               ]
+            }
+         }
+        ]
+    }
+}
+}

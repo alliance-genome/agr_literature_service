@@ -1,4 +1,6 @@
 from typing import Dict, List, Any, Optional
+import logging
+from datetime import datetime, timezone
 
 from elasticsearch import Elasticsearch
 from agr_literature_service.api.config import config
@@ -10,13 +12,111 @@ from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, Cr
 
 from fastapi import HTTPException, status
 
+logger = logging.getLogger(__name__)
 
-# flake8: noqa: C901
+
+def date_str_to_micro_seconds(date_str: str, start_of_day: bool):
+    # convert string to Datetime int that is stored in Elastic search
+    # initial strings are in the format:- "2010-10-28T04:00:00.000"
+    # So just grab chars before T and converts to seconds after epoch
+    # then mulitply by 1000000 and convert to int.
+    if start_of_day:
+        date_str = f"{date_str.split('T')[0]}T00:00:00"
+    else:
+        date_str = f"{date_str.split('T')[0]}T23:59:00"
+
+    date_time = datetime.fromisoformat(date_str)
+    date_time = date_time.astimezone(timezone.utc)
+    return int(date_time.timestamp() * 1000000)
+
+
+def search_date_range(es_body,
+                      date_pubmed_modified: Optional[List[str]] = None,
+                      date_pubmed_arrive: Optional[List[str]] = None,
+                      date_published: Optional[List[str]] = None):
+    # date_pubmed_X is split to just get the date and remove the time element
+    # as elastic search does a tr comparison and if the end date has the time
+    # element stil in it fails even if the date bits match as the string is longer.
+    if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
+        es_body["query"]["bool"]["filter"]["bool"]["must"] = []
+    if date_pubmed_modified:
+        es_body["query"]["bool"]["filter"]["bool"]["must"].append(
+            {
+                "range": {
+                    "date_last_modified_in_pubmed": {
+                        "gte": date_pubmed_modified[0].split('T')[0],
+                        "lte": date_pubmed_modified[1].split('T')[0]
+                    }
+                }
+            })
+    if date_pubmed_arrive:
+        es_body["query"]["bool"]["filter"]["bool"]["must"].append(
+            {
+                "range": {
+                    "date_arrived_in_pubmed": {
+                        "gte": date_pubmed_arrive[0].split('T')[0],
+                        "lte": date_pubmed_arrive[1].split('T')[0]
+                    }
+                }
+            })
+    if date_published:
+        try:
+            start = date_str_to_micro_seconds(date_published[0], True)
+            end = date_str_to_micro_seconds(date_published[1], False)
+        except Exception as e:
+            logger.error(f"Exception in conversion {e} for start={date_published[0]} and end={date_published[1]}")
+        es_body["query"]["bool"]["filter"]["bool"]["must"].append(
+            {
+                "bool": {
+                    "should": [
+                        {
+                            "range": {
+                                "date_published_end": {
+                                    "gte": start,
+                                    "lte": end
+                                }
+                            }
+                        },
+                        {
+                            "range": {
+                                "date_published_start": {
+                                    "lte": start,
+                                    "gte": end
+                                }
+                            }
+                        },
+                        {
+                            "bool": {
+                                "must": [
+                                    {
+                                        "range": {
+                                            "date_published_start": {
+                                                "lte": start
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "range": {
+                                            "date_published_end": {
+                                                "gte": end
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            })
+
+
 def search_references(query: str = None, facets_values: Dict[str, List[str]] = None,
                       size_result_count: Optional[int] = 10, sort_by_published_date_order: Optional[str] = "asc", page: Optional[int] = 0,
                       facets_limits: Dict[str, int] = None, return_facets_only: bool = False,
                       author_filter: Optional[str] = None, date_pubmed_modified: Optional[List[str]] = None,
-                      date_pubmed_arrive: Optional[List[str]] = None, query_fields: str = None):
+                      date_pubmed_arrive: Optional[List[str]] = None,
+                      date_published: Optional[List[str]] = None,
+                      query_fields: str = None):
     if query is None and facets_values is None and not return_facets_only:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="requested a search but no query and no facets provided")
@@ -99,15 +199,10 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             }
         ]
     }
-    if not facets_values and not date_pubmed_modified and not date_pubmed_arrive:
-        del es_body["query"]["bool"]["filter"]
     if sort_by_published_date_order is None:
         del es_body["sort"]
     elif sort_by_published_date_order not in ["desc", "asc"]:
         del es_body["sort"]
-       #     if 'date_published.keyword' in es_body["sort"][i]:
-       #         del es_body["sort"][i]
-       #         break
     if return_facets_only:
         del es_body["query"]
         es_body["size"] = 0
@@ -165,29 +260,14 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             for facet_value in facet_list_values:
                 es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"].append({"term": {}})
                 es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
-    if date_pubmed_modified or date_pubmed_arrive:
-        if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
-            es_body["query"]["bool"]["filter"]["bool"]["must"] = []
-        if date_pubmed_modified:
-            es_body["query"]["bool"]["filter"]["bool"]["must"].append(
-                {
-                    "range": {
-                        "date_last_modified_in_pubmed": {
-                            "gte": date_pubmed_modified[0],
-                            "lt": date_pubmed_modified[1]
-                        }
-                    }
-                })
-        if date_pubmed_arrive:
-            es_body["query"]["bool"]["filter"]["bool"]["must"].append(
-                {
-                    "range": {
-                        "date_arrived_in_pubmed": {
-                            "gte": date_pubmed_arrive[0],
-                            "lt": date_pubmed_arrive[1]
-                        }
-                    }
-                })
+
+    date_range = False
+    if date_pubmed_modified or date_pubmed_arrive or date_published:
+        date_range = True
+        search_date_range(es_body, date_pubmed_modified, date_pubmed_arrive, date_published)
+    if not facets_values and not date_range:
+        del es_body["query"]["bool"]["filter"]
+
     if author_filter:
         es_body["aggregations"]["authors.name.keyword"]["terms"]["include"] = ".*" + author_filter + ".*"
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
@@ -196,6 +276,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             "curie": ref["_source"]["curie"],
             "title": ref["_source"]["title"],
             "date_published": ref["_source"]["date_published"],
+            "date_published_start": ref["_source"]["date_published_start"],
+            "date_published_end": ref["_source"]["date_published_end"],
             "abstract": ref["_source"]["abstract"],
             "cross_references": ref["_source"]["cross_references"],
             "authors": ref["_source"]["authors"],
