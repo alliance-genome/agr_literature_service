@@ -2,9 +2,12 @@
 topic_entity_tag_crud.py
 ===========================
 """
+from collections import defaultdict
+from typing import List
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy import and_
 from sqlalchemy.orm import Session, joinedload
 
 from agr_literature_service.api.models import (
@@ -17,6 +20,17 @@ from agr_literature_service.api.schemas import (
     TopicEntityTagPropSchemaUpdate
 )
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
+
+
+def get_reference_id_from_curie_or_id(db: Session, curie_or_reference_id):
+    reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
+    if reference_id is None:
+        reference_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == curie_or_reference_id).one_or_none()
+    if reference_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Reference with the reference_id or curie {curie_or_reference_id} is not available")
+    return reference_id
 
 
 def extra_checks(topic_entity_tag_data):
@@ -110,13 +124,7 @@ def show(db: Session, topic_entity_tag_id: int):
 
 
 def show_all_reference_tags(db: Session, curie_or_reference_id, offset: int = None, limit: int = None):
-    reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
-    if reference_id is None:
-        reference_id = db.query(ReferenceModel.reference_id).filter(
-            ReferenceModel.curie == curie_or_reference_id).one_or_none()
-    if reference_id is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Reference with the reference_id or curie {curie_or_reference_id} is not available")
+    reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
     topics_and_entities = db.query(TopicEntityTagModel).options(joinedload(TopicEntityTagModel.props)).filter(
         TopicEntityTagModel.reference_id == reference_id).offset(offset).limit(limit).all()
     return [jsonable_encoder(tet) for tet in topics_and_entities]
@@ -226,3 +234,20 @@ def show_prop(db: Session, topic_entity_tag_prop_id: int):
 
     prop_data = jsonable_encoder(prop)
     return prop_data
+
+
+def get_curation_id_name_map(db: Session, curie_or_reference_id: str):
+    allowed_ntt_type_map = {'ATP:0000005': 'gene', 'ATP:0000006': 'allele'}
+    allowed_taxons = ['NCBITaxon:559292', 'NCBITaxon:6239', 'NCBITaxon:7227', 'NCBITaxon:7955', 'NCBITaxon:10116',
+                      'NCBITaxon:10090', 'NCBITaxon:8355', 'NCBITaxon:8364', 'NCBITaxon:9606']
+    reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
+    topics_and_entities = db.query(TopicEntityTagModel).options(joinedload(TopicEntityTagModel.props)).filter(
+        and_(TopicEntityTagModel.reference_id == reference_id, TopicEntityTagModel.taxon.in_(allowed_taxons),
+             TopicEntityTagModel.entity_type.in_([key for key in allowed_ntt_type_map.keys()]),
+             TopicEntityTagModel.alliance_entity.isnot(None))).all()
+    curies_to_search = [tag.alliance_entity for tag in topics_and_entities]
+    return []
+
+
+
+

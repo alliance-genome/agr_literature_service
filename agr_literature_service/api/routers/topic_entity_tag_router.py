@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict
 
 from fastapi import APIRouter, Depends, Response, Security, status
 from fastapi_okta import OktaUser
@@ -71,3 +71,15 @@ def show(topic_entity_tag_id: int,
 def show_all_reference_tags(curie_or_reference_id: str, offset: int = None, limit: int = None,
                             db: Session = db_session):
     return topic_entity_tag_crud.show_all_reference_tags(db, curie_or_reference_id, offset, limit)
+
+
+@router.get('/curation_id_name_map/{curie_or_reference_id}',
+            response_model=List[Dict[str, str]],
+            status_code=200)
+def get_curation_id_name_map(curie_or_reference_id: str,
+                             user: OktaUser = db_user,
+                             db: Session = db_session):
+    print(auth.jwks)
+    import jwt
+    jwt.encode(auth.jwks)
+    return topic_entity_tag_crud.get_curation_id_name_map(db, curie_or_reference_id)
