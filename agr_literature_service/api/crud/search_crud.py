@@ -99,6 +99,15 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             }
         ]
     }
+    if not facets_values and not date_pubmed_modified and not date_pubmed_arrive:
+        del es_body["query"]["bool"]["filter"]
+    if sort_by_published_date_order is None:
+        del es_body["sort"]
+    elif sort_by_published_date_order not in ["desc", "asc"]:
+        del es_body["sort"]
+       #     if 'date_published.keyword' in es_body["sort"][i]:
+       #         del es_body["sort"][i]
+       #         break
     if return_facets_only:
         del es_body["query"]
         es_body["size"] = 0
@@ -179,15 +188,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                         }
                     }
                 })
-    if not facets_values and not date_pubmed_modified and not date_pubmed_arrive:
-        del es_body["query"]["bool"]["filter"]
-    if sort_by_published_date_order is None:
-        del es_body["sort"]
-    elif sort_by_published_date_order not in ["desc", "asc"]:
-        del es_body["sort"]
-       #     if 'date_published.keyword' in es_body["sort"][i]:
-       #         del es_body["sort"][i]
-       #         break
     if author_filter:
         es_body["aggregations"]["authors.name.keyword"]["terms"]["include"] = ".*" + author_filter + ".*"
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
