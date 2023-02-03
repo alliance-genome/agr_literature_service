@@ -266,7 +266,7 @@ class TestSearch:
             assert res["return_count"] == 3
 
     def test_search_references_case4(self, initialize_elasticsearch, auth_headers): # noqa
-        # Should just find all 6 records.
+        # Should just find all first 6 records.
         with TestClient(app) as client:
             search_data = {
                 "query": "",
@@ -276,7 +276,7 @@ class TestSearch:
                                   "authors.name.keyword": 10},
                 "author_filter": "",
                 "query_fields": "All",
-                "date_published": ["2019-01-01T04:00:00.000Z",
+                "date_published": ["2020-01-01T04:00:00.000Z",
                                    "2023-01-29T03:59:59.999Z"]
             }
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
