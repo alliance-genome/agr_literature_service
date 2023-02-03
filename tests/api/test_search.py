@@ -177,10 +177,11 @@ class TestSearch:
             search_data = {
                 "query": "",
                 "sort": [
-                    {"date_published.keyword": {
-                    "order": "asc"
+                    {
+                        "date_published.keyword": {
+                            "order": "asc"
+                        }
                     }
-                }
                 ]
             }
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
