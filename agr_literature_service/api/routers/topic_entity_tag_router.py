@@ -68,6 +68,6 @@ def show(topic_entity_tag_id: int,
 @router.get('/by_reference/{curie_or_reference_id}',
             response_model=List[TopicEntityTagSchemaRelated],
             status_code=200)
-def show_all_reference_tags(curie_or_reference_id: str,
+def show_all_reference_tags(curie_or_reference_id: str, offset: int = None, limit: int = None,
                             db: Session = db_session):
-    return topic_entity_tag_crud.show_all_reference_tags(db, curie_or_reference_id)
+    return topic_entity_tag_crud.show_all_reference_tags(db, curie_or_reference_id, offset, limit)

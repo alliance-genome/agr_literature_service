@@ -109,7 +109,7 @@ def show(db: Session, topic_entity_tag_id: int):
     return topic_entity_tag_data
 
 
-def show_all_reference_tags(db: Session, curie_or_reference_id):
+def show_all_reference_tags(db: Session, curie_or_reference_id, offset: int = None, limit: int = None):
     reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
     if reference_id is None:
         reference_id = db.query(ReferenceModel.reference_id).filter(
@@ -118,7 +118,7 @@ def show_all_reference_tags(db: Session, curie_or_reference_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the reference_id or curie {curie_or_reference_id} is not available")
     topics_and_entities = db.query(TopicEntityTagModel).options(joinedload(TopicEntityTagModel.props)).filter(
-        TopicEntityTagModel.reference_id == reference_id).all()
+        TopicEntityTagModel.reference_id == reference_id).offset(offset).limit(limit).all()
     return [jsonable_encoder(tet) for tet in topics_and_entities]
 
 
