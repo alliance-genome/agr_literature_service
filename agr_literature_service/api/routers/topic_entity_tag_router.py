@@ -73,15 +73,15 @@ def show_all_reference_tags(curie_or_reference_id: str, offset: int = None, limi
     return topic_entity_tag_crud.show_all_reference_tags(db, curie_or_reference_id, offset, limit)
 
 
-@router.get('/curation_id_name_map/{curie_or_reference_id}',
+@router.get('/map_entity_curie_to_name/{curie_or_reference_id}',
             response_model=Dict[str, str],
             status_code=200)
-def get_curation_id_name_map(curie_or_reference_id: str,
-                             user: OktaUser = db_user,
-                             token: str = None,
-                             db: Session = db_session):
+def get_map_entity_curie_to_name(curie_or_reference_id: str,
+                                 user: OktaUser = db_user,
+                                 token: str = None,
+                                 db: Session = db_session):
     set_global_user_from_okta(db, user)
     if token is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="no token provided")
-    return topic_entity_tag_crud.get_curation_id_name_map(db, curie_or_reference_id, token)
+    return topic_entity_tag_crud.get_map_entity_curie_to_name(db, curie_or_reference_id, token)

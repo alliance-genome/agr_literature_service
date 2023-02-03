@@ -237,7 +237,7 @@ def show_prop(db: Session, topic_entity_tag_prop_id: int):
     return prop_data
 
 
-def get_curation_id_name_map(db: Session, curie_or_reference_id: str, token: str):
+def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token: str):
     allowed_entity_type_map = {'ATP:0000005': 'gene', 'ATP:0000006': 'allele'}
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
     topics_and_entities = db.query(TopicEntityTagModel).filter(
