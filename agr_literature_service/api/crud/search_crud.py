@@ -21,11 +21,11 @@ def date_str_to_micro_seconds(date_str: str, start_of_day: bool):
     # So just grab chars before T and converts to seconds after epoch
     # then mulitply by 1000000 and convert to int.
     if start_of_day:
-        date_time = f"{date_str.split('T')[0]}T00:00:00.000Z"
+        date_str = f"{date_str.split('T')[0]}T00:00:00.000Z"
     else:
-        date_time = f"{date_str.split('T')[0]}T23:59:00.000Z"
+        date_str = f"{date_str.split('T')[0]}T23:59:00.000Z"
 
-    datetime = datetime.fromisoformat(date_time)
+    datetime = datetime.fromisoformat(date_str)
     # if start_of_day:
     #    date_time = date_time.replace(hour=0, minute=0, second=0, microsecond=0)
     # else:
