@@ -340,3 +340,4 @@ class TestSearch:
             assert "hits" in res
             assert "aggregations" in res
             assert res["return_count"] == 1
+            assert res == 0
