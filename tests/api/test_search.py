@@ -171,3 +171,18 @@ class TestSearch:
             res = client.get(url="/search/need_review", params={"mod_abbreviation": "0015_AtDB", "count": 10})
             assert res.status_code == status.HTTP_200_OK
             assert len(res.json()) > 0
+
+    def test_search_sort(self, initialize_elasticsearch, auth_headers): # noqa
+        with TestClient(app) as client:
+            search_data = {
+                "query": "",
+                "sort": [
+                    {"date_published.keyword": {
+                    "order": "asc"
+                    }
+                }
+                ]
+            }
+            res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
+            assert "hits" in res
+            assert res["hits"][0]['date_published'] == "1901"
