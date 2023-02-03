@@ -2,8 +2,9 @@
 topic_entity_tag_crud.py
 ===========================
 """
+import json
+import urllib.request
 from collections import defaultdict
-from typing import List
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -236,17 +237,39 @@ def show_prop(db: Session, topic_entity_tag_prop_id: int):
     return prop_data
 
 
-def get_curation_id_name_map(db: Session, curie_or_reference_id: str):
-    allowed_ntt_type_map = {'ATP:0000005': 'gene', 'ATP:0000006': 'allele'}
-    allowed_taxons = ['NCBITaxon:559292', 'NCBITaxon:6239', 'NCBITaxon:7227', 'NCBITaxon:7955', 'NCBITaxon:10116',
-                      'NCBITaxon:10090', 'NCBITaxon:8355', 'NCBITaxon:8364', 'NCBITaxon:9606']
+def get_curation_id_name_map(db: Session, curie_or_reference_id: str, token: str):
+    allowed_entity_type_map = {'ATP:0000005': 'gene', 'ATP:0000006': 'allele'}
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
-    topics_and_entities = db.query(TopicEntityTagModel).options(joinedload(TopicEntityTagModel.props)).filter(
-        and_(TopicEntityTagModel.reference_id == reference_id, TopicEntityTagModel.taxon.in_(allowed_taxons),
-             TopicEntityTagModel.entity_type.in_([key for key in allowed_ntt_type_map.keys()]),
+    topics_and_entities = db.query(TopicEntityTagModel).filter(
+        and_(TopicEntityTagModel.reference_id == reference_id,
+             TopicEntityTagModel.entity_type.in_([key for key in allowed_entity_type_map.keys()]),
              TopicEntityTagModel.alliance_entity.isnot(None))).all()
-    curies_to_search = [tag.alliance_entity for tag in topics_and_entities]
-    return []
+    curies_to_search = set([tag.alliance_entity for tag in topics_and_entities])
+    tags_by_entity_type = defaultdict(set)
+    entity_curie_to_name = {}
+    for tag in topics_and_entities:
+        tags_by_entity_type[allowed_entity_type_map[tag.entity_type]].add(tag.alliance_entity)
+    for entity_type, entity_curies in tags_by_entity_type.items():
+        ateam_api = f'https://beta-curation.alliancegenome.org/api/{entity_type}/search?limit=1000&page=0'
+        request_body = {"searchFilters": {
+            "nameFilters": {
+                "curie_keyword": {"queryString": " ".join(curies_to_search), "tokenOperator": "OR"}
+            }
+
+        }}
+        request_data_encoded = json.dumps(request_body)
+        request_data_encoded_str = str(request_data_encoded)
+        request = urllib.request.Request(url=ateam_api, data=request_data_encoded_str.encode('utf-8'))
+        request.add_header("Authorization", f"Bearer {token}")
+        request.add_header("Content-type", "application/json")
+        request.add_header("Accept", "application/json")
+        with urllib.request.urlopen(request) as response:
+            resp = response.read().decode("utf8")
+            resp_obj = json.loads(resp)
+            entity_curie_to_name.update({entity["curie"]: entity[entity_type + "Symbol"]["displayText"]
+                                         for entity in resp_obj["results"]})
+    return entity_curie_to_name
+
 
 
 

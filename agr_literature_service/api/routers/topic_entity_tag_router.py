@@ -1,8 +1,9 @@
 from typing import List, Dict
 
-from fastapi import APIRouter, Depends, Response, Security, status
+from fastapi import APIRouter, Depends, Response, Security, status, HTTPException
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
+import jwt
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import topic_entity_tag_crud
@@ -74,12 +75,14 @@ def show_all_reference_tags(curie_or_reference_id: str, offset: int = None, limi
 
 
 @router.get('/curation_id_name_map/{curie_or_reference_id}',
-            response_model=List[Dict[str, str]],
+            response_model=Dict[str, str],
             status_code=200)
 def get_curation_id_name_map(curie_or_reference_id: str,
                              user: OktaUser = db_user,
+                             token: str = None,
                              db: Session = db_session):
-    print(auth.jwks)
-    import jwt
-    jwt.encode(auth.jwks)
-    return topic_entity_tag_crud.get_curation_id_name_map(db, curie_or_reference_id)
+    set_global_user_from_okta(db, user)
+    if token is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="no token provided")
+    return topic_entity_tag_crud.get_curation_id_name_map(db, curie_or_reference_id, token)
