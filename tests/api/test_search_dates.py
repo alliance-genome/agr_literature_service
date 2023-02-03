@@ -337,7 +337,7 @@ class TestSearch:
                                    "2019-09-01T03:59:59.999Z"]
             }
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
+            assert res == 0
             assert "hits" in res
             assert "aggregations" in res
             assert res["return_count"] == 1
-            assert res == 0
