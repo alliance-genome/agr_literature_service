@@ -3,7 +3,6 @@ from typing import List, Dict
 from fastapi import APIRouter, Depends, Response, Security, status, HTTPException
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
-import jwt
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import topic_entity_tag_crud
