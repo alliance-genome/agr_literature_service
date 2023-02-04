@@ -73,12 +73,12 @@ def show_all_reference_tags(curie_or_reference_id: str, offset: int = None, limi
     return topic_entity_tag_crud.show_all_reference_tags(db, curie_or_reference_id, offset, limit)
 
 
-@router.get('/map_entity_curie_to_name/{curie_or_reference_id}',
+@router.get('/map_entity_curie_to_name/',
             response_model=Dict[str, str],
             status_code=200)
 def get_map_entity_curie_to_name(curie_or_reference_id: str,
-                                 user: OktaUser = db_user,
                                  token: str = None,
+                                 user: OktaUser = db_user,
                                  db: Session = db_session):
     set_global_user_from_okta(db, user)
     if token is None:
