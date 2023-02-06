@@ -2,10 +2,14 @@
 topic_entity_tag_crud.py
 ===========================
 """
+import json
+import urllib.request
+from collections import defaultdict
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy.orm import Session
+from sqlalchemy import and_
+from sqlalchemy.orm import Session, joinedload
 
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
@@ -17,6 +21,17 @@ from agr_literature_service.api.schemas import (
     TopicEntityTagPropSchemaUpdate
 )
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
+
+
+def get_reference_id_from_curie_or_id(db: Session, curie_or_reference_id):
+    reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
+    if reference_id is None:
+        reference_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == curie_or_reference_id).one_or_none()
+    if reference_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Reference with the reference_id or curie {curie_or_reference_id} is not available")
+    return reference_id
 
 
 def extra_checks(topic_entity_tag_data):
@@ -107,6 +122,17 @@ def show(db: Session, topic_entity_tag_id: int):
         prop_data = jsonable_encoder(prop)
         topic_entity_tag_data["props"].append(prop_data)
     return topic_entity_tag_data
+
+
+def show_all_reference_tags(db: Session, curie_or_reference_id, offset: int = None, limit: int = None,
+                            count_only: bool = False):
+    reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
+    query = db.query(TopicEntityTagModel).options(joinedload(TopicEntityTagModel.props)).filter(
+        TopicEntityTagModel.reference_id == reference_id).offset(offset).limit(limit)
+    if count_only:
+        return query.count()
+    else:
+        return [jsonable_encoder(tet) for tet in query.all()]
 
 
 def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
@@ -213,3 +239,36 @@ def show_prop(db: Session, topic_entity_tag_prop_id: int):
 
     prop_data = jsonable_encoder(prop)
     return prop_data
+
+
+def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token: str):
+    allowed_entity_type_map = {'ATP:0000005': 'gene', 'ATP:0000006': 'allele'}
+    reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
+    topics_and_entities = db.query(TopicEntityTagModel).filter(
+        and_(TopicEntityTagModel.reference_id == reference_id,
+             TopicEntityTagModel.entity_type.in_([key for key in allowed_entity_type_map.keys()]),
+             TopicEntityTagModel.alliance_entity.isnot(None))).all()
+    tags_by_entity_type = defaultdict(set)
+    entity_curie_to_name = {}
+    for tag in topics_and_entities:
+        tags_by_entity_type[allowed_entity_type_map[tag.entity_type]].add(tag.alliance_entity)
+    for entity_type, entity_curies in tags_by_entity_type.items():
+        ateam_api = f'https://beta-curation.alliancegenome.org/api/{entity_type}/search?limit=1000&page=0'
+        request_body = {"searchFilters": {
+            "nameFilters": {
+                "curie_keyword": {"queryString": " ".join(entity_curies), "tokenOperator": "OR"}
+            }
+
+        }}
+        request_data_encoded = json.dumps(request_body)
+        request_data_encoded_str = str(request_data_encoded)
+        request = urllib.request.Request(url=ateam_api, data=request_data_encoded_str.encode('utf-8'))
+        request.add_header("Authorization", f"Bearer {token}")
+        request.add_header("Content-type", "application/json")
+        request.add_header("Accept", "application/json")
+        with urllib.request.urlopen(request) as response:
+            resp = response.read().decode("utf8")
+            resp_obj = json.loads(resp)
+            entity_curie_to_name.update({entity["curie"]: entity[entity_type + "Symbol"]["displayText"]
+                                         for entity in resp_obj["results"]})
+    return entity_curie_to_name

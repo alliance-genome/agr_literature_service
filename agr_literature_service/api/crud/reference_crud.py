@@ -33,7 +33,6 @@ from agr_literature_service.api.crud.workflow_tag_crud import (
     show as show_workflow_tag
 )
 from agr_literature_service.api.crud.topic_entity_tag_crud import (
-    show as show_topic_entity_tag,
     patch as update_topic_entity_tag,
     create as create_topic_entity_tag
 )
@@ -306,13 +305,6 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             ont_json = show_workflow_tag(db, ont.reference_workflow_tag_id)
 
             reference_data["workflow_tags"].append(ont_json)
-
-    reference_data["topic_entity_tags"] = []
-    if reference.topic_entity_tags:
-        for tet in reference.topic_entity_tags:
-            tet_json = show_topic_entity_tag(db, tet.topic_entity_tag_id)
-
-            reference_data["topic_entity_tags"].append(tet_json)
 
     if reference.mesh_term:
         for mesh_term in reference_data["mesh_term"]:

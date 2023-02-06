@@ -88,6 +88,11 @@ class TopicEntityTagModel(AuditedModel, Base):
         nullable=True
     )
 
+    props = relationship(
+        "TopicEntityTagPropModel",
+        cascade="all, delete, delete-orphan",
+    )
+
 
 class TopicEntityTagPropModel(AuditedModel, Base):
     __tablename__ = "topic_entity_tag_prop"
