@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime
+import datetime
 
 from elasticsearch import Elasticsearch
 from starlette.testclient import TestClient
@@ -42,14 +42,14 @@ def initialize_elasticsearch():
     date6_str = '2019-08-31'
     date7_str = '2019-09-01'
     date8_str = '2019-09-02'
-    date1 = int(datetime.strptime(date1_str, '%Y-%m-%d').timestamp()) * 1000000
-    date2 = int(datetime.strptime(date2_str, '%Y-%m-%d').timestamp()) * 1000000
-    date3 = int(datetime.strptime(date3_str, '%Y-%m-%d').timestamp()) * 1000000
-    date4 = int(datetime.strptime(date4_str, '%Y-%m-%d').timestamp()) * 1000000
-    date5 = int(datetime.strptime(date5_str, '%Y-%m-%d').timestamp()) * 1000000
-    date6 = int(datetime.strptime(date6_str, '%Y-%m-%d').timestamp()) * 1000000
-    date7 = int(datetime.strptime(date7_str, '%Y-%m-%d').timestamp()) * 1000000
-    date8 = int(datetime.strptime(date8_str, '%Y-%m-%d').timestamp()) * 1000000
+    date1 = int(datetime.datetime.strptime(date1_str, '%Y-%m-%d').timestamp()) * 1000000
+    date2 = int(datetime.datetime.strptime(date2_str, '%Y-%m-%d').timestamp()) * 1000000
+    date3 = int(datetime.datetime.strptime(date3_str, '%Y-%m-%d').timestamp()) * 1000000
+    date4 = int(datetime.datetime.strptime(date4_str, '%Y-%m-%d').timestamp()) * 1000000
+    date5 = int(datetime.datetime.strptime(date5_str, '%Y-%m-%d').timestamp()) * 1000000
+    date6 = int(datetime.datetime.strptime(date6_str, '%Y-%m-%d').timestamp()) * 1000000
+    date7 = int(datetime.datetime.strptime(date7_str, '%Y-%m-%d').timestamp()) * 1000000
+    date8 = int(datetime.datetime.strptime(date8_str, '%Y-%m-%d').timestamp()) * 1000000
     doc1 = {
         "curie": "AGRKB:101000000000100",
         "title": "superlongword super super super super test test test",
@@ -223,7 +223,7 @@ class TestSearch:
                                    "2022-03-28T03:59:59.999Z"]
             }
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
-            print(datetime.datetime.now(datetime.timezone.utc).astimezone().tzinfo)
+            print(datetime.now(datetime.datetime.timezone.utc).astimezone().tzinfo)
             print(res)
             assert "hits" in res
             assert "aggregations" in res
