@@ -124,11 +124,15 @@ def show(db: Session, topic_entity_tag_id: int):
     return topic_entity_tag_data
 
 
-def show_all_reference_tags(db: Session, curie_or_reference_id, offset: int = None, limit: int = None):
+def show_all_reference_tags(db: Session, curie_or_reference_id, offset: int = None, limit: int = None,
+                            count_only: bool = False):
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
-    topics_and_entities = db.query(TopicEntityTagModel).options(joinedload(TopicEntityTagModel.props)).filter(
-        TopicEntityTagModel.reference_id == reference_id).offset(offset).limit(limit).all()
-    return [jsonable_encoder(tet) for tet in topics_and_entities]
+    query = db.query(TopicEntityTagModel).options(joinedload(TopicEntityTagModel.props)).filter(
+        TopicEntityTagModel.reference_id == reference_id).offset(offset).limit(limit)
+    if count_only:
+        return query.count()
+    else:
+        return [jsonable_encoder(tet) for tet in query.all()]
 
 
 def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
