@@ -223,6 +223,8 @@ class TestSearch:
                                    "2022-03-28T03:59:59.999Z"]
             }
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
+            print(datetime.datetime.now(datetime.timezone.utc).astimezone().tzinfo)
+            print(res)
             assert "hits" in res
             assert "aggregations" in res
             assert res["return_count"] == 4
