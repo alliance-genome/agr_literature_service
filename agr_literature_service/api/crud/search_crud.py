@@ -21,12 +21,11 @@ def date_str_to_micro_seconds(date_str: str, start_of_day: bool):
     # So just grab chars before T and converts to seconds after epoch
     # then mulitply by 1000000 and convert to int.
     if start_of_day:
-        date_str = f"{date_str.split('T')[0]}T00:00:00"
+        date_str = f"{date_str.split('T')[0]}T00:00:00+00:00"
     else:
-        date_str = f"{date_str.split('T')[0]}T23:59:00"
+        date_str = f"{date_str.split('T')[0]}T23:59:00+00:00"
 
     date_time = datetime.fromisoformat(date_str)
-    date_time = date_time.astimezone(timezone.utc)
     return int(date_time.timestamp() * 1000000)
 
 
@@ -110,8 +109,10 @@ def search_date_range(es_body,
             })
 
 
+# flake8: noqa: C901
 def search_references(query: str = None, facets_values: Dict[str, List[str]] = None,
-                      size_result_count: Optional[int] = 10, page: Optional[int] = 0,
+                      size_result_count: Optional[int] = 10, sort_by_published_date_order: Optional[str] = "asc",
+                      page: Optional[int] = 0,
                       facets_limits: Dict[str, int] = None, return_facets_only: bool = False,
                       author_filter: Optional[str] = None, date_pubmed_modified: Optional[List[str]] = None,
                       date_pubmed_arrive: Optional[List[str]] = None,
@@ -191,8 +192,19 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         },
         "from": from_entry,
         "size": size_result_count,
-        "track_total_hits": True
+        "track_total_hits": True,
+        "sort": [
+            {
+                "date_published.keyword": {
+                    "order": sort_by_published_date_order
+                }
+            }
+        ]
     }
+    if sort_by_published_date_order is None:
+        del es_body["sort"]
+    elif sort_by_published_date_order not in ["desc", "asc"]:
+        del es_body["sort"]
     if return_facets_only:
         del es_body["query"]
         es_body["size"] = 0
