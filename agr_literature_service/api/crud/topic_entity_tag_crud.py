@@ -244,7 +244,6 @@ def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token:
         and_(TopicEntityTagModel.reference_id == reference_id,
              TopicEntityTagModel.entity_type.in_([key for key in allowed_entity_type_map.keys()]),
              TopicEntityTagModel.alliance_entity.isnot(None))).all()
-    curies_to_search = set([tag.alliance_entity for tag in topics_and_entities])
     tags_by_entity_type = defaultdict(set)
     entity_curie_to_name = {}
     for tag in topics_and_entities:
@@ -253,7 +252,7 @@ def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token:
         ateam_api = f'https://beta-curation.alliancegenome.org/api/{entity_type}/search?limit=1000&page=0'
         request_body = {"searchFilters": {
             "nameFilters": {
-                "curie_keyword": {"queryString": " ".join(curies_to_search), "tokenOperator": "OR"}
+                "curie_keyword": {"queryString": " ".join(entity_curies), "tokenOperator": "OR"}
             }
 
         }}
