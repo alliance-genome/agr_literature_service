@@ -26,7 +26,6 @@ def date_str_to_micro_seconds(date_str: str, start_of_day: bool):
         date_str = f"{date_str.split('T')[0]}T23:59:00+00:00"
 
     date_time = datetime.fromisoformat(date_str)
-    date_time = date_time.astimezone(timezone.utc)
     return int(date_time.timestamp() * 1000000)
 
 
