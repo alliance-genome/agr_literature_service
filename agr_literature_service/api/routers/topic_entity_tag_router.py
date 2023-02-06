@@ -1,4 +1,4 @@
-from typing import List, Dict, Union, NewType
+from typing import List, Dict, Union, NewType, Any
 
 from fastapi import APIRouter, Depends, Response, Security, status, HTTPException
 from fastapi_okta import OktaUser
@@ -66,7 +66,7 @@ def show(topic_entity_tag_id: int,
 
 
 @router.get('/by_reference/{curie_or_reference_id}',
-            response_model=Union[List[TopicEntityTagSchemaRelated], NewType('count', int)],
+            response_model=Union[List[TopicEntityTagSchemaRelated], Any],
             status_code=200)
 def show_all_reference_tags(curie_or_reference_id: str, offset: int = None, limit: int = None, count_only: bool = False,
                             db: Session = db_session):
