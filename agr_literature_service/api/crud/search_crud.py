@@ -244,8 +244,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     elif query and query_fields == "Curie":
         es_body["query"]["bool"]["must"].append(
             {
-                "wildcard" if "*" in query or "?" in query else "match": {
-                    "curie": query
+                "wildcard" : {
+                    "curie.keyword": query
                 }
             })
     elif query and query_fields == "Xref":
