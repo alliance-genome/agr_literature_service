@@ -230,7 +230,7 @@ class TestTopicEntityTag:
             response = client.delete(url=f"/topic_entity_tag_prop/{prop_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_get_all_reference_tags(self, auth_headers):
+    def test_get_all_reference_tags(self, auth_headers): # noqa
         with TestClient(app) as client:
             reference_data = {
                 "category": "research_article",

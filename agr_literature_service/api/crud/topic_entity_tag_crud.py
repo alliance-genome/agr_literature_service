@@ -268,8 +268,3 @@ def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token:
             entity_curie_to_name.update({entity["curie"]: entity[entity_type + "Symbol"]["displayText"]
                                          for entity in resp_obj["results"]})
     return entity_curie_to_name
-
-
-
-
-

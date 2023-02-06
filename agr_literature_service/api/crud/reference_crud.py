@@ -33,7 +33,6 @@ from agr_literature_service.api.crud.workflow_tag_crud import (
     show as show_workflow_tag
 )
 from agr_literature_service.api.crud.topic_entity_tag_crud import (
-    show as show_topic_entity_tag,
     patch as update_topic_entity_tag,
     create as create_topic_entity_tag
 )
