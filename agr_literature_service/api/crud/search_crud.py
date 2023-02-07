@@ -217,6 +217,16 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                                 "keywords": query
                             }
                         },
+                        {
+                            "wildcard" : {
+                                "curie.keyword": query
+                            }
+                        },
+                        {
+                            "wildcard": {
+                                "cross_references.curie.keyword": query
+                            }
+                        },
                     ]
             }
         })
