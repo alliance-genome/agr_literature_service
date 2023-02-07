@@ -54,7 +54,7 @@ def initialize_elasticsearch():
     date8 = int(datetime.datetime.strptime(date8_str, '%Y-%m-%d').timestamp()) * 1000000
     print(f"date1: {date1}")
     print(f"date2: {date2}")
-    print(f"date1 conv {date_str_to_micro_seconds("2022-01-01T", True)}")
+    print(f"date1 conv {date_str_to_micro_seconds('2022-01-01T', True)}")
     doc1 = {
         "curie": "AGRKB:101000000000100",
         "title": "superlongword super super super super test test test",
