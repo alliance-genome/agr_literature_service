@@ -17,7 +17,7 @@ from agr_literature_service.api.schemas import (AuthorSchemaPost, AuthorSchemaSh
 from agr_literature_service.api.schemas.cross_reference_schemas import CrossReferenceSchemaCreate
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaRelated
 from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagSchemaCreate, WorkflowTagSchemaRelated
-from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaCreate, TopicEntityTagSchemaRelated
+from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaCreate
 
 
 class ReferenceSchemaPost(BaseModel):
@@ -147,7 +147,6 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     open_access: Optional[bool] = None
     citation: Optional[str] = None
     workflow_tags: Optional[List[WorkflowTagSchemaRelated]] = None
-    topic_entity_tags: Optional[List[TopicEntityTagSchemaRelated]] = None
     referencefiles: Optional[List[ReferencefileSchemaRelated]] = None
 
 

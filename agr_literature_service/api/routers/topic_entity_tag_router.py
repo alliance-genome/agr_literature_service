@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Response, Security, status
+from typing import List, Dict, Union
+
+from fastapi import APIRouter, Depends, Response, Security, status, HTTPException
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
@@ -9,6 +11,7 @@ from agr_literature_service.api.schemas import (TopicEntityTagSchemaShow,
                                                 TopicEntityTagSchemaUpdate,
                                                 TopicEntityTagSchemaPost,
                                                 ResponseMessageSchema)
+from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated
 from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
@@ -60,3 +63,24 @@ async def patch(topic_entity_tag_id: int,
 def show(topic_entity_tag_id: int,
          db: Session = db_session):
     return topic_entity_tag_crud.show(db, topic_entity_tag_id)
+
+
+@router.get('/by_reference/{curie_or_reference_id}',
+            status_code=200)
+def show_all_reference_tags(curie_or_reference_id: str, offset: int = None, limit: int = None, count_only: bool = False,
+                            db: Session = db_session) -> Union[List[TopicEntityTagSchemaRelated], int]:
+    return topic_entity_tag_crud.show_all_reference_tags(db, curie_or_reference_id, offset, limit, count_only)
+
+
+@router.get('/map_entity_curie_to_name/',
+            response_model=Dict[str, str],
+            status_code=200)
+def get_map_entity_curie_to_name(curie_or_reference_id: str,
+                                 token: str = None,
+                                 user: OktaUser = db_user,
+                                 db: Session = db_session):
+    set_global_user_from_okta(db, user)
+    if token is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="no token provided")
+    return topic_entity_tag_crud.get_map_entity_curie_to_name(db, curie_or_reference_id, token)

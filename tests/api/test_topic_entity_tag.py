@@ -230,7 +230,42 @@ class TestTopicEntityTag:
             response = client.delete(url=f"/topic_entity_tag_prop/{prop_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-            # Now lets check via the reference
-            response = client.get(url=f"/reference/{test_topic_entity_tag.related_ref_curie}")
-            res = response.json()
-            assert res["topic_entity_tags"][0]["props"][0]["topic_entity_tag_prop_id"] != 0
+    def test_get_all_reference_tags(self, auth_headers): # noqa
+        with TestClient(app) as client:
+            reference_data = {
+                "category": "research_article",
+                "abstract": "The Hippo (Hpo) pathway is a conserved tumor suppressor pathway",
+                "date_published_start": "2022-10-01 00:00:01",
+                "date_published_end": "2022-10-02T00:00:01",
+                "title": "Some test 001 title",
+                "authors": [
+                    {
+                        "order": 2,
+                        "first_name": "S.",
+                        "last_name": "Wu",
+                        "name": "S. Wu"
+                    },
+                    {
+                        "order": 1,
+                        "first_name": "D.",
+                        "last_name": "Wu",
+                        "name": "D. Wu"
+                    }
+                ],
+                "topic_entity_tags": [
+                    {
+                        "topic": "string",
+                        "entity_type": "string",
+                        "alliance_entity": "string",
+                        "taxon": "string",
+                        "note": "string",
+                        "props": [{"qualifier": "Quali1"},
+                                  {"qualifier": "Quali2"}]
+                    }
+                ]
+            }
+
+            new_curie = client.post(url="/reference/", json=reference_data, headers=auth_headers).json()
+            response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}").json()
+            assert len(response) > 0
+            assert len(response[0]["props"]) == 2

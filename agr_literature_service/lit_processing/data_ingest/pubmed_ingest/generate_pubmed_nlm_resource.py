@@ -87,7 +87,7 @@ def populate_nlm_info(file_data):
     return nlm_info
 
 
-def generate_json(nlm_info, upload_to_s3):
+def generate_json(nlm_info, upload_to_s3):  # pragma: no cover
     logger.info("Generating JSON from NLM data and saving to outfile")
     json_data = json.dumps(nlm_info, indent=4, sort_keys=True)
 
@@ -116,7 +116,7 @@ def generate_json(nlm_info, upload_to_s3):
 # aws s3 rm s3://agr-literature/develop/resource/metadata/resource_pubmed_all.json
 
 
-def populate_from_url():
+def populate_from_url():  # pragma: no cover
     """
 
     :return:

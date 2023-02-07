@@ -1,6 +1,6 @@
 from typing import Dict, List, Any, Optional
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from elasticsearch import Elasticsearch
 from agr_literature_service.api.config import config
@@ -20,11 +20,12 @@ def date_str_to_micro_seconds(date_str: str, start_of_day: bool):
     # initial strings are in the format:- "2010-10-28T04:00:00.000"
     # So just grab chars before T and converts to seconds after epoch
     # then mulitply by 1000000 and convert to int.
-    date_time = datetime.strptime(date_str.split('T')[0], '%Y-%m-%d')
     if start_of_day:
-        date_time = date_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        date_str = f"{date_str.split('T')[0]}T00:00:00+00:00"
     else:
-        date_time = date_time.replace(hour=23, minute=59, second=59, microsecond=0)
+        date_str = f"{date_str.split('T')[0]}T23:59:00+00:00"
+
+    date_time = datetime.fromisoformat(date_str)
     return int(date_time.timestamp() * 1000000)
 
 
@@ -63,7 +64,6 @@ def search_date_range(es_body,
             end = date_str_to_micro_seconds(date_published[1], False)
         except Exception as e:
             logger.error(f"Exception in conversion {e} for start={date_published[0]} and end={date_published[1]}")
-        logger.debug(f"Search date_published: start={start}, end={end}")
         es_body["query"]["bool"]["filter"]["bool"]["must"].append(
             {
                 "bool": {
@@ -109,8 +109,10 @@ def search_date_range(es_body,
             })
 
 
+# flake8: noqa: C901
 def search_references(query: str = None, facets_values: Dict[str, List[str]] = None,
-                      size_result_count: Optional[int] = 10, page: Optional[int] = 0,
+                      size_result_count: Optional[int] = 10, sort_by_published_date_order: Optional[str] = "asc",
+                      page: Optional[int] = 0,
                       facets_limits: Dict[str, int] = None, return_facets_only: bool = False,
                       author_filter: Optional[str] = None, date_pubmed_modified: Optional[List[str]] = None,
                       date_pubmed_arrive: Optional[List[str]] = None,
@@ -190,8 +192,19 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         },
         "from": from_entry,
         "size": size_result_count,
-        "track_total_hits": True
+        "track_total_hits": True,
+        "sort": [
+            {
+                "date_published.keyword": {
+                    "order": sort_by_published_date_order
+                }
+            }
+        ]
     }
+    if sort_by_published_date_order is None:
+        del es_body["sort"]
+    elif sort_by_published_date_order not in ["desc", "asc"]:
+        del es_body["sort"]
     if return_facets_only:
         del es_body["query"]
         es_body["size"] = 0

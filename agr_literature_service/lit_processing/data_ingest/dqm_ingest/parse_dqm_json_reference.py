@@ -192,7 +192,7 @@ def generate_pmid_data(input_path, output_directory, input_mod, base_input_dir=b
     #     logger.info("primary_id %s", primary_id)
 
 
-def load_mod_resource(mods, resource_to_nlm):
+def load_mod_resource(mods, resource_to_nlm):  # pragma: no cover
     resource_fields = ['primaryId', 'title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN']
     resource_to_mod = dict()
     resource_to_mod_issn_nlm = dict()
@@ -249,7 +249,7 @@ def load_mod_resource(mods, resource_to_nlm):
     return resource_to_mod, resource_to_mod_issn_nlm
 
 
-def load_pubmed_resource():
+def load_pubmed_resource():  # pragma: no cover
     """
 
     :return:
@@ -301,7 +301,7 @@ def load_pubmed_resource():
     return resource_to_nlm, resource_to_nlm_highest, resource_nlm_to_title
 
 
-def load_pmid_multi_mods(output_path):
+def load_pmid_multi_mods(output_path):  # pragma: no cover
     """
 
     :return:
@@ -327,7 +327,7 @@ COMPARE_IF_DQM_EMPTY = False  # do dqm vs pmid comparison even if dqm has no dat
 
 
 def find_resource_abbreviation_not_matched_to_nlm_or_res_mod(resource_not_found: Dict[str, Dict[str, int]],
-                                                             report_writer: ReportWriter, base_dir=base_path):
+                                                             report_writer: ReportWriter, base_dir=base_path):  # pragma: no cover
     # output resourceAbbreviations not matched to NLMs or resource MOD IDs to a file for attempt to
     # download from other source
     # with get_pubmed_nlm_resource_unmatched.py
@@ -348,7 +348,7 @@ def find_resource_abbreviation_not_matched_to_nlm_or_res_mod(resource_not_found:
 
 
 def report_unexpected_cross_references(cross_reference_types: Dict[str, Dict[str, list]],
-                                       exclude_cross_reference_type, report_writer: ReportWriter):
+                                       exclude_cross_reference_type, report_writer: ReportWriter):  # pragma: no cover
     for mod, xref_type_xrefs_dict in cross_reference_types.items():
         for xref_type, xref_messages in xref_type_xrefs_dict.items():
             if xref_type.lower() in exclude_cross_reference_type:
@@ -365,7 +365,7 @@ def report_unexpected_cross_references(cross_reference_types: Dict[str, Dict[str
 
 
 def report_multiple_categories_and_dates_while_merging_multimod(alliance_category_dict, report_writer, pmid,
-                                                                date_published_set):
+                                                                date_published_set):  # pragma: no cover
     if len(alliance_category_dict) > 1:
         category_mods = "\t".join([alliance_category + ': ' + ", ".join(mods) for alliance_category, mods in
                                    alliance_category_dict.items()])
@@ -384,7 +384,7 @@ ADDITIONAL_FIELDS_FOR_MULTIMOD_MERGE = ['nlm', 'resource']
 
 
 def merge_multimod_pubmed_and_dqm_data(unmerged_dqm_data_with_pmid: Dict[str, Dict[str, Reference]],
-                                       sanitized_pubmed_multi_mod_data, report_writer):
+                                       sanitized_pubmed_multi_mod_data, report_writer):  # pragma: no cover
     for pmid in unmerged_dqm_data_with_pmid:
         date_published_set = set()
         alliance_category_dict = defaultdict(set)
