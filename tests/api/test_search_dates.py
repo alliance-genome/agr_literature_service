@@ -50,6 +50,8 @@ def initialize_elasticsearch():
     date6 = int(datetime.datetime.strptime(date6_str, '%Y-%m-%d').timestamp()) * 1000000
     date7 = int(datetime.datetime.strptime(date7_str, '%Y-%m-%d').timestamp()) * 1000000
     date8 = int(datetime.datetime.strptime(date8_str, '%Y-%m-%d').timestamp()) * 1000000
+    print(f"date1: {date1}")
+    print(f"date2: {date2}")
     doc1 = {
         "curie": "AGRKB:101000000000100",
         "title": "superlongword super super super super test test test",
