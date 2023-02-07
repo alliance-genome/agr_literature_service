@@ -6,6 +6,8 @@ from starlette.testclient import TestClient
 
 from agr_literature_service.api.config import config
 from agr_literature_service.api.main import app
+from agr_literature_service.api.crud.search_crud import date_str_to_micro_seconds
+
 from .test_mod_corpus_association import test_mca # noqa
 from ..fixtures import db # noqa
 from .test_reference import test_reference # noqa
@@ -52,6 +54,7 @@ def initialize_elasticsearch():
     date8 = int(datetime.datetime.strptime(date8_str, '%Y-%m-%d').timestamp()) * 1000000
     print(f"date1: {date1}")
     print(f"date2: {date2}")
+    print(f"date1 conv {date_str_to_micro_seconds("2022-01-01T", True)}")
     doc1 = {
         "curie": "AGRKB:101000000000100",
         "title": "superlongword super super super super test test test",
