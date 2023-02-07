@@ -191,6 +191,14 @@ class TestSearch:
         # would return.
         # So this checks the whole dates are used and ignores the time bit.
         with TestClient(app) as client:
+            date1_str = '2022-01-01'
+            date2_str = '2022-03-28'
+
+            date1 = int(datetime.datetime.strptime(date1_str, '%Y-%m-%d').timestamp()) * 1000000
+            date2 = int(datetime.datetime.strptime(date2_str, '%Y-%m-%d').timestamp()) * 1000000
+            print(f"date1: {date1}")
+            print(f"date2: {date2}")
+            print(f"date1 conv {date_str_to_micro_seconds('2022-01-01T', True)}")
             search_data = {
                 "query": "",
                 "facets_limits": {"pubmed_types.keyword": 10,
