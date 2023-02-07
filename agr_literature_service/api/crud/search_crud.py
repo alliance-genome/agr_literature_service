@@ -232,12 +232,12 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                         },
                         {
                             "wildcard" : {
-                                "curie.keyword": query
+                                "curie.keyword": "*" + query
                             }
                         },
                         {
                             "wildcard": {
-                                "cross_references.curie.keyword": query
+                                "cross_references.curie.keyword": "*" + query
                             }
                         },
                     ]
@@ -268,14 +268,14 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         es_body["query"]["bool"]["must"].append(
             {
                 "wildcard" : {
-                    "curie.keyword": query
+                    "curie.keyword": "*" + query
                 }
             })
     elif query and query_fields == "Xref":
         es_body["query"]["bool"]["must"].append(
             {
                 "wildcard": {
-                    "cross_references.curie.keyword": query
+                    "cross_references.curie.keyword": "*" + query
                 }
             })
     if facets_values:
