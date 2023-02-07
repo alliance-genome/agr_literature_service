@@ -44,14 +44,14 @@ def initialize_elasticsearch():
     date6_str = '2019-08-31T'
     date7_str = '2019-09-01T'
     date8_str = '2019-09-02T'
-    date1 = date_str_to_micro_seconds('date1_str', True)
-    date2 = date_str_to_micro_seconds('date2_str', True)
-    date3 = date_str_to_micro_seconds('date3_str', True)
-    date4 = date_str_to_micro_seconds('date4_str', True)
-    date5 = date_str_to_micro_seconds('date5_str', True)
-    date6 = date_str_to_micro_seconds('date6_str', True)
-    date7 = date_str_to_micro_seconds('date7_str', True)
-    date8 = date_str_to_micro_seconds('date8_str', True)
+    date1 = date_str_to_micro_seconds(date1_str, True)
+    date2 = date_str_to_micro_seconds(date2_str, True)
+    date3 = date_str_to_micro_seconds(date3_str, True)
+    date4 = date_str_to_micro_seconds(date4_str, True)
+    date5 = date_str_to_micro_seconds(date5_str, True)
+    date6 = date_str_to_micro_seconds(date6_str, True)
+    date7 = date_str_to_micro_seconds(date7_str, True)
+    date8 = date_str_to_micro_seconds(date8_str, True)
 
     doc1 = {
         "curie": "AGRKB:101000000000100",
