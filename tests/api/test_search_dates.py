@@ -35,26 +35,24 @@ from .fixtures import auth_headers # noqa
 def initialize_elasticsearch():
     print("***** Initializing Elasticsearch Data *****")
     es = Elasticsearch(hosts=config.ELASTICSEARCH_HOST + ":" + config.ELASTICSEARCH_PORT)
-    date1_str = '2022-01-01'
-    date2_str = '2022-03-28'
-    date3_str = '2022-09-27'
-    date4_str = '2022-09-28'
-    date5_str = '2022-12-31'
+    date1_str = '2022-01-01T'
+    date2_str = '2022-03-28T'
+    date3_str = '2022-09-27T'
+    date4_str = '2022-09-28T'
+    date5_str = '2022-12-31T'
     # consecutive days
-    date6_str = '2019-08-31'
-    date7_str = '2019-09-01'
-    date8_str = '2019-09-02'
-    date1 = int(datetime.datetime.strptime(date1_str, '%Y-%m-%d').timestamp()) * 1000000
-    date2 = int(datetime.datetime.strptime(date2_str, '%Y-%m-%d').timestamp()) * 1000000
-    date3 = int(datetime.datetime.strptime(date3_str, '%Y-%m-%d').timestamp()) * 1000000
-    date4 = int(datetime.datetime.strptime(date4_str, '%Y-%m-%d').timestamp()) * 1000000
-    date5 = int(datetime.datetime.strptime(date5_str, '%Y-%m-%d').timestamp()) * 1000000
-    date6 = int(datetime.datetime.strptime(date6_str, '%Y-%m-%d').timestamp()) * 1000000
-    date7 = int(datetime.datetime.strptime(date7_str, '%Y-%m-%d').timestamp()) * 1000000
-    date8 = int(datetime.datetime.strptime(date8_str, '%Y-%m-%d').timestamp()) * 1000000
-    print(f"date1: {date1}")
-    print(f"date2: {date2}")
-    print(f"date1 conv {date_str_to_micro_seconds('2022-01-01T', True)}")
+    date6_str = '2019-08-31T'
+    date7_str = '2019-09-01T'
+    date8_str = '2019-09-02T'
+    date1 = date_str_to_micro_seconds('date1_str', True)
+    date2 = date_str_to_micro_seconds('date2_str', True)
+    date3 = date_str_to_micro_seconds('date3_str', True)
+    date4 = date_str_to_micro_seconds('date4_str', True)
+    date5 = date_str_to_micro_seconds('date5_str', True)
+    date6 = date_str_to_micro_seconds('date6_str', True)
+    date7 = date_str_to_micro_seconds('date7_str', True)
+    date8 = date_str_to_micro_seconds('date8_str', True)
+
     doc1 = {
         "curie": "AGRKB:101000000000100",
         "title": "superlongword super super super super test test test",
