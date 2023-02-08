@@ -67,7 +67,8 @@ run-functest:
 	docker-compose --env-file .env.test run test_runner python3 agr_literature_service/lit_processing/tests/functional_tests.py
 	docker-compose --env-file .env.test down
 
-start-debezium-local:
+restart-debezium-local:
+	docker-compose --env-file ${ENV_FILE} rm -svf dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server
 	docker-compose --env-file ${ENV_FILE} up -d postgres
 	sleep 5
 	docker-compose --env-file ${ENV_FILE} up -d elasticsearch
@@ -80,7 +81,8 @@ start-debezium-local:
 	sleep 20
 	docker-compose --env-file ${ENV_FILE} up -d dbz_setup
 
-start-debezium-aws:
+restart-debezium-aws:
+	docker-compose --env-file ${ENV_FILE} rm -svf dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server
 	docker-compose --env-file ${ENV_FILE} up -d dbz_zookeeper dbz_kafka dbz_connector
 	sleep 10
 	docker-compose --env-file ${ENV_FILE} exec dbz_connector bash -c "/kafka/bin/kafka-topics.sh --create --topic 'abc.public.obsolete_reference_curie' --partitions 1 --replication-factor 1 --bootstrap-server dbz_kafka:9092"
