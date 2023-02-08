@@ -135,7 +135,7 @@ def get_sorted_column_values(db: Session, column_name: str, desc: bool = False):
 
 
 def show_all_reference_tags(db: Session, curie_or_reference_id, offset: int = None, limit: int = None,
-                            count_only: bool = False, sort_by: str = None, desc_sort: bool = None):
+                            count_only: bool = False, sort_by: str = None, desc_sort: bool = False):
     if sort_by == "null":
         sort_by = None
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
