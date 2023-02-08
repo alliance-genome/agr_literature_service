@@ -190,6 +190,7 @@ def query_mods(input_mod, reldate):  # noqa: C901
         'ZFIN': 'ZFIN_false_positive_pmids.txt'
     }
     mod_to_fp_pmids_url = {
+        "FB": "https://ftp.flybase.net/flybase/associated_files/alliance/FB_false_positive_pmids.txt",
         "SGD": "https://sgd-prod-upload.s3.us-west-2.amazonaws.com/latest/SGD_false_positive_pmids.txt",
         "XB": "https://ftp.xenbase.org/pub/DataExchange/AGR/XB_false_positive_pmids.txt"
     }
