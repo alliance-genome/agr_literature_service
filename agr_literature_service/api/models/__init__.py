@@ -26,6 +26,7 @@ from agr_literature_service.api.models.topic_entity_tag_model import (
 from agr_literature_service.api.models.mod_taxon_model import ModTaxonModel
 from agr_literature_service.api.models.reference_mod_md5sum_model import ReferenceModMd5sumModel
 from agr_literature_service.api.models.referencefile_model import ReferencefileModel, ReferencefileModAssociationModel
+from agr_literature_service.api.models.copyright_license_model import CopyrightLicense
 # import logging
 
 
