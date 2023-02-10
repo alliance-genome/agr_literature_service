@@ -9,7 +9,7 @@ from agr_literature_service.api.database.versioning import enable_versioning
 enable_versioning()
 
 
-class CopyrightLicense(Base):
+class CopyrightLicenseModel(Base):
     __tablename__ = "copyright_license"
     __versioned__: Dict = {}
 

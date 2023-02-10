@@ -247,7 +247,7 @@ class ReferenceModel(Base, AuditedModel):
     )
 
     copyright_license = relationship(
-        "CopyrightLicense"
+        "CopyrightLicenseModel"
     )
 
     def __str__(self):
