@@ -66,7 +66,7 @@ def mark_false_positive_papers_as_out_of_corpus(db_session, mod, fp_pmids, logge
     i = 0
     for (pmid, reference_id) in to_unlink_reference_id_list:
         x = db_session.query(ModCorpusAssociationModel).filter_by(reference_id=reference_id, mod_id=mod_id).one_or_none()
-        if x:
+        if x and x.corpus is not False:
             i += 1
             if i % 300 == 0:
                 db_session.commit()
