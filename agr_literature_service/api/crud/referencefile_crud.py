@@ -1,3 +1,4 @@
+import copy
 import gzip
 import hashlib
 import logging
@@ -83,7 +84,34 @@ def destroy(db: Session, referencefile_id: int):
     db.commit()
 
 
+def file_paths_in_dir(directory):
+    for dirpath, _, filenames in os.walk(directory):
+        for f in filenames:
+            file_path = os.path.abspath(os.path.join(dirpath, f))
+            if os.path.isfile(file_path):
+                yield file_path
+
+
 def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no cover
+    if metadata["file_extension"] in ["gz", "tgz"]:
+        temp_dir = os.path.join("uploaded_files")
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        os.makedirs(temp_dir)
+        file = tarfile.open(fileobj=file.file)
+        file.extractall(temp_dir)
+        for file_path in file_paths_in_dir(temp_dir):
+            file_name = os.path.basename(file_path)
+            single_file_metadata = copy.deepcopy(metadata)
+            single_file_metadata["display_name"] = file_name.split(".")[0]
+            single_file_metadata["file_extension"] = "".join(file_name.split(".")[1:])
+            with open(file_path, "rb") as f_in:
+                file_upload_single(db, single_file_metadata, UploadFile(filename=file_name, file=f_in))
+    else:
+        file_upload_single(db, metadata, file)
+
+
+def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma: no cover
+    file.file.seek(0)
     md5sum_hash = hashlib.md5()
     for byte_block in iter(lambda: file.file.read(4096), b""):
         md5sum_hash.update(byte_block)
