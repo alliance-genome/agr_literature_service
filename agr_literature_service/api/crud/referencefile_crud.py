@@ -97,8 +97,8 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no co
         temp_dir = os.path.join("uploaded_files")
         shutil.rmtree(temp_dir, ignore_errors=True)
         os.makedirs(temp_dir)
-        file = tarfile.open(fileobj=file.file)
-        file.extractall(temp_dir)
+        file_tar = tarfile.open(fileobj=file.file)
+        file_tar.extractall(temp_dir)
         for file_path in file_paths_in_dir(temp_dir):
             file_name = os.path.basename(file_path)
             single_file_metadata = copy.deepcopy(metadata)
