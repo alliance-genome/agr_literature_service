@@ -119,6 +119,7 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     category: ReferenceCategory
 
     resource_id: Optional[int] = None
+    copyright_license_id: Optional[int] = None
     date_published: Optional[str] = None
     date_published_start: Optional[datetime] = None
     date_published_end: Optional[datetime] = None
@@ -142,6 +143,9 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
     resource_curie: Optional[str] = None
     resource_title: Optional[str] = None
+    copyright_license_name: Optional[str] = None
+    copyright_license_url: Optional[str] = None
+    copyright_license_description: Optional[str] = None
     authors: Optional[List[AuthorSchemaShow]] = None
     comment_and_corrections: CommentAndCorrectionSchemaRelations
     open_access: Optional[bool] = None
