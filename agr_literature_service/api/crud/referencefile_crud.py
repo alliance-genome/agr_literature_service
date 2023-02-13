@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import tarfile
+import tempfile
 
 import boto3
 from fastapi import HTTPException, status, UploadFile
@@ -94,9 +95,7 @@ def file_paths_in_dir(directory):
 
 def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no cover
     if metadata["file_extension"] in ["gz", "tgz"]:
-        temp_dir = os.path.join("uploaded_files")
-        shutil.rmtree(temp_dir, ignore_errors=True)
-        os.makedirs(temp_dir)
+        temp_dir = tempfile.mkdtemp()
         file_tar = tarfile.open(fileobj=file.file)
         file_tar.extractall(temp_dir)
         error_message = ""
@@ -111,6 +110,7 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no co
             except HTTPException as e:
                 error_message += ", " + single_file_metadata["display_name"] + "." + \
                                  single_file_metadata["file_extension"] + " upload failed: " + e.detail
+        shutil.rmtree(temp_dir, ignore_errors=True)
         if error_message:
             error_message += ". Any other files were uploaded"
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=error_message)
