@@ -103,7 +103,7 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no co
             file_name = os.path.basename(file_path)
             single_file_metadata = copy.deepcopy(metadata)
             single_file_metadata["display_name"] = file_name.split(".")[0]
-            single_file_metadata["file_extension"] = "".join(file_name.split(".")[1:])
+            single_file_metadata["file_extension"] = ".".join(file_name.split(".")[1:])
             with open(file_path, "rb") as f_in:
                 file_upload_single(db, single_file_metadata, UploadFile(filename=file_name, file=f_in))
     else:
