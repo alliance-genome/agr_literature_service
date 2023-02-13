@@ -112,8 +112,8 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no co
                 with open(file_path, "rb") as f_in:
                     file_upload_single(db, single_file_metadata, UploadFile(filename=file_name, file=f_in))
             except HTTPException as e:
-                error_message += single_file_metadata["display_name"] + "." + \
-                                 single_file_metadata["file_extension"] + " upload failed: " + e.detail
+                error_message += single_file_metadata["display_name"] + "." + single_file_metadata[
+                    "file_extension"] + " upload failed: " + e.detail
                 if not error_message.endswith("."):
                     error_message += "."
                 error_message += " "
