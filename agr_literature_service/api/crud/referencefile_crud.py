@@ -94,7 +94,7 @@ def file_paths_in_dir(directory):
 
 
 def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no cover
-    if metadata["file_extension"] in ["gz", "tgz"]:
+    if metadata["file_extension"] in ["tgz", "tar.gz"]:
         temp_dir = tempfile.mkdtemp()
         file_tar = tarfile.open(fileobj=file.file)
         file_tar.extractall(temp_dir)
@@ -102,17 +102,24 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no co
         for file_path in file_paths_in_dir(temp_dir):
             file_name = os.path.basename(file_path)
             single_file_metadata = copy.deepcopy(metadata)
-            single_file_metadata["display_name"] = file_name.split(".")[0]
-            single_file_metadata["file_extension"] = ".".join(file_name.split(".")[1:])
+            if file_name.lower().endswith(".tar.gz"):
+                single_file_metadata["display_name"] = ".".join(file_name.split(".")[0:-2])
+                single_file_metadata["file_extension"] = ".".join(file_name.split(".")[-2:])
+            else:
+                single_file_metadata["display_name"] = ".".join(file_name.split(".")[0:-1])
+                single_file_metadata["file_extension"] = file_name.split(".")[-1]
             try:
                 with open(file_path, "rb") as f_in:
                     file_upload_single(db, single_file_metadata, UploadFile(filename=file_name, file=f_in))
             except HTTPException as e:
-                error_message += ", " + single_file_metadata["display_name"] + "." + \
+                error_message += single_file_metadata["display_name"] + "." + \
                                  single_file_metadata["file_extension"] + " upload failed: " + e.detail
+                if not error_message.endswith("."):
+                    error_message += "."
+                error_message += " "
         shutil.rmtree(temp_dir, ignore_errors=True)
         if error_message:
-            error_message += ". Any other files were uploaded"
+            error_message += "Any other files were uploaded"
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=error_message)
     else:
         file_upload_single(db, metadata, file)
