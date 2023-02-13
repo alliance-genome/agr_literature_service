@@ -99,13 +99,21 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no co
         os.makedirs(temp_dir)
         file_tar = tarfile.open(fileobj=file.file)
         file_tar.extractall(temp_dir)
+        error_message = ""
         for file_path in file_paths_in_dir(temp_dir):
             file_name = os.path.basename(file_path)
             single_file_metadata = copy.deepcopy(metadata)
             single_file_metadata["display_name"] = file_name.split(".")[0]
             single_file_metadata["file_extension"] = ".".join(file_name.split(".")[1:])
-            with open(file_path, "rb") as f_in:
-                file_upload_single(db, single_file_metadata, UploadFile(filename=file_name, file=f_in))
+            try:
+                with open(file_path, "rb") as f_in:
+                    file_upload_single(db, single_file_metadata, UploadFile(filename=file_name, file=f_in))
+            except HTTPException as e:
+                error_message += ", " + single_file_metadata["display_name"] + "." + \
+                                 single_file_metadata["file_extension"] + " upload failed: " + e.detail
+        if error_message:
+            error_message += ". Any other files were uploaded"
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=error_message)
     else:
         file_upload_single(db, metadata, file)
 
