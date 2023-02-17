@@ -31,7 +31,8 @@ def search(body: FacetsOptionsSchema):
                                          date_pubmed_modified=body.date_pubmed_modified,
                                          date_pubmed_arrive=body.date_pubmed_arrive,
                                          date_published=body.date_published,
-                                         query_fields=body.query_fields)
+                                         query_fields=body.query_fields,
+                                         partial_match=body.partial_match)
 
 
 @router.get('/need_review',
