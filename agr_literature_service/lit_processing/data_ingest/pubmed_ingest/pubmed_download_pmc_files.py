@@ -3,6 +3,7 @@ import shutil
 from os import path, environ, makedirs, listdir, remove
 from dotenv import load_dotenv
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
+from agr_literature_service.api.models import ReferenceModel
 from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_s3
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
     get_md5sum
@@ -24,21 +25,26 @@ pmcRootUrl = 'https://ftp.ncbi.nlm.nih.gov/pub/pmc/'
 dataDir = 'data/'
 pmcFileDir = 'pubmed_pmc_download/'
 suppl_file_uploaded = dataDir + "pmc_oa_files_uploaded.txt"
+batch_size = 250
 
 
 def download_pmc_files(mapping_file):  # pragma: no cover
 
     logger.info("Reading oa_file_list.csv mapping file...")
 
-    pmid_to_oa_url = get_pmid_to_pmc_url_mapping(mapping_file)
+    (pmid_to_oa_url, pmid_to_license) = get_pmid_to_pmc_url_mapping(mapping_file)
 
     logger.info("Retrieving pmid list for papers that do not have PMC package downloaded...")
 
-    pmids = get_pmids_without_pmc_package()
+    (pmids_for_pmc_loading, pmids_for_license_loading) = get_pmids()
+
+    logger.info("Loading the license data into database...")
+
+    load_license_into_db(pmids_for_license_loading, pmid_to_license)
 
     logger.info("Downloading PMC OA packages...")
 
-    download_packages(pmids, pmid_to_oa_url)
+    download_packages(pmids_for_pmc_loading, pmid_to_oa_url)
 
     logger.info("Unpacking PMC OA packages...")
 
@@ -153,7 +159,7 @@ def download_packages(pmids, pmid_to_oa_url):  # pragma: no cover
             download_file(pmc_url, pmc_file)
 
 
-def get_pmids_without_pmc_package():  # pragma: no cover
+def get_pmids():  # pragma: no cover
 
     db_session = create_postgres_session(False)
 
@@ -162,11 +168,20 @@ def get_pmids_without_pmc_package():  # pragma: no cover
                               "WHERE rfm.mod_id is null "
                               "AND rf.referencefile_id = rfm.referencefile_id ").fetchall()
 
-    reference_ids_with_PMC = {}
+    reference_ids_with_PMC = set()
     for x in rows:
-        reference_ids_with_PMC[x[0]] = 1
+        reference_ids_with_PMC.add(x[0])
 
-    pmids = []
+    rows = db_session.execute("SELECT reference_id "
+                              "FROM reference "
+                              "WHERE copyright_license_id is not null").fetchall()
+
+    reference_ids_with_license = set()
+    for x in rows:
+        reference_ids_with_license.add(x[0])
+
+    pmids_for_pmc_loading = []
+    pmids_for_license_loading = []
 
     limit = 5000
     loop_count = 200000
@@ -189,14 +204,48 @@ def get_pmids_without_pmc_package():  # pragma: no cover
             break
 
         for x in rows:
+            pmid = x["curie"].replace("PMID:", "")
             if x["reference_id"] not in reference_ids_with_PMC:
-                pmid = x["curie"].replace("PMID:", "")
-                if pmid not in pmids:
-                    pmids.append(pmid)
+                if pmid not in pmids_for_pmc_loading:
+                    pmids_for_pmc_loading.append(pmid)
+            if x["reference_id"] not in reference_ids_with_license:
+                if pmid not in pmids_for_license_loading:
+                    pmids_for_license_loading.append((pmid, x["reference_id"]))
 
     db_session.close()
 
-    return pmids
+    return (pmids_for_pmc_loading, pmids_for_license_loading)
+
+
+def load_license_into_db(pmids_with_ref_ids, pmid_to_license):
+
+    db_session = create_postgres_session(False)
+
+    rows = db_session.execute("SELECT copyright_license_id, name FROM copyright_license").fetchall()
+    license_to_id = {}
+    for x in rows:
+        license_to_id[x[1]] = x[0]
+
+    i = 0
+    for (pmid, reference_id) in pmids_with_ref_ids:
+        if pmid in pmid_to_license:
+            license = pmid_to_license[pmid]
+            if license in license_to_id:
+                license_id = license_to_id[license]
+                x = db_session.query(ReferenceModel).filter_by(reference_id=reference_id).one_or_none()
+                if x:
+                    try:
+                        x.copyright_license_id = license_id
+                        db_session.add(x)
+                        i += 1
+                        if i % batch_size == 0:
+                            db_session.commit()
+                        logger.info("PMID:" + pmid + " adding license_id to reference table for reference_id = " + str(reference_id))
+                    except Exception as e:
+                        logger.info("PMID:" + pmid + " an error occurred when adding license_id to reference table for reference_id = " + str(reference_id) + ". error = " + str(e))
+
+    db_session.commit()
+    db_session.close()
 
 
 def get_pmid_to_pmc_url_mapping(mapping_file):  # pragma: no cover
@@ -205,16 +254,21 @@ def get_pmid_to_pmc_url_mapping(mapping_file):  # pragma: no cover
     # oa_package/08/e0/PMC13900.tar.gz,Breast Cancer Res. 2001 Nov 2; 3(1):55-60,PMC13900,2019-11-05 11:56:12,11250746,NO-CC CODE
 
     pmid_to_oa_url = {}
+    pmid_to_license = {}
     f = open(mapping_file)
     for line in f:
         if line.startswith('File,'):
             continue
-        pieces = line.split(',')
+        pieces = line.strip().split(',')
         if pieces[4] and pieces[4].isdigit():
             pmid_to_oa_url[pieces[4]] = pieces[0]
+            if len(pieces) < 6:
+                continue
+            if pieces[5].startswith("CC BY") or pieces[5] == 'CC0':
+                pmid_to_license[pieces[4]] = pieces[5]
     f.close()
 
-    return pmid_to_oa_url
+    return (pmid_to_oa_url, pmid_to_license)
 
 
 def create_tmp_dirs():  # pragma: no cover
