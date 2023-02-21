@@ -117,7 +117,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                       author_filter: Optional[str] = None, date_pubmed_modified: Optional[List[str]] = None,
                       date_pubmed_arrive: Optional[List[str]] = None,
                       date_published: Optional[List[str]] = None,
-                      query_fields: str = None):
+                      query_fields: str = None, partial_match: bool = True):
     if query is None and facets_values is None and not return_facets_only:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="requested a search but no query and no facets provided")
@@ -216,18 +216,13 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 "should":
                     [
                         {
-                            "wildcard" if "*" in query or "?" in query else "match": {
-                                "title": query
-                            }
-                        },
-                        {
-                            "wildcard" if "*" in query or "?" in query else "match": {
-                                "abstract": query
-                            }
-                        },
-                        {
-                            "wildcard" if "*" in query or "?" in query else "match": {
-                                "keywords": query
+                        "simple_query_string":{
+                            "fields":[
+                                "title","keywords","abstract"
+                            ],
+                            "query" : query + "*" if partial_match else query,
+                            "analyze_wildcard": "true",
+                            "flags" : "PHRASE|PREFIX|WHITESPACE"
                             }
                         },
                         {
@@ -239,29 +234,26 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                             "wildcard": {
                                 "cross_references.curie.keyword": "*" + query
                             }
-                        },
+                        }
                     ]
             }
         })
-    elif query and query_fields == "Title":
+    elif query and (query_fields == "Title" or query_fields=="Abstract" or query_fields == "Keyword"):
+        if query_fields == "Title":
+                es_field = "title"
+        elif query_fields == "Abstract":
+                es_field = "abstract"
+        elif query_fields =="Keyword":
+                es_field = "keywords"
         es_body["query"]["bool"]["must"].append(
             {
-                "wildcard" if "*" in query or "?" in query else "match": {
-                    "title": query
-                }
-            })
-    elif query and query_fields == "Abstract":
-        es_body["query"]["bool"]["must"].append(
-            {
-                "wildcard" if "*" in query or "?" in query else "match": {
-                    "abstract": query
-                }
-            })
-    elif query and query_fields == "Keyword":
-        es_body["query"]["bool"]["must"].append(
-            {
-                "wildcard" if "*" in query or "?" in query else "match": {
-                    "keywords": query
+                "simple_query_string":{
+                    "fields":[
+                        es_field,
+                    ],
+                    "query" : query + "*" if partial_match else query,
+                    "analyze_wildcard": "true",
+                    "flags" : "PHRASE|PREFIX|WHITESPACE"
                 }
             })
     elif query and query_fields == "Curie":
