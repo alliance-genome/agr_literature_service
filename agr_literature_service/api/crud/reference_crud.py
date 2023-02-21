@@ -24,7 +24,8 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ObsoleteReferenceModel,
                                                ReferenceCommentAndCorrectionModel,
                                                ReferenceModel,
-                                               ResourceModel)
+                                               ResourceModel,
+                                               CopyrightLicenseModel)
 from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.workflow_tag_crud import (
@@ -266,6 +267,14 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             db.query(ResourceModel.curie).filter(ResourceModel.resource_id == reference.resource_id).first()[0]
         reference_data["resource_title"] = \
             db.query(ResourceModel.title).filter(ResourceModel.resource_id == reference.resource_id).first()[0]
+
+    if reference.copyright_license_id:
+        crl = db.query(CopyrightLicenseModel).filter_by(
+            copyright_license_id=reference.copyright_license_id).one_or_none()
+        if crl:
+            reference_data["copyright_license_name"] = crl.name
+            reference_data["copyright_license_url"] = crl.url
+            reference_data["copyright_license_description"] = crl.description
 
     if reference.cross_reference:
         cross_references = []

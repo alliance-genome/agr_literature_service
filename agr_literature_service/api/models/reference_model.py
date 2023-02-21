@@ -239,6 +239,17 @@ class ReferenceModel(Base, AuditedModel):
         cascade="all, delete, delete-orphan",
     )
 
+    copyright_license_id = Column(
+        Integer,
+        ForeignKey("copyright_license.copyright_license_id"),
+        nullable=True,
+        index=True
+    )
+
+    copyright_license = relationship(
+        "CopyrightLicenseModel"
+    )
+
     def __str__(self):
         """
         Overwrite the default output.

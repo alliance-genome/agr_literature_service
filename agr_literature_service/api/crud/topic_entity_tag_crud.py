@@ -8,7 +8,7 @@ from collections import defaultdict
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import and_
+from sqlalchemy import and_, case
 from sqlalchemy.orm import Session, joinedload
 
 from agr_literature_service.api.models import (
@@ -21,6 +21,9 @@ from agr_literature_service.api.schemas import (
     TopicEntityTagPropSchemaUpdate
 )
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
+
+
+allowed_entity_type_map = {'ATP:0000005': 'gene', 'ATP:0000006': 'allele'}
 
 
 def get_reference_id_from_curie_or_id(db: Session, curie_or_reference_id):
@@ -124,15 +127,29 @@ def show(db: Session, topic_entity_tag_id: int):
     return topic_entity_tag_data
 
 
+def get_sorted_column_values(db: Session, column_name: str, desc: bool = False):
+    curies = db.query(getattr(TopicEntityTagModel, column_name)).distinct()
+    if column_name == "entity_type":
+        return [curie for name, curie in sorted([(allowed_entity_type_map[curie[0]], curie[0]) for curie in curies],
+                                                key=lambda x: x[0], reverse=desc)]
+
+
 def show_all_reference_tags(db: Session, curie_or_reference_id, offset: int = None, limit: int = None,
-                            count_only: bool = False):
+                            count_only: bool = False, sort_by: str = None, desc_sort: bool = False):
+    if sort_by == "null":
+        sort_by = None
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
     query = db.query(TopicEntityTagModel).options(joinedload(TopicEntityTagModel.props)).filter(
-        TopicEntityTagModel.reference_id == reference_id).offset(offset).limit(limit)
+        TopicEntityTagModel.reference_id == reference_id)
     if count_only:
         return query.count()
     else:
-        return [jsonable_encoder(tet) for tet in query.all()]
+        if sort_by:
+            curie_ordering = case({curie: index for index, curie in enumerate(get_sorted_column_values(db, sort_by,
+                                                                                                       desc_sort))},
+                                  value=getattr(TopicEntityTagModel, sort_by))
+            query = query.order_by(curie_ordering)
+        return [jsonable_encoder(tet) for tet in query.offset(offset).limit(limit).all()]
 
 
 def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
@@ -242,7 +259,6 @@ def show_prop(db: Session, topic_entity_tag_prop_id: int):
 
 
 def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token: str):
-    allowed_entity_type_map = {'ATP:0000005': 'gene', 'ATP:0000006': 'allele'}
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
     topics_and_entities = db.query(TopicEntityTagModel).filter(
         and_(TopicEntityTagModel.reference_id == reference_id,
