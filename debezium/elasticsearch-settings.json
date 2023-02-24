@@ -79,6 +79,16 @@
   },
   "mappings": {
     "properties": {
+      "citation": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
       "curie": {
         "type": "text",
         "analyzer": "autocompleteAnalyzer",
