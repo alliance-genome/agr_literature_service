@@ -121,7 +121,6 @@ def add_cross_references(cross_references_to_add, ref_curie_list, logger, live_c
 
     i = 0
     j = 0
-    just_added = set()
     for entry in cross_references_to_add:
         i += 1
         j += 1
@@ -137,11 +136,6 @@ def add_cross_references(cross_references_to_add, ref_curie_list, logger, live_c
         if reference_id is None:
             # it won't happen, but still check
             continue
-
-        if entry["curie"] in just_added:
-            logger.info("The XREF: " + entry["curie"] + " is a DUPLICATE one, just added to cross_reference table.")
-            continue
-        just_added.add(entry["curie"])
 
         rs = db_session.execute("SELECT reference_id, resource_id, is_obsolete FROM cross_reference WHERE curie = '" + entry["curie"] + "'")
         rows = rs.fetchall()
