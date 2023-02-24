@@ -82,15 +82,18 @@ class CrossReferenceModel(Base, AuditedModel):
     )
 
     __table_args__ = (
-        Index('idx_curie_prefix_reference',
+        Index('idx_curie_prefix_ref_no_cgc',
               'curie_prefix', 'reference_id',
               unique=True,
               postgresql_where=(and_(is_obsolete.is_(False),
-                                     reference_id.isnot(None)))),
+                                     reference_id.isnot(None),
+                                     curie_prefix != 'CGC'))),
         Index('idx_curie_prefix_resource',
               'curie_prefix', 'resource_id',
               unique=True,
-              postgresql_where=(and_(is_obsolete.is_(False), resource_id.isnot(None), curie_prefix == 'NLM'))),
+              postgresql_where=(and_(is_obsolete.is_(False),
+                                     resource_id.isnot(None),
+                                     curie_prefix == 'NLM'))),
         Index('idx_curie',
               'curie',
               unique=True,
