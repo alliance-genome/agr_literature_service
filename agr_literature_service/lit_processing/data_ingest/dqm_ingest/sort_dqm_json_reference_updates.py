@@ -371,6 +371,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
                             mod_ids_used_in_resource.append((dbid, xref_id))
                         if "pages" in cross_reference:
                             xref_to_pages[xref_id] = cross_reference["pages"]
+
             if entry['primaryId'] not in xrefs:
                 xrefs.append(entry['primaryId'])
             for cross_reference in xrefs:
@@ -385,11 +386,10 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 
             flag_dqm_prefix_fail = False
             for prefix in dqm_xrefs:
-                if len(dqm_xrefs[prefix]) > 1:
+                if len(dqm_xrefs[prefix]) > 1 and prefix != 'CGC':
                     flag_dqm_prefix_fail = True
-                    # logger.info("Notify curator, filename %s, dqm %s has too many identifiers for %s %s", filename, entry['primaryId'], prefix, ', '.join(sorted(dqm_xrefs[prefix])))
                     fh_mod_report[mod].write("dqm %s has too many identifiers for %s %s\n" % (entry['primaryId'], prefix, ', '.join(sorted(dqm_xrefs[prefix]))))
-                    report[mod].append((dbid, str(len(dqm_xrefs[prefix])) + prefix + " : " + ', '.join(sorted(dqm_xrefs[prefix])) + " in dqm file"))
+                    report[mod].append((dbid, str(len(dqm_xrefs[prefix])) + " " + prefix + " : " + ', '.join(sorted(dqm_xrefs[prefix])) + " in dqm file"))
 
             if flag_dqm_prefix_fail:
                 continue
@@ -407,10 +407,8 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
                 else:
                     continue
             elif len(agrs_found) > 1:
-                # logger.info("Notify curator, dqm %s too many matches %s", entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found))))
                 fh_mod_report[mod].write("dqm %s too many matches %s\n" % (entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found)))))
             elif len(agrs_found) == 1:
-                # logger.info("Normal %s", entry['primaryId'])
                 agr = agrs_found.pop()
                 agr_url = url_ref_curie_prefix + agr
                 flag_aggregate_biblio = False
@@ -519,16 +517,15 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         for agr in xrefs_to_add:
             agr_url = url_ref_curie_prefix + agr
             for prefix in xrefs_to_add[agr]:
-                if len(xrefs_to_add[agr][prefix]) > 1:
+                if len(xrefs_to_add[agr][prefix]) > 1 and prefix != 'CGC':
                     conflict_list = []
                     for ident in xrefs_to_add[agr][prefix]:
-                        filenames = ' '.join(sorted(xrefs_to_add[agr][prefix][ident]))
-                        conflict_list.append(ident + ' ' + filenames)
+                        # filenames = ' '.join(sorted(xrefs_to_add[agr][prefix][ident]))
+                        conflict_list.append(ident)
                     conflict_string = ', '.join(conflict_list)
-                    # logger.info("Notify curator %s %s has multiple identifiers from dqms %s", agr_url, prefix, conflict_string)
                     fh_mod_report[mod].write("%s %s has multiple identifiers from dqms %s\n" % (agr_url, prefix, conflict_string))
                     report[mod].append((dbid, "This paper has multiple identifiers from dqm file: " + conflict_string))
-                elif len(xrefs_to_add[agr][prefix]) == 1:
+                elif len(xrefs_to_add[agr][prefix]) == 1 or (len(xrefs_to_add[agr][prefix]) > 1 and prefix == 'CGC'):
                     for ident in xrefs_to_add[agr][prefix]:
                         xref_id = prefix + ':' + ident
                         new_entry = dict()
@@ -880,7 +877,7 @@ if __name__ == "__main__":
     env_state = environ.get('ENV_STATE', 'build')
     if env_state != 'test':
         download_dqm_reference_json()
-        # update_resource_pubmed_nlm()
+    #    # update_resource_pubmed_nlm()
 
     dqm_path = args['file'] if args['file'] else "dqm_data"
     if args['mod']:
