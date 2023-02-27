@@ -31,13 +31,16 @@ def get_merged(db: Session, curie):
     return reference
 
 
-def get_reference(db: Session, curie_or_reference_id: str):
+def get_reference(db: Session, curie_or_reference_id: str, load_referencefiles: bool = False):
     reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
     reference = None
     try:
-        reference = db.query(ReferenceModel).options(subqueryload(ReferenceModel.referencefiles).subqueryload(
-            ReferencefileModel.referencefile_mods)).filter(or_(ReferenceModel.curie == curie_or_reference_id,
-                                                               ReferenceModel.reference_id == reference_id)).one()
+        query = db.query(ReferenceModel)
+        if load_referencefiles:
+            query = query.options(subqueryload(ReferenceModel.referencefiles).subqueryload(
+                ReferencefileModel.referencefile_mods))
+        reference = query.filter(or_(ReferenceModel.curie == curie_or_reference_id,
+                                     ReferenceModel.reference_id == reference_id)).one()
     except Exception:
         if reference_id is None:
             reference = get_merged(db, curie_or_reference_id)
