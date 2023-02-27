@@ -154,7 +154,7 @@ def show(referencefile_id: int,
             status_code=status.HTTP_200_OK,
             response_model=List[ReferencefileSchemaRelated])
 def show_all(curie_or_reference_id: str,
-         db: Session = db_session):
+             db: Session = db_session):
     return referencefile_crud.show_all(db, curie_or_reference_id)
 
 
