@@ -382,9 +382,12 @@ def get_pmid_to_reference_id_for_papers_not_associated_with_mod(db_session, pmid
 
 
 def get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id_to_pmid):
-    for x in db_session.query(CrossReferenceModel).join(ReferenceModel.cross_reference).filter(
-            CrossReferenceModel.curie.like('PMID:%')).outerjoin(ReferenceModel.mod_corpus_association).outerjoin(
-        ModCorpusAssociationModel.mod).filter(ModModel.abbreviation == mod).all():
+    query = db_session.query(CrossReferenceModel)
+    query = query.join(ReferenceModel.cross_reference)
+    query = query.filter(CrossReferenceModel.curie.like('PMID:%'))
+    query = query.outerjoin(ReferenceModel.mod_corpus_association)
+    query = query.outerjoin(ModCorpusAssociationModel.mod)
+    for x in query.filter(ModModel.abbreviation == mod).all():
         if x.is_obsolete is True:
             continue
         pmid = x.curie.replace('PMID:', '')
