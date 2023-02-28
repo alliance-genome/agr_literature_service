@@ -15,7 +15,6 @@ from agr_literature_service.api.schemas import (AuthorSchemaPost, AuthorSchemaSh
                                                 ReferenceCommentAndCorrectionSchemaRelated,
                                                 ModCorpusAssociationSchemaRelated)
 from agr_literature_service.api.schemas.cross_reference_schemas import CrossReferenceSchemaCreate
-from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaRelated
 from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagSchemaCreate, WorkflowTagSchemaRelated
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaCreate
 
@@ -151,7 +150,6 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     open_access: Optional[bool] = None
     citation: Optional[str] = None
     workflow_tags: Optional[List[WorkflowTagSchemaRelated]] = None
-    referencefiles: Optional[List[ReferencefileSchemaRelated]] = None
 
 
 class ReferenceSchemaNeedReviewShow(BaseModel):
