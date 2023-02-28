@@ -112,7 +112,7 @@ def search_date_range(es_body,
 # flake8: noqa: C901
 def search_references(query: str = None, facets_values: Dict[str, List[str]] = None,
                       size_result_count: Optional[int] = 10, sort_by_published_date_order: Optional[str] = "asc",
-                      page: Optional[int] = 0,
+                      page: Optional[int] = 1,
                       facets_limits: Dict[str, int] = None, return_facets_only: bool = False,
                       author_filter: Optional[str] = None, date_pubmed_modified: Optional[List[str]] = None,
                       date_pubmed_arrive: Optional[List[str]] = None,
@@ -126,8 +126,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     if size_result_count is None:
         size_result_count = 10
     if page is None:
-        page = 0
-    from_entry = page * size_result_count
+        page = 1
+    from_entry = (page-1) * size_result_count
     es_host = config.ELASTICSEARCH_HOST
     es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
     es_body: Dict[str, Any] = {
