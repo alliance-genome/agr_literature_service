@@ -260,7 +260,8 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
     :param http_request:
     :return:
     """
-    reference = get_reference(db, curie_or_reference_id, load_authors=True, load_mod_corpus_associations=True)
+    reference = get_reference(db, curie_or_reference_id, load_authors=True, load_mod_corpus_associations=True,
+                              load_mesh_terms=True, load_obsolete_references=True)
     reference_data = jsonable_encoder(reference)
     if reference.resource_id:
         reference_data["resource_curie"] = \

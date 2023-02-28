@@ -1,7 +1,7 @@
 import logging
 
 from sqlalchemy import or_
-from sqlalchemy.orm import Session, subqueryload, joinedload
+from sqlalchemy.orm import Session, subqueryload, joinedload, Load
 from fastapi import HTTPException, status
 
 from agr_literature_service.api.models import ReferenceModel, ObsoleteReferenceModel, ReferencefileModel
@@ -32,18 +32,27 @@ def get_merged(db: Session, curie):
 
 
 def get_reference(db: Session, curie_or_reference_id: str, load_referencefiles: bool = False,
-                  load_authors: bool = False, load_mod_corpus_associations: bool = False):
+                  load_authors: bool = False, load_mod_corpus_associations: bool = False,
+                  load_mesh_terms: bool = False, load_obsolete_references: bool = False):
     reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
     reference = None
     try:
         query = db.query(ReferenceModel)
-        if load_referencefiles:
-            query = query.options(subqueryload(ReferenceModel.referencefiles).subqueryload(
-                ReferencefileModel.referencefile_mods))
-        if load_authors:
-            query = query.options(joinedload(ReferenceModel.author))
-        if load_mod_corpus_associations:
-            query = query.options(joinedload(ReferenceModel.mod_corpus_association))
+        if load_referencefiles or load_authors or load_mod_corpus_associations or load_mesh_terms or \
+                load_obsolete_references:
+            options = Load(ReferenceModel)
+            if load_referencefiles:
+                options.subqueryload(ReferenceModel.referencefiles).subqueryload(
+                    ReferencefileModel.referencefile_mods)
+            if load_authors:
+                options.joinedload(ReferenceModel.author)
+            if load_mod_corpus_associations:
+                options.joinedload(ReferenceModel.mod_corpus_association)
+            if load_mesh_terms:
+                options.joinedload(ReferenceModel.mesh_term)
+            if load_obsolete_references:
+                options.joinedload(ReferenceModel.obsolete_reference)
+            query = query.options(options)
         reference = query.filter(or_(ReferenceModel.curie == curie_or_reference_id,
                                      ReferenceModel.reference_id == reference_id)).one()
     except Exception:

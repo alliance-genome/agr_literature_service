@@ -58,8 +58,7 @@ class ReferenceModel(Base, AuditedModel):
 
     obsolete_reference = relationship(
         "ObsoleteReferenceModel",
-        foreign_keys="ObsoleteReferenceModel.new_id",
-        lazy="joined"
+        foreign_keys="ObsoleteReferenceModel.new_id"
     )
 
     resource_id = Column(
@@ -199,7 +198,6 @@ class ReferenceModel(Base, AuditedModel):
 
     mesh_term = relationship(
         "MeshDetailModel",
-        lazy="joined",
         back_populates="reference",
         cascade="all, delete, delete-orphan"
     )
