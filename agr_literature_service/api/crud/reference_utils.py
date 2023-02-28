@@ -1,7 +1,7 @@
 import logging
 
 from sqlalchemy import or_
-from sqlalchemy.orm import Session, subqueryload, joinedload, Load
+from sqlalchemy.orm import Session, Load
 from fastapi import HTTPException, status
 
 from agr_literature_service.api.models import ReferenceModel, ObsoleteReferenceModel, ReferencefileModel
