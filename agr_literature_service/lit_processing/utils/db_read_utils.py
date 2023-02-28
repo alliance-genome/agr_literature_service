@@ -67,16 +67,18 @@ def get_references_by_curies(db_session, curie_list):
 
     ref_curie_to_reference = {}
 
-    for x in db_session.query(ReferenceModel).options(
-            joinedload(ReferenceModel.mod_referencetypes).subqueryload(
-                ReferenceModReferencetypeAssociationModel.mod_referencetype).subqueryload(
-                ModReferencetypeAssociationModel.mod)).options(
-        joinedload(ReferenceModel.mod_referencetypes).subqueryload(
-            ReferenceModReferencetypeAssociationModel.mod_referencetype).subqueryload(
-            ModReferencetypeAssociationModel.referencetype)).options(joinedload(ReferenceModel.author)).options(
-        joinedload(ReferenceModel.mod_corpus_association)).options(
-        joinedload(ReferenceModel.obsolete_reference)).options(joinedload(ReferenceModel.mesh_term))\
-            .filter(ReferenceModel.curie.in_(curie_list)).all():
+    query = db_session.query(ReferenceModel)
+    query = query.options(joinedload(ReferenceModel.mod_referencetypes).subqueryload(
+        ReferenceModReferencetypeAssociationModel.mod_referencetype).subqueryload(ModReferencetypeAssociationModel.mod))
+    query = query.options(joinedload(ReferenceModel.mod_referencetypes).subqueryload(
+        ReferenceModReferencetypeAssociationModel.mod_referencetype).subqueryload(
+        ModReferencetypeAssociationModel.referencetype))
+    query = query.options(joinedload(ReferenceModel.author))
+    query = query.options(joinedload(ReferenceModel.mod_corpus_association))
+    query = query.options(joinedload(ReferenceModel.obsolete_reference))
+    query = query.options(joinedload(ReferenceModel.mesh_term))
+
+    for x in query.filter(ReferenceModel.curie.in_(curie_list)).all():
         ref_curie_to_reference[x.curie] = jsonable_encoder(x)
 
     return ref_curie_to_reference
