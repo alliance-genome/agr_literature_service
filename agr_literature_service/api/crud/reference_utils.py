@@ -1,7 +1,7 @@
 import logging
 
 from sqlalchemy import or_
-from sqlalchemy.orm import Session, subqueryload
+from sqlalchemy.orm import Session, subqueryload, joinedload
 from fastapi import HTTPException, status
 
 from agr_literature_service.api.models import ReferenceModel, ObsoleteReferenceModel, ReferencefileModel
@@ -31,7 +31,8 @@ def get_merged(db: Session, curie):
     return reference
 
 
-def get_reference(db: Session, curie_or_reference_id: str, load_referencefiles: bool = False):
+def get_reference(db: Session, curie_or_reference_id: str, load_referencefiles: bool = False,
+                  load_authors: bool = False, load_mod_corpus_associations: bool = False):
     reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
     reference = None
     try:
@@ -39,6 +40,10 @@ def get_reference(db: Session, curie_or_reference_id: str, load_referencefiles: 
         if load_referencefiles:
             query = query.options(subqueryload(ReferenceModel.referencefiles).subqueryload(
                 ReferencefileModel.referencefile_mods))
+        if load_authors:
+            query = query.options(joinedload(ReferenceModel.author))
+        if load_mod_corpus_associations:
+            query = query.options(joinedload(ReferenceModel.mod_corpus_association))
         reference = query.filter(or_(ReferenceModel.curie == curie_or_reference_id,
                                      ReferenceModel.reference_id == reference_id)).one()
     except Exception:

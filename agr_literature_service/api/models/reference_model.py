@@ -91,14 +91,12 @@ class ReferenceModel(Base, AuditedModel):
 
     mod_corpus_association = relationship(
         "ModCorpusAssociationModel",
-        lazy="joined",
         back_populates="reference",
         cascade="all, delete, delete-orphan"
     )
 
     author = relationship(
         "AuthorModel",
-        lazy="joined",
         back_populates="reference",
         cascade="all, delete, delete-orphan"
     )
