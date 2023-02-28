@@ -6,6 +6,7 @@ import os
 import shutil
 import tarfile
 import tempfile
+from typing import List
 
 import boto3
 from fastapi import HTTPException, status, UploadFile
@@ -15,6 +16,7 @@ from sqlalchemy.orm import Session, subqueryload
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
 
+from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.crud.referencefile_utils import read_referencefile_db_obj, \
     create as create_metadata, get_s3_folder_from_md5sum
 from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection
@@ -24,22 +26,18 @@ from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCES
 from agr_literature_service.api.s3.delete import delete_file_in_bucket
 from agr_literature_service.api.s3.upload import upload_file_to_bucket
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
-from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost
+from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost, ReferencefileSchemaRelated
 from agr_literature_service.api.schemas.response_message_schemas import messageEnum
 from agr_literature_service.lit_processing.utils.s3_utils import download_file_from_s3
 
 logger = logging.getLogger(__name__)
 
 
-def show(db: Session, referencefile_id: int):
-    referencefile = read_referencefile_db_obj(db, referencefile_id)
-    referencefile_dict = jsonable_encoder(referencefile)
-    referencefile_dict["reference_curie"] = db.query(ReferenceModel.curie).filter(
-        ReferenceModel.reference_id == referencefile_dict["reference_id"]).one()[0]
+def set_referencefile_mods(referencefile_obj, referencefile_dict):
     del referencefile_dict["reference_id"]
     referencefile_dict["referencefile_mods"] = []
-    if referencefile.referencefile_mods:
-        for ref_file_mod in referencefile.referencefile_mods:
+    if referencefile_obj.referencefile_mods:
+        for ref_file_mod in referencefile_obj.referencefile_mods:
             ref_file_mod_dict = jsonable_encoder(ref_file_mod)
             del ref_file_mod_dict["mod_id"]
             del ref_file_mod_dict["referencefile_id"]
@@ -48,7 +46,26 @@ def show(db: Session, referencefile_id: int):
             else:
                 ref_file_mod_dict["mod_abbreviation"] = None
             referencefile_dict["referencefile_mods"].append(ref_file_mod_dict)
+
+
+def show(db: Session, referencefile_id: int):
+    referencefile = read_referencefile_db_obj(db, referencefile_id)
+    referencefile_dict = jsonable_encoder(referencefile)
+    referencefile_dict["reference_curie"] = db.query(ReferenceModel.curie).filter(
+        ReferenceModel.reference_id == referencefile_dict["reference_id"]).one()[0]
+    set_referencefile_mods(referencefile_obj=referencefile, referencefile_dict=referencefile_dict)
     return referencefile_dict
+
+
+def show_all(db: Session, curie_or_reference_id: str) -> List[ReferencefileSchemaRelated]:
+    reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id, load_referencefiles=True)
+    reference_files = []
+    if reference.referencefiles:
+        for ref_file in reference.referencefiles:
+            ref_file_dict = jsonable_encoder(ref_file)
+            set_referencefile_mods(referencefile_obj=ref_file, referencefile_dict=ref_file_dict)
+            reference_files.append(ref_file_dict)
+    return reference_files
 
 
 def patch(db: Session, referencefile_id: int, request):

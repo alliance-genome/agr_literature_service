@@ -1,7 +1,7 @@
 import json
 import logging
 from json import JSONDecodeError
-from typing import Union
+from typing import Union, List
 
 from fastapi import APIRouter, Depends, Security, status, File, UploadFile, HTTPException, Response
 from fastapi_okta import OktaUser
@@ -12,7 +12,8 @@ from agr_literature_service.api.deps import s3_auth
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.routers.okta_utils import get_okta_mod_access
 from agr_literature_service.api.schemas import ResponseMessageSchema
-from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, ReferencefileSchemaUpdate
+from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, ReferencefileSchemaUpdate, \
+    ReferencefileSchemaRelated
 from agr_literature_service.api.user import set_global_user_from_okta
 from agr_literature_service.api.crud import referencefile_crud
 
@@ -147,6 +148,14 @@ def delete(referencefile_id: int,
 def show(referencefile_id: int,
          db: Session = db_session):
     return referencefile_crud.show(db, referencefile_id)
+
+
+@router.get('/show_all/{curie_or_reference_id}',
+            status_code=status.HTTP_200_OK,
+            response_model=List[ReferencefileSchemaRelated])
+def show_all(curie_or_reference_id: str,
+             db: Session = db_session):
+    return referencefile_crud.show_all(db, curie_or_reference_id)
 
 
 @router.patch('/{referencefile_id}',

@@ -50,12 +50,13 @@ class TestReferencefile:
             assert ref_file_obj.display_name == patch_referencefile["display_name"]
 
 
-    def test_show_reference_referencefiles(self, db, test_referencefile): # noqa
+    def test_show_all(self, db, test_referencefile): # noqa
         with TestClient(app) as client:
             response_file = client.get(url=f"/reference/referencefile/{test_referencefile}")
-            response_ref = client.get(url=f"/reference/{response_file.json()['reference_curie']}")
-            assert "referencefiles" in response_ref.json()
-            assert response_ref.json()["referencefiles"][0]["display_name"] == "Bob"
+            response = client.get(url=f"/reference/referencefile/show_all/"
+                                      f"{response_file.json()['reference_curie']}")
+            assert len(response.json()) > 0
+            assert response.json()[0]["display_name"] == "Bob"
 
     def test_delete_reference_cascade(self, test_referencefile, auth_headers): # noqa
         with TestClient(app) as client:
@@ -136,6 +137,6 @@ class TestReferencefile:
             response_file = client.get(url=f"/reference/referencefile/{new_referencefile_id}")
             assert response_file.status_code == status.HTTP_200_OK
             assert response_file.json()["pdf_type"] is None
-            response_ref = client.get(url=f"/reference/{test_reference.new_ref_curie}")
-            assert response_ref.status_code == status.HTTP_200_OK
-            assert response_ref.json()["referencefiles"][0]["pdf_type"] is None
+            response = client.get(url=f"/reference/referencefile/show_all/{test_reference.new_ref_curie}")
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json()[0]["pdf_type"] is None
