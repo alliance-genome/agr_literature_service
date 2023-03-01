@@ -7,7 +7,7 @@ reference_model.py
 from typing import Dict
 
 from sqlalchemy import (ARRAY, Column, Enum, ForeignKey, Integer,
-                        String, DateTime)
+                        String)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
 
@@ -110,13 +110,13 @@ class ReferenceModel(Base, AuditedModel):
     )
 
     date_published_start = Column(
-        DateTime,
+        String(),
         unique=False,
         nullable=True
     )
 
     date_published_end = Column(
-        DateTime,
+        String(),
         unique=False,
         nullable=True
     )
