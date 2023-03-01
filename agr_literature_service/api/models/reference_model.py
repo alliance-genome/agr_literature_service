@@ -7,7 +7,7 @@ reference_model.py
 from typing import Dict
 
 from sqlalchemy import (ARRAY, Column, Enum, ForeignKey, Integer,
-                        String, DateTime)
+                        String)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
 
