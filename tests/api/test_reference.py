@@ -145,7 +145,7 @@ class TestReference:
             full_xml = {
                 "category": "research_article",
                 "abstract": "The Hippo (Hpo) pathway is a conserved tumor suppressor pathway",
-                "date_published_start": "2022-10-01 00:00:01",
+                "date_published_start": "2022-10-01T00:00:01",
                 "date_published_end": "2022-10-02T00:00:01",
                 "authors": [
                     {
