@@ -110,13 +110,13 @@ class ReferenceModel(Base, AuditedModel):
     )
 
     date_published_start = Column(
-        DateTime,
+        String(),
         unique=False,
         nullable=True
     )
 
     date_published_end = Column(
-        DateTime,
+        String(),
         unique=False,
         nullable=True
     )
