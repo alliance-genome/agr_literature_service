@@ -6,7 +6,8 @@ from agr_literature_service.api.models import (
     ModModel,
     UserModel,
     ReferenceModel,
-    ResourceModel
+    ResourceModel,
+    CopyrightLicenseModel
 )
 
 num_of_ref = 2000
@@ -83,6 +84,14 @@ def start():
 
     db_subset_session.close()
 
+    copyrightlicenses = db_orig_session.query(CopyrightLicenseModel).join(ReferenceModel).filter(
+        ReferenceModel.reference_id <= num_of_ref)
+    for copy in copyrightlicenses:
+        print(f"Adding {copy}")
+        db_subset_session.merge(copy)
+    db_subset_session.commit()
+    db_subset_session.close()
+
     refs = db_orig_session.query(ReferenceModel).filter(ReferenceModel.reference_id <= num_of_ref)
     for ref in refs:
         print(f"Adding {ref}")
@@ -115,7 +124,8 @@ def start():
         "topic_entity_tag_prop_topic_entity_tag_prop_id_seq",
         "topic_entity_tag_topic_entity_tag_id_seq",
         "transaction_id_seq",
-        "workflow_tag_reference_workflow_tag_id_seq"
+        "workflow_tag_reference_workflow_tag_id_seq",
+        "copyright_license_copyright_license_id_seq"
     ]
     for seq in seq_list:
         com = f"ALTER SEQUENCE {seq} RESTART WITH {num_of_ref+1000}"

@@ -9,7 +9,7 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_u
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import month_name_to_number_string
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
-
+import html
 # pipenv run python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 #
 # 22 minutes on dev.wormbase for 646727 documents from filesystem. 12G of xml to 6.0G of json
@@ -367,15 +367,15 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                         for affiliation in affiliation_group:
                             # print(pmid + " subset " + affiliation)
                             if affiliation not in affiliation_list:
-                                affiliation_list.append(affiliation)
+                                affiliation_list.append(html.unescape(affiliation))
 
                     author_dict = {}
                     if firstname != '':
-                        author_dict["firstname"] = firstname
+                        author_dict["firstname"] = html.unescape(firstname)
                     if firstinit != '':
-                        author_dict["firstinit"] = firstinit
+                        author_dict["firstinit"] = html.unescape(firstinit)
                     if lastname != '':
-                        author_dict["lastname"] = lastname
+                        author_dict["lastname"] = html.unescape(lastname)
                     if collective_name != '':
                         author_dict["collectivename"] = collective_name
                     if (firstname != '') and (lastname != ''):
@@ -388,7 +388,7 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                         logger.info("%s has no name match %s", pmid, author_xml)
                     if orcid != '':
                         author_dict["orcid"] = orcid
-                    author_dict["name"] = fullname
+                    author_dict["name"] = html.unescape(fullname)
                     author_dict["authorRank"] = authors_rank
                     if len(affiliation_list) > 0:
                         author_dict["affiliations"] = affiliation_list
