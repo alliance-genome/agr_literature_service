@@ -145,8 +145,8 @@ class TestReference:
             full_xml = {
                 "category": "research_article",
                 "abstract": "The Hippo (Hpo) pathway is a conserved tumor suppressor pathway",
-                "date_published_start": "2022-10-01T00:00:01",
-                "date_published_end": "2022-10-02T00:00:01",
+                "date_published_start": "2022-10-01",
+                "date_published_end": "2022-10-02",
                 "authors": [
                     {
                         "order": 2,
@@ -217,8 +217,8 @@ class TestReference:
             response = client.get(url=f"/reference/{new_curie}").json()
             assert response['abstract'] == 'The Hippo (Hpo) pathway is a conserved tumor suppressor pathway'
             assert response['category'] == 'research_article'
-            assert response['date_published_start'] == '2022-10-01T00:00:01'
-            assert response['date_published_end'] == '2022-10-02T00:00:01'
+            assert response['date_published_start'] == '2022-10-01'
+            assert response['date_published_end'] == '2022-10-02'
 
             # Not sure of order in array of the authors so:-
             assert len(response['authors']) == 2
