@@ -90,7 +90,7 @@ class TestReference:
             # but does not work with this.
             # with pytest.raises(AttributeError):
             updated_fields = {"title": "new title", "category": "book", "language": "New",
-                              "date_published_start": "2022-10-01 00:00:01"}
+                              "date_published_start": "2022-10-01"}
             response = client.patch(url=f"/reference/{test_reference.new_ref_curie}", json=updated_fields,
                                     headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
@@ -102,17 +102,9 @@ class TestReference:
             assert updated_ref["category"] == "book"
             assert updated_ref["language"] == "New"
             assert updated_ref["abstract"] == "3"
-            assert updated_ref["date_published_start"] == "2022-10-01T00:00:01"
+            assert updated_ref["date_published_start"] == "2022-10-01"
             # Do we have a new citation
             assert updated_ref["citation"] == ", () new title.   (): "
-
-    def test_update_reference_date_published_start_failure(self, auth_headers, test_reference): # noqa
-        with TestClient(app) as client:
-            # incorrect datetime format, must have time, not just date
-            updated_fields = {"date_published_start": "2022-10-01"}
-            response = client.patch(url=f"/reference/{test_reference.new_ref_curie}", json=updated_fields,
-                                    headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_changesets(self, test_reference, auth_headers): # noqa
         with TestClient(app) as client:
@@ -145,8 +137,8 @@ class TestReference:
             full_xml = {
                 "category": "research_article",
                 "abstract": "The Hippo (Hpo) pathway is a conserved tumor suppressor pathway",
-                "date_published_start": "2022-10-01 00:00:01",
-                "date_published_end": "2022-10-02T00:00:01",
+                "date_published_start": "2022-10-01",
+                "date_published_end": "2022-10-02",
                 "authors": [
                     {
                         "order": 2,
@@ -217,8 +209,8 @@ class TestReference:
             response = client.get(url=f"/reference/{new_curie}").json()
             assert response['abstract'] == 'The Hippo (Hpo) pathway is a conserved tumor suppressor pathway'
             assert response['category'] == 'research_article'
-            assert response['date_published_start'] == '2022-10-01T00:00:01'
-            assert response['date_published_end'] == '2022-10-02T00:00:01'
+            assert response['date_published_start'] == '2022-10-01'
+            assert response['date_published_end'] == '2022-10-02'
 
             # Not sure of order in array of the authors so:-
             assert len(response['authors']) == 2
