@@ -189,8 +189,8 @@ class TestSearch:
                                   "authors.name.keyword": 10},
                 "author_filter": "",
                 "query_fields": "All",
-                "date_pubmed_arrive": ["2022-01-01T05:00:00.000Z",
-                                       "2022-03-28T03:59:59.999Z"]
+                "date_pubmed_arrive": ["2022-01-01",
+                                       "2022-03-28"]
             }
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert "hits" in res
@@ -213,7 +213,7 @@ class TestSearch:
             date2 = int(datetime.datetime.strptime(date2_str, '%Y-%m-%d').timestamp()) * 1000000
             print(f"date1: {date1}")
             print(f"date2: {date2}")
-            #print(f"date1 conv {date_str_to_micro_seconds('2022-01-01T', True)}")
+            # print(f"date1 conv {date_str_to_micro_seconds('2022-01-01T', True)}")
             search_data = {
                 "query": "",
                 "facets_limits": {"pubmed_types.keyword": 10,
@@ -338,8 +338,8 @@ class TestSearch:
                                   "authors.name.keyword": 10},
                 "author_filter": "",
                 "query_fields": "All",
-                "date_published": ["2019-08-31T04:00:00.000Z",
-                                   "2019-08-31T03:59:59.999Z"]
+                "date_published": ["2019-08-31",
+                                   "2019-08-31"]
             }
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert "hits" in res
