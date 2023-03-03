@@ -28,8 +28,8 @@ def search_date_range(es_body,
             {
                 "range": {
                     "date_last_modified_in_pubmed": {
-                        "gte": date_pubmed_modified[0].split('T')[0],
-                        "lte": date_pubmed_modified[1].split('T')[0]
+                        "gte": date_pubmed_modified[0],
+                        "lte": date_pubmed_modified[1]
                     }
                 }
             })
@@ -38,14 +38,14 @@ def search_date_range(es_body,
             {
                 "range": {
                     "date_arrived_in_pubmed": {
-                        "gte": date_pubmed_arrive[0].split('T')[0],
-                        "lte": date_pubmed_arrive[1].split('T')[0]
+                        "gte": date_pubmed_arrive[0],
+                        "lte": date_pubmed_arrive[1]
                     }
                 }
             })
     if date_published:
-        start = date_published[0].split('T')[0];
-        end = date_published[1].split('T')[0];
+        start = date_published[0];
+        end = date_published[1];
         es_body["query"]["bool"]["filter"]["bool"]["must"].append(
             {
                 "bool": {
