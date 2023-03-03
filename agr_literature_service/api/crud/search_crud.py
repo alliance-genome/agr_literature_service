@@ -44,6 +44,8 @@ def search_date_range(es_body,
                 }
             })
     if date_published:
+        start = date_published[0];
+        end = date_published[1];
         es_body["query"]["bool"]["filter"]["bool"]["must"].append(
             {
                 "bool": {
