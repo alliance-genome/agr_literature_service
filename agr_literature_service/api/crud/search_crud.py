@@ -14,21 +14,6 @@ from fastapi import HTTPException, status
 
 logger = logging.getLogger(__name__)
 
-
-def date_str_to_micro_seconds(date_str: str, start_of_day: bool):
-    # convert string to Datetime int that is stored in Elastic search
-    # initial strings are in the format:- "2010-10-28T04:00:00.000"
-    # So just grab chars before T and converts to seconds after epoch
-    # then mulitply by 1000000 and convert to int.
-    if start_of_day:
-        date_str = f"{date_str.split('T')[0]}T00:00:00-05:00"
-    else:
-        date_str = f"{date_str.split('T')[0]}T23:59:00-05:00"
-
-    date_time = datetime.fromisoformat(date_str)
-    return int(date_time.timestamp() * 1000000)
-
-
 def search_date_range(es_body,
                       date_pubmed_modified: Optional[List[str]] = None,
                       date_pubmed_arrive: Optional[List[str]] = None,
@@ -59,11 +44,6 @@ def search_date_range(es_body,
                 }
             })
     if date_published:
-        try:
-            start = date_str_to_micro_seconds(date_published[0], True)
-            end = date_str_to_micro_seconds(date_published[1], False)
-        except Exception as e:
-            logger.error(f"Exception in conversion {e} for start={date_published[0]} and end={date_published[1]}")
         es_body["query"]["bool"]["filter"]["bool"]["must"].append(
             {
                 "bool": {
