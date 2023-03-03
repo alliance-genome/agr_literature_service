@@ -6,7 +6,7 @@ from starlette.testclient import TestClient
 
 from agr_literature_service.api.config import config
 from agr_literature_service.api.main import app
-from agr_literature_service.api.crud.search_crud import date_str_to_micro_seconds
+
 
 from .test_mod_corpus_association import test_mca # noqa
 from ..fixtures import db # noqa
@@ -35,31 +35,23 @@ from .fixtures import auth_headers # noqa
 def initialize_elasticsearch():
     print("***** Initializing Elasticsearch Data *****")
     es = Elasticsearch(hosts=config.ELASTICSEARCH_HOST + ":" + config.ELASTICSEARCH_PORT)
-    date1_str = '2022-01-01T'
-    date2_str = '2022-03-28T'
-    date3_str = '2022-09-27T'
-    date4_str = '2022-09-28T'
-    date5_str = '2022-12-31T'
+    date1 = '2022-01-01'
+    date2 = '2022-03-28'
+    date3 = '2022-09-27'
+    date4 = '2022-09-28'
+    date5 = '2022-12-31'
     # consecutive days
-    date6_str = '2019-08-31T'
-    date7_str = '2019-09-01T'
-    date8_str = '2019-09-02T'
-    date1 = date_str_to_micro_seconds(date1_str, True)
-    date2 = date_str_to_micro_seconds(date2_str, True)
-    date3 = date_str_to_micro_seconds(date3_str, True)
-    date4 = date_str_to_micro_seconds(date4_str, True)
-    date5 = date_str_to_micro_seconds(date5_str, True)
-    date6 = date_str_to_micro_seconds(date6_str, True)
-    date7 = date_str_to_micro_seconds(date7_str, True)
-    date8 = date_str_to_micro_seconds(date8_str, True)
+    date6 = '2019-08-31'
+    date7 = '2019-09-01'
+    date8 = '2019-09-02'
 
     doc1 = {
         "curie": "AGRKB:101000000000100",
         "title": "superlongword super super super super test test test",
         "pubmed_types": ["Journal Article", "Review"],
         "abstract": "Really quite a lot of great information in this article",
-        "date_published": date1_str,
-        "date_arrived_in_pubmed": date1_str,
+        "date_published": date1,
+        "date_arrived_in_pubmed": date1,
         "date_published_start": date1,  # full year of 2022
         "date_published_end": date5,
         "authors": [{"name": "John Q Public", "orcid": "null"}, {"name": "Socrates", "orcid": "null"}],
@@ -70,8 +62,8 @@ def initialize_elasticsearch():
         "title": "cell title",
         "pubmed_types": ["Book"],
         "abstract": "Its really worth reading this article",
-        "date_published": date2_str,
-        "date_arrived_in_pubmed": date2_str,
+        "date_published": date2,
+        "date_arrived_in_pubmed": date2,
         "date_published_start": date1,  # One day 1st Jan 2022
         "date_published_end": date1,
         "authors": [{"name": "Jane Doe", "orcid": "null"}],
@@ -82,8 +74,8 @@ def initialize_elasticsearch():
         "title": "Book 3",
         "pubmed_types": ["Book", "Abstract", "Category1", "Category2", "Category3"],
         "abstract": "A book written about science",
-        "date_published": date3_str,
-        "date_arrived_in_pubmed": date3_str,
+        "date_published": date3,
+        "date_arrived_in_pubmed": date3,
         "date_published_start": date1,  # jan 1st -> Mar 28th
         "date_published_end": date2,
         "authors": [{"name": "Sam", "orcid": "null"}, {"name": "Plato", "orcid": "null"}],
@@ -96,8 +88,8 @@ def initialize_elasticsearch():
         "abstract": "The other book written about science",
         "date_published_start": date1,  # full year
         "date_published_end": date5,
-        "date_published": date4_str,
-        "date_arrived_in_pubmed": date4_str,
+        "date_published": date4,
+        "date_arrived_in_pubmed": date4,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}]
     }
@@ -108,8 +100,8 @@ def initialize_elasticsearch():
         "abstract": "The other book written about science",
         "date_published_start": date4,  # 28th Sep -> dec 31st
         "date_published_end": date5,
-        "date_published": date5_str,
-        "date_arrived_in_pubmed": date5_str,
+        "date_published": date5,
+        "date_arrived_in_pubmed": date5,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}]
     }
@@ -120,8 +112,8 @@ def initialize_elasticsearch():
         "abstract": "The other book written about science",
         "date_published_start": date3,  # 27th -> 28th Sept.
         "date_published_end": date4,
-        "date_published": date2_str,
-        "date_arrived_in_pubmed": date5_str,
+        "date_published": date2,
+        "date_arrived_in_pubmed": date5,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}]
     }
@@ -132,8 +124,8 @@ def initialize_elasticsearch():
         "abstract": "The other book written about science",
         "date_published_start": date6,  # 31st aug
         "date_published_end": date6,
-        "date_published": date6_str,
-        "date_arrived_in_pubmed": date6_str,
+        "date_published": date6,
+        "date_arrived_in_pubmed": date6,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}]
     }
@@ -144,8 +136,8 @@ def initialize_elasticsearch():
         "abstract": "The other book written about science",
         "date_published_start": date7,  # 1st sept
         "date_published_end": date7,
-        "date_published": date7_str,
-        "date_arrived_in_pubmed": date7_str,
+        "date_published": date7,
+        "date_arrived_in_pubmed": date7,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}]
     }
@@ -156,8 +148,8 @@ def initialize_elasticsearch():
         "abstract": "The other book written about science",
         "date_published_start": date8,  # 2nd Aug
         "date_published_end": date8,
-        "date_published": date8_str,
-        "date_arrived_in_pubmed": date8_str,
+        "date_published": date8,
+        "date_arrived_in_pubmed": date8,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}]
     }
@@ -221,7 +213,7 @@ class TestSearch:
             date2 = int(datetime.datetime.strptime(date2_str, '%Y-%m-%d').timestamp()) * 1000000
             print(f"date1: {date1}")
             print(f"date2: {date2}")
-            print(f"date1 conv {date_str_to_micro_seconds('2022-01-01T', True)}")
+            #print(f"date1 conv {date_str_to_micro_seconds('2022-01-01T', True)}")
             search_data = {
                 "query": "",
                 "facets_limits": {"pubmed_types.keyword": 10,
@@ -230,8 +222,8 @@ class TestSearch:
                                   "authors.name.keyword": 10},
                 "author_filter": "",
                 "query_fields": "All",
-                "date_published": ["2022-01-01T04:00:00.000Z",
-                                   "2022-03-28T03:59:59.999Z"]
+                "date_published": ["2022-01-01",
+                                   "2022-03-28"]
             }
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             print(datetime.datetime.now(datetime.timezone.utc).astimezone().tzinfo)
