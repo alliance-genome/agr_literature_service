@@ -203,7 +203,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                             "fields":[
                                 "title","keywords","abstract","citation"
                             ],
-                            "query" : query + "*" if partial_match else query,
+                            "query" : query + "*" if partial_match and "*" not in query else query,
                             "analyze_wildcard": "true",
                             "flags" : "PHRASE|PREFIX|WHITESPACE"
                             }
@@ -234,7 +234,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "fields":[
                         es_field,
                     ],
-                    "query" : query + "*" if partial_match else query,
+                    "query" : query + "*" if partial_match and "*" not in query else query,
                     "analyze_wildcard": "true",
                     "flags" : "PHRASE|PREFIX|WHITESPACE"
                 }
