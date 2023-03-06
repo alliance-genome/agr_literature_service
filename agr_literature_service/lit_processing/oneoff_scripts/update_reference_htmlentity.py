@@ -16,7 +16,7 @@ def update_author_entity():
     try:
         db_session = create_postgres_session(False)
         author_results = db_session.execute(
-            "select  name, first_name, last_name, affiliations, author_id, reference_id from  author  where author_id=6818175")
+            "select  name, first_name, last_name, affiliations, author_id, reference_id from  author ")
         ids = author_results.fetchall()
         for id in ids:
             author_name = id["name"]
