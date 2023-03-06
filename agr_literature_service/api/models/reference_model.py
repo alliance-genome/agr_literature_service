@@ -7,7 +7,7 @@ reference_model.py
 from typing import Dict
 
 from sqlalchemy import (ARRAY, Column, Enum, ForeignKey, Integer,
-                        String, DateTime)
+                        String)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
 
@@ -58,8 +58,7 @@ class ReferenceModel(Base, AuditedModel):
 
     obsolete_reference = relationship(
         "ObsoleteReferenceModel",
-        foreign_keys="ObsoleteReferenceModel.new_id",
-        lazy="joined"
+        foreign_keys="ObsoleteReferenceModel.new_id"
     )
 
     resource_id = Column(
@@ -91,14 +90,12 @@ class ReferenceModel(Base, AuditedModel):
 
     mod_corpus_association = relationship(
         "ModCorpusAssociationModel",
-        lazy="joined",
         back_populates="reference",
         cascade="all, delete, delete-orphan"
     )
 
     author = relationship(
         "AuthorModel",
-        lazy="joined",
         back_populates="reference",
         cascade="all, delete, delete-orphan"
     )
@@ -110,13 +107,13 @@ class ReferenceModel(Base, AuditedModel):
     )
 
     date_published_start = Column(
-        DateTime,
+        String(),
         unique=False,
         nullable=True
     )
 
     date_published_end = Column(
-        DateTime,
+        String(),
         unique=False,
         nullable=True
     )
@@ -201,7 +198,6 @@ class ReferenceModel(Base, AuditedModel):
 
     mesh_term = relationship(
         "MeshDetailModel",
-        lazy="joined",
         back_populates="reference",
         cascade="all, delete, delete-orphan"
     )

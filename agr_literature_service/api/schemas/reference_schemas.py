@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, validator
@@ -24,8 +23,8 @@ class ReferenceSchemaPost(BaseModel):
     category: ReferenceCategory
 
     date_published: Optional[str] = None
-    date_published_start: Optional[datetime] = None
-    date_published_end: Optional[datetime] = None
+    date_published_start: Optional[str] = None
+    date_published_end: Optional[str] = None
     date_arrived_in_pubmed: Optional[str] = None
     date_last_modified_in_pubmed: Optional[str] = None
     volume: Optional[str] = None
@@ -71,8 +70,8 @@ class ReferenceSchemaUpdate(BaseModel):
     category: Optional[ReferenceCategory] = None
 
     date_published: Optional[str] = None
-    date_published_start: Optional[datetime] = None
-    date_published_end: Optional[datetime] = None
+    date_published_start: Optional[str] = None
+    date_published_end: Optional[str] = None
     date_arrived_in_pubmed: Optional[str] = None
     date_last_modified_in_pubmed: Optional[str] = None
     volume: Optional[str] = None
@@ -120,8 +119,8 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     resource_id: Optional[int] = None
     copyright_license_id: Optional[int] = None
     date_published: Optional[str] = None
-    date_published_start: Optional[datetime] = None
-    date_published_end: Optional[datetime] = None
+    date_published_start: Optional[str] = None
+    date_published_end: Optional[str] = None
     date_arrived_in_pubmed: Optional[str] = None
     date_last_modified_in_pubmed: Optional[str] = None
     volume: Optional[str] = None

@@ -307,6 +307,9 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
             if date_range is not False:
                 (date_published_start, date_published_end) = date_range
 
+        date_published_start = str(date_published_start)[0:10]
+        date_published_end = str(date_published_end)[0:10]
+
         refData = {"curie": curie,
                    "resource_id": resource_id,
                    "title": entry.get('title', ''),

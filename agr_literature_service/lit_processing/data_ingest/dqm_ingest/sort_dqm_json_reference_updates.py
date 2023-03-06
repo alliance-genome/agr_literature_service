@@ -784,8 +784,8 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
                         date_range, error_message = parse_date(datePublished.strip(), False)
                         if date_range is not False:
                             (datePublishedStart, datePublishedEnd) = date_range
-                            dqm_entry['datePublishedStart'] = datePublishedStart
-                            dqm_entry['datePublishedEnd'] = datePublishedEnd
+                            dqm_entry['datePublishedStart'] = str(datePublishedStart)[0:10]
+                            dqm_entry['datePublishedEnd'] = str(datePublishedEnd)[0:10]
                     field_snake = field_camel
                     if field_camel in remap_keys:
                         field_snake = remap_keys[field_camel]
