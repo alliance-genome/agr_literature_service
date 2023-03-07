@@ -470,7 +470,7 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
     has_update = 0
     for colName in refColName_to_update:
         if colName == 'citation':
-            new_citation = create_new_citation(authors, str(json_data.get('datePublished', '')),
+            new_citation = create_new_citation(json_data.get('authors', []), str(json_data.get('datePublished', '')),
                                                json_data.get('title', ''),
                                                journal_title,
                                                json_data.get('volume', ''),
