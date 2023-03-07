@@ -67,7 +67,7 @@ def show(topic_entity_tag_id: int,
 
 @router.get('/by_reference/{curie_or_reference_id}',
             status_code=200)
-def show_all_reference_tags(curie_or_reference_id: str, page: int = 0, page_size: int = None, count_only: bool = False,
+def show_all_reference_tags(curie_or_reference_id: str, page: int = 1, page_size: int = None, count_only: bool = False,
                             sort_by: str = None, desc_sort: bool = False,
                             db: Session = db_session) -> Union[List[TopicEntityTagSchemaRelated], int]:
     return topic_entity_tag_crud.show_all_reference_tags(db, curie_or_reference_id, page, page_size, count_only,
