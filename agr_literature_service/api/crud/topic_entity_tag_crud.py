@@ -134,7 +134,7 @@ def get_sorted_column_values(db: Session, column_name: str, desc: bool = False):
                                                 key=lambda x: x[0], reverse=desc)]
 
 
-def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = None, page_size: int = None,
+def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 0, page_size: int = None,
                             count_only: bool = False, sort_by: str = None, desc_sort: bool = False):
     if sort_by == "null":
         sort_by = None
