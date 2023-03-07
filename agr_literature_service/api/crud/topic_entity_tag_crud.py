@@ -134,7 +134,7 @@ def get_sorted_column_values(db: Session, column_name: str, desc: bool = False):
                                                 key=lambda x: x[0], reverse=desc)]
 
 
-def show_all_reference_tags(db: Session, curie_or_reference_id, offset: int = None, limit: int = None,
+def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = None, page_size: int = None,
                             count_only: bool = False, sort_by: str = None, desc_sort: bool = False):
     if sort_by == "null":
         sort_by = None
@@ -149,7 +149,8 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, offset: int = No
                                                                                                        desc_sort))},
                                   value=getattr(TopicEntityTagModel, sort_by))
             query = query.order_by(curie_ordering)
-        return [jsonable_encoder(tet) for tet in query.offset(offset).limit(limit).all()]
+        return [jsonable_encoder(tet) for tet in query.offset(page * page_size if page_size else None).limit(
+            page_size).all()]
 
 
 def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
