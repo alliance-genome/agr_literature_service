@@ -4,6 +4,7 @@ from agr_literature_service.api.models import (
     AuthorModel,
     ReferenceModel
 )
+from agr_literature_service.api.crud.reference_crud import update_citation
 import time
 
 
@@ -15,7 +16,7 @@ def update_author_entity():
     try:
         db_session = create_postgres_session(False)
         author_results = db_session.execute(
-            "select  name, first_name, last_name, affiliations, author_id from  author ")
+            "select  name, first_name, last_name, affiliations, author_id, reference_id from  author ")
         ids = author_results.fetchall()
         for id in ids:
             author_name = id["name"]
@@ -23,6 +24,7 @@ def update_author_entity():
             author_last_name = id["last_name"]
             author_affiliations_list = id["affiliations"]
             author_id = id["author_id"]
+            reference_id = id["reference_id"]
             flag_affiliation = False
             if author_affiliations_list:
                 for x in range(len(author_affiliations_list)):
@@ -53,6 +55,10 @@ def update_author_entity():
                     setattr(author_db_obj, key, value)
                     # print("will update key:" + key)
                 db_session.commit()
+                ref_db_obj = db_session.query(ReferenceModel).filter(ReferenceModel.reference_id == reference_id).first()
+                if ref_db_obj:
+                    curie = ref_db_obj.curie
+                    update_citation(db_session, curie)
         db_session.close()
     except Exception as e:
         print('Error: ' + str(type(e)))
