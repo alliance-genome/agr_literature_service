@@ -288,8 +288,10 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         for x in cross_references:
             pieces = x['curie'].split(":")
             if len(pieces) > 2 and pieces[0] != 'DOI':
+                ## will pick up something like 'FB:FB:FBrf0221304'
                 bad_cross_ref_ids.append(x['curie'])
-            elif len(pieces) == 1:
+            elif pieces[1] == "":
+                ## will pick up something like 'FB:'
                 bad_cross_ref_ids.append(x['curie'])
     reference_data["bad_cross_reference_ids"] = bad_cross_ref_ids
 
