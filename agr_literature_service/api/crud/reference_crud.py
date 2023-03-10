@@ -293,7 +293,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             elif pieces[1] == "":
                 ## will pick up something like 'FB:'
                 bad_cross_ref_ids.append(x['curie'])
-    reference_data["bad_cross_reference_ids"] = bad_cross_ref_ids
+    reference_data["invalid_cross_reference_ids"] = bad_cross_ref_ids
 
     if reference.mod_referencetypes:
         reference_data["mod_reference_types"] = []
