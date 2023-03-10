@@ -277,6 +277,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             reference_data["copyright_license_url"] = crl.url
             reference_data["copyright_license_description"] = crl.description
 
+    bad_cross_ref_ids = []
     if reference.cross_reference:
         cross_references = []
         for cross_reference in reference.cross_reference:
@@ -284,6 +285,15 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             del cross_reference_show["reference_curie"]
             cross_references.append(cross_reference_show)
         reference_data["cross_references"] = cross_references
+        for x in cross_references:
+            pieces = x['curie'].split(":")
+            if len(pieces) > 2 and pieces[0] != 'DOI':
+                ## will pick up something like 'FB:FB:FBrf0221304'
+                bad_cross_ref_ids.append(x['curie'])
+            elif pieces[1] == "":
+                ## will pick up something like 'FB:'
+                bad_cross_ref_ids.append(x['curie'])
+    reference_data["invalid_cross_reference_ids"] = bad_cross_ref_ids
 
     if reference.mod_referencetypes:
         reference_data["mod_reference_types"] = []

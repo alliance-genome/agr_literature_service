@@ -144,6 +144,7 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     copyright_license_name: Optional[str] = None
     copyright_license_url: Optional[str] = None
     copyright_license_description: Optional[str] = None
+    invalid_cross_reference_ids: Optional[List[str]] = None
     authors: Optional[List[AuthorSchemaShow]] = None
     comment_and_corrections: CommentAndCorrectionSchemaRelations
     open_access: Optional[bool] = None
