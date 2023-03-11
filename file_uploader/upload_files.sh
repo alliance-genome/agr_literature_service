@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+MOD=$1
+
 # request okta access token
 OKTA_ACCESS_TOKEN=$(curl -s --request POST --url https://${OKTA_DOMAIN}/v1/token \
   --header 'accept: application/json' \
@@ -8,8 +10,33 @@ OKTA_ACCESS_TOKEN=$(curl -s --request POST --url https://${OKTA_DOMAIN}/v1/token
   --data "grant_type=client_credentials&scope=admin&client_id=${OKTA_CLIENT_ID}&client_secret=${OKTA_CLIENT_SECRET}" \
     | jq '.access_token')
 
-# just testing for now
-echo $OKTA_ACCESS_TOKEN
+extract_metadata() {
+  filepath=$1
+  echo $filepath
+  filename=$(basename ${filepath})
+  regex="^([0-9]+)[-_]([^_]+)[_](.*)?\..*$"
+  [[ $filename =~ $regex ]]
+  reference_id=${BASH_REMATCH[1]}
+  author_and_year=${BASH_REMATCH[2]}
+  additional_options=${BASH_REMATCH[3]}
+}
+
+for refdir in /usr/files_to_upload/*; do
+  if [[ -d ${refdir} ]]; then
+    echo "Processing reference ${refdir}"
+    for reffile in ${refdir}/*; do
+      if [[ ! -d ${reffile} && $(basename ${reffile}) != "*" ]]; then
+        echo "Processing file ${reffile}"
+        extract_metadata $reffile
+        echo $reference_id
+        echo $additional_options
+      else
+        echo "Cannot process reference"
+      fi
+    done
+  fi
+done
+
 exit
 
 # for each file in folder, extract metadata and then send request to API with curl
