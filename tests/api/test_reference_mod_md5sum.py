@@ -27,7 +27,6 @@ class TestReferenceModMd5sum:
             "title": "Bob",
             "category": "thesis",
             "abstract": "3",
-            "open_access": False,
             "curie": "AGR:AGR-Reference-0000808175"
         }
         try:
