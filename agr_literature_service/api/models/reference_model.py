@@ -202,12 +202,6 @@ class ReferenceModel(Base, AuditedModel):
         cascade="all, delete, delete-orphan"
     )
 
-    open_access = Column(
-        Boolean,
-        nullable=False,
-        default=False
-    )
-
     citation = Column(
         String(),
         unique=False,

@@ -1,6 +1,7 @@
 from typing import Dict
 
-from sqlalchemy import Column, Integer, String, Text
+from sqlalchemy import Column, Integer, String, TEXT
+from sqlalchemy.sql.sqltypes import Boolean
 # from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -31,4 +32,10 @@ class CopyrightLicenseModel(Base):
 
     description = Column(
         Text()
+    )
+
+    open_access = Column(
+        Boolean,
+        nullable=False,
+        default=False
     )
