@@ -31,7 +31,7 @@ class CopyrightLicenseModel(Base):
     )
 
     description = Column(
-        Text()
+        TEXT()
     )
 
     open_access = Column(
