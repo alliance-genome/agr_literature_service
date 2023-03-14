@@ -23,7 +23,8 @@ class CrossReferenceSchemaRelated(AuditedObjectModelSchema):
 
     @validator('curie')
     def name_must_contain_space(cls, v):
-        if v.count(":") != 1 and not v.startswith("DOI:"):
+        # if v.count(":") != 1 and not v.startswith("DOI:"):
+        if v.count(":") == 0:
             raise ValueError('must contain a single colon')
         return v
 

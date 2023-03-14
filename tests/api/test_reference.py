@@ -200,8 +200,7 @@ class TestReference:
                 "language": "English",
                 "page_range": "538--541",
                 "title": "Some test 001 title",
-                "volume": "433",
-                "open_access": True
+                "volume": "433"
             }
 
             new_curie = client.post(url="/reference/", json=full_xml, headers=auth_headers).json()
@@ -245,7 +244,6 @@ class TestReference:
             assert response["page_range"] == "538--541"
             assert response["title"] == "Some test 001 title"
             assert response["volume"] == "433"
-            assert response['open_access']
 
             print("BOB................")
             print(response)
@@ -279,8 +277,7 @@ class TestReference:
                 ],
                 "resource": test_resource.new_resource_curie,
                 "title": "Another title",
-                "volume": "013a",
-                "open_access": True
+                "volume": "013a"
             }
             response1 = client.post(url="/reference/", json=ref1_data, headers=auth_headers)
 

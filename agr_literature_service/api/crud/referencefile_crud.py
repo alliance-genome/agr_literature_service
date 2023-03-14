@@ -192,22 +192,33 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
 
 def download_file(db: Session, referencefile_id: int, mod_access: OktaAccess):  # pragma: no cover
     referencefile = read_referencefile_db_obj(db, referencefile_id)
-    if mod_access != OktaAccess.NO_ACCESS:
-        if mod_access == OktaAccess.ALL_ACCESS or any(
-                ref_file_mod.mod.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access] if ref_file_mod.mod is not None else
-                True for ref_file_mod in referencefile.referencefile_mods):
-            md5sum = referencefile.md5sum
-            display_name = referencefile.display_name + "." + referencefile.file_extension
-            folder = get_s3_folder_from_md5sum(md5sum)
-            object_name = folder + "/" + md5sum + ".gz"
-            download_file_from_s3(md5sum + ".gz", bucketname="agr-literature", s3_file_location=object_name)
-            with gzip.open(md5sum + ".gz", 'rb') as f_in, open(display_name, 'wb') as f_out:
-                shutil.copyfileobj(f_in, f_out)
-            os.remove(md5sum + ".gz")
-            return FileResponse(path=display_name, filename=display_name, media_type="application/octet-stream",
-                                background=BackgroundTask(cleanup, display_name))
+
+    user_permission = False
+    if referencefile.reference.copyright_license:
+        user_permission = referencefile.reference.copyright_license.open_access
+
+    if user_permission is False:
+        if mod_access != OktaAccess.NO_ACCESS:
+            if mod_access == OktaAccess.ALL_ACCESS or any(
+                    ref_file_mod.mod.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access] if ref_file_mod.mod is not None else
+                    True for ref_file_mod in referencefile.referencefile_mods):
+                user_permission = True
+
+    if user_permission is True:
+        md5sum = referencefile.md5sum
+        display_name = referencefile.display_name + "." + referencefile.file_extension
+        folder = get_s3_folder_from_md5sum(md5sum)
+        object_name = folder + "/" + md5sum + ".gz"
+        download_file_from_s3(md5sum + ".gz", bucketname="agr-literature", s3_file_location=object_name)
+        with gzip.open(md5sum + ".gz", 'rb') as f_in, open(display_name, 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
+        os.remove(md5sum + ".gz")
+        return FileResponse(path=display_name, filename=display_name, media_type="application/octet-stream",
+                            background=BackgroundTask(cleanup, display_name))
+
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                        detail="The current user does not have permissions to get the requested file url")
+                        detail="The current user does not have permissions to get the requested file url. "
+                               "The associated paper is not available for free access.")
 
 
 def cleanup(file_path):
@@ -228,11 +239,14 @@ def download_additional_files_tarball(db: Session, reference_id, mod_access: Okt
             ReferencefileModel.reference_id == reference_id,
             ReferencefileModel.file_class != "main",
             ReferencefileModel.file_class != "correspondence",
-            ReferencefileModel.referencefile_mods.any(
-                or_(
-                    ReferencefileModAssociationModel.mod == None, # noqa
-                    ReferencefileModAssociationModel.mod.has(
-                        ModModel.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access])
+            or_(
+                ReferencefileModel.reference.copyright_license.open_access == True, # noqa
+                ReferencefileModel.referencefile_mods.any(
+                    or_(
+                        ReferencefileModAssociationModel.mod == None, # noqa
+                        ReferencefileModAssociationModel.mod.has(
+                            ModModel.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access])
+                    )
                 )
             )
         )
