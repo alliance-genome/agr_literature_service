@@ -276,6 +276,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             reference_data["copyright_license_name"] = crl.name
             reference_data["copyright_license_url"] = crl.url
             reference_data["copyright_license_description"] = crl.description
+            reference_data["copyright_license_open_access"] = crl.open_access
 
     bad_cross_ref_ids = []
     if reference.cross_reference:
