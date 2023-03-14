@@ -21,7 +21,7 @@ from agr_literature_service.api.crud.referencefile_utils import read_referencefi
     create as create_metadata, get_s3_folder_from_md5sum
 from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection
 from agr_literature_service.api.models import ReferenceModel, ReferencefileModel, ReferencefileModAssociationModel, \
-    ModModel
+    ModModel, CrossReferenceModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.s3.delete import delete_file_in_bucket
 from agr_literature_service.api.s3.upload import upload_file_to_bucket
@@ -144,6 +144,15 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no co
 
 def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma: no cover
     file.file.seek(0)
+    if not metadata["reference_curie"].startswith("AGRKB:101"):
+        ref_curie_res = db.query(ReferenceModel).options(subqueryload(
+            ReferenceModel.cross_reference)).filter(
+            CrossReferenceModel.curie == metadata["reference_curie"]).one_or_none()
+        if metadata["reference_curie"] is None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail="The specified curie is not in the standard Alliance format and no cross "
+                                       "references match the specified value.")
+        metadata["reference_curie"] = ref_curie_res.curie
     md5sum_hash = hashlib.md5()
     for byte_block in iter(lambda: file.file.read(4096), b""):
         md5sum_hash.update(byte_block)

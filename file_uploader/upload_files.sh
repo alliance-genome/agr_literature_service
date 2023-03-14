@@ -32,22 +32,20 @@ extract_metadata() {
   file_publication_status="final"
   pdf_type="null"
 
-  regex="^([0-9]+)[-_]([^_]+)[_](.*)?\..*$"
+  regex="^([0-9]+)[_]([^_]+)[_]?(.*)?\..*$"
   [[ $filename =~ $regex ]]
   reference_id=${BASH_REMATCH[1]}
   author_and_year=${BASH_REMATCH[2]}
   additional_options=${BASH_REMATCH[3]}
-  if [[ "${additional_options}" == *"temp"* ]]; then
+  if [[ "${additional_options}" == "temp" ]]; then
     file_publication_status="temp"
-  fi
-  if [[ "${additional_options,,}" == *"supp"* ]]; then
+  elif [[ "${additional_options,,}" == "supp" ]]; then
     file_class="supplement"
-  fi
-  if [[ "${additional_options,,}" == *"aut"* ]]; then
+  elif [[ "${additional_options,,}" == "aut" ]]; then
     pdf_type="aut"
-  elif [[ "${additional_options,,}" == *"ocr"* ]]; then
+  elif [[ "${additional_options,,}" == "ocr" ]]; then
     pdf_type="ocr"
-  elif [[ "${additional_options,,}" == *"html"* ]]; then
+  elif [[ "${additional_options,,}" == "html" ]]; then
     pdf_type="html"
   fi
 }
@@ -59,6 +57,11 @@ for refdir in /usr/files_to_upload/*; do
       if [[ ! -d ${reffile} && $(basename ${reffile}) != "*" ]]; then
         echo "Processing file ${reffile}"
         extract_metadata $reffile
+        if [[ $(basename ${refdir}) =~ ^[0-9]{10}$ ]]; then
+          reference_id="AGRKB:${reference_id}"
+        elif [[ $MOD == "WB" ]]; then
+          reference_id="WB:WBPaper${reference_id}"
+        fi
         echo "reference ID: ${reference_id}"
         echo "display_name: ${display_name}"
         echo "file_extension: ${file_extension}"
@@ -67,7 +70,7 @@ for refdir in /usr/files_to_upload/*; do
         echo "pdf_type: ${pdf_type}"
         upload_file
       else
-        echo "Cannot process reference"
+        echo "Cannot process reference ${refdir}"
       fi
     done
   fi
