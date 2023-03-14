@@ -36,6 +36,6 @@ class CopyrightLicenseModel(Base):
 
     open_access = Column(
         Boolean,
-        nullable=False,
-        default=False
+        nullable=True,
+        default=True
     )
