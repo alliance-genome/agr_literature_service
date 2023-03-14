@@ -21,7 +21,7 @@ from agr_literature_service.api.crud.referencefile_utils import read_referencefi
     create as create_metadata, get_s3_folder_from_md5sum
 from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection
 from agr_literature_service.api.models import ReferenceModel, ReferencefileModel, ReferencefileModAssociationModel, \
-    ModModel
+    ModModel, CopyrightLicenseModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.s3.delete import delete_file_in_bucket
 from agr_literature_service.api.s3.upload import upload_file_to_bucket
@@ -240,7 +240,8 @@ def download_additional_files_tarball(db: Session, reference_id, mod_access: Okt
             ReferencefileModel.file_class != "main",
             ReferencefileModel.file_class != "correspondence",
             or_(
-                ReferencefileModel.reference.copyright_license.open_access == True, # noqa
+                ReferencefileModel.reference.has(ReferenceModel.copyright_license.has(
+                    CopyrightLicenseModel.open_access == True)), # noqa
                 ReferencefileModel.referencefile_mods.any(
                     or_(
                         ReferencefileModAssociationModel.mod == None, # noqa
