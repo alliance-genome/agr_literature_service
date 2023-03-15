@@ -14,7 +14,7 @@ from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.schemas import PubMedPublicationStatus, ReferenceCategory
 from agr_literature_service.api.database.versioning import enable_versioning
-
+from sqlalchemy import event, DDL
 
 enable_versioning()
 
@@ -239,6 +239,17 @@ class ReferenceModel(Base, AuditedModel):
         "CopyrightLicenseModel"
     )
 
+    citation_id = Column(
+        Integer,
+        ForeignKey("citation.citation_id"),
+        nullable=True,
+        index=True
+    )
+
+    citation_id = relationship(
+        "CitationModel"
+    )
+
     def __str__(self):
         """
         Overwrite the default output.
@@ -262,3 +273,67 @@ class ReferenceModel(Base, AuditedModel):
         peps = "\tauthors='{}'\n".format(auths)
         arrs = "\tmesh='{}'\n\tkeywords='{}'\n".format(str(mesh), self.keywords)
         return "{}{}{}{}{}".format(ids, dates, long, peps, arrs)
+
+#    # Authors, (year) title.   Journal  volume (issue): page_range
+#     year = ''
+#     if ref_db_obj.date_published:
+#         year_re_result = re.search(r"(\d{4})", ref_db_obj.date_published)
+#         if year_re_result:
+#             year = year_re_result.group(1)
+
+#     title = ref_db_obj.title or ''
+#     if not re.search('[.]$', title):
+#         title = title + '.'
+
+#     authorNames = ''
+#     for author in db.query(AuthorModel).filter_by(reference_id=ref_db_obj.reference_id).order_by(AuthorModel.order).all():
+#         if author.name:
+#             authorNames += author.name + "; "
+#     authorNames = authorNames[:-2]  # remove last ';'
+
+#     journal = ''
+#     if ref_db_obj.resource and ref_db_obj.resource.title:
+#         journal = ref_db_obj.resource.title
+
+#     citation = get_citation_from_args(authorNames, year, title, journal,
+#                                       ref_db_obj.volume or '',
+#                                       ref_db_obj.issue_name or '',
+#                                       ref_db_obj.page_range or '')
+
+
+func = DDL(
+    """CREATE FUNCTION ref_updated_check_citation()
+    RETURNS TRIGGER AS $$
+    BEGIN
+      IF (NEW.title != OLD.title || NEW.date_published != OLD.NEW_PUBLISHED) THEN
+        PERFORM update_citations(NEW.reference_id);
+      END IF;
+      return NEW;
+    END;
+    $$ language 'plpgsql'"""
+)
+
+trigger = DDL(
+    "CREATE TRIGGER trgfunc_reference_update_citation AFTER UPDATE ON reference "
+    "FOR EACH ROW EXECUTE PROCEDURE ref_updated_check_citation();"
+)
+
+event.listen(
+    ReferenceModel.__table__,
+    'after_create',
+    func.execute_if(dialect='postgresql')
+)
+
+
+@event.listens_for(ReferenceModel, 'after_update')
+def receive_after_begin(session, transaction, connection):
+    "listen for the 'after_update' event"
+    print(transaction)
+
+# ... (event handling logic) ...
+# NO after_update? Not sure how to catch that??
+# event.listen(
+#     ReferenceModel.__table__,
+#     'after_update',
+#     trigger.execute_if(dialect='postgresql')
+# )
