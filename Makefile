@@ -79,7 +79,7 @@ restart-debezium-local:
 	sleep 5
 	docker-compose --env-file ${ENV_FILE} up -d dbz_ksql_server
 	sleep 20
-	docker-compose --env-file ${ENV_FILE} up -d dbz_setup
+	docker-compose --env-file ${ENV_FILE} up -d --build dbz_setup
 
 restart-debezium-aws:
 	docker-compose --env-file ${ENV_FILE} rm -svf dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server
@@ -89,7 +89,7 @@ restart-debezium-aws:
 	sleep 5
 	docker-compose --env-file ${ENV_FILE} up -d dbz_ksql_server
 	sleep 20
-	docker-compose --env-file ${ENV_FILE} up -d dbz_setup
+	docker-compose --env-file ${ENV_FILE} up -d --build dbz_setup
 
 restart-api:
 	docker-compose --env-file ${ENV_FILE} build --no-cache api
