@@ -5,6 +5,7 @@ import logging.config
 import warnings
 from os import environ, makedirs, path
 from dotenv import load_dotenv
+from collections import defaultdict
 
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
     load_database_md5data, generate_new_md5, save_database_md5data
@@ -209,17 +210,9 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         "WHERE c.curie_prefix = 'CGC' "
         "AND c.is_obsolete is False "
         "AND r.reference_id = c.reference_id").fetchall()
-    ref_cgcs_valid = {}
-    for x in rows:
-        agr = x[0]
-        prefix = x[1]
-        identifier = x[2]
-        if agr not in ref_cgcs_valid:
-            ref_cgcs_valid[agr] = {}
-        if prefix not in ref_cgcs_valid[agr]:
-            ref_cgcs_valid[agr][prefix] = set()
-        if identifier not in ref_cgcs_valid[agr][prefix]:
-            ref_cgcs_valid[agr][prefix].add(identifier)
+    ref_cgcs_valid = defaultdict(lambda: defaultdict(set))
+    for agr, prefix, identifier in rows:
+        ref_cgcs_valid[agr][prefix].add(identifier)
     db_session.close()
 
     url_ref_curie_prefix = make_url_ref_curie_prefix()
