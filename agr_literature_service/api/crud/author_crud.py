@@ -100,12 +100,12 @@ def show(db: Session, author_id: int):
     """
 
     author = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
-    author_data = jsonable_encoder(author)
 
     if not author:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Author with the author_id {author_id} is not available")
 
+    author_data = jsonable_encoder(author)
     if author_data["reference_id"]:
         author_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == author_data["reference_id"]).first()
     del author_data["reference_id"]
