@@ -33,7 +33,7 @@ class TestAuthor:
 
     def test_get_bad_author(self):
         with TestClient(app) as client:
-            response = client.get(url=f"/author/{-1}")
+            response = client.get(url="/author/-1")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_create_author(self, db, test_author): # noqa
