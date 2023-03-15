@@ -301,39 +301,39 @@ class ReferenceModel(Base, AuditedModel):
 #                                       ref_db_obj.page_range or '')
 
 
-# func = DDL(
-#     """CREATE FUNCTION ref_updated_check_citation()
-#     RETURNS TRIGGER AS $$
-#     BEGIN
-#       IF (NEW.title != OLD.title || NEW.date_published != OLD.NEW_PUBLISHED) THEN
-#         PERFORM update_citations(NEW.reference_id);
-#       END IF;
-#       return NEW;
-#     END;
-#     $$ language 'plpgsql'"""
-# )
+func = DDL(
+    """CREATE FUNCTION ref_updated_check_citation()
+    RETURNS TRIGGER AS $$
+    BEGIN
+      IF (NEW.title != OLD.title || NEW.date_published != OLD.NEW_PUBLISHED) THEN
+        PERFORM update_citations(NEW.reference_id);
+      END IF;
+      return NEW;
+    END;
+    $$ language 'plpgsql'"""
+)
 
-# trigger = DDL(
-#     "CREATE TRIGGER trgfunc_reference_update_citation AFTER UPDATE ON reference "
-#     "FOR EACH ROW EXECUTE PROCEDURE ref_updated_check_citation();"
-# )
+trigger = DDL(
+    "CREATE TRIGGER trgfunc_reference_update_citation AFTER UPDATE ON reference "
+    "FOR EACH ROW EXECUTE PROCEDURE ref_updated_check_citation();"
+)
 
+event.listen(
+    ReferenceModel.__table__,
+    'after_create',
+    func.execute_if(dialect='postgresql')
+)
+
+
+@event.listens_for(ReferenceModel, 'after_update')
+def receive_after_begin(session, transaction, connection):
+    "listen for the 'after_update' event"
+    print(transaction)
+
+# ... (event handling logic) ...
+# NO after_update? Not sure how to catch that??
 # event.listen(
 #     ReferenceModel.__table__,
-#     'after_create',
-#     func.execute_if(dialect='postgresql')
+#     'after_update',
+#     trigger.execute_if(dialect='postgresql')
 # )
-
-
-# @event.listens_for(ReferenceModel, 'after_update')
-# def receive_after_begin(session, transaction, connection):
-#     "listen for the 'after_update' event"
-#     print(transaction)
-
-# # ... (event handling logic) ...
-# # NO after_update? Not sure how to catch that??
-# # event.listen(
-# #     ReferenceModel.__table__,
-# #     'after_update',
-# #     trigger.execute_if(dialect='postgresql')
-# # )
