@@ -105,6 +105,7 @@ def show(db: Session, author_id: int):
         author = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
     except Exception as e:
         logger.error(f'Failed to get author: {e}')
+        logger.exception(e)
 
     if not author:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
