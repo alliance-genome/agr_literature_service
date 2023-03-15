@@ -5,6 +5,7 @@ import logging.config
 import warnings
 from os import environ, makedirs, path
 from dotenv import load_dotenv
+from collections import defaultdict
 
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
     load_database_md5data, generate_new_md5, save_database_md5data
@@ -204,6 +205,14 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
     XREF_to_resource_id = {x["curie"]: x["resource_id"] for x in db_session.execute(
         "SELECT curie, resource_id FROM cross_reference WHERE resource_id is not null "
         "AND is_obsolete is False").fetchall()}
+    rows = db_session.execute(
+        "SELECT r.curie, c.curie_prefix, c.curie FROM reference r, cross_reference c "
+        "WHERE c.curie_prefix = 'CGC' "
+        "AND c.is_obsolete is False "
+        "AND r.reference_id = c.reference_id").fetchall()
+    ref_cgcs_valid = defaultdict(lambda: defaultdict(set))
+    for agr, prefix, identifier in rows:
+        ref_cgcs_valid[agr][prefix].add(identifier)
     db_session.close()
 
     url_ref_curie_prefix = make_url_ref_curie_prefix()
@@ -447,12 +456,14 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
                             # logger.info("Notify curator dqm has obsolete xref %s %s in agr %s", prefix, ident, agr_url)
                             fh_mod_report[mod].write("dqm has obsolete xref %s %s in agr %s\n" % (prefix, ident, agr_url))
                             report[mod].append((dbid, prefix + ":" + ident + " from dqm file is obsolete"))
-
                         if not dqm_xref_valid_found:
                             if agr_had_prefix:
-                                fh_mod_report[mod].write("%s had %s:%s, dqm submitted %s:%s\n" % (agr_url, prefix, ref_xref_valid[agr][prefix], prefix, ident))
-                                report[mod].append((dbid, prefix + ":" + ref_xref_valid[agr][prefix] + " in the database doesn't match " + prefix + ":" + ident + " from dqm file"))
                                 xref_conflict = True
+                                if prefix == 'CGC' and prefix + ":" + ident in ref_cgcs_valid[agr][prefix]:
+                                    xref_conflict = False
+                                if xref_conflict:
+                                    fh_mod_report[mod].write("%s had %s:%s, dqm submitted %s:%s\n" % (agr_url, prefix, ref_xref_valid[agr][prefix], prefix, ident))
+                                    report[mod].append((dbid, prefix + ":" + ref_xref_valid[agr][prefix] + " in the database doesn't match " + prefix + ":" + ident + " from dqm file"))
                             elif not dqm_xref_obsolete_found:
                                 if agr not in xrefs_to_add:
                                     xrefs_to_add[agr] = dict()
