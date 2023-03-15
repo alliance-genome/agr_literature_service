@@ -101,6 +101,7 @@ def show(db: Session, author_id: int):
     :return:
     """
 
+    logger.debug(f"Looking up {author_id}")
     try:
         author = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
     except Exception as e:
@@ -108,15 +109,20 @@ def show(db: Session, author_id: int):
         logger.exception(e)
 
     if not author:
+        logger.debug("Failed lookup gracefully but raise excption")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Author with the author_id {author_id} is not available")
 
-    print(author)
-    author_data = jsonable_encoder(author)
-    if author_data["reference_id"]:
-        author_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == author_data["reference_id"]).first()
-    del author_data["reference_id"]
-    del author_data["reference_curie"]
+    logger.debug(author)
+    try:
+        author_data = jsonable_encoder(author)
+        if author_data["reference_id"]:
+            author_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == author_data["reference_id"]).first()
+        del author_data["reference_id"]
+        del author_data["reference_curie"]
+    except Exception as e:
+        logger.error(f'Failed to use author_data: {author_data}')
+        logger.exception(e)     
     return author_data
 
 
