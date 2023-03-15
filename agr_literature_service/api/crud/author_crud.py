@@ -106,10 +106,12 @@ def show(db: Session, author_id: int):
     try:
         author = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
     except Exception as e:
-        logger.error(f'Failed to get author: {e}', exc_info=1)
+        print(f"Exception on lookup {e}")
+        logger.error(f'Failed to get author: {e}', exc_info=e)
         logger.exception(e)
 
     if not author:
+        print("Lookup failed gracefully")
         logger.error("Failed lookup gracefully but raise excption")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Author with the author_id {author_id} is not available")
@@ -122,6 +124,8 @@ def show(db: Session, author_id: int):
         del author_data["reference_id"]
         del author_data["reference_curie"]
     except Exception as e:
+        print("BOB: afqerverqwvr")
+        print(e)
         logger.error(f'Failed to use author_data: {author_data}')
         logger.exception(e)
     return author_data
