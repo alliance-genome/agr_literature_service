@@ -101,15 +101,16 @@ def show(db: Session, author_id: int):
     :return:
     """
 
-    logger.debug(f"Looking up {author_id}")
+    logger.error(f"Looking up {author_id}")
+    print(f"BOB: Looking up {author_id}")
     try:
         author = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
     except Exception as e:
-        logger.error(f'Failed to get author: {e}')
+        logger.error(f'Failed to get author: {e}', exc_info=1)
         logger.exception(e)
 
     if not author:
-        logger.debug("Failed lookup gracefully but raise excption")
+        logger.error("Failed lookup gracefully but raise excption")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Author with the author_id {author_id} is not available")
 
@@ -122,7 +123,7 @@ def show(db: Session, author_id: int):
         del author_data["reference_curie"]
     except Exception as e:
         logger.error(f'Failed to use author_data: {author_data}')
-        logger.exception(e)     
+        logger.exception(e)
     return author_data
 
 
