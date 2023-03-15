@@ -2,7 +2,7 @@
 author_crud.py
 ==============
 """
-
+import logging
 from datetime import datetime
 
 from fastapi import HTTPException, status
@@ -15,6 +15,8 @@ from agr_literature_service.api.models import (
     ReferenceModel
 )
 from agr_literature_service.api.schemas import AuthorSchemaPost
+
+logger = logging.getLogger(__name__)
 
 
 def create(db: Session, author: AuthorSchemaPost):
@@ -99,12 +101,16 @@ def show(db: Session, author_id: int):
     :return:
     """
 
-    author = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
+    try:
+        author = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
+    except Exception as e:
+        logger.error(f'Failed to get author: {e}')
 
     if not author:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Author with the author_id {author_id} is not available")
 
+    print(author)
     author_data = jsonable_encoder(author)
     if author_data["reference_id"]:
         author_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == author_data["reference_id"]).first()
