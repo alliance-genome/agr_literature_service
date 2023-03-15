@@ -52,11 +52,12 @@ extract_metadata() {
 
 for refdir in /usr/files_to_upload/*; do
   if [[ -d ${refdir} ]]; then
-    echo "Processing reference ${refdir}"
+    echo "Processing supplemental files for reference ${refdir}"
     for reffile in ${refdir}/*; do
       if [[ ! -d ${reffile} && $(basename ${reffile}) != "*" ]]; then
-        echo "Processing file ${reffile}"
+        echo "Processing supplemental file ${reffile}"
         extract_metadata $reffile
+        file_class="supplement"
         if [[ $(basename ${refdir}) =~ ^[0-9]{10}$ ]]; then
           reference_id="AGRKB:${reference_id}"
         elif [[ $MOD == "WB" ]]; then
