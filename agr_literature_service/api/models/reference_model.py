@@ -306,7 +306,8 @@ func = DDL(
     RETURNS TRIGGER AS $$
     BEGIN
       IF (NEW.title != OLD.title || NEW.date_published != OLD.NEW_PUBLISHED) THEN
-        PERFORM update_citations(NEW.reference_id);
+        -- PERFORM update_citations(NEW.reference_id);
+        return NEW;
       END IF;
       return NEW;
     END;
