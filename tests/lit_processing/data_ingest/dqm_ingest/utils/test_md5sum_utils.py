@@ -27,7 +27,7 @@ class TestMd5sumUtil:
             mod_id_FB = ids[0]["mod_id"]
             db.execute("insert into  mod (abbreviation, short_name, full_name, date_created) values ('XB', 'Xenbase', 'Xenbase', 'now()') ")
 
-            db.execute("insert into  reference (title, curie, open_access, date_created) values ('Bob', 'AGR:AGR-Reference-0000808175', 'true', 'now()') ")
+            db.execute("insert into  reference (title, curie, date_created) values ('Bob', 'AGR:AGR-Reference-0000808175', 'now()') ")
             ref_results = db.execute("select reference_id from reference where curie='AGR:AGR-Reference-0000808175'")
             refs = ref_results.fetchall()
             reference_id = refs[0]["reference_id"]
@@ -80,7 +80,7 @@ class TestMd5sumUtil:
             mod_results = db.execute("select abbreviation, mod_id from mod where abbreviation='XB'")
             ids = mod_results.fetchall()
             mod_id_XB = ids[0]["mod_id"]
-            db.execute("insert into  reference (title, curie, open_access, date_created) values ('Bob', 'AGR:AGR-Reference-0000808175', 'true', 'now()') ")
+            db.execute("insert into  reference (title, curie, date_created) values ('Bob', 'AGR:AGR-Reference-0000808175', 'now()') ")
             ref_results = db.execute("select reference_id from reference where curie='AGR:AGR-Reference-0000808175'")
             refs = ref_results.fetchall()
             reference_id = str(refs[0]["reference_id"])

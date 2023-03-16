@@ -9,7 +9,6 @@ from typing import Dict
 from sqlalchemy import (ARRAY, Column, Enum, ForeignKey, Integer,
                         String)
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql.sqltypes import Boolean
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
@@ -200,12 +199,6 @@ class ReferenceModel(Base, AuditedModel):
         "MeshDetailModel",
         back_populates="reference",
         cascade="all, delete, delete-orphan"
-    )
-
-    open_access = Column(
-        Boolean,
-        nullable=False,
-        default=False
     )
 
     citation = Column(

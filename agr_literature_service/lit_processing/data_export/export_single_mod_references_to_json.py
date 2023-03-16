@@ -223,8 +223,7 @@ def get_reference_col_names():
             'pubmed_publication_status',
             'issue_name',
             'date_updated',
-            'date_created',
-            'open_access']
+            'date_created']
 
 
 def get_reference_data_and_generate_json(mod, reference_id_to_comment_correction_data, resource_id_to_journal, json_file_with_path, datestamp):
@@ -327,8 +326,7 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
                'pubmed_publication_status': x[17],
                'issue_name': x[18],
                'date_updated': str(x[19]),
-               'date_created': str(x[20]),
-               'open_access': x[21]}
+               'date_created': str(x[20])}
 
         row['authors'] = reference_id_to_authors.get(reference_id, [])
 
