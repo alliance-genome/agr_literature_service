@@ -11,7 +11,7 @@ OKTA_ACCESS_TOKEN=$(curl -s --request POST --url https://${OKTA_DOMAIN}/v1/token
     | jq '.access_token' | tr -d '"')
 
 upload_file () {
-  url="http://${API_SERVER}:${API_PORT}/reference/referencefile/file_upload/?reference_curie=${reference_id}&display_name=${display_name}&file_class=${file_class}&file_publication_status=${file_publication_status}&file_extension=${file_extension}&is_annotation=false"
+  url="https://${API_SERVER}:${API_PORT}/reference/referencefile/file_upload/?reference_curie=${reference_id}&display_name=${display_name}&file_class=${file_class}&file_publication_status=${file_publication_status}&file_extension=${file_extension}&is_annotation=false&mod_abbreviation=${MOD}"
   if [[ ${pdf_type} != "null" ]]; then
     url="${url}&pdf_type=${pdf_type}"
   fi
