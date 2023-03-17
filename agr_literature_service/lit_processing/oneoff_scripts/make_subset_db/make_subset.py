@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, joinedload
 from os import environ
 
 from agr_literature_service.api.models import (
@@ -92,7 +92,7 @@ def start():
     db_subset_session.commit()
     db_subset_session.close()
 
-    refs = db_orig_session.query(ReferenceModel).filter(ReferenceModel.reference_id <= num_of_ref)
+    refs = db_orig_session.query(ReferenceModel).options(joinedload("*")).filter(ReferenceModel.reference_id <= num_of_ref)
     for ref in refs:
         print(f"Adding {ref}")
         db_subset_session.merge(ref)
