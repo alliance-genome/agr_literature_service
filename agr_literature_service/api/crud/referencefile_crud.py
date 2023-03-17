@@ -145,9 +145,8 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no co
 def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma: no cover
     file.file.seek(0)
     if not metadata["reference_curie"].startswith("AGRKB:101"):
-        ref_curie_res = db.query(ReferenceModel).options(subqueryload(
-            ReferenceModel.cross_reference)).filter(
-            CrossReferenceModel.curie == metadata["reference_curie"]).one_or_none()
+        ref_curie_res = db.query(ReferenceModel.curie).filter(
+            ReferenceModel.cross_reference.any(CrossReferenceModel.curie == metadata["reference_curie"])).one_or_none()
         if metadata["reference_curie"] is None:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail="The specified curie is not in the standard Alliance format and no cross "

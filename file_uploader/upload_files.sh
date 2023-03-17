@@ -11,16 +11,23 @@ OKTA_ACCESS_TOKEN=$(curl -s --request POST --url https://${OKTA_DOMAIN}/v1/token
     | jq '.access_token' | tr -d '"')
 
 upload_file () {
-  url="https://${API_SERVER}:${API_PORT}/reference/referencefile/file_upload/?reference_curie=${reference_id}&display_name=${display_name}&file_class=${file_class}&file_publication_status=${file_publication_status}&file_extension=${file_extension}&is_annotation=false"
+  url="http://${API_SERVER}:${API_PORT}/reference/referencefile/file_upload/?reference_curie=${reference_id}&display_name=${display_name}&file_class=${file_class}&file_publication_status=${file_publication_status}&file_extension=${file_extension}&is_annotation=false"
   if [[ ${pdf_type} != "null" ]]; then
     url="${url}&pdf_type=${pdf_type}"
   fi
-  curl --request POST --url ${url} \
+  response=$(curl -s --request POST --url ${url} \
     -H 'accept: application/json' \
     -H "Authorization: Bearer ${OKTA_ACCESS_TOKEN}" \
     -H 'Content-Type: multipart/form-data' \
     -F "file=@${filepath};type=text/plain" \
-    -F 'metadata_file='
+    -F 'metadata_file=')
+  if [[ $response == null ]]; then
+    upload_status="success"
+    response="empty response"
+  else
+    upload_status="error"
+  fi
+  echo "API_CALL_STATUS: ${upload_status}, RESPONSE: ${response}, FILE: ${filepath}"
 }
 
 extract_file_metadata() {
@@ -61,7 +68,7 @@ process_file() {
   else
     reference_id=$(basename $(dirname ${file_path}))
   fi
-  if [[ ${reference_id} =~ ^[0-9]{10}$ ]]; then
+  if [[ ${reference_id} =~ ^[0-9]{15}$ ]]; then
     reference_id="AGRKB:${reference_id}"
   elif [[ $MOD == "WB" ]]; then
     reference_id="WB:WBPaper${reference_id}"

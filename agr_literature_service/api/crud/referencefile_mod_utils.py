@@ -16,7 +16,7 @@ def create(db: Session, request: ReferencefileModSchemaPost):
     if referencefile and any(
             (ref_file_mod.mod.abbreviation if ref_file_mod.mod else ref_file_mod.mod) == request.mod_abbreviation for
             ref_file_mod in referencefile.referencefile_mods):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="The specified mod and reference file are already associated")
     if request.mod_abbreviation:
         mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == request.mod_abbreviation).one_or_none()
