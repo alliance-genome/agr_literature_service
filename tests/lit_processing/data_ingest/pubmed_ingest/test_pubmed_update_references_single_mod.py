@@ -1,9 +1,9 @@
 import json
 from os import path
 
-from agr_literature_service.api.models import ReferenceModel, ResourceModel, CrossReferenceModel
+from agr_literature_service.api.models import ReferenceModel, CrossReferenceModel, CitationModel
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import\
-    update_database, create_new_citation, update_reference_table, generate_pmids_with_info
+    update_database, update_reference_table, generate_pmids_with_info
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_pmid_to_reference_id, get_author_data
 from ....fixtures import load_sanitized_references, populate_test_mod_reference_types, db # noqa
@@ -67,14 +67,17 @@ class TestPubmedUpdateReferenceSingleMod:
                 assert "OLD2: " not in x.title
 
         ## test create_new_citation()
-        journal = None
-        if ref.resource_id:
-            res = db.query(ResourceModel).filter_by(resource_id=ref.resource_id).one_or_none()
-            journal = res.title
-        reference_id_to_authors = get_author_data(db, mod, reference_id_list, 50)
-        authors = reference_id_to_authors.get(pmid_to_reference_id[pmid])
-        citation = create_new_citation(authors, ref.date_published, ref.title,
-                                       journal, ref.volume, ref.issue_name, ref.page_range)
+        # journal = None
+        # if ref.resource_id:
+        #    res = db.query(ResourceModel).filter_by(resource_id=ref.resource_id).one_or_none()
+        #    journal = res.title
+        # reference_id_to_authors = get_author_data(db, mod, reference_id_list, 50)
+        # authors = reference_id_to_authors.get(pmid_to_reference_id[pmid])
+        # citation = create_new_citation(authors, ref.date_published, ref.title,
+        #                               journal, ref.volume, ref.issue_name, ref.page_range)
+        if ref.citation_id:
+            res = db.query(CitationModel).filter_by(citation_id=ref.citation_id).one_or_none()
+            citation = res.citation
         assert citation == ref.citation
 
         ## test generate_pmids_with_info()

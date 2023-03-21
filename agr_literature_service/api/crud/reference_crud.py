@@ -285,7 +285,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         if cit:
             reference_data["citation"] = cit.citation
             reference_data["short_citation"] = cit.short_citation
-      
+
     bad_cross_ref_ids = []
     if reference.cross_reference:
         cross_references = []
