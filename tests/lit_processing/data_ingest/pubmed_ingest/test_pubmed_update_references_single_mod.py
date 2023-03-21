@@ -53,14 +53,19 @@ class TestPubmedUpdateReferenceSingleMod:
                         pmid_to_reference_id, update_log, new_md5sum,
                         old_md5sum, json_path, pmids_with_json_updated,
                         bad_date_published)
-        ref = None
+
         for x in db.query(ReferenceModel).all():
             if x.reference_id == pmid_to_reference_id[pmid]:
-                ref = x
                 assert x.page_range == '8'
                 assert x.volume == '71'
                 assert x.title.startswith("Role of PGE")
                 assert "OLD: " not in x.title
+                # get citation
+                cit = db.query(CitationModel).filter_by(citation_id=x.reference_id).one_or_none()
+                if not cit:
+                    assert "No citation created" == "AHH"
+                else:
+                    assert cit.citation == "Fill in here"
             elif x.reference_id == pmid_to_reference_id[pmid2]:
                 assert x.issue_name == "1"
                 assert x.title.startswith("Mapping lung squamous cell")
@@ -75,10 +80,6 @@ class TestPubmedUpdateReferenceSingleMod:
         # authors = reference_id_to_authors.get(pmid_to_reference_id[pmid])
         # citation = create_new_citation(authors, ref.date_published, ref.title,
         #                               journal, ref.volume, ref.issue_name, ref.page_range)
-        if ref.citation_id:
-            res = db.query(CitationModel).filter_by(citation_id=ref.citation_id).one_or_none()
-            citation = res.citation
-        assert citation == ref.citation
 
         ## test generate_pmids_with_info()
         (ref_id_list, pmid_to_md5sum) = generate_pmids_with_info([pmid, pmid2],
