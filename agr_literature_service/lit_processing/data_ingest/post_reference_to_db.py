@@ -292,7 +292,7 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
             if entry.get('journal') in journal_to_resource_id:
                 (resource_id, journal_title) = journal_to_resource_id[entry.get('journal')]
 
-        citation = generate_citation(entry, journal_title)
+        # citation = generate_citation(entry, journal_title)
 
         curie = get_next_reference_curie(db_session)
 
@@ -316,7 +316,7 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
                    "volume": entry.get('volume', ''),
                    "issue_name": entry.get('issueName', ''),
                    "page_range": entry.get('pages', ''),
-                   "citation": citation,
+                   # "citation": citation,
                    "pubmed_types": entry.get('pubMedType', []),
                    "keywords": entry.get('keywords', []),
                    "category": entry.get('allianceCategory', 'Other').replace(' ', '_'),
