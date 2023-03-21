@@ -20,6 +20,7 @@ from agr_literature_service.api.triggers.citation import (
     trg_reference_update_citation,
     trg_reference_create_citation,
     trgfunc_reference_update_citation,
+    trgfunc_reference_create_citation,
     trg_resource_update_citation,
     trgfunc_resource_update_citation)
 
@@ -32,6 +33,7 @@ register_entities([update_citations,
                    trg_reference_update_citation,
                    trg_reference_create_citation,
                    trgfunc_reference_update_citation,
+                   trgfunc_reference_create_citation,
                    trg_resource_update_citation,
                    trgfunc_resource_update_citation])
 
