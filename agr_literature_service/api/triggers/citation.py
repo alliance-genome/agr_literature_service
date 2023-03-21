@@ -206,7 +206,7 @@ BEGIN
        NEW.issue_name != OLD.issue_name OR
        NEW.page_range != OLD.page_range OR
        NEW.date_published != OLD.date_published THEN
-         raise notice 'Calling update_citations with %', NEW.title; 
+         raise notice 'Calling update_citations with %', NEW.title;
          PERFORM update_citations(NEW.reference_id);
     ELSE
        raise notice 'Failed update critieria?';
