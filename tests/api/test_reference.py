@@ -94,9 +94,9 @@ class TestReference:
             response = client.patch(url=f"/reference/{test_reference.new_ref_curie}", json=updated_fields,
                                     headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
-            response = client.post(url=f"/reference/citationupdate/{test_reference.new_ref_curie}",
-                                   headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
+            # response = client.post(url=f"/reference/citationupdate/{test_reference.new_ref_curie}",
+            #                       headers=auth_headers)
+            # assert response.status_code == status.HTTP_201_CREATED
             updated_ref = client.get(url=f"/reference/{test_reference.new_ref_curie}").json()
             assert updated_ref["title"] == "new title"
             assert updated_ref["category"] == "book"
@@ -112,7 +112,7 @@ class TestReference:
             # catergory        : None -> thesis -> book
             updated_fields = {"title": "new title", "category": "book", "language": "New"}
             client.patch(url=f"/reference/{test_reference.new_ref_curie}", json=updated_fields, headers=auth_headers)
-            client.post(url=f"/reference/citationupdate/{test_reference.new_ref_curie}", headers=auth_headers)
+            # client.post(url=f"/reference/citationupdate/{test_reference.new_ref_curie}", headers=auth_headers)
             response = client.get(url=f"/reference/{test_reference.new_ref_curie}/versions")
             transactions = response.json()
             assert transactions[0]['changeset']['curie'][1] == test_reference.new_ref_curie

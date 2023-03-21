@@ -3,7 +3,7 @@ Citations are filled in via triggers and stored procedures.
 See api/triggers directory for more info.
 """
 
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base

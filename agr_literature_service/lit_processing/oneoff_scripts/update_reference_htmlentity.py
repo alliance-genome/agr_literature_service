@@ -4,7 +4,7 @@ from agr_literature_service.api.models import (
     AuthorModel,
     ReferenceModel
 )
-from agr_literature_service.api.crud.reference_crud import update_citation
+# from agr_literature_service.api.crud.reference_crud import update_citation
 import time
 
 
@@ -58,7 +58,7 @@ def update_author_entity():
                 ref_db_obj = db_session.query(ReferenceModel).filter(ReferenceModel.reference_id == reference_id).first()
                 if ref_db_obj:
                     curie = ref_db_obj.curie
-                    update_citation(db_session, curie)
+                    # update_citation(db_session, curie)
         db_session.close()
     except Exception as e:
         print('Error: ' + str(type(e)))

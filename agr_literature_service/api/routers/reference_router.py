@@ -182,10 +182,10 @@ def merge_references(old_curie: str,
     return reference_crud.merge_references(db, old_curie, new_curie)
 
 
-@router.post('/citationupdate/{curie}',
-             status_code=201)
-def update_citation(curie: str,
-                    user: OktaUser = db_user,
-                    db: Session = db_session):
-    set_global_user_from_okta(db, user)
-    return reference_crud.update_citation(db, curie)
+# @router.post('/citationupdate/{curie}',
+#              status_code=201)
+# def update_citation(curie: str,
+#                     user: OktaUser = db_user,
+#                     db: Session = db_session):
+#     set_global_user_from_okta(db, user)
+#     return reference_crud.update_citation(db, curie)

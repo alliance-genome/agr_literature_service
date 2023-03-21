@@ -114,9 +114,9 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
         logger.debug("finished processing {} {}".format(field, value))
 
     logger.debug("add reference")
-    reference_data['citation'] = citation_from_data(reference_data,
-                                                    "; ".join([x[0] for x in sorted(author_names_order,
-                                                                                    key=lambda x: x[1])]))
+    # reference_data['citation'] = citation_from_data(reference_data,
+    #                                                "; ".join([x[0] for x in sorted(author_names_order,
+    #                                                                                key=lambda x: x[1])]))
     reference_db_obj = ReferenceModel(**reference_data)
     logger.debug("have model, save to db")
     db.add(reference_db_obj)
@@ -522,20 +522,20 @@ def get_citation_from_obj(db: Session, ref_db_obj: ReferenceModel):
     return citation
 
 
-def update_citation(db: Session, curie: str):  # noqa
-    """
-    :param db:
-    :param curie:
-    :param http_request:
-    :return:
-    """
-    try:
-        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one()
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Reference with the id {curie} is not available")
+# def update_citation(db: Session, curie: str):  # noqa
+#     """
+#     :param db:
+#     :param curie:
+#     :param http_request:
+#     :return:
+#     """
+#     try:
+#         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one()
+#     except Exception:
+#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+#                             detail=f"Reference with the id {curie} is not available")
 
-    new_citation = get_citation_from_obj(db, reference)
-    if new_citation != reference.citation:
-        reference.citation = new_citation
-        db.commit()
+#     new_citation = get_citation_from_obj(db, reference)
+#     if new_citation != reference.citation:
+#         reference.citation = new_citation
+#         db.commit()
