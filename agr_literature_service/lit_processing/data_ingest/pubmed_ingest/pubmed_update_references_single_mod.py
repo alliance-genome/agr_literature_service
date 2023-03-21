@@ -469,21 +469,21 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
 
     has_update = 0
     for colName in refColName_to_update:
-        if colName == 'citation':
-            new_citation = create_new_citation(json_data.get('authors', []), str(json_data.get('datePublished', '')),
-                                               json_data.get('title', ''),
-                                               journal_title,
-                                               json_data.get('volume', ''),
-                                               json_data.get('issueName', ''),
-                                               json_data.get('pages', ''))
-            # print("PMID:" + str(pmid) + ": old citation: " + x.citation)
-            # print("PMID:" + str(pmid) + ": new citation: " + new_citation)
-            if x.citation != new_citation:
-                fw.write("PMID:" + str(pmid) + ": citation is updated from " + x.citation + " to " + new_citation + "\n")
-                x.citation = new_citation
-                has_update = has_update + 1
-                update_log['citation'] = update_log['citation'] + 1
-        elif colName == 'resource_id' and new_resource_id and new_resource_id != x.resource_id:
+        # if colName == 'citation':
+        #     new_citation = create_new_citation(json_data.get('authors', []), str(json_data.get('datePublished', '')),
+        #                                        json_data.get('title', ''),
+        #                                        journal_title,
+        #                                        json_data.get('volume', ''),
+        #                                        json_data.get('issueName', ''),
+        #                                        json_data.get('pages', ''))
+        #     # print("PMID:" + str(pmid) + ": old citation: " + x.citation)
+        #     # print("PMID:" + str(pmid) + ": new citation: " + new_citation)
+        #     if x.citation != new_citation:
+        #         fw.write("PMID:" + str(pmid) + ": citation is updated from " + x.citation + " to " + new_citation + "\n")
+        #         x.citation = new_citation
+        #         has_update = has_update + 1
+        #         update_log['citation'] = update_log['citation'] + 1
+        if colName == 'resource_id' and new_resource_id and new_resource_id != x.resource_id:
             fw.write("PMID:" + str(pmid) + ": resource_id is updated from " + str(x.resource_id) + " to " + str(new_resource_id) + "\n")
             x.resource_id = new_resource_id
             has_update = has_update + 1

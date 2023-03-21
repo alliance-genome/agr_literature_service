@@ -25,7 +25,8 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ReferenceCommentAndCorrectionModel,
                                                ReferenceModel,
                                                ResourceModel,
-                                               CopyrightLicenseModel)
+                                               CopyrightLicenseModel,
+                                               CitationModel)
 from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.workflow_tag_crud import (
@@ -278,6 +279,13 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             reference_data["copyright_license_description"] = crl.description
             reference_data["copyright_license_open_access"] = crl.open_access
 
+    if reference.citation_id:
+        cit = db.query(CitationModel).filter_by(
+            citation_id=reference.citation_id).one_or_none()
+        if cit:
+            reference_data["citation"] = cit.citation
+            reference_data["short_citation"] = cit.short_citation
+      
     bad_cross_ref_ids = []
     if reference.cross_reference:
         cross_references = []
