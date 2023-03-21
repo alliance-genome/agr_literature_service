@@ -201,10 +201,17 @@ class ReferenceModel(Base, AuditedModel):
         cascade="all, delete, delete-orphan"
     )
 
-    citation = Column(
-        String(),
-        unique=False,
+    citation_id = Column(
+        Integer,
+        ForeignKey("citation.citation_id"),
+        index=True,
         nullable=True
+    )
+
+    citation = relationship(
+        "CitationModel",
+        back_populates="reference",
+        single_parent=True,
     )
 
     workflow_tag = relationship(

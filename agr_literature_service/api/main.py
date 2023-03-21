@@ -24,7 +24,6 @@ from agr_literature_service.api.routers import (author_router, bulk_downloads_ro
                                                 topic_entity_tag_prop_router, referencefile_router,
                                                 referencefile_mod_router)
 
-
 title = "Alliance Literature Service"
 version = "0.1.0"
 description = "This service provides access to the Alliance Bibliographic Corpus and metadata"
