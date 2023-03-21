@@ -55,10 +55,10 @@ def update_author_entity():
                     setattr(author_db_obj, key, value)
                     # print("will update key:" + key)
                 db_session.commit()
-                ref_db_obj = db_session.query(ReferenceModel).filter(ReferenceModel.reference_id == reference_id).first()
-                if ref_db_obj:
-                    curie = ref_db_obj.curie
-                    # update_citation(db_session, curie)
+                db_session.query(ReferenceModel).filter(ReferenceModel.reference_id == reference_id).first()
+                # if ref_db_obj:
+                #     curie = ref_db_obj.curie
+                #     update_citation(db_session, curie)
         db_session.close()
     except Exception as e:
         print('Error: ' + str(type(e)))

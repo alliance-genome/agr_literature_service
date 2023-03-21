@@ -17,5 +17,4 @@ types-ujson
 types-docutils
 types-python-dateutil
 types-retry
-sqlalchemy[mypy]
 alembic_utils
