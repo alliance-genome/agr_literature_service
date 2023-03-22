@@ -285,7 +285,8 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         if cit:
             reference_data["citation"] = cit.citation
             reference_data["short_citation"] = cit.short_citation
-
+        else:
+            logger.warning(f"ref: {reference} has no citation, id is {reference.citation_id}")
     bad_cross_ref_ids = []
     if reference.cross_reference:
         cross_references = []
