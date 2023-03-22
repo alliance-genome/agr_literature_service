@@ -59,6 +59,7 @@ def get_reference(db: Session, curie_or_reference_id: str, load_referencefiles: 
             query = query.options(options)
         reference = query.filter(or_(ReferenceModel.curie == curie_or_reference_id,
                                      ReferenceModel.reference_id == reference_id)).one()
+        logger.warning(f"BOB: citation_id for ref {reference.curie} is {reference.citation_id}")
     except Exception:
         if reference_id is None:
             reference = get_merged(db, curie_or_reference_id, options)
