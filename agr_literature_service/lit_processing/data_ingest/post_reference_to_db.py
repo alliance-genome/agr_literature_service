@@ -339,6 +339,12 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
         db_session.refresh(x)
         reference_id = x.reference_id
         log.info(primaryId + ": INSERT REFERENCE")
+        # remove after testing from here to except.
+        log.warning(f"BOB: cit_id:{x.citation_id} ")
+        db_session.expunge(x)
+        x = db.query(ReferenceModel).filter_by(reference_id==x.reference_id).one_or_none()
+        log.warning(f"BOB2: cit_id:{x.citation_id} ")
+
     except Exception as e:
         log.info(primaryId + ": INSERT REFERENCE failed " + str(e))
 
