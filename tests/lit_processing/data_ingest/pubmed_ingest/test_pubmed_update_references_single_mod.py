@@ -61,7 +61,7 @@ class TestPubmedUpdateReferenceSingleMod:
                 assert x.title.startswith("Role of PGE")
                 assert "OLD: " not in x.title
                 # get citation
-                cit = db.query(CitationModel).filter_by(citation_id=x.reference_id).one_or_none()
+                cit = db.query(CitationModel).filter_by(citation_id=x.citation_id).one_or_none()
                 if not cit:
                     assert "No citation created" == "AHH"
                 else:

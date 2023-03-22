@@ -28,7 +28,7 @@ DECLARE
 --   <year>,
 --   <resource abbrev>
 --   <volume>(<issue>):<page(s)>
-   short_citation TEXT default '';
+   sht_citation TEXT default '';
    author_short author.name%type default '';
    ref_year reference.page_range%type;
    res_abbr TEXT default '';
@@ -36,7 +36,7 @@ DECLARE
    volume reference.volume%type;
    issue_name reference.issue_name%type;
    page_range reference.page_range%type;
-   citation_id integer;
+   citation_identifier integer;
    --- build <volume>(<issue>):<page(s)> into ref_details
    ref_details TEXT default '';
    -- used in querys for short
@@ -49,7 +49,7 @@ DECLARE
 --                                     ref_db_obj.volume or '',
 --                                     ref_db_obj.issue_name or '',
 --                                     ref_db_obj.page_range or '')
-   citation TEXT default '';
+   long_citation TEXT default '';
    -- volume, issue and page range same as short citation
    title reference.title%type;
    authors author.name%type default ' ';
@@ -102,7 +102,7 @@ BEGIN
     END IF;
 
     -- Reference details
-    SELECT ref.title, ref.volume, ref.issue_name, ref.page_range, SUBSTRING(ref.date_published, 1,4), ref.citation_id into title, volume, issue_name, page_range, ref_year, citation_id
+    SELECT ref.title, ref.volume, ref.issue_name, ref.page_range, SUBSTRING(ref.date_published, 1,4), ref.citation_id into title, volume, issue_name, page_range, ref_year, citation_identifier
       FROM reference ref
       WHERE reference_id = ref_id;
     if title is NULL THEN
@@ -128,24 +128,24 @@ BEGIN
     ref_details := volume || ' (' || issue_name || '): ' || page_range;
     raise notice 'rd: %', ref_details;
     raise notice 'tit: %', title;
-    citation := authors || ', (' || ref_year || ') ' || title;
-    citation := citation || ' ' || journal || ' ' || ref_details;
-    raise notice '%', citation;
+    long_citation := authors || ', (' || ref_year || ') ' || title;
+    long_citation := long_citation || ' ' || journal || ' ' || ref_details;
+    raise notice '%', long_citation;
 
 
-    short_citation :=  author_short || ', ' || ref_year || ', ' || res_abbr || ', ' || ref_details;
-    -- raise notice '%', short_citation;
-    IF citation_id is NULL THEN
-      raise notice 'sh cit: %', short_citation;
-      raise notice 'cit: %', citation;
-      INSERT INTO citation (citation, short_citation) VALUES (citation, short_citation);
-      citation_id := (SELECT currval('citation_citation_id_seq'));
-      raise notice 'citation_id %', citation_id;
+    sht_citation :=  author_short || ', ' || ref_year || ', ' || res_abbr || ', ' || ref_details;
+    -- raise notice '%', sht_citation;
+    IF citation_identifier is NULL THEN
+      raise notice 'sh cit: %', sht_citation;
+      raise notice 'cit: %', long_citation;
+      INSERT INTO citation (citation, short_citation) VALUES (long_citation, sht_citation);
+      citation_identifier := (SELECT currval('citation_citation_id_seq'));
+      raise notice 'citation_id %', citation_identifier;
       --RETURNING citation_id into citation_id;
       UPDATE reference SET citation_id = get_next_citation_id() WHERE reference.reference_id = ref_id;
     ELSE
-      UPDATE citation SET citation = citation, citation_short = short_citation
-        WHERE citation.citation_id = citation_id;
+      UPDATE citation SET citation = long_citation, short_citation = sht_citation
+        WHERE citation.citation_id = citation_identifier;
     END IF;
     return 'DONE';
 END $$ language plpgsql;
