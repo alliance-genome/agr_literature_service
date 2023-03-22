@@ -342,7 +342,7 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
         # remove after testing from here to except.
         log.warning(f"BOB: cit_id:{x.citation_id} ")
         db_session.expunge(x)
-        x = db.query(ReferenceModel).filter_by(reference_id==x.reference_id).one_or_none()
+        x = db_session.query(ReferenceModel).filter_by(reference_id=x.reference_id).one_or_none()
         log.warning(f"BOB2: cit_id:{x.citation_id} ")
 
     except Exception as e:
