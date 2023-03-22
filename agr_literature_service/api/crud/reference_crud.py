@@ -289,6 +289,9 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             logger.warning(f"ref: {reference} has no citation, id is {reference.citation_id}")
             reference_data["citation"] = f'No citation lookup failed for ref:{reference.curie} cit_id:{reference.citation_id}'
             reference_data["short_citation"] = 'Problem No short citation'
+    else:
+        reference_data["citation"] = f'No citation_id for ref:{reference.curie}'
+        reference_data["short_citation"] = f'No citation_id for ref:{reference.curie}'
 
     bad_cross_ref_ids = []
     if reference.cross_reference:
