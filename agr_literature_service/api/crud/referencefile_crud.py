@@ -172,8 +172,10 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
                 referencefile.file_extension != metadata["file_extension"] or \
                 referencefile.pdf_type != metadata["pdf_type"]:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail="Metadata for the provided md5sum and reference curie is already present in the"
-                                       " system but it's not compatible with the provided metadata, so no new "
+                                detail=f"Metadata for the provided md5sum and reference curie "
+                                       f"{referencefile.reference.curie} is already present in the"
+                                       f" system with name {referencefile.display_name}.{referencefile.file_extension} "
+                                       f"but it's not compatible with the provided metadata, so no new "
                                        "connection to the provided mod has been created.")
         mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
         create_mod_connection(db, ReferencefileModSchemaPost(referencefile_id=referencefile.referencefile_id,
