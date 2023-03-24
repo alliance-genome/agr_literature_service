@@ -10,11 +10,16 @@ OKTA_ACCESS_TOKEN=$(curl -s --request POST --url https://${OKTA_DOMAIN}/v1/token
   --data "grant_type=client_credentials&scope=admin&client_id=${OKTA_CLIENT_ID}&client_secret=${OKTA_CLIENT_SECRET}" \
     | jq '.access_token' | tr -d '"')
 
+urlencode () {
+  printf %s "$1" | jq -sRr @uri
+}
+
 upload_file () {
   url="https://${API_SERVER}"
   if [[ ${API_PORT} != "" && ${API_PORT} != "80" ]]; then
     url="${url}:${API_PORT}"
   fi
+  display_name=$(urlencode ${display_name})
   url="${url}/reference/referencefile/file_upload/?reference_curie=${reference_id}&display_name=${display_name}&file_class=${file_class}&file_publication_status=${file_publication_status}&file_extension=${file_extension}&is_annotation=false&mod_abbreviation=${MOD}"
   if [[ ${pdf_type} != "null" ]]; then
     url="${url}&pdf_type=${pdf_type}"
@@ -36,9 +41,12 @@ upload_file () {
 
 extract_file_metadata() {
   filepath=$1
-  filename=$(basename ${filepath})
+  filename=$(basename "${filepath}")
   display_name="${filename%.*}"
   file_extension="${filename##*.}"
+  if [[ ${file_extension} == "pdf" ]]; then
+    pdf_type="pdf"
+  fi
 }
 
 parse_main_filename() {
@@ -57,6 +65,8 @@ parse_main_filename() {
     pdf_type="html"
   elif [[ "${additional_options,,}" == "lib" ]]; then
     pdf_type="lib"
+  elif [[ "${additional_options,,}" == "tif" ]]; then
+    pdf_type="tif"
   fi
 }
 
@@ -66,7 +76,7 @@ process_file() {
   echo "Processing ${file_class} file ${file_path}"
   file_publication_status="final"
   pdf_type="null"
-  extract_file_metadata $file_path
+  extract_file_metadata "$file_path"
   if [[ ${file_class} == "main" ]]; then
     parse_main_filename
   else
@@ -91,7 +101,7 @@ for reffileordir in /usr/files_to_upload/*; do
     echo "Processing supplemental files from ${reffileordir}"
     for reffile in ${reffileordir}/*; do
       if [[ ! -d ${reffile} && $(basename ${reffile}) != "*" ]]; then
-        process_file ${reffile} "supplement"
+        process_file "${reffile}" "supplement"
       else
         echo "Found empty dir or subdir for reference ${reffileordir}"
       fi
