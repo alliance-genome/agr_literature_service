@@ -19,7 +19,7 @@ upload_file () {
   if [[ ${API_PORT} != "" && ${API_PORT} != "80" ]]; then
     url="${url}:${API_PORT}"
   fi
-  display_name=$(urlencode ${display_name})
+  display_name=$(urlencode "${display_name}")
   url="${url}/reference/referencefile/file_upload/?reference_curie=${reference_id}&display_name=${display_name}&file_class=${file_class}&file_publication_status=${file_publication_status}&file_extension=${file_extension}&is_annotation=false&mod_abbreviation=${MOD}"
   if [[ ${pdf_type} != "null" ]]; then
     url="${url}&pdf_type=${pdf_type}"
