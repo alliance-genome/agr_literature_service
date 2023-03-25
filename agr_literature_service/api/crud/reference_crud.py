@@ -539,3 +539,32 @@ def update_citation(db: Session, curie: str):  # noqa
     if new_citation != reference.citation:
         reference.citation = new_citation
         db.commit()
+
+
+def add_license(db: Session, curie: str, license: str):  # noqa
+    """
+    :param db:
+    :param curie:
+    :param license:
+    :return:
+    """
+    try:
+        reference = db.query(ReferenceModel).filter_by(curie=curie).one()
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Reference with the id '{curie}' is not in the database.")
+
+    license = license.replace('+', ' ')
+    try:
+        copyrightLicense = db.query(CopyrightLicenseModel).filter_by(name=license).one()
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Copyright_license with the name '{license}' is not in the database.")
+
+    try:
+        reference.copyright_license_id = copyrightLicense.copyright_license_id
+        db.commit()
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Error adding license '{license}'")
+    return {"message": f"The license '{license}' has been associated with reference with ID '{curie}'"}
