@@ -191,15 +191,12 @@ def update_citation(curie: str,
     return reference_crud.update_citation(db, curie)
 
 
-@router.get('/add_license/{curie}/{license}',
-            status_code=201)
+@router.post('/add_license/{curie}/{license}',
+             status_code=201)
 def add_license(curie: str,
                 license: str,
+                user: OktaUser = db_user,
                 db: Session = db_session):
 
-    if curie is None or license is None:
-        return {
-            "message": "You need to pass in reference 'curie' and copyright 'license' name."
-        }
-
+    set_global_user_from_okta(db, user)
     return reference_crud.add_license(db, curie, license)
