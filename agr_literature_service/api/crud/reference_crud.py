@@ -555,16 +555,18 @@ def add_license(db: Session, curie: str, license: str):  # noqa
                             detail=f"Reference with the id '{curie}' is not in the database.")
 
     license = license.replace('+', ' ')
+    copyright_license_id = None
+    if license != '':
+        try:
+            copyrightLicense = db.query(CopyrightLicenseModel).filter_by(name=license).one()
+        except Exception:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"Copyright_license with the name '{license}' is not in the database.")
+        copyright_license_id = copyrightLicense.copyright_license_id
     try:
-        copyrightLicense = db.query(CopyrightLicenseModel).filter_by(name=license).one()
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Copyright_license with the name '{license}' is not in the database.")
-
-    try:
-        reference.copyright_license_id = copyrightLicense.copyright_license_id
+        reference.copyright_license_id = copyright_license_id
         db.commit()
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Error adding license '{license}'")
-    return {"message": f"The license '{license}' has been associated with reference with ID '{curie}'"}
+    return {"message": "Update Success!"}
