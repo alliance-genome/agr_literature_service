@@ -31,5 +31,5 @@ class TestCopyrightLicense:
         with TestClient(app) as client:
             response = client.get(url="/copyright_license/all")
             assert response.status_code == status.HTTP_200_OK
-            assert response.json()["name"] == "test license name"
-            assert response.json()["open_access"] is True
+            assert response.json()[0]["name"] == "test license name"
+            assert response.json()[0]["open_access"] is True
