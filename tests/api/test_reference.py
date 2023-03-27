@@ -99,8 +99,8 @@ class TestReference:
             assert response.status_code == status.HTTP_201_CREATED
             license_name = "CC BY"
             test_license = {
-                "name": "test license name",
-                "url": license_name,
+                "name": license_name,
+                "url": "test url",
                 "description": "test description",
                 "open_access": True
             }
