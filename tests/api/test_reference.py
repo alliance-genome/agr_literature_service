@@ -97,10 +97,18 @@ class TestReference:
             response = client.post(url=f"/reference/citationupdate/{test_reference.new_ref_curie}",
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-            license = "CC BY"
-            response = client.post(url=f"/reference/add_license/{test_reference.new_ref_curie}/{license}",
+            license_name = "CC BY"
+            test_license = {
+                "name": "test license name",
+                "url": license_name,
+                "description": "test description",
+                "open_access": True
+            }
+            response = client.post(url="/copyright_license/", json=test_license, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            response = client.post(url=f"/reference/add_license/{test_reference.new_ref_curie}/{license_name}",
                                    headers=auth_headers)
-            # assert response.status_code == status.HTTP_201_CREATED
+            assert response.status_code == status.HTTP_201_CREATED
             updated_ref = client.get(url=f"/reference/{test_reference.new_ref_curie}").json()
             assert updated_ref["title"] == "new title"
             assert updated_ref["category"] == "book"
