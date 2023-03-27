@@ -12,7 +12,7 @@ class CopyrightLicenseSchemaPost(BaseModel):
         extra = "forbid"
 
 
-class ModSchemaShow(CopyrightLicenseSchemaPost):
+class CopyrightLicenseSchemaShow(CopyrightLicenseSchemaPost):
     copyright_license_id: int
     name: str
     url: str
