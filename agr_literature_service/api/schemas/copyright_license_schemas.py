@@ -10,11 +10,3 @@ class CopyrightLicenseSchemaPost(BaseModel):
     class Config():
         orm_mode = True
         extra = "forbid"
-
-
-class CopyrightLicenseSchemaShow(CopyrightLicenseSchemaPost):
-    copyright_license_id: int
-    name: str
-    url: str
-    description: str
-    open_access: bool

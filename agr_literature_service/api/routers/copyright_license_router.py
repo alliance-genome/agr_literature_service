@@ -5,10 +5,7 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import copyright_license_crud
 from agr_literature_service.api.routers.authentication import auth
-from agr_literature_service.api.schemas import (
-    CopyrightLicenseSchemaPost,
-    CopyrightLicenseSchemaShow
-)
+from agr_literature_service.api.schemas import CopyrightLicenseSchemaPost
 from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
@@ -30,14 +27,6 @@ def create(request: CopyrightLicenseSchemaPost,
            db: Session = db_session):
     set_global_user_from_okta(db, user)
     return copyright_license_crud.create(db, request)
-
-
-@router.get('/{license}',
-            response_model=CopyrightLicenseSchemaShow,
-            status_code=200)
-def show(abbreviation: str,
-         db: Session = db_session):
-    return copyright_license_crud.show(db, license)
 
 
 @router.get('/all',
