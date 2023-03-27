@@ -97,7 +97,7 @@ class TestReference:
             response = client.post(url=f"/reference/citationupdate/{test_reference.new_ref_curie}",
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-            response = client.post(url=f"/reference/all_license/{test_reference.new_ref_curie}/CC+BY",
+            response = client.post(url=f"/reference/add_license/{test_reference.new_ref_curie}/CC+BY",
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
             updated_ref = client.get(url=f"/reference/{test_reference.new_ref_curie}").json()
