@@ -27,7 +27,7 @@ def test_copyright_license(db, auth_headers): # noqa
 
 class TestCopyrightLicense:
 
-    def test_show_all(self, test_license): # noqa
+    def test_show_all(self, test_copyright_license): # noqa
         with TestClient(app) as client:
             response = client.get(url="/copyright_license/all")
             assert response.status_code == status.HTTP_200_OK
