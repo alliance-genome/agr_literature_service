@@ -98,8 +98,5 @@ from agr_literature_service.api.schemas.reference_schemas import (
     ReferenceSchemaShow,
     ReferenceSchemaNeedReviewShow)
 
-from agr_literature_service.api.schemas.copyright_license_schemas import (
-    CopyrightLicenseSchemaPost,
-    CopyrightLicenseSchemaShow)
-
+from agr_literature_service.api.schemas.copyright_license_schemas import CopyrightLicenseSchemaPost
 from agr_literature_service.api.schemas.search_schemas import FacetsOptionsSchema
