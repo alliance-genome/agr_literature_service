@@ -189,3 +189,14 @@ def update_citation(curie: str,
                     db: Session = db_session):
     set_global_user_from_okta(db, user)
     return reference_crud.update_citation(db, curie)
+
+
+@router.post('/add_license/{curie}/{license}',
+             status_code=201)
+def add_license(curie: str,
+                license: str,
+                user: OktaUser = db_user,
+                db: Session = db_session):
+
+    set_global_user_from_okta(db, user)
+    return reference_crud.add_license(db, curie, license)
