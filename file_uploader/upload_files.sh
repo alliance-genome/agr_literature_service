@@ -80,7 +80,7 @@ process_file() {
   if [[ ${file_class} == "main" ]]; then
     parse_main_filename
   else
-    reference_id=$(basename $(dirname ${file_path}))
+    reference_id=$(basename $(dirname "${file_path}"))
   fi
   if [[ ${reference_id} =~ ^[0-9]{15}$ ]]; then
     reference_id="AGRKB:${reference_id}"
@@ -100,13 +100,13 @@ for reffileordir in /usr/files_to_upload/*; do
   if [[ -d ${reffileordir} ]]; then
     echo "Processing supplemental files from ${reffileordir}"
     for reffile in ${reffileordir}/*; do
-      if [[ ! -d ${reffile} && $(basename ${reffile}) != "*" ]]; then
+      if [[ ! -d "${reffile}" && $(basename "${reffile}") != "*" ]]; then
         process_file "${reffile}" "supplement"
       else
         echo "Found empty dir or subdir for reference ${reffileordir}"
       fi
     done
   else
-    process_file ${reffileordir} "main"
+    process_file "${reffileordir}" "main"
   fi
 done
