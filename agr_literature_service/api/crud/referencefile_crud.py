@@ -187,6 +187,21 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
         # 2 possible cases here: i) an entry with the same md5sum does not exist; ii) same md5sum exists, but it's
         # associated with a different curie (same file content for different files or same files). In both cases we need
         # to create a new referencefile and associate it with the specified ref and mod
+
+        # check if a different version of the same file (same display_name and file_extension) is already associated
+        # with the same reference
+        ref_file_same_name = db.query(ReferencefileModel).filter(
+            and_(
+                ReferencefileModel.display_name == metadata["display_name"],
+                ReferencefileModel.file_extension == metadata["file_extension"],
+                ReferencefileModel.reference.has(ReferenceModel.curie == metadata["reference_curie"]),
+
+            )
+        ).one_or_none()
+        if ref_file_same_name is not None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"A different version of the same file (same display name and file extension) is "
+                                       f"already present in the system with md5sum {ref_file_same_name.md5sum}")
         create_request = ReferencefileSchemaPost(md5sum=md5sum, **metadata)
         create_metadata(db, create_request)
         file.file.seek(0)
