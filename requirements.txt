@@ -5,7 +5,6 @@ uvicorn[standard]==0.15.0
 starlette==0.14.2
 aiofiles==0.6.0
 alembic==1.4.3
-alembic_utils
 async-exit-stack==1.0.1
 async-generator==1.10
 asyncio==3.4.3

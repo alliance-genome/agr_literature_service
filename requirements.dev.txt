@@ -17,4 +17,3 @@ types-ujson
 types-docutils
 types-python-dateutil
 types-retry
-alembic_utils
