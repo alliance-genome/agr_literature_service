@@ -9,34 +9,6 @@ from sqlalchemy_continuum import make_versioned
 from agr_literature_service.api.database.base import Base
 from sqlalchemy.orm import configure_mappers
 
-from alembic_utils.replaceable_entity import register_entities
-from agr_literature_service.api.triggers.citation import (
-    update_citations,
-    get_next_citation_id,
-    trg_author_update_citation,
-    trg_author_create_citation,
-    trg_author_delete_citation,
-    trgfunc_author_update_citation,
-    trg_reference_update_citation,
-    trg_reference_create_citation,
-    trgfunc_reference_update_citation,
-    trgfunc_reference_create_citation,
-    trg_resource_update_citation,
-    trgfunc_resource_update_citation)
-
-register_entities([update_citations,
-                   get_next_citation_id,
-                   trg_author_update_citation,
-                   trg_author_create_citation,
-                   trg_author_delete_citation,
-                   trgfunc_author_update_citation,
-                   trg_reference_update_citation,
-                   trg_reference_create_citation,
-                   trgfunc_reference_update_citation,
-                   trgfunc_reference_create_citation,
-                   trg_resource_update_citation,
-                   trgfunc_resource_update_citation])
-
 # from literature.database.versioning import enable_versioning
 # enable_versioning()
 
