@@ -98,7 +98,7 @@ def run():
     # LOGGING_CONFIG["formatters"]["default"]["fmt"] = "%(asctime)s [%(name)s] %(levelprefix)s %(message)s"
     # LOGGING_CONFIG["formatters"]["access"]["fmt"] = '%(asctime)s [%(name)s] %(levelprefix)s %(client_addr)s - ' \
     #                                                 '"%(request_line)s" %(status_code)s'
-    print(SQLALCHEMY_DATABASE_URL)
+    print(f"run: Database details are {SQLALCHEMY_DATABASE_URL}")
     state = environ.get('ENV_STATE')
     if state == 'test':
         log_level = logging.DEBUG
