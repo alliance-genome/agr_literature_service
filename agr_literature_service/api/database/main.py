@@ -9,7 +9,7 @@ from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
-
+from agr_literature_service.api.triggers.triggers import add_sql_triggers_functions
 
 metadata = MetaData()
 
@@ -40,3 +40,8 @@ db_session = Depends(get_db)
 
 def is_database_online(session: Session = db_session):
     return {"database": "online"} if session else False
+
+
+def create_all_triggers():
+    db_session = next(get_db(), None)
+    add_sql_triggers_functions(db_session)
