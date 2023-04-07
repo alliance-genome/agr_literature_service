@@ -54,7 +54,9 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
             md5sum = pieces[3]
             file_name_with_suffix = pieces[2]
             if (reference_id, file_name_with_suffix) in ref_file_uniq_filename_set:
-                file_name_with_suffix = resolve_displayname_conflict(file_name_with_suffix)
+                file_name_with_suffix = resolve_displayname_conflict(ref_file_uniq_filename_set,
+                                                                     file_name_with_suffix,
+                                                                     reference_id)
             referencefile_id = None
             if (reference_id, md5sum) in ref_file_key_dbid:
                 referencefile_id = ref_file_key_dbid[(reference_id, md5sum)]
@@ -80,11 +82,24 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
         db_session.close()
 
 
-def resolve_displayname_conflict(file_name_with_suffix):
+def resolve_displayname_conflict(ref_file_uniq_filename_set, file_name_with_suffix, reference_id):
+    # The function first extracts the file extension from the given "file_name_with_suffix",
+    # and then appends _1 to the name portion of the filename. The file extension is then
+    # added back to the modified filename.
+    #
+    # Next, the function checks if the modified filename already exists in the set
+    # "ref_file_uniq_filename_set" using a tuple containing the reference_id and the
+    # modified filename. If the tuple is found in the set, the function calls itself
+    # recursively with the modified filename to try a new name. If the modified filename
+    # is not found in the set, it is returned as the unique filename.
 
     file_extension = file_name_with_suffix.split(".")[-1].lower()
     display_name = file_name_with_suffix.replace("." + file_extension, "") + "_1"
-    return display_name + "." + file_extension
+    file_name_with_suffix = display_name + "." + file_extension
+    if (reference_id, file_name_with_suffix) in ref_file_uniq_filename_set:
+        resolve_displayname_conflict(ref_file_uniq_filename_set, file_name_with_suffix, reference_id)
+    else:
+        return file_name_with_suffix
 
 
 if __name__ == "__main__":
