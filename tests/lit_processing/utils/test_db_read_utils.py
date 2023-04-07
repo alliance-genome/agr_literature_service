@@ -181,7 +181,10 @@ class TestDbReadUtils:
         assert refFile.md5sum == md5sum
 
         pmids = get_pmid_list_without_pmc_package(['ZFIN'], db)
-        assert pmids == ['34354223', '35151207']
+        pmid_list = ['34354223', '35151207']
+        pmids.sort()
+        pmid_list.sort()
+        assert pmids == pmid_list
 
         pmid_to_reference_id = get_pmid_to_reference_id_mapping(db)
         assert pmid_to_reference_id.get(pmid) == reference_id
