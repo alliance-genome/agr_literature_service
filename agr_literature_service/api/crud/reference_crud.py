@@ -574,7 +574,8 @@ def add_license(db: Session, curie: str, license: str):  # noqa
 def missing_files (db: Session, mod_id: int):
     try:
         rs = db.execute(
-            "SELECT reference.curie, MAINCOUNT, SUPCOUNT
+            """
+            SELECT reference.curie, MAINCOUNT, SUPCOUNT
             FROM reference,
                 (SELECT b.reference_id, COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
                 COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
@@ -586,7 +587,8 @@ def missing_files (db: Session, mod_id: int):
                 OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1
                 LIMIT 100)
                 AS sub_select
-            WHERE sub_select.reference_id=reference.reference_id"
+            WHERE sub_select.reference_id=reference.reference_id
+            """
         )
         rows = rs.fetchall()
         data = json.dumps( [dict(ix) for ix in rows] )
