@@ -83,23 +83,27 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
 
 
 def resolve_displayname_conflict(ref_file_uniq_filename_set, file_name_with_suffix, reference_id):
-    # The function first extracts the file extension from the given "file_name_with_suffix",
-    # and then appends _1 to the name portion of the filename. The file extension is then
-    # added back to the modified filename.
+    # this function that appends an increasing number to the base file name until
+    # a unique file name is found:
     #
-    # Next, the function checks if the modified filename already exists in the set
-    # "ref_file_uniq_filename_set" using a tuple containing the reference_id and the
-    # modified filename. If the tuple is found in the set, the function calls itself
-    # recursively with the modified filename to try a new name. If the modified filename
-    # is not found in the set, it is returned as the unique filename.
+    # We first extract the base name from the input "file_name_with_suffix",
+    # and initialize a counter to 1. We then append the current count value to the
+    # base name to form the new display name.
+    #
+    # If the (reference_id, file_name_with_suffix) tuple is already present in the
+    # "ref_file_uniq_filename_set", we increment the counter, update the display name,
+    # and try again. We repeat this process until a unique file name is found.
 
     file_extension = file_name_with_suffix.split(".")[-1].lower()
-    display_name = file_name_with_suffix.replace("." + file_extension, "") + "_1"
+    base_name = file_name_with_suffix.replace("." + file_extension, "")
+    count = 1
+    display_name = base_name + "_" + str(count)
     file_name_with_suffix = display_name + "." + file_extension
-    if (reference_id, file_name_with_suffix) in ref_file_uniq_filename_set:
-        resolve_displayname_conflict(ref_file_uniq_filename_set, file_name_with_suffix, reference_id)
-    else:
-        return file_name_with_suffix
+    while (reference_id, file_name_with_suffix) in ref_file_uniq_filename_set:
+        count += 1
+        display_name = base_name + "_" + str(count)
+        file_name_with_suffix = display_name + "." + file_extension
+    return file_name_with_suffix
 
 
 if __name__ == "__main__":
