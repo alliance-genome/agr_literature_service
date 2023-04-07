@@ -159,7 +159,7 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
         md5sum_hash.update(byte_block)
     md5sum = md5sum_hash.hexdigest()
     folder = get_s3_folder_from_md5sum(md5sum)
-    referencefile = db.query(ReferencefileModel).filter(
+    referencefile: ReferencefileModel = db.query(ReferencefileModel).filter(
         and_(
             ReferencefileModel.md5sum == md5sum,
             ReferencefileModel.reference.has(ReferenceModel.curie == metadata["reference_curie"])
@@ -168,7 +168,11 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
     if referencefile is not None:
         # the file already exists, and it's already associated with the provided reference, but the metadata in the
         # request may be incompatible with the one in the db. The metadata in the db will not be modified and a new
-        # connection between the file and the mod will be created
+        # connection between the file and the mod will be created. If the uploaded file is "temp", the file publication
+        # status will be updated and set to "temp" even if another MOD uploaded it as "final"
+        if metadata["file_publication_status"] == "temp" and referencefile.file_publication_status != "temp":
+            referencefile.file_publication_status = "temp"
+        db.commit()
         mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
         create_mod_connection(db, ReferencefileModSchemaPost(referencefile_id=referencefile.referencefile_id,
                                                              mod_abbreviation=mod_abbreviation))
