@@ -133,6 +133,7 @@ BEGIN
       UPDATE citation SET citation = long_citation, short_citation = sht_citation
         WHERE citation.citation_id = citation_identifier;
     END IF;
+    COMMIT;
 END $$ language plpgsql;
 """
 
