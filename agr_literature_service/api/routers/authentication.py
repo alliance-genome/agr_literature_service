@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=['Authentication'])
 
 try:
-    auth = {}
     auth = Okta(domain=config.OKTA_DOMAIN,
                 api_audience=config.OKTA_API_AUDIENCE
                 )

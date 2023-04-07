@@ -141,7 +141,7 @@ def add_specific_test_references(db_orig_session, db_subset_session):
     db_subset_session.commit()
 
 
-def start():
+def start():  # noqa
     db_orig_session = create_postgres_session(True, source=True)
 
     db_subset_session = create_postgres_session(True)
@@ -204,7 +204,7 @@ def start():
         subqueryload(ReferenceModel.referencefiles),
         subqueryload(ReferenceModel.topic_entity_tags),
         subqueryload(ReferenceModel.workflow_tag)
-    ).filter(ReferenceModel.reference_id <= num_of_ref)
+    ).filter(ReferenceModel.reference_id <= num_of_refs)
     for ref in refs:
         print(f"Adding {ref}")
         db_subset_session.merge(ref)
