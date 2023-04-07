@@ -7,6 +7,7 @@ import shutil
 import tarfile
 import tempfile
 from typing import List
+import json
 
 import boto3
 from fastapi import HTTPException, status, UploadFile

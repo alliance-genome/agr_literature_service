@@ -205,5 +205,4 @@ def add_license(curie: str,
             status_code=status.HTTP_200_OK)
 def missing_files(mod_id: int,
                   db: Session = db_session):
-    set_global_user_from_okta(db, user)
     return reference_crud.missing_files(db, mod_id)
