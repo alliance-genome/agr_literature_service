@@ -104,6 +104,8 @@ process_file() {
   upload_file
 }
 
+generate_access_token
+
 for reffileordir in /usr/files_to_upload/*; do
   if [[ -d ${reffileordir} ]]; then
     echo "Processing supplemental files from ${reffileordir}"
