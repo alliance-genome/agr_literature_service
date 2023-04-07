@@ -537,20 +537,32 @@ def get_citation_from_obj(db: Session, ref_db_obj: ReferenceModel):
     return citation
 
 
-# def update_citation(db: Session, curie: str):  # noqa
-#     """
-#     :param db:
-#     :param curie:
-#     :param http_request:
-#     :return:
-#     """
-#     try:
-#         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one()
-#     except Exception:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-#                             detail=f"Reference with the id {curie} is not available")
+def add_license(db: Session, curie: str, license: str):  # noqa
+    """
+    :param db:
+    :param curie:
+    :param license:
+    :return:
+    """
+    try:
+        reference = db.query(ReferenceModel).filter_by(curie=curie).one()
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Reference with the id '{curie}' is not in the database.")
 
-#     new_citation = get_citation_from_obj(db, reference)
-#     if new_citation != reference.citation:
-#         reference.citation = new_citation
-#         db.commit()
+    license = license.replace('+', ' ')
+    copyright_license_id = None
+    if license != '':
+        try:
+            copyrightLicense = db.query(CopyrightLicenseModel).filter_by(name=license).one()
+        except Exception:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"Copyright_license with the name '{license}' is not in the database.")
+        copyright_license_id = copyrightLicense.copyright_license_id
+    try:
+        reference.copyright_license_id = copyright_license_id
+        db.commit()
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Error adding license '{license}'")
+    return {"message": "Update Success!"}

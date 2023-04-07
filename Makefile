@@ -106,3 +106,6 @@ alembic-apply-latest-migration:
 restart-automated-scripts:
 	docker-compose --env-file ${ENV_FILE} rm -s -f automated_scripts
 	docker-compose --env-file ${ENV_FILE} up --build -d automated_scripts
+
+bulk_upload_reference_files:
+	docker-compose --env-file ${ENV_FILE} run --rm -v $(local_folder):/usr/files_to_upload/ file_uploader upload_files $(mod_abbreviation)

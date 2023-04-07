@@ -12,6 +12,7 @@ from agr_literature_service.api.models import (
     ModReferencetypeAssociationModel,
     ReferencetypeModel,
     CopyrightLicenseModel
+
 )
 ALL_OUTPUT = 2  # For verbosity
 helptext = r"""
@@ -183,6 +184,32 @@ def start():
         if verbose == ALL_OUTPUT:
             print(f"Adding {referencetype}")
         db_subset_session.merge(referencetype)
+    db_subset_session.commit()
+    db_subset_session.close()
+
+    mod_referencetypes = db_orig_session.query(ModReferencetypeAssociationModel).all()
+    for mod_referencetype in mod_referencetypes:
+        print(f"Adding {mod_referencetype}")
+        db_subset_session.merge(mod_referencetype)
+    db_subset_session.commit()
+    db_subset_session.close()
+
+    refs = db_orig_session.query(ReferenceModel).options(
+        subqueryload(ReferenceModel.cross_reference),
+        subqueryload(ReferenceModel.obsolete_reference),
+        subqueryload(ReferenceModel.mod_referencetypes),
+        subqueryload(ReferenceModel.mod_corpus_association),
+        subqueryload(ReferenceModel.mesh_term),
+        subqueryload(ReferenceModel.author),
+        subqueryload(ReferenceModel.referencefiles),
+        subqueryload(ReferenceModel.topic_entity_tags),
+        subqueryload(ReferenceModel.workflow_tag)
+    ).filter(ReferenceModel.reference_id <= num_of_ref)
+    for ref in refs:
+        print(f"Adding {ref}")
+        db_subset_session.merge(ref)
+    print("Be patient the commit can take a wee while.")
+
     db_subset_session.commit()
     db_subset_session.close()
 

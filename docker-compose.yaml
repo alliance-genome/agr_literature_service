@@ -372,6 +372,19 @@ services:
       - "50000:50000"
     restart: on-failure
 
+  file_uploader:
+    build:
+      context: .
+      dockerfile: docker/file_uploader.dockerfile
+    environment:
+      - OKTA_DOMAIN=$OKTA_DOMAIN
+      - OKTA_API_AUDIENCE=$OKTA_API_AUDIENCE
+      - OKTA_CLIENT_ID=$OKTA_CLIENT_ID
+      - OKTA_CLIENT_SECRET=$OKTA_CLIENT_SECRET
+      - API_PORT=$API_PORT
+      - API_SERVER=$API_SERVER
+
+
 volumes:
   agr-literature-pg-data:
   agr-literature-pgadmin-data:

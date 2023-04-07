@@ -94,9 +94,7 @@ class TestReference:
             response = client.patch(url=f"/reference/{test_reference.new_ref_curie}", json=updated_fields,
                                     headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
-            # response = client.post(url=f"/reference/citationupdate/{test_reference.new_ref_curie}",
-            #                       headers=auth_headers)
-            # assert response.status_code == status.HTTP_201_CREATED
+
             updated_ref = client.get(url=f"/reference/{test_reference.new_ref_curie}").json()
             assert updated_ref["title"] == "new title"
             assert updated_ref["category"] == "book"
@@ -105,7 +103,7 @@ class TestReference:
             assert updated_ref["date_published_start"] == "2022-10-01"
             # Do we have a new citation
             assert updated_ref["citation"] == ", () new title.   (): "
-
+            assert updated_ref["copyright_license_id"] is not None
     def test_changesets(self, test_reference, auth_headers): # noqa
         with TestClient(app) as client:
             # title            : None -> bob -> 'new title'
