@@ -35,6 +35,9 @@ DECLARE
    auth record;
 BEGIN
     raise notice 'update citations for %', ref_id;
+    IF ref_id is NULL THEN
+        return;
+    END IF;
     -- Get first author for short citation
     SELECT CONCAT(SUBSTRING(author.first_name, 1 ,1), ' ', author.last_name) FROM author into author_short
       WHERE author.reference_id = ref_id AND

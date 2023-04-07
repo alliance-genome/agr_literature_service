@@ -2,7 +2,7 @@ import math
 import shutil
 
 import pytest
-from agr_literature_service.api.models import initialize, ReferencetypeModel, ModReferencetypeAssociationModel, ModModel
+from agr_literature_service.api.models import ReferencetypeModel, ModReferencetypeAssociationModel, ModModel
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from sqlalchemy import create_engine
@@ -15,20 +15,34 @@ from agr_literature_service.lit_processing.tests.mod_populate_load import popula
 
 def delete_all_table_content(engine):
     if environ.get('TEST_CLEANUP') == "true":
+        for table in ['author']:
+            print(f"Stop triggers for {table}")
+            engine.execute(f"ALTER TABLE {table} DISABLE TRIGGER ALL;")
+
         print("***** Deleting test data from all tables *****")
         for table in reversed(Base.metadata.sorted_tables):
+            # print(f"Stop triggers for {table.fullname}")
+            # engine.execute(f"ALTER TABLE {table.fullname} DISABLE TRIGGER ALL;")
+            print(f"***** Deleting table {table.fullname}")
             if table.fullname != "users":
                 engine.execute(table.delete())
+            # print(f"Start triggers for {table.fullname}")
+            # engine.execute(f"ALTER TABLE {table.fullname} ENABLE TRIGGER ALL;")
+        for table in ['author']:
+            print(f"Start trigger for {table}")
+            engine.execute(f"ALTER TABLE {table} ENABLE TRIGGER ALL;")
 
 
 @pytest.fixture
 def db() -> Session:
     print("***** Creating DB session *****")
     engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
-    initialize()
+    # initialize() # surely done on api startup?
+    print("*********** Call Delete routine 1 *************")
     delete_all_table_content(engine)
     db = sessionmaker(bind=engine, autoflush=True)()
     yield db
+    print("*********** Call Delete routine 2?? *************")
     delete_all_table_content(engine)
     print("***** Closing DB session *****")
     db.close()
