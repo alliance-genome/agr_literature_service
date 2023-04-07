@@ -145,22 +145,43 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no co
 
 
 def cleanup_temp_file(db: Session, ref_curie: str):  # pragma: no cover
+    if ref_curie is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="The specified curie is not in the standard Alliance format and no cross "
+                            "references match the specified value.")
     ref = db.query(ReferenceModel).filter_by(curie=ref_curie).one_or_none()
     if ref:
-       reffiles = db.query(ReferencefileModel).filter_by(
-           reference_id=ref.reference_id, file_class='main', file_extension='pdf').all()
-       if len(reffiles) >= 2:
-           hasFinal = False
-           tempRows = []
-           for x in reffiles:
-               if x.file_publication_status == 'final':
-                   hasFinal = True
-               if x.file_publication_status == 'temp':
-                   tempRows.append(x)
-           if hasFinal:
-               for tempRow in tempRows:
-                   db.delete(tempRow)
-                   remove_file_from_s3(tempRow.md5sum)
+        reffiles = db.query(ReferencefileModel).filter_by(
+            reference_id=ref.reference_id, file_class='main', file_extension='pdf').order_by(
+                ReferencefileModel.file_publication_status).all()
+
+        if len(reffiles) >= 2:
+            modsWithFinal = []
+            pmcFinalPDF = False
+            for x in reffiles:
+                if x.file_publication_status == 'final':
+                    for m in x.referencefile_mods:
+                        if m.mod_id:
+                            if m.mod_id not in modsWithFinal:
+                                modsWithFinal.append(m.mod_id)
+                        else:
+                            pmcFinalPDF = True
+                if x.file_publication_status == 'temp':
+                    toDelete = False
+                    if pmcFinalPDF is True:
+                        toDelete = True
+                    else:
+                        for m in x.referencefile_mods:
+                            if m.mod_id in modsWithFinal:
+                                toDelete = True
+                    if toDelete is True:
+                        try:
+                            db.delete(x)
+                            remove_file_from_s3(x.md5sum)
+                            db.commit()
+                        except Exception as e:
+                            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                                detail=f"An error occurred when deleting temp pdf file. {e}")
 
 
 def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma: no cover
