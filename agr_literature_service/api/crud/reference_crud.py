@@ -454,6 +454,7 @@ def merge_comments_and_corrections(db, old_reference_id, new_reference_id, old_c
                 db.add(x)
             else:
                 db.delete(x)
+        db.commit()
     except Exception as e:
         logger.warning("An error occurred when transferring the comments/corrections from " + old_curie + " to " + new_curie + " : " + str(e))
 
