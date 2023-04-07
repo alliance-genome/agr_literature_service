@@ -60,5 +60,6 @@ class TestReferenceModMd5sum:
             print('Error: ' + str(type(e)))
         reference_mod_md5sum_obj = db.query(ReferenceModMd5sumModel).filter(and_(ReferenceModMd5sumModel.reference_id == reference_id,
                                                                             ReferenceModMd5sumModel.mod_id == mod_id_FB,
-                                                                            ReferenceModMd5sumModel.md5sum == new_md5sum["md5sum"])).one_or_none()
+                                                                    ReferenceModMd5sumModel.md5sum == new_md5sum["md5sum"])).one_or_none()
+        db.commit()
         assert reference_mod_md5sum_obj is not None
