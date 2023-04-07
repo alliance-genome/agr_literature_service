@@ -570,3 +570,28 @@ def add_license(db: Session, curie: str, license: str):  # noqa
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Error adding license '{license}'")
     return {"message": "Update Success!"}
+
+def missing_files (db: Session, mod_id: int):
+    try:
+        rs = db.execute(
+            "SELECT reference.curie, MAINCOUNT, SUPCOUNT
+            FROM reference,
+                (SELECT b.reference_id, COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
+                COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
+                FROM mod_corpus_association AS b
+                LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
+                WHERE b.mod_id = 2
+                GROUP BY b.reference_id
+                HAVING COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
+                OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1
+                LIMIT 100)
+                AS sub_select
+            WHERE sub_select.reference_id=reference.reference_id"
+        )
+        rows = rs.fetchall()
+        data = json.dumps( [dict(ix) for ix in rows] )
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Cant search missing files.")
+    return
+        data
