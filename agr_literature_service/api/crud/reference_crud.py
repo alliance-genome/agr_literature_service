@@ -595,5 +595,4 @@ def missing_files (db: Session, mod_id: int):
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Cant search missing files.")
-    return
-        data
+    return data
