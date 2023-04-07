@@ -3,12 +3,14 @@
 MOD=$1
 
 # request okta access token
-OKTA_ACCESS_TOKEN=$(curl -s --request POST --url https://${OKTA_DOMAIN}/v1/token \
-  --header 'accept: application/json' \
-  --header 'cache-control: no-cache' \
-  --header 'content-type: application/x-www-form-urlencoded' \
-  --data "grant_type=client_credentials&scope=admin&client_id=${OKTA_CLIENT_ID}&client_secret=${OKTA_CLIENT_SECRET}" \
-    | jq '.access_token' | tr -d '"')
+generate_access_token () {
+  OKTA_ACCESS_TOKEN=$(curl -s --request POST --url https://${OKTA_DOMAIN}/v1/token \
+    --header 'accept: application/json' \
+    --header 'cache-control: no-cache' \
+    --header 'content-type: application/x-www-form-urlencoded' \
+    --data "grant_type=client_credentials&scope=admin&client_id=${OKTA_CLIENT_ID}&client_secret=${OKTA_CLIENT_SECRET}" \
+      | jq '.access_token' | tr -d '"')
+}
 
 urlencode () {
   printf %s "$1" | jq -sRr @uri
@@ -36,7 +38,12 @@ upload_file () {
   else
     upload_status="error"
   fi
-  echo "API_CALL_STATUS: ${upload_status}, RESPONSE: ${response}, FILE: ${filepath}"
+  if [[ "${response}" == "Expired token" ]]; then
+    generate_access_token
+    upload_file
+  else
+    echo "API_CALL_STATUS: ${upload_status}, RESPONSE: ${response}, FILE: ${filepath}"
+  fi
 }
 
 extract_file_metadata() {
