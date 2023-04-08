@@ -1,4 +1,8 @@
-citation_update = """
+import logging
+
+logger = logging.getLogger(__name__)
+
+citation_update = r"""
 CREATE OR REPLACE PROCEDURE update_citations(
     ref_id reference.reference_id%type
 )
@@ -137,7 +141,7 @@ BEGIN
 END $$ language plpgsql;
 """
 
-citation_seq = """
+citation_seq = r"""
 CREATE OR REPLACE FUNCTION get_next_citation_id()
   RETURNS int
   language plpgsql
