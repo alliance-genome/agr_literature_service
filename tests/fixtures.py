@@ -37,12 +37,10 @@ def delete_all_table_content(engine):
 def db() -> Session:
     print("***** Creating DB session *****")
     engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
-    # initialize() # surely done on api startup?
-    print("*********** Call Delete routine 1 *************")
+    initialize() # surely done on api startup?
     delete_all_table_content(engine)
     db = sessionmaker(bind=engine, autoflush=True)()
     yield db
-    print("*********** Call Delete routine 2?? *************")
     delete_all_table_content(engine)
     print("***** Closing DB session *****")
     db.close()
