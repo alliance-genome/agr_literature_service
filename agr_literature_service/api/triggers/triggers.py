@@ -9,3 +9,4 @@ def add_sql_triggers_functions(db_session):
     add_author_triggers(db_session)
     add_reference_triggers(db_session)
     add_resource_triggers(db_session)
+    db_session.commit()
