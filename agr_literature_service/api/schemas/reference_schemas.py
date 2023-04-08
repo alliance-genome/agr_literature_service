@@ -148,6 +148,7 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     comment_and_corrections: CommentAndCorrectionSchemaRelations
     citation: Optional[str] = None
     citation_short: Optional[str] = None
+    citation_id: Optional[int] = None
     workflow_tags: Optional[List[WorkflowTagSchemaRelated]] = None
 
 
