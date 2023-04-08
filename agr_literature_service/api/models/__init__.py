@@ -35,8 +35,7 @@ logger = logging.getLogger(__name__)
 
 def initialize():
     # logging.basicConfig(filename='/mnt/d/alliance/agr_literature_service/python.log',level=logging.DEBUG)
-    logger.warning('Initialising models')
-    print('Initialising models')
+    logger.debug('Initialising models')
     try:
         configure_mappers()
     except Exception as e:
@@ -52,6 +51,7 @@ def initialize():
 
     try:
         create_all_triggers()
+        logger.debug("Triggers updated successfully")
     except Exception as e:
         logger.error('Create triggers Error: ' + str(type(e)))
         logger.error(e)
