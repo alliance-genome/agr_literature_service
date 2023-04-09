@@ -32,6 +32,7 @@ def get_db():
     except Exception as e:
         print('Error: ' + str(type(e)))
     finally:
+        db.commit()
         db.close()
 
 
@@ -44,4 +45,16 @@ def is_database_online(session: Session = db_session):
 
 def create_all_triggers():
     db_session = next(get_db(), None)
+    db_session.commit()
+    drop_open_db_sessions(db_sessaion)
     add_sql_triggers_functions(db_session)
+
+
+def drop_open_db_sessions(db):
+    com = '''SELECT pg_terminate_backend(pg_stat_activity.pid)
+             FROM pg_stat_activity
+             WHERE datname = current_database()
+             AND pid <> pg_backend_pid();'''
+    db.execute(com)
+    print(f"Closing {db}")
+

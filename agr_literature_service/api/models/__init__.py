@@ -1,7 +1,11 @@
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import configure_mappers, create_session
 
-from agr_literature_service.api.database.main import create_all_tables, create_default_user, create_all_triggers
+from agr_literature_service.api.database.main import (
+    create_all_tables,
+    create_default_user,
+    create_all_triggers,
+    drop_open_db_sessions)
 from agr_literature_service.api.models.author_model import AuthorModel
 from agr_literature_service.api.models.cross_reference_model import CrossReferenceModel
 from agr_literature_service.api.models.editor_model import EditorModel
@@ -36,13 +40,16 @@ logger = logging.getLogger(__name__)
 def initialize():
     # logging.basicConfig(filename='/mnt/d/alliance/agr_literature_service/python.log',level=logging.DEBUG)
     logger.debug('Initialising models')
+    print('Initialising models')
     try:
+        print('Initialising models 1')
         configure_mappers()
     except Exception as e:
         logger.error('configure Mappers Error: ' + str(type(e)))
         logger.error(e)
 
     try:
+        print('Initialising models 2')
         create_all_tables()
     except Exception as e:
         logger.error('Create all tables Error: ' + str(type(e)))
@@ -50,6 +57,7 @@ def initialize():
     create_default_user()
 
     try:
+        print('Initialising models 3')
         create_all_triggers()
         logger.debug("Triggers updated successfully")
     except Exception as e:

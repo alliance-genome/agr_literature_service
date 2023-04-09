@@ -275,6 +275,7 @@ def insert_authors(db_session, primaryId, reference_id, author_list_from_json):
         try:
             authorObj = AuthorModel(**authorData)
             db_session.add(authorObj)
+            db_session.commit()
             log.info(primaryId + ": INSERT AUTHOR: " + name + " | '" + str(affiliations) + "'")
         except Exception as e:
             log.info(primaryId + ": INSERT AUTHOR: " + name + " failed: " + str(e))
@@ -335,6 +336,7 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
 
         x = ReferenceModel(**refData)
         db_session.add(x)
+        db_session.commit()
         db_session.flush()
         db_session.refresh(x)
         reference_id = x.reference_id
