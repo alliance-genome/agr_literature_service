@@ -125,19 +125,19 @@ BEGIN
     raise notice '%', long_citation;
     sht_citation :=  author_short || ', ' || ref_year || ', ' || res_abbr || ', ' || ref_details;
     -- raise notice '%', sht_citation;
+    SELECT citation_id from reference where reference_id = ref_id into citation_identifier;
+    raise notice 'citation_id from reference is %', citation_identifier;
     IF citation_identifier is NULL THEN
       raise notice 'sh cit: %', sht_citation;
       raise notice 'cit: %', long_citation;
-      INSERT INTO citation (citation, short_citation) VALUES (long_citation, sht_citation);
-      citation_identifier := (SELECT currval('citation_citation_id_seq'));
+      INSERT INTO citation (citation, short_citation) VALUES (long_citation, sht_citation) RETURNING citation_id into citation_identifier;
+      raise notice 'citation inserted new id is %', citation_identifier;
       raise notice 'citation_id %', citation_identifier;
-      --RETURNING citation_id into citation_id;
-      UPDATE reference SET citation_id = get_next_citation_id() WHERE reference.reference_id = ref_id;
+      UPDATE reference SET citation_id = citation_identifier WHERE reference.reference_id = ref_id;
     ELSE
       UPDATE citation SET citation = long_citation, short_citation = sht_citation
         WHERE citation.citation_id = citation_identifier;
     END IF;
-    COMMIT;
 END $$ language plpgsql;
 """
 
