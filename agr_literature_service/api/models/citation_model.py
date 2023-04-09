@@ -19,11 +19,6 @@ class CitationModel(Base):
         autoincrement=True
     )
 
-    reference = relationship(
-        "ReferenceModel",
-        back_populates="citation"
-    )
-
     citation = Column(
         String(),
         unique=False,

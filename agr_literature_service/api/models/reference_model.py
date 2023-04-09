@@ -201,19 +201,6 @@ class ReferenceModel(Base, AuditedModel):
         cascade="all, delete, delete-orphan"
     )
 
-    citation_id = Column(
-        Integer,
-        ForeignKey("citation.citation_id"),
-        index=True,
-        nullable=True
-    )
-
-    citation = relationship(
-        "CitationModel",
-        back_populates="reference",
-        single_parent=True,
-    )
-
     workflow_tag = relationship(
         "WorkflowTagModel",
         foreign_keys="WorkflowTagModel.reference_id",
@@ -244,6 +231,17 @@ class ReferenceModel(Base, AuditedModel):
 
     copyright_license = relationship(
         "CopyrightLicenseModel"
+    )
+
+    citation_id = Column(
+        Integer,
+        ForeignKey("citation.citation_id"),
+        index=True,
+        nullable=True
+    )
+
+    citation = relationship(
+        "CitationModel"
     )
 
     def __str__(self):
