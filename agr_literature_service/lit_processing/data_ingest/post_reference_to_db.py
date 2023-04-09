@@ -54,7 +54,7 @@ def post_references(json_path, live_change=True):  # noqa: C901
                                                            mod_to_mod_id, live_change)
         if newly_added_curies:
             new_ref_curies.extend(newly_added_curies)
-
+    db_session.commit()
     db_session.close()
     log.info("DONE!\n\n")
     return new_ref_curies

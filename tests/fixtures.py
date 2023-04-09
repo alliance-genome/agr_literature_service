@@ -41,9 +41,9 @@ def db() -> Session:
     initialize()
     delete_all_table_content(engine)
     db = sessionmaker(bind=engine, autoflush=True)()
-    drop_open_db_sessions(db)
     yield db
     delete_all_table_content(engine)
+    drop_open_db_sessions(db)
     print("***** Closing DB session *****")
     db.close()
 
