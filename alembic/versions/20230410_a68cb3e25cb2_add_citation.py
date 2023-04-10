@@ -28,6 +28,7 @@ def upgrade():
     op.create_index(op.f('ix_reference_citation_id'), 'reference', ['citation_id'], unique=False)
     op.create_foreign_key(None, 'reference', 'citation', ['citation_id'], ['citation_id'])
     # ### end Alembic commands ###
+    print('You need to run agr_literature_service/lit_processing/oneoff_scripts/add_citation.py to update citations')
 
 
 def downgrade():
