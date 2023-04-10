@@ -336,7 +336,7 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
 
         x = ReferenceModel(**refData)
         db_session.add(x)
-        db_session.commit()
+        # db_session.commit()
         db_session.flush()
         db_session.refresh(x)
         reference_id = x.reference_id
