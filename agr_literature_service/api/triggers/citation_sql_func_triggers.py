@@ -35,7 +35,7 @@ DECLARE
    long_citation TEXT default '';
    -- volume, issue and page range same as short citation
    title reference.title%type;
-   authors author.name%type default ' ';
+   authors author.name%type default '';
    auth record;
 BEGIN
     raise notice 'update citations for %', ref_id;
@@ -69,13 +69,13 @@ BEGIN
     for auth in SELECT * FROM author
       WHERE author.reference_id = ref_id and
             author.first_author is distinct from 't'
-      ORDER BY author.author_id asc
+      ORDER BY author.order asc
     loop
       raise notice 'Record %', auth;
       authors := authors || auth.name || '; ';
     end loop;
     raise notice 'Authors %', authors;
-    IF authors != ' ' THEN
+    IF authors != '' THEN
       authors := SUBSTRING(authors, 1, LENGTH(authors)-2);
     ELSE
        authors := '';
@@ -120,7 +120,7 @@ BEGIN
     ref_details := volume || ' (' || issue_name || '): ' || page_range;
     raise notice 'rd: %', ref_details;
     raise notice 'tit: %', title;
-    long_citation := authors || ', (' || ref_year || ') ' || title;
+    long_citation := authors || ', (' || ref_year || ') ' || title || '.';
     long_citation := long_citation || ' ' || journal || ' ' || ref_details;
     raise notice '%', long_citation;
     sht_citation :=  author_short || ', ' || ref_year || ', ' || res_abbr || ', ' || ref_details;

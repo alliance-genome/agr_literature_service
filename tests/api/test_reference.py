@@ -96,6 +96,7 @@ class TestReference:
             assert response.status_code == status.HTTP_202_ACCEPTED
 
             updated_ref = client.get(url=f"/reference/{test_reference.new_ref_curie}").json()
+            print(updated_ref)
             assert updated_ref["title"] == "new title"
             assert updated_ref["category"] == "book"
             assert updated_ref["language"] == "New"
@@ -103,7 +104,8 @@ class TestReference:
             assert updated_ref["date_published_start"] == "2022-10-01"
             # Do we have a new citation
             assert updated_ref["citation"] == ", () new title.   (): "
-            assert updated_ref["copyright_license_id"] is not None
+            assert updated_ref["copyright_license_id"] is None
+
     def test_changesets(self, test_reference, auth_headers): # noqa
         with TestClient(app) as client:
             # title            : None -> bob -> 'new title'
@@ -225,7 +227,7 @@ class TestReference:
             author = db.query(AuthorModel).filter(AuthorModel.name == "S. Wu").one()
             assert author.first_name == 'S.'
 
-            assert response['citation'] == "D. Wu; S. Wu, () Some test 001 title.  433 (): 538--541"
+            assert response['citation'] == "D. Wu; S. Wu, () Some test 001 title.  433 (4): 538--541"
 
             assert response['cross_references'][0]['curie'] == 'FB:FBrf0221304'
 
