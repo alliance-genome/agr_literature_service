@@ -42,14 +42,12 @@ def initialize():
     logger.debug('Initialising models')
     print('Initialising models')
     try:
-        print('Initialising models 1')
         configure_mappers()
     except Exception as e:
         logger.error('configure Mappers Error: ' + str(type(e)))
         logger.error(e)
 
     try:
-        print('Initialising models 2')
         create_all_tables()
     except Exception as e:
         logger.error('Create all tables Error: ' + str(type(e)))
@@ -57,7 +55,6 @@ def initialize():
     create_default_user()
 
     try:
-        print('Initialising models 3')
         create_all_triggers()
         logger.debug("Triggers updated successfully")
     except Exception as e:

@@ -65,7 +65,7 @@ class TestPubmedUpdateReferenceSingleMod:
                 if not cit:
                     assert "No citation created" == "AHH"
                 else:
-                    assert cit.citation == "Fill in here"
+                    assert cit.citation == "Shin-Ichiro Karaki; Ryo Tanaka, (2021) Role of PGE<sub>2</sub> in colonic '\n 'motility: PGE<sub>2</sub> attenuates spontaneous contractions of circular '\n 'smooth muscle via EP<sub>4</sub> receptors in the rat colon..  71 (1): 8"
             elif x.reference_id == pmid_to_reference_id[pmid2]:
                 assert x.issue_name == "1"
                 assert x.title.startswith("Mapping lung squamous cell")

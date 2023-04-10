@@ -245,7 +245,6 @@ class TestReference:
             assert response["title"] == "Some test 001 title"
             assert response["volume"] == "433"
 
-            print("BOB................")
             print(response)
             for ont in response["workflow_tags"]:
                 if ont['mod_abbreviation'] == "001_RGD":
