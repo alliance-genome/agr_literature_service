@@ -14,7 +14,7 @@ def add_citations():
     rows = db_session.execute("SELECT reference_id FROM reference").fetchall()
     for x in rows:
         ref_id = int(x[0])
-        db_session.execute(    
+        db_session.execute(
             "CALL update_citations(:param)",
             {'param': ref_id}
         )
