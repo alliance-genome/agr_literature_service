@@ -65,7 +65,7 @@ class TestPubmedUpdateReferenceSingleMod:
                 if not cit:
                     assert "No citation created" == "AHH"
                 else:
-                    assert cit.citation[:11] == "Shin-Ichiro"
+                    assert cit.citation.startswith("Shin-Ichiro")
             elif x.reference_id == pmid_to_reference_id[pmid2]:
                 assert x.issue_name == "1"
                 assert x.title.startswith("Mapping lung squamous cell")
