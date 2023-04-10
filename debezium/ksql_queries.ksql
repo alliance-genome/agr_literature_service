@@ -27,8 +27,7 @@ CREATE TABLE reference (
     pubmed_types array<string>,
     resource_id bigint,
     title string,
-    volume string,
-    citation string
+    volume string
   ) WITH (
     KAFKA_TOPIC='abc.public.reference',
     VALUE_FORMAT='json'
@@ -84,6 +83,12 @@ CREATE TABLE obsolete_reference_curie (
     KEY_FORMAT='json'
   );
 
+CREATE TABLE citation (
+    citation_id string PRIMARY KEY,
+    citation string,
+    short_citation string
+);
+
 CREATE TABLE cross_references AS
     SELECT reference_id \"REFERENCE_ID\",
     collect_list(map('curie':=curie, 'is_obsolete':=cast(is_obsolete as string))) \"CROSS_REFERENCES\"
@@ -125,6 +130,39 @@ CREATE TABLE obsolete_curies AS
     GROUP BY new_id
     EMIT CHANGES;
 
+CREATE TABLE reference_with_citation AS
+    SELECT
+    reference.reference_id \"REFERENCE_ID\",
+    reference.curie,
+    reference.abstract,
+    reference.category,
+    NULLIF(reference.date_arrived_in_pubmed, '') \"DATE_ARRIVED_IN_PUBMED\",
+    reference.date_created,
+    NULLIF(reference.date_last_modified_in_pubmed, '') \"DATE_LAST_MODIFIED_IN_PUBMED\",
+    reference.date_published,
+    reference.date_published_start,
+    reference.date_published_end,
+    reference.date_updated,
+    reference.issue_name,
+    reference.keywords,
+    reference.language,
+    reference.open_access,
+    reference.page_range,
+    reference.plain_language_abstract,
+    reference.publisher,
+    reference.pubmed_abstract_languages,
+    reference.pubmed_publication_status,
+    reference.pubmed_types,
+    reference.resource_id,
+    reference.title,
+    reference.volume,
+    citation.citation \"LONG_CITATION\",
+    citation.short_citation \"SHORT_CITATION\"
+    FROM citation citation
+    JOIN reference reference ON
+    citation.citation_id = reference.citation_id
+    EMIT CHANGES;
+
 CREATE TABLE reference_xref AS
     SELECT
     reference.reference_id \"REFERENCE_ID\",
@@ -151,9 +189,10 @@ CREATE TABLE reference_xref AS
     reference.resource_id,
     reference.title,
     reference.volume,
-    reference.citation,
+    reference.long_citation,
+    reference.short_citation,
     cross_references.cross_references
-    FROM reference reference
+    FROM reference_with_citation reference
     LEFT OUTER JOIN cross_references cross_references ON
     reference.reference_id = cross_references.reference_id
     EMIT CHANGES;
@@ -184,7 +223,8 @@ CREATE TABLE reference_xref_author AS
     reference_xref.resource_id,
     reference_xref.title,
     reference_xref.volume,
-    reference_xref.citation,
+    reference_xref.long_citation,
+    reference_xref.short_citation,
     reference_xref.cross_references,
     authors.authors
     FROM reference_xref reference_xref
@@ -218,7 +258,8 @@ CREATE TABLE reference_xref_author_mods_in_corpus AS
     reference_xref_author.resource_id,
     reference_xref_author.title,
     reference_xref_author.volume,
-    reference_xref_author.citation,
+    reference_xref_author.long_citation,
+    reference_xref_author.short_citation,
     reference_xref_author.cross_references,
     reference_xref_author.authors,
     mods_in_corpus.mods_in_corpus
@@ -253,7 +294,8 @@ CREATE TABLE reference_xref_author_mods_in_corpus_mods_needs_review AS
     reference_xref_author_mods_in_corpus.resource_id,
     reference_xref_author_mods_in_corpus.title,
     reference_xref_author_mods_in_corpus.volume,
-    reference_xref_author_mods_in_corpus.citation,
+    reference_xref_author_mods_in_corpus.long_citation,
+    reference_xref_author_mods_in_corpus.short_citation,
     reference_xref_author_mods_in_corpus.cross_references,
     reference_xref_author_mods_in_corpus.authors,
     reference_xref_author_mods_in_corpus.mods_in_corpus,
@@ -293,7 +335,8 @@ CREATE TABLE reference_joined WITH (
     reference_xref_author_mods_in_corpus_mods_needs_review.resource_id \"resource_id\",
     reference_xref_author_mods_in_corpus_mods_needs_review.title \"title\",
     reference_xref_author_mods_in_corpus_mods_needs_review.volume \"volume\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.citation \"citation\",
+    reference_xref_author_mods_in_corpus_mods_needs_review.long_citation \"long_citation\",
+    reference_xref_author_mods_in_corpus_mods_needs_review.short_citation \"short_citation\",
     reference_xref_author_mods_in_corpus_mods_needs_review.cross_references \"cross_references\",
     reference_xref_author_mods_in_corpus_mods_needs_review.authors \"authors\",
     reference_xref_author_mods_in_corpus_mods_needs_review.mods_in_corpus \"mods_in_corpus\",

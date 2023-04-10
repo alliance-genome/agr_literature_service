@@ -79,7 +79,17 @@
   },
   "mappings": {
     "properties": {
-      "citation": {
+      "short_citation": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "long_citation": {
         "type": "text",
         "fields": {
           "keyword": {
