@@ -592,7 +592,7 @@ def missing_files (db: Session, mod_id: int):
             """
         )
         rows = rs.fetchall()
-        data = json.dumps( [dict(ix) for ix in rows] )
+        data = jsonable_encoder(rows)
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Cant search missing files.")
