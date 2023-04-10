@@ -112,6 +112,16 @@ def file_paths_in_dir(directory):
 
 
 def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no cover
+    if not metadata["reference_curie"].startswith("AGRKB:101"):
+        ref_curie_res = db.query(ReferenceModel.curie).filter(
+            ReferenceModel.cross_reference.any(CrossReferenceModel.curie == metadata["reference_curie"])).one_or_none()
+        if ref_curie_res is not None:
+            metadata["reference_curie"] = ref_curie_res.curie
+        else:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail="The specified curie is not in the standard Alliance format and no cross "
+                                       "references match the specified value.")
+        metadata["reference_curie"] = ref_curie_res.curie
     if metadata["file_extension"] in ["tgz", "tar.gz"]:
         temp_dir = tempfile.mkdtemp()
         file_tar = tarfile.open(fileobj=file.file)
@@ -142,18 +152,28 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no co
     else:
         file_upload_single(db, metadata, file)
 
+    cleanup_temp_file(db, metadata["reference_curie"])
+
+
+def cleanup_temp_file(db: Session, ref_curie: str):  # pragma: no cover
+    ref = db.query(ReferenceModel).filter_by(curie=ref_curie).one_or_none()
+    if ref:
+        reffiles = db.query(ReferencefileModel).filter_by(
+            reference_id=ref.reference_id, file_class='main', file_extension='pdf').order_by(
+                ReferencefileModel.file_publication_status).all()
+
+        if len(reffiles) >= 2:
+            mod_ids_with_final = {mod.mod_id for reffile in reffiles for mod in reffile.referencefile_mods if
+                                  reffile.file_publication_status == 'final'}
+            for reffile in reffiles:
+                if reffile.file_publication_status == 'temp':
+                    if None in mod_ids_with_final or all([mod.mod_id in mod_ids_with_final for mod in
+                                                          reffile.referencefile_mods]):
+                        destroy(db, reffile.referencefile_id)
+
 
 def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma: no cover
     file.file.seek(0)
-    if not metadata["reference_curie"].startswith("AGRKB:101"):
-        ref_curie_res = db.query(ReferenceModel.curie).filter(
-            ReferenceModel.cross_reference.any(CrossReferenceModel.curie == metadata["reference_curie"])).one_or_none()
-        if ref_curie_res is not None:
-            metadata["reference_curie"] = ref_curie_res.curie
-        else:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail="The specified curie is not in the standard Alliance format and no cross "
-                                "references match the specified value.")
     md5sum_hash = hashlib.md5()
     for byte_block in iter(lambda: file.file.read(4096), b""):
         md5sum_hash.update(byte_block)
