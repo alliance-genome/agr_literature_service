@@ -280,6 +280,7 @@ def insert_authors(db_session, primaryId, reference_id, author_list_from_json):
             log.info(primaryId + ": INSERT AUTHOR: " + name + " failed: " + str(e))
     db_session.commit()
 
+
 def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
 
     reference_id = None
