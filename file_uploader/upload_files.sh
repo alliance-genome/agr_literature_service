@@ -38,7 +38,7 @@ upload_file () {
   else
     upload_status="error"
   fi
-  if [[ "${response}" == "Expired token" ]]; then
+  if [[ "${response}" == "{\"detail\":\"Expired token\"}" ]]; then
     echo "INFO: Access token expired, requesting a new one"
     generate_access_token
     upload_file
