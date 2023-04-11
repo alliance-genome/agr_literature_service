@@ -576,8 +576,8 @@ def missing_files (db: Session, mod_id: int):
     try:
         rs = db.execute(
             """
-            SELECT reference.curie, reference.short_citation, reference.date_created, MAINCOUNT, SUPCOUNT, ref_pmid.curie as PMID, ref_mod.curie AS mod_curie
-                FROM reference,
+            SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT, SUPCOUNT, ref_pmid.curie as PMID, ref_mod.curie AS mod_curie
+                FROM reference, citation,
                 	(SELECT b.reference_id, COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
                 	COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
                 	FROM mod_corpus_association AS b
@@ -593,6 +593,7 @@ def missing_files (db: Session, mod_id: int):
                 WHERE sub_select.reference_id=reference.reference_id
                 AND sub_select.reference_id=ref_pmid.reference_id
                 AND sub_select.reference_id=ref_mod.reference_id
+                AND reference.citation_id=citation.citation_id
             """
         )
         rows = rs.fetchall()
