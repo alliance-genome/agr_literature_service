@@ -572,7 +572,7 @@ def add_license(db: Session, curie: str, license: str):  # noqa
                             detail=f"Error adding license '{license}'")
     return {"message": "Update Success!"}
 
-def missing_files (db: Session, mod_abbreviation: string):
+def missing_files (db: Session, mod_abbreviation: str):
     try:
         query = """SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT, SUPCOUNT, ref_pmid.curie as PMID, ref_mod.curie AS mod_curie
                     FROM reference, citation,
