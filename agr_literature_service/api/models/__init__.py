@@ -1,7 +1,11 @@
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import configure_mappers, create_session
 
-from agr_literature_service.api.database.main import create_all_tables, create_default_user
+from agr_literature_service.api.database.main import (
+    create_all_tables,
+    create_default_user,
+    create_all_triggers,
+    drop_open_db_sessions)
 from agr_literature_service.api.models.author_model import AuthorModel
 from agr_literature_service.api.models.cross_reference_model import CrossReferenceModel
 from agr_literature_service.api.models.editor_model import EditorModel
@@ -27,18 +31,32 @@ from agr_literature_service.api.models.mod_taxon_model import ModTaxonModel
 from agr_literature_service.api.models.reference_mod_md5sum_model import ReferenceModMd5sumModel
 from agr_literature_service.api.models.referencefile_model import ReferencefileModel, ReferencefileModAssociationModel
 from agr_literature_service.api.models.copyright_license_model import CopyrightLicenseModel
-# import logging
+from agr_literature_service.api.models.citation_model import CitationModel
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def initialize():
     # logging.basicConfig(filename='/mnt/d/alliance/agr_literature_service/python.log',level=logging.DEBUG)
+    logger.debug('Initialising models')
+    print('Initialising models')
     try:
         configure_mappers()
     except Exception as e:
-        print('Error: ' + str(type(e)))
+        logger.error('configure Mappers Error: ' + str(type(e)))
+        logger.error(e)
+
     try:
         create_all_tables()
     except Exception as e:
-        print('Error: ' + str(type(e)))
-        # logging.info(e)
+        logger.error('Create all tables Error: ' + str(type(e)))
+        logger.error(e)
     create_default_user()
+
+    try:
+        create_all_triggers()
+        logger.debug("Triggers updated successfully")
+    except Exception as e:
+        logger.error('Create triggers Error: ' + str(type(e)))
+        logger.error(e)

@@ -24,7 +24,6 @@ from agr_literature_service.api.routers import (author_router, bulk_downloads_ro
                                                 topic_entity_tag_prop_router, referencefile_router,
                                                 referencefile_mod_router, copyright_license_router)
 
-
 title = "Alliance Literature Service"
 version = "0.1.0"
 description = "This service provides access to the Alliance Bibliographic Corpus and metadata"
@@ -100,7 +99,7 @@ def run():
     # LOGGING_CONFIG["formatters"]["default"]["fmt"] = "%(asctime)s [%(name)s] %(levelprefix)s %(message)s"
     # LOGGING_CONFIG["formatters"]["access"]["fmt"] = '%(asctime)s [%(name)s] %(levelprefix)s %(client_addr)s - ' \
     #                                                 '"%(request_line)s" %(status_code)s'
-    print(SQLALCHEMY_DATABASE_URL)
+    print(f"run: Database details are {SQLALCHEMY_DATABASE_URL}")
     state = environ.get('ENV_STATE')
     if state == 'test':
         log_level = logging.DEBUG

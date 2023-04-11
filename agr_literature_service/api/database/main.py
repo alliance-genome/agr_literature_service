@@ -9,7 +9,7 @@ from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
-
+from agr_literature_service.api.triggers.triggers import add_sql_triggers_functions
 
 metadata = MetaData()
 
@@ -32,6 +32,7 @@ def get_db():
     except Exception as e:
         print('Error: ' + str(type(e)))
     finally:
+        db.commit()
         db.close()
 
 
@@ -40,3 +41,18 @@ db_session = Depends(get_db)
 
 def is_database_online(session: Session = db_session):
     return {"database": "online"} if session else False
+
+
+def create_all_triggers():
+    db_session = next(get_db(), None)
+    db_session.commit()
+    add_sql_triggers_functions(db_session)
+
+
+def drop_open_db_sessions(db):
+    com = '''SELECT pg_terminate_backend(pg_stat_activity.pid)
+             FROM pg_stat_activity
+             WHERE datname = current_database()
+             AND pid <> pg_backend_pid();'''
+    db.execute(com)
+    print(f"Closing {db}")

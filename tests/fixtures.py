@@ -2,7 +2,12 @@ import math
 import shutil
 
 import pytest
-from agr_literature_service.api.models import initialize, ReferencetypeModel, ModReferencetypeAssociationModel, ModModel
+from agr_literature_service.api.models import (
+    ReferencetypeModel,
+    ModReferencetypeAssociationModel,
+    ModModel,
+    initialize,
+    drop_open_db_sessions)
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from sqlalchemy import create_engine
@@ -15,10 +20,18 @@ from agr_literature_service.lit_processing.tests.mod_populate_load import popula
 
 def delete_all_table_content(engine):
     if environ.get('TEST_CLEANUP') == "true":
+        # for table in ['author']:
+        #    print(f"Stop triggers for {table}")
+        #    engine.execute(f"ALTER TABLE {table} DISABLE TRIGGER ALL;")
+
         print("***** Deleting test data from all tables *****")
         for table in reversed(Base.metadata.sorted_tables):
+            # print(f"***** Deleting table {table.fullname}")
             if table.fullname != "users":
                 engine.execute(table.delete())
+        # for table in ['author']:
+        #    print(f"Start trigger for {table}")
+        #    engine.execute(f"ALTER TABLE {table} ENABLE TRIGGER ALL;")
 
 
 @pytest.fixture
@@ -30,6 +43,7 @@ def db() -> Session:
     db = sessionmaker(bind=engine, autoflush=True)()
     yield db
     delete_all_table_content(engine)
+    drop_open_db_sessions(db)
     print("***** Closing DB session *****")
     db.close()
 
