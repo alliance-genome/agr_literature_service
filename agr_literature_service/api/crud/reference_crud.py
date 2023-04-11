@@ -574,21 +574,21 @@ def add_license(db: Session, curie: str, license: str):  # noqa
 
 def missing_files (db: Session, mod_abbreviation: str):
     try:
-        mod_id=2
         query = f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT, SUPCOUNT, ref_pmid.curie as PMID, ref_mod.curie AS mod_curie
                     FROM reference, citation,
-                        (SELECT b.reference_id, COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
-                        COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
-                        FROM mod_corpus_association AS b
-                        LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
-                        WHERE b.mod_id = {mod_id}
-                        GROUP BY b.reference_id
-                        HAVING COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
-                        OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1
-                        LIMIT 25)
-                        AS sub_select,
-                        (SELECT cross_reference.curie, reference_id FROM cross_reference where curie_prefix='PMID') as ref_pmid,
-                        (SELECT cross_reference.curie, reference_id FROM cross_reference where curie_prefix='FB') as ref_mod
+                    	(SELECT b.reference_id, COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
+                    	COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
+                    	FROM mod_corpus_association AS b
+                    	JOIN mod ON b.mod_id = mod.mod_id
+                    	LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
+                    	WHERE mod.abbreviation = {mod_abbreviation}
+                    	GROUP BY b.reference_id
+                    	HAVING COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
+                    	OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1
+                    	LIMIT 25)
+                    	AS sub_select,
+                    	(SELECT cross_reference.curie, reference_id FROM cross_reference where curie_prefix='PMID') as ref_pmid,
+                    	(SELECT cross_reference.curie, reference_id FROM cross_reference where curie_prefix='FB') as ref_mod
                     WHERE sub_select.reference_id=reference.reference_id
                     AND sub_select.reference_id=ref_pmid.reference_id
                     AND sub_select.reference_id=ref_mod.reference_id
