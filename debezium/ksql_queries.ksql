@@ -8,6 +8,7 @@ CREATE TABLE reference (
     curie string,
     abstract string,
     category string,
+    citation_id string,
     date_arrived_in_pubmed string,
     date_created bigint,
     date_last_modified_in_pubmed string,
@@ -87,6 +88,10 @@ CREATE TABLE citation (
     citation_id string PRIMARY KEY,
     citation string,
     short_citation string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.citation',
+    VALUE_FORMAT='json',
+    KEY_FORMAT='json'
 );
 
 CREATE TABLE cross_references AS
@@ -158,9 +163,9 @@ CREATE TABLE reference_with_citation AS
     reference.volume,
     citation.citation \"LONG_CITATION\",
     citation.short_citation \"SHORT_CITATION\"
-    FROM citation citation
-    JOIN reference reference ON
-    citation.citation_id = reference.citation_id
+    FROM reference reference
+    JOIN citation citation ON
+    reference.citation_id = citation.citation_id
     EMIT CHANGES;
 
 CREATE TABLE reference_xref AS
