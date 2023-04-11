@@ -574,13 +574,13 @@ def add_license(db: Session, curie: str, license: str):  # noqa
 
 def missing_files (db: Session, mod_abbreviation: str):
     try:
-        query = '''SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT, SUPCOUNT, ref_pmid.curie as PMID, ref_mod.curie AS mod_curie
+        query = """SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT, SUPCOUNT, ref_pmid.curie as PMID, ref_mod.curie AS mod_curie
                     FROM reference, citation,
                         (SELECT b.reference_id, COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
                         COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
                         FROM mod_corpus_association AS b
                         LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
-                        WHERE b.mod_id = {mod_id}
+                        WHERE b.mod_id = 2
                         GROUP BY b.reference_id
                         HAVING COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
                         OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1
@@ -592,7 +592,7 @@ def missing_files (db: Session, mod_abbreviation: str):
                     AND sub_select.reference_id=ref_pmid.reference_id
                     AND sub_select.reference_id=ref_mod.reference_id
                     AND reference.citation_id=citation.citation_id
-                '''.format(mod_id=2)
+                """
         rs = db.execute(query)
         rows = rs.fetchall()
         data = jsonable_encoder(rows)
