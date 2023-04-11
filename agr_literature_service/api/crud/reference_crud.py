@@ -576,19 +576,23 @@ def missing_files (db: Session, mod_id: int):
     try:
         rs = db.execute(
             """
-            SELECT reference.curie, MAINCOUNT, SUPCOUNT
-            FROM reference,
-                (SELECT b.reference_id, COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
-                COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
-                FROM mod_corpus_association AS b
-                LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
-                WHERE b.mod_id = 2
-                GROUP BY b.reference_id
-                HAVING COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
-                OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1
-                LIMIT 100)
-                AS sub_select
-            WHERE sub_select.reference_id=reference.reference_id
+            SELECT reference.curie, reference.citation, reference.date_created, MAINCOUNT, SUPCOUNT, ref_pmid.curie as PMID, ref_mod.curie AS mod_curie
+                FROM reference,
+                	(SELECT b.reference_id, COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
+                	COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
+                	FROM mod_corpus_association AS b
+                	LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
+                	WHERE b.mod_id = 2
+                	GROUP BY b.reference_id
+                	HAVING COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
+                	OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1
+                	LIMIT 25)
+                	AS sub_select,
+                	(SELECT cross_reference.curie, reference_id FROM cross_reference where curie_prefix='PMID') as ref_pmid,
+                	(SELECT cross_reference.curie, reference_id FROM cross_reference where curie_prefix='FB') as ref_mod
+                WHERE sub_select.reference_id=reference.reference_id
+                AND sub_select.reference_id=ref_pmid.reference_id
+                AND sub_select.reference_id=ref_mod.reference_id
             """
         )
         rows = rs.fetchall()
