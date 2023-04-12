@@ -574,7 +574,6 @@ def add_license(db: Session, curie: str, license: str):  # noqa
 
 def missing_files (db: Session, mod_abbreviation: str):
     try:
-        mod_abbreviation='MGI'
         query = f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT, SUPCOUNT, ref_pmid.curie as PMID, ref_mod.curie AS mod_curie
                     FROM reference, citation,
                     	(SELECT b.reference_id, COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
@@ -582,7 +581,7 @@ def missing_files (db: Session, mod_abbreviation: str):
                     	FROM mod_corpus_association AS b
                     	JOIN mod ON b.mod_id = mod.mod_id
                     	LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
-                    	WHERE mod.abbreviation = {mod_abbreviation}
+                    	WHERE mod.abbreviation = 'MGI'
                     	GROUP BY b.reference_id
                     	HAVING COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
                     	OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1
