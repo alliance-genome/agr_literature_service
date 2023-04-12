@@ -203,6 +203,6 @@ def add_license(curie: str,
 
 @router.get('/missing_files/{mod_abbreviation}',
             status_code=status.HTTP_200_OK)
-def missing_files(mod_abbreviation: str,
-                  db: Session = db_session):
+def missing_files(db: Session = db_session,
+                    mod_abbreviation: str):
     return reference_crud.missing_files(db, mod_abbreviation)
