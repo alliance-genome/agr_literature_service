@@ -54,7 +54,7 @@ def post_references(json_path, live_change=True):  # noqa: C901
                                                            mod_to_mod_id, live_change)
         if newly_added_curies:
             new_ref_curies.extend(newly_added_curies)
-
+    db_session.commit()
     db_session.close()
     log.info("DONE!\n\n")
     return new_ref_curies
@@ -278,6 +278,7 @@ def insert_authors(db_session, primaryId, reference_id, author_list_from_json):
             log.info(primaryId + ": INSERT AUTHOR: " + name + " | '" + str(affiliations) + "'")
         except Exception as e:
             log.info(primaryId + ": INSERT AUTHOR: " + name + " failed: " + str(e))
+    db_session.commit()
 
 
 def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
@@ -292,7 +293,7 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
             if entry.get('journal') in journal_to_resource_id:
                 (resource_id, journal_title) = journal_to_resource_id[entry.get('journal')]
 
-        citation = generate_citation(entry, journal_title)
+        # citation = generate_citation(entry, journal_title)
 
         curie = get_next_reference_curie(db_session)
 
@@ -316,7 +317,7 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
                    "volume": entry.get('volume', ''),
                    "issue_name": entry.get('issueName', ''),
                    "page_range": entry.get('pages', ''),
-                   "citation": citation,
+                   # "citation": citation,
                    "pubmed_types": entry.get('pubMedType', []),
                    "keywords": entry.get('keywords', []),
                    "category": entry.get('allianceCategory', 'Other').replace(' ', '_'),
@@ -335,10 +336,15 @@ def insert_reference(db_session, primaryId, journal_to_resource_id, entry):
 
         x = ReferenceModel(**refData)
         db_session.add(x)
+        # db_session.commit()
         db_session.flush()
         db_session.refresh(x)
         reference_id = x.reference_id
         log.info(primaryId + ": INSERT REFERENCE")
+        # remove after testing from here to except.
+        db_session.expire(x)
+        x = db_session.query(ReferenceModel).filter_by(reference_id=x.reference_id).one_or_none()
+
     except Exception as e:
         log.info(primaryId + ": INSERT REFERENCE failed " + str(e))
 

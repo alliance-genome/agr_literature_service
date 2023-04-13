@@ -6,6 +6,7 @@ import os
 import shutil
 import tarfile
 import tempfile
+from itertools import count
 from typing import List
 
 import boto3
@@ -111,6 +112,16 @@ def file_paths_in_dir(directory):
 
 
 def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no cover
+    if not metadata["reference_curie"].startswith("AGRKB:101"):
+        ref_curie_res = db.query(ReferenceModel.curie).filter(
+            ReferenceModel.cross_reference.any(CrossReferenceModel.curie == metadata["reference_curie"])).one_or_none()
+        if ref_curie_res is not None:
+            metadata["reference_curie"] = ref_curie_res.curie
+        else:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail="The specified curie is not in the standard Alliance format and no cross "
+                                       "references match the specified value.")
+        metadata["reference_curie"] = ref_curie_res.curie
     if metadata["file_extension"] in ["tgz", "tar.gz"]:
         temp_dir = tempfile.mkdtemp()
         file_tar = tarfile.open(fileobj=file.file)
@@ -141,23 +152,34 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no co
     else:
         file_upload_single(db, metadata, file)
 
+    cleanup_temp_file(db, metadata["reference_curie"])
+
+
+def cleanup_temp_file(db: Session, ref_curie: str):  # pragma: no cover
+    ref = db.query(ReferenceModel).filter_by(curie=ref_curie).one_or_none()
+    if ref:
+        reffiles = db.query(ReferencefileModel).filter_by(
+            reference_id=ref.reference_id, file_class='main', file_extension='pdf').order_by(
+                ReferencefileModel.file_publication_status).all()
+
+        if len(reffiles) >= 2:
+            mod_ids_with_final = {mod.mod_id for reffile in reffiles for mod in reffile.referencefile_mods if
+                                  reffile.file_publication_status == 'final'}
+            for reffile in reffiles:
+                if reffile.file_publication_status == 'temp':
+                    if None in mod_ids_with_final or all([mod.mod_id in mod_ids_with_final for mod in
+                                                          reffile.referencefile_mods]):
+                        destroy(db, reffile.referencefile_id)
+
 
 def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma: no cover
     file.file.seek(0)
-    if not metadata["reference_curie"].startswith("AGRKB:101"):
-        ref_curie_res = db.query(ReferenceModel.curie).filter(
-            ReferenceModel.cross_reference.any(CrossReferenceModel.curie == metadata["reference_curie"])).one_or_none()
-        if metadata["reference_curie"] is None:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail="The specified curie is not in the standard Alliance format and no cross "
-                                       "references match the specified value.")
-        metadata["reference_curie"] = ref_curie_res.curie
     md5sum_hash = hashlib.md5()
     for byte_block in iter(lambda: file.file.read(4096), b""):
         md5sum_hash.update(byte_block)
     md5sum = md5sum_hash.hexdigest()
     folder = get_s3_folder_from_md5sum(md5sum)
-    referencefile = db.query(ReferencefileModel).filter(
+    referencefile: ReferencefileModel = db.query(ReferencefileModel).filter(
         and_(
             ReferencefileModel.md5sum == md5sum,
             ReferencefileModel.reference.has(ReferenceModel.curie == metadata["reference_curie"])
@@ -165,18 +187,12 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
     ).one_or_none()
     if referencefile is not None:
         # the file already exists, and it's already associated with the provided reference, but the metadata in the
-        # request may be incompatible with the one in the db. If the metadata is not compatible, reject the request,
-        # otherwise add the mod association
-        if referencefile.file_class != metadata["file_class"] or \
-                referencefile.file_publication_status != metadata["file_publication_status"] or \
-                referencefile.file_extension != metadata["file_extension"] or \
-                referencefile.pdf_type != metadata["pdf_type"]:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail=f"Metadata for the provided md5sum and reference curie "
-                                       f"{referencefile.reference.curie} is already present in the"
-                                       f" system with name {referencefile.display_name}.{referencefile.file_extension} "
-                                       f"but it's not compatible with the provided metadata, so no new "
-                                       "connection to the provided mod has been created.")
+        # request may be incompatible with the one in the db. The metadata in the db will not be modified and a new
+        # connection between the file and the mod will be created. If the uploaded file is "temp", the file publication
+        # status will be updated and set to "temp" even if another MOD uploaded it as "final"
+        if metadata["file_publication_status"] == "temp" and referencefile.file_publication_status != "temp":
+            referencefile.file_publication_status = "temp"
+        db.commit()
         mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
         create_mod_connection(db, ReferencefileModSchemaPost(referencefile_id=referencefile.referencefile_id,
                                                              mod_abbreviation=mod_abbreviation))
@@ -184,6 +200,21 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
         # 2 possible cases here: i) an entry with the same md5sum does not exist; ii) same md5sum exists, but it's
         # associated with a different curie (same file content for different files or same files). In both cases we need
         # to create a new referencefile and associate it with the specified ref and mod
+
+        # check if a different version of the same file (same display_name and file_extension) is already associated
+        # with the same reference. Add _num to the display name to upload different versions of the same file
+        original_name = metadata["display_name"]
+        for counter in count(start=1, step=1):
+            ref_file_same_name = db.query(ReferencefileModel).filter(
+                and_(
+                    ReferencefileModel.display_name == metadata["display_name"],
+                    ReferencefileModel.file_extension == metadata["file_extension"],
+                    ReferencefileModel.reference.has(ReferenceModel.curie == metadata["reference_curie"])
+                )
+            ).one_or_none()
+            if ref_file_same_name is None:
+                break
+            metadata["display_name"] = f"{original_name}_{counter}"
         create_request = ReferencefileSchemaPost(md5sum=md5sum, **metadata)
         create_metadata(db, create_request)
         file.file.seek(0)

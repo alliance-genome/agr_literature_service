@@ -3,12 +3,14 @@
 MOD=$1
 
 # request okta access token
-OKTA_ACCESS_TOKEN=$(curl -s --request POST --url https://${OKTA_DOMAIN}/v1/token \
-  --header 'accept: application/json' \
-  --header 'cache-control: no-cache' \
-  --header 'content-type: application/x-www-form-urlencoded' \
-  --data "grant_type=client_credentials&scope=admin&client_id=${OKTA_CLIENT_ID}&client_secret=${OKTA_CLIENT_SECRET}" \
-    | jq '.access_token' | tr -d '"')
+generate_access_token () {
+  OKTA_ACCESS_TOKEN=$(curl -s --request POST --url https://${OKTA_DOMAIN}/v1/token \
+    --header 'accept: application/json' \
+    --header 'cache-control: no-cache' \
+    --header 'content-type: application/x-www-form-urlencoded' \
+    --data "grant_type=client_credentials&scope=admin&client_id=${OKTA_CLIENT_ID}&client_secret=${OKTA_CLIENT_SECRET}" \
+      | jq '.access_token' | tr -d '"')
+}
 
 urlencode () {
   printf %s "$1" | jq -sRr @uri
@@ -36,7 +38,13 @@ upload_file () {
   else
     upload_status="error"
   fi
-  echo "API_CALL_STATUS: ${upload_status}, RESPONSE: ${response}, FILE: ${filepath}"
+  if [[ "${response}" == "{\"detail\":\"Expired token\"}" ]]; then
+    echo "INFO: Access token expired, requesting a new one"
+    generate_access_token
+    upload_file
+  else
+    echo "API_CALL_STATUS: ${upload_status}, RESPONSE: ${response}, FILE: ${filepath}"
+  fi
 }
 
 extract_file_metadata() {
@@ -80,7 +88,7 @@ process_file() {
   if [[ ${file_class} == "main" ]]; then
     parse_main_filename
   else
-    reference_id=$(basename $(dirname ${file_path}))
+    reference_id=$(basename $(dirname "${file_path}"))
   fi
   if [[ ${reference_id} =~ ^[0-9]{15}$ ]]; then
     reference_id="AGRKB:${reference_id}"
@@ -96,17 +104,19 @@ process_file() {
   upload_file
 }
 
+generate_access_token
+
 for reffileordir in /usr/files_to_upload/*; do
   if [[ -d ${reffileordir} ]]; then
     echo "Processing supplemental files from ${reffileordir}"
     for reffile in ${reffileordir}/*; do
-      if [[ ! -d ${reffile} && $(basename ${reffile}) != "*" ]]; then
+      if [[ ! -d "${reffile}" && $(basename "${reffile}") != "*" ]]; then
         process_file "${reffile}" "supplement"
       else
         echo "Found empty dir or subdir for reference ${reffileordir}"
       fi
     done
   else
-    process_file ${reffileordir} "main"
+    process_file "${reffileordir}" "main"
   fi
 done

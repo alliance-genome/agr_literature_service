@@ -26,7 +26,8 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ReferenceCommentAndCorrectionModel,
                                                ReferenceModel,
                                                ResourceModel,
-                                               CopyrightLicenseModel)
+                                               CopyrightLicenseModel,
+                                               CitationModel)
 from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.workflow_tag_crud import (
@@ -115,9 +116,9 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
         logger.debug("finished processing {} {}".format(field, value))
 
     logger.debug("add reference")
-    reference_data['citation'] = citation_from_data(reference_data,
-                                                    "; ".join([x[0] for x in sorted(author_names_order,
-                                                                                    key=lambda x: x[1])]))
+    # reference_data['citation'] = citation_from_data(reference_data,
+    #                                                "; ".join([x[0] for x in sorted(author_names_order,
+    #                                                                                key=lambda x: x[1])]))
     reference_db_obj = ReferenceModel(**reference_data)
     logger.debug("have model, save to db")
     db.add(reference_db_obj)
@@ -278,6 +279,20 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             reference_data["copyright_license_url"] = crl.url
             reference_data["copyright_license_description"] = crl.description
             reference_data["copyright_license_open_access"] = crl.open_access
+
+    if reference.citation_id:
+        cit = db.query(CitationModel).filter_by(
+            citation_id=reference.citation_id).one_or_none()
+        if cit:
+            reference_data["citation"] = cit.citation
+            reference_data["citation_short"] = cit.short_citation
+        else:
+            logger.warning(f"ref: {reference} has no citation, id is {reference.citation_id}")
+            reference_data["citation"] = f'No citation lookup failed for ref:{reference.curie} cit_id:{reference.citation_id}'
+            reference_data["citation_short"] = 'Problem No short citation'
+    else:
+        reference_data["citation"] = f'No citation_id for ref:{reference.curie}'
+        reference_data["citation_short"] = f'No citation_id for ref:{reference.curie}'
 
     bad_cross_ref_ids = []
     if reference.cross_reference:
@@ -440,6 +455,7 @@ def merge_comments_and_corrections(db, old_reference_id, new_reference_id, old_c
                 db.add(x)
             else:
                 db.delete(x)
+        db.commit()
     except Exception as e:
         logger.warning("An error occurred when transferring the comments/corrections from " + old_curie + " to " + new_curie + " : " + str(e))
 
@@ -521,25 +537,6 @@ def get_citation_from_obj(db: Session, ref_db_obj: ReferenceModel):
                                       ref_db_obj.issue_name or '',
                                       ref_db_obj.page_range or '')
     return citation
-
-
-def update_citation(db: Session, curie: str):  # noqa
-    """
-    :param db:
-    :param curie:
-    :param http_request:
-    :return:
-    """
-    try:
-        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one()
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Reference with the id {curie} is not available")
-
-    new_citation = get_citation_from_obj(db, reference)
-    if new_citation != reference.citation:
-        reference.citation = new_citation
-        db.commit()
 
 
 def add_license(db: Session, curie: str, license: str):  # noqa

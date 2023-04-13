@@ -5,6 +5,7 @@ from os import environ
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.api.models import CrossReferenceModel, ReferencefileModel
+from agr_literature_service.api.crud.referencefile_crud import cleanup_temp_file
 
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
@@ -63,7 +64,8 @@ def identify_main_pdfs():
                             db_session.add(x)
                             db_session.commit()
                             logger.info(pmcid + ": update the file_class to 'main' for the main PDF file " + pmcid_to_pdf_name[pmcid])
-
+                            ref = x.reference
+                            cleanup_temp_file(db_session, ref.curie)
     db_session.close()
 
 

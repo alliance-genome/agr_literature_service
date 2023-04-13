@@ -8,6 +8,7 @@ from sqlalchemy_continuum.plugins import PropertyModTrackerPlugin
 from sqlalchemy_continuum import make_versioned
 from agr_literature_service.api.database.base import Base
 from sqlalchemy.orm import configure_mappers
+
 # from literature.database.versioning import enable_versioning
 # enable_versioning()
 

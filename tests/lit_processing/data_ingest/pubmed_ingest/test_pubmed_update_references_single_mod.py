@@ -1,9 +1,9 @@
 import json
 from os import path
 
-from agr_literature_service.api.models import ReferenceModel, ResourceModel, CrossReferenceModel
+from agr_literature_service.api.models import ReferenceModel, CrossReferenceModel, CitationModel
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import\
-    update_database, create_new_citation, update_reference_table, generate_pmids_with_info
+    update_database, update_reference_table, generate_pmids_with_info
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_pmid_to_reference_id, get_author_data
 from ....fixtures import load_sanitized_references, populate_test_mod_reference_types, db # noqa
@@ -53,29 +53,33 @@ class TestPubmedUpdateReferenceSingleMod:
                         pmid_to_reference_id, update_log, new_md5sum,
                         old_md5sum, json_path, pmids_with_json_updated,
                         bad_date_published)
-        ref = None
+
         for x in db.query(ReferenceModel).all():
             if x.reference_id == pmid_to_reference_id[pmid]:
-                ref = x
                 assert x.page_range == '8'
                 assert x.volume == '71'
                 assert x.title.startswith("Role of PGE")
                 assert "OLD: " not in x.title
+                # get citation
+                cit = db.query(CitationModel).filter_by(citation_id=x.citation_id).one_or_none()
+                if not cit:
+                    assert "No citation created" == "AHH"
+                else:
+                    assert cit.citation.startswith("Shin-Ichiro")
             elif x.reference_id == pmid_to_reference_id[pmid2]:
                 assert x.issue_name == "1"
                 assert x.title.startswith("Mapping lung squamous cell")
                 assert "OLD2: " not in x.title
 
         ## test create_new_citation()
-        journal = None
-        if ref.resource_id:
-            res = db.query(ResourceModel).filter_by(resource_id=ref.resource_id).one_or_none()
-            journal = res.title
-        reference_id_to_authors = get_author_data(db, mod, reference_id_list, 50)
-        authors = reference_id_to_authors.get(pmid_to_reference_id[pmid])
-        citation = create_new_citation(authors, ref.date_published, ref.title,
-                                       journal, ref.volume, ref.issue_name, ref.page_range)
-        assert citation == ref.citation
+        # journal = None
+        # if ref.resource_id:
+        #    res = db.query(ResourceModel).filter_by(resource_id=ref.resource_id).one_or_none()
+        #    journal = res.title
+        # reference_id_to_authors = get_author_data(db, mod, reference_id_list, 50)
+        # authors = reference_id_to_authors.get(pmid_to_reference_id[pmid])
+        # citation = create_new_citation(authors, ref.date_published, ref.title,
+        #                               journal, ref.volume, ref.issue_name, ref.page_range)
 
         ## test generate_pmids_with_info()
         (ref_id_list, pmid_to_md5sum) = generate_pmids_with_info([pmid, pmid2],

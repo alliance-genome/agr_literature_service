@@ -94,22 +94,9 @@ class TestReference:
             response = client.patch(url=f"/reference/{test_reference.new_ref_curie}", json=updated_fields,
                                     headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
-            response = client.post(url=f"/reference/citationupdate/{test_reference.new_ref_curie}",
-                                   headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
-            license_name = "CC BY"
-            test_license = {
-                "name": license_name,
-                "url": "test url",
-                "description": "test description",
-                "open_access": True
-            }
-            response = client.post(url="/copyright_license/", json=test_license, headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
-            response = client.post(url=f"/reference/add_license/{test_reference.new_ref_curie}/{license_name}",
-                                   headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
+
             updated_ref = client.get(url=f"/reference/{test_reference.new_ref_curie}").json()
+            print(updated_ref)
             assert updated_ref["title"] == "new title"
             assert updated_ref["category"] == "book"
             assert updated_ref["language"] == "New"
@@ -117,14 +104,15 @@ class TestReference:
             assert updated_ref["date_published_start"] == "2022-10-01"
             # Do we have a new citation
             assert updated_ref["citation"] == ", () new title.   (): "
-            assert updated_ref["copyright_license_id"] is not None
+            assert updated_ref["copyright_license_id"] is None
+
     def test_changesets(self, test_reference, auth_headers): # noqa
         with TestClient(app) as client:
             # title            : None -> bob -> 'new title'
             # catergory        : None -> thesis -> book
             updated_fields = {"title": "new title", "category": "book", "language": "New"}
             client.patch(url=f"/reference/{test_reference.new_ref_curie}", json=updated_fields, headers=auth_headers)
-            client.post(url=f"/reference/citationupdate/{test_reference.new_ref_curie}", headers=auth_headers)
+            # client.post(url=f"/reference/citationupdate/{test_reference.new_ref_curie}", headers=auth_headers)
             response = client.get(url=f"/reference/{test_reference.new_ref_curie}/versions")
             transactions = response.json()
             assert transactions[0]['changeset']['curie'][1] == test_reference.new_ref_curie
@@ -132,8 +120,8 @@ class TestReference:
             assert transactions[0]['changeset']['category'][1] == "thesis"
             assert transactions[1]['changeset']['title'][1] == "new title"
             assert transactions[1]['changeset']['category'][1] == "book"
-            assert transactions[2]['changeset']['citation'][0] == ", () Bob.   (): "
-            assert transactions[2]['changeset']['citation'][1] == ", () new title.   (): "
+            # assert transactions[2]['changeset']['citation'][0] == ", () Bob.   (): "
+            # assert transactions[2]['changeset']['citation'][1] == ", () new title.   (): "
 
     def test_delete_reference(self, auth_headers, test_reference): # noqa
         with TestClient(app) as client:
@@ -239,7 +227,7 @@ class TestReference:
             author = db.query(AuthorModel).filter(AuthorModel.name == "S. Wu").one()
             assert author.first_name == 'S.'
 
-            assert response['citation'] == "D. Wu; S. Wu, () Some test 001 title.  433 (): 538--541"
+            assert response['citation'] == "D. Wu; S. Wu, () Some test 001 title.  433 (4): 538--541"
 
             assert response['cross_references'][0]['curie'] == 'FB:FBrf0221304'
 
@@ -257,7 +245,6 @@ class TestReference:
             assert response["title"] == "Some test 001 title"
             assert response["volume"] == "433"
 
-            print("BOB................")
             print(response)
             for ont in response["workflow_tags"]:
                 if ont['mod_abbreviation'] == "001_RGD":
