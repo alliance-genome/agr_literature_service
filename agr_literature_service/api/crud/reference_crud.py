@@ -552,6 +552,8 @@ def add_license(db: Session, curie: str, license: str):  # noqa
                             detail=f"Reference with the id '{curie}' is not in the database.")
 
     license = license.replace('+', ' ')
+    if license == 'No license':
+        license = ''
     copyright_license_id = None
     if license != '':
         try:
