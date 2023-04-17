@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, subqueryload
-from os import environ
+from os import environ, system
 
 import argparse
 
@@ -19,7 +19,7 @@ helptext = r"""
     env PSQL_XXX used for Target subset db details.
     env ORIG_XXX used for source reference db details.
     If ORIG_XXX is defined use that for source db details.
-    If ORIG_XXX NOT defined then use PSQL_XXX details.
+    If ORIG_XXX NOT defined then PSQL_XXX details wil be used.
     In most cases ORIG_XXX will not be needed but this is incase
     the target and source databases are not on the same server.
 
@@ -27,11 +27,76 @@ helptext = r"""
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=helptext)
 parser.add_argument('-l', '--limit', help='Limit to x references', type=int, default=2000, required=False)
 parser.add_argument('-v', '--verbose', help="verbosity, minumum=0, headlines=1, full=2,", type=int, default=1, required=False)
+parser.add_argument('-d', '--dump_dir', help='Directory to dump schemas and dbs too', type=str, required=True)
+parser.add_argument('-f', '--full_orig_dump', help='Dump the original database in full aswell', type=bool, default=False, required=False)
+parser.add_argument('-s', '--subset_dump', help='Dump the new subset database.', type=bool, default=True, required=False)
 args = parser.parse_args()
 
 num_of_refs = args.limit
 verbose = args.verbose
+dump_dir = args.dump_dir
+full_orig_dump = args.full_orig_dump
 # BOB: Check other table data that maybe needed.
+
+
+def dump_schema(verbose, user, password, server, port, db):
+    global dump_dir, full_orig_dump
+    if verbose:
+        print(f"Dumping schema for {db} in {dump_dir} for server {server}")
+
+    # Dump full original database if requested.
+    filename = f"{dump_dir}/{server}-literature.sql"
+    if full_orig_dump:
+        com = f"pg_dump -Fc --clean -n public -h {server} -p {port} -U {user} -W {db} > {filename}"
+        print(com)
+        system(f"PGPASSWORD={password} {com}")
+
+    # Dump schema for original database.
+    filename = f"{dump_dir}/literature_schema.sql"
+    com = f"pg_dump -Fc --schema-only --clean -n public -h {server} -p {port} -U {user} -d {db} > {filename}"
+    print(com)
+    system(f"PGPASSWORD={password} {com}")
+
+
+def load_schema(verbose, user, password, server, port, db):
+    global dump_dir
+    if verbose:
+        print(f"Deleting old db {db} on server {server}")
+    com = f'psql -h {server} -p {port} -U {user} -c "DROP DATABASE IF EXISTS {db};"'
+    if verbose:
+        print(com)
+    system(f"PGPASSWORD={password} {com}")
+
+    if verbose:
+        print(f"Create new database {db} on server {server}")
+    com = f'psql -h {server} -p {port} -U {user} -c "CREATE DATABASE {db};"'
+    if verbose:
+        print(com)
+    system(f"PGPASSWORD={password} {com}")
+
+    if verbose:
+        print(f"Load schema for {db}")
+    filename = f"{dump_dir}/literature_schema.sql"
+    com = f"pg_restore -h {server} -n public -U {user} -p {port} -d {db} < {filename}"
+    if verbose:
+        print(com)
+    system(f"PGPASSWORD={password} {com}")
+
+
+def dump_subset():
+    global verbose, dump_dir
+    user = environ.get('PSQL_USERNAME', 'postgres')
+    password = environ.get('PSQL_PASSWORD', 'postgres')
+    server = environ.get('PSQL_HOST', 'localhost')
+    port = environ.get('PSQL_PORT', '5432')
+    db = environ.get('PSQL_DATABASE', 'literature_subset')
+    if verbose:
+        print(f"Dumping database {db} to {dump_dir}")
+    filename = f"{dump_dir}/literature_subset.sql"
+    com = f"pg_dump -Fc --clean -n public -h {server} -p {port} -U {user} -d {db} > {filename}"
+    if verbose:
+        print(com)
+    system(f"PGPASSWORD={password} {com}")    
 
 
 def create_postgres_engine(verbose, source=False):
@@ -56,7 +121,8 @@ def create_postgres_engine(verbose, source=False):
         PORT = environ.get('ORIG_PORT', None)
         if not PORT:
             PORT = environ.get('PSQL_PORT', '5432')
-        DB = environ.get('ORIG_DATABASE', 'literature_test')
+        DB = environ.get('ORIG_DATABASE', 'literature')
+        dump_schema(verbose, USER, PASSWORD, SERVER, PORT, DB)
     else:
         USER = environ.get('PSQL_USERNAME', 'postgres')
         PASSWORD = environ.get('PSQL_PASSWORD', 'postgres')
@@ -64,6 +130,7 @@ def create_postgres_engine(verbose, source=False):
         PORT = environ.get('PSQL_PORT', '5432')
         DB = environ.get('PSQL_DATABASE', 'literature_subset')
         db_type = "Target"
+        load_schema(verbose, USER, PASSWORD, SERVER, PORT, DB)
 
     # Create our SQL Alchemy engine from our environmental variables.
     engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
@@ -86,8 +153,9 @@ def create_postgres_session(verbose, source=False):
 
 
 def add_references(db_orig_session, db_subset_session):
+    global verbose
     if verbose:
-        print("Adding references")
+        print(f"Adding {num_of_refs} references")
     refs = db_orig_session.query(ReferenceModel).options(
         subqueryload(ReferenceModel.cross_reference),
         subqueryload(ReferenceModel.obsolete_reference),
@@ -97,18 +165,21 @@ def add_references(db_orig_session, db_subset_session):
         subqueryload(ReferenceModel.author),
         subqueryload(ReferenceModel.referencefiles),
         subqueryload(ReferenceModel.topic_entity_tags),
-        subqueryload(ReferenceModel.workflow_tag)
+        subqueryload(ReferenceModel.workflow_tag),
+        subqueryload(ReferenceModel.citation)
     ).filter(ReferenceModel.reference_id <= num_of_refs)
     for ref in refs:
         if verbose == ALL_OUTPUT:
             print(f"Adding {ref}")
+        elif verbose:
+            print(f"Adding {ref.curie} {ref.reference_id}") 
         db_subset_session.merge(ref)
-    print("Be patient the commit can take a wee while.")
-    db_subset_session.commit()
 
 
 def add_specific_test_references(db_orig_session, db_subset_session):
-    # curies in curie order. Please reatin this order.
+    global verbose
+
+    # curies in curie order. Please retain this order.
     curies = ['AGRKB:101000000656561',
               'AGRKB:101000000650977',
               'AGRKB:101000000661443',
@@ -131,20 +202,27 @@ def add_specific_test_references(db_orig_session, db_subset_session):
         subqueryload(ReferenceModel.author),
         subqueryload(ReferenceModel.referencefiles),
         subqueryload(ReferenceModel.topic_entity_tags),
-        subqueryload(ReferenceModel.workflow_tag)
+        subqueryload(ReferenceModel.workflow_tag),
+        subqueryload(ReferenceModel.citation)
     ).filter(ReferenceModel.curie.in_(curies))
-    # ).filter(ReferenceModel.curie.any(ReferenceModel.curie.in_(curies)))
     for ref in refs:
         if verbose == ALL_OUTPUT:
             print(f"Adding {ref}")
+        elif verbose:
+            print(f"Adding {ref.curie} {ref.reference_id}") 
         db_subset_session.merge(ref)
-    db_subset_session.commit()
 
 
 def start():  # noqa
     db_orig_session = create_postgres_session(True, source=True)
 
     db_subset_session = create_postgres_session(True)
+
+    # remove the triggers while loading. 
+    db_subset_session.execute('ALTER TABLE reference DISABLE TRIGGER all;')
+    db_subset_session.execute('ALTER TABLE author DISABLE TRIGGER all;')
+    db_subset_session.execute('ALTER TABLE resource DISABLE TRIGGER all;')
+    db_subset_session.execute('ALTER TABLE cross_reference DISABLE TRIGGER all;')
 
     users = db_orig_session.query(UserModel)
     for user in users:
@@ -194,25 +272,6 @@ def start():  # noqa
     db_subset_session.commit()
     db_subset_session.close()
 
-    refs = db_orig_session.query(ReferenceModel).options(
-        subqueryload(ReferenceModel.cross_reference),
-        subqueryload(ReferenceModel.obsolete_reference),
-        subqueryload(ReferenceModel.mod_referencetypes),
-        subqueryload(ReferenceModel.mod_corpus_association),
-        subqueryload(ReferenceModel.mesh_term),
-        subqueryload(ReferenceModel.author),
-        subqueryload(ReferenceModel.referencefiles),
-        subqueryload(ReferenceModel.topic_entity_tags),
-        subqueryload(ReferenceModel.workflow_tag)
-    ).filter(ReferenceModel.reference_id <= num_of_refs)
-    for ref in refs:
-        print(f"Adding {ref}")
-        db_subset_session.merge(ref)
-    print("Be patient the commit can take a wee while.")
-
-    db_subset_session.commit()
-    db_subset_session.close()
-
     mod_referencetypes = db_orig_session.query(ModReferencetypeAssociationModel).all()
     for mod_referencetype in mod_referencetypes:
         if verbose == ALL_OUTPUT:
@@ -221,7 +280,11 @@ def start():  # noqa
     db_subset_session.commit()
     db_subset_session.close()
 
+    # add the references, one set by a count and other from preset list.
     add_references(db_orig_session, db_subset_session)
+    add_specific_test_references(db_orig_session, db_subset_session)
+    print("Be patient the commit can take a wee while.")
+    db_subset_session.commit()
 
     # BOB: Add alembic_version
 
@@ -251,7 +314,8 @@ def start():  # noqa
         "topic_entity_tag_topic_entity_tag_id_seq",
         "transaction_id_seq",
         "workflow_tag_reference_workflow_tag_id_seq",
-        "copyright_license_copyright_license_id_seq"
+        "copyright_license_copyright_license_id_seq",
+        "citation_citation_id_seq"
     ]
     for seq in seq_list:
         com = f"ALTER SEQUENCE {seq} RESTART WITH {1000000}"
@@ -268,8 +332,24 @@ def start():  # noqa
             okay = False
         if verbose:
             print(f"COUNT: {table_name} -> {count}")
+
+    # Add the triggers back.
+    db_subset_session.execute('ALTER TABLE reference ENABLE TRIGGER all;')
+    db_subset_session.execute('ALTER TABLE author ENABLE TRIGGER all;')
+    db_subset_session.execute('ALTER TABLE resource ENABLE TRIGGER all;')
+    db_subset_session.execute('ALTER TABLE cross_reference ENABLE TRIGGER all;')
+    db_subset_session.commit()
+
+    dump_subset()
+
     if not okay:
         exit(-1)
+
+    #######################################################
+    # Need to check triggers and function are in the dumps.
+    # Not too bad if not as api start will add them.
+    # pg_dump -n 'public' to get functions and triggers.
+    #######################################################
 
 
 start()
