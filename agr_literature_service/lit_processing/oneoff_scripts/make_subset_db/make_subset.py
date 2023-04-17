@@ -32,7 +32,7 @@ helptext = r"""
     env PSQL_XXX used for Target subset db details.
     env ORIG_XXX used for source reference db details.
     If ORIG_XXX is defined use that for source db details.
-    If ORIG_XXX NOT defined then PSQL_XXX details wil be used.
+    If ORIG_XXX NOT defined then PSQL_XXX details will be used.
     In most cases ORIG_XXX will not be needed but this is incase
     the target and source databases are not on the same server.
 
@@ -40,8 +40,8 @@ helptext = r"""
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=helptext)
 parser.add_argument('-l', '--limit', help='Limit to x references', type=int, default=2000, required=False)
 parser.add_argument('-v', '--verbose', help="verbosity, minumum=0, headlines=1, full=2,", type=int, default=1, required=False)
-parser.add_argument('-d', '--dump_dir', help='Directory to dump schemas and dbs too', type=str, required=True)
-parser.add_argument('-f', '--full_orig_dump', help='Dump the original database in full aswell', type=bool, default=False, required=False)
+parser.add_argument('-d', '--dump_dir', help='Directory to dump schemas and dbs to', type=str, required=True)
+parser.add_argument('-f', '--full_orig_dump', help='Dump the original database in full as well', type=bool, default=False, required=False)
 parser.add_argument('-s', '--subset_dump', help='Dump the new subset database.', type=bool, default=True, required=False)
 args = parser.parse_args()
 
