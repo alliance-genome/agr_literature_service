@@ -96,7 +96,7 @@ def dump_subset():
     com = f"pg_dump -Fc --clean -n public -h {server} -p {port} -U {user} -d {db} > {filename}"
     if verbose:
         print(com)
-    system(f"PGPASSWORD={password} {com}")    
+    system(f"PGPASSWORD={password} {com}")
 
 
 def create_postgres_engine(verbose, source=False):
@@ -172,7 +172,7 @@ def add_references(db_orig_session, db_subset_session):
         if verbose == ALL_OUTPUT:
             print(f"Adding {ref}")
         elif verbose:
-            print(f"Adding {ref.curie} {ref.reference_id}") 
+            print(f"Adding {ref.curie} {ref.reference_id}")
         db_subset_session.merge(ref)
 
 
@@ -209,7 +209,7 @@ def add_specific_test_references(db_orig_session, db_subset_session):
         if verbose == ALL_OUTPUT:
             print(f"Adding {ref}")
         elif verbose:
-            print(f"Adding {ref.curie} {ref.reference_id}") 
+            print(f"Adding {ref.curie} {ref.reference_id}")
         db_subset_session.merge(ref)
 
 
@@ -218,7 +218,7 @@ def start():  # noqa
 
     db_subset_session = create_postgres_session(True)
 
-    # remove the triggers while loading. 
+    # remove the triggers while loading.
     db_subset_session.execute('ALTER TABLE reference DISABLE TRIGGER all;')
     db_subset_session.execute('ALTER TABLE author DISABLE TRIGGER all;')
     db_subset_session.execute('ALTER TABLE resource DISABLE TRIGGER all;')
