@@ -30,7 +30,7 @@ upload_file () {
     -H 'accept: application/json' \
     -H "Authorization: Bearer ${OKTA_ACCESS_TOKEN}" \
     -H 'Content-Type: multipart/form-data' \
-    -F "file=@${filepath};type=text/plain" \
+    -F "file=@\"${filepath}\";type=text/plain" \
     -F 'metadata_file=')
   if [[ $response == null ]]; then
     upload_status="success"
