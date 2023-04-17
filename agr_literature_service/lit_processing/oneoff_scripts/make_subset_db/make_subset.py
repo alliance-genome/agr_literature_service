@@ -14,6 +14,19 @@ from agr_literature_service.api.models import (
     CopyrightLicenseModel
 
 )
+test_reference_curies = [
+    'AGRKB:101000000656561',
+    'AGRKB:101000000650977',
+    'AGRKB:101000000661443',
+    'AGRKB:101000000679676',
+    'AGRKB:101000000654341',
+    'AGRKB:101000000589922',
+    'AGRKB:101000000863609',
+    'AGRKB:101000000946299',
+    'AGRKB:101000000594062',
+    'AGRKB:101000000872479',
+    'AGRKB:101000000865324']
+
 ALL_OUTPUT = 2  # For verbosity
 helptext = r"""
     env PSQL_XXX used for Target subset db details.
@@ -36,7 +49,7 @@ num_of_refs = args.limit
 verbose = args.verbose
 dump_dir = args.dump_dir
 full_orig_dump = args.full_orig_dump
-# BOB: Check other table data that maybe needed.
+subset_dump = args.subset_dump
 
 
 def dump_schema(verbose, user, password, server, port, db):
@@ -177,20 +190,10 @@ def add_references(db_orig_session, db_subset_session):
 
 
 def add_specific_test_references(db_orig_session, db_subset_session):
-    global verbose
+    global verbose, test_reference_curies
 
     # curies in curie order. Please retain this order.
-    curies = ['AGRKB:101000000656561',
-              'AGRKB:101000000650977',
-              'AGRKB:101000000661443',
-              'AGRKB:101000000679676',
-              'AGRKB:101000000654341',
-              'AGRKB:101000000589922',
-              'AGRKB:101000000863609',
-              'AGRKB:101000000946299',
-              'AGRKB:101000000594062',
-              'AGRKB:101000000872479',
-              'AGRKB:101000000865324']
+
     if verbose:
         print("Adding SET test references")
     refs = db_orig_session.query(ReferenceModel).options(
@@ -204,7 +207,7 @@ def add_specific_test_references(db_orig_session, db_subset_session):
         subqueryload(ReferenceModel.topic_entity_tags),
         subqueryload(ReferenceModel.workflow_tag),
         subqueryload(ReferenceModel.citation)
-    ).filter(ReferenceModel.curie.in_(curies))
+    ).filter(ReferenceModel.curie.in_(test_reference_curies))
     for ref in refs:
         if verbose == ALL_OUTPUT:
             print(f"Adding {ref}")
@@ -214,6 +217,7 @@ def add_specific_test_references(db_orig_session, db_subset_session):
 
 
 def start():  # noqa
+    global test_reference_curies
     db_orig_session = create_postgres_session(True, source=True)
 
     db_subset_session = create_postgres_session(True)
@@ -286,7 +290,18 @@ def start():  # noqa
     print("Be patient the commit can take a wee while.")
     db_subset_session.commit()
 
-    # BOB: Add alembic_version
+    # Add alembic_version
+    alembic_rows = db_orig_session.execute("SELECT version_num from alembic_version")
+    version = ''
+    for alembic_row in alembic_rows:
+        version = alembic_row[0]
+    if not version:
+        print("ERROR: Could not find version_num for alembic_version table")
+        okay = False
+    else:
+        db_subset_session.execute(f"INSERT into alembic_version (version_num) VALUES ('{version}');")
+    db_subset_session.commit()
+    db_subset_session.close()
 
     # Need to set the initial seq values else we cannot add any more entries,
     # which might be needed for testing the api.
@@ -324,14 +339,19 @@ def start():  # noqa
 
     # Sanity checks
     okay = True
-    tables = ['reference', 'cross_reference']  # add other tables
+    tables = ['reference', 'citation']  # add other tables?
     for table_name in tables:
-        count = db_subset_session.execute(f"SELECT count(1) from {table_name}")
+        count_rows = db_subset_session.execute(f"SELECT count(1) from {table_name}")
+        count = 0
+        for count_row in count_rows:
+            count = count_row[0]
         if not count:
             print(f"ERROR: No records found for table  {table_name}")
             okay = False
-        if verbose:
-            print(f"COUNT: {table_name} -> {count}")
+        theoretical_count = len(test_reference_curies) + num_of_refs
+        if count != theoretical_count:
+            print(f"ERROR: {count} records found for table  {table_name} but was expecting {theoretical_count}")
+            okay = False
 
     # Add the triggers back.
     db_subset_session.execute('ALTER TABLE reference ENABLE TRIGGER all;')
@@ -340,16 +360,11 @@ def start():  # noqa
     db_subset_session.execute('ALTER TABLE cross_reference ENABLE TRIGGER all;')
     db_subset_session.commit()
 
-    dump_subset()
+    if subset_dump:
+        dump_subset()
 
     if not okay:
         exit(-1)
-
-    #######################################################
-    # Need to check triggers and function are in the dumps.
-    # Not too bad if not as api start will add them.
-    # pg_dump -n 'public' to get functions and triggers.
-    #######################################################
 
 
 start()
