@@ -127,7 +127,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 {"title": {"type": "unified"}},
                 {"abstract": {"type": "unified"}},
                 {"keywords": {"type": "unified"}},
-                {"long_citation": {"type": "unified"}}
+                {"citation": {"type": "unified"}}
             ]
         },
         "aggregations": {
@@ -201,7 +201,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                         {
                         "simple_query_string":{
                             "fields":[
-                                "title","keywords","abstract","long_citation"
+                                "title","keywords","abstract","citation"
                             ],
                             "query" : query + "*" if partial_match else query,
                             "analyze_wildcard": "true",
