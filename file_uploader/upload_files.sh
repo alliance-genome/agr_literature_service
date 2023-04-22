@@ -123,7 +123,7 @@ export MOD
 for reffileordir in /usr/files_to_upload/*; do
   if [[ -d ${reffileordir} ]]; then
     echo "Processing supplemental files from ${reffileordir}"
-    find "${reffileordir}" -type f -exec bash -c "process_file \"{}\" \"supplement\"" \;
+    find "${reffileordir}" -type f -exec bash -c 'process_file "$1" "supplement"' -- {} \;
   else
     process_file "${reffileordir}" "main"
   fi
