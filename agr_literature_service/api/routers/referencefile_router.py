@@ -38,7 +38,7 @@ def file_upload(reference_curie: str = None,
                 display_name: str = None,
                 file_class: str = None,
                 file_publication_status: str = None,
-                file_extension: str = None,
+                file_extension: str = "",
                 pdf_type: str = None,
                 is_annotation: bool = None,
                 mod_abbreviation: str = None,
@@ -90,7 +90,7 @@ def file_upload(reference_curie: str = None,
         is_annotation = False
     set_global_user_from_okta(db, user)
     metadata = None
-    if reference_curie and display_name and file_class and file_publication_status and file_extension:
+    if reference_curie and display_name and file_class and file_publication_status:
         metadata = {
             "reference_curie": reference_curie,
             "display_name": display_name,
