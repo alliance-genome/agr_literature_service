@@ -89,7 +89,7 @@
           }
         }
       },
-      "long_citation": {
+      "citation": {
         "type": "text",
         "fields": {
           "keyword": {
