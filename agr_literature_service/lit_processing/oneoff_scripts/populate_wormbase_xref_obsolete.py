@@ -8,6 +8,7 @@ from os import environ, makedirs, path
 # from typing import Set
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
+from agr_literature_service.api.models import CrossReferenceModel
 
 import requests
 from dotenv import load_dotenv
@@ -30,7 +31,7 @@ def get_from_database(db_session):
     return wb_xref_to_reference_id
 
 
-def process_wormbase_data(wb_xref_to_reference_id):
+def process_wormbase_data(wb_xref_to_reference_id, db_session):
     url = 'https://tazendra.caltech.edu/~postgres/agr/lit/merged_papers.tsv'
     f = urllib.request.urlopen(url)
     wormbase_stuff = f.read().decode('utf-8')
@@ -57,13 +58,48 @@ def process_wormbase_data(wb_xref_to_reference_id):
         # else:
         #     logger.info(f"wb_merged {wb_merged} is correctly NOT in wb_xref_to_reference_id")
         if has_errors is False:
-            logger.info(f"Add {wb_merged} obsolete to {wb_xref_to_reference_id[wb_valid][0]}")
+            reference_id = wb_xref_to_reference_id[wb_valid][0]
+            logger.info(f"Add {wb_merged} obsolete to {reference_id}")
+            try:
+                x = CrossReferenceModel(reference_id=reference_id,
+                                        curie_prefix=wb_merged.split(':')[0],
+                                        curie=wb_merged,
+                                        is_obsolete=True,
+                                        pages=['reference'])
+                db_session.add(x)
+                logger.info("The cross_reference row for reference_id = " + str(reference_id) + " and curie = " + wb_merged + " has been added into database.")
+            except Exception as e:
+                logger.info("An error occurred when adding cross_reference row for reference_id = " + str(reference_id) + " and curie = " + wb_merged + " " + str(e))
+    db_session.commit()
     
+# SELECT * FROM cross_reference WHERE curie = 'WB:WBPaper00046376'
 
 if __name__ == "__main__":
     db_session = create_postgres_session(False)
     wb_xref_to_reference_id = get_from_database(db_session)
-    process_wormbase_data(wb_xref_to_reference_id)
+    process_wormbase_data(wb_xref_to_reference_id, db_session)
+
+
+# from agr_literature_service.api.models import CrossReferenceModel
+# db_session.close()
+
+# utils/db_write_utils.py
+#         try:
+#             x = CrossReferenceModel(reference_id=reference_id,
+#                                     curie_prefix=entry["curie"].split(':')[0],
+#                                     curie=entry["curie"],
+#                                     pages=entry.get("pages"))
+#             db_session.add(x)
+#             logger.info("The cross_reference row for reference_id = " + str(reference_id) + " and curie = " + entry["curie"] + " has been added into database.")
+#         except Exception as e:
+#             logger.info("An error occurred when adding cross_reference row for reference_id = " + str(reference_id) + " and curie = " + entry["curie"] + " " + str(e))
+
+# lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_single_mod.py
+# from agr_literature_service.api.user import set_global_user_id
+#     scriptNm = path.basename(__file__).replace(".py", "")
+#     set_global_user_id(db_session, scriptNm)
+
+
 
 
 # from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import download_pubmed_xml
