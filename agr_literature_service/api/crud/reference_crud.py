@@ -278,6 +278,17 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             reference_data["copyright_license_url"] = crl.url
             reference_data["copyright_license_description"] = crl.description
             reference_data["copyright_license_open_access"] = crl.open_access
+            rows = db.execute(f"SELECT rv.updated_by, u.email "
+                              f"FROM reference_version rv, users u "
+                              f"WHERE curie = '{reference_data['curie']}' "
+                              f"AND copyright_license_id_mod IS true "
+                              f"AND rv.updated_by = u.id "
+                              f"ORDER BY rv.date_updated DESC LIMIT 1").fetchall()
+            if len(rows) == 1:
+                if rows[0]['email']:
+                    reference_data["copyright_license_last_updated_by"] = rows[0]['email']
+                else:
+                    reference_data["copyright_license_last_updated_by"] = rows[0]['updated_by']
 
     if reference.citation_id:
         cit = db.query(CitationModel).filter_by(
@@ -552,6 +563,8 @@ def add_license(db: Session, curie: str, license: str):  # noqa
                             detail=f"Reference with the id '{curie}' is not in the database.")
 
     license = license.replace('+', ' ')
+    if license == 'No license':
+        license = ''
     copyright_license_id = None
     if license != '':
         try:
