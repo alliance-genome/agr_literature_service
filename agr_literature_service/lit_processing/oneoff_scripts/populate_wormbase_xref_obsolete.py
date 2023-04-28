@@ -9,6 +9,7 @@ from os import environ, makedirs, path
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.models import CrossReferenceModel
+# from agr_literature_service.api.user import set_global_user_id
 
 import requests
 from dotenv import load_dotenv
@@ -32,6 +33,10 @@ def get_from_database(db_session):
 
 
 def process_wormbase_data(wb_xref_to_reference_id, db_session):
+    # to set database user as "populate_wormbase_xref_obsolete" instead of "default_user"
+    # scriptNm = path.basename(__file__).replace(".py", "")
+    # set_global_user_id(db_session, scriptNm)
+
     url = 'https://tazendra.caltech.edu/~postgres/agr/lit/merged_papers.tsv'
     f = urllib.request.urlopen(url)
     wormbase_stuff = f.read().decode('utf-8')
