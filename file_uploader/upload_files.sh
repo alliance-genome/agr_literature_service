@@ -12,9 +12,13 @@ generate_access_token () {
       | jq '.access_token' | tr -d '"')
 }
 
+export -f generate_access_token
+
 urlencode () {
   printf %s "$1" | jq -sRr @uri
 }
+
+export -f urlencode
 
 upload_file () {
   url="https://${API_SERVER}"
@@ -30,7 +34,7 @@ upload_file () {
     -H 'accept: application/json' \
     -H "Authorization: Bearer ${OKTA_ACCESS_TOKEN}" \
     -H 'Content-Type: multipart/form-data' \
-    -F "file=@${filepath};type=text/plain" \
+    -F "file=@\"${filepath}\";type=text/plain" \
     -F 'metadata_file=')
   if [[ $response == null ]]; then
     upload_status="success"
@@ -47,6 +51,8 @@ upload_file () {
   fi
 }
 
+export -f upload_file
+
 extract_file_metadata() {
   filepath=$1
   filename=$(basename "${filepath}")
@@ -56,6 +62,8 @@ extract_file_metadata() {
     pdf_type="pdf"
   fi
 }
+
+export -f extract_file_metadata
 
 parse_main_filename() {
   regex="^([0-9]+)[_]([^_]+)[_]?(.*)?\..*$"
@@ -78,6 +86,8 @@ parse_main_filename() {
   fi
 }
 
+export -f parse_main_filename
+
 process_file() {
   file_path=$1
   file_class=$2
@@ -88,7 +98,7 @@ process_file() {
   if [[ ${file_class} == "main" ]]; then
     parse_main_filename
   else
-    reference_id=$(basename $(dirname "${file_path}"))
+    reference_id=$(echo "$file_path" | cut -d "/" -f4)
   fi
   if [[ ${reference_id} =~ ^[0-9]{15}$ ]]; then
     reference_id="AGRKB:${reference_id}"
@@ -104,18 +114,16 @@ process_file() {
   upload_file
 }
 
+export -f process_file
+
 generate_access_token
+export OKTA_ACCESS_TOKEN
+export MOD
 
 for reffileordir in /usr/files_to_upload/*; do
   if [[ -d ${reffileordir} ]]; then
     echo "Processing supplemental files from ${reffileordir}"
-    for reffile in ${reffileordir}/*; do
-      if [[ ! -d "${reffile}" && $(basename "${reffile}") != "*" ]]; then
-        process_file "${reffile}" "supplement"
-      else
-        echo "Found empty dir or subdir for reference ${reffileordir}"
-      fi
-    done
+    find "${reffileordir}" -type f -exec bash -c 'process_file "$1" "supplement"' -- {} \;
   else
     process_file "${reffileordir}" "main"
   fi

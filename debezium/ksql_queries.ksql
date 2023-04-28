@@ -161,7 +161,7 @@ CREATE TABLE reference_with_citation AS
     reference.resource_id,
     reference.title,
     reference.volume,
-    citation.citation \"LONG_CITATION\",
+    citation.citation \"CITATION\",
     citation.short_citation \"SHORT_CITATION\"
     FROM reference reference
     JOIN citation citation ON
@@ -194,7 +194,7 @@ CREATE TABLE reference_xref AS
     reference.resource_id,
     reference.title,
     reference.volume,
-    reference.long_citation,
+    reference.citation,
     reference.short_citation,
     cross_references.cross_references
     FROM reference_with_citation reference
@@ -228,7 +228,7 @@ CREATE TABLE reference_xref_author AS
     reference_xref.resource_id,
     reference_xref.title,
     reference_xref.volume,
-    reference_xref.long_citation,
+    reference_xref.citation,
     reference_xref.short_citation,
     reference_xref.cross_references,
     authors.authors
@@ -263,7 +263,7 @@ CREATE TABLE reference_xref_author_mods_in_corpus AS
     reference_xref_author.resource_id,
     reference_xref_author.title,
     reference_xref_author.volume,
-    reference_xref_author.long_citation,
+    reference_xref_author.citation,
     reference_xref_author.short_citation,
     reference_xref_author.cross_references,
     reference_xref_author.authors,
@@ -299,7 +299,7 @@ CREATE TABLE reference_xref_author_mods_in_corpus_mods_needs_review AS
     reference_xref_author_mods_in_corpus.resource_id,
     reference_xref_author_mods_in_corpus.title,
     reference_xref_author_mods_in_corpus.volume,
-    reference_xref_author_mods_in_corpus.long_citation,
+    reference_xref_author_mods_in_corpus.citation,
     reference_xref_author_mods_in_corpus.short_citation,
     reference_xref_author_mods_in_corpus.cross_references,
     reference_xref_author_mods_in_corpus.authors,
@@ -340,7 +340,7 @@ CREATE TABLE reference_joined WITH (
     reference_xref_author_mods_in_corpus_mods_needs_review.resource_id \"resource_id\",
     reference_xref_author_mods_in_corpus_mods_needs_review.title \"title\",
     reference_xref_author_mods_in_corpus_mods_needs_review.volume \"volume\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.long_citation \"long_citation\",
+    reference_xref_author_mods_in_corpus_mods_needs_review.citation \"citation\",
     reference_xref_author_mods_in_corpus_mods_needs_review.short_citation \"short_citation\",
     reference_xref_author_mods_in_corpus_mods_needs_review.cross_references \"cross_references\",
     reference_xref_author_mods_in_corpus_mods_needs_review.authors \"authors\",
