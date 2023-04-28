@@ -599,5 +599,5 @@ def missing_files(db: Session, mod_abbreviation: str):
         data = jsonable_encoder(rows)
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Cant search missing files.")
+                            detail="Cant search missing files.")
     return data
