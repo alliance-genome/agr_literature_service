@@ -316,8 +316,8 @@ def get_all_comment_correction_data(db_session, logger=None):
         data = {}
         if reference_id_from in reference_id_to_comment_correction_data:
             data = reference_id_to_comment_correction_data[reference_id_from]
-        if reference_id_from in reference_id_to_curies:
-            (pmid, ref_curie) = reference_id_to_curies[reference_id_from]
+        if reference_id_to in reference_id_to_curies:
+            (pmid, ref_curie) = reference_id_to_curies[reference_id_to]
             data[type_db] = {
                 "PMID": pmid,
                 "reference_curie": ref_curie
@@ -329,8 +329,8 @@ def get_all_comment_correction_data(db_session, logger=None):
         if reference_id_to in reference_id_to_comment_correction_data:
             data = reference_id_to_comment_correction_data[reference_id_to]
 
-        if reference_id_to in reference_id_to_curies:
-            (pmid, ref_curie) = reference_id_to_curies[reference_id_to]
+        if reference_id_from in reference_id_to_curies:
+            (pmid, ref_curie) = reference_id_to_curies[reference_id_from]
             type = type_mapping.get(type_db)
             if type is None:
                 if logger:
@@ -417,12 +417,12 @@ def get_reference_by_pmid(db_session, pmid):
 def get_journal_by_resource_id(db_session):
     resource_id_to_journal = {}
 
-    rs = db_session.execute("SELECT resource_id, curie, title FROM resource")
+    rs = db_session.execute("SELECT resource_id, curie, title, medline_abbreviation FROM resource")
 
     rows = rs.fetchall()
 
     for x in rows:
-        resource_id_to_journal[x[0]] = (x[1], x[2])
+        resource_id_to_journal[x[0]] = (x[1], x[2], x[3])
 
     return resource_id_to_journal
 
@@ -495,10 +495,10 @@ def get_author_data_for_ref_ids(db_session, ref_ids):
             "first_author": x[3],
             "order": x[4],
             "corresponding_author": x[5],
-            "name": x[6],
-            "affilliations": x[7] if x[7] else [],
-            "first_name": x[8],
-            "last_name": x[9],
+            "name": x[6].replace('"', '\\"').replace("\n", " ") if x[6] else x[6],
+            "affilliations": [a.replace('\\', '\\\\').replace('"', '\\"') for a in x[7]] if x[7] else [],
+            "first_name": x[8].replace('"', '\\"') if x[8] else x[8],
+            "last_name": x[9].replace('"', '\\"') if x[9] else x[9],
             "date_updated": str(x[10]),
             "date_created": str(x[11])
         })
