@@ -99,19 +99,18 @@ def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
 
 def generate_json_file(metaData, data, filename_with_path):
 
+    dataDict = {"data": data,
+                "metaData": metaData}
+    fw = open(filename_with_path, 'w')
     try:
-        dataDict = {"data": data,
-                    "metaData": metaData}
-        fw = open(filename_with_path, 'w')
         jsonStr = json.dumps(dataDict, indent=4, sort_keys=True)
         byteStr = jsonStr.encode('utf-8')
         decodedJsonStr = byteStr.decode('unicode-escape')
         fw.write(decodedJsonStr)
-        fw.close()
-
     except Exception as e:
         log.info("Error when generating " + filename_with_path + ": " + str(e))
-        exit()
+        fw.write(json.dumps(dataDict, indent=4, sort_keys=True))
+    fw.close
 
 
 def upload_json_file_to_s3(json_path, json_file, datestamp, ondemand):  # pragma: no cover
