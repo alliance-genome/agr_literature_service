@@ -108,7 +108,7 @@ def file_upload(reference_curie: str = None,
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail="The provided metadata file is not a valid json file")
     if not metadata or not metadata["reference_curie"] or not metadata["display_name"] or not \
-            metadata["file_class"] or not metadata["file_publication_status"] or not metadata["file_extension"]:
+            metadata["file_class"] or not metadata["file_publication_status"]:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="The provided metadata is not valid")
     return referencefile_crud.file_upload(db, metadata, file)
