@@ -4,11 +4,14 @@ from os import path
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.models import CrossReferenceModel
-# from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.user import set_global_user_id
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../logging.conf')
 logging.config.fileConfig(log_file_path)
 logger = logging.getLogger('literature logger')
+
+
+# When running this script, it will do what it can and output messages about what it couldn't do, and someone will fix those things manually.
 
 
 def get_from_database(db_session):
@@ -23,8 +26,8 @@ def get_from_database(db_session):
 
 def process_wormbase_data(wb_xref_to_reference_id, db_session):
     # to set database user as "populate_wormbase_xref_obsolete" instead of "default_user"
-    # scriptNm = path.basename(__file__).replace(".py", "")
-    # set_global_user_id(db_session, scriptNm)
+    scriptNm = path.basename(__file__).replace(".py", "")
+    set_global_user_id(db_session, scriptNm)
 
     url = 'https://tazendra.caltech.edu/~postgres/agr/lit/merged_papers.tsv'
     f = urllib.request.urlopen(url)
@@ -48,7 +51,7 @@ def process_wormbase_data(wb_xref_to_reference_id, db_session):
             logger.info(f"wb_valid {wb_valid} is NOT in wb_xref_to_reference_id, needs obsolete {wb_merged}")
         if wb_merged in wb_xref_to_reference_id:
             has_errors = True
-            logger.info(f"wb_merged {wb_merged} is already {agrkb}, should be in {wb_valid}")
+#             logger.info(f"wb_merged {wb_merged} is already {agrkb}, should be in {wb_valid}")
         # else:
         #     logger.info(f"wb_merged {wb_merged} is correctly NOT in wb_xref_to_reference_id")
         if has_errors is False:
