@@ -6,6 +6,7 @@ from datetime import datetime, date
 import json
 import gzip
 import shutil
+import html
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_s3
@@ -38,13 +39,13 @@ loop_count = 700
 
 def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
 
-    json_file = "reference" + "_" + mod + ".json"
-
+    json_file = "reference" + "_" + mod
     datestamp = str(date.today()).replace("-", "")
     if ondemand:
         # 2022-06-23 18:27:28.150889 => 20220623T182728
         datestamp = str(datetime.now()).replace('-', '').replace(':', '').replace(' ', 'T').split('.')[0]
-        json_file = "reference" + "_" + mod + "_" + datestamp + ".json"
+        json_file = json_file + "_" + datestamp
+    json_file = json_file + ".json"
 
     base_path = environ.get('XML_PATH', "")
     json_path = base_path + "json_data/"
@@ -66,8 +67,8 @@ def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
     log.info("Getting data from Reference table and generating json file...")
     try:
         get_reference_data_and_generate_json(mod, reference_id_to_comment_correction_data,
-                                             resource_id_to_journal,
-                                             json_path + json_file, datestamp)
+                                             resource_id_to_journal, json_path + json_file,
+                                             datestamp)
 
     except Exception as e:
         error_msg = "Error occurred when retrieving data from Reference data and generating json file: " + str(e)
@@ -98,15 +99,18 @@ def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
 
 def generate_json_file(metaData, data, filename_with_path):
 
+    dataDict = {"data": data,
+                "metaData": metaData}
+    fw = open(filename_with_path, 'w')
     try:
-        jsonData = {"data": data,
-                    "metaData": metaData}
-        fw = open(filename_with_path, 'w')
-        fw.write(json.dumps(jsonData, indent=4, sort_keys=True))
-        fw.close()
+        jsonStr = json.dumps(dataDict, indent=4, sort_keys=True)
+        byteStr = jsonStr.encode('utf-8')
+        decodedJsonStr = byteStr.decode('unicode-escape')
+        fw.write(decodedJsonStr)
     except Exception as e:
         log.info("Error when generating " + filename_with_path + ": " + str(e))
-        exit()
+        fw.write(json.dumps(dataDict, indent=4, sort_keys=True))
+    fw.close
 
 
 def upload_json_file_to_s3(json_path, json_file, datestamp, ondemand):  # pragma: no cover
@@ -259,10 +263,23 @@ def get_reference_data_and_generate_json(mod, reference_id_to_comment_correction
         rs = None
         if mod in ['WB', 'XB', 'ZFIN', 'SGD', 'RGD', 'FB']:
             refColNmList = ", ".join(get_reference_col_names())
-            rs = db_session.execute('select ' + refColNmList + ' from reference where reference_id in (select reference_id from mod_corpus_association where mod_id = ' + str(mod_id) + ' and corpus is True) order by reference_id limit ' + str(limit) + ' offset ' + str(offset))
+            rs = db_session.execute(f"SELECT {refColNmList} "
+                                    f"FROM reference "
+                                    f"WHERE reference_id IN "
+                                    f"(select reference_id from mod_corpus_association "
+                                    f"where mod_id = {mod_id} and corpus is True) "
+                                    f"order by reference_id "
+                                    f"limit {limit} "
+                                    f"offset {offset}")
         else:
             refColNmList = "r." + ", r.".join(get_reference_col_names())
-            rs = db_session.execute('select ' + refColNmList + ' from reference r, mod_corpus_association m where r.reference_id = m.reference_id and m.mod_id = ' + str(mod_id) + ' and corpus is True order by reference_id limit ' + str(limit) + ' offset ' + str(offset))
+            rs = db_session.execute(f"SELECT {refColNmList} "
+                                    f"FROM reference r, mod_corpus_association m "
+                                    f"WHERE r.reference_id = m.reference_id "
+                                    f"AND m.mod_id = {mod_id} and m.corpus is True "
+                                    f"order by r.reference_id "
+                                    f"limit {limit} "
+                                    f"offset {offset}")
 
         rows = rs.fetchall()
         if len(rows) == 0:
@@ -293,6 +310,35 @@ def get_reference_data_and_generate_json(mod, reference_id_to_comment_correction
     db_session.close()
 
 
+def escape_special_characters(text, curie):
+
+    if text:
+        ## convert &#x3b1; => α ; &#x3b2; => β, etc
+        # text = text.replace('&#xa0;', ' ').replace('&#x3b1;', 'α').replace('&#x3b2;', 'β')
+        # text = text.replace('&#x394;', 'Δ').replace('&#x223c;', '∼').replace('&#x2019;', "’")
+        # text = text.replace('&#xb7;', "·")
+
+        text = html.unescape(text)
+
+        ## to escape \u0012; \u0005, etc
+        text = repr(text)
+
+        ## remove the surrounding single/double quotes brought in by "text = repr(text)"
+        text = text[1:-1]
+
+        ## escape any backslash
+        text = text.replace("\\", "\\\\")
+
+        ## escape any newline, carriage return, and tab
+        if "\n" in text or "\r" in text or "\t" in text:
+            text = text.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+
+        ## escape double quote
+        text = text.replace('"', '\\"')
+
+    return text
+
+
 def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_comment_correction_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, data):  # pragma: no cover
 
     i = 0
@@ -306,10 +352,13 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
         if i % 100 == 0:
             log.info(str(i) + " " + x[1])
 
+        abstract = escape_special_characters(x[12], x[1])
+        title = escape_special_characters(x[3], x[1])
+
         row = {'reference_id': x[0],
                'curie': x[1],
                'resource_id': x[2],
-               'title': x[3],
+               'title': title,
                'language': x[4],
                'date_published': str(x[5]),
                'date_arrived_in_pubmed': str(x[6]),
@@ -318,8 +367,8 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
                'plain_language_abstract': x[9],
                'pubmed_abstract_languages': x[10],
                'page_range': x[11],
-               'abstract': x[12],
-               'keywords': x[13],
+               'abstract': abstract,
+               'keywords': [k.replace('"', '\\"') for k in x[13]] if x[13] else x[13],
                'pubmed_types': x[14],
                'publisher': x[15],
                'category': x[16],
@@ -341,12 +390,16 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
         row['mod_corpus_associations'] = reference_id_to_mod_corpus_data.get(reference_id, [])
 
         if x.resource_id in resource_id_to_journal:
-            (resource_curie, resource_title) = resource_id_to_journal[resource_id]
+            (resource_curie, resource_title, resource_medline_abbreviation) = resource_id_to_journal[resource_id]
             row['resource_curie'] = resource_curie
-            row['resource_title'] = resource_title
+            row['resource_title'] = resource_title.replace('"', '\\"') if resource_title else resource_title
+            row['resource_medline_abbreviation'] = resource_medline_abbreviation
+            if resource_medline_abbreviation:
+                row['resource_medline_abbreviation'] = resource_medline_abbreviation.replace('"', '\\"')
         else:
             row['resource_curie'] = None
             row['resource_title'] = None
+            row['resource_medline_abbreviation'] = None
 
         data.append(row)
 
