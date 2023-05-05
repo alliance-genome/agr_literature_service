@@ -46,24 +46,30 @@ docker-compose-up:
 	docker run -itd --env-file=.env -v /var/run/docker.sock:/var/run/docker.sock -v /home/core/.docker:/root/.docker -v ${PWD}:/var/tmp/ docker/compose:1.24.1  -f /var/tmp/docker-compose.yaml up -d
 
 docker-compose-down:
-	docker run -itd --env-file=.env -v /var/run/docker.sock:/var/run/docker.sock -v /home/core/.docker:/root/.docker -v ${PWD}:/var/tmp/ docker/compose:1.24.1  -f /var/tmp/docker-compose.yaml down 
+	docker run -itd --env-file=.env -v /var/run/docker.sock:/var/run/docker.sock -v /home/core/.docker:/root/.docker -v ${PWD}:/var/tmp/ docker/compose:1.24.1  -f /var/tmp/docker-compose.yaml down
 
 run-test-bash:
-	docker-compose --env-file .env.test down -v
+	docker-compose --env-file .env.test down
+	docker-compose --env-file .env.test rm -svf elasticsearch
 	docker-compose --env-file .env.test up -d postgres
 	sleep 5
+	docker-compose --env-file .env.test build test_runner
+	docker-compose --env-file .env.test build dev_app
+	docker-compose --env-file .env.test run --rm dev_app sh tests/init_test_db.sh
 	docker-compose --env-file .env.test up -d elasticsearch
 	sleep 10
-	docker-compose --env-file .env.test build test_runner
 	-docker-compose --env-file .env.test run -v ${PWD}:/workdir test_runner ./run_tests.sh > pytest.out
     #doing here after shutdown of database
 	python3 check_tests.py
-	docker-compose --env-file .env.test down -v
+	docker-compose --env-file .env.test down
 
 run-functest:
-	docker-compose --env-file .env.test down -v
+	docker-compose --env-file .env.test down
 	docker-compose --env-file .env.test up -d postgres
 	sleep 5
+	docker-compose --env-file .env.test build test_runner
+	docker-compose --env-file .env.test build dev_app
+	docker-compose --env-file .env.test run --rm dev_app sh tests/init_test_db.sh
 	docker-compose --env-file .env.test run test_runner python3 agr_literature_service/lit_processing/tests/functional_tests.py
 	docker-compose --env-file .env.test down
 
