@@ -236,7 +236,7 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                 # print title
                 title = title_re_output.group(1).replace('\n', ' ').replace('\r', '')
                 title = re.sub(r'\s+', ' ', title)
-                data_dict['title'] = title
+                data_dict['title'] = html.unescape(title)
                 if 'is_book' not in data_dict:
                     data_dict['is_journal'] = 'journal'
             else:
@@ -245,7 +245,7 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                 if book_title_re_output is not None:
                     title = book_title_re_output.group(1).replace('\n', ' ').replace('\r', '')
                     title = re.sub(r'\s+', ' ', title)
-                    data_dict['title'] = title
+                    data_dict['title'] = html.unescape(title)
                     data_dict['is_book'] = 'book'
                 else:
                     # e.g. 28304499 28308877
@@ -253,7 +253,7 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                     if vernacular_title_re_output is not None:
                         title = vernacular_title_re_output.group(1).replace('\n', ' ').replace('\r', '')
                         title = re.sub(r'\s+', ' ', title)
-                        data_dict['title'] = title
+                        data_dict['title'] = html.unescape(title)
                         data_dict['is_vernacular'] = 'vernacular'
                     else:
                         logger.info("%s has no title", pmid)
