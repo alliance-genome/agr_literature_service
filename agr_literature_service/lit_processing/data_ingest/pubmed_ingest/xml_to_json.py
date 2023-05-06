@@ -509,7 +509,7 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                     journal_abbrev = journal_abbrev_re_output.group(1)
                 data_dict['nlm'] = nlm			# for mapping to resource
                 data_dict['issn'] = issn		# for mapping to MOD data to resource
-                data_dict['resourceAbbreviation'] = journal_abbrev
+                data_dict['resourceAbbreviation'] = html.unescape(journal_abbrev)
 
             if len(cross_references) > 0:
                 data_dict["crossReferences"] = cross_references
@@ -517,7 +517,7 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
             publisher_re_output = re.search("<PublisherName>(.+?)</PublisherName>", xml)
             if publisher_re_output is not None:
                 publisher = publisher_re_output.group(1)
-                data_dict['publisher'] = publisher
+                data_dict['publisher'] = html.unescape(publisher)
 
             language_re_output = re.search("<Language>(.+?)</Language>", xml)
             if language_re_output is not None:
@@ -571,13 +571,13 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                 pip_abstract = re.sub(r'\s+', ' ', pip_abstract)
             plain_abstract = " ".join(plain_abstract_list)
             if plain_abstract != '':           # e.g. 32338603 has plain abstract
-                data_dict['plainLanguageAbstract'] = re.sub(r'\s+', ' ', plain_abstract)
+                data_dict['plainLanguageAbstract'] = html.unescape(re.sub(r'\s+', ' ', plain_abstract))
             if len(lang_abstract_list) > 0:    # e.g. 30160698 has fre and spa
                 data_dict['pubmedAbstractLanguages'] = lang_abstract_list
             if main_abstract != '':
-                data_dict['abstract'] = main_abstract
+                data_dict['abstract'] = html.unescape(main_abstract)
             elif pip_abstract != '':           # e.g. 9643811 has pip but not main abstract
-                data_dict['abstract'] = pip_abstract
+                data_dict['abstract'] = html.unescape(pip_abstract)
 
             # some xml has keywords spanning multiple lines e.g. 30110134 ; others get captured inside other keywords e.g. 31188077
             regex_keyword_output = re.findall("<Keyword .*?>(.+?)</Keyword>", xml, re.DOTALL)
@@ -588,7 +588,7 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                     keyword = keyword.replace('\n', ' ').replace('\r', '')
                     keyword = re.sub(r'\s+', ' ', keyword)
                     keyword = keyword.lstrip()
-                    keywords.append(keyword)
+                    keywords.append(html.unescape(keyword))
                 data_dict['keywords'] = keywords
 
             meshs_group = re.findall("<MeshHeading>(.+?)</MeshHeading>", xml, re.DOTALL)
@@ -603,13 +603,13 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                             for mesh_qualifier_term in qualifier_group:
                                 mesh_dict = {}
                                 mesh_dict["referenceId"] = 'PMID:' + pmid
-                                mesh_dict["meshHeadingTerm"] = mesh_heading_term
-                                mesh_dict["meshQualifierTerm"] = mesh_qualifier_term
+                                mesh_dict["meshHeadingTerm"] = html.unescape(mesh_heading_term)
+                                mesh_dict["meshQualifierTerm"] = html.unescape(mesh_qualifier_term)
                                 meshs_list.append(mesh_dict)
                         else:
                             mesh_dict = {}
                             mesh_dict["referenceId"] = 'PMID:' + pmid
-                            mesh_dict["meshHeadingTerm"] = mesh_heading_term
+                            mesh_dict["meshHeadingTerm"] = html.unescape(mesh_heading_term)
                             meshs_list.append(mesh_dict)
                 data_dict['meshTerms'] = meshs_list
 

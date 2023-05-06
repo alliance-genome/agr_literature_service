@@ -1,5 +1,6 @@
 import argparse
 import json
+import html
 import logging
 import traceback
 from sqlalchemy.orm import Session
@@ -150,6 +151,10 @@ def remap_keys_get_new_entry(entry: Dict) -> Dict:
             new_entry[remap_keys[key]] = entry[key]
         elif key not in keys_to_remove:
             new_entry[key] = entry[key]
+    for key in new_entry:
+        if key in ['title', 'iso_abbreviation', 'medline_abbreviation']:
+            new_entry[key] = html.unescape(new_entry[key])
+
     return new_entry
 
 
