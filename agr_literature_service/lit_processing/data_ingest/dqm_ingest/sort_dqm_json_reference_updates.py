@@ -1,6 +1,7 @@
 import argparse
 import json
 import sys
+import html
 import logging.config
 import warnings
 from os import environ, makedirs, path
@@ -380,6 +381,24 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
                             mod_ids_used_in_resource.append((dbid, xref_id))
                         if "pages" in cross_reference:
                             xref_to_pages[xref_id] = cross_reference["pages"]
+
+            ### handle special characters
+            if 'title' in entry:
+                entry['title'] = html.unescape(entry['title'])
+            if 'abstract' in entry:
+                entry['abstract'] = html.unescape(entry['abstract'])
+            if 'publisher' in entry:
+                entry['publisher'] = html.unescape(entry['publisher'])
+            if 'authors' in entry:
+                authors = []
+                for author in entry['authors']:
+                    for key in author:
+                        if 'name' in key:
+                            author[key] = html.unescape(author[key])
+                    authors.append(author)
+                entry['authors'] = authors
+            if 'resourceAbbreviation' in entry:
+                entry['resourceAbbreviation'] = html.unescape(entry['resourceAbbreviation'])
 
             if entry['primaryId'] not in xrefs:
                 xrefs.append(entry['primaryId'])
