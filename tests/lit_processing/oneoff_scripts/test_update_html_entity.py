@@ -1,11 +1,11 @@
 from ...fixtures import db # noqa
 from tests.api.fixtures import auth_headers # noqa
 from agr_literature_service.api.models import ReferenceModel, AuthorModel
-from agr_literature_service.lit_processing.oneoff_scripts.update_reference_htmlentity import update_author_entity
+from agr_literature_service.lit_processing.oneoff_scripts.update_reference_htmlentity import update_author_entity, \
+    update_reference_entity, update_mesh_detail_entity
 from starlette.testclient import TestClient
 from agr_literature_service.api.main import app
 from fastapi import status
-
 
 class TestUpdateHtmlEntity:
 
@@ -35,3 +35,24 @@ class TestUpdateHtmlEntity:
             assert author_db_obj.first_name == "Nemčovičová"
             assert author_db_obj.last_name == "in &lt;i&gt;Drosophila&lt;/i&gt;"
             assert author_db_obj.name == "tcf21<sup>+</sup>α-mannosidase<a href='/locus/S000004219'>Cdc42</a>"
+
+
+    def test_update_reference_html_entity(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            new_reference = {
+                "title": "SHARPIN forms a linear ubiquitin ligase complex regulating NF-&#x3ba;B activity and apoptosis.",
+                "category": "thesis",
+                "publisher": "CRC Press/Taylor &amp; Francis",
+                "plain_language_abstract": "The &#x2018;talking&#x2019;",
+                "abstract": "Prg4-Cre<sup>ERT2</sup>;Ctnnb1<sup>fl/fl</sup>Wnt/&#x3b2;-catenin",
+                "keywords": ["&#x3b1;-CaMKII"]
+            }
+            response = client.post(url="/reference/", json=new_reference, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            reference_db_obj = db.query(ReferenceModel).first()
+            update_reference_entity()
+            assert reference_db_obj.publisher == "CRC Press/Taylor & Francis"
+            assert reference_db_obj.plain_language_abstract == "in &lt;i&gt;Drosophila&lt;/i&gt;"
+            assert reference_db_obj.abstract == "The ‘talking’"
+            assert reference_db_obj.title == "SHARPIN forms a linear ubiquitin ligase complex regulating NF-κB activity and apoptosis."
+            assert reference_db_obj.keywords[0] == "α-CaMKII"
