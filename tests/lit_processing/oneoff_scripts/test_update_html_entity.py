@@ -80,5 +80,5 @@ class TestUpdateHtmlEntity:
             assert reference_db_obj.title == "SHARPIN forms a linear ubiquitin ligase complex regulating NF-κB activity and apoptosis."
             assert reference_db_obj.publisher == "CRC Press/Taylor & Francis"
             assert reference_db_obj.plain_language_abstract == "The ‘talking’"
-            assert reference_db_obj.abstract == "in &lt;i&gt;Drosophila&lt;/i&gt;"
+            assert reference_db_obj.abstract == "Prg4-Cre<sup>ERT2</sup>;Ctnnb1<sup>fl/fl</sup>Wnt/β-catenin"
             assert reference_db_obj.keywords[0] == "α-CaMKII"
