@@ -77,8 +77,8 @@ class TestUpdateHtmlEntity:
             assert response.status_code == status.HTTP_201_CREATED
             update_reference_entity()
             reference_db_obj = db.query(ReferenceModel).first()
-            assert reference_db_obj.publisher == "CRC Press/Taylor & Francis"
-            assert reference_db_obj.plain_language_abstract == "in &lt;i&gt;Drosophila&lt;/i&gt;"
-            assert reference_db_obj.abstract == "The ‘talking’"
             assert reference_db_obj.title == "SHARPIN forms a linear ubiquitin ligase complex regulating NF-κB activity and apoptosis."
+            assert reference_db_obj.publisher == "CRC Press/Taylor & Francis"
+            assert reference_db_obj.plain_language_abstract == "The ‘talking’"
+            assert reference_db_obj.abstract == "in &lt;i&gt;Drosophila&lt;/i&gt;"
             assert reference_db_obj.keywords[0] == "α-CaMKII"
