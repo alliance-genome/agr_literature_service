@@ -106,7 +106,7 @@ def update_mesh_detail_entity():
     log.info("End at: " + current_time)
 
 
-def update_reference_entity():
+def update_reference_entity():  # noqa: C901
     t = time.localtime()
     current_time = time.strftime("%H:%M:%S", t)
     print("start at:" + current_time)

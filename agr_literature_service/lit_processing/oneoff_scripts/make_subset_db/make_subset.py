@@ -389,7 +389,7 @@ def start():
     # Add the triggers back.
     trigger_settings(db_subset_session, state="ENABLE")
 
-    #for what ever reason need this:
+    # for what ever reason need this:
     db_subset_session.execute("REFRESH MATERIALIZED VIEW _view")
     db_subset_session.commit()
     if subset_dump:
