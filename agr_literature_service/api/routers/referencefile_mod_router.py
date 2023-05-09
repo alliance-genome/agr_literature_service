@@ -11,7 +11,7 @@ from agr_literature_service.api.schemas import ResponseMessageSchema
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost, \
     ReferencefileModSchemaShow, ReferencefileModSchemaUpdate
 from agr_literature_service.api.user import set_global_user_from_okta
-from agr_literature_service.api.crud import referencefile_mod_crud
+from agr_literature_service.api.crud import referencefile_mod_crud, referencefile_mod_utils
 
 logger = logging.getLogger(__name__)
 
@@ -61,4 +61,4 @@ def destroy(referencefile_mod_id: int,
             user: OktaUser = db_user,
             db: Session = db_session):
     set_global_user_from_okta(db, user)
-    referencefile_mod_crud.destroy(db, referencefile_mod_id)
+    referencefile_mod_utils.destroy(db, referencefile_mod_id)

@@ -10,7 +10,7 @@ from agr_literature_service.lit_processing.tests.mod_populate_load import popula
 from .test_reference import test_reference # noqa
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
-from agr_literature_service.api.crud.referencefile_utils import create as create_metadata
+from agr_literature_service.api.crud.referencefile_crud import create_metadata
 
 
 @pytest.fixture
