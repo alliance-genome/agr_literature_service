@@ -191,6 +191,7 @@ def create_metadata(db: Session, request: ReferencefileSchemaPost):
 
 
 def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma: no cover
+    mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
     file.file.seek(0)
     md5sum_hash = hashlib.md5()
     for byte_block in iter(lambda: file.file.read(4096), b""):
@@ -206,13 +207,20 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
     if referencefile is not None:
         # the file already exists, and it's already associated with the provided reference, but the metadata in the
         # request may be incompatible with the one in the db. The metadata in the db will not be modified and a new
-        # connection between the file and the mod will be created. If the uploaded file is "temp", the file publication
-        # status will be updated and set to "temp" even if another MOD uploaded it as "final"
-        if metadata["file_publication_status"] == "temp" and referencefile.file_publication_status == "final":
-            referencefile.file_publication_status = "temp"
+        # connection between the file and the mod will be created. See below for special cases for WB
+        if mod_abbreviation == "WB":
+            # if a final file is uploaded by WB and the same file is in the system as temp, then set it to final
+            if metadata["file_publication_status"] == "final" and referencefile.file_publication_status == "temp":
+                referencefile.file_publication_status = "final"
+            # If WB uploads a temp and the same file is already present but not for WB, then set the status to temp
+            elif "WB" not in {referencefile_mod.mod.abbreviation for referencefile_mod in
+                              referencefile.referencefile_mods} and metadata["file_publication_status"] == "temp" \
+                    and referencefile.file_publication_status == "final":
+                referencefile.file_publication_status = "temp"
             db.commit()
-        mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
-        create_mod_connection(db, ReferencefileModSchemaPost(referencefile_id=referencefile.referencefile_id,
+        if all(referencefile_mod.mod.abbreviation != mod_abbreviation for referencefile_mod in
+               referencefile.referencefile_mods):
+            create_mod_connection(db, ReferencefileModSchemaPost(referencefile_id=referencefile.referencefile_id,
                                                                  mod_abbreviation=mod_abbreviation))
     else:
         # 2 possible cases here: i) an entry with the same md5sum does not exist; ii) same md5sum exists, but it's
