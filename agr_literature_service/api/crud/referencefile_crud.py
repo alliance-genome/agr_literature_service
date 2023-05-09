@@ -208,9 +208,8 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
         # request may be incompatible with the one in the db. The metadata in the db will not be modified and a new
         # connection between the file and the mod will be created. If the uploaded file is "temp", the file publication
         # status will be updated and set to "temp" even if another MOD uploaded it as "final"
-        if metadata["file_publication_status"] in ["final", "temp"] and referencefile.file_publication_status != \
-                metadata["file_publication_status"]:
-            referencefile.file_publication_status = metadata["file_publication_status"]
+        if metadata["file_publication_status"] == "temp" and referencefile.file_publication_status == "final":
+            referencefile.file_publication_status = "temp"
             db.commit()
         else:
             mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
