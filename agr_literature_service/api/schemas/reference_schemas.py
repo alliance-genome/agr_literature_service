@@ -143,6 +143,7 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     copyright_license_url: Optional[str] = None
     copyright_license_description: Optional[str] = None
     copyright_license_open_access: Optional[bool] = None
+    copyright_license_last_updated_by: Optional[str] = None
     invalid_cross_reference_ids: Optional[List[str]] = None
     authors: Optional[List[AuthorSchemaShow]] = None
     comment_and_corrections: CommentAndCorrectionSchemaRelations
