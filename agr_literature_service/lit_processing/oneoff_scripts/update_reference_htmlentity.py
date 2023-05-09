@@ -78,7 +78,7 @@ def update_mesh_detail_entity():
     try:
         db_session = create_postgres_session(False)
         mesh_detail_results = db_session.execute(
-            " select  qualifier_term, heading_term, mesh_detail_id from mesh_detail where qualifier_term is not null or heading_term is not null")
+            " select  qualifier_term, heading_term, mesh_detail_id from mesh_detail")
         ids = mesh_detail_results.fetchall()
         for id in ids:
             mesh_detail_id = id["mesh_detail_id"]
