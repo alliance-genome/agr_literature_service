@@ -8,7 +8,6 @@ from agr_literature_service.api.crud.referencefile_mod_utils import read_referen
 from agr_literature_service.api.crud.referencefile_utils import read_referencefile_db_obj
 from agr_literature_service.api.models import ModModel
 from agr_literature_service.api.schemas.response_message_schemas import messageEnum
-from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
 from agr_literature_service.api.crud.referencefile_mod_utils import create
 
 logger = logging.getLogger(__name__)
@@ -41,12 +40,3 @@ def patch(db: Session, referencefile_mod_id: int, request):
             referencefile_mod.mod_id = None
     db.commit()
     return {"message": messageEnum.updated}
-
-
-def destroy(db: Session, referencefile_mod_id: int):
-    referencefile_mod = read_referencefile_mod_obj_from_db(db, referencefile_mod_id)
-    if len(referencefile_mod.referencefile.referencefile_mods) == 1:
-        destroy_referencefile(db, referencefile_mod.referencefile.referencefile_id)
-    else:
-        db.delete(referencefile_mod)
-    db.commit()
