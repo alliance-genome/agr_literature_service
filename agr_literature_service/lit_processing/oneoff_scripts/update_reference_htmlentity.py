@@ -2,13 +2,18 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 import html
 from agr_literature_service.api.models import (
     AuthorModel,
-    ReferenceModel
+    ReferenceModel,
+    MeshDetailModel
 )
 # from agr_literature_service.api.crud.reference_crud import update_citation
 import time
+import logging
+
+logging.basicConfig(format='%(message)s')
+log = logging.getLogger()
+log.setLevel(logging.INFO)
 
 
-# update author first_name, last_name, name, affiliation html entity
 def update_author_entity():
     t = time.localtime()
     current_time = time.strftime("%H:%M:%S", t)
@@ -53,7 +58,7 @@ def update_author_entity():
                 author_db_obj = db_session.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
                 for key, value in dataDict.items():
                     setattr(author_db_obj, key, value)
-                    # print("will update key:" + key)
+                    log.info("Will update key: " + key)
                 db_session.commit()
                 db_session.query(ReferenceModel).filter(ReferenceModel.reference_id == reference_id).first()
                 # if ref_db_obj:
@@ -61,48 +66,105 @@ def update_author_entity():
                 #     update_citation(db_session, curie)
         db_session.close()
     except Exception as e:
-        print('Error: ' + str(type(e)))
+        log.info("Error " + str(e))
     current_time = time.strftime("%H:%M:%S", t)
-    print("end at:" + current_time)
+    log.info("End at: " + current_time)
 
 
-# update reference title and abstract html entity
-def update_reference_entity():
+def update_mesh_detail_entity():
+    t = time.localtime()
+    current_time = time.strftime("%H:%M:%S", t)
+    print("start at:" + current_time)
+    try:
+        db_session = create_postgres_session(False)
+        mesh_detail_results = db_session.execute(
+            " select  qualifier_term, heading_term, mesh_detail_id from mesh_detail")
+        ids = mesh_detail_results.fetchall()
+        for id in ids:
+            mesh_detail_id = id["mesh_detail_id"]
+            qualifier_term = id["qualifier_term"]
+            heading_term = id["heading_term"]
+            if qualifier_term:
+                qualifier_term_unescaped = html.unescape(qualifier_term)
+            if heading_term:
+                heading_term_unescaped = html.unescape(heading_term)
+            dataDict = {}
+            if qualifier_term and qualifier_term_unescaped and qualifier_term_unescaped != qualifier_term:
+                dataDict["qualifier_term"] = qualifier_term_unescaped
+            if heading_term and heading_term_unescaped and heading_term_unescaped != heading_term:
+                dataDict["heading_term"] = heading_term_unescaped
+            if dataDict:
+                author_db_obj = db_session.query(MeshDetailModel).filter(MeshDetailModel.mesh_detail_id == mesh_detail_id).first()
+                for key, value in dataDict.items():
+                    setattr(author_db_obj, key, value)
+                    log.info("Will update key: " + key)
+                db_session.commit()
+        db_session.close()
+    except Exception as e:
+        log.info("Error " + str(e))
+    current_time = time.strftime("%H:%M:%S", t)
+    log.info("End at: " + current_time)
+
+
+def update_reference_entity():  # noqa: C901
     t = time.localtime()
     current_time = time.strftime("%H:%M:%S", t)
     print("start at:" + current_time)
     try:
         db_session = create_postgres_session(False)
         reference_results = db_session.execute(
-            "select  abstract, title, reference_id from  reference")
+            "select  abstract, title, plain_language_abstract, publisher, keywords, reference_id from  reference ")
         ids = reference_results.fetchall()
         for id in ids:
+            publisher = id["publisher"]
+            plain_language_abstract = id["plain_language_abstract"]
             abstract = id["abstract"]
             title = id["title"]
             reference_id = id["reference_id"]
+            keywords_list = id["keywords"]
+            flag_keywords = False
+            if keywords_list:
+                for x in range(len(keywords_list)):
+                    keyword = keywords_list[x]
+                    if keyword:
+                        keyword_unescaped = html.unescape(keyword)
+                    if keyword and keyword_unescaped and keyword != keyword_unescaped:
+                        keywords_list[x] = keyword_unescaped
+                        flag_keywords = True
+            if publisher:
+                publisher_unescaped = html.unescape(publisher)
+            if plain_language_abstract:
+                plain_language_abstract_unescaped = html.unescape(plain_language_abstract)
             if abstract:
                 abstract_unescaped = html.unescape(abstract)
             if title:
                 title_unescaped = html.unescape(title)
             referenceDict = {}
-            if abstract_unescaped and abstract and abstract_unescaped != abstract:
+            if publisher and publisher_unescaped and publisher_unescaped != publisher:
+                referenceDict["publisher"] = publisher_unescaped
+            if plain_language_abstract and plain_language_abstract_unescaped and plain_language_abstract_unescaped != plain_language_abstract:
+                referenceDict["plain_language_abstract"] = plain_language_abstract_unescaped
+            if abstract and abstract_unescaped and abstract_unescaped != abstract:
                 referenceDict["abstract"] = abstract_unescaped
-            if title_unescaped and title and title_unescaped != title:
+            if title and title_unescaped and title_unescaped != title:
                 referenceDict["title"] = title_unescaped
+            if flag_keywords:
+                referenceDict["keywords"] = keywords_list
             if referenceDict:
                 reference_db_obj = db_session.query(ReferenceModel).filter(
                     ReferenceModel.reference_id == reference_id).first()
                 for key, value in referenceDict.items():
                     setattr(reference_db_obj, key, value)
-                    # print("will update key:" + key)
+                    log.info("Will update key: " + key)
                 db_session.commit()
         db_session.close()
     except Exception as e:
-        print('Error: ' + str(type(e)))
+        log.info("Error " + str(e))
     current_time = time.strftime("%H:%M:%S", t)
-    print("end at:" + current_time)
+    log.info("End at: " + current_time)
 
 
 if __name__ == "__main__":
     update_author_entity()
-    # update_reference_entity()
+    update_reference_entity()
+    update_mesh_detail_entity()
