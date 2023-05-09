@@ -1,6 +1,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from agr_literature_service.api.crud.referencefile_utils import remove_from_s3_and_db
 from agr_literature_service.api.models import ReferencefileModAssociationModel, ReferencefileModel, ModModel
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
 
@@ -40,3 +41,12 @@ def read_referencefile_mod_obj_from_db(db: Session, referencefile_mod_id: int):
                             detail=f"ReferencefileMod with referencefile_mod_id {str(referencefile_mod_id)} "
                                    f"is not avaliable")
     return referencefile_mod
+
+
+def destroy(db: Session, referencefile_mod_id: int):
+    referencefile_mod = read_referencefile_mod_obj_from_db(db, referencefile_mod_id)
+    if len(referencefile_mod.referencefile.referencefile_mods) == 1:
+        remove_from_s3_and_db(db, referencefile_mod.referencefile)
+    else:
+        db.delete(referencefile_mod)
+    db.commit()
