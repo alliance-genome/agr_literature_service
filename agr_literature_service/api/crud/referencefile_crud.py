@@ -235,18 +235,20 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
             metadata["display_name"] = f"{original_name}_{counter}"
         create_request = ReferencefileSchemaPost(md5sum=md5sum, **metadata)
         create_metadata(db, create_request)
-        # TODO: check if md5sum is already in s3 before uploading
-        file.file.seek(0)
-        temp_file_name = metadata["display_name"] + "." + metadata["file_extension"] + ".gz"
-        with gzip.open(temp_file_name, 'wb') as f_out:
-            shutil.copyfileobj(file.file, f_out)
-        client = boto3.client('s3')
-        env_state = os.environ.get("ENV_STATE", "")
-        extra_args = {'StorageClass': 'GLACIER_IR'} if env_state == "prod" else {'StorageClass': 'STANDARD'}
-        with open(temp_file_name, 'rb') as gzipped_file:
-            upload_file_to_bucket(s3_client=client, file_obj=gzipped_file, bucket="agr-literature", folder=folder,
-                                  object_name=md5sum + ".gz", ExtraArgs=extra_args)
-        os.remove(temp_file_name)
+        # check if md5sum is the only one in the db before uploading to s3
+        ref_file_by_md5sum_count = db.query(ReferencefileModel).filter(ReferencefileModel.md5sum == md5sum).count()
+        if ref_file_by_md5sum_count == 1:
+            file.file.seek(0)
+            temp_file_name = metadata["display_name"] + "." + metadata["file_extension"] + ".gz"
+            with gzip.open(temp_file_name, 'wb') as f_out:
+                shutil.copyfileobj(file.file, f_out)
+            client = boto3.client('s3')
+            env_state = os.environ.get("ENV_STATE", "")
+            extra_args = {'StorageClass': 'GLACIER_IR'} if env_state == "prod" else {'StorageClass': 'STANDARD'}
+            with open(temp_file_name, 'rb') as gzipped_file:
+                upload_file_to_bucket(s3_client=client, file_obj=gzipped_file, bucket="agr-literature", folder=folder,
+                                      object_name=md5sum + ".gz", ExtraArgs=extra_args)
+            os.remove(temp_file_name)
     return md5sum
 
 
