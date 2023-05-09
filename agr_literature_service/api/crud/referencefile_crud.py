@@ -211,9 +211,8 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
         if metadata["file_publication_status"] == "temp" and referencefile.file_publication_status == "final":
             referencefile.file_publication_status = "temp"
             db.commit()
-        else:
-            mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
-            create_mod_connection(db, ReferencefileModSchemaPost(referencefile_id=referencefile.referencefile_id,
+        mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
+        create_mod_connection(db, ReferencefileModSchemaPost(referencefile_id=referencefile.referencefile_id,
                                                                  mod_abbreviation=mod_abbreviation))
     else:
         # 2 possible cases here: i) an entry with the same md5sum does not exist; ii) same md5sum exists, but it's
@@ -236,6 +235,7 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
             metadata["display_name"] = f"{original_name}_{counter}"
         create_request = ReferencefileSchemaPost(md5sum=md5sum, **metadata)
         create_metadata(db, create_request)
+        # TODO: check if md5sum is already in s3 before uploading
         file.file.seek(0)
         temp_file_name = metadata["display_name"] + "." + metadata["file_extension"] + ".gz"
         with gzip.open(temp_file_name, 'wb') as f_out:
