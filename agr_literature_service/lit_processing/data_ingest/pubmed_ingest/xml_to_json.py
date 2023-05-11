@@ -534,7 +534,8 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
             main_abstract_list = []
             regex_abstract_output = re.findall("<Abstract>(.+?)</Abstract>", xml, re.DOTALL)
             for abs in regex_abstract_output:
-                root = ET.fromstring('<root>' + abs + '</root>')  # add root tag to make it a valid XML document
+                # add root tag to make it a valid XML document
+                root = ET.fromstring('<root>' + abs + '</root>')
                 for elem in root.findall('AbstractText'):
                     # category = elem.get('NlmCategory')
                     category = elem.get('Label')
@@ -548,13 +549,18 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                     pattern = r'<AbstractText[^>]*>|</AbstractText>'
                     cleaned_text = re.sub(pattern, '', serialized_text)
                     if category:
-                        main_abstract_list.append(category + ": " + cleaned_text)
+                        # To capitalize the first letter of category
+                        # (eg. change "BACKGROUND" to "Background"
+                        category = category.lower().capitalize()
+                        main_abstract_list.append("<strong>" + category + "</strong>: " + cleaned_text)
                     else:
                         main_abstract_list.append(cleaned_text)
-            main_abstract = " ".join(main_abstract_list)
+            main_abstract = ''
+            if len(main_abstract_list) > 0:
+                main_abstract = "<p>" + "</p><p>".join(main_abstract_list) + "</p>" \
+                    if len(main_abstract_list) > 1 else main_abstract_list[0]
             if main_abstract != '':
                 main_abstract = re.sub(r'\s+', ' ', main_abstract)
-
             pip_abstract_list = []
             plain_abstract_list = []
             lang_abstract_list = []
