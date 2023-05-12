@@ -214,8 +214,8 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
                 referencefile.file_publication_status = "final"
             # If WB uploads a temp and the same file is already present but not for WB, then set the status to temp
             elif "WB" not in {referencefile_mod.mod.abbreviation for referencefile_mod in
-                              referencefile.referencefile_mods} and metadata["file_publication_status"] == "temp" \
-                    and referencefile.file_publication_status == "final":
+                              referencefile.referencefile_mods if referencefile_mod.mod is not None} and \
+                    metadata["file_publication_status"] == "temp" and referencefile.file_publication_status == "final":
                 referencefile.file_publication_status = "temp"
             db.commit()
         if all(referencefile_mod.mod.abbreviation != mod_abbreviation for referencefile_mod in
