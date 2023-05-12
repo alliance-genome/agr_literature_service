@@ -27,6 +27,7 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ResourceModel,
                                                CopyrightLicenseModel,
                                                CitationModel)
+from agr_literature_service.api.routers.okta_utils import OktaAccess
 from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.workflow_tag_crud import (
@@ -185,7 +186,7 @@ def destroy(db: Session, curie_or_reference_id: str):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie or reference_id {curie_or_reference_id} not found")
     for referencefile in reference.referencefiles:
-        destroy_referencefile(db, referencefile.referencefile_id)
+        destroy_referencefile(db, referencefile.referencefile_id, OktaAccess.ALL_ACCESS)
     db.delete(reference)
     db.commit()
 

@@ -19,12 +19,12 @@ from starlette.responses import FileResponse
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.crud.referencefile_utils import read_referencefile_db_obj, \
-    create as create_metadata, get_s3_folder_from_md5sum
-from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection
+    get_s3_folder_from_md5sum, remove_from_s3_and_db
+from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection, \
+    destroy as destroy_mod_association
 from agr_literature_service.api.models import ReferenceModel, ReferencefileModel, ReferencefileModAssociationModel, \
     ModModel, CopyrightLicenseModel, CrossReferenceModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
-from agr_literature_service.api.s3.delete import delete_file_in_bucket
 from agr_literature_service.api.s3.upload import upload_file_to_bucket
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost, ReferencefileSchemaRelated
@@ -86,21 +86,14 @@ def patch(db: Session, referencefile_id: int, request):
     return {"message": messageEnum.updated}
 
 
-def remove_file_from_s3(md5sum: str):  # pragma: no cover
-    folder = get_s3_folder_from_md5sum(md5sum)
-    client = boto3.client('s3')
-    if not delete_file_in_bucket(s3_client=client, bucket="agr-literature", folder=folder, object_name=md5sum + ".gz"):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"File with md5sum {md5sum} is not available")
-
-
-def destroy(db: Session, referencefile_id: int):
-    referencefile = read_referencefile_db_obj(db, referencefile_id)
-    if len(referencefile.reference.referencefiles) == 1:
-        if os.environ.get("ENV_STATE", "test") != "test":
-            remove_file_from_s3(referencefile.md5sum)
-    db.delete(referencefile)
-    db.commit()
+def destroy(db: Session, referencefile_id: int, mod_access: OktaAccess):
+    referencefile: ReferencefileModel = read_referencefile_db_obj(db, referencefile_id)
+    if mod_access == OktaAccess.ALL_ACCESS:
+        remove_from_s3_and_db(db, referencefile)
+    elif mod_access != OktaAccess.NO_ACCESS:
+        for referencefile_mod in referencefile.referencefile_mods:
+            if referencefile_mod.mod.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access]:
+                destroy_mod_association(db, referencefile_mod.referencefile_mod_id)
 
 
 def file_paths_in_dir(directory):
@@ -151,11 +144,11 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no co
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=error_message)
     else:
         file_upload_single(db, metadata, file)
+    mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
+    cleanup_temp_file(db, metadata["reference_curie"], mod_abbreviation)
 
-    cleanup_temp_file(db, metadata["reference_curie"])
 
-
-def cleanup_temp_file(db: Session, ref_curie: str):  # pragma: no cover
+def cleanup_temp_file(db: Session, ref_curie: str, mod_abbreviation):  # pragma: no cover
     ref = db.query(ReferenceModel).filter_by(curie=ref_curie).one_or_none()
     if ref:
         reffiles = db.query(ReferencefileModel).filter_by(
@@ -169,10 +162,36 @@ def cleanup_temp_file(db: Session, ref_curie: str):  # pragma: no cover
                 if reffile.file_publication_status == 'temp':
                     if None in mod_ids_with_final or all([mod.mod_id in mod_ids_with_final for mod in
                                                           reffile.referencefile_mods]):
-                        destroy(db, reffile.referencefile_id)
+                        destroy(db, reffile.referencefile_id, [okta_access for okta_access, mod_abbr in
+                                                               OKTA_ACCESS_MOD_ABBR.items() if
+                                                               mod_abbr == mod_abbreviation][0])
+
+
+def create_metadata(db: Session, request: ReferencefileSchemaPost):
+    request_dict = request.dict()
+    ref_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == request.reference_curie).one_or_none()
+    if ref_obj is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Reference with curie {request.reference_curie} does not exist")
+    del request_dict["reference_curie"]
+    request_dict["reference_id"] = ref_obj.reference_id
+    mod_abbreviation = request_dict["mod_abbreviation"]
+    if mod_abbreviation is not None:
+        mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
+        if mod is None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"Mod with abbreviation {request.mod_abbreviation} does not exist")
+    del request_dict["mod_abbreviation"]
+    new_ref_file_obj = ReferencefileModel(**request_dict)
+    db.add(new_ref_file_obj)
+    db.commit()
+    create_mod_connection(db, ReferencefileModSchemaPost(referencefile_id=new_ref_file_obj.referencefile_id,
+                                                         mod_abbreviation=mod_abbreviation))
+    return new_ref_file_obj.referencefile_id
 
 
 def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma: no cover
+    mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
     file.file.seek(0)
     md5sum_hash = hashlib.md5()
     for byte_block in iter(lambda: file.file.read(4096), b""):
@@ -188,14 +207,21 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
     if referencefile is not None:
         # the file already exists, and it's already associated with the provided reference, but the metadata in the
         # request may be incompatible with the one in the db. The metadata in the db will not be modified and a new
-        # connection between the file and the mod will be created. If the uploaded file is "temp", the file publication
-        # status will be updated and set to "temp" even if another MOD uploaded it as "final"
-        if metadata["file_publication_status"] == "temp" and referencefile.file_publication_status != "temp":
-            referencefile.file_publication_status = "temp"
-        db.commit()
-        mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
-        create_mod_connection(db, ReferencefileModSchemaPost(referencefile_id=referencefile.referencefile_id,
-                                                             mod_abbreviation=mod_abbreviation))
+        # connection between the file and the mod will be created. See below for special cases for WB
+        if mod_abbreviation == "WB":
+            # if a final file is uploaded by WB and the same file is in the system as temp, then set it to final
+            if metadata["file_publication_status"] == "final" and referencefile.file_publication_status == "temp":
+                referencefile.file_publication_status = "final"
+            # If WB uploads a temp and the same file is already present but not for WB, then set the status to temp
+            elif "WB" not in {referencefile_mod.mod.abbreviation for referencefile_mod in
+                              referencefile.referencefile_mods} and metadata["file_publication_status"] == "temp" \
+                    and referencefile.file_publication_status == "final":
+                referencefile.file_publication_status = "temp"
+            db.commit()
+        if all(referencefile_mod.mod.abbreviation != mod_abbreviation for referencefile_mod in
+               referencefile.referencefile_mods):
+            create_mod_connection(db, ReferencefileModSchemaPost(referencefile_id=referencefile.referencefile_id,
+                                                                 mod_abbreviation=mod_abbreviation))
     else:
         # 2 possible cases here: i) an entry with the same md5sum does not exist; ii) same md5sum exists, but it's
         # associated with a different curie (same file content for different files or same files). In both cases we need
@@ -217,17 +243,20 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
             metadata["display_name"] = f"{original_name}_{counter}"
         create_request = ReferencefileSchemaPost(md5sum=md5sum, **metadata)
         create_metadata(db, create_request)
-        file.file.seek(0)
-        temp_file_name = metadata["display_name"] + "." + metadata["file_extension"] + ".gz"
-        with gzip.open(temp_file_name, 'wb') as f_out:
-            shutil.copyfileobj(file.file, f_out)
-        client = boto3.client('s3')
-        env_state = os.environ.get("ENV_STATE", "")
-        extra_args = {'StorageClass': 'GLACIER_IR'} if env_state == "prod" else {'StorageClass': 'STANDARD'}
-        with open(temp_file_name, 'rb') as gzipped_file:
-            upload_file_to_bucket(s3_client=client, file_obj=gzipped_file, bucket="agr-literature", folder=folder,
-                                  object_name=md5sum + ".gz", ExtraArgs=extra_args)
-        os.remove(temp_file_name)
+        # check if md5sum is the only one in the db before uploading to s3
+        ref_file_by_md5sum_count = db.query(ReferencefileModel).filter(ReferencefileModel.md5sum == md5sum).count()
+        if ref_file_by_md5sum_count == 1:
+            file.file.seek(0)
+            temp_file_name = metadata["display_name"] + "." + metadata["file_extension"] + ".gz"
+            with gzip.open(temp_file_name, 'wb') as f_out:
+                shutil.copyfileobj(file.file, f_out)
+            client = boto3.client('s3')
+            env_state = os.environ.get("ENV_STATE", "")
+            extra_args = {'StorageClass': 'GLACIER_IR'} if env_state == "prod" else {'StorageClass': 'STANDARD'}
+            with open(temp_file_name, 'rb') as gzipped_file:
+                upload_file_to_bucket(s3_client=client, file_obj=gzipped_file, bucket="agr-literature", folder=folder,
+                                      object_name=md5sum + ".gz", ExtraArgs=extra_args)
+            os.remove(temp_file_name)
     return md5sum
 
 

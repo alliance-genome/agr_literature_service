@@ -38,7 +38,7 @@ def file_upload(reference_curie: str = None,
                 display_name: str = None,
                 file_class: str = None,
                 file_publication_status: str = None,
-                file_extension: str = None,
+                file_extension: str = "",
                 pdf_type: str = None,
                 is_annotation: bool = None,
                 mod_abbreviation: str = None,
@@ -90,7 +90,7 @@ def file_upload(reference_curie: str = None,
         is_annotation = False
     set_global_user_from_okta(db, user)
     metadata = None
-    if reference_curie and display_name and file_class and file_publication_status and file_extension:
+    if reference_curie and display_name and file_class and file_publication_status:
         metadata = {
             "reference_curie": reference_curie,
             "display_name": display_name,
@@ -108,7 +108,7 @@ def file_upload(reference_curie: str = None,
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail="The provided metadata file is not a valid json file")
     if not metadata or not metadata["reference_curie"] or not metadata["display_name"] or not \
-            metadata["file_class"] or not metadata["file_publication_status"] or not metadata["file_extension"]:
+            metadata["file_class"] or not metadata["file_publication_status"]:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="The provided metadata is not valid")
     return referencefile_crud.file_upload(db, metadata, file)
@@ -138,7 +138,7 @@ def delete(referencefile_id: int,
            user: OktaUser = db_user,
            db: Session = db_session):
     set_global_user_from_okta(db, user)
-    referencefile_crud.destroy(db, referencefile_id)
+    referencefile_crud.destroy(db, referencefile_id, get_okta_mod_access(user))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

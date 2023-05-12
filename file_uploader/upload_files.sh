@@ -56,8 +56,16 @@ export -f upload_file
 extract_file_metadata() {
   filepath=$1
   filename=$(basename "${filepath}")
-  display_name="${filename%.*}"
+  prefix=""
+  if [[ "$filename" == "."* ]]; then
+    prefix="."
+    filename="${filename:1}"
+  fi
+  display_name="$prefix${filename%.*}"
   file_extension="${filename##*.}"
+  if [[ "${filename}" == "${file_extension}" ]]; then
+    file_extension=""
+  fi
   if [[ ${file_extension} == "pdf" ]]; then
     pdf_type="pdf"
   fi

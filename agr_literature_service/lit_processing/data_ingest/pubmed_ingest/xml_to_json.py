@@ -4,6 +4,7 @@ import re
 import sys
 import urllib.request
 from os import environ, makedirs, path
+import xml.etree.ElementTree as ET
 from typing import List, Set
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import generate_md5sum_from_dict
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json
@@ -236,7 +237,7 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                 # print title
                 title = title_re_output.group(1).replace('\n', ' ').replace('\r', '')
                 title = re.sub(r'\s+', ' ', title)
-                data_dict['title'] = title
+                data_dict['title'] = html.unescape(title)
                 if 'is_book' not in data_dict:
                     data_dict['is_journal'] = 'journal'
             else:
@@ -245,7 +246,7 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                 if book_title_re_output is not None:
                     title = book_title_re_output.group(1).replace('\n', ' ').replace('\r', '')
                     title = re.sub(r'\s+', ' ', title)
-                    data_dict['title'] = title
+                    data_dict['title'] = html.unescape(title)
                     data_dict['is_book'] = 'book'
                 else:
                     # e.g. 28304499 28308877
@@ -253,7 +254,7 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                     if vernacular_title_re_output is not None:
                         title = vernacular_title_re_output.group(1).replace('\n', ' ').replace('\r', '')
                         title = re.sub(r'\s+', ' ', title)
-                        data_dict['title'] = title
+                        data_dict['title'] = html.unescape(title)
                         data_dict['is_vernacular'] = 'vernacular'
                     else:
                         logger.info("%s has no title", pmid)
@@ -509,7 +510,7 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                     journal_abbrev = journal_abbrev_re_output.group(1)
                 data_dict['nlm'] = nlm			# for mapping to resource
                 data_dict['issn'] = issn		# for mapping to MOD data to resource
-                data_dict['resourceAbbreviation'] = journal_abbrev
+                data_dict['resourceAbbreviation'] = html.unescape(journal_abbrev)
 
             if len(cross_references) > 0:
                 data_dict["crossReferences"] = cross_references
@@ -517,7 +518,7 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
             publisher_re_output = re.search("<PublisherName>(.+?)</PublisherName>", xml)
             if publisher_re_output is not None:
                 publisher = publisher_re_output.group(1)
-                data_dict['publisher'] = publisher
+                data_dict['publisher'] = html.unescape(publisher)
 
             language_re_output = re.search("<Language>(.+?)</Language>", xml)
             if language_re_output is not None:
@@ -532,16 +533,34 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
 
             main_abstract_list = []
             regex_abstract_output = re.findall("<Abstract>(.+?)</Abstract>", xml, re.DOTALL)
-            if len(regex_abstract_output) > 0:
-                for abs in regex_abstract_output:
-                    regex_abstract_text_output = re.findall("<AbstractText.*?>(.+?)</AbstractText>", abs, re.DOTALL)
-                    if len(regex_abstract_text_output) > 0:
-                        for abstext in regex_abstract_text_output:
-                            main_abstract_list.append(abstext)
-            main_abstract = " ".join(main_abstract_list)
+            for abs in regex_abstract_output:
+                # add root tag to make it a valid XML document
+                root = ET.fromstring('<root>' + abs + '</root>')
+                for elem in root.findall('AbstractText'):
+                    # category = elem.get('NlmCategory')
+                    category = elem.get('Label')
+                    # text = elem.text.strip()
+                    ## text will lose anything after a html tag, so change to use following
+                    # soup = BeautifulSoup(ET.tostring(elem), 'html.parser')
+                    # html_text = soup.get_text().strip()
+                    ## but html_text will still contain <AbstractText*> in the text,
+                    ## so change to use the following
+                    serialized_text = ET.tostring(elem, method='html', encoding='unicode')
+                    pattern = r'<AbstractText[^>]*>|</AbstractText>'
+                    cleaned_text = re.sub(pattern, '', serialized_text)
+                    if category:
+                        # To capitalize the first letter of category
+                        # (eg. change "BACKGROUND" to "Background"
+                        category = category.lower().capitalize()
+                        main_abstract_list.append("<strong>" + category + "</strong>: " + cleaned_text)
+                    else:
+                        main_abstract_list.append(cleaned_text)
+            main_abstract = ''
+            if len(main_abstract_list) > 0:
+                main_abstract = "<p>" + "</p><p>".join(main_abstract_list) + "</p>" \
+                    if len(main_abstract_list) > 1 else main_abstract_list[0]
             if main_abstract != '':
                 main_abstract = re.sub(r'\s+', ' ', main_abstract)
-
             pip_abstract_list = []
             plain_abstract_list = []
             lang_abstract_list = []
@@ -571,13 +590,13 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                 pip_abstract = re.sub(r'\s+', ' ', pip_abstract)
             plain_abstract = " ".join(plain_abstract_list)
             if plain_abstract != '':           # e.g. 32338603 has plain abstract
-                data_dict['plainLanguageAbstract'] = re.sub(r'\s+', ' ', plain_abstract)
+                data_dict['plainLanguageAbstract'] = html.unescape(re.sub(r'\s+', ' ', plain_abstract))
             if len(lang_abstract_list) > 0:    # e.g. 30160698 has fre and spa
                 data_dict['pubmedAbstractLanguages'] = lang_abstract_list
             if main_abstract != '':
-                data_dict['abstract'] = main_abstract
+                data_dict['abstract'] = html.unescape(main_abstract)
             elif pip_abstract != '':           # e.g. 9643811 has pip but not main abstract
-                data_dict['abstract'] = pip_abstract
+                data_dict['abstract'] = html.unescape(pip_abstract)
 
             # some xml has keywords spanning multiple lines e.g. 30110134 ; others get captured inside other keywords e.g. 31188077
             regex_keyword_output = re.findall("<Keyword .*?>(.+?)</Keyword>", xml, re.DOTALL)
@@ -588,7 +607,7 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                     keyword = keyword.replace('\n', ' ').replace('\r', '')
                     keyword = re.sub(r'\s+', ' ', keyword)
                     keyword = keyword.lstrip()
-                    keywords.append(keyword)
+                    keywords.append(html.unescape(keyword))
                 data_dict['keywords'] = keywords
 
             meshs_group = re.findall("<MeshHeading>(.+?)</MeshHeading>", xml, re.DOTALL)
@@ -603,13 +622,13 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                             for mesh_qualifier_term in qualifier_group:
                                 mesh_dict = {}
                                 mesh_dict["referenceId"] = 'PMID:' + pmid
-                                mesh_dict["meshHeadingTerm"] = mesh_heading_term
-                                mesh_dict["meshQualifierTerm"] = mesh_qualifier_term
+                                mesh_dict["meshHeadingTerm"] = html.unescape(mesh_heading_term)
+                                mesh_dict["meshQualifierTerm"] = html.unescape(mesh_qualifier_term)
                                 meshs_list.append(mesh_dict)
                         else:
                             mesh_dict = {}
                             mesh_dict["referenceId"] = 'PMID:' + pmid
-                            mesh_dict["meshHeadingTerm"] = mesh_heading_term
+                            mesh_dict["meshHeadingTerm"] = html.unescape(mesh_heading_term)
                             meshs_list.append(mesh_dict)
                 data_dict['meshTerms'] = meshs_list
 
