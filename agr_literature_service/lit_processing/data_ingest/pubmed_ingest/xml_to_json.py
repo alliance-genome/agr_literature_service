@@ -4,6 +4,7 @@ import re
 import sys
 import urllib.request
 from os import environ, makedirs, path
+import xml.etree.ElementTree as ET
 from typing import List, Set
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import generate_md5sum_from_dict
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json
@@ -532,16 +533,34 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
 
             main_abstract_list = []
             regex_abstract_output = re.findall("<Abstract>(.+?)</Abstract>", xml, re.DOTALL)
-            if len(regex_abstract_output) > 0:
-                for abs in regex_abstract_output:
-                    regex_abstract_text_output = re.findall("<AbstractText.*?>(.+?)</AbstractText>", abs, re.DOTALL)
-                    if len(regex_abstract_text_output) > 0:
-                        for abstext in regex_abstract_text_output:
-                            main_abstract_list.append(abstext)
-            main_abstract = " ".join(main_abstract_list)
+            for abs in regex_abstract_output:
+                # add root tag to make it a valid XML document
+                root = ET.fromstring('<root>' + abs + '</root>')
+                for elem in root.findall('AbstractText'):
+                    # category = elem.get('NlmCategory')
+                    category = elem.get('Label')
+                    # text = elem.text.strip()
+                    ## text will lose anything after a html tag, so change to use following
+                    # soup = BeautifulSoup(ET.tostring(elem), 'html.parser')
+                    # html_text = soup.get_text().strip()
+                    ## but html_text will still contain <AbstractText*> in the text,
+                    ## so change to use the following
+                    serialized_text = ET.tostring(elem, method='html', encoding='unicode')
+                    pattern = r'<AbstractText[^>]*>|</AbstractText>'
+                    cleaned_text = re.sub(pattern, '', serialized_text)
+                    if category:
+                        # To capitalize the first letter of category
+                        # (eg. change "BACKGROUND" to "Background"
+                        category = category.lower().capitalize()
+                        main_abstract_list.append("<strong>" + category + "</strong>: " + cleaned_text)
+                    else:
+                        main_abstract_list.append(cleaned_text)
+            main_abstract = ''
+            if len(main_abstract_list) > 0:
+                main_abstract = "<p>" + "</p><p>".join(main_abstract_list) + "</p>" \
+                    if len(main_abstract_list) > 1 else main_abstract_list[0]
             if main_abstract != '':
                 main_abstract = re.sub(r'\s+', ' ', main_abstract)
-
             pip_abstract_list = []
             plain_abstract_list = []
             lang_abstract_list = []
