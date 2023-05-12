@@ -13,11 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
-    ReferenceModel
-)
-from agr_literature_service.api.schemas import (
-    TopicEntityTagPropSchemaPost,
-    TopicEntityTagPropSchemaUpdate
+    ReferenceModel, TopicEntityTagQualifierModel, ModModel, TopicEntityTagSourceModel
 )
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
 
@@ -50,30 +46,44 @@ def create(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
     else:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="reference_curie not within  topic_entity_tag_data")
-    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
-    if not reference:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"Reference with curie {reference_curie} does not exist")
-    topic_entity_tag_data["reference_id"] = reference.reference_id
-    (okay, details) = extra_checks(topic_entity_tag_data)
-    if not okay:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=details)
-
-    props = []
-    if "props" in topic_entity_tag_data and topic_entity_tag_data["props"]:
-        props = topic_entity_tag_data["props"]
-        del topic_entity_tag_data["props"]
-    elif "props" in topic_entity_tag_data:
-        del topic_entity_tag_data["props"]
+    reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
+    topic_entity_tag_data["reference_id"] = reference_id
+    qualifiers = topic_entity_tag_data.pop("qualifiers", [])
+    if qualifiers is None:
+        qualifiers = []
+    sources = topic_entity_tag_data.pop("sources", [])
+    if sources is None:
+        sources = []
     db_obj = TopicEntityTagModel(**topic_entity_tag_data)
     db.add(db_obj)
     db.commit()
-    for prop in props:
-        xml = {"topic_entity_tag_id": db_obj.topic_entity_tag_id,
-               "qualifier": prop['qualifier']}
-        # prop_obj = TopicEntityTagPropModel(**xml)
-        # db.add(prop_obj)
+    for qualifier in qualifiers:
+        mod_id = db.query(ModModel).filter(ModModel.abbreviation == qualifier['mod_abbreviation']).one_or_none()
+        if mod_id is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
+        xml = {
+            "topic_entity_tag_id": db_obj.topic_entity_tag_id,
+            "qualifier": qualifier["qualifier"],
+            "qualifier_type": qualifier["qualifier_type"],
+            "mod_id": mod_id
+        }
+        qualifier_obj = TopicEntityTagQualifierModel(**xml)
+        db.add(qualifier_obj)
+    for source in sources:
+        mod_id = db.query(ModModel).filter(ModModel.abbreviation == source['mod_abbreviation']).one_or_none()
+        if mod_id is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
+        xml = {
+            "topic_entity_tag_id": db_obj.topic_entity_tag_id,
+            "source": source["source"],
+            "confidence_level": source["confidence_level"],
+            "validated": source["validated"],
+            "validation_type": source["validation_type"],
+            "note": source["note"],
+            "mod_id": mod_id
+        }
+        source_obj = TopicEntityTagSourceModel(**xml)
+        db.add(source_obj)
     db.commit()
     return db_obj.topic_entity_tag_id
 
