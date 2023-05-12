@@ -593,6 +593,7 @@ def missing_files(db: Session, mod_abbreviation: str):
                         LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
                         LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
                         WHERE mod.abbreviation = '{mod_abbreviation}'
+                        AND corpus=true
                         GROUP BY b.reference_id
                         HAVING (COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
                         OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1)
