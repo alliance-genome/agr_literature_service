@@ -3,53 +3,84 @@ from pydantic import BaseModel
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
 
-# use by topic_entity_tag_crud.create
-class TopicEntityTagPropSchemaCreate(BaseModel):
+class TopicEntityTagQualifierSchemaCreate(BaseModel):
     qualifier: str
+    qualifier_type: str
+    mod_abbreviation: str
 
 
-# use by topic_entity_tag_crud.create_prop
-class TopicEntityTagPropSchemaPost(TopicEntityTagPropSchemaCreate):
+class TopicEntityTagQualifierSchemaPost(TopicEntityTagQualifierSchemaCreate):
     topic_entity_tag_id: int  # required as here topic_entity_tag_prop created separate from topic_entity_tag
 
 
-# use by topic_entity_tag_crud.show, topic_enty_tag_prop as children of topic_entity_tag
-class TopicEntityTagPropSchemaRelated(AuditedObjectModelSchema):
+class TopicEntityTagQualifierSchemaRelated(AuditedObjectModelSchema):
+    topic_entity_tag_qualifier_id: int
+    qualifier: str
+    qualifier_type: str
+    mod_abbreviation: str
+
+
+class TopicEntityTagQualifierSchemaShow(AuditedObjectModelSchema):
     topic_entity_tag_prop_id: int
     qualifier: str
+    qualifier_type: str
+    mod_abbreviation: str
 
 
-# use by topic_entity_tag_crud.show_prop, topic_entity_tag_prop as independent show
-class TopicEntityTagPropSchemaShow(TopicEntityTagPropSchemaRelated):
-    topic_entity_tag_id: int
+class TopicEntityTagQualifierSchemaUpdate(BaseModel):
+    qualifier: Optional[str] = None
+    qualifier_type: Optional[str] = None
+    mod_abbreviation: Optional[str] = None
 
-
-class TopicEntityTagPropSchemaUpdate(BaseModel):
-    qualifier: str
-
-    class Config():
+    class Config:
         orm_mode = True
         extra = "forbid"
-        schema_extra = {
-            "example": {
-                "qualifier": "Q1"
-            }
-        }
 
 
-# use by reference_crud
+class TopicEntityTagSourceSchemaCreate(BaseModel):
+    source: str
+    confidence_level: Optional[str] = None
+    mod_abbreviation: str
+    validated: Optional[bool] = False
+    validation_type: Optional[str] = None
+    note: Optional[str] = None
+
+
+class TopicEntityTagSourceSchemaPost(TopicEntityTagSourceSchemaCreate):
+    topic_entity_tag_id: int  # required as here topic_entity_tag_prop created separate from topic_entity_tag
+
+
+class TopicEntityTagSourceSchemaRelated(AuditedObjectModelSchema):
+    topic_entity_tag_source_id: int
+    source: str
+    confidence_level: Optional[str] = None
+    mod_abbreviation: str
+    validated: Optional[bool] = False
+    validation_type: Optional[str] = None
+    note: Optional[str] = None
+
+
+class TopicEntityTagSourceSchemaShow(AuditedObjectModelSchema):
+    topic_entity_tag_source_id: int
+    source: str
+    confidence_level: Optional[str] = None
+    mod_abbreviation: str
+    validated: Optional[bool] = False
+    validation_type: Optional[str] = None
+    note: Optional[str] = None
+
+
 class TopicEntityTagSchemaCreate(BaseModel):
     topic: str
-    entity_type: str
-    alliance_entity: Optional[str] = None
-    mod_entity: Optional[str] = None
-    new_entity: Optional[str] = None
-    taxon: str
-    note: Optional[str]
-    props: Optional[List[TopicEntityTagPropSchemaCreate]] = None
+    entity_type: Optional[str] = None
+    entity: Optional[str] = None
+    entity_source: Optional[str] = None
+    entity_published_as: Optional[str] = None
+    species: str
+    qualifiers: Optional[List[TopicEntityTagQualifierSchemaCreate]] = None
+    sources: Optional[List[TopicEntityTagSourceSchemaCreate]] = None
 
 
-# use by topic_entity_tag_crud
 class TopicEntityTagSchemaPost(TopicEntityTagSchemaCreate):
     reference_curie: str
 
@@ -57,13 +88,13 @@ class TopicEntityTagSchemaPost(TopicEntityTagSchemaCreate):
 class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     topic_entity_tag_id: int
     topic: str
-    entity_type: str
-    alliance_entity: Optional[str] = None
-    mod_entity: Optional[str] = None
-    new_entity: Optional[str] = None
-    taxon: str
-    note: Optional[str]
-    props: Optional[List[TopicEntityTagPropSchemaRelated]] = None
+    entity_type: Optional[str] = None
+    entity: Optional[str] = None
+    entity_source: Optional[str] = None
+    entity_published_as: Optional[str] = None
+    species: str
+    qualifiers: Optional[List[TopicEntityTagQualifierSchemaCreate]] = None
+    sources: Optional[List[TopicEntityTagSourceSchemaCreate]] = None
 
 
 class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
@@ -71,11 +102,9 @@ class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
 
 
 class TopicEntityTagSchemaUpdate(BaseModel):
-    reference_curie: Optional[str] = None
-    topic: Optional[str] = ""
-    entity_type: Optional[str] = ""
-    alliance_entity: Optional[str] = None
-    mod_entity: Optional[str] = None
-    new_entity: Optional[str]
-    taxon: Optional[str]
-    note: Optional[str]
+    topic: str
+    entity_type: Optional[str] = None
+    entity: Optional[str] = None
+    entity_source: Optional[str] = None
+    entity_published_as: Optional[str] = None
+    species: str
