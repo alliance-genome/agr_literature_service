@@ -6,7 +6,8 @@ topic_entity_tag_model.py
 
 from typing import Dict
 
-from sqlalchemy import (Column, ForeignKey, Integer, String, Index, and_, CheckConstraint, UniqueConstraint, Boolean)
+from sqlalchemy import (Column, ForeignKey, Integer, String, Index, and_, CheckConstraint, UniqueConstraint, Boolean,
+                        or_)
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -50,7 +51,7 @@ class TopicEntityTagModel(AuditedModel, Base):
     entity_type = Column(
         String(),
         unique=False,
-        nullable=False
+        nullable=True
     )
 
     entity = Column(
@@ -77,15 +78,18 @@ class TopicEntityTagModel(AuditedModel, Base):
         nullable=False
     )
 
-    qualifiers = relationship("TopicEntityTagQualifier")
+    qualifiers = relationship("TopicEntityTagQualifierModel")
 
-    sources = relationship("TopicEntityTagSource")
+    sources = relationship("TopicEntityTagSourceModel")
 
     __table_args__ = (
         CheckConstraint(
-            and_(entity.isnot(None), entity_source.isnot(None)),
-            postgresql_where=(entity_type.isnot(None)),
-            name="entity_not_null_when_entity_type_provided"),
+            or_(
+                and_(entity_type.isnot(None), entity.isnot(None), entity_source.isnot(None)),
+                and_(entity_type.is_(None), entity.is_(None), entity_source.is_(None))
+            ),
+            name="entity_and_entity_source_not_null_when_entity_type_provided"
+        ),
         UniqueConstraint(
             'entity_type', 'entity', 'entity_source',
             name='entity_unique_constraint'),
@@ -95,7 +99,7 @@ class TopicEntityTagModel(AuditedModel, Base):
     )
 
 
-class TopicEntityTagQualifier(AuditedModel, Base):
+class TopicEntityTagQualifierModel(AuditedModel, Base):
     __tablename__ = "topic_entity_tag_qualifier"
     __versioned__: Dict = {}
 
@@ -110,12 +114,6 @@ class TopicEntityTagQualifier(AuditedModel, Base):
         ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete="CASCADE"),
         index=True,
         nullable=False
-    )
-
-    reference = relationship(
-        "ReferenceModel",
-        foreign_keys="TopicEntityTagModel.reference_id",
-        back_populates="topic_entity_tags"
     )
 
     # Obtained from A-Team ontology qualifier
@@ -140,11 +138,11 @@ class TopicEntityTagQualifier(AuditedModel, Base):
 
     mod = relationship(
         "ModModel",
-        foreign_keys="TopicEntityTagQualifier.mod_id"
+        foreign_keys="TopicEntityTagQualifierModel.mod_id"
     )
 
 
-class TopicEntityTagSource(AuditedModel, Base):
+class TopicEntityTagSourceModel(AuditedModel, Base):
     __tablename__ = "topic_entity_tag_source"
     __versioned__: Dict = {}
 
@@ -170,7 +168,7 @@ class TopicEntityTagSource(AuditedModel, Base):
 
     mod = relationship(
         "ModModel",
-        foreign_keys="TopicEntityTagQualifier.mod_id"
+        foreign_keys="TopicEntityTagSourceModel.mod_id"
     )
 
     source = Column(
@@ -208,7 +206,9 @@ class TopicEntityTagSource(AuditedModel, Base):
             'source', 'topic_entity_tag_id',
             name='source_topic_entity_tag_unique'),
         CheckConstraint(
-            validation_type.isnot(None),
-            postgresql_where=(validated.isnot(None)),
-            name="entity_not_null_when_entity_type_provided")
+            or_(
+                and_(validated.isnot(None), validation_type.isnot(None)),
+                and_(validated.is_(None), validation_type.is_(None)),
+            ),
+            name="validation_type_not_null_when_validation_provided")
     )

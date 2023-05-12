@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session, joinedload
 
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
-    TopicEntityTagPropModel,
     ReferenceModel
 )
 from agr_literature_service.api.schemas import (
@@ -93,8 +92,8 @@ def create(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
     for prop in props:
         xml = {"topic_entity_tag_id": db_obj.topic_entity_tag_id,
                "qualifier": prop['qualifier']}
-        prop_obj = TopicEntityTagPropModel(**xml)
-        db.add(prop_obj)
+        # prop_obj = TopicEntityTagPropModel(**xml)
+        # db.add(prop_obj)
     db.commit()
     return db_obj.topic_entity_tag_id
 
@@ -118,12 +117,12 @@ def show(db: Session, topic_entity_tag_id: int):
         topic_entity_tag_data["reference_curie"] = db.query(ReferenceModel).filter(ReferenceModel.reference_id == topic_entity_tag_data["reference_id"]).first().curie
         del topic_entity_tag_data["reference_id"]
 
-    props = db.query(TopicEntityTagPropModel).filter(TopicEntityTagPropModel.topic_entity_tag_id == topic_entity_tag_id).all()
+    #props = db.query(TopicEntityTagPropModel).filter(TopicEntityTagPropModel.topic_entity_tag_id == topic_entity_tag_id).all()
     topic_entity_tag_data["props"] = []
-    prop: TopicEntityTagPropModel
-    for prop in props:
-        prop_data = jsonable_encoder(prop)
-        topic_entity_tag_data["props"].append(prop_data)
+    #prop: TopicEntityTagPropModel
+    #for prop in props:
+    #    prop_data = jsonable_encoder(prop)
+    #    topic_entity_tag_data["props"].append(prop_data)
     return topic_entity_tag_data
 
 
@@ -215,50 +214,52 @@ def create_prop(db: Session, topic_entity_tag_prop: TopicEntityTagPropSchemaPost
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_prop_data['topic_entity_tag_id']} is not available")
 
-    db_obj = TopicEntityTagPropModel(**topic_entity_tag_prop_data)
-    db.add(db_obj)
-    db.commit()
-    return db_obj.topic_entity_tag_prop_id
+    #db_obj = TopicEntityTagPropModel(**topic_entity_tag_prop_data)
+    #db.add(db_obj)
+    #db.commit()
+    #return db_obj.topic_entity_tag_prop_id
+    return None
 
 
 def delete_prop(db: Session, topic_entity_tag_prop_id: int):
-    topic_entity_tag_prop = db.query(TopicEntityTagPropModel).\
-        filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == topic_entity_tag_prop_id).first()
-    if not topic_entity_tag_prop:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"topic_entity_tag_prop with the topic_entity_tag_id {topic_entity_tag_prop_id} is not available")
+    #topic_entity_tag_prop = db.query(TopicEntityTagPropModel).\
+    #    filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == topic_entity_tag_prop_id).first()
+    #if not topic_entity_tag_prop:
+    #    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+     #                       detail=f"topic_entity_tag_prop with the topic_entity_tag_id {topic_entity_tag_prop_id} is not available")
 
-    db.delete(topic_entity_tag_prop)
-    db.commit()
+    #db.delete(topic_entity_tag_prop)
+    #db.commit()
 
     return None
 
 
 def update_prop(db: Session, topic_entity_tag_prop_id: int, topic_entity_tag_prop: TopicEntityTagPropSchemaUpdate):
-    prop_data = jsonable_encoder(topic_entity_tag_prop)
-    prop_obj = db.query(TopicEntityTagPropModel).\
-        filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == topic_entity_tag_prop_id).first()
-    if not prop_obj:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"topic_entity_tag_prop with the topic_entity_tag_prop_id {topic_entity_tag_prop_id} is not available")
+    #prop_data = jsonable_encoder(topic_entity_tag_prop)
+    #prop_obj = db.query(TopicEntityTagPropModel).\
+    #    filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == topic_entity_tag_prop_id).first()
+    #if not prop_obj:
+    #    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+     #                       detail=f"topic_entity_tag_prop with the topic_entity_tag_prop_id {topic_entity_tag_prop_id} is not available")
 
-    for field, value in prop_data.items():
-        print("Updating {} {} for {}".format(field, value, prop_obj))
-        if value:
-            setattr(prop_obj, field, value)
-    db.commit()
+    #for field, value in prop_data.items():
+    #    print("Updating {} {} for {}".format(field, value, prop_obj))
+    #    if value:
+    #        setattr(prop_obj, field, value)
+    #db.commit()
     return {"message": "updated"}
 
 
 def show_prop(db: Session, topic_entity_tag_prop_id: int):
-    prop = db.query(TopicEntityTagPropModel).\
-        filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == topic_entity_tag_prop_id).first()
-    if not prop:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"topic_entity_tag_prop with the topic_entity_tag_id {topic_entity_tag_prop_id} is not available")
+    #prop = db.query(TopicEntityTagPropModel).\
+    #    filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == topic_entity_tag_prop_id).first()
+    #if not prop:
+    #    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+    #                        detail=f"topic_entity_tag_prop with the topic_entity_tag_id {topic_entity_tag_prop_id} is not available")
 
-    prop_data = jsonable_encoder(prop)
-    return prop_data
+    #prop_data = jsonable_encoder(prop)
+    #return prop_data
+    return None
 
 
 def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token: str):
