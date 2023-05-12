@@ -36,26 +36,6 @@ def get_reference_id_from_curie_or_id(db: Session, curie_or_reference_id):
     return reference_id
 
 
-def extra_checks(topic_entity_tag_data):
-    count = 0
-    okay = True
-    details = ""
-    # Error if none of the entitys is set.
-    if "alliance_entity" in topic_entity_tag_data and topic_entity_tag_data["alliance_entity"]:
-        count += 1
-    if "mod_entity" in topic_entity_tag_data and topic_entity_tag_data["mod_entity"]:
-        count += 1
-    if "new_entity" in topic_entity_tag_data and topic_entity_tag_data["new_entity"]:
-        count += 1
-    if not count:
-        details = "One of the XXXX_entity's MUST be set"
-        okay = False
-    elif count > 1:
-        details = "ONLY one of the XXXX_entity's MUST be set"
-        okay = False
-    return (okay, details)
-
-
 def create(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
     """
     Create a new topic_entity_tag
