@@ -219,7 +219,7 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
                 referencefile.file_publication_status = "temp"
             db.commit()
         if all(referencefile_mod.mod.abbreviation != mod_abbreviation for referencefile_mod in
-               referencefile.referencefile_mods):
+               referencefile.referencefile_mods if referencefile_mod.mod is not None):
             create_mod_connection(db, ReferencefileModSchemaPost(referencefile_id=referencefile.referencefile_id,
                                                                  mod_abbreviation=mod_abbreviation))
     else:
