@@ -45,7 +45,7 @@ def create(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
     db_obj = TopicEntityTagModel(**topic_entity_tag_data)
     db.add(db_obj)
     for qualifier in qualifiers:
-        mod_id = db.query(ModModel).filter(ModModel.abbreviation == qualifier['mod_abbreviation']).one_or_none()
+        mod_id = db.query(ModModel).filter(ModModel.abbreviation == qualifier['mod_abbreviation']).scalar()
         if mod_id is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
         qualifier_obj = TopicEntityTagQualifierModel(
@@ -56,7 +56,7 @@ def create(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
         )
         db.add(qualifier_obj)
     for source in sources:
-        mod_id = db.query(ModModel).filter(ModModel.abbreviation == source['mod_abbreviation']).one_or_none()
+        mod_id = db.query(ModModel).filter(ModModel.abbreviation == source['mod_abbreviation']).scalar()
         if mod_id is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
         source_obj = TopicEntityTagSourceModel(
