@@ -74,30 +74,25 @@ def create(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
 
 
 def show(db: Session, topic_entity_tag_id: int):
-    """
-
-    :param db:
-    :param topic_entity_tag_id:
-    :return:
-    """
-
-    topic_entity_tag = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
+    topic_entity_tag = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
     if not topic_entity_tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} is not available")
-
+                            detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
+                                   f"is not available")
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
-
     if topic_entity_tag_data["reference_id"]:
-        topic_entity_tag_data["reference_curie"] = db.query(ReferenceModel).filter(ReferenceModel.reference_id == topic_entity_tag_data["reference_id"]).first().curie
+        topic_entity_tag_data["reference_curie"] = db.query(ReferenceModel).filter(
+            ReferenceModel.reference_id == topic_entity_tag_data["reference_id"]).first().curie
         del topic_entity_tag_data["reference_id"]
 
-    #props = db.query(TopicEntityTagPropModel).filter(TopicEntityTagPropModel.topic_entity_tag_id == topic_entity_tag_id).all()
-    topic_entity_tag_data["props"] = []
-    #prop: TopicEntityTagPropModel
-    #for prop in props:
-    #    prop_data = jsonable_encoder(prop)
-    #    topic_entity_tag_data["props"].append(prop_data)
+    qualifiers = db.query(TopicEntityTagQualifierModel).filter(
+        TopicEntityTagQualifierModel.topic_entity_tag_id == topic_entity_tag_id).all()
+    topic_entity_tag_data["qualifiers"] = []
+    topic_entity_tag_data["qualifiers"] = [jsonable_encoder(qualifier) for qualifier in qualifiers]
+
+    sources = db.query(TopicEntityTagSourceModel).filter(
+        TopicEntityTagSourceModel.topic_entity_tag_id == topic_entity_tag_id).all()
+    topic_entity_tag_data["sources"] = [jsonable_encoder(source) for source in sources]
     return topic_entity_tag_data
 
 
