@@ -115,9 +115,9 @@ class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
 
 
 class TopicEntityTagSchemaUpdate(BaseModel):
-    topic: str
+    topic: Optional[str] = None
     entity_type: Optional[str] = None
     entity: Optional[str] = None
     entity_source: Optional[str] = None
     entity_published_as: Optional[str] = None
-    species: str
+    species: Optional[str] = None
