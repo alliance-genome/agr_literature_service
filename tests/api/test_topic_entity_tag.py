@@ -92,7 +92,7 @@ class TestTopicEntityTag:
             for key, value in expected_fields.items():
                 assert resp_data[key] == value
 
-    def test_patch(self, test_topic_entity_tag, auth_headers):
+    def test_patch(self, test_topic_entity_tag, auth_headers): # noqa
         with TestClient(app) as client:
             new_data = {
                 "topic": "Topic_new",
@@ -107,7 +107,7 @@ class TestTopicEntityTag:
             for key, value in new_data.items():
                 assert resp_data[key] == value
 
-    def test_destroy(self, test_topic_entity_tag, auth_headers):
+    def test_destroy(self, test_topic_entity_tag, auth_headers): # noqa
         with TestClient(app) as client:
             response = client.delete(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
