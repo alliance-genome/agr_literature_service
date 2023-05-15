@@ -6,8 +6,7 @@ topic_entity_tag_model.py
 
 from typing import Dict
 
-from sqlalchemy import (Column, ForeignKey, Integer, String, Index, and_, CheckConstraint, UniqueConstraint, Boolean,
-                        or_)
+from sqlalchemy import Column, ForeignKey, Integer, String, and_, CheckConstraint, UniqueConstraint, Boolean, or_
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base

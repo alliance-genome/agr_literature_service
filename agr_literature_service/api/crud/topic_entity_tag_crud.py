@@ -132,8 +132,8 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
 
 def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag_update)
-    topic_entity_tag_db_obj = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.topic_entity_tag_id ==
-                                                                   topic_entity_tag_id).first()
+    topic_entity_tag_db_obj = db.query(TopicEntityTagModel).filter(
+        TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
     if not topic_entity_tag_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entity_tag with topic_entity_tag_id {topic_entity_tag_id} not found")
@@ -158,8 +158,8 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
 
 
 def destroy(db: Session, topic_entity_tag_id: int):
-    topic_entity_tag = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.topic_entity_tag_id ==
-                                                            topic_entity_tag_id).first()
+    topic_entity_tag = db.query(TopicEntityTagModel).filter(
+        TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
     if not topic_entity_tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entity_tag with the topic_entity_tag_id {topic_entity_tag_id} "
