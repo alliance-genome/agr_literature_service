@@ -191,9 +191,9 @@ class TestReference:
                     {
                         "topic": "string",
                         "entity_type": "string",
-                        "alliance_entity": "string",
-                        "taxon": "string",
-                        "note": "string"
+                        "entity": "string",
+                        "entity_source": "string",
+                        "species": "string"
                     }
                 ],
                 "issue_name": "4",
