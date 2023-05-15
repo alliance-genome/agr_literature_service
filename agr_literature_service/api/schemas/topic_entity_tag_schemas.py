@@ -70,6 +70,19 @@ class TopicEntityTagSourceSchemaShow(AuditedObjectModelSchema):
     note: Optional[str] = None
 
 
+class TopicEntityTagSourceSchemaUpdate(BaseModel):
+    source: Optional[str] = None
+    confidence_level: Optional[str] = None
+    mod_abbreviation: Optional[str] = None
+    validated: Optional[bool] = False
+    validation_type: Optional[str] = None
+    note: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+        extra = "forbid"
+
+
 class TopicEntityTagSchemaCreate(BaseModel):
     topic: str
     entity_type: Optional[str] = None

@@ -9,6 +9,7 @@ from collections import defaultdict
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_, case
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from agr_literature_service.api.models import (
@@ -69,7 +70,12 @@ def create(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
             mod_id=mod_id
         )
         db.add(source_obj)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"invalid request: {e}")
     return db_obj.topic_entity_tag_id
 
 
@@ -110,7 +116,7 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
     if sort_by == "null":
         sort_by = None
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
-    query = db.query(TopicEntityTagModel).options(joinedload(TopicEntityTagModel.props)).filter(
+    query = db.query(TopicEntityTagModel).options(joinedload(TopicEntityTagModel.sources)).filter(
         TopicEntityTagModel.reference_id == reference_id)
     if count_only:
         return query.count()
@@ -125,15 +131,9 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
 
 
 def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
-    """
-    Update a topic_entity_tag
-    :param db:
-    :param topic_entity_tag_id:
-    :param topic_entity_tag_update:
-    :return:
-    """
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag_update)
-    topic_entity_tag_db_obj = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
+    topic_entity_tag_db_obj = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.topic_entity_tag_id ==
+                                                                   topic_entity_tag_id).first()
     if not topic_entity_tag_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entity_tag with topic_entity_tag_id {topic_entity_tag_id} not found")
@@ -158,77 +158,15 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
 
 
 def destroy(db: Session, topic_entity_tag_id: int):
-
-    topic_entity_tag = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
+    topic_entity_tag = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.topic_entity_tag_id ==
+                                                            topic_entity_tag_id).first()
     if not topic_entity_tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"topic_entity_tag with the topic_entity_tag_id {topic_entity_tag_id} is not available")
+                            detail=f"topic_entity_tag with the topic_entity_tag_id {topic_entity_tag_id} "
+                                   f"is not available")
     db.delete(topic_entity_tag)
     db.commit()
 
-    return None
-
-
-def create_prop(db: Session, topic_entity_tag_prop: TopicEntityTagPropSchemaPost) -> int:
-    """
-    Create a new topic_entity_tag
-    :param db:
-    :param topic_entity_tag:
-    :return:
-    """
-
-    topic_entity_tag_prop_data = jsonable_encoder(topic_entity_tag_prop)
-    topic_entity_tag = db.query(TopicEntityTagModel).\
-        filter(TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_prop_data["topic_entity_tag_id"]).first()
-    if not topic_entity_tag:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_prop_data['topic_entity_tag_id']} is not available")
-
-    #db_obj = TopicEntityTagPropModel(**topic_entity_tag_prop_data)
-    #db.add(db_obj)
-    #db.commit()
-    #return db_obj.topic_entity_tag_prop_id
-    return None
-
-
-def delete_prop(db: Session, topic_entity_tag_prop_id: int):
-    #topic_entity_tag_prop = db.query(TopicEntityTagPropModel).\
-    #    filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == topic_entity_tag_prop_id).first()
-    #if not topic_entity_tag_prop:
-    #    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-     #                       detail=f"topic_entity_tag_prop with the topic_entity_tag_id {topic_entity_tag_prop_id} is not available")
-
-    #db.delete(topic_entity_tag_prop)
-    #db.commit()
-
-    return None
-
-
-def update_prop(db: Session, topic_entity_tag_prop_id: int, topic_entity_tag_prop: TopicEntityTagPropSchemaUpdate):
-    #prop_data = jsonable_encoder(topic_entity_tag_prop)
-    #prop_obj = db.query(TopicEntityTagPropModel).\
-    #    filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == topic_entity_tag_prop_id).first()
-    #if not prop_obj:
-    #    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-     #                       detail=f"topic_entity_tag_prop with the topic_entity_tag_prop_id {topic_entity_tag_prop_id} is not available")
-
-    #for field, value in prop_data.items():
-    #    print("Updating {} {} for {}".format(field, value, prop_obj))
-    #    if value:
-    #        setattr(prop_obj, field, value)
-    #db.commit()
-    return {"message": "updated"}
-
-
-def show_prop(db: Session, topic_entity_tag_prop_id: int):
-    #prop = db.query(TopicEntityTagPropModel).\
-    #    filter(TopicEntityTagPropModel.topic_entity_tag_prop_id == topic_entity_tag_prop_id).first()
-    #if not prop:
-    #    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-    #                        detail=f"topic_entity_tag_prop with the topic_entity_tag_id {topic_entity_tag_prop_id} is not available")
-
-    #prop_data = jsonable_encoder(prop)
-    #return prop_data
     return None
 
 
