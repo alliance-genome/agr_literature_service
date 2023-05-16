@@ -16,8 +16,8 @@ from agr_literature_service.api.models import (
     TopicEntityTagModel,
     ReferenceModel, TopicEntityTagQualifierModel, ModModel, TopicEntityTagSourceModel
 )
-from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
-
+from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost, \
+    TopicEntityTagSourceSchemaPost, TopicEntityTagSourceSchemaUpdate
 
 allowed_entity_type_map = {'ATP:0000005': 'gene', 'ATP:0000006': 'allele'}
 
@@ -79,18 +79,6 @@ def create_tag_with_source(db: Session, topic_entity_tag: TopicEntityTagSchemaPo
     return db_obj.topic_entity_tag_id
 
 
-def add_source_to_tag():
-    ...
-
-
-def destroy_source():
-    ...
-
-
-def patch_source():
-    ...
-
-
 def show(db: Session, topic_entity_tag_id: int):
     topic_entity_tag = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
     if not topic_entity_tag:
@@ -116,6 +104,19 @@ def show(db: Session, topic_entity_tag_id: int):
         del source["mod_id"]
         del source["topic_entity_tag_id"]
     return topic_entity_tag_data
+
+
+def add_source_to_tag(db: Session, topic_entity_tag_id: int, source: TopicEntityTagSourceSchemaPost):
+    ...
+
+
+def destroy_source(db: Session, topic_entity_tag_source_id: int):
+    # remove tag if that's the last one
+    ...
+
+
+def patch_source(db: Session, topic_entity_tag_source_id: int, source: TopicEntityTagSourceSchemaUpdate):
+    ...
 
 
 def get_sorted_column_values(db: Session, column_name: str, desc: bool = False):
@@ -144,46 +145,6 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
             query = query.order_by(curie_ordering)
         return [jsonable_encoder(tet) for tet in query.offset((page - 1) * page_size if page_size else None).limit(
             page_size).all()]
-
-
-def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
-    topic_entity_tag_data = jsonable_encoder(topic_entity_tag_update)
-    topic_entity_tag_db_obj = db.query(TopicEntityTagModel).filter(
-        TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
-    if not topic_entity_tag_db_obj:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"topic_entity_tag with topic_entity_tag_id {topic_entity_tag_id} not found")
-    # Loop ONLY on the fields that were passed to patch before pydantic
-    # added a bunch of fields with None values etc.
-    for field in topic_entity_tag_update.__fields_set__:
-        value = topic_entity_tag_data[field]
-        if field == "reference_curie":
-            if value is not None:
-                reference_curie = value
-                new_reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
-                if not new_reference:
-                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                        detail=f"Reference with curie {reference_curie} does not exist")
-                topic_entity_tag_db_obj.reference = new_reference
-        else:
-            setattr(topic_entity_tag_db_obj, field, value)
-    # Becouse we added updated fields after pydantic they are not in the changed fields list
-    # So we want to do these separately now.
-    db.commit()
-    return {"message": "updated"}
-
-
-def destroy(db: Session, topic_entity_tag_id: int):
-    topic_entity_tag = db.query(TopicEntityTagModel).filter(
-        TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).one_or_none()
-    if not topic_entity_tag:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"topic_entity_tag with the topic_entity_tag_id {topic_entity_tag_id} "
-                                   f"is not available")
-    db.delete(topic_entity_tag)
-    db.commit()
-
-    return None
 
 
 def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token: str):

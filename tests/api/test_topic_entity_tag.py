@@ -139,27 +139,14 @@ class TestTopicEntityTag:
             for key, value in expected_fields.items():
                 assert resp_data[key] == value
 
-    def test_patch(self, test_topic_entity_tag, auth_headers): # noqa
-        with TestClient(app) as client:
-            new_data = {
-                "topic": "Topic_new",
-                "entity": "Gene2",
-                "entity_source": "mod"
-            }
-            response = client.patch(url=f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", json=new_data,
-                                    headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
-            resp_data = response.json()
-            for key, value in new_data.items():
-                assert resp_data[key] == value
+    def test_add_source_to_tag(self):
+        assert True
 
-    def test_destroy(self, test_topic_entity_tag, auth_headers): # noqa
-        with TestClient(app) as client:
-            response = client.delete(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers)
-            assert response.status_code == status.HTTP_204_NO_CONTENT
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
-            assert response.status_code == status.HTTP_404_NOT_FOUND
+    def test_destroy_source(self):
+        assert True
+
+    def test_patch_source(self):
+        assert True
 
     def test_get_all_reference_tags(self, auth_headers): # noqa
         with TestClient(app) as client:

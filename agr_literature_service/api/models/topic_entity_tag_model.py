@@ -89,12 +89,9 @@ class TopicEntityTagModel(AuditedModel, Base):
             ),
             name="entity_and_entity_source_not_null_when_entity_type_provided"
         ),
-        UniqueConstraint(
-            'reference_id', 'entity_type', 'entity', 'entity_source',
-            name='entity_unique_constraint'),
         Index(
             'ix_unique_topic_tag',
-            'reference_id', 'topic',
+            'reference_id', 'topic', 'species',
             unique=True,
             postgresql_where=entity_type.is_(None)),
         Index(
