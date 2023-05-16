@@ -200,7 +200,7 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
                 author_list_with_first_or_corresponding_author.append((id, x['name'], "first_author = " + str(x['first_author']), "corresponding_author = " + str(x['corresponding_author'])))
             affiliations = x['affiliations'] if x['affiliations'] else []
             orcid = x['orcid'] if x['orcid'] else ''
-            authors_in_db.append((x['name'], x['first_name'], x['last_name'], x['order'], '|'.join(affiliations), orcid))
+            authors_in_db.append((x['name'], x['first_name'], x['last_name'], x['first_initial'], x['order'], '|'.join(affiliations), orcid))
 
     authors_in_json = []
     noAuthorRankInJson = False
@@ -215,13 +215,10 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
         authorRank = x.get('authorRank')
         if noAuthorRankInJson is True:
             authorRank = i
-        firstName = x.get('firstname')
-        if firstName is None:
-            firstName = x.get('firstName', '')
-        lastName = x.get('lastname')
-        if lastName is None:
-            lastName = x.get('lastName', '')
-        authors_in_json.append((x.get('name', ''), firstName, lastName, authorRank, '|'.join(affiliations), orcid))
+        firstName = x['firstname'] if 'firstname' in x else x.get('firstName', '')
+        lastName = x['lastname'] if 'lastname' in x else x.get('lastName', '')
+        firstInitial = x['firstinit'] if 'firstinit' in x else x.get('firstInit', '')
+        authors_in_json.append((x.get('name', ''), firstName, lastName, firstInitial, authorRank, '|'.join(affiliations), orcid))
 
     if set(authors_in_db) == set(authors_in_json):
         return []
@@ -251,7 +248,7 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
     # 3.5% authors in the database have orcid
     ## adding authors from pubmed into database
     for x in authors_in_json:
-        (name, firstname, lastname, authorRank, affiliations, orcid) = x
+        (name, firstname, lastname, firstInitial, authorRank, affiliations, orcid) = x
         affiliation_list = affiliations.split('|')
         if len(affiliation_list) == 0 or (len(affiliation_list) == 1 and affiliation_list[0] == ''):
             affiliation_list = None
@@ -259,6 +256,7 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
                 "name": name,
                 "first_name": firstname,
                 "last_name": lastname,
+                "first_initial": firstInitial,
                 "order": authorRank,
                 "affiliations": affiliation_list,
                 "orcid": orcid if orcid else None,
