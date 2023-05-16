@@ -83,6 +83,14 @@ def add_source_to_tag():
     ...
 
 
+def destroy_source():
+    ...
+
+
+def patch_source():
+    ...
+
+
 def show(db: Session, topic_entity_tag_id: int):
     topic_entity_tag = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
     if not topic_entity_tag:
@@ -97,12 +105,16 @@ def show(db: Session, topic_entity_tag_id: int):
 
     qualifiers = db.query(TopicEntityTagQualifierModel).filter(
         TopicEntityTagQualifierModel.topic_entity_tag_id == topic_entity_tag_id).all()
-    topic_entity_tag_data["qualifiers"] = []
     topic_entity_tag_data["qualifiers"] = [jsonable_encoder(qualifier) for qualifier in qualifiers]
 
-    sources = db.query(TopicEntityTagSourceModel).filter(
+    sources = db.query(TopicEntityTagSourceModel).options(joinedload(TopicEntityTagSourceModel.mod)).filter(
         TopicEntityTagSourceModel.topic_entity_tag_id == topic_entity_tag_id).all()
     topic_entity_tag_data["sources"] = [jsonable_encoder(source) for source in sources]
+    for source in topic_entity_tag_data["sources"]:
+        source["mod_abbreviation"] = source["mod"]["abbreviation"]
+        del source["mod"]
+        del source["mod_id"]
+        del source["topic_entity_tag_id"]
     return topic_entity_tag_data
 
 
