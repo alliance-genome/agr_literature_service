@@ -146,8 +146,17 @@ class TestTopicEntityTag:
             for key, value in expected_fields.items():
                 assert resp_data[key] == value
 
-    def test_add_source_to_tag(self):
-        assert True
+    def test_add_source_to_tag(self, test_topic_entity_tag, auth_headers, test_mod): # noqa
+        with TestClient(app) as client:
+            source_data = {
+                "topic_entity_tag_id": test_topic_entity_tag.new_tet_id,
+                "source": "SVM",
+                "confidence_level": "high",
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "note": "test note"
+            }
+            response = client.post(f"/topic_entity_tag/add_source", json=source_data, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
 
     def test_destroy_source(self):
         assert True

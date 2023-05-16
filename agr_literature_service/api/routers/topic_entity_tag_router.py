@@ -44,15 +44,14 @@ def show(topic_entity_tag_id: int,
 @router.post('/add_source',
              status_code=status.HTTP_201_CREATED,
              response_model=str)
-def add_source(topic_entity_tag_id,
-               request: TopicEntityTagSourceSchemaPost,
+def add_source(request: TopicEntityTagSourceSchemaPost,
                user: OktaUser = db_user,
                db: Session = db_session):
     set_global_user_from_okta(db, user)
-    return topic_entity_tag_crud.add_source_to_tag(db, topic_entity_tag_id, request)
+    return topic_entity_tag_crud.add_source_to_tag(db, request)
 
 
-@router.delete('/delete_souce/{topic_entity_tag_source_id}',
+@router.delete('/delete_source/{topic_entity_tag_source_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def delete_source(topic_entity_tag_source_id,
                   user: OktaUser = db_user,

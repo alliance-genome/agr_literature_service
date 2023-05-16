@@ -5,6 +5,7 @@ topic_entity_tag_crud.py
 import json
 import urllib.request
 from collections import defaultdict
+from typing import Dict
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -73,19 +74,7 @@ def create_tag_with_source(db: Session, topic_entity_tag: TopicEntityTagSchemaPo
             )
             db.add(qualifier_obj)
         for source in sources:
-            mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == source['mod_abbreviation']).scalar()
-            if mod_id is None:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
-            source_obj = TopicEntityTagSourceModel(
-                topic_entity_tag_id=topic_entity_tag_id,
-                source=source["source"],
-                confidence_level=source["confidence_level"],
-                validated=source["validated"],
-                validation_type=source["validation_type"],
-                note=source["note"],
-                mod_id=mod_id
-            )
-            db.add(source_obj)
+            add_source_obj_to_db_session(db, topic_entity_tag_id, source)
         db.commit()
     except IntegrityError as e:
         db.rollback()
@@ -121,8 +110,31 @@ def show(db: Session, topic_entity_tag_id: int):
     return topic_entity_tag_data
 
 
-def add_source_to_tag(db: Session, topic_entity_tag_id: int, source: TopicEntityTagSourceSchemaPost):
-    ...
+def add_source_to_tag(db: Session, source: TopicEntityTagSourceSchemaPost):
+    topic_entity_tag = db.query(TopicEntityTagModel).filter(
+        TopicEntityTagModel.topic_entity_tag_id == source.topic_entity_tag_id).one_or_none()
+    if topic_entity_tag is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"topic or entity tag {source.topic_entity_tag_id} not found")
+    source_data = jsonable_encoder(source)
+    add_source_obj_to_db_session(db, source.topic_entity_tag_id, source_data)
+    db.commit()
+
+
+def add_source_obj_to_db_session(db: Session, topic_entity_tag_id: int, source: Dict):
+    mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == source['mod_abbreviation']).scalar()
+    if mod_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
+    source_obj = TopicEntityTagSourceModel(
+        topic_entity_tag_id=topic_entity_tag_id,
+        source=source["source"],
+        confidence_level=source["confidence_level"],
+        validated=source["validated"],
+        validation_type=source["validation_type"],
+        note=source["note"],
+        mod_id=mod_id
+    )
+    db.add(source_obj)
 
 
 def destroy_source(db: Session, topic_entity_tag_source_id: int):
