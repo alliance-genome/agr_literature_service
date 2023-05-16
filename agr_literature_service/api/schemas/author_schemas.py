@@ -11,7 +11,7 @@ class AuthorSchemaPost(BaseModel):
     name: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-
+    first_initial: Optional[str] = None
     first_author: Optional[bool] = False
     affiliations: Optional[List[str]] = None
     corresponding_author: Optional[bool] = False
@@ -34,6 +34,7 @@ class AuthorSchemaPost(BaseModel):
                 "name": "string",
                 "first_name": "string",
                 "last_name": "string",
+                "first_initial": "string",
                 "affiliations": [
                     "string"
                 ],
@@ -50,7 +51,7 @@ class AuthorSchemaShow(AuditedObjectModelSchema):
     name: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-
+    first_initial: Optional[str] = None
     first_author: Optional[bool]
     orcid: Optional[str] = None
     affiliations: Optional[List[str]] = None

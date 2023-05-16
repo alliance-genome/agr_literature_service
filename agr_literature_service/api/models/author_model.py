@@ -83,6 +83,12 @@ class AuthorModel(Base, AuditedModel):
         nullable=True
     )
 
+    first_initial = Column(
+        String(),
+        unique=False,
+        nullable=True
+    )
+
     def __str__(self):
         """
         Overwrite the default output.
