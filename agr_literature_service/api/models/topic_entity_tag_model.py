@@ -77,9 +77,9 @@ class TopicEntityTagModel(AuditedModel, Base):
         nullable=False
     )
 
-    qualifiers = relationship("TopicEntityTagQualifierModel")
+    qualifiers = relationship("TopicEntityTagQualifierModel", cascade="all,delete")
 
-    sources = relationship("TopicEntityTagSourceModel")
+    sources = relationship("TopicEntityTagSourceModel", cascade="all,delete")
 
     __table_args__ = (
         CheckConstraint(

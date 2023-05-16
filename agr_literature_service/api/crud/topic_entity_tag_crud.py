@@ -175,7 +175,7 @@ def patch(db: Session, topic_entity_tag_id: int, topic_entity_tag_update):
 
 def destroy(db: Session, topic_entity_tag_id: int):
     topic_entity_tag = db.query(TopicEntityTagModel).filter(
-        TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
+        TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).one_or_none()
     if not topic_entity_tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entity_tag with the topic_entity_tag_id {topic_entity_tag_id} "
