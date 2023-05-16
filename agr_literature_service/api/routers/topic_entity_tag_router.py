@@ -7,10 +7,7 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import topic_entity_tag_crud
 from agr_literature_service.api.routers.authentication import auth
-from agr_literature_service.api.schemas import (TopicEntityTagSchemaShow,
-                                                TopicEntityTagSchemaUpdate,
-                                                TopicEntityTagSchemaPost,
-                                                ResponseMessageSchema)
+from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, TopicEntityTagSchemaPost
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated, \
     TopicEntityTagSourceSchemaPost, TopicEntityTagSourceSchemaUpdate
 from agr_literature_service.api.user import set_global_user_from_okta
