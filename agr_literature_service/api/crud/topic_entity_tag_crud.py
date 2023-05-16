@@ -43,15 +43,30 @@ def create_tag_with_source(db: Session, topic_entity_tag: TopicEntityTagSchemaPo
     topic_entity_tag_data["reference_id"] = reference_id
     qualifiers = topic_entity_tag_data.pop("qualifiers", []) or []
     sources = topic_entity_tag_data.pop("sources", []) or []
-    db_obj = TopicEntityTagModel(**topic_entity_tag_data)
+    new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
+    existing_topic_entity_tag = db.query(TopicEntityTagModel).filter(
+        TopicEntityTagModel.reference_id == reference_id,
+        TopicEntityTagModel.topic == new_db_obj.topic,
+        TopicEntityTagModel.entity_type == new_db_obj.entity_type,
+        TopicEntityTagModel.entity == new_db_obj.entity,
+        TopicEntityTagModel.entity_source == new_db_obj.entity_source,
+        TopicEntityTagModel.entity_published_as == new_db_obj.entity_published_as,
+        TopicEntityTagModel.species == new_db_obj.species
+    ).one_or_none()
     try:
-        db.add(db_obj)
+        if existing_topic_entity_tag is None:
+            db.add(new_db_obj)
+            db.flush()
+            db.refresh(new_db_obj)
+            topic_entity_tag_id = new_db_obj.topic_entity_tag_id
+        else:
+            topic_entity_tag_id = existing_topic_entity_tag.topic_entity_tag_id
         for qualifier in qualifiers:
             mod_id = db.query(ModModel).filter(ModModel.abbreviation == qualifier['mod_abbreviation']).scalar()
             if mod_id is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
             qualifier_obj = TopicEntityTagQualifierModel(
-                topic_entity_tag_id=db_obj.topic_entity_tag_id,
+                topic_entity_tag_id=topic_entity_tag_id,
                 qualifier=qualifier["qualifier"],
                 qualifier_type=qualifier["qualifier_type"],
                 mod_id=mod_id,
@@ -62,7 +77,7 @@ def create_tag_with_source(db: Session, topic_entity_tag: TopicEntityTagSchemaPo
             if mod_id is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
             source_obj = TopicEntityTagSourceModel(
-                topic_entity_tag_id=db_obj.topic_entity_tag_id,
+                topic_entity_tag_id=topic_entity_tag_id,
                 source=source["source"],
                 confidence_level=source["confidence_level"],
                 validated=source["validated"],
@@ -76,7 +91,7 @@ def create_tag_with_source(db: Session, topic_entity_tag: TopicEntityTagSchemaPo
         db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"invalid request: {e}")
-    return db_obj.topic_entity_tag_id
+    return topic_entity_tag_id
 
 
 def show(db: Session, topic_entity_tag_id: int):

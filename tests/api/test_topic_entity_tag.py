@@ -47,7 +47,31 @@ class TestTopicEntityTag:
             # valid create
             assert test_topic_entity_tag.response.status_code == status.HTTP_201_CREATED
 
-            # Invalid create cases
+    def test_create_duplicate_different_source(self, test_topic_entity_tag, test_mod, auth_headers): # noqa
+        with TestClient(app) as client:
+            xml = {
+                "reference_curie": test_topic_entity_tag.related_ref_curie,
+                "topic": "Topic1",
+                "entity_type": "Gene",
+                "entity": "Bob_gene_name",
+                "entity_source": "alliance",
+                "entity_published_as": "test",
+                "species": "NCBITaxon:1234",
+                "sources": [{
+                    "source": "WB_NN_1",
+                    "confidence_level": "high",
+                    "mod_abbreviation": test_mod.new_mod_abbreviation,
+                    "note": "test note"
+                }]
+            }
+
+            xml0 = copy.deepcopy(xml)
+            xml0["sources"][0]["source"] = "WB_SVM"
+            response = client.post(url="/topic_entity_tag/", json=xml0, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+
+    def test_create_wrong(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
+        with TestClient(app) as client:
             xml = {
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
                 "topic": "Topic1",
@@ -100,23 +124,6 @@ class TestTopicEntityTag:
             xml6["entity"] = "Bob_gene_name"
             xml6["entity_source"] = "alliance"
             response = client.post(url="/topic_entity_tag/", json=xml6, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-
-            # Duplicate topic tag
-            xml7 = copy.deepcopy(xml)
-            xml7["topic"] = "Topic1"
-            del xml7["entity_type"]
-            del xml7["entity"]
-            del xml7["entity_source"]
-            response = client.post(url="/topic_entity_tag/", json=xml7, headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
-            xml7["sources"] = [{
-                "source": "WB_NN_2",
-                "confidence_level": "high",
-                "mod_abbreviation": test_mod.new_mod_abbreviation,
-                "note": "test note"
-            }]
-            response = client.post(url="/topic_entity_tag/", json=xml7, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_show(self, test_topic_entity_tag):

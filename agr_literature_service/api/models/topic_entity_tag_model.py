@@ -91,12 +91,12 @@ class TopicEntityTagModel(AuditedModel, Base):
         ),
         Index(
             'ix_unique_topic_tag',
-            'reference_id', 'topic', 'species', 'mod_id',
+            'reference_id', 'topic', 'species',
             unique=True,
             postgresql_where=entity_type.is_(None)),
         Index(
             'ix_unique_entity_tag',
-            'reference_id', 'topic', 'entity_type', 'entity', 'entity_source', 'species', 'mod_id',
+            'reference_id', 'topic', 'entity_type', 'entity', 'entity_source', 'species',
             unique=True,
             postgresql_where=entity_type.isnot(None))
     )
@@ -206,7 +206,7 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
 
     __table_args__ = (
         UniqueConstraint(
-            'source', 'topic_entity_tag_id',
+            'topic_entity_tag_id', 'mod_id', 'source',
             name='source_topic_entity_tag_unique'),
         CheckConstraint(
             or_(
