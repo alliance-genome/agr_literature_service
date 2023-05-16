@@ -42,10 +42,7 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_mod): # noqa
 class TestTopicEntityTag:
 
     def test_create(self, test_topic_entity_tag, test_mod, auth_headers): # noqa
-        with TestClient(app) as client:
-
-            # valid create
-            assert test_topic_entity_tag.response.status_code == status.HTTP_201_CREATED
+        assert test_topic_entity_tag.response.status_code == status.HTTP_201_CREATED
 
     def test_create_duplicate_different_source(self, test_topic_entity_tag, test_mod, auth_headers): # noqa
         with TestClient(app) as client:
@@ -155,7 +152,7 @@ class TestTopicEntityTag:
                 "mod_abbreviation": test_mod.new_mod_abbreviation,
                 "note": "test note"
             }
-            response = client.post(f"/topic_entity_tag/add_source", json=source_data, headers=auth_headers)
+            response = client.post("/topic_entity_tag/add_source", json=source_data, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
 
     def test_destroy_source(self):
