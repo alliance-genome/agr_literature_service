@@ -76,7 +76,7 @@ def create_tag_with_source(db: Session, topic_entity_tag: TopicEntityTagSchemaPo
         for source in sources:
             add_source_obj_to_db_session(db, topic_entity_tag_id, source)
         db.commit()
-    except IntegrityError as e:
+    except (IntegrityError, HTTPException) as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"invalid request: {e}")
