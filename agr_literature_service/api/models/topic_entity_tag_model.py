@@ -6,7 +6,7 @@ topic_entity_tag_model.py
 
 from typing import Dict
 
-from sqlalchemy import Column, ForeignKey, Integer, String, and_, CheckConstraint, UniqueConstraint, Boolean, or_
+from sqlalchemy import Column, ForeignKey, Integer, String, and_, CheckConstraint, UniqueConstraint, Boolean, or_, Index
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -90,11 +90,18 @@ class TopicEntityTagModel(AuditedModel, Base):
             name="entity_and_entity_source_not_null_when_entity_type_provided"
         ),
         UniqueConstraint(
-            'entity_type', 'entity', 'entity_source',
+            'reference_id', 'entity_type', 'entity', 'entity_source',
             name='entity_unique_constraint'),
-        UniqueConstraint(
-            'topic', 'entity_type', 'entity', 'entity_source', 'species'
-        )
+        Index(
+            'ix_unique_topic_tag',
+            'reference_id', 'topic',
+            unique=True,
+            postgresql_where=entity_type.is_(None)),
+        Index(
+            'ix_unique_entity_tag',
+            'reference_id', 'topic', 'entity_type', 'entity', 'entity_source', 'species',
+            unique=True,
+            postgresql_where=entity_type.isnot(None))
     )
 
 
@@ -206,8 +213,8 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
             name='source_topic_entity_tag_unique'),
         CheckConstraint(
             or_(
-                and_(validated.isnot(None), validation_type.isnot(None)),
-                and_(validated.is_(None), validation_type.is_(None)),
+                and_(validated.is_(True), validation_type.isnot(None)),
+                and_(validated.is_(False), validation_type.is_(None)),
             ),
             name="validation_type_not_null_when_validation_provided")
     )

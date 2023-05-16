@@ -9,6 +9,7 @@ from agr_literature_service.api.main import app
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
+from .test_mod import test_mod # noqa
 
 test_reference2 = test_reference
 
@@ -16,7 +17,7 @@ TestTETData = namedtuple('TestTETData', ['response', 'new_tet_id', 'related_ref_
 
 
 @pytest.fixture
-def test_topic_entity_tag(db, auth_headers, test_reference): # noqa
+def test_topic_entity_tag(db, auth_headers, test_reference, test_mod): # noqa
     print("***** Adding a test tag *****")
     with TestClient(app) as client:
         new_tet = {
@@ -26,7 +27,13 @@ def test_topic_entity_tag(db, auth_headers, test_reference): # noqa
             "entity": "Bob_gene_name",
             "entity_source": "alliance",
             "entity_published_as": "test",
-            "species": "NCBITaxon:1234"
+            "species": "NCBITaxon:1234",
+            "sources": [{
+                "source": "WB_NN_1",
+                "confidence_level": "high",
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "note": "test note"
+            }]
         }
         response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
         yield TestTETData(response, response.json(), test_reference.new_ref_curie)
@@ -34,7 +41,7 @@ def test_topic_entity_tag(db, auth_headers, test_reference): # noqa
 
 class TestTopicEntityTag:
 
-    def test_create(self, test_topic_entity_tag, auth_headers): # noqa
+    def test_create(self, test_topic_entity_tag, test_mod, auth_headers): # noqa
         with TestClient(app) as client:
 
             # valid create
@@ -44,32 +51,72 @@ class TestTopicEntityTag:
             xml = {
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
                 "topic": "Topic1",
-                "entity": "Gene",
+                "entity_type": "Gene",
+                "entity": "Gene1",
                 "entity_source": "alliance",
-                "species": "NCBITaxon:1234"
+                "species": "NCBITaxon:1234",
+                "sources": [{
+                    "source": "WB_NN_1",
+                    "confidence_level": "high",
+                    "mod_abbreviation": test_mod.new_mod_abbreviation,
+                    "note": "test note"
+                }]
             }
 
-            # No Entities
-            response = client.post(url="/topic_entity_tag/", json=xml, headers=auth_headers)
+            # No sources
+            xml1 = copy.deepcopy(xml)
+            del xml1["sources"]
+            response = client.post(url="/topic_entity_tag/", json=xml1, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-            # No curie
+            # No Entities
             xml2 = copy.deepcopy(xml)
-            del xml2["reference_curie"]
+            del xml2["entity"]
             response = client.post(url="/topic_entity_tag/", json=xml2, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-            # Bad curie
-            xml3 = copy.deepcopy(xml2)
-            xml3["reference_curie"] = "BADCURIE"
+            # No curie
+            xml3 = copy.deepcopy(xml)
+            del xml3["reference_curie"]
             response = client.post(url="/topic_entity_tag/", json=xml3, headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+            # Bad curie
+            xml4 = copy.deepcopy(xml)
+            xml4["reference_curie"] = "BADCURIE"
+            response = client.post(url="/topic_entity_tag/", json=xml4, headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
             # No species
-            xml4 = copy.deepcopy(xml3)
-            del xml4["species"]
-            xml4["reference_curie"] = test_topic_entity_tag.related_ref_curie
-            response = client.post(url="/topic_entity_tag/", json=xml4, headers=auth_headers)
+            xml5 = copy.deepcopy(xml)
+            del xml5["species"]
+            response = client.post(url="/topic_entity_tag/", json=xml5, headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+            # Duplicate tag
+            xml6 = copy.deepcopy(xml)
+            xml6["topic"] = "Topic1"
+            xml6["entity_type"] = "Gene"
+            xml6["entity"] = "Bob_gene_name"
+            xml6["entity_source"] = "alliance"
+            response = client.post(url="/topic_entity_tag/", json=xml6, headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+            # Duplicate topic tag
+            xml7 = copy.deepcopy(xml)
+            xml7["topic"] = "Topic1"
+            del xml7["entity_type"]
+            del xml7["entity"]
+            del xml7["entity_source"]
+            response = client.post(url="/topic_entity_tag/", json=xml7, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            xml7["sources"] = [{
+                "source": "WB_NN_2",
+                "confidence_level": "high",
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "note": "test note"
+            }]
+            response = client.post(url="/topic_entity_tag/", json=xml7, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_show(self, test_topic_entity_tag):

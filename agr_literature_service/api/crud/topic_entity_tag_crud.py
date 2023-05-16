@@ -33,7 +33,7 @@ def get_reference_id_from_curie_or_id(db: Session, curie_or_reference_id):
     return reference_id
 
 
-def create(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
+def create_tag_with_source(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
     reference_curie = topic_entity_tag_data.pop("reference_curie", None)
     if reference_curie is None:
@@ -44,39 +44,43 @@ def create(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
     qualifiers = topic_entity_tag_data.pop("qualifiers", []) or []
     sources = topic_entity_tag_data.pop("sources", []) or []
     db_obj = TopicEntityTagModel(**topic_entity_tag_data)
-    db.add(db_obj)
-    for qualifier in qualifiers:
-        mod_id = db.query(ModModel).filter(ModModel.abbreviation == qualifier['mod_abbreviation']).scalar()
-        if mod_id is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
-        qualifier_obj = TopicEntityTagQualifierModel(
-            topic_entity_tag_id=db_obj.topic_entity_tag_id,
-            qualifier=qualifier["qualifier"],
-            qualifier_type=qualifier["qualifier_type"],
-            mod_id=mod_id,
-        )
-        db.add(qualifier_obj)
-    for source in sources:
-        mod_id = db.query(ModModel).filter(ModModel.abbreviation == source['mod_abbreviation']).scalar()
-        if mod_id is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
-        source_obj = TopicEntityTagSourceModel(
-            topic_entity_tag_id=db_obj.topic_entity_tag_id,
-            source=source["source"],
-            confidence_level=source["confidence_level"],
-            validated=source["validated"],
-            validation_type=source["validation_type"],
-            note=source["note"],
-            mod_id=mod_id
-        )
-        db.add(source_obj)
     try:
+        db.add(db_obj)
+        for qualifier in qualifiers:
+            mod_id = db.query(ModModel).filter(ModModel.abbreviation == qualifier['mod_abbreviation']).scalar()
+            if mod_id is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
+            qualifier_obj = TopicEntityTagQualifierModel(
+                topic_entity_tag_id=db_obj.topic_entity_tag_id,
+                qualifier=qualifier["qualifier"],
+                qualifier_type=qualifier["qualifier_type"],
+                mod_id=mod_id,
+            )
+            db.add(qualifier_obj)
+        for source in sources:
+            mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == source['mod_abbreviation']).scalar()
+            if mod_id is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
+            source_obj = TopicEntityTagSourceModel(
+                topic_entity_tag_id=db_obj.topic_entity_tag_id,
+                source=source["source"],
+                confidence_level=source["confidence_level"],
+                validated=source["validated"],
+                validation_type=source["validation_type"],
+                note=source["note"],
+                mod_id=mod_id
+            )
+            db.add(source_obj)
         db.commit()
     except IntegrityError as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"invalid request: {e}")
     return db_obj.topic_entity_tag_id
+
+
+def add_source_to_tag():
+    ...
 
 
 def show(db: Session, topic_entity_tag_id: int):

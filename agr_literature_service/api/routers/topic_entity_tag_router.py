@@ -32,7 +32,7 @@ def create(request: TopicEntityTagSchemaPost,
            user: OktaUser = db_user,
            db: Session = db_session):
     set_global_user_from_okta(db, user)
-    return topic_entity_tag_crud.create(db, request)
+    return topic_entity_tag_crud.create_tag_with_source(db, request)
 
 
 @router.delete('/{topic_entity_tag_id}',

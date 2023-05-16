@@ -91,7 +91,7 @@ class TopicEntityTagSchemaCreate(BaseModel):
     entity_published_as: Optional[str] = None
     species: str
     qualifiers: Optional[List[TopicEntityTagQualifierSchemaCreate]] = None
-    sources: Optional[List[TopicEntityTagSourceSchemaCreate]] = None
+    sources: List[TopicEntityTagSourceSchemaCreate]
 
 
 class TopicEntityTagSchemaPost(TopicEntityTagSchemaCreate):
