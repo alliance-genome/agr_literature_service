@@ -106,8 +106,8 @@ class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     entity_source: Optional[str] = None
     entity_published_as: Optional[str] = None
     species: str
-    qualifiers: Optional[List[TopicEntityTagQualifierSchemaCreate]] = None
-    sources: Optional[List[TopicEntityTagSourceSchemaCreate]] = None
+    qualifiers: Optional[List[TopicEntityTagQualifierSchemaRelated]] = None
+    sources: Optional[List[TopicEntityTagSourceSchemaRelated]] = None
 
 
 class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):

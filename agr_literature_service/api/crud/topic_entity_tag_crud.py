@@ -138,8 +138,15 @@ def add_source_obj_to_db_session(db: Session, topic_entity_tag_id: int, source: 
 
 
 def destroy_source(db: Session, topic_entity_tag_source_id: int):
-    # remove tag if that's the last one
-    ...
+    source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
+        TopicEntityTagSourceModel.topic_entity_tag_id == topic_entity_tag_source_id).one_or_none()
+    if source is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified source")
+    if len(source.topic_entity_tag.sources) == 1:
+        db.delete(source.topic_entity_tag)
+    else:
+        db.delete(source)
+    db.commit()
 
 
 def patch_source(db: Session, topic_entity_tag_source_id: int, source: TopicEntityTagSourceSchemaUpdate):

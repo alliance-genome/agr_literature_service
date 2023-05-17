@@ -79,7 +79,7 @@ class TopicEntityTagModel(AuditedModel, Base):
 
     qualifiers = relationship("TopicEntityTagQualifierModel", cascade="all,delete")
 
-    sources = relationship("TopicEntityTagSourceModel", cascade="all,delete")
+    sources = relationship("TopicEntityTagSourceModel", cascade="all,delete", back_populates="topic_entity_tag")
 
     __table_args__ = (
         CheckConstraint(
@@ -161,6 +161,8 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
         index=True,
         nullable=False
     )
+
+    topic_entity_tag = relationship("TopicEntityTagModel", back_populates="sources")
 
     mod_id = Column(
         Integer,

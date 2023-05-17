@@ -155,10 +155,16 @@ class TestTopicEntityTag:
             response = client.post("/topic_entity_tag/add_source", json=source_data, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
 
-    def test_destroy_source(self):
-        assert True
+    def test_destroy_source(self, test_topic_entity_tag, auth_headers): # noqa
+        with TestClient(app) as client:
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            topic_entity_source_id = response.json()["sources"][0]["topic_entity_tag_source_id"]
+            response = client.delete(f"/topic_entity_tag/delete_source/{topic_entity_source_id}", headers=auth_headers)
+            assert response.status_code == status.HTTP_204_NO_CONTENT
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_patch_source(self):
+    def test_patch_source(self): # noqa
         assert True
 
     def test_get_all_reference_tags(self, auth_headers): # noqa
