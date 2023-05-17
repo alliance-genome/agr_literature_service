@@ -21,6 +21,7 @@ def test_author(db, auth_headers, test_reference): # noqa
             "order": 1,
             "first_name": "string",
             "last_name": "string",
+            "first_initial": "FI",
             "name": "003_TCU",
             "orcid": "ORCID:1234-1234-1234-123X",
             "reference_curie": test_reference.new_ref_curie
@@ -41,6 +42,7 @@ class TestAuthor:
         # check db for author
         author = db.query(AuthorModel).filter(AuthorModel.name == "003_TCU").one()
         assert author.first_name == "string"
+        assert author.first_initial == "FI"
         assert author.reference.curie == test_author.related_ref_curie
         assert author.orcid == "ORCID:1234-1234-1234-123X"
 

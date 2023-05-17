@@ -150,7 +150,8 @@ def adding_author_row(x, reference_id_to_authors):
         "name": x[5],
         "affiliations": x[6] if x[6] else [],
         "first_name": x[7],
-        "last_name": x[8]
+        "last_name": x[8],
+        "first_initial": x[9]
     })
     reference_id_to_authors[reference_id] = authors
 
@@ -162,10 +163,17 @@ def get_author_data(db_session, mod, reference_id_list, query_cutoff):
         author_limit = 500000
         for index in range(500):
             offset = index * author_limit
-            rs = db_session.execute(
-                "select a.reference_id, a.orcid, a.first_author, a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, a.last_name from author a, mod_corpus_association mca, mod m where a.reference_id = mca.reference_id and mca.mod_id = m.mod_id and m.abbreviation = '" + mod + "' order by a.reference_id, a.order limit " + str(
-                    author_limit) + " offset " + str(offset))
-            rows = rs.fetchall()
+            rows = db_session.execute(f"SELECT a.reference_id, a.orcid, a.first_author, a.order, "
+                                      f"a.corresponding_author, a.name, a.affiliations, a.first_name, "
+                                      f"a.last_name, a.first_initial "
+                                      f"FROM author a, mod_corpus_association mca, mod m "
+                                      f"WHERE a.reference_id = mca.reference_id "
+                                      f"AND mca.mod_id = m.mod_id "
+                                      f"AND m.abbreviation = '{mod}' "
+                                      f"ORDER BY a.reference_id, a.order "
+                                      f"LIMIT {author_limit} "
+                                      f"OFFSET {offset}").fetchall()
+
             if len(rows) == 0:
                 break
             for x in rows:
@@ -173,9 +181,12 @@ def get_author_data(db_session, mod, reference_id_list, query_cutoff):
     elif reference_id_list and len(reference_id_list) > 0:
         # name & order are keywords in postgres so have use alias 'a' for table name
         ref_ids = ", ".join([str(x) for x in reference_id_list])
-        raw_sql = "SELECT a.reference_id, a.orcid, a.first_author, a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, a.last_name FROM author a WHERE reference_id IN (" + ref_ids + ") order by a.reference_id, a.order"
-        rs = db_session.execute(raw_sql)
-        rows = rs.fetchall()
+        rows = db_session.execute(f"SELECT a.reference_id, a.orcid, a.first_author, a.order, "
+                                  f"a.corresponding_author, a.name, a.affiliations, a.first_name, "
+                                  f"a.last_name, a.first_initial "
+                                  f"FROM author a "
+                                  f"WHERE  reference_id IN ({ref_ids}) "
+                                  f"ORDER BY a.reference_id, a.order").fetchall()
         for x in rows:
             adding_author_row(x, reference_id_to_authors)
 
@@ -479,11 +490,12 @@ def get_cross_reference_data_for_ref_ids(db_session, ref_ids):
 def get_author_data_for_ref_ids(db_session, ref_ids):
     reference_id_to_authors = {}
 
-    rs = db_session.execute(
-        "SELECT a.author_id, a.reference_id, a.orcid, a.first_author, a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, a.last_name, a.date_updated, a.date_created FROM author a WHERE reference_id IN (" + ref_ids + ") order by a.reference_id, a.order")
-
-    rows = rs.fetchall()
-
+    rows = db_session.execute(f"SELECT a.author_id, a.reference_id, a.orcid, a.first_author, "
+                              f"a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, "
+                              f"a.last_name, a.first_initial, a.date_updated, a.date_created "
+                              f"FROM author a "
+                              f"WHERE reference_id IN ({ref_ids}) "
+                              f"ORDER BY a.reference_id, a.order").fetchall()
     for x in rows:
         data = []
         reference_id = x[1]
@@ -499,8 +511,9 @@ def get_author_data_for_ref_ids(db_session, ref_ids):
             "affilliations": [a.replace('\\', '\\\\').replace('"', '\\"') for a in x[7]] if x[7] else [],
             "first_name": x[8].replace('"', '\\"') if x[8] else x[8],
             "last_name": x[9].replace('"', '\\"') if x[9] else x[9],
-            "date_updated": str(x[10]),
-            "date_created": str(x[11])
+            "first_initial": x[10].replace('"', '\\"') if x[10] else x[10],
+            "date_updated": str(x[11]),
+            "date_created": str(x[12])
         })
         reference_id_to_authors[reference_id] = data
 
