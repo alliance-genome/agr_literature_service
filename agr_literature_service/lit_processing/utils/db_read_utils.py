@@ -211,7 +211,7 @@ def get_mesh_term_data(db_session, mod, reference_id_list, query_cutoff):
         for index in range(50):
             offset = index * mesh_limit
             rs = db_session.execute(
-                "select md.referenfce_id, md.heading_term, md.qualifier_term from mesh_detail md, mod_corpus_association mca, mod m where md.reference_id = mca.reference_id and mca.mod_id = m.mod_id and m.abbreviation = '" + mod + "' order by md.mesh_detail_id limit " + str(
+                "select md.reference_id, md.heading_term, md.qualifier_term from mesh_detail md, mod_corpus_association mca, mod m where md.reference_id = mca.reference_id and mca.mod_id = m.mod_id and m.abbreviation = '" + mod + "' order by md.mesh_detail_id limit " + str(
                     mesh_limit) + " offset " + str(offset))
             rows = rs.fetchall()
             if len(rows) == 0:
