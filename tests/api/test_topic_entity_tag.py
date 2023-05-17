@@ -164,8 +164,16 @@ class TestTopicEntityTag:
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_patch_source(self): # noqa
-        assert True
+    def test_patch_source(self, test_topic_entity_tag, auth_headers): # noqa
+        with TestClient(app) as client:
+            source_patch = {
+                "source": "SVM",
+                "confidence_level": "low",
+                "note": "new note"
+            }
+            response = client.patch(f"/topic_entity_tag/source/{test_topic_entity_tag.new_tet_id}",
+                                    json=source_patch, headers=auth_headers)
+            assert response.status_code == status.HTTP_202_ACCEPTED
 
     def test_get_all_reference_tags(self, auth_headers): # noqa
         with TestClient(app) as client:

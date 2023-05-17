@@ -12,6 +12,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_, case
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm.exc import NoResultFound
 
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
@@ -137,11 +138,16 @@ def add_source_obj_to_db_session(db: Session, topic_entity_tag_id: int, source: 
     db.add(source_obj)
 
 
-def destroy_source(db: Session, topic_entity_tag_source_id: int):
+def get_source_from_db(db: Session, topic_entity_tag_source_id: int) -> TopicEntityTagSourceModel:
     source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
         TopicEntityTagSourceModel.topic_entity_tag_id == topic_entity_tag_source_id).one_or_none()
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified source")
+    return source
+
+
+def destroy_source(db: Session, topic_entity_tag_source_id: int):
+    source = get_source_from_db(db, topic_entity_tag_source_id)
     if len(source.topic_entity_tag.sources) == 1:
         db.delete(source.topic_entity_tag)
     else:
@@ -149,8 +155,12 @@ def destroy_source(db: Session, topic_entity_tag_source_id: int):
     db.commit()
 
 
-def patch_source(db: Session, topic_entity_tag_source_id: int, source: TopicEntityTagSourceSchemaUpdate):
-    ...
+def patch_source(db: Session, topic_entity_tag_source_id: int, source_patch: TopicEntityTagSourceSchemaUpdate):
+    source = get_source_from_db(db, topic_entity_tag_source_id)
+    for key, value in source_patch.dict(exclude_unset=True).items():
+        setattr(source, key, value)
+    db.commit()
+    return {"message": "updated"}
 
 
 def get_sorted_column_values(db: Session, column_name: str, desc: bool = False):

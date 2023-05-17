@@ -71,12 +71,12 @@ class TopicEntityTagSourceSchemaShow(AuditedObjectModelSchema):
 
 
 class TopicEntityTagSourceSchemaUpdate(BaseModel):
-    source: Optional[str] = None
-    confidence_level: Optional[str] = None
-    mod_abbreviation: Optional[str] = None
-    validated: Optional[bool] = False
-    validation_type: Optional[str] = None
-    note: Optional[str] = None
+    source: Optional[str]
+    confidence_level: Optional[str]
+    mod_abbreviation: Optional[str]
+    validated: Optional[bool]
+    validation_type: Optional[str]
+    note: Optional[str]
 
     class Config:
         orm_mode = True
