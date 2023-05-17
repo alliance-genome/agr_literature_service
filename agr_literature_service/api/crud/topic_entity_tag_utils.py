@@ -23,7 +23,7 @@ def get_reference_id_from_curie_or_id(db: Session, curie_or_reference_id):
 
 def get_source_from_db(db: Session, topic_entity_tag_source_id: int) -> TopicEntityTagSourceModel:
     source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
-        TopicEntityTagSourceModel.topic_entity_tag_id == topic_entity_tag_source_id).one_or_none()
+        TopicEntityTagSourceModel.topic_entity_tag_source_id == topic_entity_tag_source_id).one_or_none()
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified source")
     return source
