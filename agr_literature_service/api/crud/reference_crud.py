@@ -36,8 +36,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import (
     show as show_workflow_tag
 )
 from agr_literature_service.api.crud.topic_entity_tag_crud import (
-    patch as update_topic_entity_tag,
-    create as create_topic_entity_tag
+    create_tag_with_source as create_topic_entity_tag
 )
 from agr_literature_service.global_utils import get_next_reference_curie
 from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
@@ -156,10 +155,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     obj_data = jsonable_encoder(obj)
                     obj_data["reference_curie"] = curie
                     try:
-                        if "reference_topic_entity_tag_id" in obj_data and obj_data["reference_topic_entity_tag_id"]:
-                            update_topic_entity_tag(db, obj_data["reference_topic_entity_tag_id"], obj_data)
-                        else:
-                            create_topic_entity_tag(db, obj_data)
+                        create_topic_entity_tag(db, obj_data)
                     except HTTPException:
                         logger.warning("skipping topic_entity_tag as that is already associated to "
                                        "the reference")
