@@ -243,13 +243,15 @@ class TestTopicEntityTag:
                         "order": 2,
                         "first_name": "S.",
                         "last_name": "Wu",
-                        "name": "S. Wu"
+                        "name": "S. Wu",
+                        "first_initial": "S"
                     },
                     {
                         "order": 1,
                         "first_name": "D.",
                         "last_name": "Wu",
-                        "name": "D. Wu"
+                        "name": "D. Wu",
+                        "first_initial": "D"
                     }
                 ],
                 "topic_entity_tags": [

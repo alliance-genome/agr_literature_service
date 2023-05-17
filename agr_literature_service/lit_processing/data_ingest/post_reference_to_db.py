@@ -260,6 +260,7 @@ def insert_authors(db_session, primaryId, reference_id, author_list_from_json):
         name = x.get('name', '')
         firstname = x.get('firstname', '')
         lastname = x.get('lastname', '')
+        firstinit = x.get('firstinit', '')
         rank = x.get('authorRank')
         if rank is None:
             continue
@@ -267,6 +268,7 @@ def insert_authors(db_session, primaryId, reference_id, author_list_from_json):
                       "name": name,
                       "first_name": firstname,
                       "last_name": lastname,
+                      "first_initial": firstinit,
                       "order": rank,
                       "affiliations": affiliations,
                       "orcid": orcid if orcid else None,
