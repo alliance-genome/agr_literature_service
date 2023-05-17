@@ -5,7 +5,6 @@ topic_entity_tag_crud.py
 import json
 import urllib.request
 from collections import defaultdict
-from typing import Dict
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
