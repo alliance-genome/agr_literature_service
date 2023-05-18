@@ -13,11 +13,14 @@ allowed_entity_type_map = {'ATP:0000005': 'gene', 'ATP:0000006': 'allele'}
 def get_reference_id_from_curie_or_id(db: Session, curie_or_reference_id):
     reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
     if reference_id is None:
-        reference_id = db.query(ReferenceModel.reference_id).filter(
+        reference = db.query(ReferenceModel.reference_id).filter(
             ReferenceModel.curie == curie_or_reference_id).one_or_none()
-    if reference_id is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Reference with the reference_id or curie {curie_or_reference_id} is not available")
+        if reference is not None:
+            reference_id = reference.reference_id
+        else:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"Reference with the reference_id or curie {curie_or_reference_id} "
+                                       f"is not available")
     return reference_id
 
 
@@ -30,8 +33,8 @@ def get_source_from_db(db: Session, topic_entity_tag_source_id: int) -> TopicEnt
 
 
 def add_source_obj_to_db_session(db: Session, topic_entity_tag_id: int, source: Dict):
-    mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == source['mod_abbreviation']).scalar()
-    if mod_id is None:
+    mod = db.query(ModModel.mod_id).filter(ModModel.abbreviation == source['mod_abbreviation']).one_or_none()
+    if mod is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
     source_obj = TopicEntityTagSourceModel(
         topic_entity_tag_id=topic_entity_tag_id,
@@ -40,7 +43,7 @@ def add_source_obj_to_db_session(db: Session, topic_entity_tag_id: int, source: 
         validated=source["validated"],
         validation_type=source["validation_type"],
         note=source["note"],
-        mod_id=mod_id
+        mod_id=mod.mod_id
     )
     db.add(source_obj)
 

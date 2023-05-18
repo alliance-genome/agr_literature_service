@@ -51,14 +51,14 @@ def create_tag_with_source(db: Session, topic_entity_tag: TopicEntityTagSchemaPo
         else:
             topic_entity_tag_id = existing_topic_entity_tag.topic_entity_tag_id
         for qualifier in qualifiers:
-            mod_id = db.query(ModModel).filter(ModModel.abbreviation == qualifier['mod_abbreviation']).scalar()
-            if mod_id is None:
+            mod = db.query(ModModel.mod_id).filter(ModModel.abbreviation == qualifier['mod_abbreviation']).one_or_none()
+            if mod is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
             qualifier_obj = TopicEntityTagQualifierModel(
                 topic_entity_tag_id=topic_entity_tag_id,
                 qualifier=qualifier["qualifier"],
                 qualifier_type=qualifier["qualifier_type"],
-                mod_id=mod_id,
+                mod_id=mod.mod_id,
             )
             db.add(qualifier_obj)
         for source in sources:
