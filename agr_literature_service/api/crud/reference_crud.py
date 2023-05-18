@@ -583,7 +583,7 @@ def add_license(db: Session, curie: str, license: str):  # noqa
     return {"message": "Update Success!"}
 
 
-def missing_files(db: Session, mod_abbreviation: str):
+def missing_files(db: Session, mod_abbreviation: str, order_by: str):
     try:
         query = f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT, SUPCOUNT, ref_pmid.curie as PMID, ref_mod.curie AS mod_curie
                     FROM reference, citation,
@@ -607,7 +607,7 @@ def missing_files(db: Session, mod_abbreviation: str):
                     AND sub_select.reference_id=ref_pmid.reference_id
                     AND sub_select.reference_id=ref_mod.reference_id
                     AND reference.citation_id=citation.citation_id
-                    ORDER BY date_created desc
+                    ORDER BY date_created {order_by}
                     LIMIT 25
                 """
         rs = db.execute(query)
