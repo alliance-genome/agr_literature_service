@@ -221,13 +221,15 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     ]
             }
         })
-    elif query and (query_fields == "Title" or query_fields=="Abstract" or query_fields == "Keyword"):
+    elif query and (query_fields == "Title" or query_fields=="Abstract" or query_fields == "Keyword" or query_fields == "Citation"):
         if query_fields == "Title":
                 es_field = "title"
         elif query_fields == "Abstract":
                 es_field = "abstract"
         elif query_fields =="Keyword":
                 es_field = "keywords"
+        elif query_fields =="Citation":
+                es_field = "citation"
         es_body["query"]["bool"]["must"].append(
             {
                 "simple_query_string":{
@@ -275,6 +277,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     return {
         "hits": [{
             "curie": ref["_source"]["curie"],
+            "citation": ref["_source"]["citation"],
             "title": ref["_source"]["title"],
             "date_published": ref["_source"]["date_published"],
             "date_published_start": ref["_source"]["date_published_start"],
