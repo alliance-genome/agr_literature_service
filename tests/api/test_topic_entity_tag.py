@@ -42,7 +42,22 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_mod): # noqa
 class TestTopicEntityTag:
 
     def test_create(self, test_topic_entity_tag, test_mod, auth_headers): # noqa
-        assert test_topic_entity_tag.response.status_code == status.HTTP_201_CREATED
+        with TestClient(app) as client:
+            assert test_topic_entity_tag.response.status_code == status.HTTP_201_CREATED
+
+            topic_tag = {
+                "reference_curie": test_topic_entity_tag.related_ref_curie,
+                "topic": "Topic1",
+                "sources": [{
+                    "source": "WB_NN_1",
+                    "confidence_level": "high",
+                    "mod_abbreviation": test_mod.new_mod_abbreviation,
+                    "note": "test note"
+                }]
+            }
+
+            response = client.post(url="/topic_entity_tag/", json=topic_tag, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
 
     def test_create_duplicate_different_source(self, test_topic_entity_tag, test_mod, auth_headers): # noqa
         with TestClient(app) as client:
@@ -108,7 +123,7 @@ class TestTopicEntityTag:
             response = client.post(url="/topic_entity_tag/", json=xml4, headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-            # No species
+            # Entity tag without species
             xml5 = copy.deepcopy(xml)
             del xml5["species"]
             response = client.post(url="/topic_entity_tag/", json=xml5, headers=auth_headers)
@@ -171,8 +186,9 @@ class TestTopicEntityTag:
                 "confidence_level": "low",
                 "note": "new note"
             }
-            response = client.patch(f"/topic_entity_tag/source/{test_topic_entity_tag.new_tet_id}",
-                                    json=source_patch, headers=auth_headers)
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            source_id = response.json()["sources"][0]["topic_entity_tag_source_id"]
+            response = client.patch(f"/topic_entity_tag/source/{source_id}", json=source_patch, headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
 
     def test_get_all_reference_tags(self, auth_headers): # noqa
