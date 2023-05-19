@@ -36,8 +36,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import (
     show as show_workflow_tag
 )
 from agr_literature_service.api.crud.topic_entity_tag_crud import (
-    patch as update_topic_entity_tag,
-    create as create_topic_entity_tag
+    create_tag_with_source as create_topic_entity_tag
 )
 from agr_literature_service.global_utils import get_next_reference_curie
 from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
@@ -156,10 +155,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     obj_data = jsonable_encoder(obj)
                     obj_data["reference_curie"] = curie
                     try:
-                        if "reference_topic_entity_tag_id" in obj_data and obj_data["reference_topic_entity_tag_id"]:
-                            update_topic_entity_tag(db, obj_data["reference_topic_entity_tag_id"], obj_data)
-                        else:
-                            create_topic_entity_tag(db, obj_data)
+                        create_topic_entity_tag(db, obj_data)
                     except HTTPException:
                         logger.warning("skipping topic_entity_tag as that is already associated to "
                                        "the reference")
@@ -583,7 +579,7 @@ def add_license(db: Session, curie: str, license: str):  # noqa
     return {"message": "Update Success!"}
 
 
-def missing_files(db: Session, mod_abbreviation: str):
+def missing_files(db: Session, mod_abbreviation: str, order_by: str):
     try:
         query = f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT, SUPCOUNT, ref_pmid.curie as PMID, ref_mod.curie AS mod_curie
                     FROM reference, citation,
@@ -599,8 +595,7 @@ def missing_files(db: Session, mod_abbreviation: str):
                         HAVING (COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
                         OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1)
                         AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000134') < 1
-                        AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000135') < 1
-                        LIMIT 25)
+                        AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000135') < 1)
                         AS sub_select,
                         (SELECT cross_reference.curie, reference_id FROM cross_reference where curie_prefix='PMID') as ref_pmid,
                         (SELECT cross_reference.curie, reference_id FROM cross_reference where curie_prefix='{mod_abbreviation}') as ref_mod
@@ -608,6 +603,8 @@ def missing_files(db: Session, mod_abbreviation: str):
                     AND sub_select.reference_id=ref_pmid.reference_id
                     AND sub_select.reference_id=ref_mod.reference_id
                     AND reference.citation_id=citation.citation_id
+                    ORDER BY date_created {order_by}
+                    LIMIT 25
                 """
         rs = db.execute(query)
         rows = rs.fetchall()
