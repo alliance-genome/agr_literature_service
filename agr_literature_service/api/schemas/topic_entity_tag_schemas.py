@@ -89,7 +89,7 @@ class TopicEntityTagSchemaCreate(BaseModel):
     entity: Optional[str] = None
     entity_source: Optional[str] = None
     entity_published_as: Optional[str] = None
-    species: str
+    species: Optional[str] = None
     qualifiers: Optional[List[TopicEntityTagQualifierSchemaCreate]] = None
     sources: List[TopicEntityTagSourceSchemaCreate]
 
@@ -105,7 +105,7 @@ class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     entity: Optional[str] = None
     entity_source: Optional[str] = None
     entity_published_as: Optional[str] = None
-    species: str
+    species: Optional[str] = None
     qualifiers: Optional[List[TopicEntityTagQualifierSchemaRelated]] = None
     sources: List[TopicEntityTagSourceSchemaRelated]
 
