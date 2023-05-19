@@ -74,7 +74,7 @@ class TopicEntityTagModel(AuditedModel, Base):
     species = Column(
         String(),
         unique=False,
-        nullable=False
+        nullable=True
     )
 
     qualifiers = relationship("TopicEntityTagQualifierModel", cascade="all,delete")
@@ -84,16 +84,21 @@ class TopicEntityTagModel(AuditedModel, Base):
     __table_args__ = (
         CheckConstraint(
             or_(
-                and_(entity_type.isnot(None), entity.isnot(None), entity_source.isnot(None)),
+                and_(entity_type.isnot(None), entity.isnot(None), entity_source.isnot(None), species.isnot(None)),
                 and_(entity_type.is_(None), entity.is_(None), entity_source.is_(None))
             ),
-            name="entity_and_entity_source_not_null_when_entity_type_provided"
+            name="entity_entity_source_and_species_not_null_when_entity_type_provided"
         ),
         Index(
-            'ix_unique_topic_tag',
+            'ix_unique_topic_tag_with_species',
             'reference_id', 'topic', 'species',
             unique=True,
-            postgresql_where=entity_type.is_(None)),
+            postgresql_where=and_(entity_type.is_(None), species.isnot(None))),
+        Index(
+            'ix_unique_topic_tag_without_species',
+            'reference_id', 'topic',
+            unique=True,
+            postgresql_where=and_(entity_type.is_(None), species.is_(None))),
         Index(
             'ix_unique_entity_tag',
             'reference_id', 'topic', 'entity_type', 'entity', 'entity_source', 'species',
