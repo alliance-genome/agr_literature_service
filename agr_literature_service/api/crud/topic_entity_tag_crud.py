@@ -133,7 +133,9 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
     if sort_by == "null":
         sort_by = None
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
-    query = db.query(TopicEntityTagModel).options(joinedload(TopicEntityTagModel.sources)).filter(
+    query = db.query(TopicEntityTagModel).options(
+        joinedload(TopicEntityTagModel.sources)).options(
+        joinedload(TopicEntityTagModel.qualifiers)).filter(
         TopicEntityTagModel.reference_id == reference_id)
     if count_only:
         return query.count()
