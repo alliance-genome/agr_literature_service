@@ -20,6 +20,7 @@ def initialize_elasticsearch():
     es = Elasticsearch(hosts=config.ELASTICSEARCH_HOST + ":" + config.ELASTICSEARCH_PORT)
     doc1 = {
         "curie": "AGRKB:101000000000001",
+        "citation": "citation1",
         "title": "superlongword super super super super test test test",
         "pubmed_types": ["Journal Article", "Review"],
         "abstract": "Really quite a lot of great information in this article",
@@ -31,6 +32,7 @@ def initialize_elasticsearch():
     }
     doc2 = {
         "curie": "AGRKB:101000000000002",
+        "citation": "citation2",
         "title": "cell title",
         "pubmed_types": ["Book"],
         "abstract": "Its really worth reading this article",
@@ -42,6 +44,7 @@ def initialize_elasticsearch():
     }
     doc3 = {
         "curie": "AGRKB:101000000000003",
+        "citation": "citation3",
         "title": "Book 1",
         "pubmed_types": ["Book", "Abstract", "Category1", "Category2", "Category3"],
         "abstract": "A book written about science",
@@ -53,6 +56,7 @@ def initialize_elasticsearch():
     }
     doc4 = {
         "curie": "AGRKB:101000000000004",
+        "citation": "citation4",
         "title": "Book 2",
         "pubmed_types": ["Book", "Category4", "Test", "category5", "Category6", "Category7"],
         "abstract": "The other book written about science",
