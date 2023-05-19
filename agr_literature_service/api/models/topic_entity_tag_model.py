@@ -6,7 +6,7 @@ topic_entity_tag_model.py
 
 from typing import Dict
 
-from sqlalchemy import (Column, ForeignKey, Integer, String)
+from sqlalchemy import Column, ForeignKey, Integer, String, and_, CheckConstraint, UniqueConstraint, Boolean, or_, Index
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -26,7 +26,6 @@ class TopicEntityTagModel(AuditedModel, Base):
         autoincrement=True
     )
 
-# reference id - internal reference id
     reference_id = Column(
         Integer,
         ForeignKey("reference.reference_id", ondelete="CASCADE"),
@@ -51,54 +50,63 @@ class TopicEntityTagModel(AuditedModel, Base):
     entity_type = Column(
         String(),
         unique=False,
-        nullable=False
+        nullable=True
     )
 
-    # One of the XXX_entity's MUST be set
-    # cannot do via constraints so will need to be a
-    # software check.
-    alliance_entity = Column(
+    entity = Column(
         String(),
         unique=False,
         nullable=True
     )
 
-    mod_entity = Column(
+    entity_source = Column(
         String(),
         unique=False,
         nullable=True
     )
 
-    new_entity = Column(
+    entity_published_as = Column(
         String(),
         unique=False,
         nullable=True
     )
 
-    # Taxon_id
-    taxon = Column(
+    species = Column(
         String(),
         unique=False,
         nullable=False
     )
 
-    note = Column(
-        String(),
-        unique=False,
-        nullable=True
+    qualifiers = relationship("TopicEntityTagQualifierModel", cascade="all,delete")
+
+    sources = relationship("TopicEntityTagSourceModel", cascade="all,delete", back_populates="topic_entity_tag")
+
+    __table_args__ = (
+        CheckConstraint(
+            or_(
+                and_(entity_type.isnot(None), entity.isnot(None), entity_source.isnot(None)),
+                and_(entity_type.is_(None), entity.is_(None), entity_source.is_(None))
+            ),
+            name="entity_and_entity_source_not_null_when_entity_type_provided"
+        ),
+        Index(
+            'ix_unique_topic_tag',
+            'reference_id', 'topic', 'species',
+            unique=True,
+            postgresql_where=entity_type.is_(None)),
+        Index(
+            'ix_unique_entity_tag',
+            'reference_id', 'topic', 'entity_type', 'entity', 'entity_source', 'species',
+            unique=True,
+            postgresql_where=entity_type.isnot(None))
     )
 
-    props = relationship(
-        "TopicEntityTagPropModel",
-        cascade="all, delete, delete-orphan",
-    )
 
-
-class TopicEntityTagPropModel(AuditedModel, Base):
-    __tablename__ = "topic_entity_tag_prop"
+class TopicEntityTagQualifierModel(AuditedModel, Base):
+    __tablename__ = "topic_entity_tag_qualifier"
     __versioned__: Dict = {}
 
-    topic_entity_tag_prop_id = Column(
+    topic_entity_tag_qualifier_id = Column(
         Integer,
         primary_key=True,
         autoincrement=True
@@ -116,4 +124,96 @@ class TopicEntityTagPropModel(AuditedModel, Base):
         String(),
         unique=False,
         nullable=False
+    )
+
+    qualifier_type = Column(
+        String(),
+        unique=False,
+        nullable=False
+    )
+
+    mod_id = Column(
+        Integer,
+        ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        index=True,
+        nullable=False
+    )
+
+    mod = relationship(
+        "ModModel",
+        foreign_keys="TopicEntityTagQualifierModel.mod_id"
+    )
+
+
+class TopicEntityTagSourceModel(AuditedModel, Base):
+    __tablename__ = "topic_entity_tag_source"
+    __versioned__: Dict = {}
+
+    topic_entity_tag_source_id = Column(
+        Integer,
+        primary_key=True,
+        autoincrement=True
+    )
+
+    topic_entity_tag_id = Column(
+        Integer,
+        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete="CASCADE"),
+        index=True,
+        nullable=False
+    )
+
+    topic_entity_tag = relationship("TopicEntityTagModel", back_populates="sources")
+
+    mod_id = Column(
+        Integer,
+        ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        index=True,
+        nullable=False
+    )
+
+    mod = relationship(
+        "ModModel",
+        foreign_keys="TopicEntityTagSourceModel.mod_id"
+    )
+
+    source = Column(
+        String(),
+        unique=False,
+        nullable=False
+    )
+
+    confidence_level = Column(
+        String(),
+        unique=False,
+        nullable=True
+    )
+
+    validated = Column(
+        Boolean(),
+        unique=False,
+        nullable=False
+    )
+
+    validation_type = Column(
+        String(),
+        unique=False,
+        nullable=True
+    )
+
+    note = Column(
+        String(),
+        unique=False,
+        nullable=True
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            'topic_entity_tag_id', 'mod_id', 'source',
+            name='source_topic_entity_tag_unique'),
+        CheckConstraint(
+            or_(
+                and_(validated.is_(True), validation_type.isnot(None)),
+                and_(validated.is_(False), validation_type.is_(None)),
+            ),
+            name="validation_type_not_null_when_validation_provided")
     )

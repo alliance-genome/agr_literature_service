@@ -21,7 +21,7 @@ from agr_literature_service.api.routers import (author_router, bulk_downloads_ro
                                                 reference_router, resource_descriptor_router,
                                                 resource_router, search_router,
                                                 workflow_tag_router, topic_entity_tag_router,
-                                                topic_entity_tag_prop_router, referencefile_router,
+                                                referencefile_router,
                                                 referencefile_mod_router, copyright_license_router)
 
 title = "Alliance Literature Service"
@@ -78,7 +78,6 @@ app.include_router(mod_corpus_association_router.router)
 app.include_router(search_router.router)
 app.include_router(workflow_tag_router.router)
 app.include_router(topic_entity_tag_router.router)
-app.include_router(topic_entity_tag_prop_router.router)
 app.include_router(referencefile_router.router)
 app.include_router(referencefile_mod_router.router)
 app.include_router(copyright_license_router.router)
