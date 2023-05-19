@@ -47,6 +47,7 @@ def initialize_elasticsearch():
 
     doc1 = {
         "curie": "AGRKB:101000000000100",
+        "citation": "citation1",
         "title": "superlongword super super super super test test test",
         "pubmed_types": ["Journal Article", "Review"],
         "abstract": "Really quite a lot of great information in this article",
@@ -59,6 +60,7 @@ def initialize_elasticsearch():
     }
     doc2 = {
         "curie": "AGRKB:101000000000200",
+        "citation": "citation2",
         "title": "cell title",
         "pubmed_types": ["Book"],
         "abstract": "Its really worth reading this article",
@@ -71,6 +73,7 @@ def initialize_elasticsearch():
     }
     doc3 = {
         "curie": "AGRKB:101000000000300",
+        "citation": "citation3",
         "title": "Book 3",
         "pubmed_types": ["Book", "Abstract", "Category1", "Category2", "Category3"],
         "abstract": "A book written about science",
@@ -83,6 +86,7 @@ def initialize_elasticsearch():
     }
     doc4 = {
         "curie": "AGRKB:101000000000400",
+        "citation": "citation4",
         "title": "Book 4",
         "pubmed_types": ["Book", "Category4", "Test", "category5", "Category6", "Category7"],
         "abstract": "The other book written about science",
@@ -95,6 +99,7 @@ def initialize_elasticsearch():
     }
     doc5 = {
         "curie": "AGRKB:101000000000500",
+        "citation": "citation5",
         "title": "Book 5",
         "pubmed_types": ["Book", "Category4", "Test", "category5", "Category6", "Category7"],
         "abstract": "The other book written about science",
@@ -107,6 +112,7 @@ def initialize_elasticsearch():
     }
     doc6 = {
         "curie": "AGRKB:101000000000600",
+        "citation": "citation6",
         "title": "Book 6",
         "pubmed_types": ["Book", "Category4", "Test", "category5", "Category6", "Category7"],
         "abstract": "The other book written about science",
@@ -119,6 +125,7 @@ def initialize_elasticsearch():
     }
     doc7 = {
         "curie": "AGRKB:101000000000700",
+        "citation": "citation7",
         "title": "Book 7",
         "pubmed_types": ["Book", "Category4", "Test", "category5", "Category6", "Category7"],
         "abstract": "The other book written about science",
@@ -131,6 +138,7 @@ def initialize_elasticsearch():
     }
     doc8 = {
         "curie": "AGRKB:101000000000800",
+        "citation": "citation8",
         "title": "Book 8",
         "pubmed_types": ["Book", "Category4", "Test", "category5", "Category6", "Category7"],
         "abstract": "The other book written about science",
@@ -143,6 +151,7 @@ def initialize_elasticsearch():
     }
     doc9 = {
         "curie": "AGRKB:101000000000900",
+        "citation": "citation9",
         "title": "Book 9",
         "pubmed_types": ["Book", "Category4", "Test", "category5", "Category6", "Category7"],
         "abstract": "The other book written about science",
