@@ -330,12 +330,10 @@ def get_all_comment_correction_data(db_session, logger=None):
             data = reference_id_to_comment_correction_data[reference_id_from]
         if reference_id_to in reference_id_to_curies:
             (pmid, ref_curie) = reference_id_to_curies[reference_id_to]
-            correctionData = []
-            if type_db in data:
-                correctionData = data[type_db]
-            correctionData.append({"PMID": pmid,
-                                   "reference_curie": ref_curie})
-            data[type_db] = correctionData
+            if type_db not in data:
+                data[type_db] = []
+            data[type_db].append({"PMID": pmid,
+                                  "reference_curie": ref_curie})
             reference_id_to_comment_correction_data[reference_id_from] = data
 
         ## for reference_id_to
@@ -350,12 +348,10 @@ def get_all_comment_correction_data(db_session, logger=None):
                 if logger:
                     logger.info(type_db + " is not in type_mapping.")
             else:
-                correctionData = []
-                if type in data:
-                    correctionData = data[type]
-                correctionData.append({"PMID": pmid,
-                                       "reference_curie": ref_curie})
-                data[type] = correctionData
+                if type not in data:
+                    data[type] = []
+                data[type].append({"PMID": pmid,
+                                   "reference_curie": ref_curie})
                 reference_id_to_comment_correction_data[reference_id_to] = data
 
     return reference_id_to_comment_correction_data
