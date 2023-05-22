@@ -162,3 +162,7 @@ class ReferenceSchemaNeedReviewShow(BaseModel):
     resource_title: Optional[str] = None
     cross_references: Optional[List[CrossReferenceSchemaShow]]
     workflow_tags: Optional[List] = []
+    copyright_license_name: Optional[str] = None
+    copyright_license_url: Optional[str] = None
+    copyright_license_description: Optional[str] = None
+    copyright_license_open_access: Optional[str] = None

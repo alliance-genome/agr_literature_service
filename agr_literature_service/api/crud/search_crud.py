@@ -7,7 +7,7 @@ from agr_literature_service.api.config import config
 from agr_literature_service.api.models import ReferenceModel
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.models import ModCorpusAssociationModel, ModModel, ResourceDescriptorModel
+from agr_literature_service.api.models import ModCorpusAssociationModel, ModModel, ResourceDescriptorModel, CopyrightLicenseModel, ReferencefileModel
 from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, CrossReferenceSchemaShow
 
 from fastapi import HTTPException, status
@@ -311,6 +311,7 @@ def show_need_review(mod_abbreviation, count, db: Session):
         ModCorpusAssociationModel.mod
     ).filter(
         ModModel.abbreviation == mod_abbreviation
+    ).outerjoin(ReferenceModel.copyright_license
     ).order_by(ReferenceModel.curie.desc()).limit(count)
     references = references_query.all()
     resource_descriptor_default_urls = db.query(ResourceDescriptorModel).all()
@@ -326,6 +327,10 @@ def show_need_review(mod_abbreviation, count, db: Session):
             title=reference.title,
             abstract=reference.abstract,
             category=reference.category,
+            copyright_license_name=reference.copyright_license.name if reference.copyright_license else "",
+            copyright_license_url=reference.copyright_license.url if reference.copyright_license else "",
+            copyright_license_description=reference.copyright_license.description if reference.copyright_license else "",
+            copyright_license_open_access=reference.copyright_license.open_access if reference.copyright_license else "",
             mod_corpus_association_id=[mca.mod_corpus_association_id for mca in reference.mod_corpus_association if
                                        mca.mod.abbreviation == mod_abbreviation][0],
             resource_title=reference.resource.title if reference.resource else "",
