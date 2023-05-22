@@ -197,5 +197,6 @@ def add_license(curie: str,
             status_code=status.HTTP_200_OK)
 def missing_files(mod_abbreviation: str,
                   order_by: str,
+                  page: int,
                   db: Session = db_session):
     return reference_crud.missing_files(db, mod_abbreviation, order_by)

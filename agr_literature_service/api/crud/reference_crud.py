@@ -579,8 +579,9 @@ def add_license(db: Session, curie: str, license: str):  # noqa
     return {"message": "Update Success!"}
 
 
-def missing_files(db: Session, mod_abbreviation: str, order_by: str):
+def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int):
     try:
+        offset = (page * 25) - 25
         query = f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT, SUPCOUNT, ref_pmid.curie as PMID, ref_mod.curie AS mod_curie
                     FROM reference, citation,
                         (SELECT b.reference_id, COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
@@ -605,6 +606,7 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str):
                     AND reference.citation_id=citation.citation_id
                     ORDER BY date_created {order_by}
                     LIMIT 25
+                    OFFSET {offset}
                 """
         rs = db.execute(query)
         rows = rs.fetchall()
