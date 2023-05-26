@@ -579,24 +579,40 @@ def add_license(db: Session, curie: str, license: str):  # noqa
     return {"message": "Update Success!"}
 
 
-def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int):
+def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, filter: str):
     try:
         offset = (page * 25) - 25
+        if filter == 'default':
+            subquery = f"""SELECT b.reference_id, COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
+            COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
+            FROM mod_corpus_association AS b
+            JOIN mod ON b.mod_id = mod.mod_id
+            LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
+            LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
+            WHERE mod.abbreviation = '{mod_abbreviation}'
+            AND corpus=true
+            GROUP BY b.reference_id
+            HAVING (COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
+            OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1)
+            AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000134') < 1
+            AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000135') < 1)
+            """
+        elif filter == 'ATP:0000134' || filter == 'ATP:0000134'
+            subquery = f"""SELECT b.reference_id,
+            COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
+            COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
+            FROM mod_corpus_association AS b
+            JOIN mod ON b.mod_id = mod.mod_id
+            LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
+            LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
+            WHERE workflow_tag_id='{view}'
+            AND mod.abbreviation = '{mod_abbreviation}'
+            AND corpus = true
+            GROUP BY b.reference_id
+            """
         query = f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT, SUPCOUNT, ref_pmid.curie as PMID, ref_mod.curie AS mod_curie
                     FROM reference, citation,
-                        (SELECT b.reference_id, COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
-                        COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
-                        FROM mod_corpus_association AS b
-                        JOIN mod ON b.mod_id = mod.mod_id
-                        LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
-                        LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
-                        WHERE mod.abbreviation = '{mod_abbreviation}'
-                        AND corpus=true
-                        GROUP BY b.reference_id
-                        HAVING (COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
-                        OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1)
-                        AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000134') < 1
-                        AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000135') < 1)
+                        ({subquery})
                         AS sub_select,
                         (SELECT cross_reference.curie, reference_id FROM cross_reference where curie_prefix='PMID') as ref_pmid,
                         (SELECT cross_reference.curie, reference_id FROM cross_reference where curie_prefix='{mod_abbreviation}') as ref_mod
