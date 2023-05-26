@@ -1,3 +1,6 @@
+import json
+import urllib.request
+from os import environ
 from typing import Dict
 
 from fastapi import HTTPException
@@ -53,3 +56,28 @@ def get_sorted_column_values(db: Session, column_name: str, desc: bool = False):
     if column_name == "entity_type":
         return [curie for name, curie in sorted([(allowed_entity_type_map[curie[0]], curie[0]) for curie in curies],
                                                 key=lambda x: x[0], reverse=desc)]
+
+
+def get_map_ateam_curies_to_names(curies_category, curies, token):
+    ateam_api_base_url = environ.get('ATEAM_API_URL', "https://beta-curation.alliancegenome.org/api")
+    ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit=1000&page=0'
+    request_body = {
+        "searchFilters": {
+            "nameFilters": {
+                "curie_keyword": {"queryString": " ".join(curies), "tokenOperator": "OR"}
+            }
+        }
+    }
+    request_data_encoded = json.dumps(request_body)
+    request_data_encoded_str = str(request_data_encoded)
+    request = urllib.request.Request(url=ateam_api, data=request_data_encoded_str.encode('utf-8'))
+    request.add_header("Authorization", f"Bearer {token}")
+    request.add_header("Content-type", "application/json")
+    request.add_header("Accept", "application/json")
+    with urllib.request.urlopen(request) as response:
+        resp = response.read().decode("utf8")
+        resp_obj = json.loads(resp)
+        # from the A-team API, atp values have a "name" field and other entities (e.g., genes and alleles) have
+        # symbol objects - e.g., geneSymbol.displayText
+        return {entity["curie"]: entity["name"] if "name" in entity else entity[
+            curies_category + "Symbol"]["displayText"] for entity in resp_obj["results"]}
