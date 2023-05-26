@@ -597,7 +597,7 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
             AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000134') < 1
             AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000135') < 1)
             """
-        elif filter == 'ATP:0000134' or filter == 'ATP:0000134'
+        elif filter == 'ATP:0000134' or filter == 'ATP:0000134':
             subquery = f"""SELECT b.reference_id,
             COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
             COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
