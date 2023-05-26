@@ -6,6 +6,7 @@ from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
+from agr_literature_service.lit_processing.utils.okta_utils import get_authentication_token
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
@@ -22,12 +23,12 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_mod): # noqa
     with TestClient(app) as client:
         new_tet = {
             "reference_curie": test_reference.new_ref_curie,
-            "topic": "Topic1",
-            "entity_type": "Gene",
-            "entity": "Bob_gene_name",
+            "topic": "ATP:0000122",
+            "entity_type": "ATP:0000005",
+            "entity": "WB:WBGene00003001",
             "entity_source": "alliance",
             "entity_published_as": "test",
-            "species": "NCBITaxon:1234",
+            "species": "NCBITaxon:6239",
             "sources": [{
                 "source": "WB_NN_1",
                 "confidence_level": "high",
@@ -63,12 +64,12 @@ class TestTopicEntityTag:
         with TestClient(app) as client:
             xml = {
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
-                "topic": "Topic1",
-                "entity_type": "Gene",
-                "entity": "Bob_gene_name",
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
                 "entity_source": "alliance",
                 "entity_published_as": "test",
-                "species": "NCBITaxon:1234",
+                "species": "NCBITaxon:6239",
                 "sources": [{
                     "source": "WB_NN_1",
                     "confidence_level": "high",
@@ -86,11 +87,11 @@ class TestTopicEntityTag:
         with TestClient(app) as client:
             xml = {
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
-                "topic": "Topic1",
-                "entity_type": "Gene",
-                "entity": "Gene1",
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
                 "entity_source": "alliance",
-                "species": "NCBITaxon:1234",
+                "species": "NCBITaxon:6239",
                 "sources": [{
                     "source": "WB_NN_1",
                     "confidence_level": "high",
@@ -131,9 +132,9 @@ class TestTopicEntityTag:
 
             # Duplicate tag
             xml6 = copy.deepcopy(xml)
-            xml6["topic"] = "Topic1"
-            xml6["entity_type"] = "Gene"
-            xml6["entity"] = "Bob_gene_name"
+            xml6["topic"] = "ATP:0000122"
+            xml6["entity_type"] = "ATP:0000005"
+            xml6["entity"] = "WB:WBGene00003001"
             xml6["entity_source"] = "alliance"
             response = client.post(url="/topic_entity_tag/", json=xml6, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -148,12 +149,12 @@ class TestTopicEntityTag:
             expected_fields = {
                 "topic_entity_tag_id": int(test_topic_entity_tag.new_tet_id),
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
-                "topic": "Topic1",
-                "entity_type": "Gene",
-                "entity": "Bob_gene_name",
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
                 "entity_source": "alliance",
                 "entity_published_as": "test",
-                "species": "NCBITaxon:1234"
+                "species": "NCBITaxon:6239"
             }
             for key, value in expected_fields.items():
                 assert resp_data[key] == value
@@ -217,11 +218,11 @@ class TestTopicEntityTag:
                 ],
                 "topic_entity_tags": [
                     {
-                        "topic": "string",
-                        "entity_type": "string",
-                        "entity": "string",
+                        "topic": "ATP:0000122",
+                        "entity_type": "ATP:0000005",
+                        "entity": "WB:WBGene00003001",
                         "entity_source": "alliance",
-                        "species": "string"
+                        "species": "NCBITaxon:6239"
                     }
                 ]
             }
@@ -229,3 +230,29 @@ class TestTopicEntityTag:
             new_curie = client.post(url="/reference/", json=reference_data, headers=auth_headers).json()
             response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}").json()
             assert len(response) > 0
+
+    @pytest.mark.webtest
+    def test_get_map_entity_curie_to_name(self, test_topic_entity_tag, test_mod, auth_headers): # noqa
+        with TestClient(app) as client:
+            topic_tag = {
+                "reference_curie": test_topic_entity_tag.related_ref_curie,
+                "topic": "ATP:0000009",
+                "sources": [{
+                    "source": "WB_NN_1",
+                    "confidence_level": "high",
+                    "mod_abbreviation": test_mod.new_mod_abbreviation,
+                    "note": "test note"
+                }]
+            }
+            client.post(url="/topic_entity_tag/", json=topic_tag, headers=auth_headers)
+            response = client.get(url="/topic_entity_tag/map_entity_curie_to_name/",
+                                  params={"curie_or_reference_id": test_topic_entity_tag.related_ref_curie,
+                                          "token": get_authentication_token()},
+                                  headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json() == {
+                'ATP:0000005': 'gene',
+                'ATP:0000009': 'phenotype',
+                'ATP:0000122': 'entity type',
+                'WB:WBGene00003001': 'lin-12'
+            }
