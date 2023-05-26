@@ -2,18 +2,16 @@
 topic_entity_tag_crud.py
 ===========================
 """
-import json
-import urllib.request
 from collections import defaultdict
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import and_, case
+from sqlalchemy import case
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
-    get_source_from_db, add_source_obj_to_db_session, allowed_entity_type_map, get_sorted_column_values, \
+    get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
     get_map_ateam_curies_to_names
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
