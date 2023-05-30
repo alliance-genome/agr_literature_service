@@ -200,3 +200,11 @@ def missing_files(mod_abbreviation: str,
                   page: int,
                   db: Session = db_session):
     return reference_crud.missing_files(db, mod_abbreviation, order_by, page)
+
+
+@router.get('/download_tracker_table/{mod_abbreviation}',
+            status_code=status.HTTP_200_OK)
+def download_tracker_table(mod_abbreviation: str,
+                           order_by: str,
+                           db: Session = db_session):
+    return reference_crud.download_tracker_table(db, mod_abbreviation, order_by)
