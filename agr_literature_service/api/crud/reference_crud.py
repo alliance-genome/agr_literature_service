@@ -624,10 +624,10 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
                     LIMIT 25
                     OFFSET {offset}
                 """
-        rs = db.execute(query)
-        rows = rs.fetchall()
-        data = jsonable_encoder(rows)
+        ##rs = db.execute(query)
+        ##rows = rs.fetchall()
+        ##data = jsonable_encoder(rows)
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Cant search missing files.")
-    return data
+    return query
