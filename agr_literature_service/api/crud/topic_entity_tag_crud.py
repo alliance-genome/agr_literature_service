@@ -2,18 +2,17 @@
 topic_entity_tag_crud.py
 ===========================
 """
-import json
-import urllib.request
 from collections import defaultdict
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import and_, case
+from sqlalchemy import case
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
-    get_source_from_db, add_source_obj_to_db_session, allowed_entity_type_map, get_sorted_column_values
+    get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
+    get_map_ateam_curies_to_names
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
     ReferenceModel, TopicEntityTagQualifierModel, ModModel, TopicEntityTagSourceModel
@@ -151,31 +150,18 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
 
 def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token: str):
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
-    topics_and_entities = db.query(TopicEntityTagModel).filter(
-        and_(TopicEntityTagModel.reference_id == reference_id,
-             TopicEntityTagModel.entity_type.in_([key for key in allowed_entity_type_map.keys()]),
-             TopicEntityTagModel.alliance_entity.isnot(None))).all()
-    tags_by_entity_type = defaultdict(set)
-    entity_curie_to_name = {}
+    topics_and_entities = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.reference_id == reference_id).all()
+    all_topics_and_entities = []
+    all_entities = defaultdict(list)
     for tag in topics_and_entities:
-        tags_by_entity_type[allowed_entity_type_map[tag.entity_type]].add(tag.alliance_entity)
-    for entity_type, entity_curies in tags_by_entity_type.items():
-        ateam_api = f'https://beta-curation.alliancegenome.org/api/{entity_type}/search?limit=1000&page=0'
-        request_body = {"searchFilters": {
-            "nameFilters": {
-                "curie_keyword": {"queryString": " ".join(entity_curies), "tokenOperator": "OR"}
-            }
-
-        }}
-        request_data_encoded = json.dumps(request_body)
-        request_data_encoded_str = str(request_data_encoded)
-        request = urllib.request.Request(url=ateam_api, data=request_data_encoded_str.encode('utf-8'))
-        request.add_header("Authorization", f"Bearer {token}")
-        request.add_header("Content-type", "application/json")
-        request.add_header("Accept", "application/json")
-        with urllib.request.urlopen(request) as response:
-            resp = response.read().decode("utf8")
-            resp_obj = json.loads(resp)
-            entity_curie_to_name.update({entity["curie"]: entity[entity_type + "Symbol"]["displayText"]
-                                         for entity in resp_obj["results"]})
+        all_topics_and_entities.append(tag.topic)
+        if tag.entity_type is not None:
+            all_topics_and_entities.append(tag.entity_type)
+            all_entities[tag.entity_type].append(tag.entity)
+    entity_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=all_topics_and_entities,
+                                                         token=token)
+    for atpterm_curie in all_entities.keys():
+        entity_curie_to_name.update(get_map_ateam_curies_to_names(curies_category=entity_curie_to_name[atpterm_curie],
+                                                                  curies=all_entities[atpterm_curie],
+                                                                  token=token))
     return entity_curie_to_name
