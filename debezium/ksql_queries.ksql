@@ -128,6 +128,16 @@ CREATE TABLE mods_needs_review AS
     GROUP BY mod_corpus_association.reference_id
     EMIT CHANGES;
 
+CREATE TABLE mods_in_corpus_or_needs_review AS
+    SELECT mod_corpus_association.reference_id \"REFERENCE_ID\",
+    collect_list(mod.abbreviation) \"MODS_IN_CORPUS_OR_NEEDS_REVIEW\"
+    FROM mod_corpus_association
+    JOIN mod
+    ON mod_corpus_association.mod_id = mod.mod_id
+    WHERE mod_corpus_association.corpus is NULL OR mod_corpus_association.corpus = true
+    GROUP BY mod_corpus_association.reference_id
+    EMIT CHANGES;
+
 CREATE TABLE obsolete_curies AS
     SELECT new_id \"REFERENCE_ID\",
     collect_list(curie) \"OBSOLETE_CURIES\"
@@ -310,45 +320,84 @@ CREATE TABLE reference_xref_author_mods_in_corpus_mods_needs_review AS
     reference_xref_author_mods_in_corpus.reference_id = mods_needs_review.reference_id
     EMIT CHANGES;
 
+CREATE TABLE reference_xref_all_mods_corpus AS
+    SELECT
+    reference_xref_author_mods_in_corpus_mods_needs_review.reference_id \"REFERENCE_ID\",
+    reference_xref_author_mods_in_corpus_mods_needs_review.curie,
+    reference_xref_author_mods_in_corpus_mods_needs_review.abstract,
+    reference_xref_author_mods_in_corpus_mods_needs_review.category,
+    reference_xref_author_mods_in_corpus_mods_needs_review.date_arrived_in_pubmed,
+    reference_xref_author_mods_in_corpus_mods_needs_review.date_created,
+    reference_xref_author_mods_in_corpus_mods_needs_review.date_last_modified_in_pubmed,
+    reference_xref_author_mods_in_corpus_mods_needs_review.date_published,
+    reference_xref_author_mods_in_corpus_mods_needs_review.date_published_start,
+    reference_xref_author_mods_in_corpus_mods_needs_review.date_published_end,
+    reference_xref_author_mods_in_corpus_mods_needs_review.date_updated,
+    reference_xref_author_mods_in_corpus_mods_needs_review.issue_name,
+    reference_xref_author_mods_in_corpus_mods_needs_review.keywords,
+    reference_xref_author_mods_in_corpus_mods_needs_review.language,
+    reference_xref_author_mods_in_corpus_mods_needs_review.open_access,
+    reference_xref_author_mods_in_corpus_mods_needs_review.page_range,
+    reference_xref_author_mods_in_corpus_mods_needs_review.plain_language_abstract,
+    reference_xref_author_mods_in_corpus_mods_needs_review.publisher,
+    reference_xref_author_mods_in_corpus_mods_needs_review.pubmed_abstract_languages,
+    reference_xref_author_mods_in_corpus_mods_needs_review.pubmed_publication_status,
+    reference_xref_author_mods_in_corpus_mods_needs_review.pubmed_types,
+    reference_xref_author_mods_in_corpus_mods_needs_review.resource_id,
+    reference_xref_author_mods_in_corpus_mods_needs_review.title,
+    reference_xref_author_mods_in_corpus_mods_needs_review.volume,
+    reference_xref_author_mods_in_corpus_mods_needs_review.citation,
+    reference_xref_author_mods_in_corpus_mods_needs_review.short_citation,
+    reference_xref_author_mods_in_corpus_mods_needs_review.cross_references,
+    reference_xref_author_mods_in_corpus_mods_needs_review.authors,
+    reference_xref_author_mods_in_corpus_mods_needs_review.mods_in_corpus,
+    reference_xref_author_mods_in_corpus_mods_needs_review.mods_needs_review,
+    mods_in_corpus_or_needs_review.mods_in_corpus_or_needs_review
+    FROM reference_xref_author_mods_in_corpus_mods_needs_review reference_xref_author_mods_in_corpus_mods_needs_review
+    LEFT OUTER JOIN mods_in_corpus_or_needs_review mods_in_corpus_or_needs_review ON
+    reference_xref_author_mods_in_corpus_mods_needs_review.reference_id = mods_in_corpus_or_needs_review.reference_id
+    EMIT CHANGES;
+
 CREATE TABLE reference_joined WITH (
     PARTITIONS = 1,
     KAFKA_TOPIC = 'reference_joined',
     VALUE_FORMAT='JSON',
     KEY_FORMAT='JSON'
   ) AS SELECT
-    reference_xref_author_mods_in_corpus_mods_needs_review.reference_id \"reference_id\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.curie \"curie\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.abstract \"abstract\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.category \"category\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.date_arrived_in_pubmed \"date_arrived_in_pubmed\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.date_created \"date_created\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.date_last_modified_in_pubmed \"date_last_modified_in_pubmed\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.date_published \"date_published\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.date_published_start \"date_published_start\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.date_published_end \"date_published_end\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.date_updated \"date_updated\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.issue_name \"issue_name\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.keywords \"keywords\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.language \"language\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.open_access \"open_access\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.page_range \"page_range\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.plain_language_abstract \"plain_language_abstract\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.publisher \"publisher\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.pubmed_abstract_languages \"pubmed_abstract_languages\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.pubmed_publication_status \"pubmed_publication_status\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.pubmed_types \"pubmed_types\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.resource_id \"resource_id\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.title \"title\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.volume \"volume\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.citation \"citation\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.short_citation \"short_citation\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.cross_references \"cross_references\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.authors \"authors\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.mods_in_corpus \"mods_in_corpus\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.mods_needs_review \"mods_needs_review\",
+    reference_xref_all_mods_corpus.reference_id \"reference_id\",
+    reference_xref_all_mods_corpus.curie \"curie\",
+    reference_xref_all_mods_corpus.abstract \"abstract\",
+    reference_xref_all_mods_corpus.category \"category\",
+    reference_xref_all_mods_corpus.date_arrived_in_pubmed \"date_arrived_in_pubmed\",
+    reference_xref_all_mods_corpus.date_created \"date_created\",
+    reference_xref_all_mods_corpus.date_last_modified_in_pubmed \"date_last_modified_in_pubmed\",
+    reference_xref_all_mods_corpus.date_published \"date_published\",
+    reference_xref_all_mods_corpus.date_published_start \"date_published_start\",
+    reference_xref_all_mods_corpus.date_published_end \"date_published_end\",
+    reference_xref_all_mods_corpus.date_updated \"date_updated\",
+    reference_xref_all_mods_corpus.issue_name \"issue_name\",
+    reference_xref_all_mods_corpus.keywords \"keywords\",
+    reference_xref_all_mods_corpus.language \"language\",
+    reference_xref_all_mods_corpus.open_access \"open_access\",
+    reference_xref_all_mods_corpus.page_range \"page_range\",
+    reference_xref_all_mods_corpus.plain_language_abstract \"plain_language_abstract\",
+    reference_xref_all_mods_corpus.publisher \"publisher\",
+    reference_xref_all_mods_corpus.pubmed_abstract_languages \"pubmed_abstract_languages\",
+    reference_xref_all_mods_corpus.pubmed_publication_status \"pubmed_publication_status\",
+    reference_xref_all_mods_corpus.pubmed_types \"pubmed_types\",
+    reference_xref_all_mods_corpus.resource_id \"resource_id\",
+    reference_xref_all_mods_corpus.title \"title\",
+    reference_xref_all_mods_corpus.volume \"volume\",
+    reference_xref_all_mods_corpus.citation \"citation\",
+    reference_xref_all_mods_corpus.short_citation \"short_citation\",
+    reference_xref_all_mods_corpus.cross_references \"cross_references\",
+    reference_xref_all_mods_corpus.authors \"authors\",
+    reference_xref_all_mods_corpus.mods_in_corpus \"mods_in_corpus\",
+    reference_xref_all_mods_corpus.mods_needs_review \"mods_needs_review\",
+    reference_xref_all_mods_corpus.mods_in_corpus_or_needs_review \"mods_in_corpus_or_needs_review\",
     obsolete_curies.obsolete_curies \"obsolete_curies\"
-    FROM reference_xref_author_mods_in_corpus_mods_needs_review reference_xref_author_mods_in_corpus_mods_needs_review
+    FROM reference_xref_all_mods_corpus reference_xref_all_mods_corpus
     LEFT OUTER JOIN obsolete_curies obsolete_curies ON
-    reference_xref_author_mods_in_corpus_mods_needs_review.reference_id = obsolete_curies.reference_id;
+    reference_xref_all_mods_corpus.reference_id = obsolete_curies.reference_id;
 ",
 "streamsProperties": {}}

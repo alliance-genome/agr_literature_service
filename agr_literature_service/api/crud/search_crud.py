@@ -165,6 +165,14 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                         "mods_needs_review.keyword"] if "mods_needs_review.keyword" in facets_limits else 10
                 }
             },
+            "mods_in_corpus_or_needs_review.keyword": {
+                "terms": {
+                    "field": "mods_in_corpus_or_needs_review.keyword",
+                    "min_doc_count": 0,
+                    "size": facets_limits[
+                        "mods_in_corpus_or_needs_review.keyword"] if "mods_in_corpus_or_needs_review.keyword" in facets_limits else 10
+                }
+            },
             "authors.name.keyword": {
                 "terms": {
                     "field": "authors.name.keyword",
