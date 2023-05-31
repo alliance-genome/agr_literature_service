@@ -605,7 +605,7 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
             JOIN mod ON b.mod_id = mod.mod_id
             LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
             LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
-            WHERE workflow_tag_id='{view}'
+            WHERE workflow_tag_id='{filter}'
             AND mod.abbreviation = '{mod_abbreviation}'
             AND corpus = true
             GROUP BY b.reference_id

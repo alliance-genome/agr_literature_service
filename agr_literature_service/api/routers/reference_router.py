@@ -200,4 +200,4 @@ def missing_files(mod_abbreviation: str,
                   page: int,
                   filter: str = 'default',
                   db: Session = db_session):
-    return reference_crud.missing_files(db, mod_abbreviation, order_by, page)
+    return reference_crud.missing_files(db, mod_abbreviation, order_by, page, filter)
