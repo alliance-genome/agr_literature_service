@@ -206,5 +206,6 @@ def missing_files(mod_abbreviation: str,
             status_code=status.HTTP_200_OK)
 def download_tracker_table(mod_abbreviation: str,
                            order_by: str,
+                           filter: str,
                            db: Session = db_session):
-    return reference_crud.download_tracker_table(db, mod_abbreviation, order_by)
+    return reference_crud.download_tracker_table(db, mod_abbreviation, order_by, filter)
