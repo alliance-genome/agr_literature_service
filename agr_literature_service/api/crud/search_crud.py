@@ -8,7 +8,7 @@ from agr_literature_service.api.models import ReferenceModel
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import ModCorpusAssociationModel, ModModel, ResourceDescriptorModel, CopyrightLicenseModel, ReferencefileModel
-from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, CrossReferenceSchemaShow
+from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, CrossReferenceSchemaShow, ReferencefileSchemaRelated
 
 from fastapi import HTTPException, status
 
@@ -331,12 +331,17 @@ def show_need_review(mod_abbreviation, count, db: Session):
             copyright_license_url=reference.copyright_license.url if reference.copyright_license else "",
             copyright_license_description=reference.copyright_license.description if reference.copyright_license else "",
             copyright_license_open_access=reference.copyright_license.open_access if reference.copyright_license else "",
-            mod_corpus_association_id=[mca.mod_corpus_association_id for mca in reference.mod_corpus_association if
-                                       mca.mod.abbreviation == mod_abbreviation][0],
-            resource_title=reference.resource.title if reference.resource else "",
             cross_references=[CrossReferenceSchemaShow(
                 cross_reference_id=xref.cross_reference_id, curie=xref.curie, curie_prefix=xref.curie_prefix,
                 url=convert_xref_curie_to_url(xref.curie, resource_descriptor_default_urls_dict),
                 is_obsolete=xref.is_obsolete, pages=xref.pages) for xref in reference.cross_reference],
+            mod_corpus_association_id=[mca.mod_corpus_association_id for mca in reference.mod_corpus_association if
+                                       mca.mod.abbreviation == mod_abbreviation][0],
+            resource_title=reference.resource.title if reference.resource else "",
+            referencefiles=[ReferencefileSchemaRelated(
+                referencefile_id=rf.referencefile_id,  display_name=rf.display_name,
+                file_class=rf.file_class, file_publication_status=rf.file_publication_status,
+                file_extension=rf.file_extension,
+                md5sum=rf.md5sum, is_annotation=rf.is_annotation) for rf in reference.referencefiles],
             workflow_tags=[{"reference_workflow_tag_id": wft.reference_workflow_tag_id, "workflow_tag_id": wft.workflow_tag_id, "mod_abbreviation": mod_id_to_mod.get(wft.mod_id, '')} for wft in reference.workflow_tag])
         for reference in references]

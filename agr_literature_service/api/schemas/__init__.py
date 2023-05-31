@@ -88,6 +88,12 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import (
     TopicEntityTagSchemaUpdate
 )
 
+from agr_literature_service.api.schemas.referencefile_schemas import (
+    ReferencefileSchemaPost,
+    ReferencefileSchemaShow,
+    ReferencefileSchemaUpdate,
+    ReferencefileSchemaRelated)
+
 from agr_literature_service.api.schemas.reference_schemas import (
     ReferenceSchemaPost,
     ReferenceSchemaUpdate,
@@ -96,3 +102,5 @@ from agr_literature_service.api.schemas.reference_schemas import (
 
 from agr_literature_service.api.schemas.copyright_license_schemas import CopyrightLicenseSchemaPost
 from agr_literature_service.api.schemas.search_schemas import FacetsOptionsSchema
+
+

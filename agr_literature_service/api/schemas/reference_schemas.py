@@ -12,6 +12,7 @@ from agr_literature_service.api.schemas import (AuthorSchemaPost, AuthorSchemaSh
                                                 ModCorpusAssociationSchemaCreate,
                                                 PubMedPublicationStatus, ReferenceCategory,
                                                 ReferenceCommentAndCorrectionSchemaRelated,
+                                                ReferencefileSchemaRelated,
                                                 ModCorpusAssociationSchemaRelated)
 from agr_literature_service.api.schemas.cross_reference_schemas import CrossReferenceSchemaCreate
 from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagSchemaCreate, WorkflowTagSchemaRelated
@@ -166,3 +167,4 @@ class ReferenceSchemaNeedReviewShow(BaseModel):
     copyright_license_url: Optional[str] = None
     copyright_license_description: Optional[str] = None
     copyright_license_open_access: Optional[str] = None
+    referencefiles: Optional[List[ReferencefileSchemaRelated]]
