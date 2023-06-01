@@ -11,6 +11,7 @@ from os import getcwd
 from fastapi.responses import FileResponse
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
+from starlette.background import BackgroundTask
 from sqlalchemy import ARRAY, Boolean, String, func
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast, or_
@@ -18,6 +19,7 @@ from sqlalchemy.sql.expression import cast, or_
 from agr_literature_service.api.crud import (cross_reference_crud,
                                              reference_comment_and_correction_crud)
 from agr_literature_service.api.crud.cross_reference_crud import set_curie_prefix
+from agr_literature_service.api.crud.referencefile_crud import cleanup
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.api.crud.reference_resource import create_obj
 from agr_literature_service.api.crud.reference_utils import get_reference
@@ -673,4 +675,6 @@ def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, fi
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"The download file for the tracker table can not be created. {e}")
 
-    return FileResponse(path=tmp_file_with_path, filename=tmp_file, media_type='application/plain')
+    # return FileResponse(path=tmp_file_with_path, filename=tmp_file, media_type='application/plain')
+    return FileResponse(path=tmp_file_with_path, filename=tmp_file, media_type='application/plain',
+                        background=BackgroundTask(cleanup, tmp_file_with_path))
