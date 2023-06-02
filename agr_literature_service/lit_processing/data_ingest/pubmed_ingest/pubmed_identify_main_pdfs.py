@@ -65,7 +65,7 @@ def identify_main_pdfs():
                             db_session.commit()
                             logger.info(pmcid + ": update the file_class to 'main' for the main PDF file " + pmcid_to_pdf_name[pmcid])
                             ref = x.reference
-                            cleanup_temp_file(db_session, ref.curie)
+                            cleanup_temp_file(db_session, ref.curie, 'all_access')
     db_session.close()
 
 
@@ -99,8 +99,6 @@ def search_pmc_and_extract_pdf_file_names(pmcids, pmcid_to_pdf_name):
                 pmcid = url.split('/')[3]
                 pmcid_to_pdf_name[pmcid] = pdf_filename
                 logger.info(pmcid + ": PDF name=" + pdf_filename)
-            else:
-                logger.info("Bad PDF file URL found for " + pmcid)
     else:
         logger.info("No PDF file found for " + url)
 
