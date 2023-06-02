@@ -342,8 +342,11 @@ def show_need_review(mod_abbreviation, count, db: Session):
                 referencefile_id=rf.referencefile_id,  display_name=rf.display_name,
                 file_class=rf.file_class, file_publication_status=rf.file_publication_status,
                 file_extension=rf.file_extension,
-                md5sum=rf.md5sum, is_annotation=rf.is_annotation, referencefile_mods=get_referencefile_mod(rf.referencefile_id, db)) for rf in reference.referencefiles],
-            workflow_tags=[{"reference_workflow_tag_id": wft.reference_workflow_tag_id, "workflow_tag_id": wft.workflow_tag_id, "mod_abbreviation": mod_id_to_mod.get(wft.mod_id, '')} for wft in reference.workflow_tag])
+                md5sum=rf.md5sum, is_annotation=rf.is_annotation,
+                referencefile_mods=get_referencefile_mod(rf.referencefile_id, db)) for rf in reference.referencefiles],
+            workflow_tags=[{"reference_workflow_tag_id": wft.reference_workflow_tag_id,
+                            "workflow_tag_id": wft.workflow_tag_id,
+                            "mod_abbreviation": mod_id_to_mod.get(wft.mod_id, '')} for wft in reference.workflow_tag])
         for reference in references]
 
 def get_referencefile_mod(referencefile_id, db: Session):
@@ -354,7 +357,6 @@ def get_referencefile_mod(referencefile_id, db: Session):
     )
     referencefile_mod = referencefile_mod_query.all()
     mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
-
     return [
          ReferencefileModSchemaShow(
                 referencefile_id=rfm.referencefile_id,  referencefile_mod_id=rfm.referencefile_mod_id,
