@@ -1,10 +1,10 @@
 import logging
 import time
-import requests
-from os import environ
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.api.models import CrossReferenceModel, ReferencefileModel
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_identify_main_pdfs import \
+    search_pmc_and_extract_pdf_file_names
 from agr_literature_service.api.crud.referencefile_crud import cleanup_temp_file
 
 logging.basicConfig(format='%(message)s')
@@ -19,15 +19,18 @@ pmcRootUrl = 'https://ftp.ncbi.nlm.nih.gov/pub/pmc/'
 ## to identify the main PDFs after downloading PMC packages
 ## from PubMed Central, uploading the files to s3, loading
 ## the metadata into ABC
-infile = "data/pmc_oa_files_uploaded.txt"
 batch_size = 20
 
 
 def identify_main_pdfs():
 
-    logger.info("Reading PMCID list from pmc_oa_files_uploaded.txt...")
+    logger.info("Retriving PMCIDs without a main PDF...")
 
-    pmcid_set = get_pmcid_for_recent_downloaded_pmc_packages()
+    db_session = create_postgres_session(False)
+
+    pmcid_set = get_pmcids_without_main_pdf(db_session)
+
+    db_session.close()
 
     logger.info("Searching PMC for PDF full texts...")
 
@@ -69,38 +72,25 @@ def identify_main_pdfs():
     db_session.close()
 
 
-def get_pmcid_for_recent_downloaded_pmc_packages():
+def get_pmcids_without_main_pdf(db_session):
 
     pmcid_set = set()
-    with open(infile) as f:
-        for line in f:
-            # 35857496      PMC9278858      sciadv.abm9875-f5.jpg   17ef0e061fcdc9bd1f4338809f738d72
-            pieces = line.strip().split("\t")
-            pmcid_set.add(pieces[1])
+
+    rows = db_session.execute("SELECT distinct cr.curie "
+                              "FROM cross_reference cr, referencefile rf, referencefile_mod rfm "
+                              "WHERE cr.curie_prefix = 'PMCID' "
+                              "AND cr.reference_id = rf.reference_id "
+                              "AND rf.file_class = 'supplement' "
+                              "AND rf.referencefile_id = rfm.referencefile_id "
+                              "AND rfm.mod_id is NULL "
+                              "AND NOT EXISTS ( "
+                              "SELECT 1 "
+                              "FROM referencefile "
+                              "WHERE reference_id = rf.reference_id "
+                              "AND file_class = 'main')").fetchall()
+    for x in rows:
+        pmcid_set.add(x[0].replace("PMCID:", ''))
     return pmcid_set
-
-
-def search_pmc_and_extract_pdf_file_names(pmcids, pmcid_to_pdf_name):
-
-    url = rootUrl + "/pmc/?term=" + "+OR+".join(pmcids)
-
-    if environ.get('NCBI_API_KEY'):
-        url = url + "&api_key=" + environ['NCBI_API_KEY']
-
-    response = requests.get(url)
-    content = str(response.content)
-    if ">PDF" in str(content):
-        records = content.split('>PDF')
-        records.pop()
-        for record in records:
-            url = record.split(' ')[-1].replace("href=", "").replace('"', '')
-            if url.startswith('/pmc/articles/PMC'):
-                pdf_filename = url.split('/')[-1]
-                pmcid = url.split('/')[3]
-                pmcid_to_pdf_name[pmcid] = pdf_filename
-                logger.info(pmcid + ": PDF name=" + pdf_filename)
-    else:
-        logger.info("No PDF file found for " + url)
 
 
 if __name__ == "__main__":
