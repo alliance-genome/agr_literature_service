@@ -6,9 +6,12 @@ import logging
 import re
 from datetime import datetime
 from typing import Any, Dict, List
+from os import getcwd
 
+from fastapi.responses import FileResponse
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
+from starlette.background import BackgroundTask
 from sqlalchemy import ARRAY, Boolean, String, func
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast, or_
@@ -16,6 +19,7 @@ from sqlalchemy.sql.expression import cast, or_
 from agr_literature_service.api.crud import (cross_reference_crud,
                                              reference_comment_and_correction_crud)
 from agr_literature_service.api.crud.cross_reference_crud import set_curie_prefix
+from agr_literature_service.api.crud.referencefile_crud import cleanup
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.api.crud.reference_resource import create_obj
 from agr_literature_service.api.crud.reference_utils import get_reference
@@ -579,39 +583,98 @@ def add_license(db: Session, curie: str, license: str):  # noqa
     return {"message": "Update Success!"}
 
 
-def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int):
+def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by, filter):
+
+    subquery = ''
+    if filter == 'default':
+        subquery = f"""SELECT b.reference_id,
+                              COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
+                              COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
+                       FROM mod_corpus_association AS b
+                       JOIN mod ON b.mod_id = mod.mod_id
+                       LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
+                       LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
+                       WHERE mod.abbreviation = '{mod_abbreviation}'
+                       AND corpus=true
+                       GROUP BY b.reference_id
+                       HAVING (COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
+                               OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1)
+                       AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000134') < 1
+                       AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000135') < 1
+        """
+    elif filter == 'ATP:0000134' or filter == 'ATP:0000135':
+        subquery = f"""SELECT b.reference_id,
+                              COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
+                              COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
+                       FROM mod_corpus_association AS b
+                       JOIN mod ON b.mod_id = mod.mod_id
+                       LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
+                       LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
+                       WHERE workflow_tag_id='{filter}'
+                       AND mod.abbreviation = '{mod_abbreviation}'
+                       AND corpus = true
+                       GROUP BY b.reference_id
+        """
+
+    return f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT,
+                      SUPCOUNT, ref_pmid.curie as PMID, ref_mod.curie AS mod_curie
+               FROM reference, citation,
+                    ({subquery})
+                     AS sub_select,
+                        (SELECT cross_reference.curie, reference_id
+                         FROM cross_reference
+                         WHERE curie_prefix='PMID') as ref_pmid,
+                        (SELECT cross_reference.curie, reference_id
+                         FROM cross_reference
+                         WHERE curie_prefix='{mod_abbreviation}') as ref_mod
+               WHERE sub_select.reference_id=reference.reference_id
+               AND sub_select.reference_id=ref_pmid.reference_id
+               AND sub_select.reference_id=ref_mod.reference_id
+               AND reference.citation_id=citation.citation_id
+               ORDER BY date_created {order_by}
+           """
+
+
+def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, filter: str):
     try:
         offset = (page * 25) - 25
-        query = f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT, SUPCOUNT, ref_pmid.curie as PMID, ref_mod.curie AS mod_curie
-                    FROM reference, citation,
-                        (SELECT b.reference_id, COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
-                        COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
-                        FROM mod_corpus_association AS b
-                        JOIN mod ON b.mod_id = mod.mod_id
-                        LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
-                        LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
-                        WHERE mod.abbreviation = '{mod_abbreviation}'
-                        AND corpus=true
-                        GROUP BY b.reference_id
-                        HAVING (COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
-                        OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1)
-                        AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000134') < 1
-                        AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000135') < 1)
-                        AS sub_select,
-                        (SELECT cross_reference.curie, reference_id FROM cross_reference where curie_prefix='PMID') as ref_pmid,
-                        (SELECT cross_reference.curie, reference_id FROM cross_reference where curie_prefix='{mod_abbreviation}') as ref_mod
-                    WHERE sub_select.reference_id=reference.reference_id
-                    AND sub_select.reference_id=ref_pmid.reference_id
-                    AND sub_select.reference_id=ref_mod.reference_id
-                    AND reference.citation_id=citation.citation_id
-                    ORDER BY date_created {order_by}
-                    LIMIT 25
-                    OFFSET {offset}
-                """
-        rs = db.execute(query)
-        rows = rs.fetchall()
+        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter) + \
+            f" LIMIT 25 OFFSET {offset}"
+        rows = db.execute(query).fetchall()
         data = jsonable_encoder(rows)
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Cant search missing files.")
     return data
+
+
+def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, filter: str):
+    try:
+        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter)
+        rows = db.execute(query).fetchall()
+        tag = ''
+        if filter == 'default':
+            tag = "needed"
+        elif filter == 'ATP:0000134':
+            tag = "uploaded"
+        elif filter == 'ATP:0000135':
+            tag = "unobtainable"
+        tmp_file = f"{mod_abbreviation}_file_{tag}.tsv"
+        workflowtag = f"file {tag}"
+        tmp_file_with_path = f"{getcwd()}/{tmp_file}"
+        fw = open(tmp_file_with_path, "w")
+        fw.write("Curie\tMOD Curie\tPMID\tCitation\tWorkflow Tag\tMain File Count\tSuppl File Count\tDate Created\n")
+        for x in rows:
+            date_created = str(x['date_created']).split(' ')[0]
+            main_file_count = x[3]
+            suppl_file_count = x[4]
+            fw.write(f"{x['curie']}]\t{x['mod_curie']}\t{x['pmid']}\t{x['short_citation']}\t "
+                     f"{workflowtag}\t{main_file_count}\t{suppl_file_count}\t{date_created}\n")
+        fw.close()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"The download file for the tracker table can not be created. {e}")
+
+    # return FileResponse(path=tmp_file_with_path, filename=tmp_file, media_type='application/plain')
+    return FileResponse(path=tmp_file_with_path, filename=tmp_file, media_type='application/plain',
+                        background=BackgroundTask(cleanup, tmp_file_with_path))
