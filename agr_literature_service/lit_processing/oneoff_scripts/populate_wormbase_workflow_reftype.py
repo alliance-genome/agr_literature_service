@@ -83,9 +83,6 @@ def process_wormbase_data(wb_xref_to_reference_id, agrkb_to_atp, db_session):
             logger.info(f"ERROR wb_wbpaper_id {wb_wbpaper_id} is NOT in wb_xref_to_reference_id, needs new value {wb_atp}")
     db_session.commit()
 
-# test database afterward for something that should have been created with is_obsolete = True  and pages = {reference}
-# SELECT * FROM cross_reference WHERE curie = 'WB:WBPaper00046376'
-
 
 if __name__ == "__main__":
     db_session = create_postgres_session(False)
