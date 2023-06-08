@@ -33,11 +33,10 @@ def get_from_database(db_session):
 
 
 def process_wormbase_data(wb_xref_to_reference_id, agrkb_to_atp, db_session):
-    # to set database user as "populate_wormbase_xref_obsolete" instead of "default_user"
+    # to set database user as "populate_wormbase_workflow_reftype" instead of "default_user"
     scriptNm = path.basename(__file__).replace(".py", "")
     set_global_user_id(db_session, scriptNm)
 
-    # url = 'https://tazendra.caltech.edu/~postgres/agr/lit/merged_papers.tsv'
     url = 'https://tazendra.caltech.edu/~postgres/agr/lit/wb_curatability_reference_type.tsv'
     f = urllib.request.urlopen(url)
     wormbase_stuff = f.read().decode('utf-8')
@@ -45,6 +44,8 @@ def process_wormbase_data(wb_xref_to_reference_id, agrkb_to_atp, db_session):
     logger.info("processing wormbase data")
     # counter = 0
     # max_count = 3
+    batch_counter = 0
+    batch_size = 250
     for line in wormbase_stuff_array:
         # counter += 1
         # if counter > max_count:
@@ -66,8 +67,12 @@ def process_wormbase_data(wb_xref_to_reference_id, agrkb_to_atp, db_session):
                     if agr_atp != wb_atp:
                         logger.info(f"UPDATE wb_wbpaper_id {wb_wbpaper_id} is {agr_atp} for {agr_reference_id}/{agrkb}, needs {wb_atp}, update {ref_wf_tag_id}")
                         workflow_tag_db_obj = db_session.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == ref_wf_tag_id).first()
-                        setattr(workflow_tag_db_obj, 'workflow_tag_id', wb_atp)
-                        db_session.commit()
+                        workflow_tag_db_obj.workflow_tag_id = wb_atp
+                        db_session.add(workflow_tag_db_obj)
+                        batch_counter += 1
+                        if batch_counter > batch_size:
+                            batch_counter = 0
+                            db_session.commit()
                     else:
                         logger.info(f"NO ACTION wb_wbpaper_id {wb_wbpaper_id} is {agr_atp} for {agr_reference_id}/{agrkb}, needs {wb_atp}, no update {ref_wf_tag_id}")
                 else:
@@ -76,6 +81,10 @@ def process_wormbase_data(wb_xref_to_reference_id, agrkb_to_atp, db_session):
                         x = WorkflowTagModel(reference_id=agr_reference_id,
                                              workflow_tag_id=wb_atp)
                         db_session.add(x)
+                        batch_counter += 1
+                        if batch_counter > batch_size:
+                            batch_counter = 0
+                            db_session.commit()
                     except Exception as e:
                         logger.info("An error occurred when adding workflog_tag row for reference_id = " + str(agr_reference_id) + " and atp value = " + wb_atp + " " + str(e))
         else:
