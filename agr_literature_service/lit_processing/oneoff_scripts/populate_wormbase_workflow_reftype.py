@@ -12,6 +12,8 @@ logger = logging.getLogger('literature logger')
 
 
 # When running this script, it will do what it can and output messages about what it couldn't do, and someone will fix those things manually.
+# Run as-is, then grep that there are no ERROR entries in the output.  grep that all UPDATE entries make sense, at the point of writing the
+# script, all entries are only INSERT.  Then uncomment the lines with db_session add/comment to update the database.
 
 
 def get_from_database(db_session):
@@ -68,11 +70,13 @@ def process_wormbase_data(wb_xref_to_reference_id, agrkb_to_atp, db_session):
                         logger.info(f"UPDATE wb_wbpaper_id {wb_wbpaper_id} is {agr_atp} for {agr_reference_id}/{agrkb}, needs {wb_atp}, update {ref_wf_tag_id}")
                         workflow_tag_db_obj = db_session.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == ref_wf_tag_id).first()
                         workflow_tag_db_obj.workflow_tag_id = wb_atp
-                        db_session.add(workflow_tag_db_obj)
+                        # UNCOMMENT TO POPULATE
+                        # db_session.add(workflow_tag_db_obj)
                         batch_counter += 1
                         if batch_counter > batch_size:
                             batch_counter = 0
-                            db_session.commit()
+                            # UNCOMMENT TO POPULATE
+                            # db_session.commit()
                     else:
                         logger.info(f"NO ACTION wb_wbpaper_id {wb_wbpaper_id} is {agr_atp} for {agr_reference_id}/{agrkb}, needs {wb_atp}, no update {ref_wf_tag_id}")
                 else:
@@ -80,17 +84,20 @@ def process_wormbase_data(wb_xref_to_reference_id, agrkb_to_atp, db_session):
                     try:
                         x = WorkflowTagModel(reference_id=agr_reference_id,
                                              workflow_tag_id=wb_atp)
-                        db_session.add(x)
+                        # UNCOMMENT TO POPULATE
+                        # db_session.add(x)
                         batch_counter += 1
                         if batch_counter > batch_size:
                             batch_counter = 0
-                            db_session.commit()
+                            # UNCOMMENT TO POPULATE
+                            # db_session.commit()
                     except Exception as e:
                         logger.info("An error occurred when adding workflog_tag row for reference_id = " + str(agr_reference_id) + " and atp value = " + wb_atp + " " + str(e))
         else:
             # has_errors = True
             logger.info(f"ERROR wb_wbpaper_id {wb_wbpaper_id} is NOT in wb_xref_to_reference_id, needs new value {wb_atp}")
-    db_session.commit()
+    # UNCOMMENT TO POPULATE
+    # db_session.commit()
 
 
 if __name__ == "__main__":
