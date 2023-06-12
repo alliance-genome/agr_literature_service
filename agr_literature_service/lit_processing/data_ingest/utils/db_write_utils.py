@@ -1,5 +1,6 @@
 from os import environ, makedirs, path
 import json
+from sqlalchemy import or_
 
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
@@ -12,6 +13,96 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     ReferencefileModel, ReferencefileModAssociationModel
 
 batch_size_for_commit = 250
+
+
+def move_mod_papers_into_corpus(db_session, mod, mod_id, mod_reference_id_set, logger=None):
+
+    try:
+        for x in db_session.query(ModCorpusAssociationModel).filter_by(
+                mod_id=mod_id).filter(
+                    or_(ModCorpusAssociationModel.corpus.is_(False),
+                        ModCorpusAssociationModel.corpus.is_(None))).all():
+            if x.reference_id in mod_reference_id_set:
+                x.corpus = True
+                if x.mod_corpus_sort_source != 'dqm_files':
+                    x.mod_corpus_sort_source = 'dqm_files'
+                db_session.add(x)
+                if logger:
+                    logger.info(f"Moving {mod} paper into {mod} corpus for reference_id = {x.reference_id}")
+    except Exception as e:
+        if logger:
+            logger.info(f"An error occurred when moving {mod} paper(s) in/out {mod} corpus. error={e}")
+
+    db_session.commit()
+    # db_session.rollback()
+
+
+def change_mod_curie_status(db_session, mod, mod_curie_set, logger=None):
+
+    curie_prefix = mod
+    if mod == 'XB':
+        curie_prefix = "Xenbase"
+    mod_reference_id_set = set()
+    mod_curie_set_in_db = set()
+    try:
+        for x in db_session.query(CrossReferenceModel).filter_by(
+                curie_prefix=curie_prefix).all():
+            if x.reference_id is None:
+                continue
+            if x.curie in mod_curie_set:
+                mod_reference_id_set.add(x.reference_id)
+                mod_curie_set_in_db.add(x.curie)
+                if x.is_obsolete is True:
+                    x.is_obsolete = False
+                    db_session.add(x)
+                    if logger:
+                        logger.info(f"Changing {mod} curie to valid for {x.curie}")
+            elif x.is_obsolete is False:
+                x.is_obsolete = True
+                db_session.add(x)
+                if logger:
+                    logger.info(f"Changing {mod} curie to obsolete for {x.curie}")
+    except Exception as e:
+        if logger:
+            logger.info(f"An error occurred when changing is_obsolete for {mod} curie. error={e}")
+
+    db_session.commit()
+    # db_session.rollback()
+
+    # get mod curies that are not loaded into the database:
+    mod_curies_not_in_db = mod_curie_set - mod_curie_set_in_db
+    if logger:
+        logger.info(f"{mod} curies that are not loaded into the database: {mod_curies_not_in_db}")
+
+    mod_id = _get_mod_id_by_mod(db_session, mod)
+
+    move_mod_papers_into_corpus(db_session, mod, mod_id, mod_reference_id_set, logger)
+    move_obsolete_papers_out_of_corpus(db_session, mod, mod_id, curie_prefix, logger)
+
+
+def move_obsolete_papers_out_of_corpus(db_session, mod, mod_id, curie_prefix, logger=None):
+
+    rows = db_session.execute(f"SELECT mca.mod_corpus_association_id "
+                              f"FROM mod_corpus_association mca, cross_reference cr "
+                              f"WHERE mca.mod_id = {mod_id} "
+                              f"AND mca.corpus is True "
+                              f"AND mca.reference_id = cr.reference_id "
+                              f"AND cr.curie_prefix = '{curie_prefix}' "
+                              f"AND cr.is_obsolete is True").fetchall()
+
+    for x in rows:
+        try:
+            db_session.execute(f"UPDATE mod_corpus_association "
+                               f"SET corpus = False "
+                               f"WHERE mod_corpus_association_id = {int(x[0])}")
+            if logger:
+                logger.info(f"Moving {mod} paper out of corpus for mod_corpus_association_id = {x[0]}")
+        except Exception as e:
+            if logger:
+                logger.info(f"An error occurred when moving {mod} paper out of corpus for mod_corpus_association_id = {x[0]}. Error = {e}")
+
+    db_session.commit()
+    # db_session.rollback()
 
 
 def mark_not_in_mod_papers_as_out_of_corpus(mod, missing_papers_in_mod, logger=None):
