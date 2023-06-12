@@ -632,7 +632,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 
         # load new non PubMed papers (REFERENCE_PUBMOD_<mod>_1.json) into database
         json_filepath = base_path + 'process_dqm_update_' + mod + '/sanitized_reference_json/REFERENCE_PUBMOD_' + mod + '_1.json'
-        find_unparsable_date_published(json_filepath, bad_date_published)
+        # find_unparsable_date_published(json_filepath, bad_date_published)
         post_references(json_filepath, live_change)
 
         # update s3 md5sum only if prod, to test develop copy file from s3 prod to s3 develop
@@ -674,7 +674,9 @@ def find_unparsable_date_published(json_file, bad_date_published):
                     entry['datePublishedEnd'] = datePublishedEnd
                 else:
                     bad_date_published[primaryId] = entry['datePublished']
-                json_new_data.append(entry)
+            else:
+                bad_date_published[primaryId] = 'No datePublished provided'
+            json_new_data.append(entry)
         fw = open(json_file, 'w')
         fw.write(json.dumps(json_new_data, indent=4, sort_keys=True))
         fw.close()
