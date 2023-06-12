@@ -63,7 +63,6 @@ seq_list = [
     "resource_descriptor_pages_resource_descriptor_pages_id_seq",
     "resource_descriptors_resource_descriptor_id_seq",
     "resource_resource_id_seq",
-    "topic_entity_tag_prop_topic_entity_tag_prop_id_seq",
     "topic_entity_tag_topic_entity_tag_id_seq",
     "transaction_id_seq",
     "workflow_tag_reference_workflow_tag_id_seq",
