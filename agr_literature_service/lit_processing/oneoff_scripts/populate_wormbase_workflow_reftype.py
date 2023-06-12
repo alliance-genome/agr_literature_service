@@ -70,8 +70,7 @@ def process_wormbase_data(wb_xref_to_reference_id, agrkb_to_atp, db_session):
                         logger.info(f"UPDATE wb_wbpaper_id {wb_wbpaper_id} is {agr_atp} for {agr_reference_id}/{agrkb}, needs {wb_atp}, update {ref_wf_tag_id}")
                         workflow_tag_db_obj = db_session.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == ref_wf_tag_id).first()
                         workflow_tag_db_obj.workflow_tag_id = wb_atp
-                        # UNCOMMENT TO POPULATE
-                        # db_session.add(workflow_tag_db_obj)
+                        db_session.add(workflow_tag_db_obj)
                         batch_counter += 1
                         if batch_counter > batch_size:
                             batch_counter = 0
@@ -84,8 +83,7 @@ def process_wormbase_data(wb_xref_to_reference_id, agrkb_to_atp, db_session):
                     try:
                         x = WorkflowTagModel(reference_id=agr_reference_id,
                                              workflow_tag_id=wb_atp)
-                        # UNCOMMENT TO POPULATE
-                        # db_session.add(x)
+                        db_session.add(x)
                         batch_counter += 1
                         if batch_counter > batch_size:
                             batch_counter = 0
