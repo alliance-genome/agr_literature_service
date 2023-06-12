@@ -674,7 +674,9 @@ def find_unparsable_date_published(json_file, bad_date_published):
                     entry['datePublishedEnd'] = datePublishedEnd
                 else:
                     bad_date_published[primaryId] = entry['datePublished']
-                json_new_data.append(entry)
+            else:
+                bad_date_published[primaryId] = 'No datePublished provided'
+            json_new_data.append(entry)
         fw = open(json_file, 'w')
         fw.write(json.dumps(json_new_data, indent=4, sort_keys=True))
         fw.close()
