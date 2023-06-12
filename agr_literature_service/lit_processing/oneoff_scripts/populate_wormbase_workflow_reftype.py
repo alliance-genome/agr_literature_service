@@ -71,11 +71,6 @@ def process_wormbase_data(wb_xref_to_reference_id, agrkb_to_atp, db_session):
                         workflow_tag_db_obj = db_session.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == ref_wf_tag_id).first()
                         workflow_tag_db_obj.workflow_tag_id = wb_atp
                         db_session.add(workflow_tag_db_obj)
-                        batch_counter += 1
-                        if batch_counter > batch_size:
-                            batch_counter = 0
-                            # UNCOMMENT TO POPULATE
-                            # db_session.commit()
                     else:
                         logger.info(f"NO ACTION wb_wbpaper_id {wb_wbpaper_id} is {agr_atp} for {agr_reference_id}/{agrkb}, needs {wb_atp}, no update {ref_wf_tag_id}")
                 else:
@@ -84,13 +79,13 @@ def process_wormbase_data(wb_xref_to_reference_id, agrkb_to_atp, db_session):
                         x = WorkflowTagModel(reference_id=agr_reference_id,
                                              workflow_tag_id=wb_atp)
                         db_session.add(x)
-                        batch_counter += 1
-                        if batch_counter > batch_size:
-                            batch_counter = 0
-                            # UNCOMMENT TO POPULATE
-                            # db_session.commit()
                     except Exception as e:
                         logger.info("An error occurred when adding workflog_tag row for reference_id = " + str(agr_reference_id) + " and atp value = " + wb_atp + " " + str(e))
+                batch_counter += 1
+                if batch_counter % batch_size == 0:
+                    batch_counter = 0
+                    # UNCOMMENT TO POPULATE
+                    # db_session.commit()
         else:
             # has_errors = True
             logger.info(f"ERROR wb_wbpaper_id {wb_wbpaper_id} is NOT in wb_xref_to_reference_id, needs new value {wb_atp}")
