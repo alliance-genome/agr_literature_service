@@ -32,7 +32,8 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_references_by_curies, get_curie_to_title_mapping, get_mod_abbreviations
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     add_cross_references, update_authors, update_mod_corpus_associations, \
-    update_mod_reference_types, mark_not_in_mod_papers_as_out_of_corpus
+    update_mod_reference_types, mark_not_in_mod_papers_as_out_of_corpus, \
+    change_mod_curie_status
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
 from agr_literature_service.api.user import set_global_user_id
 
@@ -284,7 +285,6 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         aggregate_mod_specific_fields_only = dict()
         aggregate_mod_biblio_all = dict()
         xref_to_pages = dict()
-
         report[mod] = []
         # report2[mod] = []
         missing_papers_in_mod[mod] = []
@@ -301,6 +301,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         new_md5dict = generate_new_md5(input_path, [mod], base_dir=base_dir)
 
         mod_ids_used_in_resource = []
+        mod_curie_set = set()
 
         logger.info(f"Processing {filename}")
         dqm_data = dict()
@@ -316,7 +317,6 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
             counter = counter + 1
             if counter > max_counter:
                 break
-
             if 'primaryId' not in entry or entry['primaryId'] is None:
                 continue
 
@@ -329,8 +329,9 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
                         if items[0] in dqm:
                             dqm[items[0]].add(items[1])
                             dbid = cross_reference['id']
+                            mod_curie_set.add(dbid)
                             break
-            ## end grabbing all MOD IDs section
+            ## end grabbing all MOD ID (curies) section
 
             primary_id = entry['primaryId']
             old_md5 = 'none'
@@ -648,6 +649,8 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 
         mark_not_in_mod_papers_as_out_of_corpus(mod, missing_papers_in_mod[mod], logger)
 
+        change_mod_curie_status(db_session, mod, mod_curie_set, logger)
+
         agr_to_title = get_curie_to_title_mapping(missing_agr_in_mod[mod])
 
         send_dqm_loading_report(mod, report[mod], missing_papers_in_mod[mod],
@@ -671,7 +674,9 @@ def find_unparsable_date_published(json_file, bad_date_published):
                     entry['datePublishedEnd'] = datePublishedEnd
                 else:
                     bad_date_published[primaryId] = entry['datePublished']
-                json_new_data.append(entry)
+            else:
+                bad_date_published[primaryId] = 'No datePublished provided'
+            json_new_data.append(entry)
         fw = open(json_file, 'w')
         fw.write(json.dumps(json_new_data, indent=4, sort_keys=True))
         fw.close()
