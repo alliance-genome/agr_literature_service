@@ -80,5 +80,5 @@ def get_map_ateam_curies_to_names(curies_category, curies, token):
         # from the A-team API, atp values have a "name" field and other entities (e.g., genes and alleles) have
         # symbol objects - e.g., geneSymbol.displayText
         return {entity["curie"]: entity["name"] if "name" in entity else entity[
-            curies_category + "Symbol"]["displayText"] for entity in
-                (resp_obj["results"] if "results" in resp_obj else [])}
+            curies_category + "Symbol"]["displayText"] for entity in (resp_obj["results"] if "results" in
+                                                                                             resp_obj else [])}
