@@ -54,8 +54,8 @@ def add_source_obj_to_db_session(db: Session, topic_entity_tag_id: int, source: 
 def get_sorted_column_values(db: Session, column_name: str, desc: bool = False):
     curies = db.query(getattr(TopicEntityTagModel, column_name)).distinct()
     if column_name == "entity_type":
-        return [curie for name, curie in sorted([(allowed_entity_type_map[curie[0]], curie[0]) for curie in curies],
-                                                key=lambda x: x[0], reverse=desc)]
+        return [curie for name, curie in sorted([(allowed_entity_type_map[curie[0]], curie[0]) for curie in curies
+                                                 if curie[0]], key=lambda x: x[0], reverse=desc)]
 
 
 def get_map_ateam_curies_to_names(curies_category, curies, token):
@@ -80,4 +80,5 @@ def get_map_ateam_curies_to_names(curies_category, curies, token):
         # from the A-team API, atp values have a "name" field and other entities (e.g., genes and alleles) have
         # symbol objects - e.g., geneSymbol.displayText
         return {entity["curie"]: entity["name"] if "name" in entity else entity[
-            curies_category + "Symbol"]["displayText"] for entity in resp_obj["results"]}
+            curies_category + "Symbol"]["displayText"] for entity in
+                (resp_obj["results"] if "results" in resp_obj else [])}

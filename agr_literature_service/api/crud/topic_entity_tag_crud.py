@@ -140,10 +140,13 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
         return query.count()
     else:
         if sort_by:
+            column_property = getattr(TopicEntityTagModel, sort_by, None)
+            column = column_property.property.columns[0]
+            order_expression = case([(column.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
             curie_ordering = case({curie: index for index, curie in enumerate(get_sorted_column_values(db, sort_by,
                                                                                                        desc_sort))},
                                   value=getattr(TopicEntityTagModel, sort_by))
-            query = query.order_by(curie_ordering)
+            query = query.order_by(order_expression, curie_ordering)
         return [jsonable_encoder(tet) for tet in query.offset((page - 1) * page_size if page_size else None).limit(
             page_size).all()]
 
