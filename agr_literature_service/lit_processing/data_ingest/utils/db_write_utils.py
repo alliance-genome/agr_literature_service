@@ -82,7 +82,7 @@ def change_mod_curie_status(db_session, mod, mod_curie_set, logger=None):
 
 def move_obsolete_papers_out_of_corpus(db_session, mod, mod_id, curie_prefix, logger=None):
 
-    rows = db_session.execute(f"SELECT mca.mod_corpus_association_id "
+    rows = db_session.execute(f"SELECT mca.mod_corpus_association_id, cr.reference_id "
                               f"FROM mod_corpus_association mca, cross_reference cr "
                               f"WHERE mca.mod_id = {mod_id} "
                               f"AND mca.corpus is True "
@@ -91,6 +91,15 @@ def move_obsolete_papers_out_of_corpus(db_session, mod, mod_id, curie_prefix, lo
                               f"AND cr.is_obsolete is True").fetchall()
 
     for x in rows:
+        positiveModCurie = db_session.execute(f"SELECT curie "
+                                              f"FROM cross_reference "
+                                              f"WHERE reference_id = {x[1]} "
+                                              f"AND curie_prefix = '{curie_prefix}' "
+                                              f"AND is_obsolete is False").fetchall()
+        if len(positiveModCurie) > 0:
+            # a paper has both valid and invalid MOD curies
+            continue
+        # move the papers outside corpus if they only have invalid MOD curies
         try:
             db_session.execute(f"UPDATE mod_corpus_association "
                                f"SET corpus = False "
