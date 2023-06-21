@@ -1,5 +1,5 @@
 #!/bin/bash
-DEBEZIUM_INDEX_NAME_TEMP="${DEBEZIUM_INDEX_NAME}_temp"
+export DEBEZIUM_INDEX_NAME_TEMP="${DEBEZIUM_INDEX_NAME}_temp"
 curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME_TEMP}
 curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME_TEMP} -d @/elasticsearch-settings.json
 export PGPASSWORD=${PSQL_PASSWORD}
@@ -16,8 +16,10 @@ sleep 10
 
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$DEBEZIUM_INDEX_NAME_TEMP' < /elasticsearch-sink.json)
 
-SLEEP 10000
+sleep 20000
 curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/elastic-sink
-curl -i -X PUT -H "Accept:application/json" -H "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME_TEMP}/_settings -d "{\"settings\": {\"index.blocks.write\": true}}"
-curl -i -X POST http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME_TEMP}/_clone/${DEBEZIUM_INDEX_NAME}
+curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME}
+curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME} -d @/elasticsearch-settings.json
+curl -i -X POST -H "Accept:application/json" -H "Content-Type: application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/_reindex?pretty -d"{\"source\": {\"index\": \"${DEBEZIUM_INDEX_NAME_TEMP}\"}, \"dest\": {\"index\": \"${DEBEZIUM_INDEX_NAME}\"}}"
+
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$DEBEZIUM_INDEX_NAME' < /elasticsearch-sink.json)
