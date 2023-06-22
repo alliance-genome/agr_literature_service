@@ -87,6 +87,19 @@ class CrossReferenceModel(Base, AuditedModel):
               postgresql_where=(and_(is_obsolete.is_(False),
                                      resource_id.isnot(None),
                                      curie_prefix == 'NLM'))),
+
+        Index('idx_curie_ref',
+              'curie', 'reference_id',
+              unique=True,
+              postgresql_where=(reference_id.isnot(None))
+              ),
+
+        Index('idx_curie_res',
+              'curie', 'resource_id',
+              unique=True,
+              postgresql_where=(resource_id.isnot(None))
+              ),
+
         Index('idx_curie',
               'curie',
               unique=True,
