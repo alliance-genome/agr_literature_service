@@ -32,7 +32,7 @@ def create(db: Session, cross_reference) -> str:
     try:
         db.add(db_obj)
         db.commit()
-    except (IntegrityError, HTTPException) as e:
+    except IntegrityError as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail=f"Cannot add cross reference with curie {cross_reference_data['curie']}. "
