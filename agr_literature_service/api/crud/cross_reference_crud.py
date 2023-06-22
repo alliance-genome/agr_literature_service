@@ -5,6 +5,7 @@ cross_reference_crud.py
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.reference_resource import (add_reference_resource,
@@ -26,15 +27,16 @@ def create(db: Session, cross_reference) -> str:
     """
 
     cross_reference_data = jsonable_encoder(cross_reference)
-
-    if db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == cross_reference_data["curie"]).first():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail=f"CrossReference with curie {cross_reference_data['curie']} already exists")
-
     db_obj = create_obj(db, CrossReferenceModel, cross_reference_data)
     set_curie_prefix(db_obj)
-    db.add(db_obj)
-    db.commit()
+    try:
+        db.add(db_obj)
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail=f"Cannot add cross reference with curie {cross_reference_data['curie']}. "
+                                   f"Error details: {str(e.orig.args[0])}")
 
     return "created"
 

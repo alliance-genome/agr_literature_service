@@ -31,16 +31,9 @@ class CrossReferenceModel(Base, AuditedModel):
         autoincrement=True
     )
 
-    # cross_reference_id = Column(
-    #    Integer,
-    #    Sequence('cross_reference_id_seq', start=0, increment=1),
-    #    primary_key=True
-    # )
-
     curie = Column(
         String(),
-        nullable=False,
-        index=True
+        nullable=False
     )
 
     curie_prefix = Column(
@@ -94,6 +87,19 @@ class CrossReferenceModel(Base, AuditedModel):
               postgresql_where=(and_(is_obsolete.is_(False),
                                      resource_id.isnot(None),
                                      curie_prefix == 'NLM'))),
+
+        Index('idx_curie_ref',
+              'curie', 'reference_id',
+              unique=True,
+              postgresql_where=(reference_id.isnot(None))
+              ),
+
+        Index('idx_curie_res',
+              'curie', 'resource_id',
+              unique=True,
+              postgresql_where=(resource_id.isnot(None))
+              ),
+
         Index('idx_curie',
               'curie',
               unique=True,

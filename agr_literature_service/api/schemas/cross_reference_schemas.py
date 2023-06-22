@@ -44,7 +44,7 @@ class CrossReferenceSchemaRelated(AuditedObjectModelSchema):
 class CrossReferenceSchemaCreate(BaseModel):
     curie: str
     pages: Optional[List[str]] = None
-    is_obsolete: Optional[bool]
+    is_obsolete: Optional[bool] = False
 
 
 class CrossReferenceSchemaPost(CrossReferenceSchemaCreate):

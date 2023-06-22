@@ -9,6 +9,7 @@ from agr_literature_service.api.models import CrossReferenceModel
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
+from .test_reference import test_reference as test_reference2 # noqa
 from .test_resource import test_resource # noqa
 
 TestXrefData = namedtuple('TestXrefData', ['response', 'related_ref_curie'])
@@ -70,6 +71,31 @@ class TestCrossRef:
 
             response = client.post(url="/cross_reference/", json={"curie": 'XREF:no_ref_res'}, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_create_xref_constraints(self, db, auth_headers, test_cross_reference, test_reference2): # noqa
+        with TestClient(app) as client:
+            # test covered by idx_curie_prefix_ref_no_cgc constraint
+            new_cross_ref = {"curie": "XREF:123456", "reference_curie": test_cross_reference.related_ref_curie}
+            response = client.post(url="/cross_reference/", json=new_cross_ref, headers=auth_headers)
+            assert response.status_code == status.HTTP_409_CONFLICT
+
+            # test covered by idx_curie constraint
+            new_cross_ref = {"curie": "XREF:123456", "reference_curie": test_reference2.new_ref_curie}
+            response = client.post(url="/cross_reference/", json=new_cross_ref, headers=auth_headers)
+            assert response.status_code == status.HTTP_409_CONFLICT
+
+            # test covered by idx_curie_ref constraint
+            new_cross_ref = {
+                "curie": "XREF:123456", "reference_curie": test_cross_reference.related_ref_curie,
+                "is_obsolete": True
+            }
+            response = client.post(url="/cross_reference/", json=new_cross_ref, headers=auth_headers)
+            assert response.status_code == status.HTTP_409_CONFLICT
+
+            new_cross_ref = {"curie": "XREF:123456", "reference_curie": test_reference2.new_ref_curie,
+                             "is_obsolete": True}
+            response = client.post(url="/cross_reference/", json=new_cross_ref, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
 
     def test_create_again_bad(self, auth_headers, test_cross_reference): # noqa
         with TestClient(app) as client:
