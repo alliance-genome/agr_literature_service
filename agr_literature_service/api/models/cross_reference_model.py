@@ -31,16 +31,9 @@ class CrossReferenceModel(Base, AuditedModel):
         autoincrement=True
     )
 
-    # cross_reference_id = Column(
-    #    Integer,
-    #    Sequence('cross_reference_id_seq', start=0, increment=1),
-    #    primary_key=True
-    # )
-
     curie = Column(
         String(),
-        nullable=False,
-        index=True
+        nullable=False
     )
 
     curie_prefix = Column(
