@@ -277,18 +277,15 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
     missing_papers_in_mod = {}
     missing_agr_in_mod = {}
 
-    search_path = path.dirname(path.abspath(__file__)).replace("/dqm_ingest", "") + \
-        "/pubmed_ingest/data_for_pubmed_processing/"
-    exclude_pmid_file = search_path + "pmids_to_excude.txt"
+    search_path = path.join(path.dirname(path.dirname(path.abspath(__file__))),
+                            "pubmed_ingest", "data_for_pubmed_processing")
+    exclude_pmid_file = path.join(search_path, "pmids_to_excude.txt")
     exclude_pmids = set()
     with open(exclude_pmid_file, "r") as infile_fh:
-        for line in infile_fh:
-            pmid = line.rstrip()
-            pmid = pmid.replace('PMID:', '')
-            exclude_pmids.add(pmid)
+        exclude_pmids = {line.rstrip().replace('PMID:', '') for line in infile_fh if line.strip()}
 
     for mod in sorted(mods):
-        filename = base_dir + input_path + '/REFERENCE_' + mod + '.json'
+        filename = path.join(base_dir, input_path) + '/REFERENCE_' + mod + '.json'
         if not path.exists(filename):
             continue
         xrefs_to_add = dict()

@@ -226,13 +226,10 @@ def query_mods(input_mod, reldate):  # noqa: C901
     pmids4mod = {}
     pmids4mod['all'] = set()
 
-    pmids_to_exclude_file = search_path + "pmids_to_excude.txt"
+    pmids_to_exclude_file = path.join(search_path, "pmids_to_excude.txt")
     exclude_pmids = set()
     with open(pmids_to_exclude_file, "r") as infile_fh:
-        for line in infile_fh:
-            pmid = line.rstrip()
-            pmid = pmid.replace('PMID:', '')
-            exclude_pmids.add(pmid)
+        exclude_pmids = {line.rstrip().replace('PMID:', '') for line in infile_fh if line.strip()}
 
     for mod in [mod for mod in mods_to_query if mod in mod_esearch_url]:
         pmids4mod[mod] = set()
