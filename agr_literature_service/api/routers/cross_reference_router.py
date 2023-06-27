@@ -30,33 +30,33 @@ def create(request: CrossReferenceSchemaPost,
     return cross_reference_crud.create(db, request)
 
 
-@router.delete('/{curie:path}',
+@router.delete('/{cross_reference_id}',
                status_code=status.HTTP_204_NO_CONTENT)
-def destroy(curie: str,
+def destroy(cross_reference_id: str,
             user: OktaUser = db_user,
             db: Session = db_session):
     set_global_user_from_okta(db, user)
-    cross_reference_crud.destroy(db, curie)
+    cross_reference_crud.destroy(db, cross_reference_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.patch('/{curie:path}',
+@router.patch('/{cross_reference_id}',
               status_code=status.HTTP_202_ACCEPTED,
               response_model=ResponseMessageSchema)
-async def patch(curie: str,
+async def patch(cross_reference_id: int,
                 request: CrossReferenceSchemaUpdate,
                 user: OktaUser = db_user,
                 db: Session = db_session):
     set_global_user_from_okta(db, user)
     patch = request.dict(exclude_unset=True)
-    return cross_reference_crud.patch(db, curie, patch)
+    return cross_reference_crud.patch(db, cross_reference_id, patch)
 
 
-@router.get('/{curie:path}/versions',
+@router.get('/{cross_reference_id}/versions',
             status_code=200)
-def show_version(curie: str,
+def show_version(cross_reference_id: int,
                  db: Session = db_session):
-    return cross_reference_crud.show_changesets(db, curie)
+    return cross_reference_crud.show_changesets(db, cross_reference_id)
 
 
 @router.get('/{curie:path}',
