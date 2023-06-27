@@ -143,16 +143,17 @@ def generate_data_ondemand(mod: str,
         lock_dumps_ondemand.release()
 
 
-@router.get('/by_cross_reference/{curie:path}',
+@router.get('/by_cross_reference/{curie_or_cross_reference_id}',
             status_code=200,
             response_model=ReferenceSchemaShow)
-def show_xref(curie: str,
+def show_xref(curie_or_cross_reference_id: str,
               db: Session = db_session):
-    cross_reference = cross_reference_crud.show(db, curie)
+    cross_reference = cross_reference_crud.show(db, curie_or_cross_reference_id)
 
     if 'reference_curie' not in cross_reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Cross Reference {curie} is not associated to a reference entity")
+                            detail=f"Cross Reference {curie_or_cross_reference_id} is not associated to "
+                                   f"a reference entity")
 
     return reference_crud.show(db, cross_reference['reference_curie'])
 

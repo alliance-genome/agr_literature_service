@@ -65,8 +65,8 @@ def patch(db: Session, cross_reference_id: int, cross_reference_update) -> dict:
     return {"message": "updated"}
 
 
-def show(db: Session, curie: str) -> dict:
-    cross_reference = get_cross_reference(db, curie)
+def show(db: Session, curie_or_cross_reference_id: str) -> dict:
+    cross_reference = get_cross_reference(db, curie_or_cross_reference_id)
     cross_reference_data = jsonable_encoder(cross_reference)
     if cross_reference_data["resource_id"]:
         cross_reference_data["resource_curie"] = db.query(ResourceModel.curie).filter(
