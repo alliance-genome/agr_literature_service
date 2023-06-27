@@ -231,6 +231,9 @@ def add_references(db_orig_session, db_subset_session):
             print(f"Adding {ref.curie} {ref.reference_id}")
         db_subset_session.merge(ref)
         count += 1
+        print(f"Adding reference {count}..")
+        if count % 50 == 0:
+            db_subset_session.commit()
     if verbose:
         print(f"Added {count} records for References.")
 
