@@ -33,7 +33,9 @@ class CrossReferenceModel(Base, AuditedModel):
 
     curie = Column(
         String(),
-        nullable=False
+        nullable=False,
+        index=True,
+        unique=False
     )
 
     curie_prefix = Column(
