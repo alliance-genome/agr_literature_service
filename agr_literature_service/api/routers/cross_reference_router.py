@@ -64,4 +64,4 @@ def show_version(curie: str,
             status_code=200)
 def show(curie: str,
          db: Session = db_session):
-    return cross_reference_crud.show(db, curie, False)
+    return cross_reference_crud.show(db, curie)

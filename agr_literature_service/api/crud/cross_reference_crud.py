@@ -25,7 +25,7 @@ def get_cross_reference(db: Session, curie_or_id: str) -> CrossReferenceModel:
     cross_reference = db.query(CrossReferenceModel).filter(
         or_(CrossReferenceModel.curie == curie_or_id,
             CrossReferenceModel.cross_reference_id == cross_reference_id)).order_by(
-        CrossReferenceModel.is_obsolete.desc()).first()
+        CrossReferenceModel.is_obsolete).first()
     if not cross_reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Cross Reference with curie or id {curie_or_id} not found")
