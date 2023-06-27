@@ -211,8 +211,6 @@ def query_mods(input_mod, reldate):  # noqa: C901
         "XB": "https://ftp.xenbase.org/pub/DataExchange/AGR/XB_false_positive_pmids.txt"
     }
 
-    # source of WB FP file: https://tazendra.caltech.edu/~postgres/agr/lit/WB_false_positive_pmids
-
     # retrieve all cross_reference info from database
     xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
     db_session = next(get_db())
@@ -227,10 +225,19 @@ def query_mods(input_mod, reldate):  # noqa: C901
     not_loaded_pmids4mod = {}
     pmids4mod = {}
     pmids4mod['all'] = set()
+
+    pmids_to_exclude_file = search_path + "pmids_to_excude.txt"
+    exclude_pmids = set()
+    with open(pmids_to_exclude_file, "r") as infile_fh:
+        for line in infile_fh:
+            pmid = line.rstrip()
+            pmid = pmid.replace('PMID:', '')
+            exclude_pmids.add(pmid)
+
     for mod in [mod for mod in mods_to_query if mod in mod_esearch_url]:
         pmids4mod[mod] = set()
         logger.info(f"Processing {mod}")
-        fp_pmids = set()     # type: Set
+        fp_pmids = set()
         if mod in mod_to_fp_pmids_url:
             try:
                 fp_url = mod_to_fp_pmids_url[mod]
@@ -263,9 +270,10 @@ def query_mods(input_mod, reldate):  # noqa: C901
 
             whitelist_pmids = []  # remove this later with removed block below
             for pmid in pmid_group:
-                if pmid not in fp_pmids:
+                if pmid not in fp_pmids and pmid not in exclude_pmids:
                     whitelist_pmids.append(pmid)
             pmids_wanted = list(map(lambda x: 'PMID:' + x, whitelist_pmids))
+
             pmid_curie_mod_dict = get_pmid_association_to_mod_via_reference(db_session, pmids_wanted, mod)
             # to debug
             # json_data = json.dumps(pmid_curie_mod_dict, indent=4, sort_keys=True)
