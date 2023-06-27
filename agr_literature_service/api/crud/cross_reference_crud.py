@@ -12,20 +12,23 @@ from agr_literature_service.api.crud.reference_resource import (add_reference_re
                                                                 create_obj)
 from agr_literature_service.api.models import (CrossReferenceModel, ReferenceModel,
                                                ResourceDescriptorModel, ResourceModel)
+from agr_literature_service.api.schemas import CrossReferenceSchemaShow
 
 
 def set_curie_prefix(xref_db_obj: CrossReferenceModel):
     xref_db_obj.curie_prefix = xref_db_obj.curie.split(":")[0]
 
 
+def get_cross_reference(db: Session, cross_reference_id: int) -> CrossReferenceModel:
+    cross_reference = db.query(CrossReferenceModel).filter(
+        CrossReferenceModel.cross_reference_id == cross_reference_id).one_or_none()
+    if not cross_reference:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Cross Reference with id {cross_reference_id} not found")
+    return cross_reference
+
+
 def create(db: Session, cross_reference) -> str:
-    """
-
-    :param db:
-    :param cross_reference:
-    :return:
-    """
-
     cross_reference_data = jsonable_encoder(cross_reference)
     db_obj = create_obj(db, CrossReferenceModel, cross_reference_data)
     set_curie_prefix(db_obj)
@@ -37,79 +40,44 @@ def create(db: Session, cross_reference) -> str:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail=f"Cannot add cross reference with curie {cross_reference_data['curie']}. "
                                    f"Error details: {str(e.orig.args[0])}")
-
     return "created"
 
 
-def destroy(db: Session, curie: str) -> None:
-    """
-    Delete a CrossReference.
-    :param db:
-    :param curie:
-    :return:
-    """
-
-    cross_reference = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == curie).first()
-    if not cross_reference:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Cross Reference with curie {curie} not found")
+def destroy(db: Session, cross_reference_id: int) -> None:
+    cross_reference = get_cross_reference(db, cross_reference_id)
     db.delete(cross_reference)
     db.commit()
-
     return None
 
 
-def patch(db: Session, curie: str, cross_reference_update) -> dict:
-    """
-    Update a CrossReference.
-    :param db:
-    :param curie:
-    :param cross_reference_update:
-    :return:
-    """
-
+def patch(db: Session, cross_reference_id: int, cross_reference_update) -> dict:
     cross_reference_data = jsonable_encoder(cross_reference_update)
-    cross_reference_db_obj = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == curie).first()
-    if not cross_reference_db_obj:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Cross Reference with curie {curie} not found")
+    cross_reference_db_obj = get_cross_reference(db, cross_reference_id)
     add_reference_resource(db, cross_reference_db_obj, cross_reference_update, non_fatal=True)
-
     for field, value in cross_reference_data.items():
         setattr(cross_reference_db_obj, field, value)
-
     if "curie" in cross_reference_update:
         set_curie_prefix(cross_reference_db_obj)
     db.commit()
-
     return {"message": "updated"}
 
 
-def show(db: Session, curie: str, indirect=True) -> dict:
-    """
-    Show a cross reference
-    :param db:
-    :param curie:
-    :param indirect:
-    :return:
-    """
-
-    cross_reference = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == curie).first()
-    if not cross_reference:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"CrossReference with the curie {curie} is not available")
-
+def show(db: Session, cross_reference_id: int) -> CrossReferenceSchemaShow:
+    cross_reference = get_cross_reference(db, cross_reference_id)
     cross_reference_data = jsonable_encoder(cross_reference)
     if cross_reference_data["resource_id"]:
-        cross_reference_data["resource_curie"] = db.query(ResourceModel.curie).filter(ResourceModel.resource_id == cross_reference_data["resource_id"]).first().curie
+        cross_reference_data["resource_curie"] = db.query(ResourceModel.curie).filter(
+            ResourceModel.resource_id == cross_reference_data["resource_id"]).first().curie
     del cross_reference_data["resource_id"]
 
     if cross_reference_data["reference_id"]:
-        cross_reference_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == cross_reference_data['reference_id']).first().curie
+        cross_reference_data["reference_curie"] = db.query(ReferenceModel.curie).filter(
+            ReferenceModel.reference_id == cross_reference_data['reference_id']).first().curie
     del cross_reference_data["reference_id"]
 
-    [db_prefix, local_id] = curie.split(":", 1)
-    resource_descriptor = db.query(ResourceDescriptorModel).filter(ResourceDescriptorModel.db_prefix == db_prefix).first()
+    [db_prefix, local_id] = cross_reference.curie.split(":", 1)
+    resource_descriptor = db.query(ResourceDescriptorModel).filter(
+        ResourceDescriptorModel.db_prefix == db_prefix).first()
     if resource_descriptor:
         default_url = resource_descriptor.default_url.replace("[%s]", local_id)
         cross_reference_data["url"] = default_url
@@ -134,19 +102,8 @@ def show(db: Session, curie: str, indirect=True) -> dict:
     return cross_reference_data
 
 
-def show_changesets(db: Session, curie: str):
-    """
-
-    :param db:
-    :param curie:
-    :return:
-    """
-
-    cross_reference = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == curie).first()
-    if not cross_reference:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Cross Reference with curie {curie} is not available")
-
+def show_changesets(db: Session, cross_reference_id: int):
+    cross_reference = get_cross_reference(db, cross_reference_id)
     history = []
     for version in cross_reference.versions:
         tx = version.transaction
@@ -160,5 +117,4 @@ def show_changesets(db: Session, curie: str):
                 "changeset": version.changeset,
             }
         )
-
     return history
