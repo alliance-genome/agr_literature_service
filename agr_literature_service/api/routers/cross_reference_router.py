@@ -22,7 +22,7 @@ db_user = Security(auth.get_user)
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=str)
+             response_model=int)
 def create(request: CrossReferenceSchemaPost,
            user: OktaUser = db_user,
            db: Session = db_session):

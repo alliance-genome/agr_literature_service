@@ -13,7 +13,6 @@ from agr_literature_service.api.crud.reference_resource import (add_reference_re
                                                                 create_obj)
 from agr_literature_service.api.models import (CrossReferenceModel, ReferenceModel,
                                                ResourceDescriptorModel, ResourceModel)
-from agr_literature_service.api.schemas import CrossReferenceSchemaShow
 
 
 def set_curie_prefix(xref_db_obj: CrossReferenceModel):
@@ -32,7 +31,7 @@ def get_cross_reference(db: Session, curie_or_id: str) -> CrossReferenceModel:
     return cross_reference
 
 
-def create(db: Session, cross_reference) -> str:
+def create(db: Session, cross_reference) -> int:
     cross_reference_data = jsonable_encoder(cross_reference)
     db_obj = create_obj(db, CrossReferenceModel, cross_reference_data)
     set_curie_prefix(db_obj)
@@ -44,7 +43,7 @@ def create(db: Session, cross_reference) -> str:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail=f"Cannot add cross reference with curie {cross_reference_data['curie']}. "
                                    f"Error details: {str(e.orig.args[0])}")
-    return "created"
+    return db_obj.cross_reference_id
 
 
 def destroy(db: Session, cross_reference_id: int) -> None:
