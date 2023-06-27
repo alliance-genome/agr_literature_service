@@ -32,7 +32,7 @@ def create(request: CrossReferenceSchemaPost,
 
 @router.delete('/{cross_reference_id}',
                status_code=status.HTTP_204_NO_CONTENT)
-def destroy(cross_reference_id: str,
+def destroy(cross_reference_id: int,
             user: OktaUser = db_user,
             db: Session = db_session):
     set_global_user_from_okta(db, user)
