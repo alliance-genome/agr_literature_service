@@ -5,6 +5,7 @@ cross_reference_crud.py
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -19,12 +20,15 @@ def set_curie_prefix(xref_db_obj: CrossReferenceModel):
     xref_db_obj.curie_prefix = xref_db_obj.curie.split(":")[0]
 
 
-def get_cross_reference(db: Session, cross_reference_id: int) -> CrossReferenceModel:
+def get_cross_reference(db: Session, curie_or_id: str) -> CrossReferenceModel:
+    cross_reference_id = int(curie_or_id) if curie_or_id.isdigit() else None
     cross_reference = db.query(CrossReferenceModel).filter(
-        CrossReferenceModel.cross_reference_id == cross_reference_id).one_or_none()
+        or_(CrossReferenceModel.curie == curie_or_id,
+            CrossReferenceModel.cross_reference_id == cross_reference_id)).order_by(
+        CrossReferenceModel.is_obsolete.desc()).first()
     if not cross_reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Cross Reference with id {cross_reference_id} not found")
+                            detail=f"Cross Reference with curie or id {curie_or_id} not found")
     return cross_reference
 
 
@@ -44,7 +48,7 @@ def create(db: Session, cross_reference) -> str:
 
 
 def destroy(db: Session, cross_reference_id: int) -> None:
-    cross_reference = get_cross_reference(db, cross_reference_id)
+    cross_reference = get_cross_reference(db, str(cross_reference_id))
     db.delete(cross_reference)
     db.commit()
     return None
@@ -52,7 +56,7 @@ def destroy(db: Session, cross_reference_id: int) -> None:
 
 def patch(db: Session, cross_reference_id: int, cross_reference_update) -> dict:
     cross_reference_data = jsonable_encoder(cross_reference_update)
-    cross_reference_db_obj = get_cross_reference(db, cross_reference_id)
+    cross_reference_db_obj = get_cross_reference(db, str(cross_reference_id))
     add_reference_resource(db, cross_reference_db_obj, cross_reference_update, non_fatal=True)
     for field, value in cross_reference_data.items():
         setattr(cross_reference_db_obj, field, value)
@@ -62,8 +66,8 @@ def patch(db: Session, cross_reference_id: int, cross_reference_update) -> dict:
     return {"message": "updated"}
 
 
-def show(db: Session, cross_reference_id: int) -> CrossReferenceSchemaShow:
-    cross_reference = get_cross_reference(db, cross_reference_id)
+def show(db: Session, curie: str) -> CrossReferenceSchemaShow:
+    cross_reference = get_cross_reference(db, curie)
     cross_reference_data = jsonable_encoder(cross_reference)
     if cross_reference_data["resource_id"]:
         cross_reference_data["resource_curie"] = db.query(ResourceModel.curie).filter(
@@ -103,7 +107,7 @@ def show(db: Session, cross_reference_id: int) -> CrossReferenceSchemaShow:
 
 
 def show_changesets(db: Session, cross_reference_id: int):
-    cross_reference = get_cross_reference(db, cross_reference_id)
+    cross_reference = get_cross_reference(db, str(cross_reference_id))
     history = []
     for version in cross_reference.versions:
         tx = version.transaction
