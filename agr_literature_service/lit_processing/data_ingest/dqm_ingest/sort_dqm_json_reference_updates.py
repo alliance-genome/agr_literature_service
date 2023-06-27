@@ -277,8 +277,15 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
     missing_papers_in_mod = {}
     missing_agr_in_mod = {}
 
+    search_path = path.join(path.dirname(path.dirname(path.abspath(__file__))),
+                            "pubmed_ingest", "data_for_pubmed_processing")
+    exclude_pmid_file = path.join(search_path, "pmids_to_excude.txt")
+    exclude_pmids = set()
+    with open(exclude_pmid_file, "r") as infile_fh:
+        exclude_pmids = {line.rstrip().replace('PMID:', '') for line in infile_fh if line.strip()}
+
     for mod in sorted(mods):
-        filename = base_dir + input_path + '/REFERENCE_' + mod + '.json'
+        filename = path.join(base_dir, input_path) + '/REFERENCE_' + mod + '.json'
         if not path.exists(filename):
             continue
         xrefs_to_add = dict()
@@ -334,6 +341,9 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
             ## end grabbing all MOD ID (curies) section
 
             primary_id = entry['primaryId']
+            if primary_id in exclude_pmids:
+                primary_id = dbid
+
             old_md5 = 'none'
             if mod in old_md5dict and primary_id in old_md5dict[mod] and old_md5dict[mod][primary_id] is not None:
                 old_md5 = old_md5dict[mod][primary_id]
@@ -372,6 +382,8 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
                 for cross_reference in entry['crossReferences']:
                     if "id" in cross_reference:
                         xref_id = cross_reference["id"]
+                        if xref_id in exclude_pmids:
+                            continue
                         xref_id = xref_id.replace("DOI:http://dx.doi.org/", "DOI:")
                         xref_id = xref_id.replace("DOI:https://doi.org/", "DOI:")
                         xref_id = xref_id.replace("DOI:doi.org/", "DOI:").replace(" ", "")
