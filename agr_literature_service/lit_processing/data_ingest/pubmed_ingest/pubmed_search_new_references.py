@@ -267,8 +267,8 @@ def query_mods(input_mod, reldate):  # noqa: C901
 
             whitelist_pmids = []  # remove this later with removed block below
             for pmid in pmid_group:
-                if pmid not in fp_pmids and pmid not in exclude_pmids:
-                    whitelist_pmids.append(pmid)
+                whitelist_pmids = [pmid for pmid in pmid_group if pmid not in fp_pmids and pmid not in exclude_pmids]
+
             pmids_wanted = list(map(lambda x: 'PMID:' + x, whitelist_pmids))
 
             pmid_curie_mod_dict = get_pmid_association_to_mod_via_reference(db_session, pmids_wanted, mod)
