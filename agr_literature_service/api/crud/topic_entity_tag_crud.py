@@ -15,7 +15,7 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
     get_map_ateam_curies_to_names
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
-    ReferenceModel, TopicEntityTagQualifierModel, ModModel, TopicEntityTagSourceModel
+    ReferenceModel, TopicEntityTagSourceModel
 )
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost, \
     TopicEntityTagSourceSchemaPost, TopicEntityTagSourceSchemaUpdate
@@ -29,7 +29,6 @@ def create_tag_with_source(db: Session, topic_entity_tag: TopicEntityTagSchemaPo
                             detail="reference_curie not within topic_entity_tag_data")
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     topic_entity_tag_data["reference_id"] = reference_id
-    qualifiers = topic_entity_tag_data.pop("qualifiers", []) or []
     sources = topic_entity_tag_data.pop("sources", []) or []
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
     existing_topic_entity_tag = db.query(TopicEntityTagModel).filter(
@@ -49,17 +48,6 @@ def create_tag_with_source(db: Session, topic_entity_tag: TopicEntityTagSchemaPo
             topic_entity_tag_id = new_db_obj.topic_entity_tag_id
         else:
             topic_entity_tag_id = existing_topic_entity_tag.topic_entity_tag_id
-        for qualifier in qualifiers:
-            mod = db.query(ModModel.mod_id).filter(ModModel.abbreviation == qualifier['mod_abbreviation']).one_or_none()
-            if mod is None:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
-            qualifier_obj = TopicEntityTagQualifierModel(
-                topic_entity_tag_id=topic_entity_tag_id,
-                qualifier=qualifier["qualifier"],
-                qualifier_type=qualifier["qualifier_type"],
-                mod_id=mod.mod_id,
-            )
-            db.add(qualifier_obj)
         for source in sources:
             add_source_obj_to_db_session(db, topic_entity_tag_id, source)
         db.commit()
@@ -81,11 +69,6 @@ def show(db: Session, topic_entity_tag_id: int):
         topic_entity_tag_data["reference_curie"] = db.query(ReferenceModel).filter(
             ReferenceModel.reference_id == topic_entity_tag_data["reference_id"]).first().curie
         del topic_entity_tag_data["reference_id"]
-
-    qualifiers = db.query(TopicEntityTagQualifierModel).filter(
-        TopicEntityTagQualifierModel.topic_entity_tag_id == topic_entity_tag_id).all()
-    topic_entity_tag_data["qualifiers"] = [jsonable_encoder(qualifier) for qualifier in qualifiers]
-
     sources = db.query(TopicEntityTagSourceModel).options(joinedload(TopicEntityTagSourceModel.mod)).filter(
         TopicEntityTagSourceModel.topic_entity_tag_id == topic_entity_tag_id).all()
     topic_entity_tag_data["sources"] = [jsonable_encoder(source) for source in sources]
