@@ -33,7 +33,8 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_mod): # noqa
                 "source": "WB_NN_1",
                 "confidence_level": "high",
                 "mod_abbreviation": test_mod.new_mod_abbreviation,
-                "note": "test note"
+                "note": "test note",
+                "validation_value_author": True
             }]
         }
         response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
@@ -159,7 +160,7 @@ class TestTopicEntityTag:
             }
             for key, value in expected_fields.items():
                 assert resp_data[key] == value
-            assert resp_data["sources"][0]["validation_value_author"] is None
+            assert resp_data["sources"][0]["validation_value_author"] is True
 
     def test_add_source_to_tag(self, test_topic_entity_tag, auth_headers, test_mod): # noqa
         with TestClient(app) as client:
