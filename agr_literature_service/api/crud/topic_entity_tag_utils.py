@@ -60,6 +60,8 @@ def get_sorted_column_values(db: Session, column_name: str, desc: bool = False):
 
 def get_map_ateam_curies_to_names(curies_category, curies, token):
     ateam_api_base_url = environ.get('ATEAM_API_URL', "https://beta-curation.alliancegenome.org/api")
+    if curies_category == "species":
+        curies_category = "ncbitaxonterm"
     ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit=1000&page=0'
     request_body = {
         "searchFilters": {
