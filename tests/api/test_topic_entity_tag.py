@@ -154,10 +154,12 @@ class TestTopicEntityTag:
                 "entity": "WB:WBGene00003001",
                 "entity_source": "alliance",
                 "entity_published_as": "test",
+                "display_tag": None,
                 "species": "NCBITaxon:6239"
             }
             for key, value in expected_fields.items():
                 assert resp_data[key] == value
+            assert resp_data["sources"][0]["validation_value_author"] is None
 
     def test_add_source_to_tag(self, test_topic_entity_tag, auth_headers, test_mod): # noqa
         with TestClient(app) as client:
@@ -166,6 +168,9 @@ class TestTopicEntityTag:
                 "source": "SVM",
                 "confidence_level": "high",
                 "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "validation_value_author": True,
+                "validation_value_curator": False,
+                "validation_value_curation_tools": None,
                 "note": "test note"
             }
             response = client.post("/topic_entity_tag/add_source", json=source_data, headers=auth_headers)
