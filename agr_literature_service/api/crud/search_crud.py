@@ -213,7 +213,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                             ],
                             "query" : query + "*" if partial_match else query,
                             "analyze_wildcard": "true",
-                            "flags" : "PHRASE|PREFIX|WHITESPACE|OR"
+                            "flags" : "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE"
                             }
                         },
                         {
@@ -246,7 +246,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     ],
                     "query" : query + "*" if partial_match else query,
                     "analyze_wildcard": "true",
-                    "flags" : "PHRASE|PREFIX|WHITESPACE|OR"
+                    "flags" : "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE"
                 }
             })
     elif query and query_fields == "Curie":
