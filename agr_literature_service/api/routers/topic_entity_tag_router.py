@@ -43,7 +43,7 @@ def show(topic_entity_tag_id: int,
 
 @router.post('/add_source',
              status_code=status.HTTP_201_CREATED,
-             response_model=str)
+             response_model=int)
 def add_source(request: TopicEntityTagSourceSchemaPost,
                user: OktaUser = db_user,
                db: Session = db_session):

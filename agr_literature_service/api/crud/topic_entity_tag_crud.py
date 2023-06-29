@@ -3,12 +3,14 @@ topic_entity_tag_crud.py
 ===========================
 """
 from collections import defaultdict
+from typing import Optional
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import case
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
+from dataclasses import dataclass
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
@@ -19,6 +21,10 @@ from agr_literature_service.api.models import (
 )
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost, \
     TopicEntityTagSourceSchemaPost, TopicEntityTagSourceSchemaUpdate
+
+ATP_ID_SOURCE_AUTHOR = "author"
+ATP_ID_SOURCE_CURATOR = "curator"
+ATP_ID_SOURCE_CURATION_TOOLS = "curation_tools"
 
 
 def create_tag_with_source(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
@@ -49,7 +55,8 @@ def create_tag_with_source(db: Session, topic_entity_tag: TopicEntityTagSchemaPo
         else:
             topic_entity_tag_id = existing_topic_entity_tag.topic_entity_tag_id
         for source in sources:
-            add_source_obj_to_db_session(db, topic_entity_tag_id, source)
+            source_obj = add_source_obj_to_db_session(db, topic_entity_tag_id, source)
+            validate_sources_on_insertion(db, source_obj)
         db.commit()
     except (IntegrityError, HTTPException) as e:
         db.rollback()
@@ -80,15 +87,57 @@ def show(db: Session, topic_entity_tag_id: int):
     return topic_entity_tag_data
 
 
+def validate_sources_on_insertion(db: Session, source_obj: TopicEntityTagSourceModel):
+    all_related_sources = db.query(TopicEntityTagSourceModel).filter(
+        TopicEntityTagSourceModel.topic_entity_tag_id == source_obj.topic_entity_tag_id).all()
+    for existing_source in all_related_sources:
+        if source_obj.source in [ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR, ATP_ID_SOURCE_CURATION_TOOLS]:
+            existing_source_valid = existing_source.negated == source_obj.negated
+            if source_obj.source == ATP_ID_SOURCE_AUTHOR:
+                existing_source.validation_value_author = existing_source_valid
+            elif source_obj.source == ATP_ID_SOURCE_CURATOR:
+                existing_source.validation_value_curator = existing_source_valid
+            elif source_obj.source == ATP_ID_SOURCE_CURATION_TOOLS:
+                existing_source.validation_value_curation_tools = existing_source_valid
+        if existing_source.source in [ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR, ATP_ID_SOURCE_CURATION_TOOLS]:
+            new_source_valid = source_obj.negated == existing_source.negated
+            if existing_source.source == ATP_ID_SOURCE_AUTHOR:
+                source_obj.validation_value_author = new_source_valid
+            elif existing_source.source == ATP_ID_SOURCE_CURATOR:
+                source_obj.validation_value_curator = new_source_valid
+            elif existing_source.source == ATP_ID_SOURCE_CURATION_TOOLS:
+                source_obj.validation_value_curation_tools = new_source_valid
+    db.commit()
+
+
+def validate_sources_on_deletion(db: Session, deleted_source: TopicEntityTagSourceModel):
+    if deleted_source.source in [ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR, ATP_ID_SOURCE_CURATION_TOOLS]:
+        for existing_source in db.query(TopicEntityTagSourceModel).filter(
+                TopicEntityTagSourceModel.topic_entity_tag_id == deleted_source.topic_entity_tag_id).all():
+            if deleted_source.source == ATP_ID_SOURCE_AUTHOR:
+                existing_source.validation_value_author = None
+            elif deleted_source.source == ATP_ID_SOURCE_CURATOR:
+                existing_source.validation_value_curator = None
+            elif deleted_source.source == ATP_ID_SOURCE_CURATION_TOOLS:
+                existing_source.validation_value_curation_tools = None
+
+
 def add_source_to_tag(db: Session, source: TopicEntityTagSourceSchemaPost):
-    topic_entity_tag = db.query(TopicEntityTagModel).filter(
+    topic_entity_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
         TopicEntityTagModel.topic_entity_tag_id == source.topic_entity_tag_id).one_or_none()
     if topic_entity_tag is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic or entity tag {source.topic_entity_tag_id} not found")
     source_data = jsonable_encoder(source)
-    add_source_obj_to_db_session(db, source.topic_entity_tag_id, source_data)
-    db.commit()
+    source_obj = add_source_obj_to_db_session(db, source.topic_entity_tag_id, source_data)
+    try:
+        db.commit()
+    except (IntegrityError, HTTPException) as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"invalid request: {e}")
+    validate_sources_on_insertion(db, source_obj)
+    return source_obj.topic_entity_tag_source_id
 
 
 def destroy_source(db: Session, topic_entity_tag_source_id: int):
@@ -97,6 +146,7 @@ def destroy_source(db: Session, topic_entity_tag_source_id: int):
         db.delete(source.topic_entity_tag)
     else:
         db.delete(source)
+    validate_sources_on_deletion(db, source)
     db.commit()
 
 

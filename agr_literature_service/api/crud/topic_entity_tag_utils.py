@@ -51,6 +51,7 @@ def add_source_obj_to_db_session(db: Session, topic_entity_tag_id: int, source: 
         mod_id=mod.mod_id
     )
     db.add(source_obj)
+    return source_obj
 
 
 def get_sorted_column_values(db: Session, column_name: str, desc: bool = False):
