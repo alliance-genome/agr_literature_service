@@ -505,7 +505,7 @@ def add_mca_to_existing_references(db_session, agr_curies_to_corpus, mod, logger
     db_session.commit()
 
 
-def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref_xref_obsolete, logger):  # noqa: C901 # pragma: no cover
+def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, logger):  # noqa: C901 # pragma: no cover
 
     # check for papers with same doi in the database
     # print ("ref_xref_valid=", str(ref_xref_valid['AGR:AGR-Reference-0000167781']))
@@ -539,26 +539,38 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref
         json_data = json.load(f)
         f.close()
         cross_references = json_data['crossReferences']
-        doi = None
+        xref_ids = []
         for c in cross_references:
-            if c['id'].startswith('DOI:'):
-                doi = c['id'].replace('DOI:', '')
-        if doi and doi in xref_ref['DOI']:
-            ## the doi for the new paper is in the database
-            agr = xref_ref['DOI'][doi]
+            if c['id'].startswith('DOI:') or c['id'].startswith('PMCID:'):
+                xref_ids.append(c['id'])
+        for xref_id in xref_ids:
+            is_doi = False
+            is_pmcid = False
+            if xref_id.startswith('DOI:'):
+                is_doi = True
+                xref_id = xref_id.replace("DOI:", '')
+            if xref_id.startswith('PMCID:'):
+                is_pmcid = True
+                xref_id = xref_id.replace("PMCID:", '')
+            agr = None
+            if is_doi is True and xref_id in xref_ref['DOI']:
+                agr = xref_ref['DOI'][xref_id]
+            elif is_pmcid is True and xref_id in xref_ref['PMCID']:
+                agr = xref_ref['PMCID'][xref_id]
+            if agr is None:
+                continue
+            ## this xref_id (DOI or PMCID) is in the database
             all_ref_xref = ref_xref_valid[agr] if agr in ref_xref_valid else {}
-            if agr in ref_xref_obsolete:
-                # merge two dictionaries
-                all_ref_xref.update(ref_xref_obsolete[agr])
-            found_pmids_for_this_doi = []
+            # found pmids for this DOI or PMCID
+            found_pmids_for_this_xref_id = []
             for prefix in all_ref_xref:
                 if prefix == 'PMID':
                     if type(all_ref_xref[prefix]) is set:
                         for x in all_ref_xref[prefix]:
-                            found_pmids_for_this_doi.append(x)
+                            found_pmids_for_this_xref_id.append(x)
                     else:
-                        found_pmids_for_this_doi.append(all_ref_xref[prefix])
-            if len(found_pmids_for_this_doi) == 0:
+                        found_pmids_for_this_xref_id.append(all_ref_xref[prefix])
+            if len(found_pmids_for_this_xref_id) == 0:
                 reference_id = get_reference_id_by_curie(db_session, agr)
                 if reference_id is None:
                     logger.info("The reference curie: " + agr + " is not in the database.")
@@ -567,12 +579,12 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, ref
                                                     curie_prefix='PMID',
                                                     reference_id=reference_id)
                     db_session.add(cross_ref)
-                    fw.write(str(datetime.now()) + ": adding PMID:" + pmid + " to the row with doi = " + doi + " in the database\n")
+                    fw.write(str(datetime.now()) + ": adding PMID:" + pmid + " to the row with XREF_ID = " + xref_id + " in the database\n")
                 except Exception as e:
-                    logger.info(str(datetime.now()) + ": adding " + pmid + " to the row with " + doi + " is failed: " + str(e) + "\n")
+                    logger.info(str(datetime.now()) + ": adding " + pmid + " to the row with " + xref_id + " is failed: " + str(e) + "\n")
             else:
-                fw.write(str(datetime.now()) + ": " + doi + " for PMID:" + pmid + " is associated with PMID(s) in the database: " + ",".join(found_pmids_for_this_doi) + "\n")
-                not_loaded_pmids.append((pmid, doi, ",".join(found_pmids_for_this_doi)))
+                fw.write(str(datetime.now()) + ": " + xref_id + " for PMID:" + pmid + " is associated with PMID(s) in the database: " + ",".join(found_pmids_for_this_xref_id) + "\n")
+                not_loaded_pmids.append((pmid, xref_id, ",".join(found_pmids_for_this_xref_id)))
             pmids.remove(pmid)
     fw.close()
 
