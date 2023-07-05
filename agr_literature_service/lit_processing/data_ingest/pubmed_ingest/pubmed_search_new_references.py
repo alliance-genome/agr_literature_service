@@ -314,7 +314,6 @@ def query_mods(input_mod, reldate):  # noqa: C901
                                                                        pmids_to_process,
                                                                        xref_ref,
                                                                        ref_xref_valid,
-                                                                       ref_xref_obsolete,
                                                                        logger)
 
         not_loaded_pmids4mod[mod] = not_loaded_pmids
