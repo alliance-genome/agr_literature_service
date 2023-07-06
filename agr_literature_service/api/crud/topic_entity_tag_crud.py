@@ -192,6 +192,7 @@ def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token:
             all_topics_and_entities.append(tag.entity_type)
             if tag.entity_source == "alliance":
                 all_entities[tag.entity_type].append(tag.entity)
+    token = 'eyJraWQiOiJ4dmktUEdsa1FGRXh1UklTSXZFaWpCa1VoMFZQV2d5eVExSEwxV0pkMVZZIiwiYWxnIjoiUlMyNTYifQ.eyJ2ZXIiOjEsImp0aSI6IkFULnk5RFJfN25rTFBQekZmNXVDVFFuQVdpcWlZU2lsaG1EMzJrc1otYmRGeDAiLCJpc3MiOiJodHRwczovL2Rldi0zMDQ1NjU4Ny5va3RhLmNvbS9vYXV0aDIvZGVmYXVsdCIsImF1ZCI6ImFwaTovL2RlZmF1bHQiLCJpYXQiOjE2ODg2NzIwNjgsImV4cCI6MTY4ODc1ODQ2OCwiY2lkIjoiMG9hMWJuMXdqZFppSldhSmU1ZDciLCJ1aWQiOiIwMHUxY3R6dmpnTXBrODdRbTVkNyIsInNjcCI6WyJlbWFpbCIsIm9wZW5pZCJdLCJhdXRoX3RpbWUiOjE2ODg1OTE4MzEsInN1YiI6Imp1YW5jYXJsb3NAd29ybWJhc2Uub3JnIiwiR3JvdXBzIjpbIldCU3RhZmYiLCJFdmVyeW9uZSIsIlRlc3RlciIsIldvcm1CYXNlRGV2ZWxvcGVyIiwiU3VwZXJBZG1pbiJdfQ.RlCgLF_xnNizsH7TG8cR5iD0kswgKrNNEOKxUG9Lw7CEw14ZpAnj_zrUBwQE8TsCoIUBid3YvmzdVCk0Kj47kAOUuCHNOxCbXZ_ZDedsX5w8HFpZb1hKAx7ABr1ev9BV3b0X0uQHNeCxuh15gyDSw181_tSoHTFQqF1glCl1lPPb1KQPob1pSq5-VUMETbghcGfn85W2crmaAzKV9u4j7G-9lsv-r4A7CC3448QSYtjOIQLp2OovtfJq8luNyVFZBlLHrplCtml0rXWRw88Ze1Ech2iD3HdV6Xw0XLi75ikcKYOvqtRwj1FDcQySRIa5QZ9jXx8hxsqOGQECaq2oYg'
     entity_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=all_topics_and_entities,
                                                          token=token)
     for atpterm_curie in all_entities.keys():
