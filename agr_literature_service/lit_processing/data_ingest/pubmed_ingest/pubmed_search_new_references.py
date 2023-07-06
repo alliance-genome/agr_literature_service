@@ -347,7 +347,7 @@ def query_mods(input_mod, reldate):  # noqa: C901
 
     logger.info("Sending Report")
     send_pubmed_search_report(pmids4mod, mods_to_query, log_path, log_url, not_loaded_pmids4mod,
-                              bad_date_published, logger)
+                              bad_date_published)
 
     # do not need to recursively process downloading errata and corrections,
     # but if they exist, connect them.

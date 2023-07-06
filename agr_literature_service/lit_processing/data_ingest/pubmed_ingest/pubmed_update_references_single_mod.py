@@ -170,7 +170,7 @@ def update_data(mod, pmids, newly_added_pmids=None):  # noqa: C901 pragma: no co
         reference_id_list = list(reference_id_to_pmid.keys())
 
     if len(reference_id_list) == 0:
-        write_log_and_send_pubmed_no_update_report(fw, mod, email_subject, log)
+        write_log_and_send_pubmed_no_update_report(fw, mod, email_subject)
         return
 
     fw.write(str(datetime.now()) + "\n")
@@ -195,7 +195,7 @@ def update_data(mod, pmids, newly_added_pmids=None):  # noqa: C901 pragma: no co
                                             bad_date_published,
                                             authors_with_first_or_corresponding_flag,
                                             not_found_xml_list, log_url, log_path,
-                                            email_subject, log)
+                                            email_subject)
 
     md5dict = {'PMID': pmid_to_md5sum}
     save_database_md5data(md5dict)

@@ -74,7 +74,7 @@ def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
         error_msg = "Error occurred when retrieving data from Reference data and generating json file: " + str(e)
         log.info(error_msg)
         if ondemand:
-            send_data_export_report("ERROR", email, mod, error_msg, log)
+            send_data_export_report("ERROR", email, mod, error_msg)
         return
 
     log.info("Uploading json file to s3...")
@@ -85,14 +85,14 @@ def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
         error_msg = "Error occurred when uploading json file to s3: " + str(e)
         log.info(error_msg)
         if ondemand:
-            send_data_export_report("ERROR", email, mod, error_msg, log)
+            send_data_export_report("ERROR", email, mod, error_msg)
         return
 
     if ondemand:
         log.info("Sending email...")
         ui_url = str(ui_root_url) + filename
         email_message = "The file " + filename + " is ready for <a href=" + ui_url + ">download</a>"
-        send_data_export_report("SUCCESS", email, mod, email_message, log)
+        send_data_export_report("SUCCESS", email, mod, email_message)
 
     log.info("DONE!")
 
