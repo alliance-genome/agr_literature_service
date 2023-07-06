@@ -454,17 +454,17 @@ def merge_references(db: Session,
     db.commit()
 
     # find which mods refefrent this paper
-    print("before getting list of mods")
+
     mods = db.query(ModModel).join(ModCorpusAssociationModel).\
         filter(ModCorpusAssociationModel.reference_id == new_ref.reference_id,
                ModCorpusAssociationModel.mod_id == ModModel.mod_id).all()
-    print("end of mods")
+
     # send report of merge
     mod_list = []
     for mod in mods:
         mod_list.append(mod.abbreviation)
     message = f"{old_ref.curie} has been merged into {new_ref.curie} for {mod_list}"
-    print(mod_list)
+
     send_report("Reference Merge Report", message)
     return new_curie
 
