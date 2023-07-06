@@ -20,7 +20,7 @@ from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp
 init_tmp_dir()
 
 logging.basicConfig(format='%(message)s')
-log = logging.getLogger()
+log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 
 load_dotenv()

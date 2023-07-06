@@ -130,7 +130,7 @@ load_dotenv()
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../../logging.conf')
 logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+logger = logging.getLogger(__name__)
 
 base_path = environ.get('XML_PATH', "")
 search_path = path.dirname(path.abspath(__file__)) + "/data_for_pubmed_processing/"

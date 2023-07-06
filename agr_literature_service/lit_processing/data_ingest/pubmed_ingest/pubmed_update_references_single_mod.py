@@ -32,7 +32,7 @@ from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 logging.basicConfig(format='%(message)s')
-log = logging.getLogger()
+log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 
 refColName_to_update = ['title', 'volume', 'issue_name', 'page_range', 'citation',
