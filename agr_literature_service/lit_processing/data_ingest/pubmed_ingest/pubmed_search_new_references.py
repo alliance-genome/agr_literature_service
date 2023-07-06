@@ -130,7 +130,7 @@ load_dotenv()
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../../logging.conf')
 logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+logger = logging.getLogger(__name__)
 
 base_path = environ.get('XML_PATH', "")
 search_path = path.dirname(path.abspath(__file__)) + "/data_for_pubmed_processing/"
@@ -347,7 +347,7 @@ def query_mods(input_mod, reldate):  # noqa: C901
 
     logger.info("Sending Report")
     send_pubmed_search_report(pmids4mod, mods_to_query, log_path, log_url, not_loaded_pmids4mod,
-                              bad_date_published, logger)
+                              bad_date_published)
 
     # do not need to recursively process downloading errata and corrections,
     # but if they exist, connect them.
