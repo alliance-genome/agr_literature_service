@@ -33,7 +33,8 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_mod): # noqa
                 "source": "WB_NN_1",
                 "confidence_level": "high",
                 "mod_abbreviation": test_mod.new_mod_abbreviation,
-                "note": "test note"
+                "note": "test note",
+                "validation_value_author": True
             }]
         }
         response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
@@ -154,10 +155,12 @@ class TestTopicEntityTag:
                 "entity": "WB:WBGene00003001",
                 "entity_source": "alliance",
                 "entity_published_as": "test",
+                "display_tag": None,
                 "species": "NCBITaxon:6239"
             }
             for key, value in expected_fields.items():
                 assert resp_data[key] == value
+            assert resp_data["sources"][0]["validation_value_author"] is True
 
     def test_add_source_to_tag(self, test_topic_entity_tag, auth_headers, test_mod): # noqa
         with TestClient(app) as client:
@@ -166,6 +169,9 @@ class TestTopicEntityTag:
                 "source": "SVM",
                 "confidence_level": "high",
                 "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "validation_value_author": True,
+                "validation_value_curator": False,
+                "validation_value_curation_tools": None,
                 "note": "test note"
             }
             response = client.post("/topic_entity_tag/add_source", json=source_data, headers=auth_headers)
@@ -230,6 +236,62 @@ class TestTopicEntityTag:
             new_curie = client.post(url="/reference/", json=reference_data, headers=auth_headers).json()
             response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}").json()
             assert len(response) > 0
+
+    def test_validation(self, test_reference, test_mod, auth_headers): # noqa
+        with TestClient(app) as client:
+            topic_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",
+                "sources": [
+                    {
+                        "source": "NN",
+                        "negated": True,
+                        "confidence_level": "NEG",
+                        "mod_abbreviation": test_mod.new_mod_abbreviation,
+                        "note": "test note"
+                    },
+                    {
+                        "source": "author",
+                        "negated": False,
+                        "mod_abbreviation": test_mod.new_mod_abbreviation,
+                        "note": "author said it's positive"
+                    }
+                ]
+            }
+            response = client.post(url="/topic_entity_tag/", json=topic_tag, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            new_topic_entity_tag_id = response.json()
+            response = client.get(f"/topic_entity_tag/{new_topic_entity_tag_id}")
+            assert response.status_code == status.HTTP_200_OK
+            resp_data = response.json()
+            assert any(source["validation_value_author"] is False for source in resp_data["sources"])
+
+            curator_source_data = {
+                "topic_entity_tag_id": new_topic_entity_tag_id,
+                "source": "curator",
+                "negated": True,
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "note": "curator said it's negative"
+            }
+            response = client.post("/topic_entity_tag/add_source", json=curator_source_data, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            curator_source_id = response.json()
+            resp_data = client.get(f"/topic_entity_tag/{new_topic_entity_tag_id}").json()
+            for source in resp_data["sources"]:
+                if source["source"] == "NN":
+                    assert source["validation_value_author"] is False and source["validation_value_curator"] is True
+                elif source["source"] == "author":
+                    assert source["validation_value_author"] is True and source["validation_value_curator"] is False
+                elif source["source"] == "curator":
+                    assert source["validation_value_author"] is False and source["validation_value_curator"] is True
+
+            client.delete(f"/topic_entity_tag/delete_source/{curator_source_id}", headers=auth_headers)
+            deleted_resp_data = client.get(f"/topic_entity_tag/{new_topic_entity_tag_id}").json()
+            for source in deleted_resp_data["sources"]:
+                if source["source"] == "NN":
+                    assert source["validation_value_author"] is False and source["validation_value_curator"] is None
+                elif source["source"] == "author":
+                    assert source["validation_value_author"] is True and source["validation_value_curator"] is None
 
     @pytest.mark.webtest
     def test_get_map_entity_curie_to_name(self, test_topic_entity_tag, test_mod, auth_headers): # noqa

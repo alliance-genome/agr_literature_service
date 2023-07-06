@@ -77,7 +77,10 @@ class TopicEntityTagModel(AuditedModel, Base):
         nullable=True
     )
 
-    qualifiers = relationship("TopicEntityTagQualifierModel", cascade="all,delete")
+    display_tag = Column(
+        String(),
+        nullable=True
+    )
 
     sources = relationship("TopicEntityTagSourceModel", cascade="all,delete", back_populates="topic_entity_tag")
 
@@ -104,49 +107,6 @@ class TopicEntityTagModel(AuditedModel, Base):
             'reference_id', 'topic', 'entity_type', 'entity', 'entity_source', 'species',
             unique=True,
             postgresql_where=entity_type.isnot(None))
-    )
-
-
-class TopicEntityTagQualifierModel(AuditedModel, Base):
-    __tablename__ = "topic_entity_tag_qualifier"
-    __versioned__: Dict = {}
-
-    topic_entity_tag_qualifier_id = Column(
-        Integer,
-        primary_key=True,
-        autoincrement=True
-    )
-
-    topic_entity_tag_id = Column(
-        Integer,
-        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete="CASCADE"),
-        index=True,
-        nullable=False
-    )
-
-    # Obtained from A-Team ontology qualifier
-    qualifier = Column(
-        String(),
-        unique=False,
-        nullable=False
-    )
-
-    qualifier_type = Column(
-        String(),
-        unique=False,
-        nullable=False
-    )
-
-    mod_id = Column(
-        Integer,
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
-        index=True,
-        nullable=False
-    )
-
-    mod = relationship(
-        "ModModel",
-        foreign_keys="TopicEntityTagQualifierModel.mod_id"
     )
 
 
@@ -187,22 +147,38 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
         nullable=False
     )
 
+    negated = Column(
+        Boolean(),
+        unique=False,
+        default=False,
+        nullable=False
+    )
+
     confidence_level = Column(
         String(),
         unique=False,
         nullable=True
     )
 
-    validated = Column(
+    validation_value_author = Column(
         Boolean(),
         unique=False,
-        nullable=False
+        nullable=True,
+        default=None
     )
 
-    validation_type = Column(
-        String(),
+    validation_value_curator = Column(
+        Boolean(),
         unique=False,
-        nullable=True
+        nullable=True,
+        default=None
+    )
+
+    validation_value_curation_tools = Column(
+        Boolean(),
+        unique=False,
+        nullable=True,
+        default=None
     )
 
     note = Column(
@@ -215,10 +191,4 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
         UniqueConstraint(
             'topic_entity_tag_id', 'mod_id', 'source',
             name='source_topic_entity_tag_unique'),
-        CheckConstraint(
-            or_(
-                and_(validated.is_(True), validation_type.isnot(None)),
-                and_(validated.is_(False), validation_type.is_(None)),
-            ),
-            name="validation_type_not_null_when_validation_provided")
     )

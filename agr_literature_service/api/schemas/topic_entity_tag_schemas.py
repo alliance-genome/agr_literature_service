@@ -3,46 +3,14 @@ from pydantic import BaseModel
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
 
-class TopicEntityTagQualifierSchemaCreate(BaseModel):
-    qualifier: str
-    qualifier_type: str
-    mod_abbreviation: str
-
-
-class TopicEntityTagQualifierSchemaPost(TopicEntityTagQualifierSchemaCreate):
-    topic_entity_tag_id: int  # required as here topic_entity_tag_prop created separate from topic_entity_tag
-
-
-class TopicEntityTagQualifierSchemaRelated(AuditedObjectModelSchema):
-    topic_entity_tag_qualifier_id: int
-    qualifier: str
-    qualifier_type: str
-    mod_abbreviation: str
-
-
-class TopicEntityTagQualifierSchemaShow(AuditedObjectModelSchema):
-    topic_entity_tag_prop_id: int
-    qualifier: str
-    qualifier_type: str
-    mod_abbreviation: str
-
-
-class TopicEntityTagQualifierSchemaUpdate(BaseModel):
-    qualifier: Optional[str] = None
-    qualifier_type: Optional[str] = None
-    mod_abbreviation: Optional[str] = None
-
-    class Config:
-        orm_mode = True
-        extra = "forbid"
-
-
 class TopicEntityTagSourceSchemaCreate(BaseModel):
     source: str
+    negated: Optional[bool] = False
     confidence_level: Optional[str] = None
     mod_abbreviation: str
-    validated: Optional[bool] = False
-    validation_type: Optional[str] = None
+    validation_value_author: Optional[bool] = None
+    validation_value_curator: Optional[bool] = None
+    validation_value_curation_tools: Optional[bool] = None
     note: Optional[str] = None
 
 
@@ -53,29 +21,35 @@ class TopicEntityTagSourceSchemaPost(TopicEntityTagSourceSchemaCreate):
 class TopicEntityTagSourceSchemaRelated(AuditedObjectModelSchema):
     topic_entity_tag_source_id: int
     source: str
+    negated: Optional[bool] = False
     confidence_level: Optional[str] = None
     mod_abbreviation: str
-    validated: Optional[bool] = False
-    validation_type: Optional[str] = None
+    validation_value_author: Optional[bool] = None
+    validation_value_curator: Optional[bool] = None
+    validation_value_curation_tools: Optional[bool] = None
     note: Optional[str] = None
 
 
 class TopicEntityTagSourceSchemaShow(AuditedObjectModelSchema):
     topic_entity_tag_source_id: int
     source: str
+    negated: Optional[bool] = False
     confidence_level: Optional[str] = None
     mod_abbreviation: str
-    validated: Optional[bool] = False
-    validation_type: Optional[str] = None
+    validation_value_author: Optional[bool] = None
+    validation_value_curator: Optional[bool] = None
+    validation_value_curation_tools: Optional[bool] = None
     note: Optional[str] = None
 
 
 class TopicEntityTagSourceSchemaUpdate(BaseModel):
     source: Optional[str]
+    negated: Optional[bool]
     confidence_level: Optional[str]
     mod_abbreviation: Optional[str]
-    validated: Optional[bool]
-    validation_type: Optional[str]
+    validation_value_author: Optional[bool]
+    validation_value_curator: Optional[bool]
+    validation_value_curation_tools: Optional[bool]
     note: Optional[str]
 
     class Config:
@@ -90,7 +64,7 @@ class TopicEntityTagSchemaCreate(BaseModel):
     entity_source: Optional[str] = None
     entity_published_as: Optional[str] = None
     species: Optional[str] = None
-    qualifiers: Optional[List[TopicEntityTagQualifierSchemaCreate]] = None
+    display_tag: Optional[str] = None
     sources: List[TopicEntityTagSourceSchemaCreate]
 
 
@@ -106,7 +80,7 @@ class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     entity_source: Optional[str] = None
     entity_published_as: Optional[str] = None
     species: Optional[str] = None
-    qualifiers: Optional[List[TopicEntityTagQualifierSchemaRelated]] = None
+    display_tag: Optional[str] = None
     sources: List[TopicEntityTagSourceSchemaRelated]
 
 
@@ -120,4 +94,5 @@ class TopicEntityTagSchemaUpdate(BaseModel):
     entity: Optional[str] = None
     entity_source: Optional[str] = None
     entity_published_as: Optional[str] = None
+    display_tag: Optional[str] = None
     species: Optional[str] = None

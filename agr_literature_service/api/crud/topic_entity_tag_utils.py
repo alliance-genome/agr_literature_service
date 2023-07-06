@@ -42,13 +42,16 @@ def add_source_obj_to_db_session(db: Session, topic_entity_tag_id: int, source: 
     source_obj = TopicEntityTagSourceModel(
         topic_entity_tag_id=topic_entity_tag_id,
         source=source["source"],
+        negated=source["negated"],
         confidence_level=source["confidence_level"],
-        validated=source["validated"],
-        validation_type=source["validation_type"],
+        validation_value_author=source["validation_value_author"],
+        validation_value_curator=source["validation_value_curator"],
+        validation_value_curation_tools=source["validation_value_curation_tools"],
         note=source["note"],
         mod_id=mod.mod_id
     )
     db.add(source_obj)
+    return source_obj
 
 
 def get_sorted_column_values(db: Session, column_name: str, desc: bool = False):
