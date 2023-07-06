@@ -3,7 +3,7 @@ from os import environ
 from agr_literature_service.lit_processing.utils.email_utils import send_email
 
 
-def send_data_export_report(status, email, mod, email_message, logger):
+def send_report(email_subject, email_message, email=None, logger=None):
 
     email_recipients = email
     if email_recipients is None:
@@ -22,16 +22,21 @@ def send_data_export_report(status, email, mod, email_message, logger):
     if environ.get('REPLY_TO'):
         reply_to = environ['REPLY_TO']
 
+    (email_status, message) = send_email(email_subject, email_recipients, email_message,
+                                         sender_email, sender_password, reply_to)
+    if email_status == 'error' and logger:
+        logger.info("Failed sending email to " + email_recipients + ": " + message + "\n")
+
+
+def send_data_export_report(status, email, mod, email_message, logger):
+
     email_subject = None
     if status == 'SUCCESS':
         email_subject = "The " + mod + " Reference json file is ready for download"
     else:
         email_subject = "Error Report for " + mod + " Reference download"
 
-    (email_status, message) = send_email(email_subject, email_recipients, email_message,
-                                         sender_email, sender_password, reply_to)
-    if email_status == 'error':
-        logger.info("Failed sending email to " + email_recipients + ": " + message + "\n")
+    send_report(email_subject, email_message, email, logger)
 
 
 def _report_unparsable_date_published(bad_date_published, is_pubmed, logger):
@@ -59,32 +64,14 @@ def _report_unparsable_date_published(bad_date_published, is_pubmed, logger):
 
 def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod, bad_date_published, logger):
 
-    email_recipients = None
-    if environ.get('CRONTAB_EMAIL'):
-        email_recipients = environ['CRONTAB_EMAIL']
-    sender_email = None
-    if environ.get('SENDER_EMAIL'):
-        sender_email = environ['SENDER_EMAIL']
-    sender_password = None
-    if environ.get('SENDER_PASSWORD'):
-        sender_password = environ['SENDER_PASSWORD']
-    reply_to = sender_email
-    if environ.get('REPLY_TO'):
-        reply_to = environ['REPLY_TO']
-    if email_recipients is None or sender_email is None:
-        return
-
     all_pmids = pmids4mod.get('all')
     if all_pmids is None:
         return
 
     email_subject = "PubMed Paper Search Report"
     email_message = ""
-
     if len(all_pmids) == 0:
-
         email_message = "No new papers from PubMed Search"
-
     else:
         log_file = log_path + "new_papers.log"
         fw = open(log_file, "w")
@@ -131,31 +118,14 @@ def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmi
             fw.write("New papers for " + mod + ":\n")
             fw.write("\n".join(pmids_to_report) + "\n\n")
 
-    (status, message) = send_email(email_subject, email_recipients,
-                                   email_message, sender_email, sender_password, reply_to)
-    if status == 'error':
-        logger.info("Failed sending email to slack: " + message + "\n")
+    send_report(email_subject, email_message, None, logger)
 
 
 def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_title, bad_date_published, mod_ids_used_in_resource, log_path, logger):  # noqa: C901
 
-    email_recipients = None
-    if environ.get('CRONTAB_EMAIL'):
-        email_recipients = environ['CRONTAB_EMAIL']
-    sender_email = None
-    if environ.get('SENDER_EMAIL'):
-        sender_email = environ['SENDER_EMAIL']
-    sender_password = None
-    if environ.get('SENDER_PASSWORD'):
-        sender_password = environ['SENDER_PASSWORD']
-    reply_to = sender_email
-    if environ.get('REPLY_TO'):
-        reply_to = environ['REPLY_TO']
     log_url = None
     if environ.get('LOG_URL'):
         log_url = environ['LOG_URL'] + "dqm_load/"
-    if email_recipients is None or sender_email is None:
-        return
 
     email_subject = mod + " DQM Loading Report"
     email_message = "<h3>" + mod + " DQM Loading Report</h3>"
@@ -234,13 +204,10 @@ def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_t
             log_path = log_path + log_file
             email_message = email_message + "<p>The full list of newly marked out of corpus papers is available at " + log_path
 
-    (status, message) = send_email(email_subject, email_recipients,
-                                   email_message, sender_email, sender_password, reply_to)
-    if status == 'error':
-        logger.info("Failed sending email to slack: " + message + "\n")
+    send_report(email_subject, email_message, None, logger)
 
 
-def write_log_and_send_pubmed_no_update_report(fw, mod, email_subject, email_recipients, sender_email, sender_password, reply_to, log_dir, logger):
+def write_log_and_send_pubmed_no_update_report(fw, mod, email_subject, logger):
 
     logger.info("No new update in PubMed.")
     fw.write("No new update in PubMed.\n")
@@ -260,14 +227,10 @@ def write_log_and_send_pubmed_no_update_report(fw, mod, email_subject, email_rec
         email_message = "No new update found in PubMed"
     email_message = "<strong>" + email_message + "</strong>"
 
-    (status, message) = send_email(email_subject, email_recipients, email_message, sender_email,
-                                   sender_password, reply_to)
-    if status == 'error':
-        fw.write("Failed sending email to slack: " + message + "\n")
-        logger.info("Failed sending email to slack: " + message + "\n")
+    send_report(email_subject, email_message, None, logger)
 
 
-def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, update_log, bad_date_published, authors_with_first_or_corresponding_flag, not_found_xml_list, log_url, log_dir, email_subject, email_recipients, sender_email, sender_password, reply_to, logger):
+def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, update_log, bad_date_published, authors_with_first_or_corresponding_flag, not_found_xml_list, log_url, log_dir, email_subject, logger):
 
     message = None
     if mod:
@@ -335,8 +298,5 @@ def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, upda
 
     if mod:
         email_message = email_message + "DONE!<p>"
-        (status, message) = send_email(email_subject, email_recipients, email_message,
-                                       sender_email, sender_password, reply_to)
-        if status == 'error':
-            fw.write("Failed sending email to slack: " + message + "\n")
-            logger.info("Failed sending email to slack: " + message + "\n")
+
+        send_report(email_subject, email_message, None, logger)
