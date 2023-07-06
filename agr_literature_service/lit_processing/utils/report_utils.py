@@ -1,9 +1,13 @@
 from os import environ
-
+import logging
 from agr_literature_service.lit_processing.utils.email_utils import send_email
 
+logging.basicConfig(format='%(message)s')
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
-def send_report(email_subject, email_message, email=None, logger=None):
+
+def send_report(email_subject, email_message, email=None):
 
     email_recipients = email
     if email_recipients is None:
@@ -24,11 +28,11 @@ def send_report(email_subject, email_message, email=None, logger=None):
 
     (email_status, message) = send_email(email_subject, email_recipients, email_message,
                                          sender_email, sender_password, reply_to)
-    if email_status == 'error' and logger:
+    if email_status == 'error':
         logger.info("Failed sending email to " + email_recipients + ": " + message + "\n")
 
 
-def send_data_export_report(status, email, mod, email_message, logger):
+def send_data_export_report(status, email, mod, email_message):
 
     email_subject = None
     if status == 'SUCCESS':
@@ -36,10 +40,10 @@ def send_data_export_report(status, email, mod, email_message, logger):
     else:
         email_subject = "Error Report for " + mod + " Reference download"
 
-    send_report(email_subject, email_message, email, logger)
+    send_report(email_subject, email_message, email)
 
 
-def _report_unparsable_date_published(bad_date_published, is_pubmed, logger):
+def _report_unparsable_date_published(bad_date_published, is_pubmed):
 
     email_message = ''
     i = 0
@@ -62,7 +66,7 @@ def _report_unparsable_date_published(bad_date_published, is_pubmed, logger):
     return email_message
 
 
-def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod, bad_date_published, logger):
+def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod, bad_date_published):
 
     all_pmids = pmids4mod.get('all')
     if all_pmids is None:
@@ -101,7 +105,7 @@ def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmi
             email_message = email_message + "<p><strong>Following new PMID(s) were not added to ABC from PubMed Search</strong><p>"
             email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
 
-        msg = _report_unparsable_date_published(bad_date_published, True, logger)
+        msg = _report_unparsable_date_published(bad_date_published, True)
         email_message = email_message + msg
 
         if log_url:
@@ -118,10 +122,10 @@ def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmi
             fw.write("New papers for " + mod + ":\n")
             fw.write("\n".join(pmids_to_report) + "\n\n")
 
-    send_report(email_subject, email_message, None, logger)
+    send_report(email_subject, email_message)
 
 
-def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_title, bad_date_published, mod_ids_used_in_resource, log_path, logger):  # noqa: C901
+def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_title, bad_date_published, mod_ids_used_in_resource, log_path):  # noqa: C901
 
     log_url = None
     if environ.get('LOG_URL'):
@@ -194,7 +198,7 @@ def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_t
 
         email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
 
-        msg = _report_unparsable_date_published(bad_date_published, False, logger)
+        msg = _report_unparsable_date_published(bad_date_published, False)
         email_message = email_message + msg
 
         if log_url:
@@ -204,10 +208,10 @@ def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_t
             log_path = log_path + log_file
             email_message = email_message + "<p>The full list of newly marked out of corpus papers is available at " + log_path
 
-    send_report(email_subject, email_message, None, logger)
+    send_report(email_subject, email_message)
 
 
-def write_log_and_send_pubmed_no_update_report(fw, mod, email_subject, logger):
+def write_log_and_send_pubmed_no_update_report(fw, mod, email_subject):
 
     logger.info("No new update in PubMed.")
     fw.write("No new update in PubMed.\n")
@@ -227,10 +231,10 @@ def write_log_and_send_pubmed_no_update_report(fw, mod, email_subject, logger):
         email_message = "No new update found in PubMed"
     email_message = "<strong>" + email_message + "</strong>"
 
-    send_report(email_subject, email_message, None, logger)
+    send_report(email_subject, email_message)
 
 
-def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, update_log, bad_date_published, authors_with_first_or_corresponding_flag, not_found_xml_list, log_url, log_dir, email_subject, logger):
+def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, update_log, bad_date_published, authors_with_first_or_corresponding_flag, not_found_xml_list, log_url, log_dir, email_subject):
 
     message = None
     if mod:
@@ -266,7 +270,7 @@ def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, upda
 
         fw.write("Total " + str(len(pmids_updated)) + " pubmed paper(s) have been updated. See the following PMID list:\n" + ", ".join(pmids_updated) + "\n")
 
-    msg = _report_unparsable_date_published(bad_date_published, True, logger)
+    msg = _report_unparsable_date_published(bad_date_published, True)
     email_message = email_message + msg
 
     if len(authors_with_first_or_corresponding_flag) > 0:
@@ -299,4 +303,4 @@ def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, upda
     if mod:
         email_message = email_message + "DONE!<p>"
 
-        send_report(email_subject, email_message, None, logger)
+        send_report(email_subject, email_message)

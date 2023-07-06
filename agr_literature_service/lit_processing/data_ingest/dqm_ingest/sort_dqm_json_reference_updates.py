@@ -667,8 +667,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 
         send_dqm_loading_report(mod, report[mod], missing_papers_in_mod[mod],
                                 agr_to_title, bad_date_published,
-                                mod_ids_used_in_resource, report_file_path,
-                                logger)
+                                mod_ids_used_in_resource, report_file_path)
 
 
 def find_unparsable_date_published(json_file, bad_date_published):
