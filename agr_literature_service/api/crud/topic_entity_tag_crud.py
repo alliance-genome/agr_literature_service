@@ -34,8 +34,11 @@ def create_tag_with_source(db: Session, topic_entity_tag: TopicEntityTagSchemaPo
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     topic_entity_tag_data["reference_id"] = reference_id
     sources = topic_entity_tag_data.pop("sources", []) or []
-    if len(sources) > 0 and sources[0]['mod_abbreviation'] == 'SGD':
-        check_and_set_sgd_display_tag(topic_entity_tag_data)
+    # if len(sources) > 0 and sources[0]['mod_abbreviation'] == 'SGD':
+    for source in sources:
+        if source['mod_abbreviation'] == 'SGD':
+            check_and_set_sgd_display_tag(topic_entity_tag_data)
+            break
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
     existing_topic_entity_tag = db.query(TopicEntityTagModel).filter(
         TopicEntityTagModel.reference_id == reference_id,
