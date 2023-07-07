@@ -12,6 +12,20 @@ from agr_literature_service.api.models import TopicEntityTagSourceModel, Referen
 
 allowed_entity_type_map = {'ATP:0000005': 'gene', 'ATP:0000006': 'allele'}
 
+# TODO: fix these to get from database or some other place?
+sgd_primary_display_tag = 'ATP:0000147'
+sgd_additional_display_tag = 'ATP:0000132'
+sgd_omics_display_tag = 'ATP:0000148'
+sgd_review_display_tag = 'ATP:0000130'
+
+sgd_primary_topics = ['ATP:0000128', 'ATP:0000012', 'ATP:0000079', 'ATP:0000129',
+                      'other primary info']
+sgd_review_topics = ['review']
+sgd_omics_topics = ['ATP:0000085', 'ATP:0000150']
+sgd_additional_topics = ['ATP:0000142', 'ATP:0000011', 'ATP:0000088', 'ATP:0000070',
+                         'ATP:0000022', 'ATP:0000149', 'ATP:0000054', 'ATP:0000006',
+                         'other additional literature']
+
 
 def get_reference_id_from_curie_or_id(db: Session, curie_or_reference_id):
     reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
@@ -87,3 +101,31 @@ def get_map_ateam_curies_to_names(curies_category, curies, token):
         return {entity["curie"]: entity["name"] if "name" in entity else entity[
             curies_category + "Symbol"]["displayText"] for entity in (resp_obj["results"] if "results" in
                                                                                              resp_obj else [])}
+
+
+def check_and_set_sgd_display_tag(topic_entity_tag_data):
+
+    topic = topic_entity_tag_data['topic']
+    entity = topic_entity_tag_data['entity']
+    entity_type = topic_entity_tag_data['entity_type']
+    display_tag = topic_entity_tag_data['display_tag']
+    if entity_type and not entity:
+        topic_entity_tag_data['entity_type'] = ''
+    if topic in sgd_primary_topics and display_tag != sgd_primary_display_tag:
+        topic_entity_tag_data['display_tag'] = sgd_primary_display_tag
+    elif topic in sgd_review_topics and display_tag != sgd_review_display_tag:
+        topic_entity_tag_data['display_tag'] = sgd_review_display_tag
+    elif topic in sgd_omics_topics:
+        if display_tag != sgd_omics_display_tag:
+            topic_entity_tag_data['display_tag'] = sgd_omics_display_tag
+        if entity_type:
+            topic_entity_tag_data['entity_type'] = ''
+        if entity:
+            topic_entity_tag_data['entity'] = ''
+    elif topic in sgd_additional_topics:
+        if entity:
+            if display_tag != sgd_additional_display_tag:
+                topic_entity_tag_data['display_tag'] = sgd_additional_display_tag
+        else:
+            if display_tag:
+                topic_entity_tag_data['display_tag'] = ''
