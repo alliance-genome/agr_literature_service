@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
-    get_map_ateam_curies_to_names
+    get_map_ateam_curies_to_names, check_and_set_sgd_display_tag
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
     ReferenceModel, TopicEntityTagSourceModel
@@ -34,6 +34,11 @@ def create_tag_with_source(db: Session, topic_entity_tag: TopicEntityTagSchemaPo
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     topic_entity_tag_data["reference_id"] = reference_id
     sources = topic_entity_tag_data.pop("sources", []) or []
+    # if len(sources) > 0 and sources[0]['mod_abbreviation'] == 'SGD':
+    for source in sources:
+        if source['mod_abbreviation'] == 'SGD':
+            check_and_set_sgd_display_tag(topic_entity_tag_data)
+            break
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
     existing_topic_entity_tag = db.query(TopicEntityTagModel).filter(
         TopicEntityTagModel.reference_id == reference_id,
