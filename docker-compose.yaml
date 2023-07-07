@@ -265,7 +265,7 @@ services:
       OKTA_API_AUDIENCE: "${OKTA_API_AUDIENCE}"
       REG: "${REG}"
     ports:
-      - "8080:8080"
+      - "${API_PORT}:8080"
     networks:
       - agr-literature
     volumes:
