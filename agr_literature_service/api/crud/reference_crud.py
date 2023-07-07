@@ -606,6 +606,10 @@ def add_license(db: Session, curie: str, license: str):  # noqa
 def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by, filter):
 
     subquery = ''
+    if mod_abbreviation == 'XB':
+        curie_prefix = 'Xenbase'
+    else:
+        curie_prefix = mod_abbreviation
     if filter == 'default':
         subquery = f"""SELECT b.reference_id,
                               COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
@@ -646,7 +650,7 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by, fi
                          WHERE curie_prefix='PMID') as ref_pmid,
                         (SELECT cross_reference.curie, reference_id
                          FROM cross_reference
-                         WHERE curie_prefix='{mod_abbreviation}') as ref_mod
+                         WHERE curie_prefix='{curie_prefix}') as ref_mod
                WHERE sub_select.reference_id=reference.reference_id
                AND sub_select.reference_id=ref_pmid.reference_id
                AND sub_select.reference_id=ref_mod.reference_id
