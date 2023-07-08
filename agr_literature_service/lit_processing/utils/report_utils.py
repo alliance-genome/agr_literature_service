@@ -99,8 +99,11 @@ def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmi
                 continue
             not_loaded_pmids = not_loaded_pmids4mod[mod]
             for not_loaded_pmid_row in not_loaded_pmids:
-                (pmid_new, doi, pmid_in_db) = not_loaded_pmid_row
-                rows = rows + "<tr><th width='80'>" + mod + ":</th><td><b>PMID:" + pmid_new + "</b> was not added since its DOI:" + doi + " already exists. This DOI is associated with PMID:" + pmid_in_db + " in the database.</td></tr>"
+                (pmid_new, xref_id, pmid_in_db) = not_loaded_pmid_row
+                if xref_id.startswith('PMC'):
+                    rows = rows + "<tr><th width='80'>" + mod + ":</th><td><b>PMID:" + pmid_new + "</b> was not added since its PMCID:" + xref_id + " already exists. This PMCID is associated with PMID:" + pmid_in_db + " in the database.</td></tr>"
+                else:
+                    rows = rows + "<tr><th width='80'>" + mod + ":</th><td><b>PMID:" + pmid_new + "</b> was not added since its DOI:" + xref_id + " already exists. This DOI is associated with PMID:" + pmid_in_db + " in the database.</td></tr>"
         if rows != '':
             email_message = email_message + "<p><strong>Following new PMID(s) were not added to ABC from PubMed Search</strong><p>"
             email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
