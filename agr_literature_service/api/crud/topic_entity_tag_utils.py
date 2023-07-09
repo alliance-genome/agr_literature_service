@@ -110,7 +110,7 @@ def check_and_set_sgd_display_tag(topic_entity_tag_data):
     entity_type = topic_entity_tag_data['entity_type']
     display_tag = topic_entity_tag_data['display_tag']
     if entity_type and not entity:
-        topic_entity_tag_data['entity_type'] = ''
+        topic_entity_tag_data['entity_type'] = None
     if topic in sgd_primary_topics and display_tag != sgd_primary_display_tag:
         topic_entity_tag_data['display_tag'] = sgd_primary_display_tag
     elif topic in sgd_review_topics and display_tag != sgd_review_display_tag:
@@ -119,13 +119,13 @@ def check_and_set_sgd_display_tag(topic_entity_tag_data):
         if display_tag != sgd_omics_display_tag:
             topic_entity_tag_data['display_tag'] = sgd_omics_display_tag
         if entity_type:
-            topic_entity_tag_data['entity_type'] = ''
+            topic_entity_tag_data['entity_type'] = None
         if entity:
-            topic_entity_tag_data['entity'] = ''
+            topic_entity_tag_data['entity'] = None
     elif topic in sgd_additional_topics:
         if entity:
             if display_tag != sgd_additional_display_tag:
                 topic_entity_tag_data['display_tag'] = sgd_additional_display_tag
         else:
             if display_tag:
-                topic_entity_tag_data['display_tag'] = ''
+                topic_entity_tag_data['display_tag'] = None
