@@ -1,3 +1,5 @@
+from typing import Union
+
 from fastapi import (APIRouter, Depends, HTTPException, Response,
                      Security, status)
 from fastapi_okta import OktaUser
@@ -31,8 +33,8 @@ db_session: Session = Depends(get_db)
 db_user = Security(auth.get_user)
 s3_session = Depends(s3_auth)
 
-running_processes_dumps_ondemand = None
-lock_dumps_ondemand = None
+running_processes_dumps_ondemand: Union[dict, None] = None
+lock_dumps_ondemand: Lock = None
 
 
 @router.post('/',
