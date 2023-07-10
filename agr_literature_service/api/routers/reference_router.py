@@ -31,8 +31,8 @@ db_session: Session = Depends(get_db)
 db_user = Security(auth.get_user)
 s3_session = Depends(s3_auth)
 
-running_processes_dumps_ondemand = Manager().dict()
-lock_dumps_ondemand = Lock()
+running_processes_dumps_ondemand = None
+lock_dumps_ondemand = None
 
 
 @router.post('/',
@@ -117,6 +117,12 @@ def generate_data_ondemand(mod: str,
                            db: Session = db_session):
 
     set_global_user_from_okta(db, user)
+    global running_processes_dumps_ondemand
+    global lock_dumps_ondemand
+    if not running_processes_dumps_ondemand:
+        running_processes_dumps_ondemand = Manager().dict()
+    if not lock_dumps_ondemand:
+        lock_dumps_ondemand = Lock()
 
     if mod is None or email is None or ui_root_url is None:
         return {
