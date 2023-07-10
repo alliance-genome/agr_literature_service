@@ -34,7 +34,7 @@ db_user = Security(auth.get_user)
 s3_session = Depends(s3_auth)
 
 running_processes_dumps_ondemand: Union[dict, None] = None
-lock_dumps_ondemand: Lock = None
+lock_dumps_ondemand = None
 
 
 @router.post('/',
