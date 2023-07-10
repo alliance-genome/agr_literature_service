@@ -25,6 +25,8 @@ from agr_literature_service.api.crud.reference_resource import create_obj
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                MeshDetailModel,
+                                               ModModel,
+                                               ModCorpusAssociationModel,
                                                ObsoleteReferenceModel,
                                                ReferenceCommentAndCorrectionModel,
                                                ReferenceModel,
@@ -44,6 +46,7 @@ from agr_literature_service.api.crud.topic_entity_tag_crud import (
 )
 from agr_literature_service.global_utils import get_next_reference_curie
 from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
+from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 logger = logging.getLogger(__name__)
 
@@ -425,7 +428,9 @@ def merge_references(db: Session,
     # Lookup both curies
     old_ref = db.query(ReferenceModel).filter(ReferenceModel.curie == old_curie).first()
     new_ref = db.query(ReferenceModel).filter(ReferenceModel.curie == new_curie).first()
-
+    if not new_ref or not old_ref:
+        # give error
+        return
     merge_comments_and_corrections(db, old_ref.reference_id, new_ref.reference_id,
                                    old_curie, new_curie)
 
@@ -447,6 +452,20 @@ def merge_references(db: Session,
     # Delete the old_curie object
     db.delete(old_ref)
     db.commit()
+
+    # find which mods refefrent this paper
+
+    mods = db.query(ModModel).join(ModCorpusAssociationModel).\
+        filter(ModCorpusAssociationModel.reference_id == new_ref.reference_id,
+               ModCorpusAssociationModel.mod_id == ModModel.mod_id).all()
+
+    # send report of merge
+    mod_list = []
+    for mod in mods:
+        mod_list.append(mod.abbreviation)
+    message = f"{old_ref.curie} has been merged into {new_ref.curie} for {mod_list}"
+
+    send_report("Reference Merge Report", message)
     return new_curie
 
 
@@ -587,6 +606,10 @@ def add_license(db: Session, curie: str, license: str):  # noqa
 def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by, filter):
 
     subquery = ''
+    if mod_abbreviation == 'XB':
+        curie_prefix = 'Xenbase'
+    else:
+        curie_prefix = mod_abbreviation
     if filter == 'default':
         subquery = f"""SELECT b.reference_id,
                               COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
@@ -627,7 +650,7 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by, fi
                          WHERE curie_prefix='PMID') as ref_pmid,
                         (SELECT cross_reference.curie, reference_id
                          FROM cross_reference
-                         WHERE curie_prefix='{mod_abbreviation}') as ref_mod
+                         WHERE curie_prefix='{curie_prefix}') as ref_mod
                WHERE sub_select.reference_id=reference.reference_id
                AND sub_select.reference_id=ref_pmid.reference_id
                AND sub_select.reference_id=ref_mod.reference_id

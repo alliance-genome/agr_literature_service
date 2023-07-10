@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
-    get_map_ateam_curies_to_names
+    get_map_ateam_curies_to_names, check_and_set_sgd_display_tag
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
     ReferenceModel, TopicEntityTagSourceModel
@@ -34,6 +34,11 @@ def create_tag_with_source(db: Session, topic_entity_tag: TopicEntityTagSchemaPo
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     topic_entity_tag_data["reference_id"] = reference_id
     sources = topic_entity_tag_data.pop("sources", []) or []
+    # if len(sources) > 0 and sources[0]['mod_abbreviation'] == 'SGD':
+    for source in sources:
+        if source['mod_abbreviation'] == 'SGD':
+            check_and_set_sgd_display_tag(topic_entity_tag_data)
+            break
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
     existing_topic_entity_tag = db.query(TopicEntityTagModel).filter(
         TopicEntityTagModel.reference_id == reference_id,
@@ -190,7 +195,8 @@ def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token:
         all_topics_and_entities.append(tag.topic)
         if tag.entity_type is not None:
             all_topics_and_entities.append(tag.entity_type)
-            all_entities[tag.entity_type].append(tag.entity)
+            if tag.entity_source == "alliance":
+                all_entities[tag.entity_type].append(tag.entity)
     entity_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=all_topics_and_entities,
                                                          token=token)
     for atpterm_curie in all_entities.keys():

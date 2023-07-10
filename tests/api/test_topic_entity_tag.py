@@ -318,3 +318,58 @@ class TestTopicEntityTag:
                 'ATP:0000122': 'entity type',
                 'WB:WBGene00003001': 'lin-12'
             }
+            alliance_topic_tag = {
+                "reference_curie": test_topic_entity_tag.related_ref_curie,
+                "topic": "ATP:0000009",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_source": "alliance",
+                "species": "NCBITaxon:6239",
+                "display_tag": "string",
+                "sources": [{
+                    "source": "WB_NN_1",
+                    "confidence_level": "high",
+                    "mod_abbreviation": test_mod.new_mod_abbreviation,
+                    "note": "test note"
+                }]
+            }
+            client.post(url="/topic_entity_tag/", json=alliance_topic_tag, headers=auth_headers)
+            response = client.get(url="/topic_entity_tag/map_entity_curie_to_name/",
+                                  params={"curie_or_reference_id": test_topic_entity_tag.related_ref_curie,
+                                          "token": get_authentication_token()},
+                                  headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json() == {
+                'ATP:0000005': 'gene',
+                'ATP:0000009': 'phenotype',
+                'ATP:0000122': 'entity type',
+                'WB:WBGene00003001': 'lin-12'
+            }
+            wormbase_topic_tag = {
+                "reference_curie": test_topic_entity_tag.related_ref_curie,
+                "topic": "ATP:0000009",
+                "entity_type": "ATP:0000099",
+                "entity": "WB:WBTransgene0001",
+                "entity_source": "wormbase",
+                "species": "NCBITaxon:6239",
+                "display_tag": "string",
+                "sources": [{
+                    "source": "WB_NN_1",
+                    "confidence_level": "high",
+                    "mod_abbreviation": test_mod.new_mod_abbreviation,
+                    "note": "test note"
+                }]
+            }
+            client.post(url="/topic_entity_tag/", json=wormbase_topic_tag, headers=auth_headers)
+            response = client.get(url="/topic_entity_tag/map_entity_curie_to_name/",
+                                  params={"curie_or_reference_id": test_topic_entity_tag.related_ref_curie,
+                                          "token": get_authentication_token()},
+                                  headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json() == {
+                'ATP:0000005': 'gene',
+                'ATP:0000009': 'phenotype',
+                'ATP:0000099': 'existing transgenic construct',
+                'ATP:0000122': 'entity type',
+                'WB:WBGene00003001': 'lin-12'
+            }
