@@ -39,7 +39,12 @@ test_reference_curies = [
     'AGRKB:101000000946299',
     'AGRKB:101000000594062',
     'AGRKB:101000000872479',
-    'AGRKB:101000000865324']
+    'AGRKB:101000000865324',
+    'AGRKB:101000000255429',  # needed to test merges of papers
+    'AGRKB:101000000390275',
+    'AGRKB:101000000466335',
+    'AGRKB:101000000014457'   # end of merge test examples
+]
 
 trigger_list = ['reference', 'resource', 'author', 'cross_reference']
 
@@ -236,6 +241,7 @@ def add_references(db_orig_session, db_subset_session):
             db_subset_session.commit()
     if verbose:
         print(f"Added {count} records for References.")
+    return count
 
 
 def add_specific_test_references(db_orig_session, db_subset_session):
@@ -361,7 +367,7 @@ def start():
     load_resources(db_orig_session, db_subset_session)
 
     # add the references, one set by a count and other from preset list.
-    add_references(db_orig_session, db_subset_session)
+    ref_count = add_references(db_orig_session, db_subset_session)
     add_specific_test_references(db_orig_session, db_subset_session)
     print("Be patient the commit can take a wee while.")
     db_subset_session.commit()
@@ -383,7 +389,7 @@ def start():
         if not count:
             print(f"ERROR: No records found for table  {table_name}")
             okay = False
-        theoretical_count = len(test_reference_curies) + num_of_refs
+        theoretical_count = len(test_reference_curies) + ref_count
         if count != theoretical_count:
             print(f"ERROR: {count} records found for table  {table_name} but was expecting {theoretical_count}")
             okay = False
