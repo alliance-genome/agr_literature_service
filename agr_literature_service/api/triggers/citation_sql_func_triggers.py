@@ -99,7 +99,7 @@ BEGIN
         res_abbr := ' ';
     END IF;
     -- Reference details
-    SELECT ref.title, ref.volume, ref.issue_name, ref.page_range, SUBSTRING(ref.date_published, 1,4), ref.citation_id 
+    SELECT ref.title, ref.volume, ref.issue_name, ref.page_range, SUBSTRING(ref.date_published, 1,4), ref.citation_id
            into title, volume, issue_name, page_range, ref_year, citation_identifier
       FROM reference ref
       WHERE reference_id = ref_id;
@@ -136,7 +136,7 @@ BEGIN
     IF citation_identifier is NULL THEN
       raise notice 'sh cit: %', sht_citation;
       raise notice 'cit: %', long_citation;
-      INSERT INTO citation (citation, short_citation) VALUES (long_citation, sht_citation) 
+      INSERT INTO citation (citation, short_citation) VALUES (long_citation, sht_citation)
              RETURNING citation_id into citation_identifier;
       raise notice 'citation inserted new id is %', citation_identifier;
       raise notice 'citation_id %', citation_identifier;
@@ -167,7 +167,7 @@ BEGIN
         IF NOT coalesce(author.last_name, '') = '' THEN
             return CONCAT(author.last_name, ', ', author.first_name, '.');
         END IF;
-    END IF; 
+    END IF;
     return CONCAT(author.name, '.');
 END;
 $$;
