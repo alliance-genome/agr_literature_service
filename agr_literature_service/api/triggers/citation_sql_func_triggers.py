@@ -25,7 +25,7 @@ DECLARE
    citation_identifier integer;
    --- build <volume>(<issue>):<page(s)> into ref_details
    ref_details TEXT default '';
-   -- used in querys for short
+   -- used in queries for short
    iso resource.iso_abbreviation%type;
    medline resource.iso_abbreviation%type;
 -- Long citation
@@ -44,8 +44,7 @@ BEGIN
         return;
     END IF;
     -- Also need to update data in short_citation column in the citation table in the database
-   
-    
+
     SELECT * FROM author into s_auth
       WHERE author.reference_id = ref_id AND
             author.first_author = 't'
@@ -100,7 +99,8 @@ BEGIN
         res_abbr := ' ';
     END IF;
     -- Reference details
-    SELECT ref.title, ref.volume, ref.issue_name, ref.page_range, SUBSTRING(ref.date_published, 1,4), ref.citation_id into title, volume, issue_name, page_range, ref_year, citation_identifier
+    SELECT ref.title, ref.volume, ref.issue_name, ref.page_range, SUBSTRING(ref.date_published, 1,4), ref.citation_id 
+           into title, volume, issue_name, page_range, ref_year, citation_identifier
       FROM reference ref
       WHERE reference_id = ref_id;
     if title is NULL THEN
@@ -136,7 +136,8 @@ BEGIN
     IF citation_identifier is NULL THEN
       raise notice 'sh cit: %', sht_citation;
       raise notice 'cit: %', long_citation;
-      INSERT INTO citation (citation, short_citation) VALUES (long_citation, sht_citation) RETURNING citation_id into citation_identifier;
+      INSERT INTO citation (citation, short_citation) VALUES (long_citation, sht_citation) 
+             RETURNING citation_id into citation_identifier;
       raise notice 'citation inserted new id is %', citation_identifier;
       raise notice 'citation_id %', citation_identifier;
       UPDATE reference SET citation_id = citation_identifier WHERE reference.reference_id = ref_id;
@@ -157,16 +158,6 @@ as $$
 DECLARE
   s_auth author.name%type;
 BEGIN
-    -- Get first author for short citation
-    -- SCRUM-2895
-    -- As a curator I want the short citation to have author initials even if we don’t have a first initial  stored in the database so the citations look right
-    -- The “author_short” in the PL/SQL procedure  for short_citation is from last name + first_name columns (last name and first_initial). Some authors do not have first_name and last_name so it is impossible to generate author_short from these two columns. So we need to fix the procedure to generate the author_short from the author with order = 1 as follows:
-    -- if last name and first_initial (newly added column)  are not NULL, 
-    --     use the values from these two columns
-    -- else if last name and first_name are not NULL, 
-    --     then use the values from these two columns
-    -- otherwise
-    --     use what is in the “name” column.
      IF NOT coalesce(author.first_initial, '') = '' THEN
         IF NOT coalesce(author.last_name, '') = '' THEN
             return CONCAT(author.last_name, ', ', author.first_initial, '.');
