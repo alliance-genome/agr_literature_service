@@ -15,6 +15,7 @@ DECLARE
 --   <volume>(<issue>):<page(s)>
    sht_citation TEXT default '';
    author_short author.name%type default '';
+   s_auth record default NULL;
    ref_year reference.page_range%type;
    res_abbr TEXT default '';
    journal TEXT;
@@ -42,39 +43,44 @@ BEGIN
     IF ref_id is NULL THEN
         return;
     END IF;
-    -- Get first author for short citation
-    SELECT CONCAT(SUBSTRING(author.first_name, 1 ,1), ' ', author.last_name) FROM author into author_short
+    -- Also need to update data in short_citation column in the citation table in the database
+   
+    
+    SELECT * FROM author into s_auth
       WHERE author.reference_id = ref_id AND
             author.first_author = 't'
         LIMIT 1;
-    -- raise notice 'auth add is %', author_short;
-    IF author_short is NULL THEN
-      SELECT CONCAT(SUBSTRING(author.first_name, 1 ,1), ' ', author.last_name) FROM author into author_short
-        WHERE author.reference_id = ref_id
-          ORDER BY author.author_id
-          LIMIT 1;
-    END IF;
-    IF author_short is NULL THEN
-      author_short := ' ';
-    END IF;
-    -- raise notice 'Author for short is %', author_short;
+
     -- Get list of authors for long citation
     for auth in SELECT * FROM author
       WHERE author.reference_id = ref_id and
             author.first_author = 't'
+            ORDER BY author.order
     loop
       raise notice 'Record %', auth;
-      authors := authors || auth.name || '; ';
+      authors = CONCAT(authors , auth.name, '; ');
+      IF s_auth is NULL THEN
+        s_auth = auth;
+      END IF;
     end loop;
+
     for auth in SELECT * FROM author
       WHERE author.reference_id = ref_id and
             author.first_author is distinct from 't'
       ORDER BY author.order asc
     loop
       raise notice 'Record %', auth;
-      authors := authors || auth.name || '; ';
+      authors = CONCAT(authors , auth.name, '; ');
+      raise notice 'String %', authors;
+      IF s_auth is NULL THEN
+        s_auth = auth;
+      END IF;
     end loop;
+    author_short = get_short_author_string(s_auth);
+    raise notice 'Author record for short is %', s_auth;
+    raise notice 'Author for short is %', author_short;
     raise notice 'Authors %', authors;
+    -- remove the last '; ' from the authors string
     IF authors != '' THEN
       authors := SUBSTRING(authors, 1, LENGTH(authors)-2);
     ELSE
@@ -141,6 +147,41 @@ BEGIN
 END $$ language plpgsql;
 """
 
+get_short_author_string = r"""
+CREATE OR REPLACE FUNCTION get_short_author_string(
+    author record
+)
+  RETURNS TEXT
+  language plpgsql
+as $$
+DECLARE
+  s_auth author.name%type;
+BEGIN
+    -- Get first author for short citation
+    -- SCRUM-2895
+    -- As a curator I want the short citation to have author initials even if we don’t have a first initial  stored in the database so the citations look right
+    -- The “author_short” in the PL/SQL procedure  for short_citation is from last name + first_name columns (last name and first_initial). Some authors do not have first_name and last_name so it is impossible to generate author_short from these two columns. So we need to fix the procedure to generate the author_short from the author with order = 1 as follows:
+    -- if last name and first_initial (newly added column)  are not NULL, 
+    --     use the values from these two columns
+    -- else if last name and first_name are not NULL, 
+    --     then use the values from these two columns
+    -- otherwise
+    --     use what is in the “name” column.
+     IF NOT coalesce(author.first_initial, '') = '' THEN
+        IF NOT coalesce(author.last_name, '') = '' THEN
+            return CONCAT(author.last_name, ', ', author.first_initial, '.');
+        END IF;
+    END IF;
+     IF NOT coalesce(author.first_name, '') = '' THEN
+        IF NOT coalesce(author.last_name, '') = '' THEN
+            return CONCAT(author.last_name, ', ', author.first_name, '.');
+        END IF;
+    END IF; 
+    return CONCAT(author.name, '.');
+END;
+$$;
+"""
+
 citation_seq = r"""
 CREATE OR REPLACE FUNCTION get_next_citation_id()
   RETURNS int
@@ -157,5 +198,6 @@ $$;
 
 
 def add_citation_methods(db_session):
+    db_session.execute(get_short_author_string)
     db_session.execute(citation_update)
     db_session.execute(citation_seq)
