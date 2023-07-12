@@ -36,6 +36,7 @@ class Citation:
         if pages_value:
             self._pages = pages_value
 
+
 @dataclass
 class BibInfo:
     _authors: List[str] = field(default_factory=lambda: [])
@@ -48,7 +49,7 @@ class BibInfo:
     abstract: str = ""
 
     @property
-    def citation(self) -> str:
+    def citation(self):
         return self._citation
 
     @citation.setter
