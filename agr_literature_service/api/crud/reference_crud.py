@@ -5,7 +5,6 @@ reference_crud.py
 import logging
 import re
 from datetime import datetime
-from dateutil.parser import parse as parse_date
 from typing import Any, Dict, List
 from os import getcwd
 
@@ -722,8 +721,8 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     if reference.resource:
         bib_info.journal = reference.resource.title
     bib_info.citation = Citation(volume=reference.volume, pages=reference.page_range)
-    if reference.date_published_start:
-        bib_info.year = str(parse_date(reference.date_published_start).year)
+    if reference.date_published:
+        bib_info.year = reference.date_published
     bib_info.abstract = reference.abstract
     return bib_info.get_formatted_bib(format_type=return_format)
 
