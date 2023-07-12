@@ -1,4 +1,6 @@
 import logging
+from dataclasses import dataclass, field
+from typing import List
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, Load
@@ -7,6 +9,69 @@ from fastapi import HTTPException, status
 from agr_literature_service.api.models import ReferenceModel, ObsoleteReferenceModel, ReferencefileModel
 
 logger = logging.getLogger(__name__)
+
+
+class Citation:
+    def __init__(self, volume="", pages=""):
+        self._volume = ""
+        self.volume = volume
+        self._pages = ""
+        self.pages = pages
+
+    @property
+    def volume(self):
+        return self._volume
+
+    @volume.setter
+    def volume(self, vol_value):
+        if vol_value:
+            self._volume = vol_value
+
+    @property
+    def pages(self):
+        return self._pages
+
+    @pages.setter
+    def pages(self, pages_value):
+        if pages_value:
+            self._pages = pages_value
+
+@dataclass
+class BibInfo:
+    _authors: List[str] = field(default_factory=lambda: [])
+    cross_references: List[str] = field(default_factory=lambda: [])
+    pubmed_types: List[str] = field(default_factory=lambda: [])
+    title: str = ""
+    journal: str = ""
+    _citation: str = ""
+    year: str = ""
+    abstract: str = ""
+
+    @property
+    def citation(self) -> str:
+        return self._citation
+
+    @citation.setter
+    def citation(self, citation: Citation):
+        self._citation = f"V: {citation.volume}P: {citation.pages}"
+
+    @property
+    def authors(self) -> List[str]:
+        return self._authors
+
+    def add_author(self, last_name: str, first_initial: str):
+        self._authors.append(f"{last_name} {first_initial}")
+
+    def get_formatted_bib(self, format_type: str = 'txt'):
+        if format_type == 'txt':
+            return f"author|{' ; '.join(self.authors)}\n" \
+                   f"accession|{' '.join(self.cross_references)}\n" \
+                   f"type|{' ; '.join(self.pubmed_types)}\n" \
+                   f"title|{self.title}\n" \
+                   f"journal|{self.journal}\n" \
+                   f"citation|{self.citation}\n" \
+                   f"year|{self.year}\n" \
+                   f"abstract|{self.abstract}\n"
 
 
 def get_merged(db: Session, curie, query_options=None):
