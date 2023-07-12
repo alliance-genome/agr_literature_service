@@ -632,7 +632,24 @@ def _delete_comment_correction(db_session, fw, pmid, reference_id_from, referenc
             fw.write("PMID:" + str(pmid) + ": DELETE CommentsAndCorrections: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + " failed: " + str(e) + "\n")
 
 
-def update_comment_corrections(db_session, fw, pmid, reference_id, pmid_to_reference_id, reference_ids_to_comment_correction_type, comment_correction_in_json, update_log):
+def _get_curator_email_who_added_comment_correction(db_session, reference_id_from, reference_id_to, type):
+
+    rows = db_session.execute(f"SELECT u.email "
+                              f"FROM reference_comments_and_corrections_version rcc, transaction t, users u "
+                              f"WHERE rcc.reference_id_from = {reference_id_from} "
+                              f"AND rcc.reference_id_to = {reference_id_to} "
+                              f"AND rcc.reference_comment_and_correction_type = '{type}' "
+                              f"AND rcc.transaction_id = t.id "
+                              f"AND u.id = t.user_id").fetchall()
+    if len(rows) == 0:
+        return None
+    for row in rows:
+        if row['email'] and '@' in row['email']:
+            return row['email']
+    return None
+
+
+def update_comment_corrections(db_session, fw, pmid, reference_id, pmid_to_reference_id, reference_ids_to_comment_correction_type, comment_correction_in_json, update_log):  # noqa: C901
 
     if comment_correction_in_json is None or str(comment_correction_in_json) == '{}':
         return
@@ -691,9 +708,14 @@ def update_comment_corrections(db_session, fw, pmid, reference_id, pmid_to_refer
         (reference_id_from, reference_id_to) = key
         if reference_id in [reference_id_from, reference_id_to]:
             ## only remove the ones that are associated with given PMIDs
-            _delete_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
-            update_log['comment_erratum'] = update_log['comment_erratum'] + 1
-            update_log['pmids_updated'].append(pmid)
+            email = _get_curator_email_who_added_comment_correction(db_session,
+                                                                    reference_id_from,
+                                                                    reference_id_to,
+                                                                    type)
+            if email is None:
+                _delete_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
+                update_log['comment_erratum'] = update_log['comment_erratum'] + 1
+                update_log['pmids_updated'].append(pmid)
 
 
 def _insert_mesh_term(db_session, fw, pmid, reference_id, terms):  # pragma: no cover

@@ -66,15 +66,15 @@ def initialize_elasticsearch():
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}]
     }
-    es.index(index="references_index", id=1, body=doc1)
-    es.index(index="references_index", id=2, body=doc2)
-    es.index(index="references_index", id=3, body=doc3)
-    es.index(index="references_index", id=4, body=doc4)
-    es.indices.refresh(index="references_index")
+    es.index(index=config.ELASTICSEARCH_INDEX, id=1, body=doc1)
+    es.index(index=config.ELASTICSEARCH_INDEX, id=2, body=doc2)
+    es.index(index=config.ELASTICSEARCH_INDEX, id=3, body=doc3)
+    es.index(index=config.ELASTICSEARCH_INDEX, id=4, body=doc4)
+    es.indices.refresh(index=config.ELASTICSEARCH_INDEX)
     yield None
     print("***** Cleaning Up Elasticsearch Data *****")
-    es.indices.delete(index="references_index")
-    print("deleted references_index")
+    es.indices.delete(index=config.ELASTICSEARCH_INDEX)
+    print("deleted test index")
 
 
 class TestSearch:
