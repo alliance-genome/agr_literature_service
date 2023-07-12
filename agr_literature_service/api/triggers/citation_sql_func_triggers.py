@@ -76,9 +76,9 @@ BEGIN
       END IF;
     end loop;
     author_short = get_short_author_string(s_auth);
-    raise notice 'Author record for short is %', s_auth;
-    raise notice 'Author for short is %', author_short;
-    raise notice 'Authors %', authors;
+    -- raise notice 'Author record for short is %', s_auth;
+    -- raise notice 'Author for short is %', author_short;
+    -- raise notice 'Authors %', authors;
     -- remove the last '; ' from the authors string
     IF authors != '' THEN
       authors := SUBSTRING(authors, 1, LENGTH(authors)-2);
