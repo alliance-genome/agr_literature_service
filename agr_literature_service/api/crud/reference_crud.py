@@ -705,16 +705,19 @@ def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, fi
                         background=BackgroundTask(cleanup, tmp_file_with_path))
 
 
-def get_bib_info(db, curie, return_format: str = 'txt'):
+def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     bib_info = BibInfo()
     reference: ReferenceModel = get_reference(db, curie, load_authors=True)
     author: AuthorModel
     for author in reference.author:
         bib_info.add_author(author.last_name, author.first_initial)
+    all_mods_abbreviations = [mod.abbreviation if mod.abbreviation != "XB" else mod.short_name for mod in
+                              db.query(ModModel).all()]
     xref: CrossReferenceModel
-    bib_info.cross_references = [xref.curie for xref in reference.cross_reference if not xref.is_obsolete]
+    bib_info.cross_references = [xref.curie for xref in reference.cross_reference if not xref.is_obsolete and (
+            xref.curie_prefix not in all_mods_abbreviations or xref.curie_prefix == mod_abbreviation)]
     if reference.pubmed_types:
-        bib_info.pubmed_types = [pub_type for pub_type in reference.pubmed_types]
+        bib_info.pubmed_types = [pub_type.replace("_", " ") for pub_type in reference.pubmed_types]
     bib_info.title = reference.title
     if reference.resource:
         bib_info.journal = reference.resource.title
@@ -723,3 +726,5 @@ def get_bib_info(db, curie, return_format: str = 'txt'):
         bib_info.year = str(parse_date(reference.date_published_start).year)
     bib_info.abstract = reference.abstract
     return bib_info.get_formatted_bib(format_type=return_format)
+
+
