@@ -1,4 +1,3 @@
-from os import environ
 import logging
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
