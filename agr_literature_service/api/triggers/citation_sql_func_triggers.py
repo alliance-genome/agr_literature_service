@@ -129,8 +129,8 @@ BEGIN
     long_citation := authors || ', (' || ref_year || ') ' || title || '.';
     long_citation := long_citation || ' ' || journal || ' ' || ref_details;
     raise notice '%', long_citation;
-    sht_citation :=  author_short || ', ' || ref_year || ', ' || res_abbr || ', ' || ref_details;
-    -- raise notice '%', sht_citation;
+    sht_citation :=  author_short || ' (' || ref_year || ') ' || res_abbr || ' ' || ref_details;
+    raise notice '%', sht_citation;
     SELECT citation_id from reference where reference_id = ref_id into citation_identifier;
     raise notice 'citation_id from reference is %', citation_identifier;
     IF citation_identifier is NULL THEN
@@ -160,12 +160,12 @@ DECLARE
 BEGIN
      IF NOT coalesce(author.first_initial, '') = '' THEN
         IF NOT coalesce(author.last_name, '') = '' THEN
-            return CONCAT(author.last_name, ', ', author.first_initial, '.');
+            return CONCAT(author.last_name, ' ', author.first_initial);
         END IF;
     END IF;
      IF NOT coalesce(author.first_name, '') = '' THEN
         IF NOT coalesce(author.last_name, '') = '' THEN
-            return CONCAT(author.last_name, ', ', author.first_name, '.');
+            return CONCAT(author.last_name, ' ', author.first_name);
         END IF;
     END IF;
     return CONCAT(author.name, '.');
