@@ -68,9 +68,9 @@ BEGIN
             author.first_author is distinct from 't'
       ORDER BY author.order asc
     loop
-      raise notice 'Record %', auth;
+      -- raise notice 'Record %', auth;
       authors = CONCAT(authors , auth.name, '; ');
-      raise notice 'String %', authors;
+      -- raise notice 'String %', authors;
       IF s_auth is NULL THEN
         s_auth = auth;
       END IF;
@@ -124,22 +124,20 @@ BEGIN
     -- build the ref_details
     -- <volume>(<issue>):<page(s)>
     ref_details := volume || ' (' || issue_name || '): ' || page_range;
-    raise notice 'rd: %', ref_details;
-    raise notice 'tit: %', title;
     long_citation := authors || ', (' || ref_year || ') ' || title || '.';
     long_citation := long_citation || ' ' || journal || ' ' || ref_details;
-    raise notice '%', long_citation;
+    -- raise notice '%', long_citation;
     sht_citation :=  author_short || ' (' || ref_year || ') ' || res_abbr || ' ' || ref_details;
-    raise notice '%', sht_citation;
+    -- raise notice '%', sht_citation;
     SELECT citation_id from reference where reference_id = ref_id into citation_identifier;
     raise notice 'citation_id from reference is %', citation_identifier;
     IF citation_identifier is NULL THEN
-      raise notice 'sh cit: %', sht_citation;
-      raise notice 'cit: %', long_citation;
+      -- raise notice 'sh cit: %', sht_citation;
+      -- raise notice 'cit: %', long_citation;
       INSERT INTO citation (citation, short_citation) VALUES (long_citation, sht_citation)
              RETURNING citation_id into citation_identifier;
-      raise notice 'citation inserted new id is %', citation_identifier;
-      raise notice 'citation_id %', citation_identifier;
+      -- raise notice 'citation inserted new id is %', citation_identifier;
+      -- raise notice 'citation_id %', citation_identifier;
       UPDATE reference SET citation_id = citation_identifier WHERE reference.reference_id = ref_id;
     ELSE
       UPDATE citation SET citation = long_citation, short_citation = sht_citation
