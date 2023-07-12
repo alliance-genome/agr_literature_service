@@ -720,6 +720,6 @@ def get_bib_info(db, curie, return_format: str = 'txt'):
         bib_info.journal = reference.resource.title
     bib_info.citation = Citation(volume=reference.volume, pages=reference.page_range)
     if reference.date_published_start:
-        bib_info.year = parse_date(reference.date_published_start).year
+        bib_info.year = str(parse_date(reference.date_published_start).year)
     bib_info.abstract = reference.abstract
     return bib_info.get_formatted_bib(format_type=return_format)
