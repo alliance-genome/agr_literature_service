@@ -2,6 +2,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, subqueryload
 from sqlalchemy import func
 from os import environ, system
+from typing import List
 
 import argparse
 from random import randint
@@ -74,7 +75,7 @@ subset_dump = args.subset_dump
 randomise = args.randomise
 subset_name = args.name_subset
 
-ref_ids = []
+ref_ids: List = []
 
 
 def dump_schema(user, password, server, port, db):
