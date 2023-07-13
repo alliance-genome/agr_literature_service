@@ -22,7 +22,7 @@ from agr_literature_service.api.crud.cross_reference_crud import set_curie_prefi
 from agr_literature_service.api.crud.referencefile_crud import cleanup
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.api.crud.reference_resource import create_obj
-from agr_literature_service.api.crud.reference_utils import get_reference
+from agr_literature_service.api.crud.reference_utils import get_reference, BibInfo, Citation
 from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                MeshDetailModel,
                                                ModModel,
@@ -702,3 +702,27 @@ def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, fi
     # return FileResponse(path=tmp_file_with_path, filename=tmp_file, media_type='application/plain')
     return FileResponse(path=tmp_file_with_path, filename=tmp_file, media_type='application/plain',
                         background=BackgroundTask(cleanup, tmp_file_with_path))
+
+
+def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
+    bib_info = BibInfo()
+    reference: ReferenceModel = get_reference(db, curie, load_authors=True)
+    author: AuthorModel
+    for author in sorted(reference.author, key=lambda a: a.order):
+        bib_info.add_author(author.last_name, author.first_initial, author.name)
+    all_mods_abbreviations = [mod.abbreviation if mod.abbreviation != "XB" else mod.short_name for mod in
+                              db.query(ModModel).all()]
+    xref: CrossReferenceModel
+    bib_info.cross_references = [xref.curie for xref in reference.cross_reference if not xref.is_obsolete
+                                 and (xref.curie_prefix not in all_mods_abbreviations
+                                      or xref.curie_prefix == mod_abbreviation)]
+    if reference.pubmed_types:
+        bib_info.pubmed_types = [pub_type.replace("_", " ") for pub_type in reference.pubmed_types]
+    bib_info.title = reference.title
+    if reference.resource:
+        bib_info.journal = reference.resource.title
+    bib_info.citation = Citation(volume=reference.volume, pages=reference.page_range)
+    if reference.date_published:
+        bib_info.year = reference.date_published
+    bib_info.abstract = reference.abstract
+    return bib_info.get_formatted_bib(format_type=return_format)

@@ -380,3 +380,21 @@ class TestReference:
             assert len(wb_ref_types) > 0
             assert 'Journal_article' in wb_ref_types
             assert 'Micropublication' in wb_ref_types
+
+    def test_get_bib_info(self, test_reference, auth_headers, test_mod): # noqa
+        with TestClient(app) as client:
+            parameters = {
+                'mod_abbreviation': test_mod.new_mod_abbreviation,
+                'return_format': 'txt'
+            }
+            response = client.get(url=f"/reference/get_bib_info/{test_reference.new_ref_curie}", params=parameters,
+                                  headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json() == 'author|\n' \
+                                      'accession|\n' \
+                                      'type|\n' \
+                                      'title|Bob\n' \
+                                      'journal|\n' \
+                                      'citation|V: P: \n' \
+                                      'year|\n' \
+                                      'abstract|3\n'
