@@ -234,7 +234,7 @@ class TestReference:
             author = db.query(AuthorModel).filter(AuthorModel.name == "S. Wu").one()
             assert author.first_name == 'S.'
 
-            assert response['citation'] == "D. Wu; S. Wu, () Some test 001 title.  433 (4): 538--541"
+            assert response['citation'] == "D. Wu; S. Wu, () Some test 001 title.  433(4):538--541"
 
             assert response['cross_references'][0]['curie'] == 'FB:FBrf0221304'
 
