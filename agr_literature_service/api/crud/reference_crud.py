@@ -713,8 +713,9 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     all_mods_abbreviations = [mod.abbreviation if mod.abbreviation != "XB" else mod.short_name for mod in
                               db.query(ModModel).all()]
     xref: CrossReferenceModel
-    bib_info.cross_references = [xref.curie for xref in reference.cross_reference if not xref.is_obsolete and (
-            xref.curie_prefix not in all_mods_abbreviations or xref.curie_prefix == mod_abbreviation)]
+    bib_info.cross_references = [xref.curie for xref in reference.cross_reference if not xref.is_obsolete and
+                                 (xref.curie_prefix not in all_mods_abbreviations or
+                                  xref.curie_prefix == mod_abbreviation)]
     if reference.pubmed_types:
         bib_info.pubmed_types = [pub_type.replace("_", " ") for pub_type in reference.pubmed_types]
     bib_info.title = reference.title
@@ -725,5 +726,3 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
         bib_info.year = reference.date_published
     bib_info.abstract = reference.abstract
     return bib_info.get_formatted_bib(format_type=return_format)
-
-
