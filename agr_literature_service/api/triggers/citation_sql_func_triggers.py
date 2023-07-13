@@ -123,7 +123,7 @@ BEGIN
     END IF;
     -- build the ref_details
     -- <volume>(<issue>):<page(s)>
-    ref_details := volume || ' (' || issue_name || '): ' || page_range;
+    ref_details := volume || '(' || issue_name || '):' || page_range;
     long_citation := authors || ', (' || ref_year || ') ' || title || '.';
     long_citation := long_citation || ' ' || journal || ' ' || ref_details;
     -- raise notice '%', long_citation;
@@ -166,7 +166,7 @@ BEGIN
             return CONCAT(author.last_name, ' ', author.first_name);
         END IF;
     END IF;
-    return CONCAT(author.name, '.');
+    return CONCAT(author.name, '');
 END;
 $$;
 """
