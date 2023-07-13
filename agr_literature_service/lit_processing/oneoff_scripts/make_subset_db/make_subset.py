@@ -1,8 +1,11 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, subqueryload
+from sqlalchemy import func
 from os import environ, system
+from typing import List
 
 import argparse
+from random import randint
 
 from agr_literature_service.api.models import (
     UserModel,
@@ -39,36 +42,14 @@ test_reference_curies = [
     'AGRKB:101000000946299',
     'AGRKB:101000000594062',
     'AGRKB:101000000872479',
-    'AGRKB:101000000865324']
+    'AGRKB:101000000865324',
+    'AGRKB:101000000255429',  # needed to test merges of papers
+    'AGRKB:101000000390275',
+    'AGRKB:101000000466335',
+    'AGRKB:101000000014457'   # end of merge test examples
+]
 
 trigger_list = ['reference', 'resource', 'author', 'cross_reference']
-
-seq_list = [
-    "author_author_id_seq",
-    "cross_reference_id_seq",
-    "editor_editor_id_seq",
-    "mesh_detail_mesh_detail_id_seq",
-    "mod_corpus_association_mod_corpus_association_id_seq",
-    "mod_mod_id_seq",
-    "mod_referencetype_mod_referencetype_id_seq",
-    "mod_taxon_mod_taxon_id_seq",
-    "obsolete_reference_curie_obsolete_id_seq",
-    "reference_comments_and_correc_reference_comment_and_correct_seq",
-    "reference_mod_md5sum_reference_mod_md5sum_id_seq",
-    "reference_mod_referencetype_reference_mod_referencetype_id_seq",
-    "reference_reference_id_seq",
-    "referencefile_mod_referencefile_mod_id_seq",
-    "referencefile_referencefile_id_seq",
-    "referencetype_referencetype_id_seq",
-    "resource_descriptor_pages_resource_descriptor_pages_id_seq",
-    "resource_descriptors_resource_descriptor_id_seq",
-    "resource_resource_id_seq",
-    "topic_entity_tag_topic_entity_tag_id_seq",
-    "transaction_id_seq",
-    "workflow_tag_reference_workflow_tag_id_seq",
-    "copyright_license_copyright_license_id_seq",
-    "citation_citation_id_seq"
-]
 
 ALL_OUTPUT = 2  # For verbosity
 
@@ -87,6 +68,8 @@ parser.add_argument('-v', '--verbose', help="verbosity, minumum=0, headlines=1, 
 parser.add_argument('-d', '--dump_dir', help='Directory to dump schemas and dbs to', type=str, required=True)
 parser.add_argument('-f', '--full_orig_dump', help='Dump the original database in full as well', type=bool, default=False, required=False)
 parser.add_argument('-s', '--subset_dump', help='Dump the new subset database.', type=bool, default=False, required=False)
+parser.add_argument('-r', '--randomise', help='Randomise the references added', type=bool, default=False, required=False)
+parser.add_argument('-n', '--name_subset', help='Set the new subset database name.', type=str, default="literature_subset", required=False)
 args = parser.parse_args()
 
 num_of_refs = args.limit
@@ -94,10 +77,14 @@ verbose = args.verbose
 dump_dir = args.dump_dir
 full_orig_dump = args.full_orig_dump
 subset_dump = args.subset_dump
+randomise = args.randomise
+subset_name = args.name_subset
+
+ref_ids: List = []
 
 
-def dump_schema(verbose, user, password, server, port, db):
-    global dump_dir, full_orig_dump
+def dump_schema(user, password, server, port, db):
+    global dump_dir, full_orig_dump, verbose
     if verbose:
         print(f"Dumping schema for {db} in {dump_dir} for server {server}")
 
@@ -115,8 +102,8 @@ def dump_schema(verbose, user, password, server, port, db):
     system(f"PGPASSWORD={password} {com}")
 
 
-def load_schema(verbose, user, password, server, port, db):
-    global dump_dir
+def load_schema(user, password, server, port, db):
+    global dump_dir, verbose
     if verbose:
         print(f"Deleting old db {db} on server {server}")
     com = f'psql -h {server} -p {port} -U {user} -c "DROP DATABASE IF EXISTS {db};"'
@@ -146,7 +133,7 @@ def dump_subset():
     password = environ.get('PSQL_PASSWORD', 'postgres')
     server = environ.get('PSQL_HOST', 'localhost')
     port = environ.get('PSQL_PORT', '5432')
-    db = environ.get('PSQL_DATABASE', 'literature_subset')
+    db = subset_name
     if verbose:
         print(f"Dumping database {db} to {dump_dir}")
     filename = f"{dump_dir}/literature_subset.sql"
@@ -156,8 +143,8 @@ def dump_subset():
     system(f"PGPASSWORD={password} {com}")
 
 
-def create_postgres_engine(verbose, source=False):
-
+def create_postgres_engine(source=False):
+    global verbose
     """Connect to database.
     If ORIG_XXX is defined use that for source db details.
     If ORIG_XXX not defined then use PSQL_XXX.
@@ -179,7 +166,7 @@ def create_postgres_engine(verbose, source=False):
         if not PORT:
             PORT = environ.get('PSQL_PORT', '5432')
         DB = environ.get('ORIG_DATABASE', 'literature')
-        dump_schema(verbose, USER, PASSWORD, SERVER, PORT, DB)
+        dump_schema(USER, PASSWORD, SERVER, PORT, DB)
     else:
         USER = environ.get('PSQL_USERNAME', 'postgres')
         PASSWORD = environ.get('PSQL_PASSWORD', 'postgres')
@@ -187,7 +174,7 @@ def create_postgres_engine(verbose, source=False):
         PORT = environ.get('PSQL_PORT', '5432')
         DB = environ.get('PSQL_DATABASE', 'literature_subset')
         db_type = "Target"
-        load_schema(verbose, USER, PASSWORD, SERVER, PORT, DB)
+        load_schema(USER, PASSWORD, SERVER, PORT, DB)
 
     # Create our SQL Alchemy engine from our environmental variables.
     engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
@@ -199,9 +186,9 @@ def create_postgres_engine(verbose, source=False):
     return engine
 
 
-def create_postgres_session(verbose, source=False):
+def create_postgres_session(source=False):
 
-    engine = create_postgres_engine(verbose, source)
+    engine = create_postgres_engine(source)
 
     Session = sessionmaker(bind=engine, autoflush=False)
     session = Session()
@@ -209,8 +196,29 @@ def create_postgres_session(verbose, source=False):
     return session
 
 
+def get_ref_ids(db_orig_session):
+    global num_of_refs
+    if randomise:
+        bob = db_orig_session.query(func.max(ReferenceModel.reference_id)).scalar()
+        count = 0
+        ref_list = []
+        max_ref = int(bob)
+        if verbose:
+            print(f"MAX ref_id is: {max_ref}")
+        while count < num_of_refs:
+            count += 1
+            ref_rand = randint(1, bob)
+            ref_list.append(ref_rand)
+        if verbose:
+            print(ref_list)
+        return ref_list
+    else:
+        return range(1, num_of_refs)
+
+
 def add_references(db_orig_session, db_subset_session):
     global verbose
+    global ref_ids
     if verbose:
         print(f"Adding {num_of_refs} references")
     refs = db_orig_session.query(ReferenceModel).options(
@@ -224,7 +232,7 @@ def add_references(db_orig_session, db_subset_session):
         subqueryload(ReferenceModel.topic_entity_tags),
         subqueryload(ReferenceModel.workflow_tag),
         subqueryload(ReferenceModel.citation)
-    ).filter(ReferenceModel.reference_id <= num_of_refs)
+    ).filter(ReferenceModel.reference_id.in_(ref_ids))
     count = 0
     for ref in refs:
         if verbose == ALL_OUTPUT:
@@ -236,6 +244,7 @@ def add_references(db_orig_session, db_subset_session):
             db_subset_session.commit()
     if verbose:
         print(f"Added {count} records for References.")
+    return count
 
 
 def add_specific_test_references(db_orig_session, db_subset_session):
@@ -268,11 +277,47 @@ def add_specific_test_references(db_orig_session, db_subset_session):
 def add_sequence_data(db_subset_session):
     # Need to set the initial seq values else we cannot add any more entries,
     # which might be needed for testing the api.
-    global seq_list
-    for seq in seq_list:
-        com = f"ALTER SEQUENCE {seq} RESTART WITH {1000000}"
-        db_subset_session.execute(com)
-    db_subset_session.commit()
+
+    # get data needed for adding new values
+    # following query returns something like:-
+    # author                             | author_id                           | author_author_id_seq
+    # citation                           | citation_id                         | citation_citation_id_seq
+    # copyright_license                  | copyright_license_id                | copyright_license_copyright_license_id_seq
+    # ........
+
+    query = r"""SELECT t.oid::regclass AS table_name,
+       a.attname AS column_name,
+       s.relname AS sequence_name
+    FROM pg_class AS t
+    JOIN pg_attribute AS a
+      ON a.attrelid = t.oid
+    JOIN pg_depend AS d
+      ON d.refobjid = t.oid
+         AND d.refobjsubid = a.attnum
+    JOIN pg_class AS s
+      ON s.oid = d.objid
+    WHERE d.classid = 'pg_catalog.pg_class'::regclass
+        AND d.refclassid = 'pg_catalog.pg_class'::regclass
+        AND d.deptype IN ('i', 'a')
+        AND t.relkind IN ('r', 'P')
+        AND s.relkind = 'S'
+  """
+    # print(query)
+    rows = db_subset_session.execute(text(query)).fetchall()
+    # print(rows)
+    for x in rows:
+        # first get the current max value.
+        max_query = f"SELECT MAX({x[1]}) from {x[0]}"
+        max_val = db_subset_session.execute(text(max_query)).fetchall()[0][0]
+        # and set seq to that  +1 and or 0 if none found
+        if max_val:
+            print(f"setting max value to {max_val + 1} for {x[2]}")
+            com = f"ALTER SEQUENCE {x[2]} RESTART WITH {max_val+1}"
+            db_subset_session.execute(com)
+        else:
+            print(f"setting max value to 0 for {x[2]} as none found")
+            com = f"ALTER SEQUENCE {x[2]} RESTART WITH 1"
+            db_subset_session.execute(com)
 
 
 def add_alembic(db_orig_session, db_subset_session):
@@ -324,7 +369,8 @@ def load_resources(db_orig_session, db_subset_session):
           resources may take a little while too.
     """
     global test_reference_curies
-    resources = db_orig_session.query(ResourceModel).join(ReferenceModel).filter(ReferenceModel.reference_id <= num_of_refs)
+    global ref_ids
+    resources = db_orig_session.query(ResourceModel).join(ReferenceModel).filter(ReferenceModel.reference_id.in_(ref_ids))
     count = 0
     loaded = []
     for res in resources:
@@ -349,9 +395,10 @@ def load_resources(db_orig_session, db_subset_session):
 
 def start():
     global test_reference_curies
-    db_orig_session = create_postgres_session(True, source=True)
-
-    db_subset_session = create_postgres_session(True)
+    global ref_ids
+    db_orig_session = create_postgres_session(source=True)
+    ref_ids = get_ref_ids(db_orig_session)
+    db_subset_session = create_postgres_session()
 
     # remove the triggers while loading.
     trigger_settings(db_subset_session, state="DISABLE")
@@ -361,16 +408,13 @@ def start():
     load_resources(db_orig_session, db_subset_session)
 
     # add the references, one set by a count and other from preset list.
-    add_references(db_orig_session, db_subset_session)
+    ref_count = add_references(db_orig_session, db_subset_session)
     add_specific_test_references(db_orig_session, db_subset_session)
     print("Be patient the commit can take a wee while.")
     db_subset_session.commit()
 
     # Add alembic_version
     add_alembic(db_orig_session, db_subset_session)
-
-    # add sequence data. What value to use next in a sequence
-    add_sequence_data(db_subset_session)
 
     # Sanity checks
     okay = True
@@ -383,13 +427,16 @@ def start():
         if not count:
             print(f"ERROR: No records found for table  {table_name}")
             okay = False
-        theoretical_count = len(test_reference_curies) + num_of_refs
+        theoretical_count = len(test_reference_curies) + ref_count
         if count != theoretical_count:
             print(f"ERROR: {count} records found for table  {table_name} but was expecting {theoretical_count}")
             okay = False
 
     # Add the triggers back.
     trigger_settings(db_subset_session, state="ENABLE")
+
+    # add sequence data. What value to use next in a sequence
+    add_sequence_data(db_subset_session)
 
     # for what ever reason need this:
     db_subset_session.execute("REFRESH MATERIALIZED VIEW _view")

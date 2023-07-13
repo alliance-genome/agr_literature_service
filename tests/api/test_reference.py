@@ -104,7 +104,7 @@ class TestReference:
             assert updated_ref["abstract"] == "3"
             assert updated_ref["date_published_start"] == "2022-10-01"
             # Do we have a new citation
-            assert updated_ref["citation"] == ", () new title.   (): "
+            assert updated_ref["citation"] == ", () new title.  ():"
             assert updated_ref["copyright_license_id"] is None
 
     def test_changesets(self, test_reference, auth_headers): # noqa
@@ -122,7 +122,7 @@ class TestReference:
             assert transactions[1]['changeset']['title'][1] == "new title"
             assert transactions[1]['changeset']['category'][1] == "book"
             # assert transactions[2]['changeset']['citation'][0] == ", () Bob.   (): "
-            # assert transactions[2]['changeset']['citation'][1] == ", () new title.   (): "
+            # assert transactions[2]['changeset']['citation'][1] == ", () new title.  ():"
 
     def test_delete_reference(self, auth_headers, test_reference): # noqa
         with TestClient(app) as client:
@@ -234,7 +234,7 @@ class TestReference:
             author = db.query(AuthorModel).filter(AuthorModel.name == "S. Wu").one()
             assert author.first_name == 'S.'
 
-            assert response['citation'] == "D. Wu; S. Wu, () Some test 001 title.  433 (4): 538--541"
+            assert response['citation'] == "D. Wu; S. Wu, () Some test 001 title.  433(4):538--541"
 
             assert response['cross_references'][0]['curie'] == 'FB:FBrf0221304'
 
