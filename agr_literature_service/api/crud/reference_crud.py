@@ -709,7 +709,7 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     reference: ReferenceModel = get_reference(db, curie, load_authors=True)
     author: AuthorModel
     for author in sorted(reference.author, key=lambda a: a.order):
-        bib_info.add_author(author.last_name, author.first_initial)
+        bib_info.add_author(author.last_name, author.first_initial, author.name)
     all_mods_abbreviations = [mod.abbreviation if mod.abbreviation != "XB" else mod.short_name for mod in
                               db.query(ModModel).all()]
     xref: CrossReferenceModel

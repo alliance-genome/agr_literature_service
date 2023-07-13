@@ -60,8 +60,11 @@ class BibInfo:
     def authors(self) -> List[str]:
         return self._authors
 
-    def add_author(self, last_name: str, first_initial: str):
-        self._authors.append(f"{last_name} {first_initial}")
+    def add_author(self, last_name: str, first_initial: str, name: str):
+        if last_name and first_initial:
+            self._authors.append(f"{last_name} {first_initial}")
+        elif name:
+            self._authors.append(name)
 
     def get_formatted_bib(self, format_type: str = 'txt'):
         if format_type == 'txt':
