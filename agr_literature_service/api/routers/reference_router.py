@@ -225,7 +225,7 @@ def download_tracker_table(mod_abbreviation: str,
             status_code=status.HTTP_200_OK)
 def get_bib_info(curie: str,
                  mod_abbreviation: str,
-                 return_format: str,
+                 return_format: str = 'txt',
                  user: OktaUser = db_user,
                  db: Session = db_session):
     set_global_user_from_okta(db, user)
