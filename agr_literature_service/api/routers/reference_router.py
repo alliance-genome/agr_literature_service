@@ -221,11 +221,12 @@ def download_tracker_table(mod_abbreviation: str,
     return reference_crud.download_tracker_table(db, mod_abbreviation, order_by, filter)
 
 
-@router.post('/get_bib_info/{curie}',
-             status_code=status.HTTP_200_OK)
+@router.get('/get_bib_info/{curie}',
+            status_code=status.HTTP_200_OK)
 def get_bib_info(curie: str,
-                 return_format: str = 'txt',
+                 mod_abbreviation: str,
+                 return_format: str,
                  user: OktaUser = db_user,
                  db: Session = db_session):
     set_global_user_from_okta(db, user)
-    return reference_crud.get_bib_info(db, curie, return_format)
+    return reference_crud.get_bib_info(db, curie, mod_abbreviation, return_format)
