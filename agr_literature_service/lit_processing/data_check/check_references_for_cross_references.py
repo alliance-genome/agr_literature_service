@@ -30,5 +30,5 @@ for x in rows:
 
 # if messages is  NOT '' then we need to send a report.
 if message:
-    subject = "References with no cross references Report."
+    subject = "references with no cross references report."
     send_report(subject, message)
