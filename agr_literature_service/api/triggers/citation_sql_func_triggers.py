@@ -45,27 +45,8 @@ BEGIN
     END IF;
     -- Also need to update data in short_citation column in the citation table in the database
 
-    SELECT * FROM author into s_auth
-      WHERE author.reference_id = ref_id AND
-            author.first_author = 't'
-        LIMIT 1;
-
-    -- Get list of authors for long citation
     for auth in SELECT * FROM author
-      WHERE author.reference_id = ref_id and
-            author.first_author = 't'
-            ORDER BY author.order
-    loop
-      raise notice 'Record %', auth;
-      authors = CONCAT(authors , auth.name, '; ');
-      IF s_auth is NULL THEN
-        s_auth = auth;
-      END IF;
-    end loop;
-
-    for auth in SELECT * FROM author
-      WHERE author.reference_id = ref_id and
-            author.first_author is distinct from 't'
+      WHERE author.reference_id = ref_id
       ORDER BY author.order asc
     loop
       -- raise notice 'Record %', auth;
@@ -75,7 +56,9 @@ BEGIN
         s_auth = auth;
       END IF;
     end loop;
-    author_short = get_short_author_string(s_auth);
+    IF s_auth is not NULL THEN
+        author_short = get_short_author_string(s_auth);
+    END IF;
     -- raise notice 'Author record for short is %', s_auth;
     -- raise notice 'Author for short is %', author_short;
     -- raise notice 'Authors %', authors;
