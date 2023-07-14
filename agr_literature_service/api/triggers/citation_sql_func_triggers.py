@@ -56,10 +56,9 @@ BEGIN
         s_auth = auth;
       END IF;
     end loop;
-    IF s_auth is NULL THEN
-        return;
+    IF s_auth is not NULL THEN
+        author_short = get_short_author_string(s_auth);
     END IF;
-    author_short = get_short_author_string(s_auth);
     -- raise notice 'Author record for short is %', s_auth;
     -- raise notice 'Author for short is %', author_short;
     -- raise notice 'Authors %', authors;
