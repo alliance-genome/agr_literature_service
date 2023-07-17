@@ -9,6 +9,10 @@ WORKDIR /usr/local/bin/src/literature
 
 ADD . .
 
-RUN pip install -r requirements.txt
+RUN pip3 install --upgrade pip
+RUN pip3 install wheel
+RUN pip3 install "Cython<3.0" pyyaml --no-build-isolation
+
+RUN pip3 install -r requirements.txt
 
 CMD ["python3", "agr_literature_service/api/main.py", "--port=8080"]
