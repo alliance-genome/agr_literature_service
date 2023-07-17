@@ -36,7 +36,7 @@ query = """
 SELECT r.curie, m.date_updated, m.corpus, m.mod_id
 from mod_corpus_association_version mv,
      mod_corpus_association m,
-     reference r 
+     reference r
 where r.reference_id = m.reference_id and
       m.mod_corpus_association_id = mv.mod_corpus_association_id and
       mv.corpus_mod = 't' and --  corpus has changed
