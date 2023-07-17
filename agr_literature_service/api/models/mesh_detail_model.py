@@ -3,21 +3,14 @@ mesh_detail_model.py
 ====================
 """
 
-from typing import Dict
-
 from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
-from agr_literature_service.api.database.versioning import enable_versioning
-
-
-enable_versioning()
 
 
 class MeshDetailModel(Base):
     __tablename__ = "mesh_detail"
-    __versioned__: Dict = {}
 
     mesh_detail_id = Column(
         Integer,

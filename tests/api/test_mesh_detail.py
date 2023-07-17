@@ -65,24 +65,6 @@ class TestMeshDetail:
             assert mesh_detail_obj.reference.curie == test_reference2.new_ref_curie
             assert mesh_detail_obj.qualifier_term == "Qual2"
 
-            response = client.get(url=f"/reference/mesh_detail/{test_mesh_detail.new_mesh_detail_id}/versions")
-
-            # reference_curie : None -> 1 -> 3
-            # reference_id_from      : None -> orig -> new
-            from_id = client.get(url=f"/reference/{test_mesh_detail.related_ref_curie}").json()["reference_id"]
-            # reference_id_to        : None -> new -> orig
-            to_id = client.get(url=f"/reference/{test_reference2.new_ref_curie}").json()["reference_id"]
-            # heading_term            : None -> Head1 -> Head2
-            # qualifier_term          : None -> Qual1 -> Qual2
-            for transaction in response.json():
-                if not transaction['changeset']['reference_id'][0]:
-                    assert transaction['changeset']['reference_id'][1] == from_id
-                    assert transaction['changeset']['heading_term'][1] == "Head1"
-                    assert transaction['changeset']['qualifier_term'][1] == "Qual1"
-                else:
-                    assert transaction['changeset']['reference_id'][1] == to_id
-                    assert transaction['changeset']['heading_term'][1] == "Head2"
-                    assert transaction['changeset']['qualifier_term'][1] == "Qual2"
 
     def test_destroy_mesh_detail(self, test_mesh_detail, auth_headers): # noqa
         with TestClient(app) as client:
