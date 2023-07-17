@@ -9,8 +9,9 @@ WORKDIR /usr/local/bin/src/literature
 
 ADD . .
 
-RUN pip3 install wheel &&\
-pRUN pip3 install "Cython<3.0" pyyaml --no-build-isolation &&\
+RUN pip3 install --upgrade pip
+RUN pip3 install wheel
+RUN pip3 install "Cython<3.0" pyyaml --no-build-isolation
 
 RUN pip3 install -r requirements.dev.txt
 RUN pip3 install -r requirements.txt
