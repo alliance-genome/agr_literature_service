@@ -3,8 +3,6 @@ mesh_detail_model.py
 ====================
 """
 
-from typing import Dict
-
 from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
