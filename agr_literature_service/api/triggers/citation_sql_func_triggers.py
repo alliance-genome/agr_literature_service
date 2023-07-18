@@ -56,7 +56,8 @@ BEGIN
         s_auth = auth;
       END IF;
     end loop;
-    IF NOT coalesce(s_auth.author_id, 0) = 0 THEN
+    -- IF NOT coalesce(s_auth.author_id, 0) = 0 THEN
+    IF NOT ISNULL(s_auth, 0) = 0 THEN
         author_short = get_short_author_string(s_auth);
     END IF;
     -- raise notice 'Author record for short is %', s_auth;
