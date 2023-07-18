@@ -52,13 +52,10 @@ BEGIN
       -- raise notice 'Record %', auth;
       authors = CONCAT(authors , auth.name, '; ');
       -- raise notice 'String %', authors;
-      IF s_auth is NULL THEN
-        s_auth = auth;
+      IF author_short = '' THEN
+        author_short = get_short_author_string(auth);
       END IF;
     end loop;
-    IF s_auth is not NULL THEN
-        author_short = get_short_author_string(s_auth);
-    END IF;
     -- raise notice 'Author record for short is %', s_auth;
     -- raise notice 'Author for short is %', author_short;
     -- raise notice 'Authors %', authors;
