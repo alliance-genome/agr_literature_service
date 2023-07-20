@@ -21,6 +21,8 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.parse_dqm_json
     generate_pmid_data, aggregate_dqm_with_pubmed
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import \
     download_pubmed_xml
+from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
+    download_file
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import \
     generate_json
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
@@ -277,6 +279,20 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
     missing_papers_in_mod = {}
     missing_agr_in_mod = {}
 
+    mod_false_positive_file = {
+        'FB': 'FB_false_positive_pmids.txt',
+        'WB': 'WB_false_positive_pmids.txt',
+        'SGD': 'SGD_false_positive_pmids.txt',
+        'XB': 'XB_false_positive_pmids.txt',
+        'ZFIN': 'ZFIN_false_positive_pmids.txt'
+    }
+    mod_to_fp_pmids_url = {
+        "FB": "https://ftp.flybase.net/flybase/associated_files/alliance/FB_false_positive_pmids.txt",
+        "SGD": "https://sgd-prod-upload.s3.us-west-2.amazonaws.com/latest/SGD_false_positive_pmids.txt",
+        "WB": "https://tazendra.caltech.edu/~postgres/agr/lit/WB_false_positive_pmids",
+        "XB": "https://ftp.xenbase.org/pub/DataExchange/AGR/XB_false_positive_pmids.txt"
+    }
+
     search_path = path.join(path.dirname(path.dirname(path.abspath(__file__))),
                             "pubmed_ingest", "data_for_pubmed_processing")
     exclude_pmid_file = path.join(search_path, "pmids_to_excude.txt")
@@ -288,6 +304,16 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         filename = path.join(base_dir, input_path) + '/REFERENCE_' + mod + '.json'
         if not path.exists(filename):
             continue
+        ###################
+        fp_pmids = set()
+        if mod in mod_false_positive_file:
+            fp_pmid_file = path.join(search_path, mod_false_positive_file[mod])
+            if mod in mod_to_fp_pmids_url:
+                fp_url = mod_to_fp_pmids_url[mod]
+                download_file(fp_url, fp_pmid_file)
+            with open(fp_pmid_file, "r") as infile_fh:
+                fp_pmids = {line.rstrip().replace('PMID:', '') for line in infile_fh if line.strip()}
+        ###################
         xrefs_to_add = dict()
         aggregate_mod_specific_fields_only = dict()
         aggregate_mod_biblio_all = dict()
@@ -309,6 +335,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 
         mod_ids_used_in_resource = []
         mod_curie_set = set()
+        dbid2pmid = {}
 
         logger.info(f"Processing {filename}")
         dqm_data = dict()
@@ -327,8 +354,17 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
             if 'primaryId' not in entry or entry['primaryId'] is None:
                 continue
 
+            primary_id = entry['primaryId']
+
+            ## do not load the paper that is in the exclude list or
+            ## in the false positive list
+            pmid = primary_id.replace('PMID:', '')
+            if pmid in exclude_pmids or pmid in fp_pmids:
+                continue
+
             dbid = None
-            ## grab all MOD IDs (eg, SGDID) from qdm submission and save them in memory (in hash dqm)
+            ## grab all MOD IDs (eg, SGDID) from qdm submission and
+            ## save them in memory (in hash dqm)
             if 'crossReferences' in entry:
                 for cross_reference in entry['crossReferences']:
                     if "id" in cross_reference:
@@ -340,9 +376,8 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
                             break
             ## end grabbing all MOD ID (curies) section
 
-            primary_id = entry['primaryId']
-            if primary_id in exclude_pmids:
-                primary_id = dbid
+            if primary_id.startswith("PMID:"):
+                dbid2pmid[dbid] = primary_id
 
             old_md5 = 'none'
             if mod in old_md5dict and primary_id in old_md5dict[mod] and old_md5dict[mod][primary_id] is not None:
@@ -355,7 +390,6 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 
             if old_md5 == new_md5:
                 continue
-
             if old_md5 == 'none':
                 logger.info(f"primaryId {primary_id} is new for {mod} but could pre-exist for other mod")
             elif new_md5 == 'none':
@@ -448,8 +482,18 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
                 else:
                     continue
             elif len(agrs_found) > 1:
+                if primary_id.startswith('PMID:'):
+                    identifier = primary_id.replace("PMID:", "")
+                    if identifier not in xref_ref['PMID']:
+                        ## it is a new pmid, so add it
+                        references_to_create.append(entry)
                 fh_mod_report[mod].write("dqm %s too many matches %s\n" % (entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found)))))
             elif len(agrs_found) == 1:
+                if primary_id.startswith('PMID:'):
+                    identifier = primary_id.replace("PMID:", "")
+                    if identifier not in xref_ref['PMID']:
+                        ## it is a new pmid, so add it
+                        references_to_create.append(entry)
                 agr = agrs_found.pop()
                 agr_url = url_ref_curie_prefix + agr
                 flag_aggregate_biblio = False
@@ -661,7 +705,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 
         mark_not_in_mod_papers_as_out_of_corpus(mod, missing_papers_in_mod[mod], logger)
 
-        change_mod_curie_status(db_session, mod, mod_curie_set, logger)
+        change_mod_curie_status(db_session, mod, mod_curie_set, dbid2pmid, logger)
 
         agr_to_title = get_curie_to_title_mapping(missing_agr_in_mod[mod])
 
@@ -923,7 +967,7 @@ if __name__ == "__main__":
     env_state = environ.get('ENV_STATE', 'build')
     if env_state != 'test':
         download_dqm_reference_json()
-    #    # update_resource_pubmed_nlm()
+        # update_resource_pubmed_nlm()
 
     dqm_path = args['file'] if args['file'] else "dqm_data"
     if args['mod']:
