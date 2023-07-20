@@ -37,7 +37,7 @@ def move_mod_papers_into_corpus(db_session, mod, mod_id, mod_reference_id_set, l
     # db_session.rollback()
 
 
-def change_mod_curie_status(db_session, mod, mod_curie_set, logger=None):
+def change_mod_curie_status(db_session, mod, mod_curie_set, mod_curie_to_pmid, logger=None):
 
     curie_prefix = mod
     if mod == 'XB':
@@ -69,15 +69,68 @@ def change_mod_curie_status(db_session, mod, mod_curie_set, logger=None):
     db_session.commit()
     # db_session.rollback()
 
-    # get mod curies that are not loaded into the database:
+    mod_id = _get_mod_id_by_mod(db_session, mod)
     mod_curies_not_in_db = mod_curie_set - mod_curie_set_in_db
+
+    if logger:
+        logger.info("Moving mod papers into corpus...")
+    move_mod_papers_into_corpus(db_session, mod, mod_id, mod_reference_id_set, logger)
+
+    if logger:
+        logger.info("Moving obsolete papers out of corpus...")
+    move_obsolete_papers_out_of_corpus(db_session, mod, mod_id, curie_prefix, logger)
+
+    if logger:
+        logger.info("Adding mod PubMed papers with a conflict DOI/PMCID into corpus...")
+    add_not_loaded_pubmed_papers(db_session, mod, mod_id, mod_curies_not_in_db,
+                                 mod_curie_to_pmid, logger)
+
+
+def add_not_loaded_pubmed_papers(db_session, mod, mod_id, mod_curies_to_load, mod_curie_to_pmid, logger):
+
+    mod_curies_not_in_db = set()
+    for curie in mod_curies_to_load:
+        if curie in mod_curie_to_pmid:
+            pmid = mod_curie_to_pmid[curie]
+            rows = db_session.query(CrossReferenceModel).filter_by(curie=pmid).all()
+            if len(rows) == 0:
+                mod_curies_not_in_db.add(curie)
+            else:
+                reference_id = None
+                for x in rows:
+                    if x.is_obsolete is False:
+                        reference_id = x.reference_id
+                        break
+                if reference_id is None:
+                    mod_curies_not_in_db.add(curie)
+                    continue
+                try:
+                    cr = CrossReferenceModel(curie_prefix=curie.split(':')[0],
+                                             curie=curie,
+                                             is_obsolete=False,
+                                             reference_id=reference_id)
+                    db_session.add(cr)
+                    mca = db_session.query(ModCorpusAssociationModel).filter_by(
+                        mod_id=mod_id, reference_id=reference_id).one_or_none()
+                    if mca is None:
+                        mod_curies_not_in_db.add(curie)
+                        continue
+                    mca.corpus = True
+                    mca.mod_corpus_sort_source = "dqm_files"
+                    db_session.add(mca)
+                    if logger:
+                        logger.info(f"Adding {mod} {curie} into the database.")
+                    db_session.commit()
+                except Exception as e:
+                    db_session.rollback()
+                    mod_curies_not_in_db.add(curie)
+                    if logger:
+                        logger.info(f"An error occurred when adding {mod} {curie} into the database. error={e}")
+        else:
+            mod_curies_not_in_db.add(curie)
+
     if logger:
         logger.info(f"{mod} curies that are not loaded into the database: {mod_curies_not_in_db}")
-
-    mod_id = _get_mod_id_by_mod(db_session, mod)
-
-    move_mod_papers_into_corpus(db_session, mod, mod_id, mod_reference_id_set, logger)
-    move_obsolete_papers_out_of_corpus(db_session, mod, mod_id, curie_prefix, logger)
 
 
 def move_obsolete_papers_out_of_corpus(db_session, mod, mod_id, curie_prefix, logger=None):
