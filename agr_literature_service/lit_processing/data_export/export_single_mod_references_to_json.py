@@ -78,7 +78,6 @@ def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
         return
 
     log.info("Uploading json file to s3...")
-    filename = None
     try:
         filename = upload_json_file_to_s3(json_path, json_file, datestamp, ondemand)
     except Exception as e:
@@ -94,26 +93,30 @@ def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
         email_message = "The file " + filename + " is ready for <a href=" + ui_url + ">download</a>"
         send_data_export_report("SUCCESS", email, mod, email_message)
 
-    log.info("DONE!")
+    log.info(f"{filename} DONE!")
 
 
-def generate_json_file(metaData, data, filename_with_path):
+def generate_json_file(meta_data, data, filename_with_path):
 
-    dataDict = {"data": data,
-                "metaData": metaData}
+    data_dict = {"data": data,
+                 "meta_data": meta_data}
     fw = open(filename_with_path, 'w')
     try:
-        jsonStr = json.dumps(dataDict, indent=4, sort_keys=True)
-        byteStr = jsonStr.encode('utf-8')
-        decodedJsonStr = byteStr.decode('unicode-escape')
-        fw.write(decodedJsonStr)
+        json_str = json.dumps(data_dict, indent=4, sort_keys=True)
+        byte_dict = json_str.encode('utf-8')
+        decoded_json_str = byte_dict.decode('unicode-escape')
+        fw.write(decoded_json_str)
     except Exception as e:
         log.info("Error when generating " + filename_with_path + ": " + str(e))
-        fw.write(json.dumps(dataDict, indent=4, sort_keys=True))
-    fw.close
+        fw.write(json.dumps(data_dict, indent=4, sort_keys=True))
+    fw.close()
 
 
-def upload_json_file_to_s3(json_path, json_file, datestamp, ondemand):  # pragma: no cover
+def upload_json_file_to_s3(json_path, current, datestamp, ondemand):
+    return upload_literature_file_to_s3(json_path, current, datestamp, ondemand, 'json')
+
+
+def upload_literature_file_to_s3(file_path, file_name, datestamp, ondemand, file_ext):  # pragma: no cover
 
     env_state = environ.get('ENV_STATE', 'develop')
     if env_state == 'build':
@@ -121,34 +124,34 @@ def upload_json_file_to_s3(json_path, json_file, datestamp, ondemand):  # pragma
     if env_state == 'test':
         return None
 
-    gzip_json_file = json_file + ".gz"
+    gzip_file_name = file_name + ".gz"
 
-    with open(json_path + json_file, 'rb') as f_in, gzip.open(json_path + gzip_json_file, 'wb') as f_out:
+    with open(file_path + file_name, 'rb') as f_in, gzip.open(file_path + gzip_file_name, 'wb') as f_out:
         shutil.copyfileobj(f_in, f_out)
 
     if ondemand:
-        s3_filename = ondemand_bucket.replace('develop', env_state) + gzip_json_file
-        upload_file_to_s3(json_path + gzip_json_file, s3_bucket, s3_filename)
-        return gzip_json_file
+        s3_filename = ondemand_bucket.replace('develop', env_state) + gzip_file_name
+        upload_file_to_s3(file_path + gzip_file_name, s3_bucket, s3_filename)
+        return gzip_file_name
 
-    gzip_json_file_with_datestamp = gzip_json_file.replace('.json.gz', '_' + datestamp + '.json.gz')
+    gzip_file_name_with_datestamp = gzip_file_name.replace(f'.{file_ext}.gz', '_' + datestamp + f'.{file_ext}.gz')
 
-    ## upload file to recent bucket
-    s3_filename = recent_bucket.replace('develop', env_state) + gzip_json_file_with_datestamp
-    upload_file_to_s3(json_path + gzip_json_file, s3_bucket, s3_filename)
+    # upload file to recent bucket
+    s3_filename = recent_bucket.replace('develop', env_state) + gzip_file_name_with_datestamp
+    upload_file_to_s3(file_path + gzip_file_name, s3_bucket, s3_filename)
 
-    ## upload file to latest bucket
-    s3_filename = latest_bucket.replace('develop', env_state) + gzip_json_file
-    upload_file_to_s3(json_path + gzip_json_file, s3_bucket, s3_filename)
+    # upload file to latest bucket
+    s3_filename = latest_bucket.replace('develop', env_state) + gzip_file_name
+    upload_file_to_s3(file_path + gzip_file_name, s3_bucket, s3_filename)
 
-    ## upload file to monthly bucket if it is first day of the month
-    todayDate = date.today()
-    if todayDate.day == 1:
-        s3_filename = monthly_bucket.replace('develop', env_state) + gzip_json_file_with_datestamp
-        upload_file_to_s3(json_path + gzip_json_file, s3_bucket, s3_filename, 'GLACIER_IR')
+    # upload file to monthly bucket if it is first day of the month
+    today_date = date.today()
+    if today_date.day == 1:
+        s3_filename = monthly_bucket.replace('develop', env_state) + gzip_file_name_with_datestamp
+        upload_file_to_s3(file_path + gzip_file_name, s3_bucket, s3_filename, 'GLACIER_IR')
 
-    remove(json_path + json_file)
-    remove(json_path + gzip_json_file)
+    remove(file_path + file_name)
+    remove(file_path + gzip_file_name)
 
     return None
 
@@ -195,7 +198,7 @@ def concatenate_json_files(json_file, index):
 
 def get_meta_data(mod, datestamp):
 
-    ## return more info here?
+    # return more info here?
     return {
         "dateProduced": datestamp,
         "dataProvider": {
@@ -230,9 +233,10 @@ def get_reference_col_names():
             'date_created']
 
 
-def get_reference_data_and_generate_json(mod, reference_id_to_comment_correction_data, resource_id_to_journal, json_file_with_path, datestamp):
+def get_reference_data_and_generate_json(mod, reference_id_to_comment_correction_data, resource_id_to_journal,
+                                         json_file_with_path, datestamp):
 
-    metaData = get_meta_data(mod, datestamp)
+    meta_data = get_meta_data(mod, datestamp)
 
     data = []
 
@@ -251,7 +255,7 @@ def get_reference_data_and_generate_json(mod, reference_id_to_comment_correction
             db_session.close()
             json_file = json_file_with_path + "_" + str(j)
             log.info("generating " + json_file + ": data size=" + str(len(data)))
-            generate_json_file(metaData, data, json_file)
+            generate_json_file(meta_data, data, json_file)
             data = []
             j += 1
             db_session = create_postgres_session(False)
@@ -260,10 +264,9 @@ def get_reference_data_and_generate_json(mod, reference_id_to_comment_correction
 
         log.info("offs=" + str(offset) + ", data=" + str(len(data)))
 
-        rs = None
         if mod in ['WB', 'XB', 'ZFIN', 'SGD', 'RGD', 'FB']:
-            refColNmList = ", ".join(get_reference_col_names())
-            rs = db_session.execute(f"SELECT {refColNmList} "
+            ref_col_num_list = ", ".join(get_reference_col_names())
+            rs = db_session.execute(f"SELECT {ref_col_num_list} "
                                     f"FROM reference "
                                     f"WHERE reference_id IN "
                                     f"(select reference_id from mod_corpus_association "
@@ -272,8 +275,8 @@ def get_reference_data_and_generate_json(mod, reference_id_to_comment_correction
                                     f"limit {limit} "
                                     f"offset {offset}")
         else:
-            refColNmList = "r." + ", r.".join(get_reference_col_names())
-            rs = db_session.execute(f"SELECT {refColNmList} "
+            ref_col_num_list = "r." + ", r.".join(get_reference_col_names())
+            rs = db_session.execute(f"SELECT {ref_col_num_list} "
                                     f"FROM reference r, mod_corpus_association m "
                                     f"WHERE r.reference_id = m.reference_id "
                                     f"AND m.mod_id = {mod_id} and m.corpus is True "
@@ -283,11 +286,11 @@ def get_reference_data_and_generate_json(mod, reference_id_to_comment_correction
 
         rows = rs.fetchall()
         if len(rows) == 0:
-            ## finished retrieving all data from database
+            # finished retrieving all data from database
             if len(data) > 0:
                 json_file = json_file_with_path + "_" + str(j)
                 log.info("generating " + json_file + ": data size=" + str(len(data)))
-                generate_json_file(metaData, data, json_file)
+                generate_json_file(meta_data, data, json_file)
             log.info("concatenating " + str(j + 1) + " small json files to a single json file: " + json_file_with_path)
             concatenate_json_files(json_file_with_path, j + 1)
             return
@@ -304,42 +307,49 @@ def get_reference_data_and_generate_json(mod, reference_id_to_comment_correction
         reference_id_to_mod_corpus_data = get_mod_corpus_association_data_for_ref_ids(db_session, ref_ids)
         reference_id_to_mod_reference_types = get_mod_reference_type_data_for_ref_ids(db_session, ref_ids)
 
-        count_index = generate_json_data(rows, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_comment_correction_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, data)
+        count_index = generate_json_data(rows, reference_id_to_xrefs, reference_id_to_authors,
+                                         reference_id_to_comment_correction_data, reference_id_to_mod_reference_types,
+                                         reference_id_to_mesh_terms, reference_id_to_mod_corpus_data,
+                                         resource_id_to_journal, data)
         i += count_index
 
     db_session.close()
 
 
-def escape_special_characters(text, curie):
+def escape_special_characters(text):
 
     if text:
-        ## convert &#x3b1; => α ; &#x3b2; => β, etc
+        # convert &#x3b1; => α ; &#x3b2; => β, etc
         # text = text.replace('&#xa0;', ' ').replace('&#x3b1;', 'α').replace('&#x3b2;', 'β')
         # text = text.replace('&#x394;', 'Δ').replace('&#x223c;', '∼').replace('&#x2019;', "’")
         # text = text.replace('&#xb7;', "·")
 
         text = html.unescape(text)
 
-        ## to escape \u0012; \u0005, etc
+        # to escape \u0012; \u0005, etc
         text = repr(text)
 
-        ## remove the surrounding single/double quotes brought in by "text = repr(text)"
+        # remove the surrounding single/double quotes brought in by "text = repr(text)"
         text = text[1:-1]
 
-        ## escape any backslash
+        # escape any backslash
         text = text.replace("\\", "\\\\")
 
-        ## escape any newline, carriage return, and tab
+        # escape any newline, carriage return, and tab
         if "\n" in text or "\r" in text or "\t" in text:
             text = text.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
 
-        ## escape double quote
+        # escape double quote
         text = text.replace('"', '\\"')
 
     return text
 
 
-def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_comment_correction_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, data):  # pragma: no cover
+def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
+                       reference_id_to_comment_correction_data,
+                       reference_id_to_mod_reference_types,
+                       reference_id_to_mesh_terms, reference_id_to_mod_corpus_data,
+                       resource_id_to_journal, data):  # pragma: no cover
 
     i = 0
     for x in ref_data:
@@ -352,8 +362,8 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
         if i % 100 == 0:
             log.info(str(i) + " " + x[1])
 
-        abstract = escape_special_characters(x[12], x[1])
-        title = escape_special_characters(x[3], x[1])
+        abstract = escape_special_characters(x[12])
+        title = escape_special_characters(x[3])
 
         row = {'reference_id': x[0],
                'curie': x[1],
