@@ -1,5 +1,6 @@
 import logging
 from collections import OrderedDict
+# # type: ignore from typing import OrderedDict, Any
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 
@@ -16,7 +17,7 @@ SELECT mod_id, abbreviation
   FROM mod;
 """
 rows = db_session.execute(mod_query).fetchall()
-mod_refs: OrderedDict[str, int] = OrderedDict()
+mod_refs = OrderedDict()  # type: ignore
 mod_id_to_mod = {}
 for x in rows:
     mod_refs[x[0]] = OrderedDict()
