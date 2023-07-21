@@ -16,7 +16,7 @@ SELECT mod_id, abbreviation
   FROM mod;
 """
 rows = db_session.execute(mod_query).fetchall()
-mod_refs: OrderedDict[int] = OrderedDict()
+mod_refs: OrderedDict[str, int] = OrderedDict()
 mod_id_to_mod = {}
 for x in rows:
     mod_refs[x[0]] = OrderedDict()
