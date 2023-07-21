@@ -97,7 +97,7 @@ class TestExportSingleModReferencesToJson:
         assert stat(json_file).st_size > 10000
         json_data = json.load(open(json_file))
         data = json_data['data']
-        metaData = json_data['metaData']
+        metaData = json_data['meta_data']
         assert len(data) == 6
 
         ## test generate_json_file()
