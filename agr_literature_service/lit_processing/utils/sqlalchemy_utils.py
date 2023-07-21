@@ -75,7 +75,7 @@ def sqlalchemy_load_ref_xref(datatype):
         for result in results:
             # print(result)
             agr = result[0]
-            xref = result[1]
+            xref = result[1].replace("DOI:10.1037//", "DOI:10.1037/")
             is_obsolete = result[2]
             prefix, identifier, separator = split_identifier(xref, True)
             if is_obsolete is False:
