@@ -1,6 +1,6 @@
 import logging
 from collections import OrderedDict
-# from agr_literature_service.lit_processing.utils.report_utils import send_report
+
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 
 logging.basicConfig(format='%(message)s')
@@ -16,7 +16,7 @@ SELECT mod_id, abbreviation
   FROM mod;
 """
 rows = db_session.execute(mod_query).fetchall()
-mod_refs = OrderedDict()
+mod_refs: OrderedDict[int] = OrderedDict()
 mod_id_to_mod = {}
 for x in rows:
     mod_refs[x[0]] = OrderedDict()
@@ -56,7 +56,7 @@ where r.reference_id = m.reference_id and
       mv.corpus_mod = 't' and --  corpus has changed
       (m.corpus = 'f' OR m.corpus is NULL) and  -- corpus value is false or null
        mv.corpus = 't'  -- old corpus is true
-       ORDER BY mv.date_updated desc;"""
+       ORDER BY mv.date_updated desc;  -- newest first """
 #      m.date_updated > NOW() - INTERVAL '24 HOURS';"""
 
 logger.info("Getting data from the database...")
@@ -76,7 +76,7 @@ for mod_key in mod_refs.keys():
     for curie_key in reversed(mod_refs[mod_key].keys()):
         count += 1
         (_, date_updated, corpus, _) = mod_refs[mod_key][curie_key]
-        if count > 11:
+        if count > 10:
             break
         change = "removed from corpus"
         if corpus is None:
