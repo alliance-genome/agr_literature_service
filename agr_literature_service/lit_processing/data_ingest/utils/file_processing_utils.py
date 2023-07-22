@@ -4,7 +4,7 @@ import tarfile
 import gzip
 import shutil
 from urllib import request
-from os import environ
+from os import environ, path
 
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
@@ -119,3 +119,39 @@ def gzip_file(file_with_path):
         gzip_file_with_path = None
 
     return gzip_file_with_path
+
+
+def get_pmids_from_exclude_list(mod=None):
+
+    data_path = path.join(path.dirname(path.dirname(path.abspath(__file__))),
+                          "pubmed_ingest", "data_for_pubmed_processing")
+
+    exclude_pmid_file = None
+    if mod is None:
+        exclude_pmid_file = path.join(data_path, "pmids_to_excude.txt")
+    else:
+        mod_false_positive_file = {
+            'FB': 'FB_false_positive_pmids.txt',
+            'WB': 'WB_false_positive_pmids.txt',
+            'SGD': 'SGD_false_positive_pmids.txt',
+            'XB': 'XB_false_positive_pmids.txt',
+            'ZFIN': 'ZFIN_false_positive_pmids.txt'
+        }
+        mod_to_fp_pmids_url = {
+            "FB": "https://ftp.flybase.net/flybase/associated_files/alliance/FB_false_positive_pmids.txt",
+            "SGD": "https://sgd-prod-upload.s3.us-west-2.amazonaws.com/latest/SGD_false_positive_pmids.txt",
+            "WB": "https://tazendra.caltech.edu/~postgres/agr/lit/WB_false_positive_pmids",
+            "XB": "https://ftp.xenbase.org/pub/DataExchange/AGR/XB_false_positive_pmids.txt"
+        }
+        if mod in mod_false_positive_file:
+            exclude_pmid_file = path.join(data_path, mod_false_positive_file[mod])
+            if mod in mod_to_fp_pmids_url:
+                fp_url = mod_to_fp_pmids_url[mod]
+                download_file(fp_url, exclude_pmid_file)
+
+    exclude_pmids = set()
+    if exclude_pmid_file:
+        with open(exclude_pmid_file, "r") as infile_fh:
+            exclude_pmids = {line.rstrip().replace('PMID:', '') for line in infile_fh if line.strip()}
+
+    return exclude_pmids
