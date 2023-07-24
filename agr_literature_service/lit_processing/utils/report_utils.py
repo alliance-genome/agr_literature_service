@@ -128,7 +128,7 @@ def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmi
     send_report(email_subject, email_message)
 
 
-def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_title, bad_date_published, mod_ids_used_in_resource, log_path):  # noqa: C901
+def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_title, bad_date_published, mod_ids_used_in_resource, clashed_pmids, log_path):  # noqa: C901
 
     log_url = None
     if environ.get('LOG_URL'):
@@ -210,6 +210,22 @@ def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_t
         else:
             log_path = log_path + log_file
             email_message = email_message + "<p>The full list of newly marked out of corpus papers is available at " + log_path
+
+    # for PMIDs that are in both MOD false positive list and MOD current dqm reference file
+    if len(clashed_pmids) > 0:
+        log_file = mod + "_clashed_PMIDs.log"
+        clashed_pmid_log_file = log_path + log_file
+        fw = open(clashed_pmid_log_file, "w")
+        fw.write("The PMIDs that are in both MOD false positive list and in current MOD DQM reference file:\n")
+        fw.write("\n".join(clashed_pmids) + "\n")
+        fw.close()
+        email_message = email_message + "<p><p><b>" + str(len(clashed_pmids)) + " PMID(s) that are in both " + mod + " false positive list and in " + mod + " current DQM submission</b><p>"
+        if log_url:
+            log_url = log_url + log_file
+            email_message = email_message + "<p>The clashed PMID list is available at " + "<a href=" + log_url + ">" + log_url + "</a><p>"
+        else:
+            log_path = log_path + log_file
+            email_message = email_message + "<p>The clashed PMID list is available at " + log_path
 
     send_report(email_subject, email_message)
 
