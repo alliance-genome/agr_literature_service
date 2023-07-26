@@ -22,7 +22,7 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_upda
     update_resource_pubmed_nlm
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import save_database_md5data
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
-    download_file
+    get_pmids_from_exclude_list
 from agr_literature_service.api.database.main import get_db
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.utils.report_utils import send_pubmed_search_report
@@ -197,20 +197,6 @@ def query_mods(input_mod, reldate):  # noqa: C901
         'WB': '&reldate=1825',
         'XB': '&reldate=365'
     }
-    mod_false_positive_file = {
-        'FB': 'FB_false_positive_pmids.txt',
-        'WB': 'WB_false_positive_pmids.txt',
-        'SGD': 'SGD_false_positive_pmids.txt',
-        'XB': 'XB_false_positive_pmids.txt',
-        'ZFIN': 'ZFIN_false_positive_pmids.txt'
-    }
-    mod_to_fp_pmids_url = {
-        "FB": "https://ftp.flybase.net/flybase/associated_files/alliance/FB_false_positive_pmids.txt",
-        "SGD": "https://sgd-prod-upload.s3.us-west-2.amazonaws.com/latest/SGD_false_positive_pmids.txt",
-        "WB": "https://tazendra.caltech.edu/~postgres/agr/lit/WB_false_positive_pmids",
-        "XB": "https://ftp.xenbase.org/pub/DataExchange/AGR/XB_false_positive_pmids.txt"
-    }
-
     # retrieve all cross_reference info from database
     xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
     db_session = next(get_db())
@@ -226,29 +212,12 @@ def query_mods(input_mod, reldate):  # noqa: C901
     pmids4mod = {}
     pmids4mod['all'] = set()
 
-    pmids_to_exclude_file = path.join(search_path, "pmids_to_excude.txt")
-    exclude_pmids = set()
-    with open(pmids_to_exclude_file, "r") as infile_fh:
-        exclude_pmids = {line.rstrip().replace('PMID:', '') for line in infile_fh if line.strip()}
+    exclude_pmids = get_pmids_from_exclude_list()
 
     for mod in [mod for mod in mods_to_query if mod in mod_esearch_url]:
         pmids4mod[mod] = set()
         logger.info(f"Processing {mod}")
-        fp_pmids = set()
-        if mod in mod_to_fp_pmids_url:
-            try:
-                fp_url = mod_to_fp_pmids_url[mod]
-                fp_file = search_path + mod_false_positive_file[mod]
-                download_file(fp_url, fp_file)
-            except Exception as e:
-                logger.error(e)
-        if mod in mod_false_positive_file:
-            infile = search_path + mod_false_positive_file[mod]
-            with open(infile, "r") as infile_fh:
-                for line in infile_fh:
-                    pmid = line.rstrip()
-                    pmid = pmid.replace('PMID:', '')
-                    fp_pmids.add(pmid)
+        fp_pmids = get_pmids_from_exclude_list(mod)
         time.sleep(sleep_delay)
         url = mod_esearch_url[mod]
         if environ.get('NCBI_API_KEY'):

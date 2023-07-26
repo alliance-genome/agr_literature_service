@@ -22,7 +22,7 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.parse_dqm_json
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import \
     download_pubmed_xml
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
-    download_file
+    get_pmids_from_exclude_list
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import \
     generate_json
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
@@ -278,43 +278,15 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
     # report2 = {}
     missing_papers_in_mod = {}
     missing_agr_in_mod = {}
-
-    mod_false_positive_file = {
-        'FB': 'FB_false_positive_pmids.txt',
-        'WB': 'WB_false_positive_pmids.txt',
-        'SGD': 'SGD_false_positive_pmids.txt',
-        'XB': 'XB_false_positive_pmids.txt',
-        'ZFIN': 'ZFIN_false_positive_pmids.txt'
-    }
-    mod_to_fp_pmids_url = {
-        "FB": "https://ftp.flybase.net/flybase/associated_files/alliance/FB_false_positive_pmids.txt",
-        "SGD": "https://sgd-prod-upload.s3.us-west-2.amazonaws.com/latest/SGD_false_positive_pmids.txt",
-        "WB": "https://tazendra.caltech.edu/~postgres/agr/lit/WB_false_positive_pmids",
-        "XB": "https://ftp.xenbase.org/pub/DataExchange/AGR/XB_false_positive_pmids.txt"
-    }
-
-    search_path = path.join(path.dirname(path.dirname(path.abspath(__file__))),
-                            "pubmed_ingest", "data_for_pubmed_processing")
-    exclude_pmid_file = path.join(search_path, "pmids_to_excude.txt")
-    exclude_pmids = set()
-    with open(exclude_pmid_file, "r") as infile_fh:
-        exclude_pmids = {line.rstrip().replace('PMID:', '') for line in infile_fh if line.strip()}
+    exclude_pmids = get_pmids_from_exclude_list()
 
     for mod in sorted(mods):
         filename = path.join(base_dir, input_path) + '/REFERENCE_' + mod + '.json'
         if not path.exists(filename):
             continue
-        ###################
-        fp_pmids = set()
-        if mod in mod_false_positive_file:
-            fp_pmid_file = path.join(search_path, mod_false_positive_file[mod])
-            if mod in mod_to_fp_pmids_url:
-                fp_url = mod_to_fp_pmids_url[mod]
-                download_file(fp_url, fp_pmid_file)
-            with open(fp_pmid_file, "r") as infile_fh:
-                fp_pmids = {line.rstrip().replace('PMID:', '') for line in infile_fh if line.strip()}
-        ###################
+        fp_pmids = get_pmids_from_exclude_list(mod)
         xrefs_to_add = dict()
+        clashed_pmids = []
         aggregate_mod_specific_fields_only = dict()
         aggregate_mod_biblio_all = dict()
         xref_to_pages = dict()
@@ -360,6 +332,8 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
             ## in the false positive list
             pmid = primary_id.replace('PMID:', '')
             if pmid in exclude_pmids or pmid in fp_pmids:
+                if pmid in fp_pmids:
+                    clashed_pmids.append(pmid)
                 continue
 
             dbid = None
@@ -711,7 +685,8 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 
         send_dqm_loading_report(mod, report[mod], missing_papers_in_mod[mod],
                                 agr_to_title, bad_date_published,
-                                mod_ids_used_in_resource, report_file_path)
+                                mod_ids_used_in_resource, clashed_pmids,
+                                report_file_path)
 
 
 def find_unparsable_date_published(json_file, bad_date_published):
