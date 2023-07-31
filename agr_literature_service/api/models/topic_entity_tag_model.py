@@ -122,7 +122,7 @@ class TopicEntityTagModel(AuditedModel, Base):
                      negated.is_(True))
             ),
             name="entity_entity_source_and_species_not_null_when_entity_type_provided"
-        )
+        ),
     )
 
 
