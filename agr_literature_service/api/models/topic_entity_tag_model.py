@@ -166,6 +166,12 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
         nullable=False
     )
 
+    description = Column(
+        String(),
+        unique=False,
+        nullable=True
+    )
+
     __table_args__ = (
         UniqueConstraint(
             'source_type', 'source_details', 'mod_id', name='topic_entity_tag_source_unique'),
