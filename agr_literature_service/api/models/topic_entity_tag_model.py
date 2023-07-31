@@ -41,13 +41,13 @@ class TopicEntityTagModel(AuditedModel, Base):
 
     topic_entity_tag_source_id = Column(
         Integer,
-        ForeignKey("topic_entity_type_source.topic_entity_type_source_id", ondelete="CASCADE"),
+        ForeignKey("topic_entity_tag_source.topic_entity_tag_source_id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
 
     topic_entity_type_source = relationship(
-        "TopicEntityTypeSourceModel",
+        "TopicEntityTagSourceModel",
         foreign_keys="TopicEntityTagModel.topic_entity_tag_source_id"
     )
 
@@ -125,18 +125,18 @@ class TopicEntityTagModel(AuditedModel, Base):
         ),
         Index(
             'ix_unique_topic_tag_with_species',
-            'reference_id', 'topic', 'species', 'source_id',
+            'reference_id', 'topic', 'species', 'topic_entity_tag_source_id', 'created_by',
             unique=True,
             postgresql_where=and_(entity_type.is_(None), species.isnot(None))),
         Index(
             'ix_unique_topic_tag_without_species',
-            'reference_id', 'topic', 'source_id',
+            'reference_id', 'topic', 'topic_entity_tag_source_id', 'created_by',
             unique=True,
             postgresql_where=and_(entity_type.is_(None), species.is_(None))),
         Index(
             'ix_unique_entity_tag',
             'reference_id', 'topic', 'entity_type', 'entity', 'entity_source', 'species',
-            'entity_published_as', 'source_id',
+            'entity_published_as', 'topic_entity_tag_source_id', 'created_by',
             unique=True,
             postgresql_where=entity_type.isnot(None))
     )
