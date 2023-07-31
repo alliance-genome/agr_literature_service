@@ -122,23 +122,7 @@ class TopicEntityTagModel(AuditedModel, Base):
                      negated.is_(True))
             ),
             name="entity_entity_source_and_species_not_null_when_entity_type_provided"
-        ),
-        Index(
-            'ix_unique_topic_tag_with_species',
-            'reference_id', 'topic', 'species', 'topic_entity_tag_source_id', 'created_by',
-            unique=True,
-            postgresql_where=and_(entity_type.is_(None), species.isnot(None))),
-        Index(
-            'ix_unique_topic_tag_without_species',
-            'reference_id', 'topic', 'topic_entity_tag_source_id', 'created_by',
-            unique=True,
-            postgresql_where=and_(entity_type.is_(None), species.is_(None))),
-        Index(
-            'ix_unique_entity_tag',
-            'reference_id', 'topic', 'entity_type', 'entity', 'entity_source', 'species',
-            'entity_published_as', 'topic_entity_tag_source_id', 'created_by',
-            unique=True,
-            postgresql_where=entity_type.isnot(None))
+        )
     )
 
 
@@ -185,4 +169,35 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
     __table_args__ = (
         UniqueConstraint(
             'source_type', 'source_details', 'mod_id', name='topic_entity_tag_source_unique'),
+    )
+
+
+class TopicEntityTagValidation(Base):
+    __tablename__ = "topic_entity_tag_validation"
+    __versioned__: Dict = {}
+
+    topic_entity_tag_validation_id = Column(
+        Integer,
+        primary_key=True,
+        autoincrement=True
+    )
+
+    validated_topic_entity_tag_id = Column(
+        Integer,
+        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete="CASCADE"),
+        index=True,
+        nullable=False
+    )
+
+    validating_topic_entity_tag_id = Column(
+        Integer,
+        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete="CASCADE"),
+        index=True,
+        nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            'validated_topic_entity_tag_id', 'validating_topic_entity_tag_id',
+            name='topic_entity_tag_validation_unique'),
     )
