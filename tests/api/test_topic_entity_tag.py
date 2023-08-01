@@ -14,7 +14,22 @@ from .test_mod import test_mod # noqa
 
 test_reference2 = test_reference
 
+TestSourceData = namedtuple('TestSourceData', ['response', 'new_source_id'])
 TestTETData = namedtuple('TestTETData', ['response', 'new_tet_id', 'related_ref_curie'])
+
+
+@pytest.fixture
+def test_topic_entity_tag_source(db, auth_headers, test_mod): # noqa
+    print("***** Adding a test tag source *****")
+    with TestClient(app) as client:
+        new_source = {
+            "source_name": "neural_network_phenotype",
+            "evidence": "test_eco_code",
+            "description": "a test source",
+            "mod_abbreviation": test_mod.new_mod_abbreviation
+        }
+        response = client.post(url="/topic_entity_tag/source", json=new_source, headers=auth_headers)
+        yield TestSourceData(response, response.json())
 
 
 @pytest.fixture
@@ -29,19 +44,20 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_mod): # noqa
             "entity_source": "alliance",
             "entity_published_as": "test",
             "species": "NCBITaxon:6239",
-            "sources": [{
-                "source": "WB_NN_1",
-                "confidence_level": "high",
-                "mod_abbreviation": test_mod.new_mod_abbreviation,
-                "note": "test note",
-                "validation_value_author": True
-            }]
+            "source_name": "neural_network_phenotype",
+            "mod_abbreviation": test_mod.new_mod_abbreviation,
+            "negated": False,
+            "note": "test note"
         }
         response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
         yield TestTETData(response, response.json(), test_reference.new_ref_curie)
 
 
 class TestTopicEntityTag:
+
+    def test_create_source(self, test_topic_entity_tag_source, test_mod, auth_headers):
+        with TestClient(app) as client:
+            assert test_topic_entity_tag_source.response.status_code == status.HTTP_201_CREATED
 
     def test_create(self, test_topic_entity_tag, test_mod, auth_headers): # noqa
         with TestClient(app) as client:

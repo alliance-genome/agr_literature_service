@@ -1,17 +1,16 @@
-from typing import List, Optional
+from typing import Optional
 from pydantic import BaseModel
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
 
 class TopicEntityTagSourceSchemaCreate(AuditedObjectModelSchema):
     source_name: str
-    source_type: Optional[str] = None
     evidence: str
     description: str
     mod_abbreviation: str
 
 
-class TopicEntityTagSourceSchemaShow(AuditedObjectModelSchema, TopicEntityTagSourceSchemaCreate):
+class TopicEntityTagSourceSchemaShow(TopicEntityTagSourceSchemaCreate):
     topic_entity_tag_source_id: int
 
 

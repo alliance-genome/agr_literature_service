@@ -148,13 +148,7 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
         foreign_keys="TopicEntityTagSourceModel.mod_id"
     )
 
-    source_type = Column(
-        String(),
-        unique=False,
-        nullable=False
-    )
-
-    source_details = Column(
+    source_name = Column(
         String(),
         unique=False,
         nullable=False
@@ -174,7 +168,7 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
 
     __table_args__ = (
         UniqueConstraint(
-            'source_type', 'source_details', 'mod_id', name='topic_entity_tag_source_unique'),
+            'source_name', 'mod_id', name='topic_entity_tag_source_unique'),
     )
 
 

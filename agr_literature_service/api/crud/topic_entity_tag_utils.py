@@ -49,19 +49,14 @@ def get_source_from_db(db: Session, topic_entity_tag_source_id: int) -> TopicEnt
     return source
 
 
-def add_source_obj_to_db_session(db: Session, topic_entity_tag_id: int, source: Dict):
+def add_source_obj_to_db_session(db: Session, source: Dict):
     mod = db.query(ModModel.mod_id).filter(ModModel.abbreviation == source['mod_abbreviation']).one_or_none()
     if mod is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
     source_obj = TopicEntityTagSourceModel(
-        topic_entity_tag_id=topic_entity_tag_id,
-        source=source["source"],
-        negated=source["negated"],
-        confidence_level=source["confidence_level"],
-        validation_value_author=source["validation_value_author"],
-        validation_value_curator=source["validation_value_curator"],
-        validation_value_curation_tools=source["validation_value_curation_tools"],
-        note=source["note"],
+        source_name=source["source_name"],
+        evidence=source["evidence"],
+        description=source["description"],
         mod_id=mod.mod_id
     )
     db.add(source_obj)
