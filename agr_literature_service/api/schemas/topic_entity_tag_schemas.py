@@ -3,61 +3,35 @@ from pydantic import BaseModel
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
 
-class TopicEntityTagSourceSchemaCreate(BaseModel):
-    source: str
-    negated: Optional[bool] = False
-    confidence_level: Optional[str] = None
+class TopicEntityTagSourceSchemaCreate(AuditedObjectModelSchema):
+    source_name: str
+    source_type: Optional[str] = None
+    evidence: str
+    description: str
     mod_abbreviation: str
-    validation_value_author: Optional[bool] = None
-    validation_value_curator: Optional[bool] = None
-    validation_value_curation_tools: Optional[bool] = None
-    note: Optional[str] = None
 
 
-class TopicEntityTagSourceSchemaPost(TopicEntityTagSourceSchemaCreate):
-    topic_entity_tag_id: int  # required as here topic_entity_tag_prop created separate from topic_entity_tag
-
-
-class TopicEntityTagSourceSchemaRelated(AuditedObjectModelSchema):
+class TopicEntityTagSourceSchemaShow(AuditedObjectModelSchema, TopicEntityTagSourceSchemaCreate):
     topic_entity_tag_source_id: int
-    source: str
-    negated: Optional[bool] = False
-    confidence_level: Optional[str] = None
-    mod_abbreviation: str
-    validation_value_author: Optional[bool] = None
-    validation_value_curator: Optional[bool] = None
-    validation_value_curation_tools: Optional[bool] = None
-    note: Optional[str] = None
-
-
-class TopicEntityTagSourceSchemaShow(AuditedObjectModelSchema):
-    topic_entity_tag_source_id: int
-    source: str
-    negated: Optional[bool] = False
-    confidence_level: Optional[str] = None
-    mod_abbreviation: str
-    validation_value_author: Optional[bool] = None
-    validation_value_curator: Optional[bool] = None
-    validation_value_curation_tools: Optional[bool] = None
-    note: Optional[str] = None
 
 
 class TopicEntityTagSourceSchemaUpdate(BaseModel):
-    source: Optional[str]
-    negated: Optional[bool]
-    confidence_level: Optional[str]
+    source_name: Optional[str]
+    source_type: Optional[str]
+    evidence: Optional[str]
+    description: Optional[str]
     mod_abbreviation: Optional[str]
-    validation_value_author: Optional[bool]
-    validation_value_curator: Optional[bool]
-    validation_value_curation_tools: Optional[bool]
-    note: Optional[str]
+    date_created: Optional[str]
+    date_updated: Optional[str]
+    created_by: Optional[str]
+    updated_by: Optional[str]
 
     class Config:
         orm_mode = True
         extra = "forbid"
 
 
-class TopicEntityTagSchemaCreate(BaseModel):
+class TopicEntityTagSchemaCreate(AuditedObjectModelSchema):
     topic: str
     entity_type: Optional[str] = None
     entity: Optional[str] = None
@@ -65,7 +39,11 @@ class TopicEntityTagSchemaCreate(BaseModel):
     entity_published_as: Optional[str] = None
     species: Optional[str] = None
     display_tag: Optional[str] = None
-    sources: List[TopicEntityTagSourceSchemaCreate]
+    source_name: str
+    mod_abbreviation: str
+    negated: Optional[bool] = False
+    confidence_level: Optional[str] = None
+    note: Optional[str] = None
 
 
 class TopicEntityTagSchemaPost(TopicEntityTagSchemaCreate):
@@ -73,7 +51,6 @@ class TopicEntityTagSchemaPost(TopicEntityTagSchemaCreate):
 
 
 class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
-    topic_entity_tag_id: int
     topic: str
     entity_type: Optional[str] = None
     entity: Optional[str] = None
@@ -81,18 +58,26 @@ class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     entity_published_as: Optional[str] = None
     species: Optional[str] = None
     display_tag: Optional[str] = None
-    sources: List[TopicEntityTagSourceSchemaRelated]
+    topic_entity_tag_source_id: int
+    source_name: str
+    mod_abbreviation: str
+    negated: Optional[bool] = False
+    confidence_level: Optional[str] = None
+    note: Optional[str] = None
 
 
 class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
     reference_curie: str
 
 
-class TopicEntityTagSchemaUpdate(BaseModel):
+class TopicEntityTagSchemaUpdate(AuditedObjectModelSchema):
     topic: Optional[str] = None
     entity_type: Optional[str] = None
     entity: Optional[str] = None
     entity_source: Optional[str] = None
     entity_published_as: Optional[str] = None
-    display_tag: Optional[str] = None
     species: Optional[str] = None
+    display_tag: Optional[str] = None
+    negated: Optional[bool] = False
+    confidence_level: Optional[str] = None
+    note: Optional[str] = None
