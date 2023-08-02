@@ -137,6 +137,8 @@ def patch_source(db: Session, topic_entity_tag_source_id: int, source_patch: Top
 def show_source(db: Session, topic_entity_tag_source_id: int):
     source = get_source_from_db(db, topic_entity_tag_source_id)
     source_data = jsonable_encoder(source)
+    del source_data["mod_id"]
+    source_data["mod_abbreviation"] = source.mod.abbreviation
     return source_data
 
 

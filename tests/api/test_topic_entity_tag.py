@@ -55,9 +55,20 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_mod): # noqa
 
 class TestTopicEntityTag:
 
-    def test_create_source(self, test_topic_entity_tag_source, test_mod, auth_headers):
-        with TestClient(app) as client:
+    def test_create_source(self, test_topic_entity_tag_source, test_mod, auth_headers): # noqa
+        with TestClient(app):
             assert test_topic_entity_tag_source.response.status_code == status.HTTP_201_CREATED
+
+    def test_show_source(self, test_topic_entity_tag_source, test_mod): # noqa
+        with TestClient(app) as client:
+            response = client.get(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}")
+            assert response.status_code == status.HTTP_200_OK
+            res_obj = response.json()
+            assert res_obj["source_name"] == "neural_network_phenotype"
+            assert res_obj["evidence"] == "test_eco_code"
+            assert res_obj["description"] == "a test source"
+            assert res_obj["mod_abbreviation"] == test_mod.new_mod_abbreviation
+
 
     def test_create(self, test_topic_entity_tag, test_mod, auth_headers): # noqa
         with TestClient(app) as client:
