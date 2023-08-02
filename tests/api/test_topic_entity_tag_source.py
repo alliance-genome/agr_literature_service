@@ -5,7 +5,6 @@ from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
-from agr_literature_service.lit_processing.utils.okta_utils import get_authentication_token
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_mod import test_mod # noqa
