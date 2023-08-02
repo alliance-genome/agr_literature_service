@@ -398,3 +398,9 @@ class TestReference:
                                       'citation|V: P: \n' \
                                       'year|\n' \
                                       'abstract|3\n'
+
+
+    def test_get_textpresso_reference_list(self, test_reference, auth_headers, test_mod): # noqa
+        with TestClient(app) as client:
+            ...
+

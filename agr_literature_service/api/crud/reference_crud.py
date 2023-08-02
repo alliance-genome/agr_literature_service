@@ -4,6 +4,7 @@ reference_crud.py
 """
 import logging
 import re
+from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, List
 from os import getcwd
@@ -729,10 +730,16 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
 
 
 def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date: datetime.date = None):
-    query = db.query(ReferenceModel).join(ReferencefileModel).filter(
+    query = db.query(ReferencefileModel.referencefile_id, ReferenceModel.curie).filter(
         and_(
-            ReferenceModel.mod_corpus_association.any(and_(ModCorpusAssociationModel.mod.has(
-                ModModel.abbreviation == mod_abbreviation), ModCorpusAssociationModel.corpus == True)), # noqa
+            ReferencefileModel.reference.has(
+                ReferenceModel.mod_corpus_association.any(
+                    and_(
+                        ModCorpusAssociationModel.mod.has(ModModel.abbreviation == mod_abbreviation),
+                        ModCorpusAssociationModel.corpus == True
+                    )
+                )
+            ), # noqa
             and_(
                 ReferencefileModel.referencefile_mods.any(
                     or_(
@@ -746,15 +753,10 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date:
         )
     )
     if files_updated_from_date:
-        query = query.filter(ReferenceModel.referencefiles.any(
-            and_(ReferencefileModel.file_class == "main", ReferencefileModel.updated_by >= files_updated_from_date)))
-    textpresso_references = query.all()
-    return [
-        {
-            "reference_curie": ref.curie,
-            "main_referencefiles": [reffile.reference_id for reffile in ref.referencefiles if
-                                    reffile.file_class == "main" and any(
-                                        reffile_mod.mod_id is None or reffile_mod.mod.abbreviation == mod_abbreviation
-                                        for reffile_mod in reffile.referencefile_mods)]
-        } for ref in textpresso_references
-    ]
+        query = query.filter(ReferencefileModel.updated_by >= files_updated_from_date)
+    textpresso_referencefiles = query.all()
+    aggregated_reffiles = defaultdict(list)
+    for reffile in textpresso_referencefiles:
+        aggregated_reffiles[reffile.curie].append(reffile.referencefile_id)
+    return [{"reference_curie": ref_curie, "main_referencefiles": reffiles} for ref_curie, reffiles in
+            aggregated_reffiles.items()]
