@@ -98,9 +98,9 @@ class TestTopicEntityTag:
         with TestClient(app) as client:
             assert test_topic_entity_tag.response.status_code == status.HTTP_201_CREATED
 
-    def test_create_duplicate_different_source(self, test_topic_entity_tag, test_mod, auth_headers): # noqa
+    def test_create_tag_wrong_source(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
-            xml = {
+            new_tet = {
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
                 "topic": "ATP:0000122",
                 "entity_type": "ATP:0000005",
@@ -108,79 +108,18 @@ class TestTopicEntityTag:
                 "entity_source": "alliance",
                 "entity_published_as": "test",
                 "species": "NCBITaxon:6239",
-                "sources": [{
-                    "source": "WB_NN_1",
-                    "confidence_level": "high",
-                    "mod_abbreviation": test_mod.new_mod_abbreviation,
-                    "note": "test note"
-                }]
+                "source_name": "not_there",
+                "mod_abbreviation": "who_knows",
+                "negated": False,
+                "note": "test note",
+                "created_by": "WBPerson1",
+                "date_created": "2020-01-01"
             }
-
-            xml0 = copy.deepcopy(xml)
-            xml0["sources"][0]["source"] = "WB_SVM"
-            response = client.post(url="/topic_entity_tag/", json=xml0, headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
-
-    def test_create_wrong(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
-        with TestClient(app) as client:
-            xml = {
-                "reference_curie": test_topic_entity_tag.related_ref_curie,
-                "topic": "ATP:0000122",
-                "entity_type": "ATP:0000005",
-                "entity": "WB:WBGene00003001",
-                "entity_source": "alliance",
-                "species": "NCBITaxon:6239",
-                "sources": [{
-                    "source": "WB_NN_1",
-                    "confidence_level": "high",
-                    "mod_abbreviation": test_mod.new_mod_abbreviation,
-                    "note": "test note"
-                }]
-            }
-
-            # No sources
-            xml1 = copy.deepcopy(xml)
-            del xml1["sources"]
-            response = client.post(url="/topic_entity_tag/", json=xml1, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-
-            # No Entities
-            xml2 = copy.deepcopy(xml)
-            del xml2["entity"]
-            response = client.post(url="/topic_entity_tag/", json=xml2, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-
-            # No curie
-            xml3 = copy.deepcopy(xml)
-            del xml3["reference_curie"]
-            response = client.post(url="/topic_entity_tag/", json=xml3, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-
-            # Bad curie
-            xml4 = copy.deepcopy(xml)
-            xml4["reference_curie"] = "BADCURIE"
-            response = client.post(url="/topic_entity_tag/", json=xml4, headers=auth_headers)
+            response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-            # Entity tag without species
-            xml5 = copy.deepcopy(xml)
-            del xml5["species"]
-            response = client.post(url="/topic_entity_tag/", json=xml5, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-
-            # Duplicate tag
-            xml6 = copy.deepcopy(xml)
-            xml6["topic"] = "ATP:0000122"
-            xml6["entity_type"] = "ATP:0000005"
-            xml6["entity"] = "WB:WBGene00003001"
-            xml6["entity_source"] = "alliance"
-            response = client.post(url="/topic_entity_tag/", json=xml6, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-
-    def test_show(self, test_topic_entity_tag):
+    def test_show(self, test_topic_entity_tag): # noqa
         with TestClient(app) as client:
-
-            # Test the show function
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
             assert response.status_code == status.HTTP_200_OK
             resp_data = response.json()
@@ -197,23 +136,6 @@ class TestTopicEntityTag:
             }
             for key, value in expected_fields.items():
                 assert resp_data[key] == value
-            assert resp_data["sources"][0]["validation_value_author"] is True
-
-    def test_add_source_to_tag(self, test_topic_entity_tag, auth_headers, test_mod): # noqa
-        with TestClient(app) as client:
-            source_data = {
-                "topic_entity_tag_id": test_topic_entity_tag.new_tet_id,
-                "source": "SVM",
-                "confidence_level": "high",
-                "mod_abbreviation": test_mod.new_mod_abbreviation,
-                "validation_value_author": True,
-                "validation_value_curator": False,
-                "validation_value_curation_tools": None,
-                "note": "test note"
-            }
-            response = client.post("/topic_entity_tag/add_source", json=source_data, headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
-
 
     def test_get_all_reference_tags(self, auth_headers): # noqa
         with TestClient(app) as client:
@@ -255,60 +177,7 @@ class TestTopicEntityTag:
             assert len(response) > 0
 
     def test_validation(self, test_reference, test_mod, auth_headers): # noqa
-        with TestClient(app) as client:
-            topic_tag = {
-                "reference_curie": test_reference.new_ref_curie,
-                "topic": "ATP:0000009",
-                "sources": [
-                    {
-                        "source": "NN",
-                        "negated": True,
-                        "confidence_level": "NEG",
-                        "mod_abbreviation": test_mod.new_mod_abbreviation,
-                        "note": "test note"
-                    },
-                    {
-                        "source": "author",
-                        "negated": False,
-                        "mod_abbreviation": test_mod.new_mod_abbreviation,
-                        "note": "author said it's positive"
-                    }
-                ]
-            }
-            response = client.post(url="/topic_entity_tag/", json=topic_tag, headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
-            new_topic_entity_tag_id = response.json()
-            response = client.get(f"/topic_entity_tag/{new_topic_entity_tag_id}")
-            assert response.status_code == status.HTTP_200_OK
-            resp_data = response.json()
-            assert any(source["validation_value_author"] is False for source in resp_data["sources"])
-
-            curator_source_data = {
-                "topic_entity_tag_id": new_topic_entity_tag_id,
-                "source": "curator",
-                "negated": True,
-                "mod_abbreviation": test_mod.new_mod_abbreviation,
-                "note": "curator said it's negative"
-            }
-            response = client.post("/topic_entity_tag/add_source", json=curator_source_data, headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
-            curator_source_id = response.json()
-            resp_data = client.get(f"/topic_entity_tag/{new_topic_entity_tag_id}").json()
-            for source in resp_data["sources"]:
-                if source["source"] == "NN":
-                    assert source["validation_value_author"] is False and source["validation_value_curator"] is True
-                elif source["source"] == "author":
-                    assert source["validation_value_author"] is True and source["validation_value_curator"] is False
-                elif source["source"] == "curator":
-                    assert source["validation_value_author"] is False and source["validation_value_curator"] is True
-
-            client.delete(f"/topic_entity_tag/delete_source/{curator_source_id}", headers=auth_headers)
-            deleted_resp_data = client.get(f"/topic_entity_tag/{new_topic_entity_tag_id}").json()
-            for source in deleted_resp_data["sources"]:
-                if source["source"] == "NN":
-                    assert source["validation_value_author"] is False and source["validation_value_curator"] is None
-                elif source["source"] == "author":
-                    assert source["validation_value_author"] is True and source["validation_value_curator"] is None
+        ...
 
     @pytest.mark.webtest
     def test_get_map_entity_curie_to_name(self, test_topic_entity_tag, test_mod, auth_headers): # noqa

@@ -64,8 +64,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
 
 
 def show_tag(db: Session, topic_entity_tag_id: int):
-    # TODO: rewrite with new schema
-    topic_entity_tag = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
+    topic_entity_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
     if not topic_entity_tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
@@ -75,14 +74,10 @@ def show_tag(db: Session, topic_entity_tag_id: int):
         topic_entity_tag_data["reference_curie"] = db.query(ReferenceModel).filter(
             ReferenceModel.reference_id == topic_entity_tag_data["reference_id"]).first().curie
         del topic_entity_tag_data["reference_id"]
-    sources = db.query(TopicEntityTagSourceModel).options(joinedload(TopicEntityTagSourceModel.mod)).filter(
-        TopicEntityTagSourceModel.topic_entity_tag_id == topic_entity_tag_id).all()
-    topic_entity_tag_data["sources"] = [jsonable_encoder(source) for source in sources]
-    for source in topic_entity_tag_data["sources"]:
-        source["mod_abbreviation"] = source["mod"]["abbreviation"]
-        del source["mod"]
-        del source["mod_id"]
-        del source["topic_entity_tag_id"]
+    topic_entity_tag_data[
+        "topic_entity_tag_source_id"] = topic_entity_tag.topic_entity_tag_source.topic_entity_tag_source_id
+    topic_entity_tag_data["source_name"] = topic_entity_tag.topic_entity_tag_source.source_name
+    topic_entity_tag_data["mod_abbreviation"] = topic_entity_tag.topic_entity_tag_source.mod.abbreviation
     return topic_entity_tag_data
 
 

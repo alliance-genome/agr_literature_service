@@ -50,6 +50,7 @@ class TopicEntityTagSchemaPost(TopicEntityTagSchemaCreate):
 
 
 class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
+    topic_entity_tag_id: int
     topic: str
     entity_type: Optional[str] = None
     entity: Optional[str] = None

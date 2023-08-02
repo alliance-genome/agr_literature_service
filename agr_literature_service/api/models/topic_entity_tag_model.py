@@ -46,7 +46,7 @@ class TopicEntityTagModel(AuditedModel, Base):
         nullable=False
     )
 
-    topic_entity_type_source = relationship(
+    topic_entity_tag_source = relationship(
         "TopicEntityTagSourceModel",
         foreign_keys="TopicEntityTagModel.topic_entity_tag_source_id"
     )
