@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from starlette.background import BackgroundTask
-from sqlalchemy import ARRAY, Boolean, String, func
+from sqlalchemy import ARRAY, Boolean, String, func, and_
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast, or_
 
@@ -32,7 +32,7 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ReferenceModel,
                                                ResourceModel,
                                                CopyrightLicenseModel,
-                                               CitationModel)
+                                               CitationModel, ReferencefileModel, ReferencefileModAssociationModel)
 from agr_literature_service.api.routers.okta_utils import OktaAccess
 from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
@@ -726,3 +726,35 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
         bib_info.year = reference.date_published
     bib_info.abstract = reference.abstract
     return bib_info.get_formatted_bib(format_type=return_format)
+
+
+def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date: datetime.date = None):
+    query = db.query(ReferenceModel).join(ReferencefileModel).filter(
+        and_(
+            ReferenceModel.mod_corpus_association.any(and_(ModCorpusAssociationModel.mod.has(
+                ModModel.abbreviation == mod_abbreviation), ModCorpusAssociationModel.corpus == True)), # noqa
+            and_(
+                ReferencefileModel.referencefile_mods.any(
+                    or_(
+                        ReferencefileModAssociationModel.mod.has(ModModel.abbreviation == mod_abbreviation),
+                        ReferencefileModAssociationModel.mod_id == None
+                    )
+                ),
+                ReferencefileModel.file_class == "main",
+                ReferencefileModel.file_extension.lower() == "pdf"
+            ),
+        )
+    )
+    if files_updated_from_date:
+        query = query.filter(ReferenceModel.referencefiles.any(
+            and_(ReferencefileModel.file_class == "main", ReferencefileModel.updated_by >= files_updated_from_date)))
+    textpresso_references = query.all()
+    return [
+        {
+            "reference_curie": ref.curie,
+            "main_referencefiles": [reffile.reference_id for reffile in ref.referencefiles if
+                                    reffile.file_class == "main" and any(
+                                        reffile_mod.mod_id is None or reffile_mod.mod.abbreviation == mod_abbreviation
+                                        for reffile_mod in reffile.referencefile_mods)]
+        } for ref in textpresso_references
+    ]

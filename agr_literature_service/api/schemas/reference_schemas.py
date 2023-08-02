@@ -168,3 +168,9 @@ class ReferenceSchemaNeedReviewShow(BaseModel):
     copyright_license_description: Optional[str] = None
     copyright_license_open_access: Optional[str] = None
     referencefiles: Optional[List[ReferencefileSchemaRelated]]
+
+
+class ReferenceSchemaTexptressoReferenceListShow(BaseModel):
+    curie: str
+    main_referencefiles: List[int]
+    supplemental_referencefiles: List[int]
