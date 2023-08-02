@@ -34,7 +34,8 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                CopyrightLicenseModel,
                                                CitationModel)
 from agr_literature_service.api.routers.okta_utils import OktaAccess
-from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated
+from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated, \
+    TopicEntityTagSchemaPost
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.workflow_tag_crud import (
     create as create_workflow_tag,
@@ -157,7 +158,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
         elif field == "topic_entity_tags":
             if value is not None:
                 for obj in value:
-                    obj_data = jsonable_encoder(obj)
+                    obj_data = obj.dict(exclude_unset=True)
                     obj_data["reference_curie"] = curie
                     try:
                         create_tag(db, obj_data)
