@@ -1,4 +1,5 @@
 import copy
+import datetime
 from collections import namedtuple
 
 import pytest
@@ -14,7 +15,7 @@ from .test_mod import test_mod # noqa
 
 test_reference2 = test_reference
 
-TestSourceData = namedtuple('TestSourceData', ['response', 'new_source_id'])
+TestSourceData = namedtuple('TestSourceData', ['response', 'new_source_id', 'new_source_name'])
 TestTETData = namedtuple('TestTETData', ['response', 'new_tet_id', 'related_ref_curie'])
 
 
@@ -26,14 +27,15 @@ def test_topic_entity_tag_source(db, auth_headers, test_mod): # noqa
             "source_name": "neural_network_phenotype",
             "evidence": "test_eco_code",
             "description": "a test source",
-            "mod_abbreviation": test_mod.new_mod_abbreviation
+            "mod_abbreviation": test_mod.new_mod_abbreviation,
+            "created_by": "somebody"
         }
         response = client.post(url="/topic_entity_tag/source", json=new_source, headers=auth_headers)
-        yield TestSourceData(response, response.json())
+        yield TestSourceData(response, response.json(), new_source["source_name"])
 
 
 @pytest.fixture
-def test_topic_entity_tag(db, auth_headers, test_reference, test_mod): # noqa
+def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_tag_source, test_mod): # noqa
     print("***** Adding a test tag *****")
     with TestClient(app) as client:
         new_tet = {
@@ -44,10 +46,12 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_mod): # noqa
             "entity_source": "alliance",
             "entity_published_as": "test",
             "species": "NCBITaxon:6239",
-            "source_name": "neural_network_phenotype",
+            "source_name": test_topic_entity_tag_source.new_source_name,
             "mod_abbreviation": test_mod.new_mod_abbreviation,
             "negated": False,
-            "note": "test note"
+            "note": "test note",
+            "created_by": "WBPerson1",
+            "date_created": "2020-01-01"
         }
         response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
         yield TestTETData(response, response.json(), test_reference.new_ref_curie)
@@ -69,24 +73,30 @@ class TestTopicEntityTag:
             assert res_obj["description"] == "a test source"
             assert res_obj["mod_abbreviation"] == test_mod.new_mod_abbreviation
 
+    def test_patch_source(self, test_topic_entity_tag_source, auth_headers): # noqa
+        with TestClient(app) as client:
+            patch_data = {
+                "source_name": "test_patch_name",
+                "created_by": "me"
+            }
+            response = client.patch(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}",
+                                    json=patch_data, headers=auth_headers)
+            assert response.status_code == status.HTTP_202_ACCEPTED
+            response = client.get(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}")
+            assert response.json()["source_name"] == "test_patch_name"
+            assert response.json()["created_by"] == "me"
 
-    def test_create(self, test_topic_entity_tag, test_mod, auth_headers): # noqa
+    def test_destroy_source(self, test_topic_entity_tag_source, auth_headers):  # noqa
+        with TestClient(app) as client:
+            response = client.delete(f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}",
+                                     headers=auth_headers)
+            assert response.status_code == status.HTTP_204_NO_CONTENT
+            response = client.get(f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}")
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_create_tag(self, test_topic_entity_tag, auth_headers): # noqa
         with TestClient(app) as client:
             assert test_topic_entity_tag.response.status_code == status.HTTP_201_CREATED
-
-            topic_tag = {
-                "reference_curie": test_topic_entity_tag.related_ref_curie,
-                "topic": "Topic1",
-                "sources": [{
-                    "source": "WB_NN_1",
-                    "confidence_level": "high",
-                    "mod_abbreviation": test_mod.new_mod_abbreviation,
-                    "note": "test note"
-                }]
-            }
-
-            response = client.post(url="/topic_entity_tag/", json=topic_tag, headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
 
     def test_create_duplicate_different_source(self, test_topic_entity_tag, test_mod, auth_headers): # noqa
         with TestClient(app) as client:
@@ -204,26 +214,6 @@ class TestTopicEntityTag:
             response = client.post("/topic_entity_tag/add_source", json=source_data, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
 
-    def test_destroy_source(self, test_topic_entity_tag, auth_headers): # noqa
-        with TestClient(app) as client:
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
-            topic_entity_source_id = response.json()["sources"][0]["topic_entity_tag_source_id"]
-            response = client.delete(f"/topic_entity_tag/delete_source/{topic_entity_source_id}", headers=auth_headers)
-            assert response.status_code == status.HTTP_204_NO_CONTENT
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
-            assert response.status_code == status.HTTP_404_NOT_FOUND
-
-    def test_patch_source(self, test_topic_entity_tag, auth_headers): # noqa
-        with TestClient(app) as client:
-            source_patch = {
-                "source": "SVM",
-                "confidence_level": "low",
-                "note": "new note"
-            }
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
-            source_id = response.json()["sources"][0]["topic_entity_tag_source_id"]
-            response = client.patch(f"/topic_entity_tag/source/{source_id}", json=source_patch, headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
 
     def test_get_all_reference_tags(self, auth_headers): # noqa
         with TestClient(app) as client:

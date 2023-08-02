@@ -6,16 +6,16 @@ from collections import defaultdict
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import case
+from sqlalchemy import case, and_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
-    get_map_ateam_curies_to_names, check_and_set_sgd_display_tag
+    get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, add_audited_object_users_if_not_exist
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
-    ReferenceModel, TopicEntityTagSourceModel
+    ReferenceModel, TopicEntityTagSourceModel, ModModel
 )
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagSchemaPost,
                                                                          TopicEntityTagSourceSchemaUpdate,
@@ -35,8 +35,19 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
                             detail="reference_curie not within topic_entity_tag_data")
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     topic_entity_tag_data["reference_id"] = reference_id
+    topic_entity_tag_data["reference_id"] = reference_id
     if topic_entity_tag_data['mod_abbreviation'] == 'SGD':
         check_and_set_sgd_display_tag(topic_entity_tag_data)
+    source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
+        and_(TopicEntityTagSourceModel.source_name == topic_entity_tag_data["source_name"],
+             TopicEntityTagSourceModel.mod.has(
+                 ModModel.abbreviation == topic_entity_tag_data["mod_abbreviation"]))).one_or_none()
+    if source is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified source")
+    topic_entity_tag_data["topic_entity_tag_source_id"] = source.topic_entity_tag_source_id
+    del topic_entity_tag_data["source_name"]
+    del topic_entity_tag_data["mod_abbreviation"]
+    add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
     try:
         db.add(new_db_obj)
@@ -109,7 +120,7 @@ def validate_tags_on_insertion(db: Session, tag_obj: TopicEntityTagModel):
 
 
 def create_source(db: Session, source: TopicEntityTagSourceSchemaCreate):
-    source_data = jsonable_encoder(source)
+    source_data = {key: value for key, value in jsonable_encoder(source).items() if value is not None}
     source_obj = add_source_obj_to_db_session(db, source_data)
     try:
         db.commit()
@@ -128,7 +139,9 @@ def destroy_source(db: Session, topic_entity_tag_source_id: int):
 
 def patch_source(db: Session, topic_entity_tag_source_id: int, source_patch: TopicEntityTagSourceSchemaUpdate):
     source = get_source_from_db(db, topic_entity_tag_source_id)
-    for key, value in source_patch.dict(exclude_unset=True).items():
+    source_patch_data = source_patch.dict(exclude_unset=True)
+    add_audited_object_users_if_not_exist(db, source_patch_data)
+    for key, value in source_patch_data.items():
         setattr(source, key, value)
     db.commit()
     return {"message": "updated"}

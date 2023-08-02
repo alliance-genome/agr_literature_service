@@ -151,7 +151,8 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
     source_name = Column(
         String(),
         unique=False,
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     evidence = Column(
