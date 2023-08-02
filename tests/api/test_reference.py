@@ -134,7 +134,7 @@ class TestReference:
             delete_response = client.delete(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             assert delete_response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_reference_large(self, db, auth_headers, populate_test_mod_reference_types, test_mod,
+    def test_reference_large(self, db, auth_headers, populate_test_mod_reference_types, test_mod, # noqa
                              test_topic_entity_tag_source): # noqa
         with TestClient(app) as client:
             full_xml = {
