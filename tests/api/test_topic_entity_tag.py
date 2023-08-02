@@ -1,5 +1,3 @@
-import copy
-import datetime
 from collections import namedtuple
 
 import pytest
@@ -95,7 +93,7 @@ class TestTopicEntityTag:
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_create_tag(self, test_topic_entity_tag, auth_headers): # noqa
-        with TestClient(app) as client:
+        with TestClient(app):
             assert test_topic_entity_tag.response.status_code == status.HTTP_201_CREATED
 
     def test_create_tag_wrong_source(self, test_topic_entity_tag, auth_headers):  # noqa
