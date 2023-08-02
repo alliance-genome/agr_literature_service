@@ -34,8 +34,7 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                CopyrightLicenseModel,
                                                CitationModel)
 from agr_literature_service.api.routers.okta_utils import OktaAccess
-from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated, \
-    TopicEntityTagSchemaPost
+from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.workflow_tag_crud import (
     create as create_workflow_tag,
