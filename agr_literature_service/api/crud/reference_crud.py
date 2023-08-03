@@ -748,7 +748,7 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date:
                     )
                 ),
                 ReferencefileModel.file_class == "main",
-                ReferencefileModel.file_extension.lower() == "pdf"
+                ReferencefileModel.file_extension == "pdf"
             ),
         )
     )
