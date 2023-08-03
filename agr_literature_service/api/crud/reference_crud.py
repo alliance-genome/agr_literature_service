@@ -747,7 +747,7 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     return bib_info.get_formatted_bib(format_type=return_format)
 
 
-def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=None, page: int = 1,
+def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=None, from_curie: str = None,
                                   page_size: int = 1000):
     select_stmt = f"""SELECT r.curie, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
       FROM  reference r
@@ -760,11 +760,13 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
       AND mcam.abbreviation = '{mod_abbreviation}'
       AND rf.file_class = 'main'
       AND rf.file_extension = 'pdf'
-      AND (rfm.mod_id is NULL OR rfmm.abbreviation = '{mod_abbreviation}')
-      ORDER BY rf.date_created OFFSET {page_size * (page - 1)} LIMIT {page_size}"""
+      AND (rfm.mod_id is NULL OR rfmm.abbreviation = '{mod_abbreviation}')"""
 
+    if from_curie:
+        select_stmt += f" AND r.curie > '{from_curie}'"
     if files_updated_from_date:
-        select_stmt += f" AND rf.updated_by >= {files_updated_from_date}"
+        select_stmt += f" AND rf.updated_by >= '{files_updated_from_date}'"
+    select_stmt += f" ORDER BY r.curie LIMIT {page_size}"
     textpresso_referencefiles = db.execute(select_stmt).fetchall()
     aggregated_reffiles = defaultdict(set)
     source_is_pmc = {}
