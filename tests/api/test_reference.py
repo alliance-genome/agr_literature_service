@@ -432,7 +432,7 @@ class TestReference:
                 "pdf_type": "pdf",
                 "md5sum": "1234567892"
             }
-            reffile_id_main_1 = create_metadata(db, ReferencefileSchemaPost(**new_referencefile_main_1))
+            create_metadata(db, ReferencefileSchemaPost(**new_referencefile_main_1))
             reffile_id_main_2 = create_metadata(db, ReferencefileSchemaPost(**new_referencefile_main_2))
             reffile_id_sup_1 = create_metadata(db, ReferencefileSchemaPost(**new_referencefile_sup_1))
 

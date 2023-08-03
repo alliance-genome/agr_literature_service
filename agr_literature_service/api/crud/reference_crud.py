@@ -750,7 +750,7 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
 def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=None, page: int = 1,
                                   page_size: int = 1000):
     select_stmt = f"""SELECT r.curie, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
-      FROM  reference r 
+      FROM  reference r
       JOIN mod_corpus_association mca on r.reference_id = mca.reference_id
       JOIN mod mcam ON mca.mod_id = mcam.mod_id
       JOIN referencefile rf ON rf.reference_id = r.reference_id
