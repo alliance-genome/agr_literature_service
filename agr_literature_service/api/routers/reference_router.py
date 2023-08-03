@@ -247,4 +247,3 @@ def get_textpresso_reference_list(mod_abbreviation: str,
     if page_size > 1000:
         page_size = 1000
     return reference_crud.get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date, page, page_size)
-

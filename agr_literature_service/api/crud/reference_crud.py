@@ -736,7 +736,7 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     if reference.pubmed_types:
         bib_info.pubmed_types = [pub_type.replace("_", " ") for pub_type in reference.pubmed_types]
     bib_info.title = reference.title
-    if reference.resource:
+    if reference.resource is not None:
         bib_info.journal = reference.resource.title
     bib_info.citation = Citation(volume=reference.volume, pages=reference.page_range)
     if reference.date_published:

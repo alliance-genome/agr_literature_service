@@ -439,4 +439,3 @@ class TestReference:
                                 headers=auth_headers)
             assert result.status_code == status.HTTP_200_OK
             assert result.json()
-
