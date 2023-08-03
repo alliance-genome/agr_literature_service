@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from starlette.background import BackgroundTask
-from sqlalchemy import ARRAY, Boolean, String, func, and_, select
+from sqlalchemy import ARRAY, Boolean, String, func
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast, or_
 
@@ -33,7 +33,7 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ReferenceModel,
                                                ResourceModel,
                                                CopyrightLicenseModel,
-                                               CitationModel, ReferencefileModel, ReferencefileModAssociationModel)
+                                               CitationModel)
 from agr_literature_service.api.routers.okta_utils import OktaAccess
 from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
@@ -249,19 +249,20 @@ def show_all_references_external_ids(db: Session):
                                 cast(func.array_agg(CrossReferenceModel.curie),
                                      ARRAY(String)),
                                 cast(func.array_agg(CrossReferenceModel.is_obsolete),
-                                     ARRAY(Boolean))) \
-        .outerjoin(ReferenceModel.cross_reference) \
-        .group_by(ReferenceModel.curie)
+                                     ARRAY(Boolean))).outerjoin(ReferenceModel.cross_reference).group_by(
+        ReferenceModel.curie)
 
-    return [{
-                "curie": reference[0],
-                "cross_references": [{
-                                         "curie": reference[1][idx],
-                                         "is_obsolete": reference[2][idx]
-                                     }
-                                     for idx in range(len(reference[1]))]
-            }
-            for reference in references_query.all()]
+    return [
+        {
+            "curie": reference[0],
+            "cross_references": [
+                {
+                    "curie": reference[1][idx],
+                    "is_obsolete": reference[2][idx]
+                } for idx in range(len(reference[1]))
+            ]
+        } for reference in references_query.all()
+    ]
 
 
 def show(db: Session, curie_or_reference_id: str):  # noqa
@@ -412,14 +413,16 @@ def show_changesets(db: Session, curie_or_reference_id: str):
     history = []
     for version in reference.versions:
         tx = version.transaction
-        history.append({
-                           "transaction": {
-                               "id": tx.id,
-                               "issued_at": tx.issued_at,
-                               "user_id": tx.user_id
-                           },
-                           "changeset": version.changeset
-                       })
+        history.append(
+            {
+                "transaction": {
+                    "id": tx.id,
+                    "issued_at": tx.issued_at,
+                    "user_id": tx.user_id
+                },
+                "changeset": version.changeset
+            }
+        )
 
     return history
 
@@ -679,8 +682,7 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by, fi
 def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, filter: str):
     try:
         offset = (page * 25) - 25
-        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter) + \
-                f" LIMIT 25 OFFSET {offset}"
+        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter) + f" LIMIT 25 OFFSET {offset}"
         rows = db.execute(query).fetchall()
         data = jsonable_encoder(rows)
     except Exception:
