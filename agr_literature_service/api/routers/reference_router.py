@@ -234,7 +234,7 @@ def get_bib_info(curie: str,
     return reference_crud.get_bib_info(db, curie, mod_abbreviation, return_format)
 
 
-@router.get('/get_textpresso_reference_list/{}',
+@router.get('/get_textpresso_reference_list/{mod_abbreviation}',
             status_code=status.HTTP_200_OK,
             response_model=List[ReferenceSchemaTexptressoReferenceListShow])
 def get_textpresso_reference_list(mod_abbreviation: str,
