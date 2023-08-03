@@ -234,12 +234,11 @@ def get_bib_info(curie: str,
     return reference_crud.get_bib_info(db, curie, mod_abbreviation, return_format)
 
 
-@router.get('/get_textpresso_reference_list',
+@router.get('/get_textpresso_reference_list/{}',
             status_code=status.HTTP_200_OK,
             response_model=List[ReferenceSchemaTexptressoReferenceListShow])
 def get_textpresso_reference_list(mod_abbreviation: str,
                                   files_updated_from_date: datetime.date = None,
-                                  has_main_referencefiles: bool = True,
                                   user: OktaUser = db_user,
                                   db: Session = db_session):
     set_global_user_from_okta(db, user)
