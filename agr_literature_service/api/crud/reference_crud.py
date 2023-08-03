@@ -745,7 +745,7 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     return bib_info.get_formatted_bib(format_type=return_format)
 
 
-def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date: datetime.date = None, page: int = 1,
+def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=None, page: int = 1,
                                   page_size: int = 1000):
     select_stmt = f"""SELECT r.curie, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
       FROM  reference r 
