@@ -746,8 +746,8 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
 
 
 def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date: datetime.date = None, page: int = 1,
-                                  page_size: int = 5000):
-    select_stmt = f"""SELECT r.curie, rf.referencefile_id, rf.md5sum
+                                  page_size: int = 1000):
+    select_stmt = f"""SELECT r.curie, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
       FROM  reference r 
       JOIN mod_corpus_association mca on r.reference_id = mca.reference_id
       JOIN mod mcam ON mca.mod_id = mcam.mod_id
@@ -765,9 +765,21 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date:
         select_stmt += f" AND rf.updated_by >= {files_updated_from_date}"
     textpresso_referencefiles = db.execute(select_stmt).fetchall()
     aggregated_reffiles = defaultdict(set)
-    md5sum_reffiles = defaultdict(set)
+    source_is_pmc = {}
     for reffile in textpresso_referencefiles:
-        if reffile.md5sum not in md5sum_reffiles[reffile.curie]:
-            aggregated_reffiles[reffile.curie].add(reffile.referencefile_id)
-            md5sum_reffiles[reffile.curie].add(reffile.md5sum)
-    return [{ref_curie:  list(reffiles)} for ref_curie, reffiles in aggregated_reffiles.items()]
+        aggregated_reffiles[reffile.curie].add((reffile.referencefile_id, reffile.md5sum, reffile.mod_id is None,
+                                                reffile.date_created))
+        source_is_pmc[reffile.curie] = reffile.mod_id is None
+    return [
+        {
+            "reference_curie": ref_curie,
+            "main_referencefiles": [
+                {
+                    "referencefile_id": reffile_md5sum_source_date[0],
+                    "md5sum": reffile_md5sum_source_date[1],
+                    "source_is_pmc": reffile_md5sum_source_date[2] == 1,
+                    "date_created": reffile_md5sum_source_date[3]
+                } for reffile_md5sum_source_date in reffiles_md5sums_sources_dates
+            ]
+        } for ref_curie, reffiles_md5sums_sources_dates in aggregated_reffiles.items()
+    ]
