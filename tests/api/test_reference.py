@@ -411,7 +411,8 @@ class TestReference:
                 "file_publication_status": "final",
                 "file_extension": "pdf",
                 "pdf_type": "pdf",
-                "md5sum": "1234567890"
+                "md5sum": "1234567890",
+                "mod_abbreviation": test_mod.new_mod_abbreviation
             }
             new_referencefile_main_2 = {
                 "display_name": "Bob2",
@@ -420,7 +421,7 @@ class TestReference:
                 "file_publication_status": "final",
                 "file_extension": "pdf",
                 "pdf_type": "pdf",
-                "md5sum": "1234567891"
+                "md5sum": "1234567891",
             }
             new_referencefile_sup_1 = {
                 "display_name": "Sup1",
@@ -431,9 +432,29 @@ class TestReference:
                 "pdf_type": "pdf",
                 "md5sum": "1234567892"
             }
-            create_metadata(db, ReferencefileSchemaPost(**new_referencefile_main_1))
-            create_metadata(db, ReferencefileSchemaPost(**new_referencefile_main_2))
-            create_metadata(db, ReferencefileSchemaPost(**new_referencefile_sup_1))
+            reffile_id_main_1 = create_metadata(db, ReferencefileSchemaPost(**new_referencefile_main_1))
+            reffile_id_main_2 = create_metadata(db, ReferencefileSchemaPost(**new_referencefile_main_2))
+            reffile_id_sup_1 = create_metadata(db, ReferencefileSchemaPost(**new_referencefile_sup_1))
+
+            new_mca = {
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "reference_curie": test_reference.new_ref_curie,
+                "mod_corpus_sort_source": 'mod_pubmed_search',
+                "corpus": True
+            }
+            client.post(url="/reference/mod_corpus_association/", json=new_mca, headers=auth_headers)
+
+            new_referencefile_mod = {
+                "referencefile_id": reffile_id_main_2,
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)
+
+            new_referencefile_mod = {
+                "referencefile_id": reffile_id_sup_1,
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)
 
             result = client.get(url=f"/reference/get_textpresso_reference_list/{test_mod.new_mod_abbreviation}",
                                 headers=auth_headers)
