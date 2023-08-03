@@ -101,6 +101,7 @@ restart-api:
 	docker-compose --env-file ${ENV_FILE} build --no-cache api
 	docker-compose --env-file ${ENV_FILE} rm -s -f api
 	docker-compose --env-file ${ENV_FILE} up -d api
+	docker-compose --env-file ${ENV_FILE} up --build -d automated_scripts
 
 alembic-create-migration:
 	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app alembic revision --autogenerate -m "${ALEMBIC_COMMENT}"
