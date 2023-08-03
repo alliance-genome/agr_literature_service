@@ -101,6 +101,8 @@ restart-api:
 	docker-compose --env-file ${ENV_FILE} build --no-cache api
 	docker-compose --env-file ${ENV_FILE} rm -s -f api
 	docker-compose --env-file ${ENV_FILE} up -d api
+	docker-compose --env-file ${ENV_FILE} build --no-cache automated_scripts
+	docker-compose --env-file ${ENV_FILE} rm -s -f automated_scripts
 	docker-compose --env-file ${ENV_FILE} up --build -d automated_scripts
 
 alembic-create-migration:
