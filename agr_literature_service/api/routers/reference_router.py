@@ -1,4 +1,4 @@
-from typing import Union, List
+from typing import Union, List, Dict
 
 from fastapi import (APIRouter, Depends, HTTPException, Response,
                      Security, status)
@@ -236,11 +236,13 @@ def get_bib_info(curie: str,
 
 @router.get('/get_textpresso_reference_list/{mod_abbreviation}',
             status_code=status.HTTP_200_OK,
-            response_model=List[ReferenceSchemaTexptressoReferenceListShow])
+            response_model=List[Dict])
 def get_textpresso_reference_list(mod_abbreviation: str,
                                   files_updated_from_date: datetime.date = None,
+                                  page: int = 1,
+                                  page_size: int = 5000,
                                   user: OktaUser = db_user,
                                   db: Session = db_session):
     set_global_user_from_okta(db, user)
-    return reference_crud.get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date)
+    return reference_crud.get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date, page, page_size)
 
