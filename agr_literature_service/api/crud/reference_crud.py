@@ -769,11 +769,9 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
     select_stmt += f" ORDER BY r.curie LIMIT {page_size}"
     textpresso_referencefiles = db.execute(select_stmt).fetchall()
     aggregated_reffiles = defaultdict(set)
-    source_is_pmc = {}
     for reffile in textpresso_referencefiles:
         aggregated_reffiles[reffile.curie].add((reffile.referencefile_id, reffile.md5sum, reffile.mod_id is None,
                                                 reffile.date_created))
-        source_is_pmc[reffile.curie] = reffile.mod_id is None
     return [
         {
             "reference_curie": ref_curie,
