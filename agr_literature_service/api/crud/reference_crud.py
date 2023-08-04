@@ -4,6 +4,7 @@ reference_crud.py
 """
 import logging
 import re
+from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, List
 from os import getcwd
@@ -63,10 +64,12 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
     logger.debug(reference)
     add_separately_fields = ["mod_corpus_associations", "workflow_tags", "topic_entity_tags", "mod_reference_types"]
     list_fields = ["authors", "tags", "mesh_terms", "cross_references"]
-    remap = {'authors': 'author',
-             'mesh_terms': 'mesh_term',
-             'cross_references': 'cross_reference',
-             'mod_reference_types': 'mod_reference_type'}
+    remap = {
+        'authors': 'author',
+        'mesh_terms': 'mesh_term',
+        'cross_references': 'cross_reference',
+        'mod_reference_types': 'mod_reference_type'
+    }
     reference_data = {}  # type: Dict[str, Any]
     author_names_order = []
 
@@ -246,15 +249,20 @@ def show_all_references_external_ids(db: Session):
                                 cast(func.array_agg(CrossReferenceModel.curie),
                                      ARRAY(String)),
                                 cast(func.array_agg(CrossReferenceModel.is_obsolete),
-                                     ARRAY(Boolean))) \
-        .outerjoin(ReferenceModel.cross_reference) \
-        .group_by(ReferenceModel.curie)
+                                     ARRAY(Boolean))).outerjoin(ReferenceModel.cross_reference).group_by(
+        ReferenceModel.curie)
 
-    return [{"curie": reference[0],
-             "cross_references": [{"curie": reference[1][idx],
-                                   "is_obsolete": reference[2][idx]}
-                                  for idx in range(len(reference[1]))]}
-            for reference in references_query.all()]
+    return [
+        {
+            "curie": reference[0],
+            "cross_references": [
+                {
+                    "curie": reference[1][idx],
+                    "is_obsolete": reference[2][idx]
+                } for idx in range(len(reference[1]))
+            ]
+        } for reference in references_query.all()
+    ]
 
 
 def show(db: Session, curie_or_reference_id: str):  # noqa
@@ -302,7 +310,8 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             reference_data["citation_short"] = cit.short_citation
         else:
             logger.warning(f"ref: {reference} has no citation, id is {reference.citation_id}")
-            reference_data["citation"] = f'No citation lookup failed for ref:{reference.curie} cit_id:{reference.citation_id}'
+            reference_data[
+                "citation"] = f'No citation lookup failed for ref:{reference.curie} cit_id:{reference.citation_id}'
             reference_data["citation_short"] = 'Problem No short citation'
     else:
         reference_data["citation"] = f'No citation_id for ref:{reference.curie}'
@@ -404,10 +413,16 @@ def show_changesets(db: Session, curie_or_reference_id: str):
     history = []
     for version in reference.versions:
         tx = version.transaction
-        history.append({"transaction": {"id": tx.id,
-                                        "issued_at": tx.issued_at,
-                                        "user_id": tx.user_id},
-                        "changeset": version.changeset})
+        history.append(
+            {
+                "transaction": {
+                    "id": tx.id,
+                    "issued_at": tx.issued_at,
+                    "user_id": tx.user_id
+                },
+                "changeset": version.changeset
+            }
+        )
 
     return history
 
@@ -441,8 +456,10 @@ def merge_references(db: Session,
         ObsoleteReferenceModel.new_id == old_ref.reference_id).all()
     for old in prev_obs_ref_cur:
         old.new_id = new_ref.reference_id
-    obs_ref_cur_data = {'new_id': new_ref.reference_id,
-                        'curie': old_ref.curie}
+    obs_ref_cur_data = {
+        'new_id': new_ref.reference_id,
+        'curie': old_ref.curie
+    }
     # Add old_curie and new_id into the obsolete_reference_curie table.
     obs_ref_cur_db_obj = ObsoleteReferenceModel(**obs_ref_cur_data)
     db.add(obs_ref_cur_db_obj)
@@ -455,7 +472,7 @@ def merge_references(db: Session,
 
     # find which mods refefrent this paper
 
-    mods = db.query(ModModel).join(ModCorpusAssociationModel).\
+    mods = db.query(ModModel).join(ModCorpusAssociationModel). \
         filter(ModCorpusAssociationModel.reference_id == new_ref.reference_id,
                ModCorpusAssociationModel.mod_id == ModModel.mod_id).all()
 
@@ -470,17 +487,20 @@ def merge_references(db: Session,
 
 
 def merge_comments_and_corrections(db, old_reference_id, new_reference_id, old_curie, new_curie):
-
     try:
         for x in db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=old_reference_id).all():
-            y = db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=new_reference_id, reference_id_to=x.reference_id_to, reference_comment_and_correction_type=x.reference_comment_and_correction_type).one_or_none()
+            y = db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=new_reference_id,
+                                                                       reference_id_to=x.reference_id_to,
+                                                                       reference_comment_and_correction_type=x.reference_comment_and_correction_type).one_or_none()
             if y is None:
                 x.reference_id_from = new_reference_id
                 db.add(x)
             else:
                 db.delete(x)
         for x in db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_to=old_reference_id).all():
-            y = db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=x.reference_id_from, reference_id_to=new_reference_id, reference_comment_and_correction_type=x.reference_comment_and_correction_type).one_or_none()
+            y = db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=x.reference_id_from,
+                                                                       reference_id_to=new_reference_id,
+                                                                       reference_comment_and_correction_type=x.reference_comment_and_correction_type).one_or_none()
             if y is None:
                 x.reference_id_to = new_reference_id
                 db.add(x)
@@ -488,11 +508,12 @@ def merge_comments_and_corrections(db, old_reference_id, new_reference_id, old_c
                 db.delete(x)
         db.commit()
     except Exception as e:
-        logger.warning("An error occurred when transferring the comments/corrections from " + old_curie + " to " + new_curie + " : " + str(e))
+        logger.warning(
+            "An error occurred when transferring the comments/corrections from " + old_curie + " to " + new_curie + " : " + str(
+                e))
 
 
 def get_citation_from_args(authorNames, year, title, journal, volume, issue, page_range):
-
     if type(authorNames) == list:
         authorNames = "; ".join(authorNames)
 
@@ -502,7 +523,7 @@ def get_citation_from_args(authorNames, year, title, journal, volume, issue, pag
             year = year_re_result.group(1)
 
     # Create the citation from the args given.
-    citation = "{}, ({}) {} {} {} ({}): {}".\
+    citation = "{}, ({}) {} {} {} ({}): {}". \
         format(authorNames, year, title,
                journal, volume, issue, page_range)
     return citation
@@ -541,7 +562,6 @@ def citation_from_data(reference_data, authorNames):
 
 
 def get_citation_from_obj(db: Session, ref_db_obj: ReferenceModel):
-
     # Authors, (year) title.   Journal  volume (issue): page_range
     year = ''
     if ref_db_obj.date_published:
@@ -554,7 +574,8 @@ def get_citation_from_obj(db: Session, ref_db_obj: ReferenceModel):
         title = title + '.'
 
     authorNames = ''
-    for author in db.query(AuthorModel).filter_by(reference_id=ref_db_obj.reference_id).order_by(AuthorModel.order).all():
+    for author in db.query(AuthorModel).filter_by(reference_id=ref_db_obj.reference_id).order_by(
+            AuthorModel.order).all():
         if author.name:
             authorNames += author.name + "; "
     authorNames = authorNames[:-2]  # remove last ';'
@@ -604,7 +625,6 @@ def add_license(db: Session, curie: str, license: str):  # noqa
 
 
 def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by, filter):
-
     subquery = ''
     if mod_abbreviation == 'XB':
         curie_prefix = 'Xenbase'
@@ -662,8 +682,7 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by, fi
 def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, filter: str):
     try:
         offset = (page * 25) - 25
-        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter) + \
-            f" LIMIT 25 OFFSET {offset}"
+        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter) + f" LIMIT 25 OFFSET {offset}"
         rows = db.execute(query).fetchall()
         data = jsonable_encoder(rows)
     except Exception:
@@ -719,10 +738,50 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     if reference.pubmed_types:
         bib_info.pubmed_types = [pub_type.replace("_", " ") for pub_type in reference.pubmed_types]
     bib_info.title = reference.title
-    if reference.resource:
+    if reference.resource is not None:
         bib_info.journal = reference.resource.title
     bib_info.citation = Citation(volume=reference.volume, pages=reference.page_range)
     if reference.date_published:
         bib_info.year = reference.date_published
     bib_info.abstract = reference.abstract
     return bib_info.get_formatted_bib(format_type=return_format)
+
+
+def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=None, from_curie: str = None,
+                                  page_size: int = 1000):
+    select_stmt = f"""SELECT r.curie, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
+      FROM  reference r
+      JOIN mod_corpus_association mca on r.reference_id = mca.reference_id
+      JOIN mod mcam ON mca.mod_id = mcam.mod_id
+      JOIN referencefile rf ON rf.reference_id = r.reference_id
+      JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+      LEFT JOIN mod rfmm ON rfm.mod_id = rfmm.mod_id
+      WHERE mca.corpus is True
+      AND mcam.abbreviation = '{mod_abbreviation}'
+      AND rf.file_class = 'main'
+      AND rf.file_extension = 'pdf'
+      AND (rfm.mod_id is NULL OR rfmm.abbreviation = '{mod_abbreviation}')"""
+
+    if from_curie:
+        select_stmt += f" AND r.curie > '{from_curie}'"
+    if files_updated_from_date:
+        select_stmt += f" AND rf.updated_by >= '{files_updated_from_date}'"
+    select_stmt += f" ORDER BY r.curie LIMIT {page_size}"
+    textpresso_referencefiles = db.execute(select_stmt).fetchall()
+    aggregated_reffiles = defaultdict(set)
+    for reffile in textpresso_referencefiles:
+        aggregated_reffiles[reffile.curie].add((reffile.referencefile_id, reffile.md5sum, reffile.mod_id is None,
+                                                reffile.date_created))
+    return [
+        {
+            "reference_curie": ref_curie,
+            "main_referencefiles": [
+                {
+                    "referencefile_id": reffile_md5sum_source_date[0],
+                    "md5sum": reffile_md5sum_source_date[1],
+                    "source_is_pmc": reffile_md5sum_source_date[2] == 1,
+                    "date_created": reffile_md5sum_source_date[3]
+                } for reffile_md5sum_source_date in reffiles_md5sums_sources_dates
+            ]
+        } for ref_curie, reffiles_md5sums_sources_dates in aggregated_reffiles.items()
+    ]
