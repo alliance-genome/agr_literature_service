@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, List, Dict
 
 from fastapi import (APIRouter, Depends, HTTPException, Response,
                      Security, status)
@@ -15,6 +15,7 @@ from agr_literature_service.api.schemas import (ReferenceSchemaPost, ReferenceSc
                                                 ReferenceSchemaUpdate, ResponseMessageSchema)
 from agr_literature_service.api.user import set_global_user_from_okta
 
+import datetime
 import logging
 
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.process_single_pmid import process_pmid
@@ -230,3 +231,19 @@ def get_bib_info(curie: str,
                  db: Session = db_session):
     set_global_user_from_okta(db, user)
     return reference_crud.get_bib_info(db, curie, mod_abbreviation, return_format)
+
+
+@router.get('/get_textpresso_reference_list/{mod_abbreviation}',
+            status_code=status.HTTP_200_OK,
+            response_model=List[Dict])
+def get_textpresso_reference_list(mod_abbreviation: str,
+                                  files_updated_from_date: datetime.date = None,
+                                  from_curie: str = None,
+                                  page_size: int = 1000,
+                                  user: OktaUser = db_user,
+                                  db: Session = db_session):
+    set_global_user_from_okta(db, user)
+    if page_size > 1000:
+        page_size = 1000
+    return reference_crud.get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date, from_curie,
+                                                        page_size)

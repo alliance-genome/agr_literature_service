@@ -8,11 +8,14 @@ from fastapi import status
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, CrossReferenceModel
+from agr_literature_service.api.schemas import ReferencefileSchemaPost
 from ..fixtures import db, populate_test_mod_reference_types # noqa
 from .fixtures import auth_headers # noqa
 from .test_resource import test_resource # noqa
 from .test_mod import test_mod # noqa
 from .test_topic_entity_tag_source import test_topic_entity_tag_source # noqa
+
+from agr_literature_service.api.crud.referencefile_crud import create_metadata
 
 TestReferenceData = namedtuple('TestReferenceData', ['response', 'new_ref_curie'])
 
@@ -398,3 +401,62 @@ class TestReference:
                                       'citation|V: P: \n' \
                                       'year|\n' \
                                       'abstract|3\n'
+
+    def test_get_textpresso_reference_list(self, test_reference, auth_headers, test_mod, db):  # noqa
+        with TestClient(app) as client:
+            new_referencefile_main_1 = {
+                "display_name": "Bob1",
+                "reference_curie": test_reference.new_ref_curie,
+                "file_class": "main",
+                "file_publication_status": "final",
+                "file_extension": "pdf",
+                "pdf_type": "pdf",
+                "md5sum": "1234567890",
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            new_referencefile_main_2 = {
+                "display_name": "Bob2",
+                "reference_curie": test_reference.new_ref_curie,
+                "file_class": "main",
+                "file_publication_status": "final",
+                "file_extension": "pdf",
+                "pdf_type": "pdf",
+                "md5sum": "1234567891",
+            }
+            new_referencefile_sup_1 = {
+                "display_name": "Sup1",
+                "reference_curie": test_reference.new_ref_curie,
+                "file_class": "supplement",
+                "file_publication_status": "final",
+                "file_extension": "pdf",
+                "pdf_type": "pdf",
+                "md5sum": "1234567892"
+            }
+            create_metadata(db, ReferencefileSchemaPost(**new_referencefile_main_1))
+            reffile_id_main_2 = create_metadata(db, ReferencefileSchemaPost(**new_referencefile_main_2))
+            reffile_id_sup_1 = create_metadata(db, ReferencefileSchemaPost(**new_referencefile_sup_1))
+
+            new_mca = {
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "reference_curie": test_reference.new_ref_curie,
+                "mod_corpus_sort_source": 'mod_pubmed_search',
+                "corpus": True
+            }
+            client.post(url="/reference/mod_corpus_association/", json=new_mca, headers=auth_headers)
+
+            new_referencefile_mod = {
+                "referencefile_id": reffile_id_main_2,
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)
+
+            new_referencefile_mod = {
+                "referencefile_id": reffile_id_sup_1,
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)
+
+            result = client.get(url=f"/reference/get_textpresso_reference_list/{test_mod.new_mod_abbreviation}",
+                                headers=auth_headers)
+            assert result.status_code == status.HTTP_200_OK
+            assert result.json()
