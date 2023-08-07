@@ -765,7 +765,7 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
     if from_curie:
         select_stmt += f" AND r.curie > '{from_curie}'"
     if files_updated_from_date:
-        select_stmt += f" AND rf.updated_by >= '{files_updated_from_date}'"
+        select_stmt += f" AND rf.date_updated >= '{files_updated_from_date}'"
     select_stmt += f" ORDER BY r.curie LIMIT {page_size}"
     textpresso_referencefiles = db.execute(select_stmt).fetchall()
     aggregated_reffiles = defaultdict(set)
