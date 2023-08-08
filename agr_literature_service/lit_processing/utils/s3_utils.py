@@ -25,6 +25,45 @@ logging.getLogger("s3transfer.tasks").setLevel(logging.WARNING)
 logging.getLogger("s3transfer.futures").setLevel(logging.WARNING)
 
 
+def file_exist_from_s3(bucketname, s3_file_location):
+    """
+
+    :param bucketname:
+    :param s3_file_location:
+    :return: True/False
+    """
+
+    s3_client = boto3.client('s3')
+    try:
+        content = s3_client.head_object(bucketname, s3_file_location)
+    except ClientError as e:
+        logging.error(e)
+        return False
+    if content.get('ResponseMetadata', None) is not None:
+        logging.info("file exists")
+        return True
+    else:
+        return False
+
+def delete_file_from_s3(bucketname, s3_file_location):
+    """
+
+    :param bucketname:
+    :param s3_file_location:
+    :return:
+    """
+
+    s3_client = boto3.client('s3')
+    try:
+        response = s3_client.delete_object(bucketname, s3_file_location)
+        if response is not None:
+            logger.info("boto 3 delete response: %s", response)
+    except ClientError as e:
+        logging.error(e)
+        return False
+
+    return True
+
 def download_file_from_s3(filepath, bucketname, s3_file_location):
     """
 
