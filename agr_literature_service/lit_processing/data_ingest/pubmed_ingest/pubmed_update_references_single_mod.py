@@ -49,17 +49,17 @@ field_names_to_report = refColName_to_update + ['doi', 'pmcid', 'author_name', '
 # limit = 1000
 limit = 500
 max_rows_per_commit = 250
-download_xml_max_size = 150000
+download_xml_max_size = 5000
 query_cutoff = 500
-sleep_time = 60
+sleep_time = 10
 
 init_tmp_dir()
 
 
 # def update_data(mod, pmids, md5dict=None, newly_added_pmids=None):  # noqa: C901 pragma: no cover
-def update_data(mod, pmids, newly_added_pmids=None):  # noqa: C901 pragma: no cover
+def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cover
 
-    if newly_added_pmids is None and mod:
+    if resourceUpdated is None:
         update_resource_pubmed_nlm
 
     db_session = create_postgres_session(False)
@@ -78,10 +78,8 @@ def update_data(mod, pmids, newly_added_pmids=None):  # noqa: C901 pragma: no co
 
     log_file = log_path + "update_pubmed_papers_"
     if mod:
-        # log_file = log_file + mod + "_" + datestamp + ".log"
         log_file = log_file + mod + ".log"
     else:
-        # log_file = log_file + datestamp + ".log"
         log_file = log_file + ".log"
 
     fw = open(log_file, "w")
@@ -93,7 +91,7 @@ def update_data(mod, pmids, newly_added_pmids=None):  # noqa: C901 pragma: no co
     pmid_to_reference_id = {}
     reference_id_to_pmid = {}
     pmids_all = []
-    if mod:
+    if mod and pmids is None:
         if mod == 'NONE':
             get_pmid_to_reference_id_for_papers_not_associated_with_mod(db_session,
                                                                         pmid_to_reference_id,
@@ -115,20 +113,20 @@ def update_data(mod, pmids, newly_added_pmids=None):  # noqa: C901 pragma: no co
         else:
             update_log[field_name] = 0
 
-    if newly_added_pmids is None:
-        fw.write(str(datetime.now()) + "\n")
-        fw.write("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...\n")
-        log.info("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...")
+    fw.write(str(datetime.now()) + "\n")
+    fw.write("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...\n")
+    log.info("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...")
 
+    if resourceUpdated is None:
         if len(pmids_all) > download_xml_max_size:
             for index in range(0, len(pmids_all), download_xml_max_size):
                 pmids_slice = pmids_all[index:index + download_xml_max_size]
                 download_pubmed_xml(pmids_slice)
                 time.sleep(sleep_time)
-        else:
-            download_pubmed_xml(pmids_all)
+            else:
+                download_pubmed_xml(pmids_all)
 
-        fw.write(str(datetime.now()) + "\n")
+    fw.write(str(datetime.now()) + "\n")
 
     md5dict = load_database_md5data(['PMID'])
     old_md5sum = md5dict['PMID']
@@ -155,10 +153,10 @@ def update_data(mod, pmids, newly_added_pmids=None):  # noqa: C901 pragma: no co
     not_found_xml_set = set()
     generate_json(pmids_all, [], not_found_xml_set)
 
-    if newly_added_pmids:
-        for pmid in newly_added_pmids:
-            not_found_xml_set.discard(pmid)
-    not_found_xml_list = list(not_found_xml_set)
+    # if newly_added_pmids:
+    #    for pmid in newly_added_pmids:
+    #        not_found_xml_set.discard(pmid)
+    # not_found_xml_list = list(not_found_xml_set)
 
     new_md5sum = get_md5sum(json_path)
 
@@ -189,7 +187,7 @@ def update_data(mod, pmids, newly_added_pmids=None):  # noqa: C901 pragma: no co
                                                                bad_date_published)
 
     # to not report not_found_xml_list for now, but log it
-    log.info("not_found_xml_list count = " + str(len(not_found_xml_list)))
+    # log.info("not_found_xml_list count = " + str(len(not_found_xml_list)))
     not_found_xml_list = []
     write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, update_log,
                                             bad_date_published,
