@@ -98,7 +98,10 @@ def download_and_parse_daily_update(db_session, pmids_all):  # pragma: no cover
         with gzip.open(dailyFile, 'rb') as f_in:
             decompressed_content = f_in.read()
             records = decompressed_content.decode('utf-8').split("</PubmedArticle>")
-            deleteRecords = records.pop().split('\n')
+            endOfcontent = records.pop()
+            deleteRecords = []
+            if "<DeleteCitation>" in endOfcontent:
+                deleteRecords = endOfcontent.split("<DeleteCitation>")[1].split("</deleteRecords>")[0].split('\n')
             header = None
             for record in records:
                 if header is None:
