@@ -35,7 +35,7 @@ def file_exist_from_s3(bucketname, s3_file_location):
 
     s3_client = boto3.client('s3')
     try:
-        content = s3_client.head_object(bucketname, s3_file_location)
+        content = s3_client.head_object(Bucket=bucketname, Key=s3_file_location)
     except ClientError as e:
         logging.error(e)
         return False
@@ -44,6 +44,7 @@ def file_exist_from_s3(bucketname, s3_file_location):
         return True
     else:
         return False
+
 
 def delete_file_from_s3(bucketname, s3_file_location):
     """
@@ -55,7 +56,7 @@ def delete_file_from_s3(bucketname, s3_file_location):
 
     s3_client = boto3.client('s3')
     try:
-        response = s3_client.delete_object(bucketname, s3_file_location)
+        response = s3_client.delete_object(Bucket=bucketname, Key=s3_file_location)
         if response is not None:
             logger.info("boto 3 delete response: %s", response)
     except ClientError as e:
@@ -63,6 +64,7 @@ def delete_file_from_s3(bucketname, s3_file_location):
         return False
 
     return True
+
 
 def download_file_from_s3(filepath, bucketname, s3_file_location):
     """
