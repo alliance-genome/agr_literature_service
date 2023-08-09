@@ -24,7 +24,7 @@ logger.setLevel(logging.INFO)
 
 updatefileRootURL = "https://ftp.ncbi.nlm.nih.gov/pubmed/updatefiles/"
 sleep_time = 30
-days = 8
+default_days = 8
 
 init_tmp_dir()
 
@@ -139,7 +139,7 @@ def download_and_parse_daily_update(db_session, pmids_all):  # pragma: no cover
     return (updated_pmids_for_mod, deleted_pmids_for_mod)
 
 
-def get_daily_update_files():
+def get_daily_update_files(days=None):
 
     """
     some examples of pubmed daily update files:
@@ -158,6 +158,8 @@ def get_daily_update_files():
     pubmed23n1436.xml.gz     2023-08-08
     """
 
+    if days is None:
+        days = default_days
     response = requests.request("GET", updatefileRootURL)
     files = response.text.split("<a href=")
     dailyFiles = []
