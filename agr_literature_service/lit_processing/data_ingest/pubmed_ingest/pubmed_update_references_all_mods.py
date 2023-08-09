@@ -1,28 +1,30 @@
 import logging
+import gzip
+import re
 import time
+import requests
 from dotenv import load_dotenv
-from os import environ, makedirs, path, listdir, stat, remove
+from os import environ, makedirs, path, remove
 import shutil
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import \
     update_resource_pubmed_nlm
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import \
-    download_pubmed_xml
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import \
-    update_data
-# from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
-#    load_s3_md5data, save_s3_md5data
-from agr_literature_service.lit_processing.utils.db_read_utils import retrieve_newly_added_pmids, \
+from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
+    download_file
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod \
+    import update_data
+from agr_literature_service.lit_processing.utils.db_read_utils import sort_pmids, \
     retrieve_all_pmids, get_mod_abbreviations
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 logging.basicConfig(format='%(message)s')
-log = logging.getLogger()
-log.setLevel(logging.INFO)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
-download_xml_max_size = 50000
-sleep_time = 60
+updatefileRootURL = "https://ftp.ncbi.nlm.nih.gov/pubmed/updatefiles/"
+sleep_time = 30
+days = 8
 
 init_tmp_dir()
 
@@ -30,60 +32,44 @@ init_tmp_dir()
 def update_all_data():  # pragma: no cover
 
     ## take 18 sec
-    log.info("Updating resource:")
+    logger.info("Updating resource:")
     try:
         update_resource_pubmed_nlm()
     except Exception as e:
-        log.info("Error occurred when updating resource info.\n" + str(e))
+        logger.info("Error occurred when updating resource info.\n" + str(e))
         return
 
     db_session = create_postgres_session(False)
 
     ## take 8 sec
-    log.info("Retrieving all pmids:")
+    logger.info("Retrieving all pmids:")
     try:
         pmids_all = retrieve_all_pmids(db_session)
-        pmids_all.sort()
     except Exception as e:
-        log.info("Error occurred when retrieving pmid list from database.\n" + str(e))
+        logger.info("Error occurred when retrieving pmid list from database.\n" + str(e))
         db_session.close()
         return
 
-    log.info("Retrieving recently added pmids:")
-    pmids_new = []
-    try:
-        pmids_new = retrieve_newly_added_pmids(db_session)
-    except Exception as e:
-        log.info("Error occurred when retrieving new pmid list from database.\n" + str(e))
-        db_session.close()
-        return
-
+    logger.info("Retrieving pmids from PubMed daily update file:")
+    (updated_pmids_for_mod, deleted_pmids_for_mod) = download_and_parse_daily_update(db_session,
+                                                                                     set(pmids_all))
     db_session.close()
 
-    ## take 1 to 2hrs
-    log.info("Downloading all xml files:")
-    try:
-        download_all_xml_files(pmids_all)
-    except Exception as e:
-        log.info("Error occurred when downloading the xml files from PubMed.\n" + str(e))
-        return
-
+    resourceUpdated = 1
     for mod in [*get_mod_abbreviations(), 'NONE']:
         if mod == 'NONE':
-            log.info("Updating pubmed papers that are not associated with a mod:")
+            logger.info("Updating pubmed papers that are not associated with a mod:")
         else:
-            log.info("Updating pubmed papers for " + mod + ":")
-        # md5dict = load_s3_md5data(['PMID'])
+            logger.info("Updating pubmed papers for " + mod + ":")
+        pmids = updated_pmids_for_mod.get(mod, set())
         try:
-            # update_data(mod, None, md5dict, pmids_new)
-            update_data(mod, None, pmids_new)
+            update_data(mod, '|'.join(list(pmids)), resourceUpdated)
         except Exception as e:
-            log.info("Error occurred when updating pubmed papers for " + mod + "\n" + str(e))
-            # save_s3_md5data(md5dict, ['PMID'])
+            logger.info("Error occurred when updating pubmed papers for " + mod + "\n" + str(e))
         time.sleep(sleep_time)
 
 
-def download_all_xml_files(pmids_all):  # pragma: no cover
+def download_and_parse_daily_update(db_session, pmids_all):  # pragma: no cover
 
     load_dotenv()
     base_path = environ.get('XML_PATH', "")
@@ -96,54 +82,94 @@ def download_all_xml_files(pmids_all):  # pragma: no cover
         if path.exists(json_path):
             shutil.rmtree(json_path)
     except OSError as e:
-        log.info("Error deleting old xml/json: %s" % (e.strerror))
+        logger.info("Error deleting old xml/json: %s" % (e.strerror))
 
     makedirs(xml_path)
     makedirs(json_path)
 
-    for index in range(0, len(pmids_all), download_xml_max_size):
-        pmids_slice = pmids_all[index:index + download_xml_max_size]
-        download_pubmed_xml(pmids_slice)
-        time.sleep(sleep_time)
+    updated_pmids_for_mod = {}
+    deleted_pmids = []
+    dailyfileNames = get_daily_update_files()
+    for dailyfileName in dailyfileNames:
+        updated_pmids = []
+        dailyFileUrl = updatefileRootURL + dailyfileName
+        dailyFile = base_path + dailyfileName
+        download_file(dailyFileUrl, dailyFile)
+        with gzip.open(dailyFile, 'rb') as f_in:
+            decompressed_content = f_in.read()
+            records = decompressed_content.decode('utf-8').split("</PubmedArticle>")
+            deleteRecords = records.pop().split('\n')
+            header = None
+            for record in records:
+                if header is None:
+                    header_lines = record.split("<PubmedArticleSet>")
+                    header = header_lines[0].replace('\n', '')
+                    record = header_lines[1]
+                lines = record.split('\n')
+                for line in lines:
+                    if '<PMID Version="1">' in line:
+                        pmid = line.split('>')[1].split('<')[0]
+                        if pmid in pmids_all:
+                            updated_pmids.append(pmid)
+                            logger.info(f"generating xml file for PMID:{pmid}")
+                            record = re.sub(r'\s*\n\s*', '', record)
+                            record = record.strip()
+                            with open(xml_path + pmid + ".xml", "w") as f_out:
+                                f_out.write(header + "<PubmedArticleSet>" + record + "</PubmedArticle></PubmedArticleSet>\n")
 
-    # get pmids with a xml file and file size != 0
-    found_xml = get_pmids_with_xml(xml_path)
+            for record in deleteRecords:
+                if record.startswith('<PMID Version'):
+                    pmid = record.split('>')[1].split('<')[0]
+                    if pmid in pmids_all and pmid not in deleted_pmids:
+                        deleted_pmids.append(pmid)
 
-    # try to download the xml files one more time for the pmids with no xml downloaded
-    # or with xml file size = 0 during previous xml download process
-    missingXmlPmidList = []
-    for pmid in pmids_all:
-        if pmid not in found_xml:
-            missingXmlPmidList.append(pmid)
-    found_xml.clear()
+        logger.info(f"{dailyfileName}: {len(updated_pmids)} PMIDs")
+        if len(updated_pmids) > 0:
+            sort_pmids(db_session, updated_pmids, updated_pmids_for_mod)
+        remove(dailyFile)
 
-    if len(missingXmlPmidList) > 0:
-        log.info("Downloading xml file(s) for " + str(len(missingXmlPmidList)) + " PMID(s)")
-        download_pubmed_xml(missingXmlPmidList)
+    logger.info(f"deleted PMIDs: {len(deleted_pmids)}")
+    deleted_pmids_for_mod = {}
+    if len(deleted_pmids) > 0:
+        sort_pmids(db_session, deleted_pmids, deleted_pmids_for_mod)
 
-    remove_empty_xml_file(xml_path)
+    for mod in updated_pmids_for_mod:
+        print(mod, len(updated_pmids_for_mod[mod]))
 
-
-def get_pmids_with_xml(xml_path):
-
-    found_xml = {}
-
-    for filename in listdir(xml_path):
-        file = path.join(xml_path, filename)
-        if filename.endswith('.xml') and stat(file).st_size > 0:
-            pmid = filename.replace('.xml', '')
-            found_xml[pmid] = 1
-
-    return found_xml
+    return (updated_pmids_for_mod, deleted_pmids_for_mod)
 
 
-def remove_empty_xml_file(xml_path):  # pragma: no cover
+def get_daily_update_files():
 
-    for filename in listdir(xml_path):
-        file = path.join(xml_path, filename)
-        if stat(file).st_size == 0:
-            log.info(filename + ": file size = 0")
-            remove(file)
+    """
+    some examples of pubmed daily update files:
+    pubmed23n1424.xml.gz     2023-07-27
+    pubmed23n1425.xml.gz     2023-07-28
+    pubmed23n1426.xml.gz     2023-07-29
+    pubmed23n1427.xml.gz     2023-07-30
+    pubmed23n1428.xml.gz     2023-07-31
+    pubmed23n1429.xml.gz     2023-08-01
+    pubmed23n1430.xml.gz     2023-08-02
+    pubmed23n1431.xml.gz     2023-08-03
+    pubmed23n1432.xml.gz     2023-08-04
+    pubmed23n1433.xml.gz     2023-08-05
+    pubmed23n1434.xml.gz     2023-08-06
+    pubmed23n1435.xml.gz     2023-08-07
+    pubmed23n1436.xml.gz     2023-08-08
+    """
+
+    response = requests.request("GET", updatefileRootURL)
+    files = response.text.split("<a href=")
+    dailyFiles = []
+    files.pop()
+    while len(files) > 0:
+        file = files.pop()
+        if len(dailyFiles) > days:
+            break
+        if ".html" not in file and ".gz.md5" not in file and ".xml.gz" in file:
+            dailyFiles.append(file.split(">")[0].replace('"', ''))
+
+    return dailyFiles
 
 
 if __name__ == "__main__":
