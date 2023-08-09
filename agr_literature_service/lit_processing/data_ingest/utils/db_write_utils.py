@@ -869,7 +869,11 @@ def _insert_doi(db_session, fw, pmid, reference_id, doi, logger=None):  # pragma
             if logger:
                 logger.info("The DOI:" + doi + " is associated with two papers: reference_ids=" + str(reference_id) + ", " + str(x.reference_id))
         return
-
+    x = db_session.query(CrossReferenceModel).filter_by(curie_prefix="DOI", reference_id=reference_id, is_obsolete=False).one_or_none()
+    if x:
+        if logger:
+            logger.info(f"Key (curie_prefix, reference_id)=(DOI, {reference_id}) already exists")
+            return
     data = {"curie": "DOI:" + doi,
             "curie_prefix": "DOI",
             "reference_id": reference_id,
@@ -882,8 +886,13 @@ def _insert_doi(db_session, fw, pmid, reference_id, doi, logger=None):  # pragma
         fw.write("PMID:" + str(pmid) + ": INSERT DOI:" + doi + " failed: " + str(e) + "\n")
 
 
-def _update_pmcid(db_session, fw, pmid, reference_id, old_pmcid, new_pmcid):  # pragma: no cover
+def _update_pmcid(db_session, fw, pmid, reference_id, old_pmcid, new_pmcid, logger):  # pragma: no cover
 
+    x = db_session.query(CrossReferenceModel).filter_by(curie='PMCID:' + new_pmcid, is_obsolete=False).one_or_none()
+    if x:
+        if logger:
+            logger.info(f"Key (curie)=(PMCID:{new_pmcid}) already exists")
+        return
     try:
         x = db_session.query(CrossReferenceModel).filter_by(reference_id=reference_id).filter(CrossReferenceModel.curie == 'PMCID:' + old_pmcid).one_or_none()
         if x is None:
@@ -904,7 +913,11 @@ def _insert_pmcid(db_session, fw, pmid, reference_id, pmcid, logger=None):  # pr
             if logger:
                 logger.info("The PMCID:" + pmcid + " is associated with two papers: reference_ids=" + str(reference_id) + ", " + str(x.reference_id))
         return
-
+    x = db_session.query(CrossReferenceModel).filter_by(curie_prefix="PMCID", reference_id=reference_id, is_obsolete=False).one_or_none()
+    if x:
+        if logger:
+            logger.info(f"Key (curie_prefix, reference_id)=(PMCID, {reference_id}) already exists")
+            return
     data = {"curie": "PMCID:" + pmcid,
             "curie_prefix": "PMCID",
             "reference_id": reference_id,
@@ -957,7 +970,7 @@ def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_
         fw.write("PMID:" + str(pmid) + ": PMC:" + pmcid_json + " is in the database for another paper.\n")
     else:
         if pmcid_db:
-            _update_pmcid(db_session, fw, pmid, reference_id, pmcid_db, pmcid_json)
+            _update_pmcid(db_session, fw, pmid, reference_id, pmcid_db, pmcid_json, logger)
         else:
             _insert_pmcid(db_session, fw, pmid, reference_id, pmcid_json, logger)
 
