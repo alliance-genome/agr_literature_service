@@ -28,9 +28,9 @@ def dump_database(dump_type="ondemand"):  # noqa: C901
     username = environ.get('PSQL_USERNAME', "")
     password = environ.get('PSQL_PASSWORD', "")
     port = environ.get('PSQL_PORT', "")
-    file_name_date_7 = database + "_" + str(date.today() - timedelta(days=7)) + ".sql"
-    file_name = database + "_" + str(date.today()) + ".sql"
-    cmd = "PGPASSWORD=" + password + " pg_dump -Fc --clean -h " + host + " -p " + port + " -U " + username + " " + database + "  > " + file_name
+    file_name_date_7 = database + "_" + str(date.today() - timedelta(days=7)) + ".sql.gz"
+    file_name = database + "_" + str(date.today()) + ".sql.gz"
+    cmd = "PGPASSWORD=" + password + " pg_dump -Fc --clean -h " + host + " -p " + port + " -U " + username + " " + database + "  | gzip > " + file_name
     log.info(cmd)
     os.system(cmd)
     if dump_type == 'cron':

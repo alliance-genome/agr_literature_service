@@ -35,15 +35,15 @@ def file_exist_from_s3(bucketname, s3_file_location):
 
     s3_client = boto3.client('s3')
     try:
-        content = s3_client.head_object(Bucket=bucketname, Key=s3_file_location)
+        s3_client.head_object(Bucket=bucketname, Key=s3_file_location)
     except ClientError as e:
-        logging.error(e)
-        return False
-    if content.get('ResponseMetadata', None) is not None:
-        logging.info("file exists")
-        return True
-    else:
-        return False
+        if e.response['Error']['Code'] == "404":
+            logging.info("file does not exists")
+            return False
+        else:
+            logging.error(e)
+            return False
+    return True
 
 
 def delete_file_from_s3(bucketname, s3_file_location):
