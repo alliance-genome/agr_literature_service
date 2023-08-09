@@ -121,5 +121,3 @@ bulk_upload_reference_files:
 
 dump_prod_locally:
 	python3 agr_literature_service/lit_processing/data_export/dump_database.py  -t  ondemand
-	#docker-compose --env-file ${ENV_FILE} rm -s -f dump_prod_locally
-	#docker-compose --env-file ${ENV_FILE} up --build -d dump_prod_locally
