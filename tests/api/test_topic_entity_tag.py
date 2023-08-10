@@ -5,6 +5,7 @@ from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
+from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagValidationModel
 from agr_literature_service.lit_processing.utils.okta_utils import get_authentication_token
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
@@ -147,8 +148,32 @@ class TestTopicEntityTag:
             response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}").json()
             assert len(response) > 0
 
-    def test_validation(self, test_reference, test_mod, auth_headers): # noqa
-        ...
+    def test_validation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
+        with TestClient(app) as client:
+            author_source = {
+                "source_name": "author_acknowledge",
+                "evidence": "test_eco_code",
+                "description": "author from acknowledge",
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            client.post(url="/topic_entity_tag/source", json=author_source, headers=auth_headers)
+            validating_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_source": "alliance",
+                "species": "NCBITaxon:6239",
+                "source_name": "author_acknowledge",
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "negated": True
+            }
+            client.post(url="/topic_entity_tag/", json=validating_tag, headers=auth_headers)
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            assert response.status_code == status.HTTP_200_OK
+            assert db.query(TopicEntityTagValidationModel).filter(
+                TopicEntityTagValidationModel.validated_topic_entity_tag_id == test_topic_entity_tag.new_tet_id
+            ).count() > 0
 
     @pytest.mark.webtest
     def test_get_map_entity_curie_to_name(self, test_topic_entity_tag, test_mod, auth_headers): # noqa

@@ -8,7 +8,7 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import case, and_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, subqueryload
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
@@ -17,6 +17,7 @@ from agr_literature_service.api.models import (
     TopicEntityTagModel,
     ReferenceModel, TopicEntityTagSourceModel, ModModel
 )
+from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagValidationModel
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagSchemaPost,
                                                                          TopicEntityTagSourceSchemaUpdate,
                                                                          TopicEntityTagSourceSchemaCreate,
@@ -98,28 +99,32 @@ def destroy_tag(db: Session, topic_entity_tag_id: int):
 
 
 def validate_tags_on_insertion(db: Session, tag_obj: TopicEntityTagModel):
-    # TODO: rewrite with new schema
-    ...
-    # all_related_sources = db.query(TopicEntityTagSourceModel).filter(
-    #     TopicEntityTagSourceModel.topic_entity_tag_id == source_obj.topic_entity_tag_id).all()
-    # for existing_source in all_related_sources:
-    #     if source_obj.source in [ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR, ATP_ID_SOURCE_CURATION_TOOLS]:
-    #         existing_source_valid = existing_source.negated == source_obj.negated
-    #         if source_obj.source == ATP_ID_SOURCE_AUTHOR:
-    #             existing_source.validation_value_author = existing_source_valid
-    #         elif source_obj.source == ATP_ID_SOURCE_CURATOR:
-    #             existing_source.validation_value_curator = existing_source_valid
-    #         elif source_obj.source == ATP_ID_SOURCE_CURATION_TOOLS:
-    #             existing_source.validation_value_curation_tools = existing_source_valid
-    #     if existing_source.source in [ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR, ATP_ID_SOURCE_CURATION_TOOLS]:
-    #         new_source_valid = source_obj.negated == existing_source.negated
-    #         if existing_source.source == ATP_ID_SOURCE_AUTHOR:
-    #             source_obj.validation_value_author = new_source_valid
-    #         elif existing_source.source == ATP_ID_SOURCE_CURATOR:
-    #             source_obj.validation_value_curator = new_source_valid
-    #         elif existing_source.source == ATP_ID_SOURCE_CURATION_TOOLS:
-    #             source_obj.validation_value_curation_tools = new_source_valid
-    # db.commit()
+    related_tags = db.query(TopicEntityTagModel).options(
+        subqueryload(TopicEntityTagModel.topic_entity_tag_source)).filter(
+        and_(
+            TopicEntityTagModel.topic_entity_tag_id != tag_obj.topic_entity_tag_id,
+            TopicEntityTagModel.reference_id == tag_obj.reference_id,
+            TopicEntityTagModel.topic == tag_obj.topic,
+            TopicEntityTagModel.entity_type == tag_obj.entity_type,
+            TopicEntityTagModel.entity == tag_obj.entity,
+            TopicEntityTagModel.species == tag_obj.species
+        )
+    ).all()
+    related_tag: TopicEntityTagModel
+    for related_tag in related_tags:
+        if related_tag.topic_entity_tag_source.source_name.startswith(tuple([ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR,
+                                                                             ATP_ID_SOURCE_CURATION_TOOLS])):
+            new_validation_obj = TopicEntityTagValidationModel(
+                validated_topic_entity_tag_id=tag_obj.topic_entity_tag_id,
+                validating_topic_entity_tag_id=related_tag.topic_entity_tag_id)
+            db.add(new_validation_obj)
+        if tag_obj.topic_entity_tag_source.source_name.startswith(tuple([ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR,
+                                                                         ATP_ID_SOURCE_CURATION_TOOLS])):
+            new_validation_obj = TopicEntityTagValidationModel(
+                validated_topic_entity_tag_id=related_tag.topic_entity_tag_id,
+                validating_topic_entity_tag_id=tag_obj.topic_entity_tag_id)
+            db.add(new_validation_obj)
+    db.commit()
 
 
 def create_source(db: Session, source: TopicEntityTagSourceSchemaCreate):

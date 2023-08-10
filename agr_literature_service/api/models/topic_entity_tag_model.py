@@ -173,7 +173,7 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
     )
 
 
-class TopicEntityTagValidation(Base):
+class TopicEntityTagValidationModel(Base):
     __tablename__ = "topic_entity_tag_validation"
     __versioned__: Dict = {}
 
