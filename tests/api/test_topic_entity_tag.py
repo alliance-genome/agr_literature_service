@@ -42,11 +42,11 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_ta
 
 class TestTopicEntityTag:
 
-    def test_create_tag(self, test_topic_entity_tag, auth_headers): # noqa
+    def test_create(self, test_topic_entity_tag, auth_headers): # noqa
         with TestClient(app):
             assert test_topic_entity_tag.response.status_code == status.HTTP_201_CREATED
 
-    def test_create_tag_wrong_source(self, test_topic_entity_tag, auth_headers):  # noqa
+    def test_create_wrong_source(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
             new_tet = {
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
@@ -100,7 +100,13 @@ class TestTopicEntityTag:
             resp_data = response.json()
             for key, value in patch_data.items():
                 assert resp_data[key] == value
-        pass
+
+    def test_destroy(self, test_topic_entity_tag, auth_headers): # noqa
+        with TestClient(app) as client:
+            response = client.delete(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers)
+            assert response.status_code == status.HTTP_204_NO_CONTENT
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_get_all_reference_tags(self, auth_headers): # noqa
         with TestClient(app) as client:

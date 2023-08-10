@@ -92,7 +92,9 @@ def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagS
 
 
 def destroy_tag(db: Session, topic_entity_tag_id: int):
-    ...
+    topic_entity_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
+    db.delete(topic_entity_tag)
+    db.commit()
 
 
 def validate_tags_on_insertion(db: Session, tag_obj: TopicEntityTagModel):
