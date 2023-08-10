@@ -37,7 +37,7 @@ def dump_database(dump_type="ondemand"):  # noqa: C901
         upload_file_to_s3(file_name, s3_bucket, s3_filename)
         ## upload file to monthly bucket if it is first day of the month
         todayDate = date.today()
-        if todayDate.day == 10:
+        if todayDate.day == 1:
             s3_filename_monthly = monthly_bucket + file_name
             upload_file_to_s3(file_name, s3_bucket, s3_filename_monthly, 'GLACIER_IR')
         # delete local file after upload to s3
