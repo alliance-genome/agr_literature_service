@@ -82,7 +82,13 @@ def show_tag(db: Session, topic_entity_tag_id: int):
 
 
 def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagSchemaUpdate):
-    ...
+    topic_entity_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
+    patch_data = patch_data.dict(exclude_unset=True)
+    add_audited_object_users_if_not_exist(db, patch_data)
+    for key, value in patch_data.items():
+        setattr(topic_entity_tag, key, value)
+    db.commit()
+    return {"message": "updated"}
 
 
 def destroy_tag(db: Session, topic_entity_tag_id: int):

@@ -85,6 +85,23 @@ class TestTopicEntityTag:
             for key, value in expected_fields.items():
                 assert resp_data[key] == value
 
+    def test_patch(self, test_topic_entity_tag, auth_headers): # noqa
+        with TestClient(app) as client:
+            patch_data = {
+                "topic": "new_topic",
+                "entity_type": "new_type",
+                "entity": "new_entity",
+                "updated_by": "new_user"
+            }
+            response = client.patch(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers,
+                                    json=patch_data)
+            assert response.status_code == status.HTTP_202_ACCEPTED
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            resp_data = response.json()
+            for key, value in patch_data.items():
+                assert resp_data[key] == value
+        pass
+
     def test_get_all_reference_tags(self, auth_headers): # noqa
         with TestClient(app) as client:
             reference_data = {

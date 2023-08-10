@@ -50,10 +50,10 @@ def get_source_from_db(db: Session, topic_entity_tag_source_id: int) -> TopicEnt
 
 
 def add_audited_object_users_if_not_exist(db: Session, audited_obj: Dict):
-    if "created_by" in audited_obj:
+    if "created_by" in audited_obj and audited_obj["created_by"]:
         add_user_if_not_exists(db, audited_obj["created_by"])
-    if "updated_by" in audited_obj:
-        add_user_if_not_exists(db, audited_obj["created_by"])
+    if "updated_by" in audited_obj and audited_obj["updated_by"]:
+        add_user_if_not_exists(db, audited_obj["updated_by"])
 
 
 def add_source_obj_to_db_session(db: Session, source: Dict):
