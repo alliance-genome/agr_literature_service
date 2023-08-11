@@ -30,8 +30,7 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_ta
             "entity_source": "alliance",
             "entity_published_as": "test",
             "species": "NCBITaxon:6239",
-            "source_name": test_topic_entity_tag_source.new_source_name,
-            "mod_abbreviation": test_mod.new_mod_abbreviation,
+            "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
             "negated": False,
             "note": "test note",
             "created_by": "WBPerson1",
@@ -57,8 +56,7 @@ class TestTopicEntityTag:
                 "entity_source": "alliance",
                 "entity_published_as": "test",
                 "species": "NCBITaxon:6239",
-                "source_name": "not_there",
-                "mod_abbreviation": "who_knows",
+                "topic_entity_tag_source_id": -1,
                 "negated": False,
                 "note": "test note",
                 "created_by": "WBPerson1",
@@ -151,12 +149,14 @@ class TestTopicEntityTag:
     def test_validation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
         with TestClient(app) as client:
             author_source = {
-                "source_name": "author_acknowledge",
+                "source_type": "community curation",
+                "source_method": "acknowledge",
+                "validation_type": "author",
                 "evidence": "test_eco_code",
                 "description": "author from acknowledge",
                 "mod_abbreviation": test_mod.new_mod_abbreviation
             }
-            client.post(url="/topic_entity_tag/source", json=author_source, headers=auth_headers)
+            response = client.post(url="/topic_entity_tag/source", json=author_source, headers=auth_headers)
             validating_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000122",
@@ -164,8 +164,7 @@ class TestTopicEntityTag:
                 "entity": "WB:WBGene00003001",
                 "entity_source": "alliance",
                 "species": "NCBITaxon:6239",
-                "source_name": "author_acknowledge",
-                "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "topic_entity_tag_source_id": response.json(),
                 "negated": True
             }
             client.post(url="/topic_entity_tag/", json=validating_tag, headers=auth_headers)
@@ -184,8 +183,7 @@ class TestTopicEntityTag:
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
                 "topic": "ATP:0000009",
                 "confidence_level": "high",
-                "source_name": test_topic_entity_tag_source.new_source_name,
-                "mod_abbreviation": test_mod.new_mod_abbreviation
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
             }
             client.post(url="/topic_entity_tag/", json=topic_tag, headers=auth_headers)
             response = client.get(url="/topic_entity_tag/map_entity_curie_to_name/",
@@ -207,8 +205,7 @@ class TestTopicEntityTag:
                 "entity_source": "alliance",
                 "species": "NCBITaxon:6239",
                 "display_tag": "string",
-                "source_name": test_topic_entity_tag_source.new_source_name,
-                "mod_abbreviation": test_mod.new_mod_abbreviation
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id
             }
             client.post(url="/topic_entity_tag/", json=alliance_topic_tag, headers=auth_headers)
             response = client.get(url="/topic_entity_tag/map_entity_curie_to_name/",
@@ -230,8 +227,7 @@ class TestTopicEntityTag:
                 "entity_source": "wormbase",
                 "species": "NCBITaxon:6239",
                 "display_tag": "string",
-                "source_name": test_topic_entity_tag_source.new_source_name,
-                "mod_abbreviation": test_mod.new_mod_abbreviation
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id
             }
             client.post(url="/topic_entity_tag/", json=wormbase_topic_tag, headers=auth_headers)
             response = client.get(url="/topic_entity_tag/map_entity_curie_to_name/",

@@ -35,17 +35,13 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
                             detail="reference_curie not within topic_entity_tag_data")
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     topic_entity_tag_data["reference_id"] = reference_id
-    if topic_entity_tag_data['mod_abbreviation'] == 'SGD':
-        check_and_set_sgd_display_tag(topic_entity_tag_data)
     source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
-        and_(TopicEntityTagSourceModel.source_name == topic_entity_tag_data["source_name"],
-             TopicEntityTagSourceModel.mod.has(
-                 ModModel.abbreviation == topic_entity_tag_data["mod_abbreviation"]))).one_or_none()
+        TopicEntityTagSourceModel.topic_entity_tag_source_id == topic_entity_tag_data["topic_entity_tag_source_id"]
+    ).one_or_none()
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified source")
-    topic_entity_tag_data["topic_entity_tag_source_id"] = source.topic_entity_tag_source_id
-    del topic_entity_tag_data["source_name"]
-    del topic_entity_tag_data["mod_abbreviation"]
+    if source.mod.abbreviation == "SGD":
+        check_and_set_sgd_display_tag(topic_entity_tag_data)
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
     try:
@@ -75,8 +71,6 @@ def show_tag(db: Session, topic_entity_tag_id: int):
         del topic_entity_tag_data["reference_id"]
     topic_entity_tag_data[
         "topic_entity_tag_source_id"] = topic_entity_tag.topic_entity_tag_source.topic_entity_tag_source_id
-    topic_entity_tag_data["source_name"] = topic_entity_tag.topic_entity_tag_source.source_name
-    topic_entity_tag_data["mod_abbreviation"] = topic_entity_tag.topic_entity_tag_source.mod.abbreviation
     return topic_entity_tag_data
 
 
@@ -110,11 +104,11 @@ def validate_tags_on_insertion(db: Session, tag_obj: TopicEntityTagModel):
     ).all()
     related_tag: TopicEntityTagModel
     for related_tag in related_tags:
-        if related_tag.topic_entity_tag_source.source_name.startswith(tuple([ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR,
-                                                                             ATP_ID_SOURCE_CURATION_TOOLS])):
+        if related_tag.topic_entity_tag_source.validation_type in [ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR,
+                                                                   ATP_ID_SOURCE_CURATION_TOOLS]:
             tag_obj.validated_by.append(related_tag)
-        if tag_obj.topic_entity_tag_source.source_name.startswith(tuple([ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR,
-                                                                         ATP_ID_SOURCE_CURATION_TOOLS])):
+        if tag_obj.topic_entity_tag_source.validation_type in [ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR,
+                                                               ATP_ID_SOURCE_CURATION_TOOLS]:
             related_tag.validated_by.append(tag_obj)
 
 

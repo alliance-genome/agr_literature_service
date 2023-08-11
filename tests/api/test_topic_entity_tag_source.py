@@ -9,7 +9,7 @@ from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_mod import test_mod # noqa
 
-TestSourceData = namedtuple('TestSourceData', ['response', 'new_source_id', 'new_source_name'])
+TestSourceData = namedtuple('TestSourceData', ['response', 'new_source_id'])
 
 
 @pytest.fixture
@@ -17,14 +17,16 @@ def test_topic_entity_tag_source(db, auth_headers, test_mod): # noqa
     print("***** Adding a test tag source *****")
     with TestClient(app) as client:
         new_source = {
-            "source_name": "neural_network_phenotype",
+            "source_type": "automated",
+            "source_method": "phenotype neural network",
+            "validation_type": None,
             "evidence": "test_eco_code",
             "description": "a test source",
             "mod_abbreviation": test_mod.new_mod_abbreviation,
             "created_by": "somebody"
         }
         response = client.post(url="/topic_entity_tag/source", json=new_source, headers=auth_headers)
-        yield TestSourceData(response, response.json(), new_source["source_name"])
+        yield TestSourceData(response, response.json())
 
 
 class TestTopicEntityTagSource:
@@ -38,7 +40,7 @@ class TestTopicEntityTagSource:
             response = client.get(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}")
             assert response.status_code == status.HTTP_200_OK
             res_obj = response.json()
-            assert res_obj["source_name"] == "neural_network_phenotype"
+            assert res_obj["source_method"] == "phenotype neural network"
             assert res_obj["evidence"] == "test_eco_code"
             assert res_obj["description"] == "a test source"
             assert res_obj["mod_abbreviation"] == test_mod.new_mod_abbreviation
@@ -46,14 +48,14 @@ class TestTopicEntityTagSource:
     def test_patch_source(self, test_topic_entity_tag_source, auth_headers): # noqa
         with TestClient(app) as client:
             patch_data = {
-                "source_name": "test_patch_name",
+                "source_type": "test_patch_type",
                 "created_by": "me"
             }
             response = client.patch(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}",
                                     json=patch_data, headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
             response = client.get(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}")
-            assert response.json()["source_name"] == "test_patch_name"
+            assert response.json()["source_type"] == "test_patch_type"
             assert response.json()["created_by"] == "me"
 
     def test_destroy_source(self, test_topic_entity_tag_source, auth_headers):  # noqa
