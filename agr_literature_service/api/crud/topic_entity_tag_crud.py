@@ -15,7 +15,7 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
     get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, add_audited_object_users_if_not_exist
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
-    ReferenceModel, TopicEntityTagSourceModel, ModModel
+    ReferenceModel, TopicEntityTagSourceModel
 )
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagSchemaPost,
                                                                          TopicEntityTagSourceSchemaUpdate,

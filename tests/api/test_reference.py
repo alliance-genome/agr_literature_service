@@ -200,8 +200,7 @@ class TestReference:
                         "entity": "string",
                         "entity_source": "string",
                         "species": "string",
-                        "source_name": test_topic_entity_tag_source.new_source_name,
-                        "mod_abbreviation": test_mod.new_mod_abbreviation,
+                        "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                         "negated": False,
                         "note": "test"
                     }
