@@ -177,7 +177,7 @@ class TestTopicEntityTag:
             assert len(tag_obj.validated_by) > 0
 
     @pytest.mark.webtest
-    def test_get_map_entity_curie_to_name(self, test_topic_entity_tag, test_topic_entity_tag_source, test_mod,
+    def test_get_map_entity_curie_to_name(self, test_topic_entity_tag, test_topic_entity_tag_source, test_mod, # noqa
                                           auth_headers): # noqa
         with TestClient(app) as client:
             topic_tag = {
