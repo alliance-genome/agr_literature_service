@@ -177,17 +177,15 @@ class TestTopicEntityTag:
             assert len(tag_obj.validated_by) > 0
 
     @pytest.mark.webtest
-    def test_get_map_entity_curie_to_name(self, test_topic_entity_tag, test_mod, auth_headers): # noqa
+    def test_get_map_entity_curie_to_name(self, test_topic_entity_tag, test_topic_entity_tag_source, test_mod,
+                                          auth_headers): # noqa
         with TestClient(app) as client:
             topic_tag = {
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
                 "topic": "ATP:0000009",
-                "sources": [{
-                    "source": "WB_NN_1",
-                    "confidence_level": "high",
-                    "mod_abbreviation": test_mod.new_mod_abbreviation,
-                    "note": "test note"
-                }]
+                "confidence_level": "high",
+                "source_name": test_topic_entity_tag_source.new_source_name,
+                "mod_abbreviation": test_mod.new_mod_abbreviation
             }
             client.post(url="/topic_entity_tag/", json=topic_tag, headers=auth_headers)
             response = client.get(url="/topic_entity_tag/map_entity_curie_to_name/",
@@ -209,12 +207,8 @@ class TestTopicEntityTag:
                 "entity_source": "alliance",
                 "species": "NCBITaxon:6239",
                 "display_tag": "string",
-                "sources": [{
-                    "source": "WB_NN_1",
-                    "confidence_level": "high",
-                    "mod_abbreviation": test_mod.new_mod_abbreviation,
-                    "note": "test note"
-                }]
+                "source_name": test_topic_entity_tag_source.new_source_name,
+                "mod_abbreviation": test_mod.new_mod_abbreviation
             }
             client.post(url="/topic_entity_tag/", json=alliance_topic_tag, headers=auth_headers)
             response = client.get(url="/topic_entity_tag/map_entity_curie_to_name/",
@@ -236,12 +230,8 @@ class TestTopicEntityTag:
                 "entity_source": "wormbase",
                 "species": "NCBITaxon:6239",
                 "display_tag": "string",
-                "sources": [{
-                    "source": "WB_NN_1",
-                    "confidence_level": "high",
-                    "mod_abbreviation": test_mod.new_mod_abbreviation,
-                    "note": "test note"
-                }]
+                "source_name": test_topic_entity_tag_source.new_source_name,
+                "mod_abbreviation": test_mod.new_mod_abbreviation
             }
             client.post(url="/topic_entity_tag/", json=wormbase_topic_tag, headers=auth_headers)
             response = client.get(url="/topic_entity_tag/map_entity_curie_to_name/",
