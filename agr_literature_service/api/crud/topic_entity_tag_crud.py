@@ -35,7 +35,6 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
                             detail="reference_curie not within topic_entity_tag_data")
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     topic_entity_tag_data["reference_id"] = reference_id
-    topic_entity_tag_data["reference_id"] = reference_id
     if topic_entity_tag_data['mod_abbreviation'] == 'SGD':
         check_and_set_sgd_display_tag(topic_entity_tag_data)
     source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
@@ -117,7 +116,6 @@ def validate_tags_on_insertion(db: Session, tag_obj: TopicEntityTagModel):
         if tag_obj.topic_entity_tag_source.source_name.startswith(tuple([ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR,
                                                                          ATP_ID_SOURCE_CURATION_TOOLS])):
             related_tag.validated_by.append(tag_obj)
-    db.commit()
 
 
 def create_source(db: Session, source: TopicEntityTagSourceSchemaCreate):
