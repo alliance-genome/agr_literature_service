@@ -114,14 +114,13 @@ def validate_tags_on_insertion(db: Session, tag_obj: TopicEntityTagModel):
     for related_tag in related_tags:
         if related_tag.topic_entity_tag_source.source_name.startswith(tuple([ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR,
                                                                              ATP_ID_SOURCE_CURATION_TOOLS])):
+            tag_obj.validated_by.append(related_tag)
             new_validation_obj = TopicEntityTagValidationModel(
-                validated_topic_entity_tag_id=tag_obj.topic_entity_tag_id,
                 validating_topic_entity_tag_id=related_tag.topic_entity_tag_id)
             db.add(new_validation_obj)
         if tag_obj.topic_entity_tag_source.source_name.startswith(tuple([ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR,
                                                                          ATP_ID_SOURCE_CURATION_TOOLS])):
             new_validation_obj = TopicEntityTagValidationModel(
-                validated_topic_entity_tag_id=related_tag.topic_entity_tag_id,
                 validating_topic_entity_tag_id=tag_obj.topic_entity_tag_id)
             db.add(new_validation_obj)
     db.commit()

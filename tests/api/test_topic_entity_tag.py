@@ -5,7 +5,7 @@ from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagValidationModel
+from agr_literature_service.api.models import TopicEntityTagModel
 from agr_literature_service.lit_processing.utils.okta_utils import get_authentication_token
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
@@ -171,9 +171,10 @@ class TestTopicEntityTag:
             client.post(url="/topic_entity_tag/", json=validating_tag, headers=auth_headers)
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
             assert response.status_code == status.HTTP_200_OK
-            assert db.query(TopicEntityTagValidationModel).filter(
-                TopicEntityTagValidationModel.validated_topic_entity_tag_id == test_topic_entity_tag.new_tet_id
-            ).count() > 0
+            tag_obj: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == test_topic_entity_tag.new_tet_id
+            ).one()
+            assert len(tag_obj.validated_by) > 0
 
     @pytest.mark.webtest
     def test_get_map_entity_curie_to_name(self, test_topic_entity_tag, test_mod, auth_headers): # noqa

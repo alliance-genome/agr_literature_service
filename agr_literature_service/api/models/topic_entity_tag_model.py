@@ -3,10 +3,9 @@ topic_entity_tag_model.py
 ==================
 """
 
-
 from typing import Dict
 
-from sqlalchemy import Column, ForeignKey, Integer, String, and_, CheckConstraint, UniqueConstraint, Boolean, or_
+from sqlalchemy import Column, ForeignKey, Integer, String, and_, CheckConstraint, UniqueConstraint, Boolean, or_, Table
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -14,6 +13,48 @@ from agr_literature_service.api.database.versioning import enable_versioning
 from agr_literature_service.api.models.audited_model import AuditedModel
 
 enable_versioning()
+
+
+class TopicEntityTagValidationModel(Base):
+
+    __tablename__ = "topic_entity_tag_validation"
+
+    topic_entity_tag_validation_id = Column(
+        Integer,
+        primary_key=True,
+        autoincrement=True
+    )
+
+    validated_topic_entity_tag_id = Column(
+        Integer,
+        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete="CASCADE")
+    )
+
+    validated_topic_entity_tag = relationship(
+        "TopicEntityTagModel",
+        back_populates="validates",
+        foreign_keys="topic_entity_tag.c.topic_entity_tag_id == "
+                     "topic_entity_tag_validation.c.validated_topic_entity_tag_id"
+    )
+
+    validating_topic_entity_tag_id = Column(
+        Integer,
+        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete="CASCADE")
+    )
+
+    validating_topic_entity_tag = relationship(
+        "TopicEntityTagModel",
+        back_populates="validated_by",
+        foreign_keys="topic_entity_tag.c.topic_entity_tag_id == "
+                     "topic_entity_tag_validation.c.validating_topic_entity_tag_id"
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            'validated_topic_entity_tag_id', 'validating_topic_entity_tag_id',
+            name="_topic_entity_tag_validation_unique"
+        ),
+    )
 
 
 class TopicEntityTagModel(AuditedModel, Base):
@@ -113,6 +154,20 @@ class TopicEntityTagModel(AuditedModel, Base):
         unique=False
     )
 
+    validates = relationship(
+        "TopicEntityTagValidationModel",
+        back_populates="validated_topic_entity_tag",
+        foreign_keys="topic_entity_tag.c.topic_entity_tag_id == "
+                     "topic_entity_tag_validation.c.validated_topic_entity_tag_id"
+    )
+
+    validated_by = relationship(
+        "TopicEntityTagValidationModel",
+        back_populates="validating_topic_entity_tag",
+        foreign_keys="topic_entity_tag.c.topic_entity_tag_id == "
+                     "topic_entity_tag_validation.c.validating_topic_entity_tag_id"
+    )
+
     __table_args__ = (
         CheckConstraint(
             or_(
@@ -170,35 +225,4 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
     __table_args__ = (
         UniqueConstraint(
             'source_name', 'mod_id', name='topic_entity_tag_source_unique'),
-    )
-
-
-class TopicEntityTagValidationModel(Base):
-    __tablename__ = "topic_entity_tag_validation"
-    __versioned__: Dict = {}
-
-    topic_entity_tag_validation_id = Column(
-        Integer,
-        primary_key=True,
-        autoincrement=True
-    )
-
-    validated_topic_entity_tag_id = Column(
-        Integer,
-        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete="CASCADE"),
-        index=True,
-        nullable=False
-    )
-
-    validating_topic_entity_tag_id = Column(
-        Integer,
-        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete="CASCADE"),
-        index=True,
-        nullable=False
-    )
-
-    __table_args__ = (
-        UniqueConstraint(
-            'validated_topic_entity_tag_id', 'validating_topic_entity_tag_id',
-            name='topic_entity_tag_validation_unique'),
     )
