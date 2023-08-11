@@ -17,7 +17,6 @@ from agr_literature_service.api.models import (
     TopicEntityTagModel,
     ReferenceModel, TopicEntityTagSourceModel, ModModel
 )
-from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagValidationModel
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagSchemaPost,
                                                                          TopicEntityTagSourceSchemaUpdate,
                                                                          TopicEntityTagSourceSchemaCreate,
@@ -115,14 +114,9 @@ def validate_tags_on_insertion(db: Session, tag_obj: TopicEntityTagModel):
         if related_tag.topic_entity_tag_source.source_name.startswith(tuple([ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR,
                                                                              ATP_ID_SOURCE_CURATION_TOOLS])):
             tag_obj.validated_by.append(related_tag)
-            new_validation_obj = TopicEntityTagValidationModel(
-                validating_topic_entity_tag_id=related_tag.topic_entity_tag_id)
-            db.add(new_validation_obj)
         if tag_obj.topic_entity_tag_source.source_name.startswith(tuple([ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR,
                                                                          ATP_ID_SOURCE_CURATION_TOOLS])):
-            new_validation_obj = TopicEntityTagValidationModel(
-                validating_topic_entity_tag_id=tag_obj.topic_entity_tag_id)
-            db.add(new_validation_obj)
+            related_tag.validated_by.append(tag_obj)
     db.commit()
 
 

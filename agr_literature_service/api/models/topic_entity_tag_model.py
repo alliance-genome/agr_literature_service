@@ -15,51 +15,19 @@ from agr_literature_service.api.models.audited_model import AuditedModel
 enable_versioning()
 
 
-class TopicEntityTagValidationModel(Base):
-
-    __tablename__ = "topic_entity_tag_validation"
-
-    topic_entity_tag_validation_id = Column(
-        Integer,
-        primary_key=True,
-        autoincrement=True
-    )
-
-    validated_topic_entity_tag_id = Column(
-        Integer,
-        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete="CASCADE")
-    )
-
-    validated_topic_entity_tag = relationship(
-        "TopicEntityTagModel",
-        back_populates="validates",
-        foreign_keys="topic_entity_tag.c.topic_entity_tag_id == "
-                     "topic_entity_tag_validation.c.validated_topic_entity_tag_id"
-    )
-
-    validating_topic_entity_tag_id = Column(
-        Integer,
-        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete="CASCADE")
-    )
-
-    validating_topic_entity_tag = relationship(
-        "TopicEntityTagModel",
-        back_populates="validated_by",
-        foreign_keys="topic_entity_tag.c.topic_entity_tag_id == "
-                     "topic_entity_tag_validation.c.validating_topic_entity_tag_id"
-    )
-
-    __table_args__ = (
-        UniqueConstraint(
-            'validated_topic_entity_tag_id', 'validating_topic_entity_tag_id',
-            name="_topic_entity_tag_validation_unique"
-        ),
-    )
+topic_entity_tag_validation = Table(
+    "topic_entity_tag_validation",
+    Base.metadata,
+    Column("validated_topic_entity_tag_id", ForeignKey("topic_entity_tag.topic_entity_tag_id"), primary_key=True),
+    Column("validating_topic_entity_tag_id", ForeignKey("topic_entity_tag.topic_entity_tag_id"), primary_key=True)
+)
 
 
 class TopicEntityTagModel(AuditedModel, Base):
     __tablename__ = "topic_entity_tag"
-    __versioned__: Dict = {}
+    __versioned__ = {
+        'exclude': ['validated_by']
+    }
 
     topic_entity_tag_id = Column(
         Integer,
@@ -154,18 +122,13 @@ class TopicEntityTagModel(AuditedModel, Base):
         unique=False
     )
 
-    validates = relationship(
-        "TopicEntityTagValidationModel",
-        back_populates="validated_topic_entity_tag",
-        foreign_keys="topic_entity_tag.c.topic_entity_tag_id == "
-                     "topic_entity_tag_validation.c.validated_topic_entity_tag_id"
-    )
-
     validated_by = relationship(
-        "TopicEntityTagValidationModel",
-        back_populates="validating_topic_entity_tag",
-        foreign_keys="topic_entity_tag.c.topic_entity_tag_id == "
-                     "topic_entity_tag_validation.c.validating_topic_entity_tag_id"
+        "TopicEntityTagModel",
+        secondary=topic_entity_tag_validation,
+        primaryjoin=topic_entity_tag_validation.c.validated_topic_entity_tag_id == topic_entity_tag_id,
+        secondaryjoin=topic_entity_tag_validation.c.validating_topic_entity_tag_id == topic_entity_tag_id,
+        foreign_keys=[topic_entity_tag_validation.c.validated_topic_entity_tag_id,
+                      topic_entity_tag_validation.c.validating_topic_entity_tag_id]
     )
 
     __table_args__ = (
