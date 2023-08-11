@@ -47,4 +47,6 @@ def get_okta_mod_access(user: OktaUser):
                 return OktaAccess.FB_ACCESS
             if oktaGroup == "WormBaseCurator":
                 return OktaAccess.WB_ACCESS
+    elif user.cid == '0oa1cs2ineBqEFiD85d7':
+        return OktaAccess.ALL_ACCESS
     return OktaAccess.NO_ACCESS
