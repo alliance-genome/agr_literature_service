@@ -3,10 +3,9 @@ topic_entity_tag_model.py
 ==================
 """
 
-
 from typing import Dict
 
-from sqlalchemy import Column, ForeignKey, Integer, String, and_, CheckConstraint, UniqueConstraint, Boolean, or_, Index
+from sqlalchemy import Column, ForeignKey, Integer, String, and_, CheckConstraint, UniqueConstraint, Boolean, or_, Table
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -16,9 +15,19 @@ from agr_literature_service.api.models.audited_model import AuditedModel
 enable_versioning()
 
 
+topic_entity_tag_validation = Table(
+    "topic_entity_tag_validation",
+    Base.metadata,
+    Column("validated_topic_entity_tag_id", ForeignKey("topic_entity_tag.topic_entity_tag_id"), primary_key=True),
+    Column("validating_topic_entity_tag_id", ForeignKey("topic_entity_tag.topic_entity_tag_id"), primary_key=True)
+)
+
+
 class TopicEntityTagModel(AuditedModel, Base):
     __tablename__ = "topic_entity_tag"
-    __versioned__: Dict = {}
+    __versioned__ = {
+        'exclude': ['validated_by']
+    }
 
     topic_entity_tag_id = Column(
         Integer,
@@ -37,6 +46,18 @@ class TopicEntityTagModel(AuditedModel, Base):
         "ReferenceModel",
         foreign_keys="TopicEntityTagModel.reference_id",
         back_populates="topic_entity_tags"
+    )
+
+    topic_entity_tag_source_id = Column(
+        Integer,
+        ForeignKey("topic_entity_tag_source.topic_entity_tag_source_id", ondelete="CASCADE"),
+        index=True,
+        nullable=False
+    )
+
+    topic_entity_tag_source = relationship(
+        "TopicEntityTagSourceModel",
+        foreign_keys="TopicEntityTagModel.topic_entity_tag_source_id"
     )
 
     # Obtained from A-Team ontology node term-id
@@ -82,31 +103,44 @@ class TopicEntityTagModel(AuditedModel, Base):
         nullable=True
     )
 
-    sources = relationship("TopicEntityTagSourceModel", cascade="all,delete", back_populates="topic_entity_tag")
+    negated = Column(
+        Boolean,
+        nullable=False,
+        unique=False,
+        default=False
+    )
+
+    confidence_level = Column(
+        String(),
+        nullable=True,
+        unique=False
+    )
+
+    note = Column(
+        String(),
+        nullable=True,
+        unique=False
+    )
+
+    validated_by = relationship(
+        "TopicEntityTagModel",
+        secondary=topic_entity_tag_validation,
+        primaryjoin=topic_entity_tag_validation.c.validated_topic_entity_tag_id == topic_entity_tag_id,
+        secondaryjoin=topic_entity_tag_validation.c.validating_topic_entity_tag_id == topic_entity_tag_id,
+        foreign_keys=[topic_entity_tag_validation.c.validated_topic_entity_tag_id,
+                      topic_entity_tag_validation.c.validating_topic_entity_tag_id]
+    )
 
     __table_args__ = (
         CheckConstraint(
             or_(
                 and_(entity_type.isnot(None), entity.isnot(None), entity_source.isnot(None), species.isnot(None)),
-                and_(entity_type.is_(None), entity.is_(None), entity_source.is_(None))
+                and_(entity_type.is_(None), entity.is_(None), entity_source.is_(None)),
+                and_(entity_type.isnot(None), entity.is_(None), entity_source.is_(None), species.isnot(None),
+                     negated.is_(True))
             ),
             name="entity_entity_source_and_species_not_null_when_entity_type_provided"
         ),
-        Index(
-            'ix_unique_topic_tag_with_species',
-            'reference_id', 'topic', 'species',
-            unique=True,
-            postgresql_where=and_(entity_type.is_(None), species.isnot(None))),
-        Index(
-            'ix_unique_topic_tag_without_species',
-            'reference_id', 'topic',
-            unique=True,
-            postgresql_where=and_(entity_type.is_(None), species.is_(None))),
-        Index(
-            'ix_unique_entity_tag',
-            'reference_id', 'topic', 'entity_type', 'entity', 'entity_source', 'species',
-            unique=True,
-            postgresql_where=entity_type.isnot(None))
     )
 
 
@@ -120,15 +154,6 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
         autoincrement=True
     )
 
-    topic_entity_tag_id = Column(
-        Integer,
-        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete="CASCADE"),
-        index=True,
-        nullable=False
-    )
-
-    topic_entity_tag = relationship("TopicEntityTagModel", back_populates="sources")
-
     mod_id = Column(
         Integer,
         ForeignKey("mod.mod_id", ondelete="CASCADE"),
@@ -141,47 +166,34 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
         foreign_keys="TopicEntityTagSourceModel.mod_id"
     )
 
-    source = Column(
+    source_type = Column(
+        String(),
+        unique=False,
+        nullable=False,
+        index=True
+    )
+
+    source_method = Column(
+        String(),
+        unique=False,
+        nullable=False,
+        index=True
+    )
+
+    validation_type = Column(
+        String(),
+        unique=False,
+        nullable=True,
+        index=True
+    )
+
+    evidence = Column(
         String(),
         unique=False,
         nullable=False
     )
 
-    negated = Column(
-        Boolean(),
-        unique=False,
-        default=False,
-        nullable=False
-    )
-
-    confidence_level = Column(
-        String(),
-        unique=False,
-        nullable=True
-    )
-
-    validation_value_author = Column(
-        Boolean(),
-        unique=False,
-        nullable=True,
-        default=None
-    )
-
-    validation_value_curator = Column(
-        Boolean(),
-        unique=False,
-        nullable=True,
-        default=None
-    )
-
-    validation_value_curation_tools = Column(
-        Boolean(),
-        unique=False,
-        nullable=True,
-        default=None
-    )
-
-    note = Column(
+    description = Column(
         String(),
         unique=False,
         nullable=True
@@ -189,6 +201,5 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
 
     __table_args__ = (
         UniqueConstraint(
-            'topic_entity_tag_id', 'mod_id', 'source',
-            name='source_topic_entity_tag_unique'),
+            'source_type', 'source_method', 'mod_id', name='topic_entity_tag_source_unique'),
     )

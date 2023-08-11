@@ -20,6 +20,10 @@ def set_global_user_id(db: Session, id: str):
     global user_id
     user_id = id
 
+    add_user_if_not_exists(db, user_id)
+
+
+def add_user_if_not_exists(db: Session, user_id: str):
     if not db.query(UserModel).filter(UserModel.id == user_id).first():
         user_crud.create(db, user_id)
 
