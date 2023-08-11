@@ -120,4 +120,4 @@ bulk_upload_reference_files:
 	docker-compose --env-file ${ENV_FILE} run --rm -v $(local_folder):/usr/files_to_upload/ file_uploader upload_files $(mod_abbreviation)
 
 dump_prod_locally:
-	python3 agr_literature_service/lit_processing/data_export/dump_database.py  -t  ondemand
+    docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app python3 agr_literature_service/lit_processing/data_export/dump_database.py  -t  ondemand

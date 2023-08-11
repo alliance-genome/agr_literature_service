@@ -46,26 +46,6 @@ def file_exist_from_s3(bucketname, s3_file_location):
     return True
 
 
-def delete_file_from_s3(bucketname, s3_file_location):
-    """
-
-    :param bucketname:
-    :param s3_file_location:
-    :return:
-    """
-
-    s3_client = boto3.client('s3')
-    try:
-        response = s3_client.delete_object(Bucket=bucketname, Key=s3_file_location)
-        if response is not None:
-            logger.info("boto 3 delete response: %s", response)
-    except ClientError as e:
-        logging.error(e)
-        return False
-
-    return True
-
-
 def download_file_from_s3(filepath, bucketname, s3_file_location):
     """
 
