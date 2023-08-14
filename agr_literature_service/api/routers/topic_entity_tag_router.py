@@ -102,6 +102,16 @@ def show_source(topic_entity_tag_source_id: int,
     return topic_entity_tag_crud.show_source(db, topic_entity_tag_source_id)
 
 
+@router.get('/source/{source_type}/{source_method}/{mod_abbreviation}',
+            response_model=TopicEntityTagSourceSchemaShow,
+            status_code=200)
+def show_source_by_name(source_type: str,
+                        source_method: str,
+                        mod_abbreviation: str,
+                        db: Session = db_session):
+    return topic_entity_tag_crud.show_source_by_name(db, source_type, source_method, mod_abbreviation)
+
+
 @router.get('/by_reference/{curie_or_reference_id}',
             status_code=200)
 def show_all_reference_tags(curie_or_reference_id: str, page: int = 1, page_size: int = None, count_only: bool = False,

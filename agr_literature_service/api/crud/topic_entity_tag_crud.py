@@ -15,7 +15,7 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
     get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, add_audited_object_users_if_not_exist
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
-    ReferenceModel, TopicEntityTagSourceModel
+    ReferenceModel, TopicEntityTagSourceModel, ModModel
 )
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagSchemaPost,
                                                                          TopicEntityTagSourceSchemaUpdate,
@@ -156,7 +156,7 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
         sort_by = None
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
     query = db.query(TopicEntityTagModel).options(
-        joinedload(TopicEntityTagModel.sources)).filter(
+        joinedload(TopicEntityTagModel.topic_entity_tag_source)).filter(
         TopicEntityTagModel.reference_id == reference_id)
     if count_only:
         return query.count()
@@ -191,3 +191,22 @@ def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token:
                                                                   curies=all_entities[atpterm_curie],
                                                                   token=token))
     return entity_curie_to_name
+
+
+def show_source_by_name(db: Session, source_type: str, source_method: str, mod_abbreviation: str):
+    mod = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
+    if mod is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
+    source = db.query(TopicEntityTagSourceModel).filter(
+        and_(
+            TopicEntityTagSourceModel.source_type == source_type,
+            TopicEntityTagSourceModel.source_method == source_method,
+            TopicEntityTagSourceModel.mod_id == mod.mod_id
+        )
+    ).one_or_none()
+    if source is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified Source")
+    source_data = jsonable_encoder(source)
+    del source_data["mod_id"]
+    source_data["mod_abbreviation"] = mod_abbreviation
+    return source_data
