@@ -25,6 +25,27 @@ logging.getLogger("s3transfer.tasks").setLevel(logging.WARNING)
 logging.getLogger("s3transfer.futures").setLevel(logging.WARNING)
 
 
+def file_exist_from_s3(bucketname, s3_file_location):
+    """
+
+    :param bucketname:
+    :param s3_file_location:
+    :return: True/False
+    """
+
+    s3_client = boto3.client('s3')
+    try:
+        s3_client.head_object(Bucket=bucketname, Key=s3_file_location)
+    except ClientError as e:
+        if e.response['Error']['Code'] == "404":
+            logging.info("file does not exists")
+            return False
+        else:
+            logging.error(e)
+            return False
+    return True
+
+
 def download_file_from_s3(filepath, bucketname, s3_file_location):
     """
 
