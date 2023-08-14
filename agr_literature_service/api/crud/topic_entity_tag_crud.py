@@ -75,7 +75,12 @@ def show_tag(db: Session, topic_entity_tag_id: int):
 
 
 def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagSchemaUpdate):
-    topic_entity_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
+    topic_entity_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
+        TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).one_or_none()
+    if topic_entity_tag is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
+                                   f"is not available")
     patch_data_dict = patch_data.dict(exclude_unset=True)
     add_audited_object_users_if_not_exist(db, patch_data_dict)
     for key, value in patch_data_dict.items():
@@ -85,7 +90,12 @@ def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagS
 
 
 def destroy_tag(db: Session, topic_entity_tag_id: int):
-    topic_entity_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
+    topic_entity_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
+        TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).one_or_none()
+    if topic_entity_tag is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
+                                   f"is not available")
     db.delete(topic_entity_tag)
     db.commit()
 
@@ -104,12 +114,13 @@ def validate_tags_on_insertion(db: Session, tag_obj: TopicEntityTagModel):
     ).all()
     related_tag: TopicEntityTagModel
     for related_tag in related_tags:
-        if related_tag.topic_entity_tag_source.validation_type in [ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR,
+        if related_tag.topic_entity_tag_source.mod_id == tag_obj.topic_entity_tag_source.mod_id:
+            if related_tag.topic_entity_tag_source.validation_type in [ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR,
+                                                                       ATP_ID_SOURCE_CURATION_TOOLS]:
+                tag_obj.validated_by.append(related_tag)
+            if tag_obj.topic_entity_tag_source.validation_type in [ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR,
                                                                    ATP_ID_SOURCE_CURATION_TOOLS]:
-            tag_obj.validated_by.append(related_tag)
-        if tag_obj.topic_entity_tag_source.validation_type in [ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR,
-                                                               ATP_ID_SOURCE_CURATION_TOOLS]:
-            related_tag.validated_by.append(tag_obj)
+                related_tag.validated_by.append(tag_obj)
 
 
 def create_source(db: Session, source: TopicEntityTagSourceSchemaCreate):
