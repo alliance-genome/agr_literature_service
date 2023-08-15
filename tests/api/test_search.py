@@ -68,7 +68,7 @@ def initialize_elasticsearch():
         "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
-        "mod_reference_types":["paper"]
+        "mod_reference_types": ["paper"]
     }
     es.index(index=config.ELASTICSEARCH_INDEX, id=1, body=doc1)
     es.index(index=config.ELASTICSEARCH_INDEX, id=2, body=doc2)
