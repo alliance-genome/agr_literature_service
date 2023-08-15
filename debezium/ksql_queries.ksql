@@ -480,7 +480,7 @@ CREATE TABLE reference_obsolete_curies AS SELECT
     reference_obsolete_curies.mods_needs_review \"mods_needs_review\",
     reference_obsolete_curies.mods_in_corpus_or_needs_review \"mods_in_corpus_or_needs_review\",
     reference_obsolete_curies.obsolete_curies \"obsolete_curies\",
-    mod_referencetype_referencetype_full.label \"mod_reference_types"\
+    mod_referencetype_referencetype_full.label \"mod_reference_types\"
     FROM reference_obsolete_curies reference_obsolete_curies
     LEFT OUTER JOIN mod_referencetype_referencetype_full mod_referencetype_referencetype_full ON
     reference_obsolete_curies.reference_id = mod_referencetype_referencetype_full.reference_id;
