@@ -56,7 +56,8 @@ def initialize_elasticsearch():
         "date_published_start": date1,  # full year of 2022
         "date_published_end": date5,
         "authors": [{"name": "John Q Public", "orcid": "null"}, {"name": "Socrates", "orcid": "null"}],
-        "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}]
+        "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}],
+        "mod_reference_types": ["paper"]
     }
     doc2 = {
         "curie": "AGRKB:101000000000200",
@@ -69,7 +70,8 @@ def initialize_elasticsearch():
         "date_published_start": date1,  # One day 1st Jan 2022
         "date_published_end": date1,
         "authors": [{"name": "Jane Doe", "orcid": "null"}],
-        "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}]
+        "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}],
+        "mod_reference_types": ["paper"]
     }
     doc3 = {
         "curie": "AGRKB:101000000000300",
@@ -82,7 +84,8 @@ def initialize_elasticsearch():
         "date_published_start": date1,  # jan 1st -> Mar 28th
         "date_published_end": date2,
         "authors": [{"name": "Sam", "orcid": "null"}, {"name": "Plato", "orcid": "null"}],
-        "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "SGD:S000000123", "is_obsolete": "true"}]
+        "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "SGD:S000000123", "is_obsolete": "true"}],
+        "mod_reference_types": ["note"]
     }
     doc4 = {
         "curie": "AGRKB:101000000000400",
@@ -95,7 +98,8 @@ def initialize_elasticsearch():
         "date_published": date4,
         "date_arrived_in_pubmed": date4,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
-        "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}]
+        "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
+        "mod_reference_types": ["paper"]
     }
     doc5 = {
         "curie": "AGRKB:101000000000500",
@@ -108,7 +112,8 @@ def initialize_elasticsearch():
         "date_published": date5,
         "date_arrived_in_pubmed": date5,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
-        "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}]
+        "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
+        "mod_reference_types": ["Journal"]
     }
     doc6 = {
         "curie": "AGRKB:101000000000600",
@@ -121,7 +126,8 @@ def initialize_elasticsearch():
         "date_published": date2,
         "date_arrived_in_pubmed": date5,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
-        "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}]
+        "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
+        "mod_reference_types": ["paper"]
     }
     doc7 = {
         "curie": "AGRKB:101000000000700",
@@ -134,7 +140,8 @@ def initialize_elasticsearch():
         "date_published": date6,
         "date_arrived_in_pubmed": date6,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
-        "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}]
+        "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
+        "mod_reference_types": ["paper"]
     }
     doc8 = {
         "curie": "AGRKB:101000000000800",
@@ -147,7 +154,8 @@ def initialize_elasticsearch():
         "date_published": date7,
         "date_arrived_in_pubmed": date7,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
-        "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}]
+        "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
+        "mod_reference_types": ["paper"]
     }
     doc9 = {
         "curie": "AGRKB:101000000000900",
@@ -160,7 +168,8 @@ def initialize_elasticsearch():
         "date_published": date8,
         "date_arrived_in_pubmed": date8,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
-        "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}]
+        "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
+        "mod_reference_types": ["paper"]
     }
 
     es.index(index="references_index", id=1, body=doc1)

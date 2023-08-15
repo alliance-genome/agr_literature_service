@@ -94,6 +94,36 @@ CREATE TABLE citation (
     KEY_FORMAT='json'
 );
 
+CREATE TABLE referencetype(
+    referencetype_id string PRIMARY KEY,
+    label string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.referencetype',
+    VALUE_FORMAT='json',
+    KEY_FORMAT='json'
+);
+
+CREATE TABLE mod_referencetype(
+    mod_referencetype_id string PRIMARY KEY,
+    mod_id string,
+    referencetype_id string,
+    display_order string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.mod_referencetype',
+    VALUE_FORMAT='json',
+    KEY_FORMAT='json'
+);
+
+CREATE TABLE reference_mod_referencetype(
+    reference_mod_referencetype_id string PRIMARY KEY,
+    reference_id string,
+    mod_referencetype_id string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.reference_mod_referencetype',
+    VALUE_FORMAT='json',
+    KEY_FORMAT='json'
+);
+
 CREATE TABLE cross_references AS
     SELECT reference_id \"REFERENCE_ID\",
     collect_list(map('curie':=curie, 'is_obsolete':=cast(is_obsolete as string))) \"CROSS_REFERENCES\"
@@ -136,6 +166,23 @@ CREATE TABLE mods_in_corpus_or_needs_review AS
     ON mod_corpus_association.mod_id = mod.mod_id
     WHERE mod_corpus_association.corpus is NULL OR mod_corpus_association.corpus = true
     GROUP BY mod_corpus_association.reference_id
+    EMIT CHANGES;
+
+CREATE TABLE mod_referencetype_referencetype AS
+    SELECT mod_referencetype.mod_referencetype_id \"MOD_REFERENCETYPE_ID\",
+    referencetype.label \"LABEL\"
+    FROM mod_referencetype
+    JOIN referencetype
+    ON mod_referencetype.referencetype_id = referencetype.referencetype_id
+    EMIT CHANGES;
+
+CREATE TABLE mod_referencetype_referencetype_full AS
+    SELECT reference_mod_referencetype.reference_id \"REFERENCE_ID\",
+    collect_list(mod_referencetype_referencetype.label) \"LABEL\"
+    FROM reference_mod_referencetype
+    JOIN mod_referencetype_referencetype
+    ON mod_referencetype_referencetype.mod_referencetype_id = reference_mod_referencetype.mod_referencetype_id
+    GROUP BY reference_mod_referencetype.reference_id
     EMIT CHANGES;
 
 CREATE TABLE obsolete_curies AS
@@ -358,46 +405,84 @@ CREATE TABLE reference_xref_all_mods_corpus AS
     reference_xref_author_mods_in_corpus_mods_needs_review.reference_id = mods_in_corpus_or_needs_review.reference_id
     EMIT CHANGES;
 
-CREATE TABLE reference_joined WITH (
+CREATE TABLE reference_obsolete_curies AS SELECT
+    reference_xref_all_mods_corpus.reference_id \"REFERENCE_ID\",
+    reference_xref_all_mods_corpus.curie,
+    reference_xref_all_mods_corpus.abstract,
+    reference_xref_all_mods_corpus.category,
+    reference_xref_all_mods_corpus.date_arrived_in_pubmed,
+    reference_xref_all_mods_corpus.date_created,
+    reference_xref_all_mods_corpus.date_last_modified_in_pubmed,
+    reference_xref_all_mods_corpus.date_published,
+    reference_xref_all_mods_corpus.date_published_start,
+    reference_xref_all_mods_corpus.date_published_end,
+    reference_xref_all_mods_corpus.date_updated,
+    reference_xref_all_mods_corpus.issue_name,
+    reference_xref_all_mods_corpus.keywords,
+    reference_xref_all_mods_corpus.language,
+    reference_xref_all_mods_corpus.open_access,
+    reference_xref_all_mods_corpus.page_range,
+    reference_xref_all_mods_corpus.plain_language_abstract,
+    reference_xref_all_mods_corpus.publisher,
+    reference_xref_all_mods_corpus.pubmed_abstract_languages,
+    reference_xref_all_mods_corpus.pubmed_publication_status,
+    reference_xref_all_mods_corpus.pubmed_types,
+    reference_xref_all_mods_corpus.resource_id,
+    reference_xref_all_mods_corpus.title,
+    reference_xref_all_mods_corpus.volume,
+    reference_xref_all_mods_corpus.citation,
+    reference_xref_all_mods_corpus.short_citation,
+    reference_xref_all_mods_corpus.cross_references,
+    reference_xref_all_mods_corpus.authors,
+    reference_xref_all_mods_corpus.mods_in_corpus,
+    reference_xref_all_mods_corpus.mods_needs_review,
+    reference_xref_all_mods_corpus.mods_in_corpus_or_needs_review,
+    obsolete_curies.obsolete_curies
+    FROM reference_xref_all_mods_corpus reference_xref_all_mods_corpus
+    LEFT OUTER JOIN obsolete_curies obsolete_curies ON
+    reference_xref_all_mods_corpus.reference_id = obsolete_curies.reference_id;
+
+    CREATE TABLE reference_joined WITH (
     PARTITIONS = 1,
     KAFKA_TOPIC = 'reference_joined',
     VALUE_FORMAT='JSON',
     KEY_FORMAT='JSON'
   ) AS SELECT
-    reference_xref_all_mods_corpus.reference_id \"reference_id\",
-    reference_xref_all_mods_corpus.curie \"curie\",
-    reference_xref_all_mods_corpus.abstract \"abstract\",
-    reference_xref_all_mods_corpus.category \"category\",
-    reference_xref_all_mods_corpus.date_arrived_in_pubmed \"date_arrived_in_pubmed\",
-    reference_xref_all_mods_corpus.date_created \"date_created\",
-    reference_xref_all_mods_corpus.date_last_modified_in_pubmed \"date_last_modified_in_pubmed\",
-    reference_xref_all_mods_corpus.date_published \"date_published\",
-    reference_xref_all_mods_corpus.date_published_start \"date_published_start\",
-    reference_xref_all_mods_corpus.date_published_end \"date_published_end\",
-    reference_xref_all_mods_corpus.date_updated \"date_updated\",
-    reference_xref_all_mods_corpus.issue_name \"issue_name\",
-    reference_xref_all_mods_corpus.keywords \"keywords\",
-    reference_xref_all_mods_corpus.language \"language\",
-    reference_xref_all_mods_corpus.open_access \"open_access\",
-    reference_xref_all_mods_corpus.page_range \"page_range\",
-    reference_xref_all_mods_corpus.plain_language_abstract \"plain_language_abstract\",
-    reference_xref_all_mods_corpus.publisher \"publisher\",
-    reference_xref_all_mods_corpus.pubmed_abstract_languages \"pubmed_abstract_languages\",
-    reference_xref_all_mods_corpus.pubmed_publication_status \"pubmed_publication_status\",
-    reference_xref_all_mods_corpus.pubmed_types \"pubmed_types\",
-    reference_xref_all_mods_corpus.resource_id \"resource_id\",
-    reference_xref_all_mods_corpus.title \"title\",
-    reference_xref_all_mods_corpus.volume \"volume\",
-    reference_xref_all_mods_corpus.citation \"citation\",
-    reference_xref_all_mods_corpus.short_citation \"short_citation\",
-    reference_xref_all_mods_corpus.cross_references \"cross_references\",
-    reference_xref_all_mods_corpus.authors \"authors\",
-    reference_xref_all_mods_corpus.mods_in_corpus \"mods_in_corpus\",
-    reference_xref_all_mods_corpus.mods_needs_review \"mods_needs_review\",
-    reference_xref_all_mods_corpus.mods_in_corpus_or_needs_review \"mods_in_corpus_or_needs_review\",
-    obsolete_curies.obsolete_curies \"obsolete_curies\"
-    FROM reference_xref_all_mods_corpus reference_xref_all_mods_corpus
-    LEFT OUTER JOIN obsolete_curies obsolete_curies ON
-    reference_xref_all_mods_corpus.reference_id = obsolete_curies.reference_id;
+    reference_obsolete_curies.reference_id \"reference_id\",
+    reference_obsolete_curies.curie \"curie\",
+    reference_obsolete_curies.abstract \"abstract\",
+    reference_obsolete_curies.category \"category\",
+    reference_obsolete_curies.date_arrived_in_pubmed \"date_arrived_in_pubmed\",
+    reference_obsolete_curies.date_created \"date_created\",
+    reference_obsolete_curies.date_last_modified_in_pubmed \"date_last_modified_in_pubmed\",
+    reference_obsolete_curies.date_published \"date_published\",
+    reference_obsolete_curies.date_published_start \"date_published_start\",
+    reference_obsolete_curies.date_published_end \"date_published_end\",
+    reference_obsolete_curies.date_updated \"date_updated\",
+    reference_obsolete_curies.issue_name \"issue_name\",
+    reference_obsolete_curies.keywords \"keywords\",
+    reference_obsolete_curies.language \"language\",
+    reference_obsolete_curies.open_access \"open_access\",
+    reference_obsolete_curies.page_range \"page_range\",
+    reference_obsolete_curies.plain_language_abstract \"plain_language_abstract\",
+    reference_obsolete_curies.publisher \"publisher\",
+    reference_obsolete_curies.pubmed_abstract_languages \"pubmed_abstract_languages\",
+    reference_obsolete_curies.pubmed_publication_status \"pubmed_publication_status\",
+    reference_obsolete_curies.pubmed_types \"pubmed_types\",
+    reference_obsolete_curies.resource_id \"resource_id\",
+    reference_obsolete_curies.title \"title\",
+    reference_obsolete_curies.volume \"volume\",
+    reference_obsolete_curies.citation \"citation\",
+    reference_obsolete_curies.short_citation \"short_citation\",
+    reference_obsolete_curies.cross_references \"cross_references\",
+    reference_obsolete_curies.authors \"authors\",
+    reference_obsolete_curies.mods_in_corpus \"mods_in_corpus\",
+    reference_obsolete_curies.mods_needs_review \"mods_needs_review\",
+    reference_obsolete_curies.mods_in_corpus_or_needs_review \"mods_in_corpus_or_needs_review\",
+    reference_obsolete_curies.obsolete_curies \"obsolete_curies\",
+    mod_referencetype_referencetype_full.label \"mod_reference_types"\
+    FROM reference_obsolete_curies reference_obsolete_curies
+    LEFT OUTER JOIN mod_referencetype_referencetype_full mod_referencetype_referencetype_full ON
+    reference_obsolete_curies.reference_id = mod_referencetype_referencetype_full.reference_id;
 ",
 "streamsProperties": {}}
