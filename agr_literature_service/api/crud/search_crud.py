@@ -131,6 +131,12 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             ]
         },
         "aggregations": {
+            "mod_reference_types.keyword": {
+                "terms": {
+                    "field": "mod_reference_types.keyword",
+                    "size": facets_limits["mod_reference_types.keyword"] if "mod_reference_types.keyword" in facets_limits else 10
+                }
+            },
             "pubmed_types.keyword": {
                 "terms": {
                     "field": "pubmed_types.keyword",
@@ -293,6 +299,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             "abstract": ref["_source"]["abstract"],
             "cross_references": ref["_source"]["cross_references"],
             "authors": ref["_source"]["authors"],
+            "mod_reference_types": ref["_source"]["mod_reference_types"],
             "highlight":
                 ref["highlight"] if "highlight" in ref else ""
         } for ref in res["hits"]["hits"]],
