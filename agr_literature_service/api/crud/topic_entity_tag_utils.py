@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from starlette import status
 
 from agr_literature_service.api.models import TopicEntityTagSourceModel, ReferenceModel, ModModel, TopicEntityTagModel
-
+from agr_literature_service.api.user import add_user_if_not_exists
 
 allowed_entity_type_map = {'ATP:0000005': 'gene', 'ATP:0000006': 'allele'}
 
@@ -49,21 +49,21 @@ def get_source_from_db(db: Session, topic_entity_tag_source_id: int) -> TopicEnt
     return source
 
 
-def add_source_obj_to_db_session(db: Session, topic_entity_tag_id: int, source: Dict):
+def add_audited_object_users_if_not_exist(db: Session, audited_obj: Dict):
+    if "created_by" in audited_obj and audited_obj["created_by"]:
+        add_user_if_not_exists(db, audited_obj["created_by"])
+    if "updated_by" in audited_obj and audited_obj["updated_by"]:
+        add_user_if_not_exists(db, audited_obj["updated_by"])
+
+
+def add_source_obj_to_db_session(db: Session, source: Dict):
     mod = db.query(ModModel.mod_id).filter(ModModel.abbreviation == source['mod_abbreviation']).one_or_none()
     if mod is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
-    source_obj = TopicEntityTagSourceModel(
-        topic_entity_tag_id=topic_entity_tag_id,
-        source=source["source"],
-        negated=source["negated"],
-        confidence_level=source["confidence_level"],
-        validation_value_author=source["validation_value_author"],
-        validation_value_curator=source["validation_value_curator"],
-        validation_value_curation_tools=source["validation_value_curation_tools"],
-        note=source["note"],
-        mod_id=mod.mod_id
-    )
+    add_audited_object_users_if_not_exist(db, source)
+    del source["mod_abbreviation"]
+    source["mod_id"] = mod.mod_id
+    source_obj = TopicEntityTagSourceModel(**source)
     db.add(source_obj)
     return source_obj
 

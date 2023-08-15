@@ -13,6 +13,7 @@ from ..fixtures import db, populate_test_mod_reference_types # noqa
 from .fixtures import auth_headers # noqa
 from .test_resource import test_resource # noqa
 from .test_mod import test_mod # noqa
+from .test_topic_entity_tag_source import test_topic_entity_tag_source # noqa
 
 from agr_literature_service.api.crud.referencefile_crud import create_metadata
 
@@ -136,7 +137,8 @@ class TestReference:
             delete_response = client.delete(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             assert delete_response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_reference_large(self, db, auth_headers, populate_test_mod_reference_types, test_mod): # noqa
+    def test_reference_large(self, db, auth_headers, populate_test_mod_reference_types, test_mod, # noqa
+                             test_topic_entity_tag_source): # noqa
         with TestClient(app) as client:
             full_xml = {
                 "category": "research_article",
@@ -198,12 +200,9 @@ class TestReference:
                         "entity": "string",
                         "entity_source": "string",
                         "species": "string",
-                        "sources": [{
-                            "source": "WB_NN_1",
-                            "confidence_level": "high",
-                            "mod_abbreviation": test_mod.new_mod_abbreviation,
-                            "note": "test note"
-                        }]
+                        "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                        "negated": False,
+                        "note": "test"
                     }
                 ],
                 "issue_name": "4",

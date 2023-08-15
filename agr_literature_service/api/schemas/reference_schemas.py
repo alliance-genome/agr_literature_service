@@ -48,7 +48,7 @@ class ReferenceSchemaPost(BaseModel):
     workflow_tags: Optional[List[WorkflowTagSchemaCreate]] = None
     topic_entity_tags: Optional[List[TopicEntityTagSchemaCreate]] = None
 
-    class Config():
+    class Config:
         orm_mode = True
         extra = "forbid"
 

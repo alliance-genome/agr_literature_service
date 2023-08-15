@@ -42,9 +42,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import (
     patch as update_workflow_tag,
     show as show_workflow_tag
 )
-from agr_literature_service.api.crud.topic_entity_tag_crud import (
-    create_tag_with_source as create_topic_entity_tag
-)
+from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
 from agr_literature_service.global_utils import get_next_reference_curie
 from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
 from agr_literature_service.lit_processing.utils.report_utils import send_report
@@ -162,10 +160,10 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
         elif field == "topic_entity_tags":
             if value is not None:
                 for obj in value:
-                    obj_data = jsonable_encoder(obj)
+                    obj_data = obj.dict(exclude_unset=True)
                     obj_data["reference_curie"] = curie
                     try:
-                        create_topic_entity_tag(db, obj_data)
+                        create_tag(db, obj_data)
                     except HTTPException:
                         logger.warning("skipping topic_entity_tag as that is already associated to "
                                        "the reference")
@@ -747,10 +745,10 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     return bib_info.get_formatted_bib(format_type=return_format)
 
 
-def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=None, from_curie: str = None,
+def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=None, from_reference_id: int = None,
                                   page_size: int = 1000):
-    select_stmt = f"""SELECT r.curie, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
-      FROM  reference r
+    select_stmt = f"""SELECT r.curie, r.reference_id, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
+      FROM reference r
       JOIN mod_corpus_association mca on r.reference_id = mca.reference_id
       JOIN mod mcam ON mca.mod_id = mcam.mod_id
       JOIN referencefile rf ON rf.reference_id = r.reference_id
@@ -762,19 +760,20 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
       AND rf.file_extension = 'pdf'
       AND (rfm.mod_id is NULL OR rfmm.abbreviation = '{mod_abbreviation}')"""
 
-    if from_curie:
-        select_stmt += f" AND r.curie > '{from_curie}'"
+    if from_reference_id:
+        select_stmt += f" AND r.reference_id > {from_reference_id}"
     if files_updated_from_date:
-        select_stmt += f" AND rf.updated_by >= '{files_updated_from_date}'"
-    select_stmt += f" ORDER BY r.curie LIMIT {page_size}"
+        select_stmt += f" AND rf.date_updated >= '{files_updated_from_date}'"
+    select_stmt += f" ORDER BY r.reference_id LIMIT {page_size}"
     textpresso_referencefiles = db.execute(select_stmt).fetchall()
     aggregated_reffiles = defaultdict(set)
     for reffile in textpresso_referencefiles:
-        aggregated_reffiles[reffile.curie].add((reffile.referencefile_id, reffile.md5sum, reffile.mod_id is None,
-                                                reffile.date_created))
+        aggregated_reffiles[(reffile.reference_id, reffile.curie)].add((reffile.referencefile_id, reffile.md5sum,
+                                                                        reffile.mod_id is None, reffile.date_created))
     return [
         {
-            "reference_curie": ref_curie,
+            "reference_curie": reference_curie,
+            "reference_id": reference_id,
             "main_referencefiles": [
                 {
                     "referencefile_id": reffile_md5sum_source_date[0],
@@ -783,5 +782,5 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
                     "date_created": reffile_md5sum_source_date[3]
                 } for reffile_md5sum_source_date in reffiles_md5sums_sources_dates
             ]
-        } for ref_curie, reffiles_md5sums_sources_dates in aggregated_reffiles.items()
+        } for (reference_id, reference_curie), reffiles_md5sums_sources_dates in aggregated_reffiles.items()
     ]

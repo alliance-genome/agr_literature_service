@@ -620,3 +620,30 @@ def get_pmid_to_reference_id_mapping(db_session):
         pmid_to_reference_id[pmid] = x["reference_id"]
 
     return pmid_to_reference_id
+
+
+def sort_pmids(db_session, pmids, mod_to_pmids):
+
+    pmids_with_prefix = ", ".join(["'" + "PMID:" + x + "'" for x in pmids])
+
+    rows = db_session.execute(f"SELECT m.abbreviation, cr.curie "
+                              f"FROM   mod m, cross_reference cr, mod_corpus_association mca "
+                              f"WHERE  cr.curie in ({pmids_with_prefix}) "
+                              f"AND    cr.reference_id = mca.reference_id "
+                              f"AND    mca.corpus is True "
+                              f"AND    mca.mod_id = m.mod_id").fetchall()
+    pmids_in_mod = set()
+    for x in rows:
+        pmid = x["curie"].replace("PMID:", "")
+        mod = x["abbreviation"]
+        pmids_in_mod.add(pmid)
+        if mod not in mod_to_pmids:
+            mod_to_pmids[mod] = set()
+        mod_to_pmids[mod].add(pmid)
+    if 'NONE' not in mod_to_pmids:
+        mod_to_pmids['NONE'] = set()
+    for pmid in pmids:
+        if pmid not in pmids_in_mod:
+            mod_to_pmids['NONE'].add(pmid)
+
+    return mod_to_pmids

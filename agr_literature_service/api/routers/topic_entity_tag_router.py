@@ -9,7 +9,8 @@ from agr_literature_service.api.crud import topic_entity_tag_crud
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, TopicEntityTagSchemaPost, ResponseMessageSchema
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated, \
-    TopicEntityTagSourceSchemaPost, TopicEntityTagSourceSchemaUpdate
+    TopicEntityTagSourceSchemaUpdate, TopicEntityTagSchemaUpdate, \
+    TopicEntityTagSourceSchemaShow, TopicEntityTagSourceSchemaCreate
 from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
@@ -26,32 +27,53 @@ db_user = Security(auth.get_user)
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              response_model=str)
-def create(request: TopicEntityTagSchemaPost,
-           user: OktaUser = db_user,
-           db: Session = db_session):
+def create_tag(request: TopicEntityTagSchemaPost,
+               user: OktaUser = db_user,
+               db: Session = db_session):
     set_global_user_from_okta(db, user)
-    return topic_entity_tag_crud.create_tag_with_source(db, request)
+    return topic_entity_tag_crud.create_tag(db, request)
 
 
 @router.get('/{topic_entity_tag_id}',
             response_model=TopicEntityTagSchemaShow,
             status_code=200)
-def show(topic_entity_tag_id: int,
-         db: Session = db_session):
-    return topic_entity_tag_crud.show(db, topic_entity_tag_id)
+def show_tag(topic_entity_tag_id: int,
+             db: Session = db_session):
+    return topic_entity_tag_crud.show_tag(db, topic_entity_tag_id)
 
 
-@router.post('/add_source',
-             status_code=status.HTTP_201_CREATED,
-             response_model=int)
-def add_source(request: TopicEntityTagSourceSchemaPost,
+@router.patch('/{topic_entity_tag_id}',
+              status_code=status.HTTP_202_ACCEPTED,
+              response_model=ResponseMessageSchema)
+def patch_tag(topic_entity_tag_id: int,
+              request: TopicEntityTagSchemaUpdate,
+              user: OktaUser = db_user,
+              db: Session = db_session):
+    set_global_user_from_okta(db, user)
+    return topic_entity_tag_crud.patch_tag(db, topic_entity_tag_id, request)
+
+
+@router.delete('/{topic_entity_tag_id}',
+               status_code=status.HTTP_204_NO_CONTENT)
+def delete_tag(topic_entity_tag_id,
                user: OktaUser = db_user,
                db: Session = db_session):
     set_global_user_from_okta(db, user)
-    return topic_entity_tag_crud.add_source_to_tag(db, request)
+    topic_entity_tag_crud.destroy_tag(db, topic_entity_tag_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.delete('/delete_source/{topic_entity_tag_source_id}',
+@router.post('/source',
+             status_code=status.HTTP_201_CREATED,
+             response_model=int)
+def create_source(request: TopicEntityTagSourceSchemaCreate,
+                  user: OktaUser = db_user,
+                  db: Session = db_session):
+    set_global_user_from_okta(db, user)
+    return topic_entity_tag_crud.create_source(db, request)
+
+
+@router.delete('/source/{topic_entity_tag_source_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def delete_source(topic_entity_tag_source_id,
                   user: OktaUser = db_user,
@@ -70,6 +92,24 @@ def patch_source(topic_entity_tag_source_id,
                  db: Session = db_session):
     set_global_user_from_okta(db, user)
     return topic_entity_tag_crud.patch_source(db, topic_entity_tag_source_id, request)
+
+
+@router.get('/source/{topic_entity_tag_source_id}',
+            response_model=TopicEntityTagSourceSchemaShow,
+            status_code=200)
+def show_source(topic_entity_tag_source_id: int,
+                db: Session = db_session):
+    return topic_entity_tag_crud.show_source(db, topic_entity_tag_source_id)
+
+
+@router.get('/source/{source_type}/{source_method}/{mod_abbreviation}',
+            response_model=TopicEntityTagSourceSchemaShow,
+            status_code=200)
+def show_source_by_name(source_type: str,
+                        source_method: str,
+                        mod_abbreviation: str,
+                        db: Session = db_session):
+    return topic_entity_tag_crud.show_source_by_name(db, source_type, source_method, mod_abbreviation)
 
 
 @router.get('/by_reference/{curie_or_reference_id}',

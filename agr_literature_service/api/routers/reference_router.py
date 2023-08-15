@@ -238,12 +238,12 @@ def get_bib_info(curie: str,
             response_model=List[Dict])
 def get_textpresso_reference_list(mod_abbreviation: str,
                                   files_updated_from_date: datetime.date = None,
-                                  from_curie: str = None,
+                                  from_reference_id: int = None,
                                   page_size: int = 1000,
                                   user: OktaUser = db_user,
                                   db: Session = db_session):
     set_global_user_from_okta(db, user)
     if page_size > 1000:
         page_size = 1000
-    return reference_crud.get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date, from_curie,
-                                                        page_size)
+    return reference_crud.get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date,
+                                                        from_reference_id, page_size)
