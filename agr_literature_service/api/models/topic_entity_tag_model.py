@@ -18,8 +18,17 @@ enable_versioning()
 topic_entity_tag_validation = Table(
     "topic_entity_tag_validation",
     Base.metadata,
-    Column("validated_topic_entity_tag_id", ForeignKey("topic_entity_tag.topic_entity_tag_id"), primary_key=True),
-    Column("validating_topic_entity_tag_id", ForeignKey("topic_entity_tag.topic_entity_tag_id"), primary_key=True)
+    Column(
+        "validated_topic_entity_tag_id",
+        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete='CASCADE'),
+        primary_key=True
+    ),
+
+    Column(
+        "validating_topic_entity_tag_id",
+        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete='CASCADE'),
+        primary_key=True,
+    )
 )
 
 
