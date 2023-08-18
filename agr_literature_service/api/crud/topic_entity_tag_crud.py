@@ -21,8 +21,7 @@ from agr_literature_service.api.models import (
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagSchemaPost,
                                                                          TopicEntityTagSourceSchemaUpdate,
                                                                          TopicEntityTagSourceSchemaCreate,
-                                                                         TopicEntityTagSchemaUpdate,
-                                                                         TopicEntityTagSchemaShow)
+                                                                         TopicEntityTagSchemaUpdate)
 
 ATP_ID_SOURCE_AUTHOR = "author"
 ATP_ID_SOURCE_CURATOR = "curator"
