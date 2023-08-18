@@ -7,7 +7,16 @@ WORKDIR /usr/src/app/
 ADD . .
 ADD crontab /etc/cron.d/automate_scripts_crontab
 
-RUN pip3 install -r requirements.txt
+RUN pip3 install -r requirements.txt  && \
+    apt-get update -y  && \
+    apt-get upgrade -y  && \
+    apt-get install lsb-release -y  && \
+    apt-get install wget -y  && \
+    apt-get clean all  && \
+    sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/postgres.list'  && \
+    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc |  apt-key add -  && \
+    apt update  && \
+    apt install postgresql-client-13 -y
 
 RUN chmod 0644 /etc/cron.d/automate_scripts_crontab
 RUN crontab /etc/cron.d/automate_scripts_crontab
