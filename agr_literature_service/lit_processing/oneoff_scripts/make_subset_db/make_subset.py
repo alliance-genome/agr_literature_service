@@ -14,7 +14,8 @@ from agr_literature_service.api.models import (
     ResourceModel,
     ReferencetypeModel,
     ModReferencetypeAssociationModel,
-    CopyrightLicenseModel
+    CopyrightLicenseModel,
+    TopicEntityTagSourceModel
 
 )
 
@@ -26,7 +27,8 @@ data_needed_before_reference = [
     ModModel,
     ReferencetypeModel,
     ModReferencetypeAssociationModel,
-    CopyrightLicenseModel
+    CopyrightLicenseModel,
+    TopicEntityTagSourceModel
 ]
 
 # curies in curie order. Please retain this order to
