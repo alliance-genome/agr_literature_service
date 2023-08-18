@@ -3,6 +3,7 @@ topic_entity_tag_crud.py
 ===========================
 """
 from collections import defaultdict
+from typing import Dict
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -58,6 +59,24 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
     return topic_entity_tag_id
 
 
+def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagModel, validation_type: str):
+    validation_value = None
+    for validating_tag in topic_entity_tag_db_obj.validated_by:
+        if validating_tag.topic_entity_tag_source.validation_type == validation_type:
+            if validation_value is None:
+                validation_value = validating_tag.negated == topic_entity_tag_db_obj.negated
+            elif (validating_tag.negated == topic_entity_tag_db_obj.negated) != validation_value:
+                return None
+    return validation_value
+
+
+def add_validation_values_to_tag(topic_entity_tag_db_obj: TopicEntityTagModel, tag_data_dict: Dict):
+    tag_data_dict["validation_value_author"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj, "author")
+    tag_data_dict["validation_value_curator"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj, "curator")
+    tag_data_dict["validation_value_curation_tools"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj,
+                                                                                          "curation_tools")
+
+
 def show_tag(db: Session, topic_entity_tag_id: int):
     topic_entity_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
     if not topic_entity_tag:
@@ -71,6 +90,7 @@ def show_tag(db: Session, topic_entity_tag_id: int):
         del topic_entity_tag_data["reference_id"]
     topic_entity_tag_data[
         "topic_entity_tag_source_id"] = topic_entity_tag.topic_entity_tag_source.topic_entity_tag_source_id
+    add_validation_values_to_tag(topic_entity_tag, topic_entity_tag_data)
     return topic_entity_tag_data
 
 
@@ -180,8 +200,12 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
                                                                                                        desc_sort))},
                                   value=getattr(TopicEntityTagModel, sort_by))
             query = query.order_by(order_expression, curie_ordering)
-        return [jsonable_encoder(tet) for tet in query.offset((page - 1) * page_size if page_size else None).limit(
-            page_size).all()]
+        all_tet = []
+        for tet in query.offset((page - 1) * page_size if page_size else None).limit(page_size).all():
+            tet_data = jsonable_encoder(tet)
+            add_validation_values_to_tag(tet, tet_data)
+            all_tet.append(tet_data)
+        return all_tet
 
 
 def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token: str):
