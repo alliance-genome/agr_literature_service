@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 from pydantic import BaseModel
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
@@ -64,6 +64,9 @@ class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     negated: Optional[bool] = False
     confidence_level: Optional[str] = None
     note: Optional[str] = None
+    validation_value_author: Union[bool, None]
+    validation_value_curator: Union[bool, None]
+    validation_value_curation_tools: Union[bool, None]
 
 
 class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):

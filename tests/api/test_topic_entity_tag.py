@@ -148,7 +148,7 @@ class TestTopicEntityTag:
 
     def test_validation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
         with TestClient(app) as client:
-            author_source = {
+            author_source_1 = {
                 "source_type": "community curation",
                 "source_method": "acknowledge",
                 "validation_type": "author",
@@ -156,8 +156,54 @@ class TestTopicEntityTag:
                 "description": "author from acknowledge",
                 "mod_abbreviation": test_mod.new_mod_abbreviation
             }
-            response = client.post(url="/topic_entity_tag/source", json=author_source, headers=auth_headers)
-            validating_tag = {
+            author_source_2 = {
+                "source_type": "community curation",
+                "source_method": "AFP",
+                "validation_type": "author",
+                "evidence": "test_eco_code",
+                "description": "author from AFP",
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            auth_source_1_resp = client.post(url="/topic_entity_tag/source", json=author_source_1, headers=auth_headers)
+            auth_source_2_resp = client.post(url="/topic_entity_tag/source", json=author_source_2, headers=auth_headers)
+            validating_tag_aut_1 = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_source": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": auth_source_1_resp.json(),
+                "negated": True
+            }
+            validating_tag_aut_2 = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_source": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": auth_source_2_resp.json(),
+                "negated": True
+            }
+            client.post(url="/topic_entity_tag/", json=validating_tag_aut_1, headers=auth_headers)
+            client.post(url="/topic_entity_tag/", json=validating_tag_aut_2, headers=auth_headers)
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            assert response.status_code == status.HTTP_200_OK
+            tag_obj: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == test_topic_entity_tag.new_tet_id
+            ).one()
+            assert len(tag_obj.validated_by) > 0
+            curator_source = {
+                "source_type": "curator",
+                "source_method": "abc_literature_system",
+                "validation_type": "curator",
+                "evidence": "test_eco_code",
+                "description": "curator from ABC",
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            response = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            validating_tag_cur_1 = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000122",
                 "entity_type": "ATP:0000005",
@@ -167,13 +213,22 @@ class TestTopicEntityTag:
                 "topic_entity_tag_source_id": response.json(),
                 "negated": True
             }
-            client.post(url="/topic_entity_tag/", json=validating_tag, headers=auth_headers)
+            validating_tag_cur_2 = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_source": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": response.json(),
+                "negated": False
+            }
+            client.post(url="/topic_entity_tag/", json=validating_tag_cur_1, headers=auth_headers)
+            client.post(url="/topic_entity_tag/", json=validating_tag_cur_2, headers=auth_headers)
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
-            assert response.status_code == status.HTTP_200_OK
-            tag_obj: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
-                TopicEntityTagModel.topic_entity_tag_id == test_topic_entity_tag.new_tet_id
-            ).one()
-            assert len(tag_obj.validated_by) > 0
+            assert response.json()["validation_value_author"] is False
+            assert response.json()["validation_value_curator"] is None
+            assert response.json()["validation_value_curation_tools"] is None
 
     @pytest.mark.webtest
     def test_get_map_entity_curie_to_name(self, test_topic_entity_tag, test_topic_entity_tag_source, test_mod, # noqa
