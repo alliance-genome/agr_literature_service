@@ -224,11 +224,46 @@ class TestTopicEntityTag:
                 "negated": False
             }
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_1, headers=auth_headers)
-            client.post(url="/topic_entity_tag/", json=validating_tag_cur_2, headers=auth_headers)
+            cur_2_tag_id = client.post(url="/topic_entity_tag/", json=validating_tag_cur_2, headers=auth_headers).json()
+            curation_tools_source = {
+                "source_type": "curation",
+                "source_method": "WB curation",
+                "validation_type": "curation_tools",
+                "evidence": "test_eco_code",
+                "description": "curation from WB",
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            response = client.post(url="/topic_entity_tag/source", json=curation_tools_source, headers=auth_headers)
+            validating_tag_cur_tools_1 = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_source": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": response.json(),
+                "negated": False
+            }
+            validating_tag_cur_tools_2 = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_source": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": response.json(),
+                "negated": False
+            }
+            client.post(url="/topic_entity_tag/", json=validating_tag_cur_tools_1, headers=auth_headers)
+            client.post(url="/topic_entity_tag/", json=validating_tag_cur_tools_2, headers=auth_headers)
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
             assert response.json()["validation_value_author"] is False
             assert response.json()["validation_value_curator"] is None
-            assert response.json()["validation_value_curation_tools"] is None
+            assert response.json()["validation_value_curation_tools"] is True
+            response = client.get(f"/topic_entity_tag/{cur_2_tag_id}")
+            assert response.json()["validation_value_author"] is False
+            assert response.json()["validation_value_curator"] is None
+            assert response.json()["validation_value_curation_tools"] is True
 
     @pytest.mark.webtest
     def test_get_map_entity_curie_to_name(self, test_topic_entity_tag, test_topic_entity_tag_source, test_mod, # noqa
