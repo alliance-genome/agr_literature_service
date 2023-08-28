@@ -224,8 +224,12 @@ class TestTopicEntityTag:
                 "negated": False
             }
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_1, headers=auth_headers)
-            client.post(url="/topic_entity_tag/", json=validating_tag_cur_2, headers=auth_headers)
+            cur_2_tag_id = client.post(url="/topic_entity_tag/", json=validating_tag_cur_2, headers=auth_headers).json()
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            assert response.json()["validation_value_author"] is False
+            assert response.json()["validation_value_curator"] is None
+            assert response.json()["validation_value_curation_tools"] is None
+            response = client.get(f"/topic_entity_tag/{cur_2_tag_id}")
             assert response.json()["validation_value_author"] is False
             assert response.json()["validation_value_curator"] is None
             assert response.json()["validation_value_curation_tools"] is None
