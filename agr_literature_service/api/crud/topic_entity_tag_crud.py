@@ -3,7 +3,6 @@ topic_entity_tag_crud.py
 ===========================
 """
 from collections import defaultdict
-from functools import reduce
 from typing import Dict
 
 from fastapi import HTTPException, status
