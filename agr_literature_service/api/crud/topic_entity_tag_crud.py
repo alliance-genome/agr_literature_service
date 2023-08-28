@@ -3,6 +3,7 @@ topic_entity_tag_crud.py
 ===========================
 """
 from collections import defaultdict
+from functools import reduce
 from typing import Dict
 
 from fastapi import HTTPException, status
@@ -60,14 +61,14 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
 
 
 def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagModel, validation_type: str):
-    validation_value = None
-    for validating_tag in topic_entity_tag_db_obj.validated_by:
-        if validating_tag.topic_entity_tag_source.validation_type == validation_type:
-            if validation_value is None:
-                validation_value = validating_tag.negated == topic_entity_tag_db_obj.negated
-            elif (validating_tag.negated == topic_entity_tag_db_obj.negated) != validation_value:
-                return None
-    return validation_value
+    validating_tags_values = [validating_tag.negated for validating_tag in topic_entity_tag_db_obj.validated_by if
+                              validating_tag.topic_entity_tag_source.validation_type == validation_type]
+    if len(validating_tags_values) > 0:
+        if topic_entity_tag_db_obj.topic_entity_tag_source.validation_type == validation_type:
+            validating_tags_values.append(topic_entity_tag_db_obj.negated)
+        if reduce(lambda x, y: x*y, validating_tags_values) == 1:
+            return topic_entity_tag_db_obj.negated == validating_tags_values[0]
+    return None
 
 
 def add_validation_values_to_tag(topic_entity_tag_db_obj: TopicEntityTagModel, tag_data_dict: Dict):
