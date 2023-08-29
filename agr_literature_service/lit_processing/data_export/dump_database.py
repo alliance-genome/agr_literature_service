@@ -3,7 +3,7 @@ import logging
 from os import environ
 from dotenv import load_dotenv
 from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_s3
-from datetime import datetime
+from datetime import datetime, date
 import os
 
 logging.basicConfig(format='%(message)s')
@@ -29,7 +29,7 @@ def dump_database(dump_type="ondemand"):  # noqa: C901
     password = environ.get('PSQL_PASSWORD', "")
     port = environ.get('PSQL_PORT', "")
     now = datetime.now()  # current date and time
-    file_name = database + "_" + now.strftime("%Y-%m-%d-%H-%M-%S")+ ".sql"
+    file_name = database + "_" + now.strftime("%Y-%m-%d-%H-%M-%S") + ".sql"
     cmd = "PGPASSWORD=" + password + " pg_dump -Fc --clean -h " + host + " -p " + port + " -U " + username + " " + database + "   > " + file_name
     os.system(cmd)
     if dump_type == 'cron' and env_state == 'prod' and 'prod' in database:
