@@ -32,7 +32,7 @@ def dump_database(dump_type="ondemand"):  # noqa: C901
     file_name = database + "_" + now.strftime("%Y-%m-%d-%H-%M-%S") + ".sql"
     cmd = "PGPASSWORD=" + password + " pg_dump -Fc --clean -h " + host + " -p " + port + " -U " + username + " " + database + "   > " + file_name
     os.system(cmd)
-    if dump_type == 'cron' and env_state == 'prod' and 'prod' in database:
+    if dump_type == 'cron' and env_state == 'prod':
         s3_filename = lastweek_bucket + file_name
         upload_file_to_s3(file_name, s3_bucket, s3_filename)
         ## upload file to monthly bucket if it is first day of the month
