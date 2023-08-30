@@ -17,16 +17,16 @@ class TopicEntityTagSourceSchemaShow(TopicEntityTagSourceSchemaCreate):
 
 
 class TopicEntityTagSourceSchemaUpdate(BaseModel):
-    source_type: Optional[constr(min_length=1)]
-    source_method: Optional[constr(min_length=1)]
-    validation_type: Optional[constr(min_length=1)]
-    evidence: Optional[constr(min_length=1)]
-    description: Optional[constr(min_length=1)]
-    mod_abbreviation: Optional[constr(min_length=1)]
-    date_created: Optional[constr(min_length=1)]
-    date_updated: Optional[constr(min_length=1)]
-    created_by: Optional[constr(min_length=1)]
-    updated_by: Optional[constr(min_length=1)]
+    source_type: Optional[constr(min_length=1)]  # type: ignore
+    source_method: Optional[constr(min_length=1)]  # type: ignore
+    validation_type: Optional[constr(min_length=1)]  # type: ignore
+    evidence: Optional[constr(min_length=1)]  # type: ignore
+    description: Optional[constr(min_length=1)]  # type: ignore
+    mod_abbreviation: Optional[constr(min_length=1)]  # type: ignore
+    date_created: Optional[constr(min_length=1)]  # type: ignore
+    date_updated: Optional[constr(min_length=1)]  # type: ignore
+    created_by: Optional[constr(min_length=1)]  # type: ignore
+    updated_by: Optional[constr(min_length=1)]  # type: ignore
 
     class Config:
         orm_mode = True
@@ -35,16 +35,16 @@ class TopicEntityTagSourceSchemaUpdate(BaseModel):
 
 class TopicEntityTagSchemaCreate(AuditedObjectModelSchema):
     topic: str = Field(..., min_length=1)
-    entity_type: Optional[constr(min_length=1)] = None
-    entity: Optional[constr(min_length=1)] = None
-    entity_source: Optional[constr(min_length=1)] = None
-    entity_published_as: Optional[constr(min_length=1)] = None
-    species: Optional[constr(min_length=1)] = None
-    display_tag: Optional[constr(min_length=1)] = None
+    entity_type: Optional[constr(min_length=1)] = None  # type: ignore
+    entity: Optional[constr(min_length=1)] = None  # type: ignore
+    entity_source: Optional[constr(min_length=1)] = None  # type: ignore
+    entity_published_as: Optional[constr(min_length=1)] = None  # type: ignore
+    species: Optional[constr(min_length=1)] = None  # type: ignore
+    display_tag: Optional[constr(min_length=1)] = None  # type: ignore
     topic_entity_tag_source_id: int
     negated: Optional[bool] = False
-    confidence_level: Optional[constr(min_length=1)] = None
-    note: Optional[constr(min_length=1)] = None
+    confidence_level: Optional[constr(min_length=1)] = None  # type: ignore
+    note: Optional[constr(min_length=1)] = None  # type: ignore
 
 
 class TopicEntityTagSchemaPost(TopicEntityTagSchemaCreate):
@@ -74,13 +74,13 @@ class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
 
 
 class TopicEntityTagSchemaUpdate(AuditedObjectModelSchema):
-    topic: Optional[constr(min_length=1)] = None
-    entity_type: Optional[constr(min_length=1)] = None
-    entity: Optional[constr(min_length=1)] = None
-    entity_source: Optional[constr(min_length=1)] = None
-    entity_published_as: Optional[constr(min_length=1)] = None
-    species: Optional[constr(min_length=1)] = None
-    display_tag: Optional[constr(min_length=1)] = None
+    topic: Optional[constr(min_length=1)] = None  # type: ignore
+    entity_type: Optional[constr(min_length=1)] = None  # type: ignore
+    entity: Optional[constr(min_length=1)] = None  # type: ignore
+    entity_source: Optional[constr(min_length=1)] = None  # type: ignore
+    entity_published_as: Optional[constr(min_length=1)] = None  # type: ignore
+    species: Optional[constr(min_length=1)] = None  # type: ignore
+    display_tag: Optional[constr(min_length=1)] = None  # type: ignore
     negated: Optional[bool] = False
-    confidence_level: Optional[constr(min_length=1)] = None
-    note: Optional[constr(min_length=1)] = None
+    confidence_level: Optional[constr(min_length=1)] = None  # type: ignore
+    note: Optional[constr(min_length=1)] = None  # type: ignore
