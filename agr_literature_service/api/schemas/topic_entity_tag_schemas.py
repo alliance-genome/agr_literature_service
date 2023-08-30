@@ -6,7 +6,7 @@ from agr_literature_service.api.schemas import AuditedObjectModelSchema
 class TopicEntityTagSourceSchemaCreate(AuditedObjectModelSchema):
     source_type: str = Field(..., min_length=1)
     source_method: str = Field(..., min_length=1)
-    validation_type: Optional[constr(min_length=1)] = None
+    validation_type: Optional[constr(min_length=1)] = None  # type: ignore
     evidence: str = Field(..., min_length=1)
     description: str
     mod_abbreviation: str
