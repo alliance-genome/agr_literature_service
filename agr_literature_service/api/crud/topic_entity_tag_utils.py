@@ -10,8 +10,6 @@ from starlette import status
 from agr_literature_service.api.models import TopicEntityTagSourceModel, ReferenceModel, ModModel, TopicEntityTagModel
 from agr_literature_service.api.user import add_user_if_not_exists
 
-allowed_entity_type_map = {'ATP:0000005': 'gene', 'ATP:0000006': 'allele'}
-
 # TODO: fix these to get from database or some other place?
 sgd_primary_display_tag = 'ATP:0000147'
 sgd_additional_display_tag = 'ATP:0000132'
@@ -68,11 +66,14 @@ def add_source_obj_to_db_session(db: Session, source: Dict):
     return source_obj
 
 
-def get_sorted_column_values(db: Session, column_name: str, desc: bool = False):
-    curies = db.query(getattr(TopicEntityTagModel, column_name)).distinct()
-    if column_name == "entity_type":
-        return [curie for name, curie in sorted([(allowed_entity_type_map[curie[0]], curie[0]) for curie in curies
-                                                 if curie[0]], key=lambda x: x[0], reverse=desc)]
+def get_sorted_column_values(reference_id: int, db: Session, column_name: str, token, desc: bool = False):
+    curies = db.query(getattr(TopicEntityTagModel, column_name)).filter(
+        TopicEntityTagModel.reference_id == reference_id).distinct()
+    if column_name in ["entity_type", "topic"]:
+        curie_name_map = get_map_ateam_curies_to_names("atpterm",
+                                                       [curie[0] for curie in curies if curie[0]], token)
+        return [curie for name, curie in sorted([(value, key) for key, value in curie_name_map.items()],
+                                                key=lambda x: x[0], reverse=desc)]
 
 
 def get_map_ateam_curies_to_names(curies_category, curies, token):
