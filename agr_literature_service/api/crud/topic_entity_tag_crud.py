@@ -215,6 +215,8 @@ def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token:
     all_entities = defaultdict(list)
     for tag in topics_and_entities:
         all_topics_and_entities.append(tag.topic)
+        if tag.display_tag is not None:
+            all_topics_and_entities.append(tag.display_tag)
         if tag.entity_type is not None:
             all_topics_and_entities.append(tag.entity_type)
             if tag.entity_source == "alliance":
