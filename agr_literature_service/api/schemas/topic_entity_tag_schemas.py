@@ -1,13 +1,13 @@
 from typing import Optional, Union
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, constr
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
 
 class TopicEntityTagSourceSchemaCreate(AuditedObjectModelSchema):
-    source_type: str
-    source_method: str
-    validation_type: Optional[str] = None
-    evidence: str
+    source_type: str = Field(..., min_length=1)
+    source_method: str = Field(..., min_length=1)
+    validation_type: Optional[constr(min_length=1)] = None  # type: ignore
+    evidence: str = Field(..., min_length=1)
     description: str
     mod_abbreviation: str
 
@@ -17,16 +17,16 @@ class TopicEntityTagSourceSchemaShow(TopicEntityTagSourceSchemaCreate):
 
 
 class TopicEntityTagSourceSchemaUpdate(BaseModel):
-    source_type: Optional[str]
-    source_method: Optional[str]
-    validation_type: Optional[str]
-    evidence: Optional[str]
-    description: Optional[str]
-    mod_abbreviation: Optional[str]
-    date_created: Optional[str]
-    date_updated: Optional[str]
-    created_by: Optional[str]
-    updated_by: Optional[str]
+    source_type: Optional[constr(min_length=1)]  # type: ignore
+    source_method: Optional[constr(min_length=1)]  # type: ignore
+    validation_type: Optional[constr(min_length=1)]  # type: ignore
+    evidence: Optional[constr(min_length=1)]  # type: ignore
+    description: Optional[constr(min_length=1)]  # type: ignore
+    mod_abbreviation: Optional[constr(min_length=1)]  # type: ignore
+    date_created: Optional[constr(min_length=1)]  # type: ignore
+    date_updated: Optional[constr(min_length=1)]  # type: ignore
+    created_by: Optional[constr(min_length=1)]  # type: ignore
+    updated_by: Optional[constr(min_length=1)]  # type: ignore
 
     class Config:
         orm_mode = True
@@ -34,17 +34,17 @@ class TopicEntityTagSourceSchemaUpdate(BaseModel):
 
 
 class TopicEntityTagSchemaCreate(AuditedObjectModelSchema):
-    topic: str
-    entity_type: Optional[str] = None
-    entity: Optional[str] = None
-    entity_source: Optional[str] = None
-    entity_published_as: Optional[str] = None
-    species: Optional[str] = None
-    display_tag: Optional[str] = None
+    topic: str = Field(..., min_length=1)
+    entity_type: Optional[constr(min_length=1)] = None  # type: ignore
+    entity: Optional[constr(min_length=1)] = None  # type: ignore
+    entity_source: Optional[constr(min_length=1)] = None  # type: ignore
+    entity_published_as: Optional[constr(min_length=1)] = None  # type: ignore
+    species: Optional[constr(min_length=1)] = None  # type: ignore
+    display_tag: Optional[constr(min_length=1)] = None  # type: ignore
     topic_entity_tag_source_id: int
     negated: Optional[bool] = False
-    confidence_level: Optional[str] = None
-    note: Optional[str] = None
+    confidence_level: Optional[constr(min_length=1)] = None  # type: ignore
+    note: Optional[constr(min_length=1)] = None  # type: ignore
 
 
 class TopicEntityTagSchemaPost(TopicEntityTagSchemaCreate):
@@ -74,13 +74,13 @@ class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
 
 
 class TopicEntityTagSchemaUpdate(AuditedObjectModelSchema):
-    topic: Optional[str] = None
-    entity_type: Optional[str] = None
-    entity: Optional[str] = None
-    entity_source: Optional[str] = None
-    entity_published_as: Optional[str] = None
-    species: Optional[str] = None
-    display_tag: Optional[str] = None
+    topic: Optional[constr(min_length=1)] = None  # type: ignore
+    entity_type: Optional[constr(min_length=1)] = None  # type: ignore
+    entity: Optional[constr(min_length=1)] = None  # type: ignore
+    entity_source: Optional[constr(min_length=1)] = None  # type: ignore
+    entity_published_as: Optional[constr(min_length=1)] = None  # type: ignore
+    species: Optional[constr(min_length=1)] = None  # type: ignore
+    display_tag: Optional[constr(min_length=1)] = None  # type: ignore
     negated: Optional[bool] = False
-    confidence_level: Optional[str] = None
-    note: Optional[str] = None
+    confidence_level: Optional[constr(min_length=1)] = None  # type: ignore
+    note: Optional[constr(min_length=1)] = None  # type: ignore

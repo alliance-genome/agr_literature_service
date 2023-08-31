@@ -65,6 +65,23 @@ class TestTopicEntityTag:
             response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    def test_create_empty_string(self, test_topic_entity_tag, test_topic_entity_tag_source, auth_headers): # noqa
+        with TestClient(app) as client:
+            new_tet = {
+                "reference_curie": test_topic_entity_tag.related_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "",
+                "entity": "WB:WBGene00003001",
+                "entity_source": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "note": "test note",
+                "created_by": "WBPerson1"
+            }
+            response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
     def test_show(self, test_topic_entity_tag): # noqa
         with TestClient(app) as client:
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
