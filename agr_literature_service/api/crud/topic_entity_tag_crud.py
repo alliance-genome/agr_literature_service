@@ -222,9 +222,12 @@ def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token:
     entity_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=all_topics_and_entities,
                                                          token=token)
     for atpterm_curie in all_entities.keys():
-        entity_curie_to_name.update(get_map_ateam_curies_to_names(curies_category=entity_curie_to_name[atpterm_curie],
-                                                                  curies=all_entities[atpterm_curie],
-                                                                  token=token))
+        entity_curie_to_name.update(get_map_ateam_curies_to_names(
+            curies_category=entity_curie_to_name[atpterm_curie].replace(" ", ""),
+            curies=all_entities[atpterm_curie],
+            token=token))
+    for curie_without_name in (set(all_entities) | set(all_topics_and_entities)) - set(entity_curie_to_name.keys()):
+        entity_curie_to_name[curie_without_name] = curie_without_name
     return entity_curie_to_name
 
 
