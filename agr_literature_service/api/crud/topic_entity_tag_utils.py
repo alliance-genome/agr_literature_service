@@ -2,6 +2,7 @@ import json
 import urllib.request
 from os import environ
 from typing import Dict
+from urllib.error import HTTPError
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -94,14 +95,17 @@ def get_map_ateam_curies_to_names(curies_category, curies, token):
     request.add_header("Authorization", f"Bearer {token}")
     request.add_header("Content-type", "application/json")
     request.add_header("Accept", "application/json")
-    with urllib.request.urlopen(request) as response:
-        resp = response.read().decode("utf8")
-        resp_obj = json.loads(resp)
-        # from the A-team API, atp values have a "name" field and other entities (e.g., genes and alleles) have
-        # symbol objects - e.g., geneSymbol.displayText
-        return {entity["curie"]: entity["name"] if "name" in entity else entity[
-            curies_category + "Symbol"]["displayText"] for entity in (resp_obj["results"] if "results" in
-                                                                                             resp_obj else [])}
+    try:
+        with urllib.request.urlopen(request) as response:
+            resp = response.read().decode("utf8")
+            resp_obj = json.loads(resp)
+            # from the A-team API, atp values have a "name" field and other entities (e.g., genes and alleles) have
+            # symbol objects - e.g., geneSymbol.displayText
+            return {entity["curie"]: entity["name"] if "name" in entity else entity[
+                curies_category + "Symbol"]["displayText"] for entity in (resp_obj["results"] if "results" in
+                                                                                                 resp_obj else [])}
+    except HTTPError:
+        return {}
 
 
 def check_and_set_sgd_display_tag(topic_entity_tag_data):
