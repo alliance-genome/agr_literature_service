@@ -35,7 +35,7 @@ def process_pmid(pmid: str, mod_curie: str, mod_mca: str):
     db_session.close()
     added_curie = None
     if not exists:
-        base_path = environ.get('XML_PATH')
+        base_path = environ.get('XML_PATH', '')
         pmids_wanted = [pmid]
         download_pubmed_xml(pmids_wanted)
         generate_json(pmids_wanted, [])
