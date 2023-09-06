@@ -48,15 +48,16 @@ def create(request: ReferenceSchemaPost,
     return reference_crud.create(db, request)
 
 
-@router.post('/add/{pubmed_id}/',
+@router.post('/add/{pubmed_id}/{mod_curie}/{mod_mca}/',
              status_code=status.HTTP_201_CREATED,
              response_model=str)
 def add(pubmed_id: str,
+        mod_curie: str,
+        mod_mca: str,
         user: OktaUser = db_user,
         db: Session = db_session):
     set_global_user_from_okta(db, user)
-
-    return process_pmid(pubmed_id)
+    return process_pmid(pubmed_id, mod_curie, mod_mca)
 
 
 @router.delete('/{curie_or_reference_id}',
