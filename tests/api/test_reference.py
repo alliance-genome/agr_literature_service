@@ -459,3 +459,9 @@ class TestReference:
                                 headers=auth_headers)
             assert result.status_code == status.HTTP_200_OK
             assert result.json()
+
+    @pytest.mark.webtest
+    def test_add_pmid(self): # noqa
+        with TestClient(app) as client:
+            assert 1==1
+            # TODO
