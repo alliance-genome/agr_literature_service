@@ -48,18 +48,19 @@ def process_pmid(pmid: str, mod_curie: str, mod_mca: str):
         reference_object = db_session.query(ReferenceModel).filter_by(curie=added_curie).one_or_none()
         if reference_object:
             reference_id = reference_object.reference_id
-            try:
-                cross_ref = CrossReferenceModel(curie=mod_curie,
-                                                curie_prefix=mod_curie.split(":")[0],
-                                                reference_id=reference_id,
-                                                pages=['reference'])
-                db_session.add(cross_ref)
-                db_session.commit()
-                logger.info(str(reference_id) + ": INSERT CROSS_REFERENCE: " + mod_curie)
-            except Exception as e:
-                logger.info(str(reference_id) + ": INSERT CROSS_REFERENCE: " + mod_curie + " failed: " + str(e))
+            if mod_curie != '':
+                try:
+                    cross_ref = CrossReferenceModel(curie=mod_curie,
+                                                    curie_prefix=mod_curie.split(":")[0],
+                                                    reference_id=reference_id,
+                                                    pages=['reference'])
+                    db_session.add(cross_ref)
+                    db_session.commit()
+                    logger.info(str(reference_id) + ": INSERT CROSS_REFERENCE: " + mod_curie)
+                except Exception as e:
+                    logger.info(str(reference_id) + ": INSERT CROSS_REFERENCE: " + mod_curie + " failed: " + str(e))
             mod_object = db_session.query(ModModel).filter_by(abbreviation=mod_mca).one_or_none()
-            if mod_object:
+            if mod_object and mod_id != '':
                 mod_id = mod_object.mod_id
                 try:
                     mca = ModCorpusAssociationModel(reference_id=reference_id,
@@ -104,4 +105,4 @@ if __name__ == "__main__":
         db_session.close()
 
     for pmid in pmids_wanted:
-        process_pmid(pmid)
+        process_pmid(pmid, '', '')
