@@ -463,5 +463,5 @@ class TestReference:
     @pytest.mark.webtest
     def test_add_pmid(self): # noqa
         with TestClient(app) as client:
-            assert 1==1
+            assert client == client
             # TODO

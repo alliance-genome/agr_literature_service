@@ -68,11 +68,11 @@ def process_pmid(pmid, mod_curie, mod_mca):
                                                     corpus=True)
                     db_session.add(mca)
                     db_session.commit()
-                    logger.info("INSERT MOD_CORPUS_ASSOCIATION: for reference_id = " + str(reference_id) +
-                        ", mod_id = " + str(mod_id) + ", mod_corpus_sort_source = manual_creation")
+                    logger.info("INSERT MOD_CORPUS_ASSOCIATION: for reference_id = " + str(
+                        reference_id) + ", mod_id = " + str(mod_id) + ", mod_corpus_sort_source = manual_creation")
                 except Exception as e:
-                    logger.info("INSERT MOD_CORPUS_ASSOCIATION: for reference_id = " + str(reference_id) +
-                        ", mod_id = " + str(mod_id) + ", mod_corpus_sort_source = manual_creation " + str(e))
+                    logger.info("INSERT MOD_CORPUS_ASSOCIATION: for reference_id = " + str(
+                        reference_id) + ", mod_id = " + str(mod_id) + ", mod_corpus_sort_source = manual_creation " + str(e))
     return added_curie
 
 
