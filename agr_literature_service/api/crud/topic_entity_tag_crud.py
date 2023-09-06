@@ -179,7 +179,7 @@ def show_source(db: Session, topic_entity_tag_source_id: int):
     return source_data
 
 
-def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, page_size: int = None,
+def show_all_reference_tags(db: Session, curie_or_reference_id, token: str, page: int = 1, page_size: int = None,
                             count_only: bool = False, sort_by: str = None, desc_sort: bool = False):
     if page < 1:
         page = 1
@@ -196,8 +196,8 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
             column_property = getattr(TopicEntityTagModel, sort_by, None)
             column = column_property.property.columns[0]
             order_expression = case([(column.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
-            curie_ordering = case({curie: index for index, curie in enumerate(get_sorted_column_values(db, sort_by,
-                                                                                                       desc_sort))},
+            curie_ordering = case({curie: index for index, curie in
+                                   enumerate(get_sorted_column_values(reference_id, db, sort_by, token, desc_sort))},
                                   value=getattr(TopicEntityTagModel, sort_by))
             query = query.order_by(order_expression, curie_ordering)
         all_tet = []
@@ -215,6 +215,8 @@ def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token:
     all_entities = defaultdict(list)
     for tag in topics_and_entities:
         all_topics_and_entities.append(tag.topic)
+        if tag.display_tag is not None:
+            all_topics_and_entities.append(tag.display_tag)
         if tag.entity_type is not None:
             all_topics_and_entities.append(tag.entity_type)
             if tag.entity_source == "alliance":
@@ -222,9 +224,12 @@ def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token:
     entity_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=all_topics_and_entities,
                                                          token=token)
     for atpterm_curie in all_entities.keys():
-        entity_curie_to_name.update(get_map_ateam_curies_to_names(curies_category=entity_curie_to_name[atpterm_curie],
-                                                                  curies=all_entities[atpterm_curie],
-                                                                  token=token))
+        entity_curie_to_name.update(get_map_ateam_curies_to_names(
+            curies_category=entity_curie_to_name[atpterm_curie].replace(" ", ""),
+            curies=all_entities[atpterm_curie],
+            token=token))
+    for curie_without_name in (set(all_entities) | set(all_topics_and_entities)) - set(entity_curie_to_name.keys()):
+        entity_curie_to_name[curie_without_name] = curie_without_name
     return entity_curie_to_name
 
 

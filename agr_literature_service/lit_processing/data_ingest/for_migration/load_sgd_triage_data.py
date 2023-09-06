@@ -61,20 +61,18 @@ def load_data():
         if topic_atp is None:
             logger.info(f"The topic {pieces[2]} can't be mapped to an ATP ID.")
             continue
-        entity_type_atp = ''
-        # entity_name = ''
-        entity_sgdid = ''
-        source = ''
+        entity_type_atp = None
+        entity_sgdid = None
+        source = None
         if pieces[3]:
-            entity_type_to_atp.get(pieces[3])
+            entity_type_atp = entity_type_to_atp.get(pieces[3])
             if entity_type_atp is None:
                 logger.info(f"The entity_type {pieces[3]} can't be mapped to an ATP ID.")
                 continue
-            # entity_name = pieces[4]
             entity_sgdid = pieces[5]
             source = entity_source
 
-        note = pieces[6] if pieces[6] else ''
+        note = pieces[6] if pieces[6] else None
         created_by = pieces[7]
         date_created = pieces[8]
         data = {
@@ -86,12 +84,9 @@ def load_data():
             "entity_type": entity_type_atp,
             "entity": entity_sgdid,
             "entity_source": source,
-            "entity_published_as": "",
             "species": "NCBITaxon:559292",
-            "display_tag": "",
             "topic_entity_tag_source_id": topic_entity_tag_source_id,
             "negated": False,
-            "confidence_level": "",
             "note": note,
             "reference_curie": ref_curie
         }

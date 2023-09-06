@@ -2,6 +2,7 @@ import json
 import urllib.request
 from os import environ
 from typing import Dict
+from urllib.error import HTTPError
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -9,8 +10,6 @@ from starlette import status
 
 from agr_literature_service.api.models import TopicEntityTagSourceModel, ReferenceModel, ModModel, TopicEntityTagModel
 from agr_literature_service.api.user import add_user_if_not_exists
-
-allowed_entity_type_map = {'ATP:0000005': 'gene', 'ATP:0000006': 'allele'}
 
 # TODO: fix these to get from database or some other place?
 sgd_primary_display_tag = 'ATP:0000147'
@@ -68,11 +67,14 @@ def add_source_obj_to_db_session(db: Session, source: Dict):
     return source_obj
 
 
-def get_sorted_column_values(db: Session, column_name: str, desc: bool = False):
-    curies = db.query(getattr(TopicEntityTagModel, column_name)).distinct()
-    if column_name == "entity_type":
-        return [curie for name, curie in sorted([(allowed_entity_type_map[curie[0]], curie[0]) for curie in curies
-                                                 if curie[0]], key=lambda x: x[0], reverse=desc)]
+def get_sorted_column_values(reference_id: int, db: Session, column_name: str, token, desc: bool = False):
+    curies = db.query(getattr(TopicEntityTagModel, column_name)).filter(
+        TopicEntityTagModel.reference_id == reference_id).distinct()
+    if column_name in ["entity_type", "topic"]:
+        curie_name_map = get_map_ateam_curies_to_names("atpterm",
+                                                       [curie[0] for curie in curies if curie[0]], token)
+        return [curie for name, curie in sorted([(value, key) for key, value in curie_name_map.items()],
+                                                key=lambda x: x[0], reverse=desc)]
 
 
 def get_map_ateam_curies_to_names(curies_category, curies, token):
@@ -93,14 +95,17 @@ def get_map_ateam_curies_to_names(curies_category, curies, token):
     request.add_header("Authorization", f"Bearer {token}")
     request.add_header("Content-type", "application/json")
     request.add_header("Accept", "application/json")
-    with urllib.request.urlopen(request) as response:
-        resp = response.read().decode("utf8")
-        resp_obj = json.loads(resp)
-        # from the A-team API, atp values have a "name" field and other entities (e.g., genes and alleles) have
-        # symbol objects - e.g., geneSymbol.displayText
-        return {entity["curie"]: entity["name"] if "name" in entity else entity[
-            curies_category + "Symbol"]["displayText"] for entity in (resp_obj["results"] if "results" in
-                                                                                             resp_obj else [])}
+    try:
+        with urllib.request.urlopen(request) as response:
+            resp = response.read().decode("utf8")
+            resp_obj = json.loads(resp)
+            # from the A-team API, atp values have a "name" field and other entities (e.g., genes and alleles) have
+            # symbol objects - e.g., geneSymbol.displayText
+            return {entity["curie"]: entity["name"] if "name" in entity else entity[
+                curies_category + "Symbol"]["displayText"] for entity in (resp_obj["results"] if "results" in
+                                                                                                 resp_obj else [])}
+    except HTTPError:
+        return {}
 
 
 def check_and_set_sgd_display_tag(topic_entity_tag_data):
