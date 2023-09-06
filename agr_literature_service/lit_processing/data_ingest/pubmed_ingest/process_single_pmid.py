@@ -22,7 +22,7 @@ logger = logging.getLogger('literature logger')
 init_tmp_dir()
 
 
-def process_pmid(pmid, mod_curie, mod_mca):
+def process_pmid(pmid: str, mod_curie: str, mod_mca: str):
     """
 
     :param pmid:
