@@ -60,7 +60,7 @@ def process_pmid(pmid: str, mod_curie: str, mod_mca: str):
                 except Exception as e:
                     logger.info(str(reference_id) + ": INSERT CROSS_REFERENCE: " + mod_curie + " failed: " + str(e))
             mod_object = db_session.query(ModModel).filter_by(abbreviation=mod_mca).one_or_none()
-            if mod_object and mod_id != '':
+            if mod_object and mod_mca != '':
                 mod_id = mod_object.mod_id
                 try:
                     mca = ModCorpusAssociationModel(reference_id=reference_id,
