@@ -42,7 +42,6 @@ def process_pmid(pmid: str, mod_curie: str, mod_mca: str):
         sanitize_pubmed_json_list(pmids_wanted, [])
         # json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_' + pmid + '.json'
         json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_PMID.json'
-        # added_curie = 'AGRKB:101000001828742';    # comment out next two lines and use this to try PMID:12345 on 4002, next 2 lines are really slow
         added_curie = post_references(json_filepath)[0]
         upload_xml_file_to_s3(pmid)
         reference_object = db_session.query(ReferenceModel).filter_by(curie=added_curie).one_or_none()

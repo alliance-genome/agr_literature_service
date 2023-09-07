@@ -461,7 +461,19 @@ class TestReference:
             assert result.json()
 
     @pytest.mark.webtest
-    def test_add_pmid(self): # noqa
+    def test_add_pmid(self, auth_headers, test_mod, db): # noqa
         with TestClient(app) as client:
-            assert client == client
-            # TODO
+            new_curie_response = client.post(url=f"/reference/add/12345/{test_mod.new_mod_abbreviation}:test/{test_mod.new_mod_abbreviation}/", headers=auth_headers)
+            # new_curie_response = client.post(url="/reference/add/12345/0015_AtDB:test/0015_AtDB/", headers=auth_headers)
+            new_curie = new_curie_response.text
+            if new_curie.startswith('"') and new_curie.endswith('"'):
+                new_curie = new_curie[1:-1]
+            response = client.get(url=f"/reference/{new_curie}").json()
+            assert response['mod_corpus_associations'][0]['mod_abbreviation'] == test_mod.new_mod_abbreviation
+            xrefs_ok = 0
+            for xref in response['cross_references']:
+                if xref['curie'] == 'PMID:12345':
+                    xrefs_ok = xrefs_ok + 1
+                if xref['curie'] == test_mod.new_mod_abbreviation + ':test':
+                    xrefs_ok = xrefs_ok + 1
+            assert xrefs_ok == 2
