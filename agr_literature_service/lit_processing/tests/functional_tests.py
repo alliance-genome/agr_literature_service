@@ -540,7 +540,7 @@ def has_doi_check(agr_data, value):
 def test_first_corresponding_author_flag():
 
     pmid = "26051182"
-    process_pmid(pmid)
+    process_pmid(pmid, '', '')
 
     db_session = create_postgres_session(False)
 
