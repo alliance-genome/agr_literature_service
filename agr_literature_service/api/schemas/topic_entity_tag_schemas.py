@@ -64,9 +64,9 @@ class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     negated: Optional[bool] = False
     confidence_level: Optional[str] = None
     note: Optional[str] = None
-    validation_value_author: Union[bool, None]
-    validation_value_curator: Union[bool, None]
-    validation_value_curation_tools: Union[bool, None]
+    validation_value_author: str
+    validation_value_curator: str
+    validation_value_curation_tools: str
 
 
 class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
