@@ -66,8 +66,11 @@ def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagMo
         if topic_entity_tag_db_obj.topic_entity_tag_source.validation_type == validation_type:
             validating_tags_values.append(topic_entity_tag_db_obj.negated)
         if len(set(validating_tags_values)) == 1:
-            return topic_entity_tag_db_obj.negated == validating_tags_values[0]
-    return None
+            return "validated_right" if topic_entity_tag_db_obj.negated == validating_tags_values[0] else \
+                "validated_wrong"
+        else:
+            return "validation_conflict"
+    return "not_validated"
 
 
 def add_validation_values_to_tag(topic_entity_tag_db_obj: TopicEntityTagModel, tag_data_dict: Dict):
