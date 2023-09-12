@@ -48,15 +48,21 @@ def create(request: ReferenceSchemaPost,
     return reference_crud.create(db, request)
 
 
-@router.post('/add/{pubmed_id}/',
+@router.post('/add/{pubmed_id}/{mod_curie}/{mod_mca}/',
              status_code=status.HTTP_201_CREATED,
              response_model=str)
 def add(pubmed_id: str,
+        mod_curie: str,
+        mod_mca: str,
         user: OktaUser = db_user,
         db: Session = db_session):
+    if mod_curie.count(":") != 1:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Malformed MOD curie")
+    mod_curie_prefix, mod_curie_id = mod_curie.split(":")
+    if len(mod_curie_prefix) == 0 or len(mod_curie_id) == 0:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Malformed MOD curie")
     set_global_user_from_okta(db, user)
-
-    return process_pmid(pubmed_id)
+    return process_pmid(pubmed_id, mod_curie, mod_mca)
 
 
 @router.delete('/{curie_or_reference_id}',

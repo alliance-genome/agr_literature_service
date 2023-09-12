@@ -203,8 +203,20 @@ class TestTopicEntityTag:
                 "topic_entity_tag_source_id": auth_source_2_resp.json(),
                 "negated": True
             }
+            not_validated_tag_aut = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000123",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_source": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": auth_source_2_resp.json(),
+                "negated": False
+            }
             client.post(url="/topic_entity_tag/", json=validating_tag_aut_1, headers=auth_headers)
             client.post(url="/topic_entity_tag/", json=validating_tag_aut_2, headers=auth_headers)
+            not_validated_tag_aut_id = client.post(url="/topic_entity_tag/", json=not_validated_tag_aut,
+                                                   headers=auth_headers).json()
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
             assert response.status_code == status.HTTP_200_OK
             tag_obj: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
@@ -274,13 +286,15 @@ class TestTopicEntityTag:
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_tools_1, headers=auth_headers)
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_tools_2, headers=auth_headers)
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
-            assert response.json()["validation_value_author"] is False
-            assert response.json()["validation_value_curator"] is None
-            assert response.json()["validation_value_curation_tools"] is True
+            assert response.json()["validation_value_author"] == "validated_wrong"
+            assert response.json()["validation_value_curator"] == "validation_conflict"
+            assert response.json()["validation_value_curation_tools"] == "validated_right"
             response = client.get(f"/topic_entity_tag/{cur_2_tag_id}")
-            assert response.json()["validation_value_author"] is False
-            assert response.json()["validation_value_curator"] is None
-            assert response.json()["validation_value_curation_tools"] is True
+            assert response.json()["validation_value_author"] == "validated_wrong"
+            assert response.json()["validation_value_curator"] == "validation_conflict"
+            assert response.json()["validation_value_curation_tools"] == "validated_right"
+            response = client.get(f"/topic_entity_tag/{not_validated_tag_aut_id}")
+            assert response.json()["validation_value_curation_tools"] == "not_validated"
 
     @pytest.mark.webtest
     def test_get_map_entity_curie_to_name(self, test_topic_entity_tag, test_topic_entity_tag_source, test_mod, # noqa
@@ -324,7 +338,8 @@ class TestTopicEntityTag:
                 'ATP:0000005': 'gene',
                 'ATP:0000009': 'phenotype',
                 'ATP:0000122': 'entity type',
-                'WB:WBGene00003001': 'lin-12'
+                'WB:WBGene00003001': 'lin-12',
+                'string': 'string'
             }
             wormbase_topic_tag = {
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
@@ -347,5 +362,6 @@ class TestTopicEntityTag:
                 'ATP:0000009': 'phenotype',
                 'ATP:0000099': 'existing transgenic construct',
                 'ATP:0000122': 'entity type',
-                'WB:WBGene00003001': 'lin-12'
+                'WB:WBGene00003001': 'lin-12',
+                'string': 'string'
             }
