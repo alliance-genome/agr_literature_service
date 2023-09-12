@@ -14,10 +14,19 @@ from fastapi import HTTPException, status
 
 logger = logging.getLogger(__name__)
 
+def date_str_to_micro_seconds(date_str: str):
+    # convert string to Datetime int that is stored in Elastic search
+    # initial strings are in the format:- "2010-10-28T04:00:00.000"
+    # So just grab chars before T and converts to seconds after epoch
+    # then mulitply by 1000000 and convert to int.
+    date_time = datetime.fromisoformat(date_str)
+    return int(date_time.timestamp() * 1000000)
+
 def search_date_range(es_body,
                       date_pubmed_modified: Optional[List[str]] = None,
                       date_pubmed_arrive: Optional[List[str]] = None,
-                      date_published: Optional[List[str]] = None):
+                      date_published: Optional[List[str]] = None,
+                      date_created: Optional[List[str]] = None):
     # date_pubmed_X is split to just get the date and remove the time element
     # as elastic search does a tr comparison and if the end date has the time
     # element stil in it fails even if the date bits match as the string is longer.
@@ -43,9 +52,19 @@ def search_date_range(es_body,
                     }
                 }
             })
+    if date_created:
+        es_body["query"]["bool"]["filter"]["bool"]["must"].append(
+            {
+                "range": {
+                    "date_created": {
+                        "gte": date_str_to_micro_seconds(date_created[0]),
+                        "lte": date_str_to_micro_seconds(date_created[1])
+                    }
+                }
+            })
     if date_published:
-        start = date_published[0];
-        end = date_published[1];
+        start = date_published[0]
+        end = date_published[1]
         es_body["query"]["bool"]["filter"]["bool"]["must"].append(
             {
                 "bool": {
@@ -99,6 +118,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                       author_filter: Optional[str] = None, date_pubmed_modified: Optional[List[str]] = None,
                       date_pubmed_arrive: Optional[List[str]] = None,
                       date_published: Optional[List[str]] = None,
+                      date_created: Optional[List[str]] = None,
                       query_fields: str = None, partial_match: bool = True):
     if query is None and facets_values is None and not return_facets_only:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
@@ -279,9 +299,9 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
 
     date_range = False
-    if date_pubmed_modified or date_pubmed_arrive or date_published:
+    if date_pubmed_modified or date_pubmed_arrive or date_published or date_created:
         date_range = True
-        search_date_range(es_body, date_pubmed_modified, date_pubmed_arrive, date_published)
+        search_date_range(es_body, date_pubmed_modified, date_pubmed_arrive, date_published, date_created)
     if not facets_values and not date_range:
         del es_body["query"]["bool"]["filter"]
 
@@ -296,6 +316,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             "date_published": ref["_source"]["date_published"],
             "date_published_start": ref["_source"]["date_published_start"],
             "date_published_end": ref["_source"]["date_published_end"],
+            "date_created": ref["_source"]["date_created"],
             "abstract": ref["_source"]["abstract"],
             "cross_references": ref["_source"]["cross_references"],
             "authors": ref["_source"]["authors"],
