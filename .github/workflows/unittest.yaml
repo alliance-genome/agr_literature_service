@@ -2,6 +2,8 @@ name: unittest
 on: [push]
 jobs:
   run-unittests:
+    permissions:
+      id-token: write # This is required for requesting the JWT for gaining permissions to assume the IAM role to perform AWS actions
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -17,10 +19,10 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements.dev.txt
       - name: AWS credentials configuration
-        uses: aws-actions/configure-aws-credentials@v1-node16
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id: ${{ secrets.aws_access_key_id }}
-          aws-secret-access-key: ${{ secrets.aws_secret_access_key }}
+          role-to-assume: ${{secrets.GH_ACTIONS_AWS_ROLE}}
+          role-session-name: gh-actions-${{github.run_id}}.${{github.run_number}}.${{github.run_attempt}}-unittest
           aws-region: us-east-1
       - name: Amazon ECR login
         id: login-ecr
