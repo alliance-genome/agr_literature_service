@@ -14,13 +14,18 @@ from fastapi import HTTPException, status
 
 logger = logging.getLogger(__name__)
 
-def date_str_to_micro_seconds(date_str: str):
+def date_str_to_micro_seconds(date_str: str, start: bool):
     # convert string to Datetime int that is stored in Elastic search
     # initial strings are in the format:- "2010-10-28T04:00:00.000"
     # So just grab chars before T and converts to seconds after epoch
     # then mulitply by 1000000 and convert to int.
     date_time = datetime.fromisoformat(date_str)
-    return int(date_time.timestamp() * 1000000)
+    if start:
+        return_date= date_time.replace(hour=0,minute=0)
+    else:
+        return_date = date_time.replace(hour=23, minute=59)
+
+    return int(return_date.timestamp() * 1000000)
 
 def search_date_range(es_body,
                       date_pubmed_modified: Optional[List[str]] = None,
@@ -57,8 +62,8 @@ def search_date_range(es_body,
             {
                 "range": {
                     "date_created": {
-                        "gte": date_str_to_micro_seconds(date_created[0]),
-                        "lte": date_str_to_micro_seconds(date_created[1])
+                        "gte": date_str_to_micro_seconds(date_created[0],True),
+                        "lte": date_str_to_micro_seconds(date_created[1], False)
                     }
                 }
             })
