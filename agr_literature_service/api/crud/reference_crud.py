@@ -659,18 +659,22 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by, fi
         """
 
     return f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT,
-                      SUPCOUNT, ref_pmid.curie as PMID, ref_mod.curie AS mod_curie
+                      SUPCOUNT, ref_pmid.curie as PMID,ref_doi.curie as DOI, ref_mod.curie AS mod_curie
                FROM reference, citation,
                     ({subquery})
                      AS sub_select,
                         (SELECT cross_reference.curie, reference_id
                          FROM cross_reference
                          WHERE curie_prefix='PMID') as ref_pmid,
+                         (SELECT cross_reference.curie, reference_id
+                         FROM cross_reference
+                         WHERE curie_prefix='DOI') as ref_doi,
                         (SELECT cross_reference.curie, reference_id
                          FROM cross_reference
                          WHERE curie_prefix='{curie_prefix}') as ref_mod
                WHERE sub_select.reference_id=reference.reference_id
                AND sub_select.reference_id=ref_pmid.reference_id
+               AND sub_select.reference_id=ref_doi.reference_id
                AND sub_select.reference_id=ref_mod.reference_id
                AND reference.citation_id=citation.citation_id
                ORDER BY date_created {order_by}
