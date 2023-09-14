@@ -2,6 +2,8 @@ name: functest
 on: [push]
 jobs:
   run-functests:
+    permissions:
+      id-token: write # This is required for requesting the JWT for gaining permissions to assume the IAM role to perform AWS actions
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -12,10 +14,10 @@ jobs:
         with:
           python-version: 3.8
       - name: AWS credentials configuration
-        uses: aws-actions/configure-aws-credentials@v1-node16
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-	  role-to-assume: ${{secrets.GH_ACTIONS_AWS_ROLE}}
-	  role-session-name: gh-actions-${{github.run_id}}.${{github.run_number}}.${{github.run_attempt}}-build-image
+          role-to-assume: ${{secrets.GH_ACTIONS_AWS_ROLE}}
+          role-session-name: gh-actions-${{github.run_id}}.${{github.run_number}}.${{github.run_attempt}}-functest
           aws-region: us-east-1
       - name: Amazon ECR login
         id: login-ecr
