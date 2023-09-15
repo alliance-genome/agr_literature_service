@@ -153,6 +153,12 @@
         "null_value": null,
         "ignore_malformed": true
       },
+      "date_created": {
+        "type": "date",
+        "format": "date_optional_time||epoch_millis",
+        "null_value": null,
+        "ignore_malformed": true
+      },
       "page_range": {
         "type": "text",
         "fields": {

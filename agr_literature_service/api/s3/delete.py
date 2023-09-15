@@ -14,10 +14,12 @@ def delete_file_in_bucket(s3_client, bucket, folder, object_name=None):
     #     object_name = file_obj
 
     # Delete the file
+    objectKey = f"{folder}/{object_name}"
     try:
         s3_client.delete_object(Bucket=bucket,
-                                Key=f"{folder}/{object_name}")
+                                Key=objectKey)
     except ClientError as e:
+        print(f"Error while attempting to delete '{objectKey}' from S3 bucket {bucket}.")
         print(e)
         return False
 
