@@ -708,12 +708,12 @@ def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, fi
         workflowtag = f"file {tag}"
         tmp_file_with_path = f"{getcwd()}/{tmp_file}"
         fw = open(tmp_file_with_path, "w")
-        fw.write("Curie\tMOD Curie\tPMID\tCitation\tWorkflow Tag\tMain File Count\tSuppl File Count\tDate Created\n")
+        fw.write("Curie\tMOD Curie\tPMID\tDOI\tCitation\tWorkflow Tag\tMain File Count\tSuppl File Count\tDate Created\n")
         for x in rows:
             date_created = str(x['date_created']).split(' ')[0]
             main_file_count = x[3]
             suppl_file_count = x[4]
-            fw.write(f"{x['curie']}]\t{x['mod_curie']}\t{x['pmid']}\t{x['short_citation']}\t "
+            fw.write(f"{x['curie']}]\t{x['mod_curie']}\t{x['pmid']}\t{x['doi']}\t{x['short_citation']}\t "
                      f"{workflowtag}\t{main_file_count}\t{suppl_file_count}\t{date_created}\n")
         fw.close()
     except Exception as e:
