@@ -659,18 +659,22 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by, fi
         """
 
     return f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT,
-                      SUPCOUNT, ref_pmid.curie as PMID, ref_mod.curie AS mod_curie
+                      SUPCOUNT, ref_pmid.curie as PMID,ref_doi.curie as DOI, ref_mod.curie AS mod_curie
                FROM reference, citation,
                     ({subquery})
                      AS sub_select,
                         (SELECT cross_reference.curie, reference_id
                          FROM cross_reference
                          WHERE curie_prefix='PMID') as ref_pmid,
+                         (SELECT cross_reference.curie, reference_id
+                         FROM cross_reference
+                         WHERE curie_prefix='DOI') as ref_doi,
                         (SELECT cross_reference.curie, reference_id
                          FROM cross_reference
                          WHERE curie_prefix='{curie_prefix}') as ref_mod
                WHERE sub_select.reference_id=reference.reference_id
                AND sub_select.reference_id=ref_pmid.reference_id
+               AND sub_select.reference_id=ref_doi.reference_id
                AND sub_select.reference_id=ref_mod.reference_id
                AND reference.citation_id=citation.citation_id
                ORDER BY date_created {order_by}
@@ -704,12 +708,12 @@ def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, fi
         workflowtag = f"file {tag}"
         tmp_file_with_path = f"{getcwd()}/{tmp_file}"
         fw = open(tmp_file_with_path, "w")
-        fw.write("Curie\tMOD Curie\tPMID\tCitation\tWorkflow Tag\tMain File Count\tSuppl File Count\tDate Created\n")
+        fw.write("Curie\tMOD Curie\tPMID\tDOI\tCitation\tWorkflow Tag\tMain File Count\tSuppl File Count\tDate Created\n")
         for x in rows:
             date_created = str(x['date_created']).split(' ')[0]
             main_file_count = x[3]
             suppl_file_count = x[4]
-            fw.write(f"{x['curie']}]\t{x['mod_curie']}\t{x['pmid']}\t{x['short_citation']}\t "
+            fw.write(f"{x['curie']}]\t{x['mod_curie']}\t{x['pmid']}\t{x['doi']}\t{x['short_citation']}\t "
                      f"{workflowtag}\t{main_file_count}\t{suppl_file_count}\t{date_created}\n")
         fw.close()
     except Exception as e:
