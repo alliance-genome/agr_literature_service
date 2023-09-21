@@ -96,6 +96,53 @@ def destroy(db: Session, referencefile_id: int, mod_access: OktaAccess):
                 destroy_mod_association(db, referencefile_mod.referencefile_mod_id)
 
 
+def merge_referencefiles(db: Session,
+                         curie_or_reference_id: str,
+                         losing_referencefile_id: int,
+                         winning_referencefile_id: int):
+    """
+    :param db:
+    :param curie_or_reference_id:
+    :param losing_referencefile_id:
+    :param winning_referencefile_id:
+    :return:
+
+    Transfer referencefile_mods from losing referencefile to winning referencefile, unless already has a referencefile_mod
+    with that mod.
+    Then delete losing_referencefile.
+    Then attach winning referencefile to reference, if it's not already attached to it.
+    """
+
+    reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id, load_referencefiles=True)
+
+    # Lookup both referencefiles
+    losing_referencefile = read_referencefile_db_obj(db, losing_referencefile_id)
+    winning_referencefile = read_referencefile_db_obj(db, winning_referencefile_id)
+
+    if not losing_referencefile or not winning_referencefile:
+        # give error
+        return
+
+    winning_mod_set = set()
+    for referencefile_mod in winning_referencefile.referencefile_mods:
+        if (referencefile_mod.mod is not None):
+            winning_mod_set.add(referencefile_mod.mod.abbreviation)
+
+    for referencefile_mod in losing_referencefile.referencefile_mods:
+        if (referencefile_mod.mod is not None and referencefile_mod.mod.abbreviation not in winning_mod_set):
+            referencefile_mod.referencefile_id = winning_referencefile.referencefile_id
+            # does this work ?  needs a commit or something ?
+
+    # call destroy on losing_referencefile or something else because it needs mod_access, and that will remove from s3 ?
+
+    if winning_referencefile.reference_id != reference.reference_id:
+        winning_referencefile.reference_id = reference.reference_id
+        # does this work ?
+
+    1 == 1
+
+
+
 def file_paths_in_dir(directory):
     for dirpath, _, filenames in os.walk(directory):
         for f in filenames:
