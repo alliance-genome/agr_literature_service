@@ -127,17 +127,23 @@ def merge_referencefiles(db: Session,
     for referencefile_mod in winning_referencefile.referencefile_mods:
         if (referencefile_mod.mod is not None):
             winning_mod_set.add(referencefile_mod.mod.abbreviation)
+        else:
+            winning_mod_set.add(None)
 
     for referencefile_mod in losing_referencefile.referencefile_mods:
-        if (referencefile_mod.mod is not None and referencefile_mod.mod.abbreviation not in winning_mod_set):
-            referencefile_mod.referencefile_id = winning_referencefile.referencefile_id
-            # does this work ?  needs a commit or something ?
+        if referencefile_mod.mod is not None:
+            if referencefile_mod.mod.abbreviation not in winning_mod_set:
+                referencefile_mod.referencefile_id = winning_referencefile.referencefile_id
+                # does this work ?  needs a commit or something ?
+        else:
+            if None not in winning_mod_set:
+                referencefile_mod.referencefile_id = winning_referencefile.referencefile_id
 
     # call destroy on losing_referencefile or something else because it needs mod_access, and that will remove from s3 ?
 
     if winning_referencefile.reference_id != reference.reference_id:
         winning_referencefile.reference_id = reference.reference_id
-        # does this work ?
+        # does this work ?  use patch instead ?
 
     1 == 1
 
