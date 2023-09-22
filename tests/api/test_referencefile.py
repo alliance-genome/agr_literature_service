@@ -198,5 +198,14 @@ class TestReferencefile:
             request = client.post(url=f"/reference/referencefile/merge/{test_reference.new_ref_curie}/"
                                       f"{test_referencefile}/{test_referencefile2}", headers=auth_headers)
             assert request.status_code == status.HTTP_201_CREATED
+            request = client.get(url=f"/reference/referencefile/{test_referencefile2}")
+            assert request.json()["display_name"] == "Bob"
+            assert request.json()["reference_curie"] == test_reference.new_ref_curie
+            assert len(request.json()["referencefile_mods"]) == 4
+            mods_to_check = {None, "WB", "FB", "ZFIN"}
+            for mod in request.json()["referencefile_mods"]:
+                assert mod["mod_abbreviation"] in mods_to_check
+                mods_to_check.remove(mod["mod_abbreviation"])
+            assert len(mods_to_check) == 0
 
 
