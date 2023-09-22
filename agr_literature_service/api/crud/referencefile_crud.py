@@ -27,7 +27,8 @@ from agr_literature_service.api.models import ReferenceModel, ReferencefileModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.s3.upload import upload_file_to_bucket
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
-from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost, ReferencefileSchemaRelated
+from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost, \
+    ReferencefileSchemaRelated, ReferencefileSchemaUpdate
 from agr_literature_service.api.schemas.response_message_schemas import messageEnum
 from agr_literature_service.lit_processing.utils.s3_utils import download_file_from_s3
 
@@ -70,16 +71,21 @@ def show_all(db: Session, curie_or_reference_id: str) -> List[ReferencefileSchem
 
 
 def patch(db: Session, referencefile_id: int, request):
-    referencefile = read_referencefile_db_obj(db, referencefile_id)
+    referencefile: ReferencefileModel = read_referencefile_db_obj(db, referencefile_id)
+    if "display_name" in request or "file_extension" in request or "reference_curie" in request:
+        if "display_name" not in request:
+            request["display_name"] = referencefile.display_name
+        if "file_extension" not in request:
+            request["file_extension"] = referencefile.file_extension
+        if "reference_curie" not in request:
+            request["reference_curie"] = referencefile.reference.curie
+        request["display_name"] = find_first_available_display_name(display_name=request["display_name"],
+                                                                    file_extension=request["file_extension"],
+                                                                    reference_curie=request["reference_curie"], db=db)
     if "reference_curie" in request:
-        res = db.query(ReferenceModel.reference_id).filter(
-            ReferenceModel.curie == request.reference_curie).one_or_none()
-        if res is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"Reference with curie {request.reference_curie} is not available")
-
-        request["reference_id"] = res[0]
+        request["reference_id"] = referencefile.reference.reference_id
         del request["reference_curie"]
+
     for field, value in request.items():
         setattr(referencefile, field, value)
     db.commit()
@@ -119,34 +125,22 @@ def merge_referencefiles(db: Session,
     losing_referencefile = read_referencefile_db_obj(db, losing_referencefile_id)
     winning_referencefile = read_referencefile_db_obj(db, winning_referencefile_id)
 
-    if not losing_referencefile or not winning_referencefile:
-        # give error
-        return
-
-    winning_mod_set = set()
-    for referencefile_mod in winning_referencefile.referencefile_mods:
-        if (referencefile_mod.mod is not None):
-            winning_mod_set.add(referencefile_mod.mod.abbreviation)
-        else:
-            winning_mod_set.add(None)
+    winning_mod_set = {referencefile_mod.mod.abbreviation if referencefile_mod.mod is not None else None
+                       for referencefile_mod in winning_referencefile.referencefile_mods}
 
     for referencefile_mod in losing_referencefile.referencefile_mods:
-        if referencefile_mod.mod is not None:
-            if referencefile_mod.mod.abbreviation not in winning_mod_set:
-                referencefile_mod.referencefile_id = winning_referencefile.referencefile_id
-                # does this work ?  needs a commit or something ?
-        else:
-            if None not in winning_mod_set:
-                referencefile_mod.referencefile_id = winning_referencefile.referencefile_id
+        mod_abbreviation = referencefile_mod.mod.abbreviation if referencefile_mod.mod is not None else None
+        if mod_abbreviation not in winning_mod_set:
+            referencefile_mod.referencefile_id = winning_referencefile.referencefile_id
+            # does this work ?  needs a commit or something ?
 
     # call destroy on losing_referencefile or something else because it needs mod_access, and that will remove from s3 ?
+    db.delete(losing_referencefile)
 
     if winning_referencefile.reference_id != reference.reference_id:
-        winning_referencefile.reference_id = reference.reference_id
-        # does this work ?  use patch instead ?
+        patch(db, winning_referencefile_id, ReferencefileSchemaUpdate(reference_curie=reference.curie).dict())
 
-    1 == 1
-
+    db.commit()
 
 
 def file_paths_in_dir(directory):
@@ -243,6 +237,22 @@ def create_metadata(db: Session, request: ReferencefileSchemaPost):
     return new_ref_file_obj.referencefile_id
 
 
+def find_first_available_display_name(display_name: str, file_extension: str, reference_curie: str, db: Session):
+    original_name = display_name
+    for counter in count(start=1, step=1):
+        ref_file_same_name = db.query(ReferencefileModel).filter(
+            and_(
+                ReferencefileModel.display_name == display_name,
+                ReferencefileModel.file_extension == file_extension,
+                ReferencefileModel.reference.has(ReferenceModel.curie == reference_curie)
+            )
+        ).one_or_none()
+        if ref_file_same_name is None:
+            break
+        display_name = f"{original_name}_{counter}"
+    return display_name
+
+
 def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma: no cover
     mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
     file.file.seek(0)
@@ -282,18 +292,9 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
 
         # check if a different version of the same file (same display_name and file_extension) is already associated
         # with the same reference. Add _num to the display name to upload different versions of the same file
-        original_name = metadata["display_name"]
-        for counter in count(start=1, step=1):
-            ref_file_same_name = db.query(ReferencefileModel).filter(
-                and_(
-                    ReferencefileModel.display_name == metadata["display_name"],
-                    ReferencefileModel.file_extension == metadata["file_extension"],
-                    ReferencefileModel.reference.has(ReferenceModel.curie == metadata["reference_curie"])
-                )
-            ).one_or_none()
-            if ref_file_same_name is None:
-                break
-            metadata["display_name"] = f"{original_name}_{counter}"
+        metadata["display_name"] = find_first_available_display_name(
+            display_name=metadata["display_name"], file_extension=metadata["file_extension"],
+            reference_curie=metadata["reference_curie"], db=db)
         create_request = ReferencefileSchemaPost(md5sum=md5sum, **metadata)
         create_metadata(db, create_request)
         # check if md5sum is the only one in the db before uploading to s3
