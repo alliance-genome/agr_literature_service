@@ -439,11 +439,9 @@ def merge_references(db: Session,
     """
 
     # Lookup both curies
-    old_ref = db.query(ReferenceModel).filter(ReferenceModel.curie == old_curie).first()
-    new_ref = db.query(ReferenceModel).filter(ReferenceModel.curie == new_curie).first()
-    if not new_ref or not old_ref:
-        # give error
-        return
+    old_ref = get_reference(db=db, curie_or_reference_id=old_curie)
+    new_ref = get_reference(db=db, curie_or_reference_id=new_curie)
+
     merge_comments_and_corrections(db, old_ref.reference_id, new_ref.reference_id,
                                    old_curie, new_curie)
 
