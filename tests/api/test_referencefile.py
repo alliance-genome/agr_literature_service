@@ -207,5 +207,3 @@ class TestReferencefile:
                 assert mod["mod_abbreviation"] in mods_to_check
                 mods_to_check.remove(mod["mod_abbreviation"])
             assert len(mods_to_check) == 0
-
-
