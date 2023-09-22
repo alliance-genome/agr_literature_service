@@ -168,3 +168,35 @@ class TestReferencefile:
             response = client.get(url=f"/reference/referencefile/show_all/{test_reference.new_ref_curie}")
             assert response.status_code == status.HTTP_200_OK
             assert response.json()[0]["pdf_type"] is None
+
+    def test_merge(self, db, test_referencefile, test_reference, test_reference2, auth_headers):  # noqa
+        populate_test_mods()
+        referencefile_ref2 = {
+            "display_name": "Bob",
+            "reference_curie": test_reference2.new_ref_curie,
+            "file_class": "main",
+            "file_publication_status": "final",
+            "file_extension": "pdf",
+            "pdf_type": "pdf",
+            "md5sum": "1234567890",
+            "mod_abbreviation": "WB"
+        }
+        test_referencefile2 = create_metadata(db, ReferencefileSchemaPost(**referencefile_ref2))
+        with TestClient(app) as client:
+            for mod_abbreviation in ["WB", "ZFIN"]:
+                new_referencefile_mod = {
+                    "referencefile_id": int(test_referencefile),
+                    "mod_abbreviation": mod_abbreviation
+                }
+                client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)
+            for mod_abbreviation in ["FB"]:
+                new_referencefile_mod = {
+                    "referencefile_id": int(test_referencefile2),
+                    "mod_abbreviation": mod_abbreviation
+                }
+                client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)
+            request = client.post(url=f"/reference/referencefile/merge/{test_reference.new_ref_curie}/"
+                                      f"{test_referencefile}/{test_referencefile2}", headers=auth_headers)
+            assert request.status_code == status.HTTP_201_CREATED
+
+
