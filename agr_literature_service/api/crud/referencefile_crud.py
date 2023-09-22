@@ -83,9 +83,13 @@ def patch(db: Session, referencefile_id: int, request):
                                                                     file_extension=request["file_extension"],
                                                                     reference_curie=request["reference_curie"], db=db)
     if "reference_curie" in request:
-        request["reference_id"] = referencefile.reference.reference_id
+        res = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == request["reference_curie"]).one_or_none()
+        if res is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"Reference with curie {request.reference_curie} is not available")
+        request["reference_id"] = res[0]
         del request["reference_curie"]
-
     for field, value in request.items():
         setattr(referencefile, field, value)
     db.commit()

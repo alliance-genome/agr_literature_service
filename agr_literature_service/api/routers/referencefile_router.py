@@ -168,6 +168,7 @@ def patch(referencefile_id: int,
     set_global_user_from_okta(db, user)
     return referencefile_crud.patch(db, referencefile_id, request.dict(exclude_unset=True))
 
+
 @router.post('/merge/{curie_or_reference_id}/{losing_referencefile_id}/{winning_referencefile_id}',
              status_code=201)
 def merge_referencefiles(curie_or_reference_id: str,

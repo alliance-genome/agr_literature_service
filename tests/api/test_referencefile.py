@@ -8,6 +8,7 @@ from agr_literature_service.api.models import ReferencefileModel
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from .test_reference import test_reference # noqa
+from .test_reference import test_reference as test_reference2 # noqa
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from agr_literature_service.api.crud.referencefile_crud import create_metadata
@@ -48,6 +49,33 @@ class TestReferencefile:
             ref_file_obj = db.query(ReferencefileModel).filter(
                 ReferencefileModel.referencefile_id == test_referencefile).one_or_none()
             assert ref_file_obj.display_name == patch_referencefile["display_name"]
+
+    def test_patch_referencefile_same_name(self, db, test_referencefile, auth_headers, test_reference2):  # noqa
+        referencefile_ref2 = {
+            "display_name": "Bob",
+            "reference_curie": test_reference2.new_ref_curie,
+            "file_class": "main",
+            "file_publication_status": "final",
+            "file_extension": "pdf",
+            "pdf_type": "pdf",
+            "md5sum": "1234567891"
+        }
+        create_metadata(db, ReferencefileSchemaPost(**referencefile_ref2))
+        patch_referencefile_ref1 = {
+            "reference_curie": test_reference2.new_ref_curie
+        }
+        with TestClient(app) as client:
+            response = client.patch(url=f"/reference/referencefile/{test_referencefile}",
+                                    json=patch_referencefile_ref1, headers=auth_headers)
+            assert response.status_code == status.HTTP_202_ACCEPTED
+            response = client.get(url=f"/reference/referencefile/{test_referencefile}")
+            assert response.json()["display_name"] == "Bob_1"
+            assert response.json()["reference_curie"] == test_reference2.new_ref_curie
+            ref_file_obj: ReferencefileModel = db.query(ReferencefileModel).filter(
+                ReferencefileModel.referencefile_id == test_referencefile).one_or_none()
+            assert ref_file_obj.display_name == "Bob_1"
+            assert ref_file_obj.reference.curie == test_reference2.new_ref_curie
+
 
 
     def test_show_all(self, db, test_referencefile): # noqa
