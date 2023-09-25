@@ -4,7 +4,7 @@ import pytest
 from starlette.testclient import TestClient
 from fastapi import status
 
-from agr_literature_service.api.crud.topic_entity_tag_utils import get_ancestors
+from agr_literature_service.api.crud.topic_entity_tag_utils import get_related_terms
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import TopicEntityTagModel
 from agr_literature_service.lit_processing.utils.okta_utils import get_authentication_token
@@ -370,14 +370,12 @@ class TestTopicEntityTag:
     @pytest.mark.webtest
     def test_get_ancestors(self, auth_headers):  # noqa
         onto_node = "ATP:0000079"
-        token = get_authentication_token()
-        ancestors = get_ancestors(onto_node, token)
+        ancestors = get_related_terms(onto_node)
         expected_ancestors = {"ATP:0000001", "ATP:0000002", "ATP:0000009"}
         assert [ancestor in expected_ancestors for ancestor in ancestors]
 
     @pytest.mark.webtest
     def test_get_ancestors_non_existent(self, auth_headers):  # noqa
         onto_node = "ATP:000007"
-        token = get_authentication_token()
-        ancestors = get_ancestors(onto_node, token)
+        ancestors = get_related_terms(onto_node)
         assert len(ancestors) == 0

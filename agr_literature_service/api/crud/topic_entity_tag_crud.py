@@ -7,13 +7,14 @@ from typing import Dict
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import case, and_
+from sqlalchemy import case, and_, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
-    get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, add_audited_object_users_if_not_exist
+    get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, add_audited_object_users_if_not_exist, \
+    get_ancestors_or_descendants
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
     ReferenceModel, TopicEntityTagSourceModel, ModModel
@@ -123,29 +124,85 @@ def destroy_tag(db: Session, topic_entity_tag_id: int):
     db.commit()
 
 
-def validate_tags_on_insertion(db: Session, tag_obj: TopicEntityTagModel):
-    related_tags = db.query(TopicEntityTagModel).options(
-        subqueryload(TopicEntityTagModel.topic_entity_tag_source)).filter(
-        and_(
-            TopicEntityTagModel.topic_entity_tag_id != tag_obj.topic_entity_tag_id,
-            TopicEntityTagModel.reference_id == tag_obj.reference_id,
-            TopicEntityTagModel.topic == tag_obj.topic,
-            TopicEntityTagModel.entity_type == tag_obj.entity_type,
-            TopicEntityTagModel.entity == tag_obj.entity,
-            TopicEntityTagModel.species == tag_obj.species
-        )
-    ).all()
+def validate_tags_already_in_db(db: Session, new_tag_obj: TopicEntityTagModel):
+    if new_tag_obj.topic_entity_tag_source.validation_type is not None and db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.reference_id == new_tag_obj.reference_id,
+            TopicEntityTagModel.topic_entity_tag_source.has(
+                TopicEntityTagSourceModel.mod_id == new_tag_obj.topic_entity_tag_source.mod_id
+            )
+    ).count() > 1:
+        more_generic_topics = get_ancestors_or_descendants(onto_node=new_tag_obj.topic)
+        more_generic_topics.extend(new_tag_obj.topic)
+        more_generic_tags = db.query(TopicEntityTagModel).options(
+            subqueryload(TopicEntityTagModel.topic_entity_tag_source)).filter(
+            and_(
+                TopicEntityTagModel.topic_entity_tag_id != new_tag_obj.topic_entity_tag_id,
+                TopicEntityTagModel.reference_id == new_tag_obj.reference_id,
+                TopicEntityTagModel.topic.in_(more_generic_topics),
+                or_(
+                    and_(
+                        TopicEntityTagModel.entity_type == new_tag_obj.entity_type,
+                        TopicEntityTagModel.entity == new_tag_obj.entity
+                    ),
+                    TopicEntityTagModel.entity_type.is_(None)
+                ),
+                or_(
+                    TopicEntityTagModel.species.is_(None),
+                    TopicEntityTagModel.species == new_tag_obj.species
+                ),
+                TopicEntityTagModel.topic_entity_tag_source.has(
+                    TopicEntityTagSourceModel.mod_id == new_tag_obj.topic_entity_tag_source.mod_id
+                )
+            )
+        ).all()
+        more_generic_tag: TopicEntityTagModel
+        for more_generic_tag in more_generic_tags:
+            more_generic_tag.validated_by.append(new_tag_obj)
 
-    db.query()
-    related_tag: TopicEntityTagModel
-    for related_tag in related_tags:
-        if related_tag.topic_entity_tag_source.mod_id == tag_obj.topic_entity_tag_source.mod_id:
-            if related_tag.topic_entity_tag_source.validation_type in [ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR,
-                                                                       ATP_ID_SOURCE_CURATION_TOOLS]:
-                tag_obj.validated_by.append(related_tag)
-            if tag_obj.topic_entity_tag_source.validation_type in [ATP_ID_SOURCE_AUTHOR, ATP_ID_SOURCE_CURATOR,
-                                                                   ATP_ID_SOURCE_CURATION_TOOLS]:
-                related_tag.validated_by.append(tag_obj)
+
+def validate_tag_with_tags_in_db(db: Session, new_tag_obj: TopicEntityTagModel):
+    if db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.reference_id == new_tag_obj.reference_id,
+            TopicEntityTagModel.topic_entity_tag_source.has(
+                TopicEntityTagSourceModel.mod_id == new_tag_obj.topic_entity_tag_source.mod_id
+            )
+    ).count() > 1:
+        more_specific_topics = get_ancestors_or_descendants(onto_node=new_tag_obj.topic, ancestors_or_descendants='descendants')
+        more_specific_topics.extend(new_tag_obj.topic)
+        more_specific_tags_query = db.query(TopicEntityTagModel).options(
+            subqueryload(TopicEntityTagModel.topic_entity_tag_source)).filter(
+            and_(
+                TopicEntityTagModel.topic_entity_tag_id != new_tag_obj.topic_entity_tag_id,
+                TopicEntityTagModel.reference_id == new_tag_obj.reference_id,
+                TopicEntityTagModel.topic.in_(more_specific_topics),
+                TopicEntityTagModel.topic_entity_tag_source.has(
+                    TopicEntityTagSourceModel.mod_id == new_tag_obj.topic_entity_tag_source.mod_id
+                )
+            )
+        )
+        if new_tag_obj.entity_type is not None:
+            more_specific_tags_query.filter(
+                and_(
+                    TopicEntityTagModel.entity_type == new_tag_obj.entity_type,
+                    TopicEntityTagModel.entity == new_tag_obj.entity
+                )
+            )
+        if new_tag_obj.species is not None:
+            more_specific_tags_query.filter(
+                TopicEntityTagModel.species == new_tag_obj.species
+            )
+        more_specific_tags = more_specific_tags_query.all()
+        more_specific_tag: TopicEntityTagModel
+        for more_specific_tag in more_specific_tags:
+            if more_specific_tag.topic_entity_tag_source.validation_type is not None:
+                new_tag_obj.validated_by.append(more_specific_tag)
+
+
+def validate_tags_on_insertion(db: Session, tag_obj: TopicEntityTagModel):
+    # 1. identify more generic tags (or same tag) already in the db to be validated by current tag
+    validate_tags_already_in_db(db, tag_obj)
+    # 2. identify more specific tags (or same tag) already in the db that validate the current tag
+    validate_tag_with_tags_in_db(db, tag_obj)
 
 
 def create_source(db: Session, source: TopicEntityTagSourceSchemaCreate):
