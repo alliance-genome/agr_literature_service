@@ -108,6 +108,41 @@ def get_map_ateam_curies_to_names(curies_category, curies, token):
         return {}
 
 
+def get_ancestors(onto_node: str, token: str):
+    """
+
+    Retrieve the ancestors of a given ontology node.
+
+    Parameters:
+    - onto_node (str): The ontology node for which to retrieve the ancestors.
+    - token (str): The token used for authentication.
+
+    Returns:
+    - List[str]: A list of ontology node IDs representing the ancestors of the given ontology node.
+
+    Example Usage:
+    ```
+    onto_node = "GO:0008150"
+    token = "<access_token>"
+    ancestors = get_ancestors(onto_node, token)
+    print(ancestors)
+    ```
+    """
+    ateam_api_base_url = environ.get('ATEAM_API_URL', "https://beta-curation.alliancegenome.org/api")
+    ateam_api = f'{ateam_api_base_url}/atpterm/{onto_node}/ancestors'
+    request = urllib.request.Request(url=ateam_api)
+    request.add_header("Authorization", f"Bearer {token}")
+    request.add_header("Content-type", "application/json")
+    request.add_header("Accept", "application/json")
+    try:
+        with urllib.request.urlopen(request) as response:
+            resp = response.read().decode("utf8")
+            resp_obj = json.loads(resp)
+            return [entity["curie"] for entity in resp_obj["entities"]] if "entities" in resp_obj else []
+    except HTTPError:
+        return []
+
+
 def check_and_set_sgd_display_tag(topic_entity_tag_data):
 
     topic = topic_entity_tag_data['topic']

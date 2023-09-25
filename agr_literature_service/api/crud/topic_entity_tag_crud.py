@@ -135,6 +135,8 @@ def validate_tags_on_insertion(db: Session, tag_obj: TopicEntityTagModel):
             TopicEntityTagModel.species == tag_obj.species
         )
     ).all()
+
+    db.query()
     related_tag: TopicEntityTagModel
     for related_tag in related_tags:
         if related_tag.topic_entity_tag_source.mod_id == tag_obj.topic_entity_tag_source.mod_id:
