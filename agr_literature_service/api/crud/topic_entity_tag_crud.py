@@ -124,85 +124,53 @@ def destroy_tag(db: Session, topic_entity_tag_id: int):
     db.commit()
 
 
-def validate_tags_already_in_db(db: Session, new_tag_obj: TopicEntityTagModel):
-    if new_tag_obj.topic_entity_tag_source.validation_type is not None and db.query(TopicEntityTagModel).filter(
-            TopicEntityTagModel.reference_id == new_tag_obj.reference_id,
-            TopicEntityTagModel.topic_entity_tag_source.has(
-                TopicEntityTagSourceModel.mod_id == new_tag_obj.topic_entity_tag_source.mod_id
-            )
-    ).count() > 1:
+def validate_tags_already_in_db(db: Session, new_tag_obj: TopicEntityTagModel, related_tags_in_db):
+    if new_tag_obj.topic_entity_tag_source.validation_type is not None:
         more_generic_topics = get_ancestors_or_descendants(onto_node=new_tag_obj.topic)
         more_generic_topics.extend(new_tag_obj.topic)
-        more_generic_tags = db.query(TopicEntityTagModel).options(
-            subqueryload(TopicEntityTagModel.topic_entity_tag_source)).filter(
-            and_(
-                TopicEntityTagModel.topic_entity_tag_id != new_tag_obj.topic_entity_tag_id,
-                TopicEntityTagModel.reference_id == new_tag_obj.reference_id,
-                TopicEntityTagModel.topic.in_(more_generic_topics),
-                or_(
-                    and_(
-                        TopicEntityTagModel.entity_type == new_tag_obj.entity_type,
-                        TopicEntityTagModel.entity == new_tag_obj.entity
-                    ),
-                    TopicEntityTagModel.entity_type.is_(None)
-                ),
-                or_(
-                    TopicEntityTagModel.species.is_(None),
-                    TopicEntityTagModel.species == new_tag_obj.species
-                ),
-                TopicEntityTagModel.topic_entity_tag_source.has(
-                    TopicEntityTagSourceModel.mod_id == new_tag_obj.topic_entity_tag_source.mod_id
-                )
-            )
-        ).all()
-        more_generic_tag: TopicEntityTagModel
-        for more_generic_tag in more_generic_tags:
-            more_generic_tag.validated_by.append(new_tag_obj)
+        more_generic_topics = set(more_generic_topics)
+        tag_in_db: TopicEntityTagModel
+        for tag_in_db in related_tags_in_db:
+            if tag_in_db.topic in more_generic_topics:
+                if tag_in_db.entity_type is None or (tag_in_db.entity_type == new_tag_obj.entity_type and
+                                                     tag_in_db.entity == new_tag_obj.entity):
+                    if tag_in_db.species is None or tag_in_db.species == new_tag_obj.species:
+                        tag_in_db.validated_by.append(new_tag_obj)
 
 
-def validate_tag_with_tags_in_db(db: Session, new_tag_obj: TopicEntityTagModel):
-    if db.query(TopicEntityTagModel).filter(
-            TopicEntityTagModel.reference_id == new_tag_obj.reference_id,
-            TopicEntityTagModel.topic_entity_tag_source.has(
-                TopicEntityTagSourceModel.mod_id == new_tag_obj.topic_entity_tag_source.mod_id
-            )
-    ).count() > 1:
-        more_specific_topics = get_ancestors_or_descendants(onto_node=new_tag_obj.topic, ancestors_or_descendants='descendants')
-        more_specific_topics.extend(new_tag_obj.topic)
-        more_specific_tags_query = db.query(TopicEntityTagModel).options(
-            subqueryload(TopicEntityTagModel.topic_entity_tag_source)).filter(
-            and_(
-                TopicEntityTagModel.topic_entity_tag_id != new_tag_obj.topic_entity_tag_id,
-                TopicEntityTagModel.reference_id == new_tag_obj.reference_id,
-                TopicEntityTagModel.topic.in_(more_specific_topics),
-                TopicEntityTagModel.topic_entity_tag_source.has(
-                    TopicEntityTagSourceModel.mod_id == new_tag_obj.topic_entity_tag_source.mod_id
-                )
-            )
-        )
-        if new_tag_obj.entity_type is not None:
-            more_specific_tags_query.filter(
-                and_(
-                    TopicEntityTagModel.entity_type == new_tag_obj.entity_type,
-                    TopicEntityTagModel.entity == new_tag_obj.entity
-                )
-            )
-        if new_tag_obj.species is not None:
-            more_specific_tags_query.filter(
-                TopicEntityTagModel.species == new_tag_obj.species
-            )
-        more_specific_tags = more_specific_tags_query.all()
-        more_specific_tag: TopicEntityTagModel
-        for more_specific_tag in more_specific_tags:
-            if more_specific_tag.topic_entity_tag_source.validation_type is not None:
-                new_tag_obj.validated_by.append(more_specific_tag)
+def validate_tag_with_tags_in_db(db: Session, new_tag_obj: TopicEntityTagModel, related_tags_in_db):
+    more_specific_topics = get_ancestors_or_descendants(onto_node=new_tag_obj.topic, ancestors_or_descendants='descendants')
+    more_specific_topics.extend(new_tag_obj.topic)
+    more_specific_topics = set(more_specific_topics)
+    tag_in_db: TopicEntityTagModel
+    for tag_in_db in related_tags_in_db:
+        if tag_in_db.topic_entity_tag_source.validation_type is not None:
+            if tag_in_db.topic in more_specific_topics:
+                if new_tag_obj.entity_type is None or (tag_in_db.entity_type == new_tag_obj.entity_type and
+                                                       tag_in_db.entity == new_tag_obj.entity):
+                    if new_tag_obj.species is None or tag_in_db.species == new_tag_obj.species:
+                        new_tag_obj.validated_by.append(tag_in_db)
 
 
 def validate_tags_on_insertion(db: Session, tag_obj: TopicEntityTagModel):
+    related_tags_in_db = db.query(TopicEntityTagModel).options(
+        subqueryload(TopicEntityTagModel.topic_entity_tag_source)).filter(
+        and_(
+            TopicEntityTagModel.topic_entity_tag_id != tag_obj.topic_entity_tag_id,
+            TopicEntityTagModel.reference_id == tag_obj.reference_id,
+            TopicEntityTagModel.topic_entity_tag_source.has(
+                TopicEntityTagSourceModel.mod_id == tag_obj.topic_entity_tag_source.mod_id
+            )
+        )
+    ).all()
+    if len(related_tags_in_db) == 0:
+        return
     # 1. identify more generic tags (or same tag) already in the db to be validated by current tag
-    validate_tags_already_in_db(db, tag_obj)
+    validate_tags_already_in_db(db, tag_obj, related_tags_in_db)
     # 2. identify more specific tags (or same tag) already in the db that validate the current tag
-    validate_tag_with_tags_in_db(db, tag_obj)
+    validate_tag_with_tags_in_db(db, tag_obj, related_tags_in_db)
+    # TODO: validate pure entity-only tags if mixed topic + entity tags are entered for the same entity
+    # TODO: consider negative tags
 
 
 def create_source(db: Session, source: TopicEntityTagSourceSchemaCreate):
