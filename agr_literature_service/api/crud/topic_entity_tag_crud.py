@@ -123,7 +123,7 @@ def destroy_tag(db: Session, topic_entity_tag_id: int):
     db.commit()
 
 
-def validate_tags_already_in_db(db: Session, new_tag_obj: TopicEntityTagModel, related_tags_in_db):
+def validate_tags_already_in_db(new_tag_obj: TopicEntityTagModel, related_tags_in_db):
     if new_tag_obj.topic_entity_tag_source.validation_type is not None:
         more_generic_topics = get_ancestors_or_descendants(onto_node=new_tag_obj.topic)
         more_generic_topics.extend(new_tag_obj.topic)
@@ -137,7 +137,7 @@ def validate_tags_already_in_db(db: Session, new_tag_obj: TopicEntityTagModel, r
                         tag_in_db.validated_by.append(new_tag_obj)
 
 
-def validate_tag_with_tags_in_db(db: Session, new_tag_obj: TopicEntityTagModel, related_tags_in_db):
+def validate_tag_with_tags_in_db(new_tag_obj: TopicEntityTagModel, related_tags_in_db):
     more_specific_topics = get_ancestors_or_descendants(onto_node=new_tag_obj.topic, ancestors_or_descendants='descendants')
     more_specific_topics.extend(new_tag_obj.topic)
     more_specific_topics = set(more_specific_topics)
