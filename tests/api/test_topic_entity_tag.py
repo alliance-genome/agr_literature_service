@@ -4,7 +4,7 @@ import pytest
 from starlette.testclient import TestClient
 from fastapi import status
 
-from agr_literature_service.api.crud.topic_entity_tag_utils import get_related_terms
+from agr_literature_service.api.crud.topic_entity_tag_utils import get_ancestors_or_descendants
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import TopicEntityTagModel
 from agr_literature_service.lit_processing.utils.okta_utils import get_authentication_token
@@ -164,6 +164,7 @@ class TestTopicEntityTag:
             response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}").json()
             assert len(response) > 0
 
+    @pytest.mark.webtest
     def test_validation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
         with TestClient(app) as client:
             author_source_1 = {
@@ -204,26 +205,20 @@ class TestTopicEntityTag:
                 "topic_entity_tag_source_id": auth_source_2_resp.json(),
                 "negated": True
             }
-            not_validated_tag_aut = {
-                "reference_curie": test_reference.new_ref_curie,
-                "topic": "ATP:0000123",
-                "entity_type": "ATP:0000005",
-                "entity": "WB:WBGene00003001",
-                "entity_source": "alliance",
-                "species": "NCBITaxon:6239",
-                "topic_entity_tag_source_id": auth_source_2_resp.json(),
-                "negated": False
-            }
             client.post(url="/topic_entity_tag/", json=validating_tag_aut_1, headers=auth_headers)
             client.post(url="/topic_entity_tag/", json=validating_tag_aut_2, headers=auth_headers)
-            not_validated_tag_aut_id = client.post(url="/topic_entity_tag/", json=not_validated_tag_aut,
-                                                   headers=auth_headers).json()
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
             assert response.status_code == status.HTTP_200_OK
             tag_obj: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
                 TopicEntityTagModel.topic_entity_tag_id == test_topic_entity_tag.new_tet_id
             ).one()
-            assert len(tag_obj.validated_by) > 0
+            assert len(tag_obj.validated_by) == 2
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            assert response.json()["validation_value_author"] == "validated_wrong"
+
+    @pytest.mark.webtest
+    def test_validation_wrong(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
+        with TestClient(app) as client:
             curator_source = {
                 "source_type": "curator",
                 "source_method": "abc_literature_system",
@@ -287,15 +282,70 @@ class TestTopicEntityTag:
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_tools_1, headers=auth_headers)
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_tools_2, headers=auth_headers)
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
-            assert response.json()["validation_value_author"] == "validated_wrong"
+            assert response.json()["validation_value_author"] == "not_validated"
             assert response.json()["validation_value_curator"] == "validation_conflict"
             assert response.json()["validation_value_curation_tools"] == "validated_right"
             response = client.get(f"/topic_entity_tag/{cur_2_tag_id}")
-            assert response.json()["validation_value_author"] == "validated_wrong"
+            assert response.json()["validation_value_author"] == "not_validated"
             assert response.json()["validation_value_curator"] == "validation_conflict"
             assert response.json()["validation_value_curation_tools"] == "validated_right"
-            response = client.get(f"/topic_entity_tag/{not_validated_tag_aut_id}")
-            assert response.json()["validation_value_curation_tools"] == "not_validated"
+
+    @pytest.mark.webtest
+    def test_validate_generic_specific(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
+        with TestClient(app) as client:
+            author_source_1 = {
+                "source_type": "community curation",
+                "source_method": "acknowledge",
+                "validation_type": "author",
+                "evidence": "test_eco_code",
+                "description": "author from acknowledge",
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            author_source_2 = {
+                "source_type": "manual_curation",
+                "source_method": "abc_interface",
+                "validation_type": "curator",
+                "evidence": "test_eco_code",
+                "description": "Curator using the ABC",
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            auth_source_1_resp = client.post(url="/topic_entity_tag/source", json=author_source_1, headers=auth_headers)
+            auth_source_2_resp = client.post(url="/topic_entity_tag/source", json=author_source_2, headers=auth_headers)
+            more_generic_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",  # more generic topic
+                "topic_entity_tag_source_id": auth_source_1_resp.json(),
+                "negated": False
+            }
+            more_specific_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000084",  # made this more specific
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_source": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": auth_source_2_resp.json(),
+                "negated": False
+            }
+
+            # add the new tags
+            more_generic_tag_id = client.post(url="/topic_entity_tag/", json=more_generic_tag,
+                                              headers=auth_headers).json()
+            more_specific_tag_id = client.post(url="/topic_entity_tag/", json=more_specific_tag,
+                                               headers=auth_headers).json()
+
+            # next, we check if the validation process is correct. Supposed that your system recognizes more specific
+            # tags validate more generic ones, so:
+            generic_tag_obj: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == more_generic_tag_id
+            ).one()
+            assert len(generic_tag_obj.validated_by) > 0
+            assert int(more_specific_tag_id) in {tag.topic_entity_tag_id for tag in generic_tag_obj.validated_by}
+
+            specific_tag_obj: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == int(more_specific_tag_id)
+            ).one()
+            assert len(specific_tag_obj.validated_by) == 0  # nothing should validate the more specific tag
 
     @pytest.mark.webtest
     def test_get_map_entity_curie_to_name(self, test_topic_entity_tag, test_topic_entity_tag_source, test_mod, # noqa
@@ -370,12 +420,21 @@ class TestTopicEntityTag:
     @pytest.mark.webtest
     def test_get_ancestors(self, auth_headers):  # noqa
         onto_node = "ATP:0000079"
-        ancestors = get_related_terms(onto_node)
+        ancestors = get_ancestors_or_descendants(onto_node)
         expected_ancestors = {"ATP:0000001", "ATP:0000002", "ATP:0000009"}
         assert [ancestor in expected_ancestors for ancestor in ancestors]
 
     @pytest.mark.webtest
+    def test_get_descendants(self, auth_headers):  # noqa
+        onto_node = "ATP:0000009"
+        descendants = get_ancestors_or_descendants(onto_node, ancestors_or_descendants='descendants')
+        expected_descendants = {'ATP:0000079', 'ATP:0000080', 'ATP:0000081', 'ATP:0000082', 'ATP:0000083',
+                                'ATP:0000084', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087', 'ATP:0000033',
+                                'ATP:0000034', 'ATP:0000100'}
+        assert [ancestor in expected_descendants for ancestor in descendants]
+
+    @pytest.mark.webtest
     def test_get_ancestors_non_existent(self, auth_headers):  # noqa
         onto_node = "ATP:000007"
-        ancestors = get_related_terms(onto_node)
+        ancestors = get_ancestors_or_descendants(onto_node)
         assert len(ancestors) == 0
