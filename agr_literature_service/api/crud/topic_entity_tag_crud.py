@@ -165,9 +165,9 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel):
     if len(related_tags_in_db) == 0:
         return
     # 1. identify more generic tags (or same tag) already in the db to be validated by current tag
-    validate_tags_already_in_db(db, new_tag_obj, related_tags_in_db)
+    validate_tags_already_in_db(new_tag_obj, related_tags_in_db)
     # 2. identify more specific tags (or same tag) already in the db that validate the current tag
-    validate_tag_with_tags_in_db(db, new_tag_obj, related_tags_in_db)
+    validate_tag_with_tags_in_db(new_tag_obj, related_tags_in_db)
     # 3. validate pure entity-only tags if mixed topic + entity tags are entered for the same entity
     if new_tag_obj.entity is not None and new_tag_obj.entity_type != new_tag_obj.topic:
         for tag_in_db in related_tags_in_db:
