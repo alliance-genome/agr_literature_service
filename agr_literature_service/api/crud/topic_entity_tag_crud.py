@@ -52,7 +52,6 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
         db.refresh(new_db_obj)
         topic_entity_tag_id = new_db_obj.topic_entity_tag_id
         validate_tags(db=db, new_tag_obj=new_db_obj)
-        db.commit()
     except (IntegrityError, HTTPException) as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -169,8 +168,13 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel):
     validate_tags_already_in_db(db, new_tag_obj, related_tags_in_db)
     # 2. identify more specific tags (or same tag) already in the db that validate the current tag
     validate_tag_with_tags_in_db(db, new_tag_obj, related_tags_in_db)
-    # TODO: validate pure entity-only tags if mixed topic + entity tags are entered for the same entity
-    # TODO: consider negative tags
+    # 3. validate pure entity-only tags if mixed topic + entity tags are entered for the same entity
+    if new_tag_obj.entity is not None and new_tag_obj.entity_type != new_tag_obj.topic:
+        for tag_in_db in related_tags_in_db:
+            if tag_in_db.topic == tag_in_db.entity_type and tag_in_db.entity == tag_in_db.entity:
+                tag_in_db.validated_by.append(new_tag_obj)
+    # TODO: fix validation for negative tags
+    db.commit()
 
 
 def create_source(db: Session, source: TopicEntityTagSourceSchemaCreate):
