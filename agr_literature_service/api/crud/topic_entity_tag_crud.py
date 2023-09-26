@@ -130,8 +130,8 @@ def validate_tags_already_in_db(new_tag_obj: TopicEntityTagModel, related_tags_i
         tag_in_db: TopicEntityTagModel
         for tag_in_db in related_tags_in_db:
             if tag_in_db.topic in more_generic_topics:
-                if tag_in_db.entity_type is None or (tag_in_db.entity_type == new_tag_obj.entity_type and
-                                                     tag_in_db.entity == new_tag_obj.entity):
+                if tag_in_db.entity_type is None or (tag_in_db.entity_type == new_tag_obj.entity_type
+                                                     and tag_in_db.entity == new_tag_obj.entity):
                     if tag_in_db.species is None or tag_in_db.species == new_tag_obj.species:
                         tag_in_db.validated_by.append(new_tag_obj)
 
@@ -144,8 +144,8 @@ def validate_tag_with_tags_in_db(new_tag_obj: TopicEntityTagModel, related_tags_
     for tag_in_db in related_tags_in_db:
         if tag_in_db.topic_entity_tag_source.validation_type is not None:
             if tag_in_db.topic in more_specific_topics:
-                if new_tag_obj.entity_type is None or (tag_in_db.entity_type == new_tag_obj.entity_type and
-                                                       tag_in_db.entity == new_tag_obj.entity):
+                if new_tag_obj.entity_type is None or (tag_in_db.entity_type == new_tag_obj.entity_type
+                                                       and tag_in_db.entity == new_tag_obj.entity):
                     if new_tag_obj.species is None or tag_in_db.species == new_tag_obj.species:
                         new_tag_obj.validated_by.append(tag_in_db)
 
