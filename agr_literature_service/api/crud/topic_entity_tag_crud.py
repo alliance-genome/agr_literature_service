@@ -7,7 +7,7 @@ from typing import Dict
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import case, and_, or_
+from sqlalchemy import case, and_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
