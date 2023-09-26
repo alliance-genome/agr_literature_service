@@ -51,7 +51,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
         db.flush()
         db.refresh(new_db_obj)
         topic_entity_tag_id = new_db_obj.topic_entity_tag_id
-        validate_tags_on_insertion(db=db, tag_obj=new_db_obj)
+        validate_tags(db=db, new_tag_obj=new_db_obj)
         db.commit()
     except (IntegrityError, HTTPException) as e:
         db.rollback()
@@ -152,23 +152,23 @@ def validate_tag_with_tags_in_db(db: Session, new_tag_obj: TopicEntityTagModel, 
                         new_tag_obj.validated_by.append(tag_in_db)
 
 
-def validate_tags_on_insertion(db: Session, tag_obj: TopicEntityTagModel):
+def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel):
     related_tags_in_db = db.query(TopicEntityTagModel).options(
         subqueryload(TopicEntityTagModel.topic_entity_tag_source)).filter(
         and_(
-            TopicEntityTagModel.topic_entity_tag_id != tag_obj.topic_entity_tag_id,
-            TopicEntityTagModel.reference_id == tag_obj.reference_id,
+            TopicEntityTagModel.topic_entity_tag_id != new_tag_obj.topic_entity_tag_id,
+            TopicEntityTagModel.reference_id == new_tag_obj.reference_id,
             TopicEntityTagModel.topic_entity_tag_source.has(
-                TopicEntityTagSourceModel.mod_id == tag_obj.topic_entity_tag_source.mod_id
+                TopicEntityTagSourceModel.mod_id == new_tag_obj.topic_entity_tag_source.mod_id
             )
         )
     ).all()
     if len(related_tags_in_db) == 0:
         return
     # 1. identify more generic tags (or same tag) already in the db to be validated by current tag
-    validate_tags_already_in_db(db, tag_obj, related_tags_in_db)
+    validate_tags_already_in_db(db, new_tag_obj, related_tags_in_db)
     # 2. identify more specific tags (or same tag) already in the db that validate the current tag
-    validate_tag_with_tags_in_db(db, tag_obj, related_tags_in_db)
+    validate_tag_with_tags_in_db(db, new_tag_obj, related_tags_in_db)
     # TODO: validate pure entity-only tags if mixed topic + entity tags are entered for the same entity
     # TODO: consider negative tags
 
