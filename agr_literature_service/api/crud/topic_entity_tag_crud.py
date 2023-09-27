@@ -134,6 +134,12 @@ def validate_tags_already_in_db(new_tag_obj: TopicEntityTagModel, related_tags_i
                                                      and tag_in_db.entity == new_tag_obj.entity):
                     if tag_in_db.species is None or tag_in_db.species == new_tag_obj.species:
                         tag_in_db.validated_by.append(new_tag_obj)
+    # validate pure entity-only tags if the new tag is a mixed topic + entity tag for the same entity
+    if new_tag_obj.entity is not None and new_tag_obj.entity_type != new_tag_obj.topic:
+        for tag_in_db in related_tags_in_db:
+            if (tag_in_db.topic == tag_in_db.entity_type == new_tag_obj.entity_type
+                    and new_tag_obj.entity == tag_in_db.entity):
+                tag_in_db.validated_by.append(new_tag_obj)
 
 
 def validate_tag_with_tags_in_db(new_tag_obj: TopicEntityTagModel, related_tags_in_db):
@@ -148,6 +154,12 @@ def validate_tag_with_tags_in_db(new_tag_obj: TopicEntityTagModel, related_tags_
                                                        and tag_in_db.entity == new_tag_obj.entity):
                     if new_tag_obj.species is None or tag_in_db.species == new_tag_obj.species:
                         new_tag_obj.validated_by.append(tag_in_db)
+    # if the new tag is a pure entity-only tag and there are mixed topic + entity tags with the same entity
+    if new_tag_obj.topic == new_tag_obj.entity_type:
+        for tag_in_db in related_tags_in_db:
+            if (tag_in_db.entity_type != tag_in_db.topic and new_tag_obj.entity_type == tag_in_db.entity_type and
+                    new_tag_obj.entity == tag_in_db.entity):
+                tag_in_db.validated_by.append(new_tag_obj)
 
 
 def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel):
@@ -167,11 +179,6 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel):
     validate_tags_already_in_db(new_tag_obj, related_tags_in_db)
     # 2. identify more specific tags (or same tag) already in the db that validate the current tag
     validate_tag_with_tags_in_db(new_tag_obj, related_tags_in_db)
-    # 3. validate pure entity-only tags if mixed topic + entity tags are entered for the same entity
-    if new_tag_obj.entity is not None and new_tag_obj.entity_type != new_tag_obj.topic:
-        for tag_in_db in related_tags_in_db:
-            if tag_in_db.topic == tag_in_db.entity_type and tag_in_db.entity == tag_in_db.entity:
-                tag_in_db.validated_by.append(new_tag_obj)
     # TODO: fix validation for negative tags
     db.commit()
 
