@@ -157,8 +157,8 @@ def validate_tag_with_tags_in_db(new_tag_obj: TopicEntityTagModel, related_tags_
     # if the new tag is a pure entity-only tag and there are mixed topic + entity tags with the same entity
     if new_tag_obj.topic == new_tag_obj.entity_type:
         for tag_in_db in related_tags_in_db:
-            if (tag_in_db.entity_type != tag_in_db.topic and new_tag_obj.entity_type == tag_in_db.entity_type and
-                    new_tag_obj.entity == tag_in_db.entity):
+            if (tag_in_db.entity_type != tag_in_db.topic and new_tag_obj.entity_type == tag_in_db.entity_type
+                    and new_tag_obj.entity == tag_in_db.entity):
                 tag_in_db.validated_by.append(new_tag_obj)
 
 
