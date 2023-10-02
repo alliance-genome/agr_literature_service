@@ -12,7 +12,7 @@ types-PyYAML
 types-aiofiles
 types-orjson
 types-pytz
-types-requests
+types-requests==2.31.0.6
 types-ujson
 types-docutils
 types-python-dateutil
