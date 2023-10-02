@@ -350,9 +350,9 @@ class TestTopicEntityTag:
             more_specific_tag_id = client.post(url="/topic_entity_tag/", json=more_specific_tag,
                                                headers=auth_headers).json()
             more_specific_tag_id_2 = client.post(url="/topic_entity_tag/", json=more_specific_tag_2,
-                                               headers=auth_headers).json()
+                                                 headers=auth_headers).json()
             more_generic_tag_id_2 = client.post(url="/topic_entity_tag/", json=more_generic_tag_2,
-                                              headers=auth_headers).json()
+                                                headers=auth_headers).json()
 
             # next, we check if the validation process is correct. Supposed that your system recognizes more specific
             # tags validate more generic ones, so:
