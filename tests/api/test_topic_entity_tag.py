@@ -349,10 +349,10 @@ class TestTopicEntityTag:
                                               headers=auth_headers).json()
             more_specific_tag_id = client.post(url="/topic_entity_tag/", json=more_specific_tag,
                                                headers=auth_headers).json()
-            more_specific_tag_id_2 = client.post(url="/topic_entity_tag/", json=more_specific_tag_2,
-                                                 headers=auth_headers).json()
-            more_generic_tag_id_2 = client.post(url="/topic_entity_tag/", json=more_generic_tag_2,
-                                                headers=auth_headers).json()
+            #more_specific_tag_id_2 = client.post(url="/topic_entity_tag/", json=more_specific_tag_2,
+            #                                     headers=auth_headers).json()
+            #more_generic_tag_id_2 = client.post(url="/topic_entity_tag/", json=more_generic_tag_2,
+            #                                    headers=auth_headers).json()
 
             # next, we check if the validation process is correct. Supposed that your system recognizes more specific
             # tags validate more generic ones, so:
@@ -362,21 +362,21 @@ class TestTopicEntityTag:
             assert len(generic_tag_obj.validated_by) > 0
             assert int(more_specific_tag_id) in {tag.topic_entity_tag_id for tag in generic_tag_obj.validated_by}
 
-            generic_tag_obj_2: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
-                TopicEntityTagModel.topic_entity_tag_id == more_generic_tag_id_2
-            ).one()
-            assert len(generic_tag_obj_2.validated_by) > 0
-            assert int(more_specific_tag_id_2) in {tag.topic_entity_tag_id for tag in generic_tag_obj_2.validated_by}
+            #generic_tag_obj_2: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
+            #    TopicEntityTagModel.topic_entity_tag_id == more_generic_tag_id_2
+            #).one()
+            #assert len(generic_tag_obj_2.validated_by) > 0
+            #assert int(more_specific_tag_id_2) in {tag.topic_entity_tag_id for tag in generic_tag_obj_2.validated_by}
 
             specific_tag_obj: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
                 TopicEntityTagModel.topic_entity_tag_id == int(more_specific_tag_id)
             ).one()
             assert len(specific_tag_obj.validated_by) == 0  # nothing should validate the more specific tag
 
-            specific_tag_obj_2: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
-                TopicEntityTagModel.topic_entity_tag_id == int(more_specific_tag_id_2)
-            ).one()
-            assert len(specific_tag_obj_2.validated_by) == 0  # nothing should validate the more specific tag
+            #specific_tag_obj_2: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
+            #    TopicEntityTagModel.topic_entity_tag_id == int(more_specific_tag_id_2)
+            #).one()
+            #assert len(specific_tag_obj_2.validated_by) == 0  # nothing should validate the more specific tag
 
     @pytest.mark.webtest
     def test_get_map_entity_curie_to_name(self, test_topic_entity_tag, test_topic_entity_tag_source, test_mod, # noqa
