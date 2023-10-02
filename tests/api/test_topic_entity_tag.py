@@ -317,9 +317,25 @@ class TestTopicEntityTag:
                 "topic_entity_tag_source_id": auth_source_1_resp.json(),
                 "negated": False
             }
+            more_generic_tag_2 = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000068",  # more generic topic
+                "topic_entity_tag_source_id": auth_source_1_resp.json(),
+                "negated": False
+            }
             more_specific_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000084",  # made this more specific
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_source": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": auth_source_2_resp.json(),
+                "negated": False
+            }
+            more_specific_tag_2 = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000071",  # made this more specific
                 "entity_type": "ATP:0000005",
                 "entity": "WB:WBGene00003001",
                 "entity_source": "alliance",
@@ -333,6 +349,10 @@ class TestTopicEntityTag:
                                               headers=auth_headers).json()
             more_specific_tag_id = client.post(url="/topic_entity_tag/", json=more_specific_tag,
                                                headers=auth_headers).json()
+            more_specific_tag_id_2 = client.post(url="/topic_entity_tag/", json=more_specific_tag_2,
+                                               headers=auth_headers).json()
+            more_generic_tag_id_2 = client.post(url="/topic_entity_tag/", json=more_generic_tag_2,
+                                              headers=auth_headers).json()
 
             # next, we check if the validation process is correct. Supposed that your system recognizes more specific
             # tags validate more generic ones, so:
@@ -342,10 +362,21 @@ class TestTopicEntityTag:
             assert len(generic_tag_obj.validated_by) > 0
             assert int(more_specific_tag_id) in {tag.topic_entity_tag_id for tag in generic_tag_obj.validated_by}
 
+            generic_tag_obj_2: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == more_generic_tag_id_2
+            ).one()
+            assert len(generic_tag_obj_2.validated_by) > 0
+            assert int(more_specific_tag_id_2) in {tag.topic_entity_tag_id for tag in generic_tag_obj_2.validated_by}
+
             specific_tag_obj: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
                 TopicEntityTagModel.topic_entity_tag_id == int(more_specific_tag_id)
             ).one()
             assert len(specific_tag_obj.validated_by) == 0  # nothing should validate the more specific tag
+
+            specific_tag_obj_2: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == int(more_specific_tag_id_2)
+            ).one()
+            assert len(specific_tag_obj_2.validated_by) == 0  # nothing should validate the more specific tag
 
     @pytest.mark.webtest
     def test_get_map_entity_curie_to_name(self, test_topic_entity_tag, test_topic_entity_tag_source, test_mod, # noqa
