@@ -1,15 +1,17 @@
 import json
 import urllib.request
 from os import environ
-from typing import Dict
+from typing import Dict, List
 from urllib.error import HTTPError
 
+from cachetools.func import ttl_cache
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from starlette import status
 
 from agr_literature_service.api.models import TopicEntityTagSourceModel, ReferenceModel, ModModel, TopicEntityTagModel
 from agr_literature_service.api.user import add_user_if_not_exists
+from agr_literature_service.lit_processing.utils.okta_utils import get_authentication_token
 
 # TODO: fix these to get from database or some other place?
 sgd_primary_display_tag = 'ATP:0000147'
@@ -106,6 +108,64 @@ def get_map_ateam_curies_to_names(curies_category, curies, token):
                                                                                                  resp_obj else [])}
     except HTTPError:
         return {}
+
+
+@ttl_cache(maxsize=128, ttl=60 * 60)
+def get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str = 'ancestors') -> List[str]:
+    """
+
+    This method `get_ancestors_or_descendants` is used to fetch the ancestors or descendants of a given ontology node.
+
+    Parameters:
+    - onto_node (str): The ontology node for which ancestors or descendants need to be fetched.
+    - ancestors_or_descendants (str, optional): The type of relation to fetch. Default is `'ancestors'`.
+    Valid values are `'ancestors'` and `'descendants'`.
+
+    Returns:
+    - list[str]: A list of ontology nodes that are ancestors or descendants of the given ontology node.
+
+    Note:
+    - This method uses the `get_authentication_token` function from the `okta_utils` module to fetch the authentication
+    token.
+    - It also relies on the `ATEAM_API_URL` environment variable to determine the base URL for the A-Team API.
+    - The method will make an HTTP request to the A-Team API using the provided ontology node and relation type.
+    - If successful, it will parse the response and extract the ontology node CURIEs from the `entities` field of the
+    response JSON.
+    - The extracted CURIEs will be returned as a list.
+    - In case of any error, an empty list will be returned.
+
+    Example Usage:
+    ```python
+    ontology_node = 'GO:0008150'
+    relation_type = 'ancestors'
+    result = get_ancestors_or_descendants(ontology_node, relation_type)
+    print(result)
+    # Output: ['GO:0022607', 'GO:0050896', 'GO:0008152', 'GO:0005575', 'GO:0050891', 'GO:0003674']
+
+    ontology_node = 'DOID:0060047'
+    relation_type = 'descendants'
+    result = get_ancestors_or_descendants(ontology_node, relation_type)
+    print(result)
+    # Output: ['DOID:0060400', 'DOID:0060399']
+    ```
+
+    """
+    if ancestors_or_descendants not in ['ancestors', 'descendants']:
+        return []
+    token = get_authentication_token()
+    ateam_api_base_url = environ.get('ATEAM_API_URL', "https://beta-curation.alliancegenome.org/api")
+    ateam_api = f'{ateam_api_base_url}/atpterm/{onto_node}/{ancestors_or_descendants}'
+    request = urllib.request.Request(url=ateam_api)
+    request.add_header("Authorization", f"Bearer {token}")
+    request.add_header("Content-type", "application/json")
+    request.add_header("Accept", "application/json")
+    try:
+        with urllib.request.urlopen(request) as response:
+            resp = response.read().decode("utf8")
+            resp_obj = json.loads(resp)
+            return [entity["curie"] for entity in resp_obj["entities"]] if "entities" in resp_obj else []
+    except HTTPError:
+        return []
 
 
 def check_and_set_sgd_display_tag(topic_entity_tag_data):

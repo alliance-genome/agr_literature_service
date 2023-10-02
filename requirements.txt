@@ -33,3 +33,4 @@ bs4==0.0.1
 
 elasticsearch==7.13.4
 retry~=0.9.2
+cachetools~=4.2.2

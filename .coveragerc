@@ -33,6 +33,9 @@ omit =
         agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_resources_nlm.py
 	agr_literature_service/lit_processing/data_ingest/utils/file_processing_utils.py
 
+	# pretty much all functions related to topic end entity tags require A-team API calls and are thus web tests only
+	agr_literature_service/api/crud/topic_entity_tag_crud.py
+
 [report]
 exclude_lines =
     # Have to re-enable the standard pragma
