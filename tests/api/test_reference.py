@@ -60,22 +60,37 @@ class TestReference:
             assert db_obj.date_updated is not None
 
             # No title
-            # ReferenceSchemaPost raises exception
-            wrong_reference = {
+            # ReferenceSchemaPost no longer raises exception
+            none_title_reference = {
                 "title": None,
-                "category": "thesis"
+                "category": None,
+                "volume": "string_volume"
             }
-            response = client.post(url="/reference/", json=wrong_reference, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            response = client.post(url="/reference/", json=none_title_reference, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == response.json()).one()
+            assert db_obj.volume == "string_volume"
 
             # blank title
-            # ReferenceSchemaPost raises exception
-            wrong_reference = {
+            # ReferenceSchemaPost no longer raises exception
+            blank_title_reference = {
                 "title": "",
                 "category": "thesis"
             }
-            response = client.post(url="/reference/", json=wrong_reference, headers=auth_headers)
+            response = client.post(url="/reference/", json=blank_title_reference, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == response.json()).one()
+            assert db_obj.title == ""
+
+            # blank category
+            # ReferenceSchemaPost raises exception
+            blank_category_reference = {
+                "title": "a title",
+                "category": ""
+            }
+            response = client.post(url="/reference/", json=blank_category_reference, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
 
     def test_show_reference(self, auth_headers, test_reference): # noqa
         with TestClient(app) as client:
