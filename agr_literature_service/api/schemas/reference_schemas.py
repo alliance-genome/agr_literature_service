@@ -20,9 +20,8 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEnt
 
 
 class ReferenceSchemaPost(BaseModel):
-    title: str
-    category: ReferenceCategory
-
+    title: Optional[str] = None
+    category: Optional[ReferenceCategory] = None
     date_published: Optional[str] = None
     date_published_start: Optional[str] = None
     date_published_end: Optional[str] = None
@@ -52,23 +51,10 @@ class ReferenceSchemaPost(BaseModel):
         orm_mode = True
         extra = "forbid"
 
-    @validator('title')
-    def title_is_some(cls, v: str) -> str:
-        if not v:
-            raise ValueError('Cannot set title to None or blank string')
-        return v
-
-    @validator('category')
-    def category_is_some(cls, v):
-        if not v:
-            raise ValueError('Cannot set catagory to None or blank string')
-        return v
-
 
 class ReferenceSchemaUpdate(BaseModel):
     title: Optional[str] = None
     category: Optional[ReferenceCategory] = None
-
     date_published: Optional[str] = None
     date_published_start: Optional[str] = None
     date_published_end: Optional[str] = None
@@ -112,9 +98,9 @@ class CommentAndCorrectionSchemaRelations(BaseModel):
 class ReferenceSchemaShow(AuditedObjectModelSchema):
     reference_id: int
     curie: str
-    title: str
-    category: ReferenceCategory
 
+    title: Optional[str] = None
+    category: Optional[ReferenceCategory] = None
     resource_id: Optional[int] = None
     copyright_license_id: Optional[int] = None
     date_published: Optional[str] = None
@@ -156,8 +142,8 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
 
 class ReferenceSchemaNeedReviewShow(BaseModel):
     curie: str
-    title: str
-    category: str
+    title: Optional[str] = None
+    category: Optional[str] = None
     abstract: Optional[str] = None
     mod_corpus_association_id: int
     resource_title: Optional[str] = None
