@@ -222,7 +222,7 @@ def show_source(db: Session, topic_entity_tag_source_id: int):
 def show_all_reference_tags(db: Session, curie_or_reference_id, token: str, page: int = 1,
                             page_size: int = None, count_only: bool = False,
                             sort_by: str = None, desc_sort: bool = False,
-                            species_only: bool = False, species: str = None):
+                            column_filter: str = None, species: str = None):
 
     if page < 1:
         page = 1
@@ -230,11 +230,19 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, token: str, page
         sort_by = None
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
 
-    if species_only:
-        species_list = db.query(TopicEntityTagModel.species).filter_by(
+    if column_filter:
+        # species_list = db.query(TopicEntityTagModel.species).filter_by(
+        #    reference_id=reference_id).distinct().all()
+        # distinct_species_list = [species[0] for species in species_list if species[0] is not None]
+        """
+        column_filter = 'species' or 'display_tag'
+        distinct_column_values = a list of species for this paper if column_filter = 'species'
+        distinct_column_values = a list of display_tag for this paper if column_filter = 'display_tag'
+        """
+        distinct_column_values = db.query(getattr(TopicEntityTagModel, column_filter)).filter_by(
             reference_id=reference_id).distinct().all()
-        distinct_species_list = [species[0] for species in species_list if species[0] is not None]
-        return jsonable_encoder(distinct_species_list)
+        distinct_values = [x[0] for x in distinct_column_values if x[0] is not None]
+        return jsonable_encoder(distinct_values)
 
     query = db.query(TopicEntityTagModel).options(
         joinedload(TopicEntityTagModel.topic_entity_tag_source)).filter(
