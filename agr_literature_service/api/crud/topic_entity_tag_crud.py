@@ -219,16 +219,29 @@ def show_source(db: Session, topic_entity_tag_source_id: int):
     return source_data
 
 
-def show_all_reference_tags(db: Session, curie_or_reference_id, token: str, page: int = 1, page_size: int = None,
-                            count_only: bool = False, sort_by: str = None, desc_sort: bool = False):
+def show_all_reference_tags(db: Session, curie_or_reference_id, token: str, page: int = 1,
+                            page_size: int = None, count_only: bool = False,
+                            sort_by: str = None, desc_sort: bool = False,
+                            species_only: bool = False, species: str = None):
+
     if page < 1:
         page = 1
     if sort_by == "null":
         sort_by = None
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
+
+    if species_only:
+        species_list = db.query(TopicEntityTagModel.species).filter_by(
+            reference_id=reference_id).distinct().all()
+        distinct_species_list = [species[0] for species in species_list if species[0] is not None]
+        return jsonable_encoder(distinct_species_list)
+
     query = db.query(TopicEntityTagModel).options(
         joinedload(TopicEntityTagModel.topic_entity_tag_source)).filter(
         TopicEntityTagModel.reference_id == reference_id)
+    if species:
+        species_list = species.split(',')
+        query = query.filter(TopicEntityTagModel.species.in_(species_list))
     if count_only:
         return query.count()
     else:
