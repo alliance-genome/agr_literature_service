@@ -233,7 +233,7 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, token: str, page
     if species_only:
         species_list = db.query(TopicEntityTagModel.species).filter_by(
             reference_id=reference_id).distinct().all()
-        distinct_species_list = [species[0] for species in species_list]
+        distinct_species_list = [species[0] for species in species_list if species[0] is not None]
         return jsonable_encoder(distinct_species_list)
 
     query = db.query(TopicEntityTagModel).options(
