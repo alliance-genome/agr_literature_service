@@ -116,8 +116,9 @@ def show_source_by_name(source_type: str,
             status_code=200)
 def show_all_reference_tags(curie_or_reference_id: str, token: str,
                             page: int = 1, page_size: int = None,
-                            species: str = None,
-                            species_only: bool = False,
+                            column_only: str = None,
+                            column_filter: str = None,
+                            column_values: str = None,
                             count_only: bool = False,
                             sort_by: str = None,
                             desc_sort: bool = False,
@@ -125,7 +126,8 @@ def show_all_reference_tags(curie_or_reference_id: str, token: str,
     return topic_entity_tag_crud.show_all_reference_tags(db, curie_or_reference_id,
                                                          token, page, page_size,
                                                          count_only, sort_by, desc_sort,
-                                                         species_only, species)
+                                                         column_only, column_filter,
+                                                         column_values)
 
 
 @router.get('/map_entity_curie_to_name/',

@@ -219,10 +219,17 @@ def show_source(db: Session, topic_entity_tag_source_id: int):
     return source_data
 
 
+def filter_tet_data_by_column(query, column_name, values):
+    column = getattr(TopicEntityTagModel, column_name, None)
+    query = query.filter(column.in_(values))
+    return query
+
+
 def show_all_reference_tags(db: Session, curie_or_reference_id, token: str, page: int = 1,
                             page_size: int = None, count_only: bool = False,
                             sort_by: str = None, desc_sort: bool = False,
-                            species_only: bool = False, species: str = None):
+                            column_only: str = None, column_filter: str = None,
+                            column_values: str = None):
 
     if page < 1:
         page = 1
@@ -230,18 +237,28 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, token: str, page
         sort_by = None
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
 
-    if species_only:
-        species_list = db.query(TopicEntityTagModel.species).filter_by(
+    if column_only:
+        # species_list = db.query(TopicEntityTagModel.species).filter_by(
+        #    reference_id=reference_id).distinct().all()
+        # distinct_species_list = [species[0] for species in species_list if species[0] is not None]
+        """
+        column_only = 'species' or 'display_tag'
+        distinct_column_values = a list of species for this paper if column_only = 'species'
+        distinct_column_values = a list of display_tag for this paper if column_only = 'display_tag'
+        """
+        distinct_column_values = db.query(getattr(TopicEntityTagModel, column_only)).filter_by(
             reference_id=reference_id).distinct().all()
-        distinct_species_list = [species[0] for species in species_list if species[0] is not None]
-        return jsonable_encoder(distinct_species_list)
+        distinct_values = [x[0] for x in distinct_column_values if x[0] is not None]
+        return jsonable_encoder(distinct_values)
 
     query = db.query(TopicEntityTagModel).options(
         joinedload(TopicEntityTagModel.topic_entity_tag_source)).filter(
         TopicEntityTagModel.reference_id == reference_id)
-    if species:
-        species_list = species.split(',')
-        query = query.filter(TopicEntityTagModel.species.in_(species_list))
+
+    if column_filter and column_values:
+        column_value_list = column_values.split(',')
+        query = filter_tet_data_by_column(query, column_filter, column_value_list)
+
     if count_only:
         return query.count()
     else:
