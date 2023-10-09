@@ -166,7 +166,7 @@ def get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str =
             return [entity["curie"] for entity in resp_obj["entities"]] if "entities" in resp_obj else []
     except HTTPError:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"Error from A-team API")
+                            detail="Error from A-team API")
 
 
 def check_and_set_sgd_display_tag(topic_entity_tag_data):
