@@ -44,6 +44,7 @@ class ReferenceSchemaPost(BaseModel):
     cross_references: Optional[List[CrossReferenceSchemaCreate]] = None
     authors: Optional[List[AuthorSchemaPost]] = None
     resource: Optional[str] = None
+    prepublication_pipeline: Optional[bool] = False
     workflow_tags: Optional[List[WorkflowTagSchemaCreate]] = None
     topic_entity_tags: Optional[List[TopicEntityTagSchemaCreate]] = None
 
@@ -72,6 +73,7 @@ class ReferenceSchemaUpdate(BaseModel):
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     resource: Optional[str] = None
+    prepublication_pipeline: Optional[bool] = False
 
     @validator('title')
     def title_is_some(cls, v: str) -> str:
@@ -124,6 +126,7 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     issue_name: Optional[str] = None
     mesh_terms: Optional[List[MeshDetailSchemaRelated]] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
+    prepublication_pipeline: Optional[bool]
     resource_curie: Optional[str] = None
     resource_title: Optional[str] = None
     copyright_license_name: Optional[str] = None
