@@ -164,7 +164,7 @@ def get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str =
             resp = response.read().decode("utf8")
             resp_obj = json.loads(resp)
             return [entity["curie"] for entity in resp_obj["entities"]] if "entities" in resp_obj else []
-    except HTTPError as e:
+    except HTTPError:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail="Error from A-team API")
 
