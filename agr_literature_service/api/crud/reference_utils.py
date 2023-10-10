@@ -47,6 +47,7 @@ class BibInfo:
     _citation: str = ""
     year: str = ""
     abstract: str = ""
+    reference_curie: str = ""
 
     @property
     def citation(self):
@@ -69,7 +70,7 @@ class BibInfo:
     def get_formatted_bib(self, format_type: str = 'txt'):
         if format_type == 'txt':
             return f"author|{' ; '.join(self.authors)}\n" \
-                   f"accession|{' '.join(self.cross_references)}\n" \
+                   f"accession|{' '.join(self.cross_references)} {self.reference_curie}\n" \
                    f"type|{' ; '.join(self.pubmed_types)}\n" \
                    f"title|{self.title}\n" \
                    f"journal|{self.journal}\n" \
