@@ -131,7 +131,8 @@ class ResourceModel(Base, AuditedModel):
     open_access = Column(
         Boolean,
         nullable=False,
-        default=False
+        default=False,
+        server_default='false'
     )
 
     def __str__(self):

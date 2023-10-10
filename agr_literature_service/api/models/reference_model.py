@@ -6,7 +6,7 @@ reference_model.py
 
 from typing import Dict
 
-from sqlalchemy import (ARRAY, Column, Enum, ForeignKey, Integer,
+from sqlalchemy import (ARRAY, Column, Enum, ForeignKey, Integer, Boolean,
                         String)
 from sqlalchemy.orm import relationship
 
@@ -199,6 +199,13 @@ class ReferenceModel(Base, AuditedModel):
         "MeshDetailModel",
         back_populates="reference",
         cascade="all, delete, delete-orphan"
+    )
+
+    prepublication_pipeline = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default='false'
     )
 
     workflow_tag = relationship(

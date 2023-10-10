@@ -97,6 +97,7 @@ class TestMd5sumUtil:
         print(" here to load md5sum into dict")
         mods = ["FB", "XB", "PMID", "TEST"]
         dict_md5sum = load_database_md5data(mods)
+        print(dict_md5sum)
         assert dict_md5sum['FB']['FB:FBrf0001'] == 'TEST-md5sum-FB'
         assert dict_md5sum['XB']['Xenbase:XB-ART-0001'] == 'TEST-md5sum-XB'
         assert dict_md5sum['PMID']['PMID:0001'] == 'TEST-md5sum-PMID'
