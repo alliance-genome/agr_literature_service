@@ -408,7 +408,7 @@ class TestReference:
                                   headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert response.json() == 'author|\n' \
-                                      'accession|\n' \
+                                      'accession| AGRKB:101000000000001\n' \
                                       'type|\n' \
                                       'title|Bob\n' \
                                       'journal|\n' \
