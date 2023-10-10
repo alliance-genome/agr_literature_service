@@ -46,7 +46,8 @@ class CrossReferenceModel(Base, AuditedModel):
     is_obsolete = Column(
         Boolean,
         unique=False,
-        default=False
+        default=False,
+        server_default='false'
     )
 
     reference_id = Column(

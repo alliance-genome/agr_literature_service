@@ -204,7 +204,8 @@ class ReferenceModel(Base, AuditedModel):
     prepublication_pipeline = Column(
         Boolean,
         nullable=False,
-        default=False
+        default=False,
+        server_default='false'
     )
 
     workflow_tag = relationship(
