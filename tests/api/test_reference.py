@@ -235,8 +235,7 @@ class TestReference:
             assert response['category'] == 'research_article'
             assert response['date_published_start'] == '2022-10-01'
             assert response['date_published_end'] == '2022-10-02'
-            assert response['prepublication_pipeline'] == True
-
+            assert response['prepublication_pipeline'] is True
 
             # Not sure of order in array of the authors so:-
             assert len(response['authors']) == 2
