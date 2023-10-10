@@ -744,6 +744,7 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     if reference.date_published:
         bib_info.year = reference.date_published
     bib_info.abstract = reference.abstract
+    bib_info.reference_curie = reference.curie
     return bib_info.get_formatted_bib(format_type=return_format)
 
 
