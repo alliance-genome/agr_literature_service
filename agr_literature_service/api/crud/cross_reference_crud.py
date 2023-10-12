@@ -2,6 +2,7 @@
 cross_reference_crud.py
 =======================
 """
+import os
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -111,7 +112,8 @@ def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, m
              CrossReferenceModel.curie_prefix == mod_abbreviation)).order_by(
         CrossReferenceModel.is_obsolete).first()
     if not cross_reference:
-        if mod_abbreviation == 'WB':
+        env_state = os.environ.get("ENV_STATE", "")
+        if mod_abbreviation == 'WB' and env_state != "prod":
             cross_reference = db.query(CrossReferenceModel.curie).filter(
                 and_(CrossReferenceModel.curie.startswith("WB:WBPaper0"),
                      CrossReferenceModel.curie_prefix == mod_abbreviation)).order_by(
