@@ -10,7 +10,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
-from agr_literature_service.api.models import ModCorpusAssociationModel, ReferenceModel, ModModel, CrossReferenceModel
+from agr_literature_service.api.models import ModCorpusAssociationModel, ReferenceModel, ModModel
 from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost
 
 
@@ -120,7 +120,6 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
     db.commit()
 
     return {"message": "updated"}
-
 
 
 def show(db: Session, mod_corpus_association_id: int):
