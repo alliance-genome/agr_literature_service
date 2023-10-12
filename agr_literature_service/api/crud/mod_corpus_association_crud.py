@@ -8,8 +8,9 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
+from sqlalchemy import and_
 
-from agr_literature_service.api.models import ModCorpusAssociationModel, ReferenceModel, ModModel
+from agr_literature_service.api.models import ModCorpusAssociationModel, ReferenceModel, ModModel, CrossReferenceModel
 from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost
 
 
@@ -104,6 +105,15 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                         detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
                 mod_corpus_association_db_obj.mod = new_mod
+        elif field == "corpus":
+            if value is True and mod_corpus_association_db_obj.corpus is not True:
+                mod_abbreviation = mod_corpus_association_db_obj.mod.abbreviation
+                # if "mod_abbreviation" in mod_corpus_association_data:
+                # if mod_corpus_association_data["mod_abbreviation"]:
+                #     db_mod = db.query(ModModel).filter(ModModel.abbreviation == mod_corpus_association_data["mod_abbreviation"]).first()
+                #     mod_abbreviation = db_mod.abbreviation
+                check_xref_and_generate_mod_id(db, mod_corpus_association_db_obj.reference_id, mod_abbreviation)
+            setattr(mod_corpus_association_db_obj, field, value)
         else:
             setattr(mod_corpus_association_db_obj, field, value)
 
@@ -112,6 +122,18 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
 
     return {"message": "updated"}
 
+def check_xref_and_generate_mod_id(db: Session, reference_id: int, mod_abbreviation: str):
+    cross_reference = db.query(CrossReferenceModel).filter(
+        and_(CrossReferenceModel.reference_id == reference_id,
+             CrossReferenceModel.curie_prefix == mod_abbreviation)).order_by(
+        CrossReferenceModel.is_obsolete).first()
+    if not cross_reference:
+        if mod_abbreviation == 'WB':
+            cross_reference = db.query(CrossReferenceModel).filter(
+                CrossReferenceModel.curie_prefix == mod_abbreviation).order_by(
+                CrossReferenceModel.curie).first()
+            1 == 1
+    1 == 1
 
 def show(db: Session, mod_corpus_association_id: int):
     """
