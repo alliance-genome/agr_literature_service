@@ -53,6 +53,9 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
     db.add(db_obj)
     db.commit()
 
+    if "corpus" in mod_corpus_association_data and mod_corpus_association_data["corpus"] is True:
+        check_xref_and_generate_mod_id(db, reference, mod_abbreviation)
+
     return db_obj.mod_corpus_association_id
 
 
