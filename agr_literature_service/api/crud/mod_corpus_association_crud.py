@@ -108,12 +108,11 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
         elif field == "corpus":
             if value is True and mod_corpus_association_db_obj.corpus is not True:
                 mod_abbreviation = mod_corpus_association_db_obj.mod.abbreviation
-                # if "mod_abbreviation" in mod_corpus_association_data:
-                # if mod_corpus_association_data["mod_abbreviation"]:
-                #     db_mod = db.query(ModModel).filter(ModModel.abbreviation == mod_corpus_association_data["mod_abbreviation"]).first()
-                #     mod_abbreviation = db_mod.abbreviation
+                if mod_corpus_association_data["mod_abbreviation"]: # it's not stopping here
+                    db_mod = db.query(ModModel).filter(ModModel.abbreviation == mod_corpus_association_data["mod_abbreviation"]).first()
+                    mod_abbreviation = db_mod.abbreviation
                 check_xref_and_generate_mod_id(db, mod_corpus_association_db_obj.reference_id, mod_abbreviation)
-            setattr(mod_corpus_association_db_obj, field, value)
+            # setattr(mod_corpus_association_db_obj, field, value)
         else:
             setattr(mod_corpus_association_db_obj, field, value)
 
@@ -131,7 +130,7 @@ def check_xref_and_generate_mod_id(db: Session, reference_id: int, mod_abbreviat
         if mod_abbreviation == 'WB':
             cross_reference = db.query(CrossReferenceModel).filter(
                 CrossReferenceModel.curie_prefix == mod_abbreviation).order_by(
-                CrossReferenceModel.curie).first()
+                CrossReferenceModel.cross_reference_id).last()
             1 == 1
     1 == 1
 
