@@ -8,8 +8,8 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
 
+from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
 from agr_literature_service.api.models import ModCorpusAssociationModel, ReferenceModel, ModModel, CrossReferenceModel
 from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost
 
@@ -83,7 +83,7 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
     :return:
     """
     mod_corpus_association_data = jsonable_encoder(mod_corpus_association_update)
-    mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(ModCorpusAssociationModel.mod_corpus_association_id == mod_corpus_association_id).first()
+    mod_corpus_association_db_obj: ModCorpusAssociationModel = db.query(ModCorpusAssociationModel).filter(ModCorpusAssociationModel.mod_corpus_association_id == mod_corpus_association_id).first()
     if not mod_corpus_association_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModCorpusAssociation with mod_corpus_association_id {mod_corpus_association_id} not found")
@@ -109,11 +109,10 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
             if value is True and mod_corpus_association_db_obj.corpus is not True:
                 mod_abbreviation = mod_corpus_association_db_obj.mod.abbreviation
                 if "mod_abbreviation" in mod_corpus_association_data and mod_corpus_association_data["mod_abbreviation"] is not None:
-                # if mod_corpus_association_data["mod_abbreviation"]: # it's not stopping here
                     db_mod = db.query(ModModel).filter(ModModel.abbreviation == mod_corpus_association_data["mod_abbreviation"]).first()
                     mod_abbreviation = db_mod.abbreviation
-                check_xref_and_generate_mod_id(db, mod_corpus_association_db_obj.reference_id, mod_abbreviation)
-            # setattr(mod_corpus_association_db_obj, field, value)
+                check_xref_and_generate_mod_id(db, mod_corpus_association_db_obj, mod_abbreviation)
+            setattr(mod_corpus_association_db_obj, field, value)
         else:
             setattr(mod_corpus_association_db_obj, field, value)
 
@@ -122,18 +121,7 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
 
     return {"message": "updated"}
 
-def check_xref_and_generate_mod_id(db: Session, reference_id: int, mod_abbreviation: str):
-    cross_reference = db.query(CrossReferenceModel).filter(
-        and_(CrossReferenceModel.reference_id == reference_id,
-             CrossReferenceModel.curie_prefix == mod_abbreviation)).order_by(
-        CrossReferenceModel.is_obsolete).first()
-    if not cross_reference:
-        if mod_abbreviation == 'WB':
-            cross_reference = db.query(CrossReferenceModel).filter(
-                CrossReferenceModel.curie_prefix == mod_abbreviation).order_by(
-                CrossReferenceModel.cross_reference_id).last()
-            1 == 1
-    1 == 1
+
 
 def show(db: Session, mod_corpus_association_id: int):
     """
