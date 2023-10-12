@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api.crud.reference_resource import (add_reference_resource,
                                                                 create_obj)
 from agr_literature_service.api.models import (CrossReferenceModel, ReferenceModel,
-                                               ResourceDescriptorModel, ResourceModel, ModCorpusAssociationModel)
+                                               ResourceDescriptorModel, ResourceModel)
 
 
 def set_curie_prefix(xref_db_obj: CrossReferenceModel):
@@ -105,9 +105,9 @@ def show(db: Session, curie_or_cross_reference_id: str) -> dict:
     return cross_reference_data
 
 
-def check_xref_and_generate_mod_id(db: Session, mod_corpus_association_db_obj: ModCorpusAssociationModel, mod_abbreviation: str):
+def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, mod_abbreviation: str):
     cross_reference = db.query(CrossReferenceModel).filter(
-        and_(CrossReferenceModel.reference_id == mod_corpus_association_db_obj.reference_id,
+        and_(CrossReferenceModel.reference_id == reference_obj.reference_id,
              CrossReferenceModel.curie_prefix == mod_abbreviation)).order_by(
         CrossReferenceModel.is_obsolete).first()
     if not cross_reference:
@@ -124,7 +124,7 @@ def check_xref_and_generate_mod_id(db: Session, mod_corpus_association_db_obj: M
                 "pages": [
                     "reference"
                 ],
-                "reference_curie": mod_corpus_association_db_obj.reference.curie
+                "reference_curie": reference_obj.curie
             }
             create(db, new_wbpaper_xref)
 

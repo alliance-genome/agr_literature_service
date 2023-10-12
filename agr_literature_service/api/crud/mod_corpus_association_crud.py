@@ -107,11 +107,14 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                 mod_corpus_association_db_obj.mod = new_mod
         elif field == "corpus":
             if value is True and mod_corpus_association_db_obj.corpus is not True:
+                reference_obj = mod_corpus_association_db_obj.reference
+                if "reference_curie" in mod_corpus_association_data and mod_corpus_association_data["reference_curie"] is not None:
+                    reference_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == mod_corpus_association_data["reference_curie"]).first()
                 mod_abbreviation = mod_corpus_association_db_obj.mod.abbreviation
                 if "mod_abbreviation" in mod_corpus_association_data and mod_corpus_association_data["mod_abbreviation"] is not None:
                     db_mod = db.query(ModModel).filter(ModModel.abbreviation == mod_corpus_association_data["mod_abbreviation"]).first()
                     mod_abbreviation = db_mod.abbreviation
-                check_xref_and_generate_mod_id(db, mod_corpus_association_db_obj, mod_abbreviation)
+                check_xref_and_generate_mod_id(db, reference_obj, mod_abbreviation)
             setattr(mod_corpus_association_db_obj, field, value)
         else:
             setattr(mod_corpus_association_db_obj, field, value)
