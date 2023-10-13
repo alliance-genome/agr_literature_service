@@ -114,11 +114,13 @@ def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, m
     if not cross_reference:
         env_state = os.environ.get("ENV_STATE", "")
         if mod_abbreviation == 'WB' and env_state != "prod":
+            new_wbpaper_number = 1
             cross_reference = db.query(CrossReferenceModel.curie).filter(
                 and_(CrossReferenceModel.curie.startswith("WB:WBPaper0"),
                      CrossReferenceModel.curie_prefix == mod_abbreviation)).order_by(
                 CrossReferenceModel.curie.desc()).first()
-            new_wbpaper_number = int(cross_reference.curie[11:]) + 1
+            if cross_reference:
+                new_wbpaper_number = int(cross_reference.curie[11:]) + 1
             new_wbpaper_string = str(new_wbpaper_number).zfill(8)
             new_wbpaper_curie = f"WB:WBPaper{new_wbpaper_string}"
             new_wbpaper_xref = {
