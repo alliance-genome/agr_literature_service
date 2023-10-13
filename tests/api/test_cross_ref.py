@@ -4,8 +4,9 @@ import pytest
 from starlette.testclient import TestClient
 from fastapi import status
 
+from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models import CrossReferenceModel
+from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
@@ -167,3 +168,26 @@ class TestCrossRef:
             patched_cross_ref = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie == "TESTXREF:1234").one()
             assert patched_cross_ref.curie_prefix == patched_cross_ref.curie.split(":")[0]
             assert new_cross_ref.cross_reference_id == patched_cross_ref.cross_reference_id
+
+    def test_xref_wb_modid(self, db, test_reference, test_reference2, auth_headers): # noqa
+        with TestClient(app) as client:
+            new_mod = {
+                "abbreviation": "WB",
+                "short_name": "WB",
+                "full_name": "WormBase"
+            }
+            response = client.post(url="/mod/", json=new_mod, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+
+            reference_obj = db.query(ReferenceModel).filter(
+                ReferenceModel.curie == test_reference.new_ref_curie).first()
+
+            check_xref_and_generate_mod_id(db, reference_obj, 'WB')
+            xref = db.query(CrossReferenceModel).filter_by(curie_prefix='WB').one()
+            assert xref.curie == 'WB:WBPaper00000001'
+
+            reference_obj2 = db.query(ReferenceModel).filter(
+                ReferenceModel.curie == test_reference2.new_ref_curie).first()
+            check_xref_and_generate_mod_id(db, reference_obj2, 'WB')
+            xref = db.query(CrossReferenceModel).filter_by(reference_id=reference_obj2.reference_id).one()
+            assert xref.curie == 'WB:WBPaper00000002'
