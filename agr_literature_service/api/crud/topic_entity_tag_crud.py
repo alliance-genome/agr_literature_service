@@ -263,6 +263,7 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, token: str, page
         return query.count()
     else:
         if sort_by:
+            """
             column_property = getattr(TopicEntityTagModel, sort_by, None)
             column = column_property.property.columns[0]
             order_expression = case([(column.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
@@ -270,6 +271,32 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, token: str, page
                                    enumerate(get_sorted_column_values(reference_id, db, sort_by, token, desc_sort))},
                                   value=getattr(TopicEntityTagModel, sort_by))
             query = query.order_by(order_expression, curie_ordering)
+            """
+
+            # new code start
+            
+            # mapper = inspect(TopicEntityTagModel)
+            # if sort_by not in [column.name for column in mapper.columns]:
+            #    raise ValueError(f"The column '{sort_by}' is not a valid column in TopicEntityTagModel.")
+
+            # Check if the column exists in the model
+            if not hasattr(TopicEntityTagModel, sort_by):
+                raise ValueError(f"The column '{sort_by}' is not a valid column in TopicEntityTagModel.")
+
+            column_property = getattr(TopicEntityTagModel, sort_by, None)
+            
+            # Ensure column_property is not None
+            if column_property is None:
+                raise ValueError(f"Failed to get the column '{sort_by}' from TopicEntityTagModel.")
+
+            # Check for None values and order accordingly
+            order_expression = case([(column_property.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
+
+            # Apply the sorting logic based on desc_sort flag
+            query = query.order_by(order_expression, column_property.desc() if desc_sort else column_property)
+
+            # new code end
+            
         all_tet = []
         for tet in query.offset((page - 1) * page_size if page_size else None).limit(page_size).all():
             tet_data = jsonable_encoder(tet)
