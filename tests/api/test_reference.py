@@ -152,6 +152,34 @@ class TestReference:
             delete_response = client.delete(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             assert delete_response.status_code == status.HTTP_404_NOT_FOUND
 
+    def test_reference_mca_wb(self, db, auth_headers):
+        with TestClient(app) as client:
+            new_mod = {
+                "abbreviation": "WB",
+                "short_name": "WB",
+                "full_name": "WormBase"
+            }
+            response = client.post(url="/mod/", json=new_mod, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            full_xml = {
+                "category": "research_article",
+                "mod_corpus_associations": [
+                    {
+                        "mod_abbreviation": "WB",
+                        "mod_corpus_sort_source": "manual_creation",
+                        "corpus": "true"
+                    }
+                ]
+            }
+            new_curie = client.post(url="/reference/", json=full_xml, headers=auth_headers).json()
+            # fetch the new record.
+            response = client.get(url=f"/reference/{new_curie}").json()
+            assert response['category'] == 'research_article'
+            reference_obj = db.query(ReferenceModel).filter(
+                ReferenceModel.curie == new_curie).first()
+            xref = db.query(CrossReferenceModel).filter_by(reference_id=reference_obj.reference_id).one()
+            assert xref.curie == 'WB:WBPaper00000001'
+
     def test_reference_large(self, db, auth_headers, populate_test_mod_reference_types, test_mod, # noqa
                              test_topic_entity_tag_source): # noqa
         with TestClient(app) as client:
