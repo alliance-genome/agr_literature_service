@@ -23,6 +23,9 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEn
                                                                          TopicEntityTagSourceSchemaUpdate,
                                                                          TopicEntityTagSourceSchemaCreate,
                                                                          TopicEntityTagSchemaUpdate)
+import logging
+
+logger = logging.getLogger(__name__)
 
 ATP_ID_SOURCE_AUTHOR = "author"
 ATP_ID_SOURCE_CURATOR = "curator"
@@ -225,7 +228,7 @@ def filter_tet_data_by_column(query, column_name, values):
     return query
 
 
-def show_all_reference_tags(db: Session, curie_or_reference_id, token: str, page: int = 1,
+def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
                             page_size: int = None, count_only: bool = False,
                             sort_by: str = None, desc_sort: bool = False,
                             column_only: str = None, column_filter: str = None,
@@ -267,7 +270,7 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, token: str, page
             column = column_property.property.columns[0]
             order_expression = case([(column.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
             curie_ordering = case({curie: index for index, curie in
-                                   enumerate(get_sorted_column_values(reference_id, db, sort_by, token, desc_sort))},
+                                   enumerate(get_sorted_column_values(reference_id, db, sort_by, desc_sort))},
                                   value=getattr(TopicEntityTagModel, sort_by))
             query = query.order_by(order_expression, curie_ordering)
         all_tet = []
@@ -278,7 +281,8 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, token: str, page
         return all_tet
 
 
-def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token: str):
+def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str):
+    logger.debug(f"tetcrud: {curie_or_reference_id}")
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
     topics_and_entities = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.reference_id == reference_id).all()
     all_topics_and_entities = []
@@ -291,13 +295,11 @@ def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str, token:
             all_topics_and_entities.append(tag.entity_type)
             if tag.entity_source == "alliance":
                 all_entities[tag.entity_type].append(tag.entity)
-    entity_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=all_topics_and_entities,
-                                                         token=token)
+    entity_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=all_topics_and_entities)
     for atpterm_curie in all_entities.keys():
         entity_curie_to_name.update(get_map_ateam_curies_to_names(
             curies_category=entity_curie_to_name[atpterm_curie].replace(" ", ""),
-            curies=all_entities[atpterm_curie],
-            token=token))
+            curies=all_entities[atpterm_curie]))
     for curie_without_name in (set(all_entities) | set(all_topics_and_entities)) - set(entity_curie_to_name.keys()):
         entity_curie_to_name[curie_without_name] = curie_without_name
     return entity_curie_to_name

@@ -12,6 +12,9 @@ from starlette import status
 from agr_literature_service.api.models import TopicEntityTagSourceModel, ReferenceModel, ModModel, TopicEntityTagModel
 from agr_literature_service.api.user import add_user_if_not_exists
 from agr_literature_service.lit_processing.utils.okta_utils import get_authentication_token
+import logging
+
+logger = logging.getLogger(__name__)
 
 # TODO: fix these to get from database or some other place?
 sgd_primary_display_tag = 'ATP:0000147'
@@ -69,17 +72,17 @@ def add_source_obj_to_db_session(db: Session, source: Dict):
     return source_obj
 
 
-def get_sorted_column_values(reference_id: int, db: Session, column_name: str, token, desc: bool = False):
+def get_sorted_column_values(reference_id: int, db: Session, column_name: str, desc: bool = False):
     curies = db.query(getattr(TopicEntityTagModel, column_name)).filter(
         TopicEntityTagModel.reference_id == reference_id).distinct()
     if column_name in ["entity_type", "topic"]:
         curie_name_map = get_map_ateam_curies_to_names("atpterm",
-                                                       [curie[0] for curie in curies if curie[0]], token)
+                                                       [curie[0] for curie in curies if curie[0]])
         return [curie for name, curie in sorted([(value, key) for key, value in curie_name_map.items()],
                                                 key=lambda x: x[0], reverse=desc)]
 
 
-def get_map_ateam_curies_to_names(curies_category, curies, token):
+def get_map_ateam_curies_to_names(curies_category, curies):
     ateam_api_base_url = environ.get('ATEAM_API_URL', "https://beta-curation.alliancegenome.org/api")
     if curies_category == "species":
         curies_category = "ncbitaxonterm"
@@ -91,24 +94,36 @@ def get_map_ateam_curies_to_names(curies_category, curies, token):
             }
         }
     }
-    request_data_encoded = json.dumps(request_body)
-    request_data_encoded_str = str(request_data_encoded)
-    request = urllib.request.Request(url=ateam_api, data=request_data_encoded_str.encode('utf-8'))
-    request.add_header("Authorization", f"Bearer {token}")
-    request.add_header("Content-type", "application/json")
-    request.add_header("Accept", "application/json")
+    token = get_authentication_token()
+    logger.debug(f"BOB: {token}")
+    logger.debug(f"ateam_api = {ateam_api}")
     try:
+        request_data_encoded = json.dumps(request_body)
+        request_data_encoded_str = str(request_data_encoded)
+        request = urllib.request.Request(url=ateam_api, data=request_data_encoded_str.encode('utf-8'))
+        request.add_header("Authorization", f"Bearer {token}")
+        request.add_header("Content-type", "application/json")
+        request.add_header("Accept", "application/json")
+    except Exception as e:
+        logger.debug(f"Exception setting up request:get_map_ateam_curies_to_names: {e}")
+        return {}
+    try:
+        logger.debug(f"get_map_ateam_curies_to_names request: {request}")
         with urllib.request.urlopen(request) as response:
             resp = response.read().decode("utf8")
             resp_obj = json.loads(resp)
             # from the A-team API, atp values have a "name" field and other entities (e.g., genes and alleles) have
             # symbol objects - e.g., geneSymbol.displayText
+            logger.debug(f"get_map_ateam_curies_to_names response: {resp_obj}")
             return {entity["curie"]: entity["name"] if "name" in entity else entity[
                 curies_category + "Symbol"]["displayText"] for entity in (resp_obj["results"] if "results" in
                                                                                                  resp_obj else [])}
-    except HTTPError:
+    except HTTPError as e:
+        logger.debug(f"HTTPError:get_map_ateam_curies_to_names: {e}")
         return {}
-
+    except Exception as e:
+        logger.debug(f"Exception setting up request:get_map_ateam_curies_to_names: {e}")
+        return {}
 
 @ttl_cache(maxsize=128, ttl=60 * 60)
 def get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str = 'ancestors') -> List[str]:
@@ -155,10 +170,15 @@ def get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str =
     token = get_authentication_token()
     ateam_api_base_url = environ.get('ATEAM_API_URL', "https://beta-curation.alliancegenome.org/api")
     ateam_api = f'{ateam_api_base_url}/atpterm/{onto_node}/{ancestors_or_descendants}'
-    request = urllib.request.Request(url=ateam_api)
-    request.add_header("Authorization", f"Bearer {token}")
-    request.add_header("Content-type", "application/json")
-    request.add_header("Accept", "application/json")
+    logger.debug(f"ateam_api = {ateam_api}")
+    try:
+        request = urllib.request.Request(url=ateam_api)
+        request.add_header("Authorization", f"Bearer {token}")
+        request.add_header("Content-type", "application/json")
+        request.add_header("Accept", "application/json")
+    except Exception as e:
+        logger.debug(f"Exception setting up request:get_ancestors_or_descendants: {e}")
+        return []
     try:
         with urllib.request.urlopen(request) as response:
             resp = response.read().decode("utf8")
