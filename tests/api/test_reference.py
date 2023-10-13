@@ -152,7 +152,7 @@ class TestReference:
             delete_response = client.delete(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             assert delete_response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_reference_mca_wb(self, db, auth_headers):
+    def test_reference_mca_wb(self, db, auth_headers): # noqa
         with TestClient(app) as client:
             new_mod = {
                 "abbreviation": "WB",
