@@ -12,9 +12,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
-    get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
-    get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, add_audited_object_users_if_not_exist, \
-    get_ancestors_or_descendants
+    get_source_from_db, add_source_obj_to_db_session, get_map_ateam_curies_to_names, \
+    check_and_set_sgd_display_tag, add_audited_object_users_if_not_exist, get_ancestors_or_descendants
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
     ReferenceModel, TopicEntityTagSourceModel, ModModel
@@ -279,7 +278,7 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, token: str, page
             if column_property is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                     detail=f"Failed to get the column '{sort_by}' from the models.")
-            
+
             # check for None values and order accordingly
             order_expression = case([(column_property.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
 
