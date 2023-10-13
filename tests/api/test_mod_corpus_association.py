@@ -118,7 +118,7 @@ class TestModCorpusAssociation:
 
             reference_obj = db.query(ReferenceModel).filter(
                 ReferenceModel.curie == test_reference.new_ref_curie).first()
-            xref = db.query(CrossReferenceModel).filter(and_(CrossReferenceModel.reference_id==reference_obj.reference_id, CrossReferenceModel.curie_prefix=='WB')).one_or_none()
+            xref = db.query(CrossReferenceModel).filter(and_(CrossReferenceModel.reference_id == reference_obj.reference_id, CrossReferenceModel.curie_prefix == 'WB')).one_or_none()
             assert xref is None
 
             patch_mca = {
@@ -127,6 +127,5 @@ class TestModCorpusAssociation:
             patch_response = client.patch(url=f"/reference/mod_corpus_association/{response_mca.text}",
                                           json=patch_mca, headers=auth_headers)
             assert patch_response.status_code == status.HTTP_202_ACCEPTED
-            xref = db.query(CrossReferenceModel).filter(and_(CrossReferenceModel.reference_id==reference_obj.reference_id, CrossReferenceModel.curie_prefix=='WB')).one_or_none()
+            xref = db.query(CrossReferenceModel).filter(and_(CrossReferenceModel.reference_id == reference_obj.reference_id, CrossReferenceModel.curie_prefix == 'WB')).one_or_none()
             assert xref.curie == 'WB:WBPaper00000001'
-
