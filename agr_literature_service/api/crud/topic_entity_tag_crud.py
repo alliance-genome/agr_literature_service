@@ -12,8 +12,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
-    get_source_from_db, add_source_obj_to_db_session, get_map_ateam_curies_to_names, \
-    check_and_set_sgd_display_tag, add_audited_object_users_if_not_exist, get_ancestors_or_descendants
+    get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
+    get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, add_audited_object_users_if_not_exist, \
+    get_ancestors_or_descendants
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
     ReferenceModel, TopicEntityTagSourceModel, ModModel
@@ -263,28 +264,38 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
         return query.count()
     else:
         if sort_by:
-            if sort_by in ['source_mod_id', 'source_evidence', 'source_validation_type', 'source_description']:
-                sort_by = sort_by.replace('source_', '')
-            # check if the column exists in TopicEntityTagModel
-            if hasattr(TopicEntityTagModel, sort_by):
-                column_property = getattr(TopicEntityTagModel, sort_by)
-            elif hasattr(TopicEntityTagSourceModel, sort_by):
-                column_property = getattr(TopicEntityTagSourceModel, sort_by)
-                # explicitly join the topic_entity_tag_source table for sorting
-                query = query.join(TopicEntityTagSourceModel,
-                                   TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id)
+            # if sort_by in ['topic', 'entity_type', 'species', 'entity', 'display_tag']:
+            if sort_by in ['topic', 'entity_type', 'species', 'display_tag', 'entity']:
+                column_property = getattr(TopicEntityTagModel, sort_by, None)
+                column = column_property.property.columns[0]
+                order_expression = case([(column.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
+                sorted_column_values = get_sorted_column_values(reference_id, db,
+                                                                sort_by, token, desc_sort)
+                curie_ordering = case({curie: index for index, curie in enumerate(sorted_column_values)},
+                                      value=getattr(TopicEntityTagModel, sort_by))
+                query = query.order_by(order_expression, curie_ordering)
             else:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                    detail=f"The column '{sort_by}' does not exist in either TopicEntityTagModel or TopicEntityTagSourceModel.")
-            if column_property is None:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                    detail=f"Failed to get the column '{sort_by}' from the models.")
+                if sort_by in ['source_mod_id', 'source_evidence', 'source_validation_type', 'source_description']:
+                    sort_by = sort_by.replace('source_', '')
 
-            # check for None values and order accordingly
-            order_expression = case([(column_property.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
+                # check if the column exists in TopicEntityTagModel
+                if hasattr(TopicEntityTagModel, sort_by):
+                    column_property = getattr(TopicEntityTagModel, sort_by)
+                elif hasattr(TopicEntityTagSourceModel, sort_by):
+                    column_property = getattr(TopicEntityTagSourceModel, sort_by)
+                    # explicitly join the topic_entity_tag_source table for sorting
+                    query = query.join(TopicEntityTagSourceModel,
+                                       TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id)
+                else:
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                        detail=f"The column '{sort_by}' does not exist in either TopicEntityTagModel or TopicEntityTagSourceModel.")
+                if column_property is None:
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                        detail=f"Failed to get the column '{sort_by}' from the models.")
 
-            query = query.order_by(order_expression, column_property.desc() if desc_sort else column_property)
-
+                # check for None values and order accordingly
+                order_expression = case([(column_property.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
+                query = query.order_by(order_expression, column_property.desc() if desc_sort else column_property)
         all_tet = []
         for tet in query.offset((page - 1) * page_size if page_size else None).limit(page_size).all():
             tet_data = jsonable_encoder(tet)
