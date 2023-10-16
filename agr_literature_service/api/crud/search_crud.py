@@ -116,7 +116,7 @@ def search_date_range(es_body,
 
 
 # flake8: noqa: C901
-def search_references(query: str = None, facets_values: Dict[str, List[str]] = None,
+def search_references(query: str = None, facets_values: Dict[str, List[str]] = None, negated_facets_values: Dict[str, List[str]] = None,
                       size_result_count: Optional[int] = 10, sort_by_published_date_order: Optional[str] = "asc",
                       page: Optional[int] = 1,
                       facets_limits: Dict[str, int] = None, return_facets_only: bool = False,
@@ -134,6 +134,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         size_result_count = 10
     if page is None:
         page = 1
+
     from_entry = (page-1) * size_result_count
     es_host = config.ELASTICSEARCH_HOST
     es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
@@ -303,11 +304,20 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"].append({"term": {}})
                 es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
 
+    if negated_facets_values:
+        for facet_field, facet_list_values in negated_facets_values.items():
+            if "must_not" not in es_body["query"]["bool"]["filter"]["bool"]:
+                es_body["query"]["bool"]["filter"]["bool"]["must_not"] = []
+            es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({"bool": {"must": []}})
+            for facet_value in facet_list_values:
+                es_body["query"]["bool"]["filter"]["bool"]["must_not"][-1]["bool"]["must"].append({"term": {}})
+                es_body["query"]["bool"]["filter"]["bool"]["must_not"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
+
     date_range = False
     if date_pubmed_modified or date_pubmed_arrive or date_published or date_created:
         date_range = True
         search_date_range(es_body, date_pubmed_modified, date_pubmed_arrive, date_published, date_created)
-    if not facets_values and not date_range:
+    if not facets_values and not date_range and not negated_facets_values:
         del es_body["query"]["bool"]["filter"]
 
     if author_filter:
