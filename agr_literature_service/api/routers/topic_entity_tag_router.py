@@ -130,7 +130,7 @@ def show_all_reference_tags(curie_or_reference_id: str,
                                                          column_values)
 
 
-@router.get('/map_entity_curie_to_name/{curie_or_reference_id}',
+@router.get('/map_entity_curie_to_name/',
             response_model=Dict[str, str],
             status_code=200)
 def get_map_entity_curie_to_name(curie_or_reference_id: str,

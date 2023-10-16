@@ -37,7 +37,7 @@ def update_resource_descriptor(db: Session = db_session):
                         page_objs = []
                         for page in value:
                             page_obj = ResourceDescriptorPageModel(name=page['name'],
-                                                               url=page['url'])
+                                                                   url=page['url'])
                             db.add(page_obj)
                             page_objs.append(page_obj)
                         resource_descriptor_data['pages'] = page_objs
@@ -50,7 +50,7 @@ def update_resource_descriptor(db: Session = db_session):
             db.add(resource_descriptor_obj)
             db.commit()
     except Exception as e:
-        logging.error(f"Unable to process resource_descriptor '{config.RESOURCE_DESCRIPTOR_URL}'")
+        logging.error(f"Unable to process resource_descriptor '{config.RESOURCE_DESCRIPTOR_URL}' with error {e}")
         exit(-1)
 
     return resource_descriptors

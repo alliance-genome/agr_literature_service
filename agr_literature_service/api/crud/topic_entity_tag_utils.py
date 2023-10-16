@@ -125,6 +125,7 @@ def get_map_ateam_curies_to_names(curies_category, curies):
         logger.debug(f"Exception setting up request:get_map_ateam_curies_to_names: {e}")
         return {}
 
+
 @ttl_cache(maxsize=128, ttl=60 * 60)
 def get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str = 'ancestors') -> List[str]:
     """
