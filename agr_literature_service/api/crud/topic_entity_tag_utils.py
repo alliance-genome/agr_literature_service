@@ -81,7 +81,7 @@ def get_sorted_column_values(reference_id: int, db: Session, column_name: str, t
             .distinct()
             .all()
         )
-        entity_type_to_entities = {}
+        entity_type_to_entities: Dict[str, List[str]] = {}
         for result in results:
             if result.entity_type in entity_type_to_entities:
                 entity_type_to_entities[result.entity_type].append(result.entity)
