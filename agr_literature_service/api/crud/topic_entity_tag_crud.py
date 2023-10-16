@@ -270,7 +270,7 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
                 column = column_property.property.columns[0]
                 order_expression = case([(column.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
                 sorted_column_values = get_sorted_column_values(reference_id, db,
-                                                                sort_by, token, desc_sort)
+                                                                sort_by, desc_sort)
                 curie_ordering = case({curie: index for index, curie in enumerate(sorted_column_values)},
                                       value=getattr(TopicEntityTagModel, sort_by))
                 query = query.order_by(order_expression, curie_ordering)
