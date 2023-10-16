@@ -95,8 +95,6 @@ def get_map_ateam_curies_to_names(curies_category, curies):
         }
     }
     token = get_authentication_token()
-    logger.debug(f"BOB: {token}")
-    logger.debug(f"ateam_api = {ateam_api}")
     try:
         request_data_encoded = json.dumps(request_body)
         request_data_encoded_str = str(request_data_encoded)
@@ -105,24 +103,22 @@ def get_map_ateam_curies_to_names(curies_category, curies):
         request.add_header("Content-type", "application/json")
         request.add_header("Accept", "application/json")
     except Exception as e:
-        logger.debug(f"Exception setting up request:get_map_ateam_curies_to_names: {e}")
+        logger.error(f"Exception setting up request:get_map_ateam_curies_to_names: {e}")
         return {}
     try:
-        logger.debug(f"get_map_ateam_curies_to_names request: {request}")
         with urllib.request.urlopen(request) as response:
             resp = response.read().decode("utf8")
             resp_obj = json.loads(resp)
             # from the A-team API, atp values have a "name" field and other entities (e.g., genes and alleles) have
             # symbol objects - e.g., geneSymbol.displayText
-            logger.debug(f"get_map_ateam_curies_to_names response: {resp_obj}")
             return {entity["curie"]: entity["name"] if "name" in entity else entity[
                 curies_category + "Symbol"]["displayText"] for entity in (resp_obj["results"] if "results" in
                                                                                                  resp_obj else [])}
     except HTTPError as e:
-        logger.debug(f"HTTPError:get_map_ateam_curies_to_names: {e}")
+        logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
         return {}
     except Exception as e:
-        logger.debug(f"Exception setting up request:get_map_ateam_curies_to_names: {e}")
+        logger.error(f"Exception setting up request:get_map_ateam_curies_to_names: {e}")
         return {}
 
 
@@ -171,14 +167,13 @@ def get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str =
     token = get_authentication_token()
     ateam_api_base_url = environ.get('ATEAM_API_URL', "https://beta-curation.alliancegenome.org/api")
     ateam_api = f'{ateam_api_base_url}/atpterm/{onto_node}/{ancestors_or_descendants}'
-    logger.debug(f"ateam_api = {ateam_api}")
     try:
         request = urllib.request.Request(url=ateam_api)
         request.add_header("Authorization", f"Bearer {token}")
         request.add_header("Content-type", "application/json")
         request.add_header("Accept", "application/json")
     except Exception as e:
-        logger.debug(f"Exception setting up request:get_ancestors_or_descendants: {e}")
+        logger.error(f"Exception setting up request:get_ancestors_or_descendants: {e}")
         return []
     try:
         with urllib.request.urlopen(request) as response:

@@ -23,9 +23,7 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEn
                                                                          TopicEntityTagSourceSchemaUpdate,
                                                                          TopicEntityTagSourceSchemaCreate,
                                                                          TopicEntityTagSchemaUpdate)
-import logging
 
-logger = logging.getLogger(__name__)
 
 ATP_ID_SOURCE_AUTHOR = "author"
 ATP_ID_SOURCE_CURATOR = "curator"
@@ -282,7 +280,6 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
 
 
 def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str):
-    logger.debug(f"tetcrud: {curie_or_reference_id}")
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
     topics_and_entities = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.reference_id == reference_id).all()
     all_topics_and_entities = []
