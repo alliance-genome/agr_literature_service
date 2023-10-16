@@ -75,92 +75,51 @@ def get_sorted_column_values(reference_id: int, db: Session, column_name: str, t
         results = (
             db.query(
                 TopicEntityTagModel.entity,
-                TopicEntityTagModel.entity_type,
-                TopicEntityTagModel.species
+                TopicEntityTagModel.entity_type
             )
-            .filter(TopicEntityTagModel.reference_id == reference_id)
+            .filter_by(reference_id=reference_id)
             .distinct()
             .all()
         )
-        distinct_values = [
-            {"entity": row.entity,
-             "entity_type": row.entity_type,
-             "species": row.species}
-            for row in results if row.entity is not None
-        ]
-        curie_name_map = get_map_aterm_entity_curies_to_names(distinct_values, token)
+        entity_type_to_entities = {}
+        for result in results:
+            if result.entity_type in entity_type_to_entities:
+                entity_type_to_entities[result.entity_type].append(result.entity)
+            else:
+                entity_type_to_entities[result.entity_type] = [result.entity]
+        curie_name_map = get_map_aterm_entity_curies_to_names(entity_type_to_entities, token)
     else:
         curies = db.query(getattr(TopicEntityTagModel, column_name)).filter(
             TopicEntityTagModel.reference_id == reference_id).distinct()
-        curie_name_map = get_map_ateam_curies_to_names(column_name,
+        category = "ncbitaxonterm" if column_name == "species" else "atpterm"
+        curie_name_map = get_map_ateam_curies_to_names(category,
                                                        [curie[0] for curie in curies if curie[0]], token)
+
     return [curie for name, curie in sorted([(value, key) for key, value in curie_name_map.items()],
                                             key=lambda x: x[0], reverse=desc)]
 
 
-def get_map_aterm_entity_curies_to_names(distinct_values, token):
+def get_map_aterm_entity_curies_to_names(entity_type_to_entities, token):
 
-    """
-    entity_type:
-    ATP:0000128 protein containing complex
-    ATP:0000006 allele
-    ATP:0000005 gene
-    ATP:0000123 species
-    """
+    entity_types = [entity_type for entity_type in entity_type_to_entities.keys() if entity_type is not None]
 
-    entity_types = list(set([value['entity_type'] for value in distinct_values if 'entity_type' in value]))
-
-    entity_type_curie_name_map = get_map_ateam_curies_to_names("entity_type",
+    entity_type_curie_name_map = get_map_ateam_curies_to_names("atpterm",
                                                                entity_types,
                                                                token)
-    taxon_category_to_entity_curies = {}
-    for row in distinct_values:
-        entity_curie = row['entity']
-        category = entity_type_curie_name_map[row['entity_type']]
-        if "complex" in category:
-            category = "complex"
-        elif "pathway" in category:
-            category = "pathway"
-        taxon = row['species']
-        entity_curies = taxon_category_to_entity_curies.setdefault((taxon, category), [])
-        entity_curies.append(entity_curie)
-        taxon_category_to_entity_curies[(taxon, category)] = entity_curies
-
-    """
-    {
-    ('NCBITaxon:559292', 'gene'): ['SGD:S000001085', 'SGD:S000001086',
-                                   'SGD:S000001855', 'SGD:S000002592'],
-    ('NCBITaxon:6239', 'gene'): ['WB:WBGene00003001'],
-    ('NCBITaxon:7955', 'gene'): ['ZFIN:ZDB-GENE-000607-29', 'ZFIN:ZDB-GENE-000816-1',
-                                 'ZFIN:ZDB-GENE-980526-255', 'ZFIN:ZDB-GENE-980526-488',
-                                 'ZFIN:ZDB-GENE-990415-72', 'ZFIN:ZDB-GENE-991228-4']
-    }
-    """
-
-    ateam_api_base_url = environ.get('ATEAM_API_URL', "https://beta-curation.alliancegenome.org/api")
     entity_curie_to_name_map = {}
-    for (taxon, category) in taxon_category_to_entity_curies:
-        ateam_api = f'{ateam_api_base_url}/{category}/search?limit=1000&page=0'
-        entity_curies = taxon_category_to_entity_curies[(taxon, category)]
-        request_body = {
-            "searchFilters": {
-                "nameFilters": {
-                    "curie_keyword": {
-                        "queryString": " ".join(entity_curies),
-                        "tokenOperator": "OR"
-                    }
-                },
-                "taxonFilters": {
-                    "taxon.curie_keyword": {
-                        "queryString": taxon,
-                        "tokenOperator": "AND"
-                    }
-                }
-            }
-        }
-        curie_to_name_map = get_data_from_ateam_api(ateam_api, category, request_body, token)
-        for entity_curie in entity_curies:
-            entity_curie_to_name_map[entity_curie] = curie_to_name_map.get(entity_curie, entity_curie)
+    for entity_type in entity_type_to_entities:
+        if entity_type is None:
+            # entity_curie_to_name_map[entity_type] = entity_type_to_entitie[entity_type][0]
+            continue
+        entity_curies = entity_type_to_entities[entity_type]
+        category = entity_type_curie_name_map[entity_type].replace(" ", "")
+        # if "complex" in category:
+        #    category = "complex"
+        # elif "pathway" in category:
+        #    category = "pathway"
+        curie_to_name_map = get_map_ateam_curies_to_names(category, entity_curies, token)
+        entity_curie_to_name_map.update(curie_to_name_map)
+
     """
     {'SGD:S000001085': 'DOG2', 'SGD:S000001086': 'DOG1', 'SGD:S000001855': 'ACT1', 'SGD:S000002592': 'ATC1', 'WB:WBGene00003001': 'lin-12', 'ZFIN:ZDB-GENE-000607-29': 'id:ibd5038', 'ZFIN:ZDB-GENE-000816-1': 'fgfr3', 'ZFIN:ZDB-GENE-980526-255': 'fgfr1a', 'ZFIN:ZDB-GENE-980526-488': 'fgfr4', 'ZFIN:ZDB-GENE-990415-72': 'fgf8a', 'ZFIN:ZDB-GENE-991228-4': 'etv5b'}
     """
@@ -169,10 +128,6 @@ def get_map_aterm_entity_curies_to_names(distinct_values, token):
 
 def get_map_ateam_curies_to_names(curies_category, curies, token):
     ateam_api_base_url = environ.get('ATEAM_API_URL', "https://beta-curation.alliancegenome.org/api")
-    if curies_category == "species":
-        curies_category = "ncbitaxonterm"
-    else:
-        curies_category = "atpterm"
     ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit=1000&page=0'
     request_body = {
         "searchFilters": {
@@ -184,11 +139,6 @@ def get_map_ateam_curies_to_names(curies_category, curies, token):
             }
         }
     }
-    return get_data_from_ateam_api(ateam_api, curies_category, request_body, token)
-
-
-def get_data_from_ateam_api(ateam_api, curies_category, request_body, token):
-
     request_data_encoded = json.dumps(request_body)
     request_data_encoded_str = str(request_data_encoded)
     request = urllib.request.Request(url=ateam_api, data=request_data_encoded_str.encode('utf-8'))
