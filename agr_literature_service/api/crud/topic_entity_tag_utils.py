@@ -102,13 +102,12 @@ def get_sorted_column_values(reference_id: int, db: Session, column_name: str, d
                                             key=lambda x: x[0], reverse=desc)]
 
 
-def get_map_aterm_entity_curies_to_names(entity_type_to_entities, token):
+def get_map_aterm_entity_curies_to_names(entity_type_to_entities):
 
     entity_types = [entity_type for entity_type in entity_type_to_entities.keys() if entity_type is not None]
 
     entity_type_curie_name_map = get_map_ateam_curies_to_names("atpterm",
-                                                               entity_types,
-                                                               token)
+                                                               entity_types)
     entity_curie_to_name_map = {}
     for entity_type in entity_type_to_entities:
         if entity_type is None:
@@ -120,7 +119,7 @@ def get_map_aterm_entity_curies_to_names(entity_type_to_entities, token):
         #    category = "complex"
         # elif "pathway" in category:
         #    category = "pathway"
-        curie_to_name_map = get_map_ateam_curies_to_names(category, entity_curies, token)
+        curie_to_name_map = get_map_ateam_curies_to_names(category, entity_curies)
         entity_curie_to_name_map.update(curie_to_name_map)
 
     """
