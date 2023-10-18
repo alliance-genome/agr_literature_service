@@ -1,16 +1,17 @@
 from agr_literature_service.api.models import CrossReferenceModel
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_by_doi import \
     get_pmid_for_doi, add_pmid_to_existing_papers
-from ....fixtures import db, load_sanitized_references, cleanup_tmp_files_when_done, \
-    populate_test_mod_reference_types # noqa
+from ....fixtures import db # noqa
 
 
 class TestPubmedUpdateReferenceByDoi:
 
-    def test_add_pmid_to_existing_papers(self, db, load_sanitized_references, cleanup_tmp_files_when_done): # noqa
-
-        cr = db.query(CrossReferenceModel).filter_by(curie='FB:FBrf0066905').one_or_none()
-        reference_id = cr.reference_id
+    def test_add_pmid_to_existing_papers(self, db): # noqa
+        x = ReferenceModel(title="test title",
+                           category="thesis",
+                           abstract="test abstract",
+                           prepublication_pipeline=False)
+        reference_id=1
         pmid_to_add = 'PMID:88888'
         papers_to_add_pmid = [(reference_id, pmid_to_add)]
         add_pmid_to_existing_papers(db, papers_to_add_pmid)
