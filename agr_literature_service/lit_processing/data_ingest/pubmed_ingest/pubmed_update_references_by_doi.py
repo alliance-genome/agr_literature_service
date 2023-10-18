@@ -79,9 +79,10 @@ def update_database(): # noqa
 def get_pmid_for_doi(doi):
     params = {
         "db": "pubmed",
-        "term": f"{doi}[DOI]",
-        "api_key": environ['NCBI_API_KEY']
+        "term": f"{doi}[DOI]"
     }
+    if 'NCBI_API_KEY' in environ:
+        params['api_key'] = environ['NCBI_API_KEY']
     response = requests.get(base_url, params=params)
     if response.status_code == 429:  # Too Many Requests
         time.sleep(10)  # Wait for 10 seconds before retrying
