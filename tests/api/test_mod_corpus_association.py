@@ -65,6 +65,11 @@ class TestModCorpusAssociation:
                                   f"{test_mca.new_mca_id}").json()["mod_corpus_sort_source"] == "assigned_for_review"
 
             # add changeset tests
+            response = client.get(url=f"/reference/mod_corpus_association/{test_mca.new_mca_id}/versions")
+            transactions = response.json()
+            print(transactions)
+            assert transactions[1]['changeset']['mod_corpus_sort_source'][0] == 'mod_pubmed_search'
+            assert transactions[1]['changeset']['mod_corpus_sort_source'][1] == 'assigned_for_review'
 
     def test_change_reference_mca(self, test_mca, auth_headers, test_reference2):  # noqa
         with TestClient(app) as client:
