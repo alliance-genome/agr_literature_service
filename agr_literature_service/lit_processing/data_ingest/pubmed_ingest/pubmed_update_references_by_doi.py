@@ -76,13 +76,12 @@ def update_database(): # noqa
     logger.info("DONE!")
 
 
-def get_pmid_for_doi(doi):
+def get_pmid_for_doi(doi): # noqa
     params = {
         "db": "pubmed",
-        "term": f"{doi}[DOI]"
+        "term": f"{doi}[DOI]",
+        'api_key': environ['NCBI_API_KEY']
     }
-    if 'NCBI_API_KEY' in environ:
-        params['api_key'] = environ['NCBI_API_KEY']
     response = requests.get(base_url, params=params)
     if response.status_code == 429:  # Too Many Requests
         time.sleep(10)  # Wait for 10 seconds before retrying
@@ -92,7 +91,7 @@ def get_pmid_for_doi(doi):
     return pmids
 
 
-def add_pmid_to_existing_papers(db, papers_to_add_pmid):
+def add_pmid_to_existing_papers(db, papers_to_add_pmid): # noqa
 
     try:
         for (reference_id, pmid) in papers_to_add_pmid:
