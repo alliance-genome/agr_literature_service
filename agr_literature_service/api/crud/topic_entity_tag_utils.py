@@ -12,6 +12,9 @@ from starlette import status
 from agr_literature_service.api.models import TopicEntityTagSourceModel, ReferenceModel, ModModel, TopicEntityTagModel
 from agr_literature_service.api.user import add_user_if_not_exists
 from agr_literature_service.lit_processing.utils.okta_utils import get_authentication_token
+import logging
+
+logger = logging.getLogger(__name__)
 
 # TODO: fix these to get from database or some other place?
 sgd_primary_display_tag = 'ATP:0000147'
@@ -69,34 +72,86 @@ def add_source_obj_to_db_session(db: Session, source: Dict):
     return source_obj
 
 
-def get_sorted_column_values(reference_id: int, db: Session, column_name: str, token, desc: bool = False):
-    curies = db.query(getattr(TopicEntityTagModel, column_name)).filter(
-        TopicEntityTagModel.reference_id == reference_id).distinct()
-    if column_name in ["entity_type", "topic"]:
-        curie_name_map = get_map_ateam_curies_to_names("atpterm",
-                                                       [curie[0] for curie in curies if curie[0]], token)
-        return [curie for name, curie in sorted([(value, key) for key, value in curie_name_map.items()],
-                                                key=lambda x: x[0], reverse=desc)]
+def get_sorted_column_values(reference_id: int, db: Session, column_name: str, desc: bool = False):
+
+    if column_name == "entity":
+        results = (
+            db.query(
+                TopicEntityTagModel.entity,
+                TopicEntityTagModel.entity_type
+            )
+            .filter_by(reference_id=reference_id)
+            .distinct()
+            .all()
+        )
+        entity_type_to_entities: Dict[str, List[str]] = {}
+        for result in results:
+            if result.entity_type in entity_type_to_entities:
+                entity_type_to_entities[result.entity_type].append(result.entity)
+            else:
+                entity_type_to_entities[result.entity_type] = [result.entity]
+        curie_name_map = get_map_aterm_entity_curies_to_names(entity_type_to_entities)
+    else:
+        curies = db.query(getattr(TopicEntityTagModel, column_name)).filter(
+            TopicEntityTagModel.reference_id == reference_id).distinct()
+        category = "ncbitaxonterm" if column_name == "species" else "atpterm"
+        curie_name_map = get_map_ateam_curies_to_names(category,
+                                                       [curie[0] for curie in curies if curie[0]])
+
+    return [curie for name, curie in sorted([(value, key) for key, value in curie_name_map.items()],
+                                            key=lambda x: x[0], reverse=desc)]
 
 
-def get_map_ateam_curies_to_names(curies_category, curies, token):
+def get_map_aterm_entity_curies_to_names(entity_type_to_entities):
+
+    entity_types = [entity_type for entity_type in entity_type_to_entities.keys() if entity_type is not None]
+
+    entity_type_curie_name_map = get_map_ateam_curies_to_names("atpterm",
+                                                               entity_types)
+    entity_curie_to_name_map = {}
+    for entity_type in entity_type_to_entities:
+        if entity_type is None:
+            # entity_curie_to_name_map[entity_type] = entity_type_to_entitie[entity_type][0]
+            continue
+        entity_curies = entity_type_to_entities[entity_type]
+        category = entity_type_curie_name_map[entity_type].replace(" ", "")
+        # if "complex" in category:
+        #    category = "complex"
+        # elif "pathway" in category:
+        #    category = "pathway"
+        curie_to_name_map = get_map_ateam_curies_to_names(category, entity_curies)
+        entity_curie_to_name_map.update(curie_to_name_map)
+
+    """
+    {'SGD:S000001085': 'DOG2', 'SGD:S000001086': 'DOG1', 'SGD:S000001855': 'ACT1', 'SGD:S000002592': 'ATC1', 'WB:WBGene00003001': 'lin-12', 'ZFIN:ZDB-GENE-000607-29': 'id:ibd5038', 'ZFIN:ZDB-GENE-000816-1': 'fgfr3', 'ZFIN:ZDB-GENE-980526-255': 'fgfr1a', 'ZFIN:ZDB-GENE-980526-488': 'fgfr4', 'ZFIN:ZDB-GENE-990415-72': 'fgf8a', 'ZFIN:ZDB-GENE-991228-4': 'etv5b'}
+    """
+    return entity_curie_to_name_map
+
+
+def get_map_ateam_curies_to_names(curies_category, curies):
     ateam_api_base_url = environ.get('ATEAM_API_URL', "https://beta-curation.alliancegenome.org/api")
-    if curies_category == "species":
-        curies_category = "ncbitaxonterm"
     ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit=1000&page=0'
     request_body = {
         "searchFilters": {
             "nameFilters": {
-                "curie_keyword": {"queryString": " ".join(curies), "tokenOperator": "OR"}
+                "curie_keyword": {
+                    "queryString": " ".join(curies),
+                    "tokenOperator": "OR"
+                }
             }
         }
     }
-    request_data_encoded = json.dumps(request_body)
-    request_data_encoded_str = str(request_data_encoded)
-    request = urllib.request.Request(url=ateam_api, data=request_data_encoded_str.encode('utf-8'))
-    request.add_header("Authorization", f"Bearer {token}")
-    request.add_header("Content-type", "application/json")
-    request.add_header("Accept", "application/json")
+    token = get_authentication_token()
+    try:
+        request_data_encoded = json.dumps(request_body)
+        request_data_encoded_str = str(request_data_encoded)
+        request = urllib.request.Request(url=ateam_api, data=request_data_encoded_str.encode('utf-8'))
+        request.add_header("Authorization", f"Bearer {token}")
+        request.add_header("Content-type", "application/json")
+        request.add_header("Accept", "application/json")
+    except Exception as e:
+        logger.error(f"Exception setting up request:get_map_ateam_curies_to_names: {e}")
+        return {}
     try:
         with urllib.request.urlopen(request) as response:
             resp = response.read().decode("utf8")
@@ -106,7 +161,11 @@ def get_map_ateam_curies_to_names(curies_category, curies, token):
             return {entity["curie"]: entity["name"] if "name" in entity else entity[
                 curies_category + "Symbol"]["displayText"] for entity in (resp_obj["results"] if "results" in
                                                                                                  resp_obj else [])}
-    except HTTPError:
+    except HTTPError as e:
+        logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
+        return {}
+    except Exception as e:
+        logger.error(f"Exception setting up request:get_map_ateam_curies_to_names: {e}")
         return {}
 
 
@@ -155,17 +214,22 @@ def get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str =
     token = get_authentication_token()
     ateam_api_base_url = environ.get('ATEAM_API_URL', "https://beta-curation.alliancegenome.org/api")
     ateam_api = f'{ateam_api_base_url}/atpterm/{onto_node}/{ancestors_or_descendants}'
-    request = urllib.request.Request(url=ateam_api)
-    request.add_header("Authorization", f"Bearer {token}")
-    request.add_header("Content-type", "application/json")
-    request.add_header("Accept", "application/json")
+    try:
+        request = urllib.request.Request(url=ateam_api)
+        request.add_header("Authorization", f"Bearer {token}")
+        request.add_header("Content-type", "application/json")
+        request.add_header("Accept", "application/json")
+    except Exception as e:
+        logger.error(f"Exception setting up request:get_ancestors_or_descendants: {e}")
+        return []
     try:
         with urllib.request.urlopen(request) as response:
             resp = response.read().decode("utf8")
             resp_obj = json.loads(resp)
             return [entity["curie"] for entity in resp_obj["entities"]] if "entities" in resp_obj else []
     except HTTPError:
-        return []
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Error from A-team API")
 
 
 def check_and_set_sgd_display_tag(topic_entity_tag_data):

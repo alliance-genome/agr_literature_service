@@ -33,7 +33,7 @@ def download_dqm_reference_json():  # pragma: no cover
 
     mod_to_reference_url = {
         "SGD": "https://sgd-prod-upload.s3.us-west-2.amazonaws.com/latest/REFERENCE_SGD.json",
-        "WB": "https://tazendra.caltech.edu/~postgres/agr/lit/agr_wb_literature.json",
+        "WB": "https://caltech-curation.textpressolab.com/files/pub/agr_upload/pap_papers/agr_wb_literature.json",
         "ZFIN": "https://zfin.org/downloads/ZFIN_1.0.1.4_Reference.json",
         "FB": "http://ftp.flybase.net/flybase/associated_files/alliance/FB_reference.json.gz",
         "XB": "https://ftp.xenbase.org/pub/DataExchange/AGR/XB_REFERENCE.json.zip",

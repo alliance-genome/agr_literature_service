@@ -196,6 +196,7 @@ class TestReference:
                         ]
                     }
                 ],
+                "prepublication_pipeline": True,
                 "workflow_tags": [
                     {
                         "workflow_tag_id": "workflow_tag1",
@@ -234,6 +235,7 @@ class TestReference:
             assert response['category'] == 'research_article'
             assert response['date_published_start'] == '2022-10-01'
             assert response['date_published_end'] == '2022-10-02'
+            assert response['prepublication_pipeline'] is True
 
             # Not sure of order in array of the authors so:-
             assert len(response['authors']) == 2
@@ -408,7 +410,7 @@ class TestReference:
                                   headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert response.json() == 'author|\n' \
-                                      'accession|\n' \
+                                      'accession| AGRKB:101000000000001\n' \
                                       'type|\n' \
                                       'title|Bob\n' \
                                       'journal|\n' \

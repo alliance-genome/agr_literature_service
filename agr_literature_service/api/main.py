@@ -87,11 +87,32 @@ app.add_api_route("/health", health([is_database_online]))
 app.openapi = custom_openapi  # type: ignore
 
 
+def check_key_envs():
+    env_to_check = [
+        'API_PORT', 'API_SERVER', 'XML_PATH', 'AWS_SECRET_ACCESS_KEY',
+        'AWS_ACCESS_KEY_ID', 'OKTA_CLIENT_ID', 'OKTA_CLIENT_SECRET', 'ENV_STATE',
+        'PSQL_USERNAME', 'PSQL_PASSWORD', 'PSQL_HOST', 'PSQL_PORT', 'PSQL_DATABASE',
+        'RESOURCE_DESCRIPTOR_URL', 'HOST', 'OKTA_DOMAIN', 'OKTA_API_AUDIENCE', 'ATEAM_API_URL'
+    ]
+    okay_to_continue = True
+    for key in env_to_check:
+        value = environ.get(key, "")
+        if not value:
+            okay_to_continue = False
+            logging.error(f"Environment variable {key} has no value or is blank")
+    if not okay_to_continue:
+        logging.error("Exiting initialisation. Please set all envs anf try again.")
+    return okay_to_continue
+
+
 def run():
     """
 
     :return:
     """
+
+    if not check_key_envs():
+        exit(-1)
 
     # May put back but for now do not see way to have multiple formats
     #  using the logging.basicConfig
