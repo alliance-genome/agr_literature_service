@@ -134,6 +134,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
     db.refresh(reference_db_obj)
     for field, value in vars(reference).items():
         logger.debug("Processing mod corpus asso")
+        # mod_corpus_associations now triggers creating mod xref for WB, so must happen after xref creation here.
         if field == "mod_corpus_associations":
             if value is not None:
                 for obj in value:

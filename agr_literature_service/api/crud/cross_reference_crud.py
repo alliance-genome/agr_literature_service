@@ -2,10 +2,11 @@
 cross_reference_crud.py
 =======================
 """
+import os
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -103,6 +104,33 @@ def show(db: Session, curie_or_cross_reference_id: str) -> dict:
         cross_reference_data["pages"] = pages_data
 
     return cross_reference_data
+
+
+def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, mod_abbreviation: str):
+    cross_reference = db.query(CrossReferenceModel).filter(
+        and_(CrossReferenceModel.reference_id == reference_obj.reference_id,
+             CrossReferenceModel.curie_prefix == mod_abbreviation)).order_by(
+        CrossReferenceModel.is_obsolete).first()
+    if not cross_reference:
+        env_state = os.environ.get("ENV_STATE", "")
+        if mod_abbreviation == 'WB' and env_state != "prod":
+            new_wbpaper_number = 1
+            cross_reference = db.query(CrossReferenceModel.curie).filter(
+                and_(CrossReferenceModel.curie.startswith("WB:WBPaper0"),
+                     CrossReferenceModel.curie_prefix == mod_abbreviation)).order_by(
+                CrossReferenceModel.curie.desc()).first()
+            if cross_reference:
+                new_wbpaper_number = int(cross_reference.curie[11:]) + 1
+            new_wbpaper_string = str(new_wbpaper_number).zfill(8)
+            new_wbpaper_curie = f"WB:WBPaper{new_wbpaper_string}"
+            new_wbpaper_xref = {
+                "curie": new_wbpaper_curie,
+                "pages": [
+                    "reference"
+                ],
+                "reference_curie": reference_obj.curie
+            }
+            create(db, new_wbpaper_xref)
 
 
 def show_changesets(db: Session, cross_reference_id: int):
