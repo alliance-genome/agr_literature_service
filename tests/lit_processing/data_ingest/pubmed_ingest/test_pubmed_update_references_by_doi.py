@@ -9,8 +9,7 @@ class TestPubmedUpdateReferenceByDoi:
     def test_add_pmid_to_existing_papers(self, db): # noqa
         x = ReferenceModel(title="test title",
                            category="thesis",
-                           abstract="test abstract",
-                           prepublication_pipeline=False)
+                           abstract="test abstract")
         db.add(x)
         db.commit()
         reference_id = 1
