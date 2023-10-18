@@ -309,10 +309,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         for facet_field, facet_list_values in negated_facets_values.items():
             if "must_not" not in es_body["query"]["bool"]["filter"]["bool"]:
                 es_body["query"]["bool"]["filter"]["bool"]["must_not"] = []
-            ##es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({"bool": {"must": []}})
             for facet_value in facet_list_values:
-                ##es_body["query"]["bool"]["filter"]["bool"]["must_not"][-1]["bool"]["must"].append({"term": {}})
-                ##es_body["query"]["bool"]["filter"]["bool"]["must_not"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
                 es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({"term": {}})
                 es_body["query"]["bool"]["filter"]["bool"]["must_not"][-1]["term"][facet_field] = facet_value
 
