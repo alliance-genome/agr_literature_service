@@ -18,7 +18,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-def update_database():
+def update_database(): # noqa
 
     db = create_postgres_session(False)
 
@@ -105,7 +105,7 @@ def add_pmid_to_existing_papers(db, papers_to_add_pmid):
         logger.info(f"Error(s) occurred when adding PMID(s) into cross_reference table: {e}")
 
 
-def update_papers(db, pmids_to_update):
+def update_papers(db, pmids_to_update): # noqa
 
     pmids = "|".join(pmids_to_update)
 
@@ -115,7 +115,7 @@ def update_papers(db, pmids_to_update):
         logger.info(f"Error(s) occurred when updating papers with the data from PubMed: {e}")
 
 
-def send_report_for_merging_paper(papers_to_merge):
+def send_report_for_merging_paper(papers_to_merge): # noqa
 
     email_subject = "Duplicate Paper Pairs Detected: Merge Required"
 
@@ -135,7 +135,7 @@ def send_report_for_merging_paper(papers_to_merge):
         logger.info(f"An error occurred when sending email to slack: {e}")
 
 
-def get_cross_reference_data(db):
+def get_cross_reference_data(db): # noqa
 
     rows = db.execute("SELECT reference_id, curie "
                       "FROM cross_reference "
