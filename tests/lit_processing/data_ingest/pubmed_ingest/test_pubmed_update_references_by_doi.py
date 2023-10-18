@@ -1,4 +1,4 @@
-from agr_literature_service.api.models import CrossReferenceModel
+from agr_literature_service.api.models import ReferenceModel, CrossReferenceModel
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_by_doi import \
     get_pmid_for_doi, add_pmid_to_existing_papers
 from ....fixtures import db # noqa
@@ -11,7 +11,9 @@ class TestPubmedUpdateReferenceByDoi:
                            category="thesis",
                            abstract="test abstract",
                            prepublication_pipeline=False)
-        reference_id=1
+        db.add(x)
+        db.commit()
+        reference_id = 1
         pmid_to_add = 'PMID:88888'
         papers_to_add_pmid = [(reference_id, pmid_to_add)]
         add_pmid_to_existing_papers(db, papers_to_add_pmid)
