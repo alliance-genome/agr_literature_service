@@ -546,7 +546,13 @@ def author_order_sort(author: AuthorModel):
     return author.order
 
 
-def citation_from_data(reference_data, authorNames):
+# Not used anymore?
+# Adding log error incase it is.
+# Used by alembic update but likelyhood of this being used again is very small
+# So if we do not see any error messages after a while, we can delete this.
+def citation_from_data(reference_data, authorNames):  # pragma: no cover
+    logger.error("citation_from_data scheduled to be removed."
+                 " Please notify blueteam to remove docs about removal.")
     if authorNames.endswith("; "):
         authorNames = authorNames[:-2]  # remove last '; '
     year = ''
@@ -573,8 +579,13 @@ def citation_from_data(reference_data, authorNames):
         volume = reference_data['volume']
     return get_citation_from_args(authorNames, year, title, journal, volume, issue, page_range)
 
-
-def get_citation_from_obj(db: Session, ref_db_obj: ReferenceModel):
+# Not used anymore? Done by psql trigger.
+# Adding log error incase it is.
+# Used by alembic update but likelyhood of this being used again is very small
+# So if we do not see any error messages after a while, we can delete this.
+def get_citation_from_obj(db: Session, ref_db_obj: ReferenceModel):  # pragma: no cover
+    logger.error("get_citation_from_obj scheduled to be removed."
+                 " Please notify blueteam to remove docs about removal.")
     # Authors, (year) title.   Journal  volume (issue): page_range
     year = ''
     if ref_db_obj.date_published:
