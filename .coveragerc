@@ -36,6 +36,7 @@ omit =
 
 	# pretty much all functions related to topic end entity tags require A-team API calls and are thus web tests only
 	agr_literature_service/api/crud/topic_entity_tag_crud.py
+	agr_literature_service/api/crud/topic_entity_tag_crud_utils.py
 
 [report]
 exclude_lines =
