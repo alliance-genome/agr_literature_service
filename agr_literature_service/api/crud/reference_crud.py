@@ -526,7 +526,17 @@ def merge_comments_and_corrections(db, old_reference_id, new_reference_id, old_c
                 e))
 
 
-def get_citation_from_args(authorNames, year, title, journal, volume, issue, page_range):
+def author_order_sort(author: AuthorModel):
+    return author.order
+
+
+# Not used anymore?
+# Adding log error incase it is.
+# Used by alembic update but likelyhood of this being used again is very small
+# So if we do not see any error messages after a while, we can delete this.
+def get_citation_from_args(authorNames, year, title, journal, volume, issue, page_range):  # pragma: no cover
+    logger.error("get_citation_from_args scheduled to be removed."
+                 " Please notify blueteam to remove docs about removal.")
     if type(authorNames) == list:
         authorNames = "; ".join(authorNames)
 
@@ -540,10 +550,6 @@ def get_citation_from_args(authorNames, year, title, journal, volume, issue, pag
         format(authorNames, year, title,
                journal, volume, issue, page_range)
     return citation
-
-
-def author_order_sort(author: AuthorModel):
-    return author.order
 
 
 # Not used anymore?
@@ -578,6 +584,7 @@ def citation_from_data(reference_data, authorNames):  # pragma: no cover
     if 'volume' in reference_data and reference_data['volume']:
         volume = reference_data['volume']
     return get_citation_from_args(authorNames, year, title, journal, volume, issue, page_range)
+
 
 # Not used anymore? Done by psql trigger.
 # Adding log error incase it is.

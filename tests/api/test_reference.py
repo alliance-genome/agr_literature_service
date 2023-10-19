@@ -36,6 +36,21 @@ def test_reference(db, auth_headers): # noqa
         yield TestReferenceData(response, response.json())
 
 
+@pytest.fixture
+def test_referencefile(db, auth_headers, test_reference): # noqa
+    print("***** Adding a test referencefile *****")
+    new_referencefile = {
+        "display_name": "Bob",
+        "reference_curie": test_reference.new_ref_curie,
+        "file_class": "main",
+        "file_publication_status": "final",
+        "file_extension": "pdf",
+        "pdf_type": "pdf",
+        "md5sum": "1234567890"
+    }
+    yield create_metadata(db, ReferencefileSchemaPost(**new_referencefile))
+
+
 class TestReference:
 
     def test_create_reference(self, db, auth_headers, test_reference): # noqa
@@ -106,13 +121,13 @@ class TestReference:
             res = client.get(url="/reference/does_not_exist")
             assert res.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_update_reference(self, auth_headers, test_reference): # noqa
+    def test_update_reference(self, auth_headers, test_reference, test_resource): # noqa
         with TestClient(app) as client:
             # patch docs says it needs a ReferenceSchemaUpdate
             # but does not work with this.
             # with pytest.raises(AttributeError):
             updated_fields = {"title": "new title", "category": "book", "language": "New",
-                              "date_published_start": "2022-10-01"}
+                              "date_published_start": "2022-10-01", "resource": test_resource.new_resource_curie}
             response = client.patch(url=f"/reference/{test_reference.new_ref_curie}", json=updated_fields,
                                     headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
@@ -125,8 +140,9 @@ class TestReference:
             assert updated_ref["abstract"] == "3"
             assert updated_ref["date_published_start"] == "2022-10-01"
             # Do we have a new citation
-            assert updated_ref["citation"] == ", () new title.  ():"
+            assert updated_ref["citation"] == ", () new title. Bob ():"
             assert updated_ref["copyright_license_id"] is None
+            assert updated_ref["resource_id"]
 
     def test_changesets(self, test_reference, auth_headers): # noqa
         with TestClient(app) as client:
@@ -570,6 +586,15 @@ class TestReference:
             response = client.post(url="/reference/add_license/MAdeUpRefCurie/l_name",
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_get_missing_files(self, auth_headers, test_reference, test_mod, test_referencefile): # noqa
+        with TestClient(app) as client:
+            response = client.get(url=f"/reference/missing_files/{test_mod.new_mod_abbreviation}?filter=default&page=1&order_by=",
+                                  headers=auth_headers)
+            print(f"response.json -> {response.json()}")
+            assert response.status_code == status.HTTP_200_OK
+            print(response)
+            assert response.json() == []
 
     @pytest.mark.webtest
     def test_add_pmid(self, auth_headers, test_mod, db): # noqa
