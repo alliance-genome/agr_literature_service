@@ -123,8 +123,8 @@ def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cove
                 pmids_slice = pmids_all[index:index + download_xml_max_size]
                 download_pubmed_xml(pmids_slice)
                 time.sleep(sleep_time)
-            else:
-                download_pubmed_xml(pmids_all)
+        else:
+            download_pubmed_xml(pmids_all)
 
     fw.write(str(datetime.now()) + "\n")
 
