@@ -142,9 +142,23 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     obj_data["reference_curie"] = curie
                     try:
                         create_mod_corpus_association(db, obj_data)
-                    except HTTPException:
-                        logger.warning("skipping mod corpus association to a mod that is already associated to "
-                                       "the reference")
+                    except HTTPException as e:
+                        # We have several reasons why this could have failed
+                        # 1) Mod does not exist , this is a problem.
+                        if e.detail.startswith('Mod with abbreviation') and e.detail.endswith('does not exist'):
+                            logger.error(e.detail)
+                            raise
+                        # 2) Reference does not exist, this is a problem
+                        elif e.detail.startswith('Reference with curie') and e.detail.endswith('does not exist'):
+                            logger.error(e.detail)
+                            raise
+                        # 3) It already exists, not really a problem
+                        elif e.detail.startswith('ModCorpusAssociation with the reference_curie') and e.detail.endswith(
+                                'create duplicate record.'):
+                            logger.warning(e.detail)
+                        # We do not know what error this is so flag it
+                        else:
+                            raise
         elif field == "workflow_tags":
             if value is not None:
                 for obj in value:

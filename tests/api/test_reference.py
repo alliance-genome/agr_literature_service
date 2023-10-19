@@ -1,5 +1,6 @@
 import copy
 from collections import namedtuple
+import json
 
 import pytest
 from sqlalchemy_continuum import Operation
@@ -13,6 +14,7 @@ from ..fixtures import db, populate_test_mod_reference_types # noqa
 from .fixtures import auth_headers # noqa
 from .test_resource import test_resource # noqa
 from .test_mod import test_mod # noqa
+from .test_copyright_license import test_copyright_license # noqa
 from .test_topic_entity_tag_source import test_topic_entity_tag_source # noqa
 
 from agr_literature_service.api.crud.referencefile_crud import create_metadata
@@ -249,6 +251,13 @@ class TestReference:
                         "note": "test"
                     }
                 ],
+                "mod_corpus_associations": [
+                    {
+                        "mod_abbreviation": test_mod.new_mod_abbreviation,
+                        "mod_corpus_sort_source": "mod_pubmed_search",
+                        "corpus": True
+                    }
+                ],
                 "issue_name": "4",
                 "language": "English",
                 "page_range": "538--541",
@@ -310,6 +319,28 @@ class TestReference:
 
             delete_response = client.delete(url=f"/reference/{new_curie}", headers=auth_headers)
             assert delete_response.status_code == status.HTTP_204_NO_CONTENT
+
+            assert response["mod_corpus_associations"]
+            for ont in response["mod_corpus_associations"]:
+                assert ont['mod_abbreviation'] == test_mod.new_mod_abbreviation
+
+    def test_bad_mod(self, auth_headers):
+        with TestClient(app) as client:
+            new_reference = {
+                "title": "Bob",
+                "category": "thesis",
+                "abstract": "3",
+                "language": "MadeUp",
+                "mod_corpus_associations": [
+                    {
+                        "mod_abbreviation": "Made up Mod",
+                        "mod_corpus_sort_source": "mod_pubmed_search",
+                        "corpus": True
+                    }
+                ]
+            }
+            response = client.post(url="/reference/", json=new_reference, headers=auth_headers)
+            assert json.loads(response.content.decode('utf-8'))['detail'] == 'Mod with abbreviation Made up Mod does not exist'
 
     def test_reference_merging(self, db, test_resource, auth_headers): # noqa
         with TestClient(app) as client:
@@ -504,6 +535,41 @@ class TestReference:
                                 headers=auth_headers)
             assert result.status_code == status.HTTP_200_OK
             assert result.json()
+
+    def test_reference_licenses(self, auth_headers, test_reference, test_copyright_license): # noqa
+        print(test_copyright_license)
+        with TestClient(app) as client:
+            response = client.post(url=f"/reference/add_license/{test_reference.new_ref_curie}/{test_copyright_license.new_license_name}",
+                                   headers=auth_headers)
+        print(response)
+        response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+        assert response.status_code == status.HTTP_200_OK
+        print(response.json())
+        assert response.json()["copyright_license_name"] == test_copyright_license.new_license_name
+        assert response.json()["copyright_license_url"] == "test url"
+        assert response.json()["copyright_license_description"] == "test description"
+        assert response.json()["copyright_license_open_access"]
+
+        # okay lets set it to blank
+        with TestClient(app) as client:
+            response = client.post(url=f"/reference/add_license/{test_reference.new_ref_curie}/No+license",
+                                   headers=auth_headers)
+        response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+        assert response.status_code == status.HTTP_200_OK
+        print(response.json())
+        assert response.json()["copyright_license_name"] is None
+
+        # okay test with a bad license name
+        with TestClient(app) as client:
+            response = client.post(url=f"/reference/add_license/{test_reference.new_ref_curie}/Made_Up_Name",
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+
+        # okay test with a bad reference name
+        with TestClient(app) as client:
+            response = client.post(url=f"/reference/add_license/MAdeUpRefCurie/l_name",
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
 
     @pytest.mark.webtest
     def test_add_pmid(self, auth_headers, test_mod, db): # noqa
