@@ -147,11 +147,13 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                         # 1) Mod does not exist , this is a problem.
                         if e.detail.startswith('Mod with abbreviation') and e.detail.endswith('does not exist'):
                             logger.error(e.detail)
-                            raise
+                            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                                detail=e.detail)
                         # 2) Reference does not exist, this is a problem
                         elif e.detail.startswith('Reference with curie') and e.detail.endswith('does not exist'):
                             logger.error(e.detail)
-                            raise
+                            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                                detail=e.detail)
                         # 3) It already exists, not really a problem
                         elif e.detail.startswith('ModCorpusAssociation with the reference_curie') and e.detail.endswith(
                                 'create duplicate record.'):
