@@ -9,6 +9,7 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
+from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
 from agr_literature_service.api.models import ModCorpusAssociationModel, ReferenceModel, ModModel
 from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost
 
@@ -52,6 +53,9 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
     db.add(db_obj)
     db.commit()
 
+    if "corpus" in mod_corpus_association_data and mod_corpus_association_data["corpus"] is True:
+        check_xref_and_generate_mod_id(db, reference, mod_abbreviation)
+
     return db_obj.mod_corpus_association_id
 
 
@@ -82,7 +86,7 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
     :return:
     """
     mod_corpus_association_data = jsonable_encoder(mod_corpus_association_update)
-    mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(ModCorpusAssociationModel.mod_corpus_association_id == mod_corpus_association_id).first()
+    mod_corpus_association_db_obj: ModCorpusAssociationModel = db.query(ModCorpusAssociationModel).filter(ModCorpusAssociationModel.mod_corpus_association_id == mod_corpus_association_id).first()
     if not mod_corpus_association_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModCorpusAssociation with mod_corpus_association_id {mod_corpus_association_id} not found")
@@ -104,6 +108,17 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                         detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
                 mod_corpus_association_db_obj.mod = new_mod
+        elif field == "corpus":
+            if value is True and mod_corpus_association_db_obj.corpus is not True:
+                reference_obj = mod_corpus_association_db_obj.reference
+                if "reference_curie" in mod_corpus_association_data and mod_corpus_association_data["reference_curie"] is not None:
+                    reference_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == mod_corpus_association_data["reference_curie"]).first()
+                mod_abbreviation = mod_corpus_association_db_obj.mod.abbreviation
+                if "mod_abbreviation" in mod_corpus_association_data and mod_corpus_association_data["mod_abbreviation"] is not None:
+                    db_mod = db.query(ModModel).filter(ModModel.abbreviation == mod_corpus_association_data["mod_abbreviation"]).first()
+                    mod_abbreviation = db_mod.abbreviation
+                check_xref_and_generate_mod_id(db, reference_obj, mod_abbreviation)
+            setattr(mod_corpus_association_db_obj, field, value)
         else:
             setattr(mod_corpus_association_db_obj, field, value)
 

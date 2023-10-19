@@ -1,8 +1,10 @@
 import pytest
+from sqlalchemy import and_
 from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
+from agr_literature_service.api.models import ReferenceModel, CrossReferenceModel
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
@@ -97,3 +99,38 @@ class TestModCorpusAssociation:
             response = client.delete(url=f"/reference/mod_corpus_association/{test_mca.new_mca_id}",
                                      headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_mca_modid_wb(self, db, test_reference, auth_headers): # noqa
+        with TestClient(app) as client:
+            new_mod = {
+                "abbreviation": "WB",
+                "short_name": "WB",
+                "full_name": "WormBase"
+            }
+            response = client.post(url="/mod/", json=new_mod, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+
+            # reference_obj = db.query(ReferenceModel).filter(
+            #     ReferenceModel.curie == test_reference.new_ref_curie).first()
+            new_mca = {
+                "mod_abbreviation": "WB",
+                "reference_curie": test_reference.new_ref_curie,
+                "mod_corpus_sort_source": "assigned_for_review",
+                "corpus": "false"
+            }
+            response_mca = client.post(url="/reference/mod_corpus_association/", json=new_mca, headers=auth_headers)
+            assert response_mca.status_code == status.HTTP_201_CREATED
+
+            reference_obj = db.query(ReferenceModel).filter(
+                ReferenceModel.curie == test_reference.new_ref_curie).first()
+            xref = db.query(CrossReferenceModel).filter(and_(CrossReferenceModel.reference_id == reference_obj.reference_id, CrossReferenceModel.curie_prefix == 'WB')).one_or_none()
+            assert xref is None
+
+            patch_mca = {
+                "corpus": "true"
+            }
+            patch_response = client.patch(url=f"/reference/mod_corpus_association/{response_mca.text}",
+                                          json=patch_mca, headers=auth_headers)
+            assert patch_response.status_code == status.HTTP_202_ACCEPTED
+            xref = db.query(CrossReferenceModel).filter(and_(CrossReferenceModel.reference_id == reference_obj.reference_id, CrossReferenceModel.curie_prefix == 'WB')).one_or_none()
+            assert xref.curie == 'WB:WBPaper00000001'
