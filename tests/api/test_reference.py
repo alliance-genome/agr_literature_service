@@ -324,7 +324,7 @@ class TestReference:
             for ont in response["mod_corpus_associations"]:
                 assert ont['mod_abbreviation'] == test_mod.new_mod_abbreviation
 
-    def test_bad_mod(self, auth_headers):
+    def test_bad_mod(self, auth_headers): # noqa
         with TestClient(app) as client:
             new_reference = {
                 "title": "Bob",
@@ -567,7 +567,7 @@ class TestReference:
 
         # okay test with a bad reference name
         with TestClient(app) as client:
-            response = client.post(url=f"/reference/add_license/MAdeUpRefCurie/l_name",
+            response = client.post(url="/reference/add_license/MAdeUpRefCurie/l_name",
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
