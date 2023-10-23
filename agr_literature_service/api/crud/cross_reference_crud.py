@@ -109,6 +109,7 @@ def show(db: Session, curie_or_cross_reference_id: str) -> dict:
 def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, mod_abbreviation: str):
     cross_reference = db.query(CrossReferenceModel).filter(
         and_(CrossReferenceModel.reference_id == reference_obj.reference_id,
+             CrossReferenceModel.is_obsolete.is_(False),
              CrossReferenceModel.curie_prefix == mod_abbreviation)).order_by(
         CrossReferenceModel.is_obsolete).first()
     if not cross_reference:
