@@ -8,5 +8,6 @@ BASH_ENV=/container.env
 # 0 9 * * 7 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/dqm_ingest/load_dqm_resource.py > /var/log/automated_scripts/load_dqm_resource.log 2>&1
 0 11 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/dqm_ingest/sort_dqm_json_reference_updates.py > /var/log/automated_scripts/sort_dqm_json_reference_updates.log 2>&1
 0 15 * * 7 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_download_pmc_files.py > /var/log/automated_scripts/download_pmc_files.log 2>&1
+0 17 * * 7 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_by_doi.py > /var/log/automated_scripts/pubmed_update_references_by_doi.log 2>&1
 0 0 17 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_check/check_references_for_cross_references.py > /var/log/automated_scripts/find_refs_with_no_xrefs.log 2>&1
 0 4 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_export/dump_database.py -t cron > /var/log/automated_scripts/dump_prod_database.log  2>&1
