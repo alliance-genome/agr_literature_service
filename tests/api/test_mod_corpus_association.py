@@ -134,3 +134,34 @@ class TestModCorpusAssociation:
             assert patch_response.status_code == status.HTTP_202_ACCEPTED
             xref = db.query(CrossReferenceModel).filter(and_(CrossReferenceModel.reference_id == reference_obj.reference_id, CrossReferenceModel.curie_prefix == 'WB')).one_or_none()
             assert xref.curie == 'WB:WBPaper00000001'
+
+    def test_mca_modid_wb_obsolete_xref(self, db, test_reference, auth_headers): # noqa
+        # allow creating of xref via mca if xref already has mod + reference but is_obsolete
+        with TestClient(app) as client:
+            new_mod = {
+                "abbreviation": "WB",
+                "short_name": "WB",
+                "full_name": "WormBase"
+            }
+            response = client.post(url="/mod/", json=new_mod, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+
+            obs_cross_ref = {"curie": "WB:WBPaper00001234", "reference_curie": test_reference.new_ref_curie,
+                             "is_obsolete": True}
+            response = client.post(url="/cross_reference/", json=obs_cross_ref, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+
+            new_mca = {
+                "mod_abbreviation": "WB",
+                "reference_curie": test_reference.new_ref_curie,
+                "mod_corpus_sort_source": "manual_creation",
+                "corpus": "true"
+            }
+            response_mca = client.post(url="/reference/mod_corpus_association/", json=new_mca, headers=auth_headers)
+            assert response_mca.status_code == status.HTTP_201_CREATED
+
+            xref_obs = db.query(CrossReferenceModel).filter(CrossReferenceModel.is_obsolete.is_(True)).one()
+            assert xref_obs.curie == 'WB:WBPaper00001234'
+
+            xref_obs_false = db.query(CrossReferenceModel).filter(CrossReferenceModel.is_obsolete.is_(False)).one()
+            assert xref_obs_false.curie == 'WB:WBPaper00001235'
