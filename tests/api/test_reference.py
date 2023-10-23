@@ -1,5 +1,6 @@
 import copy
 from collections import namedtuple
+import json
 
 import pytest
 from sqlalchemy_continuum import Operation
@@ -13,6 +14,7 @@ from ..fixtures import db, populate_test_mod_reference_types # noqa
 from .fixtures import auth_headers # noqa
 from .test_resource import test_resource # noqa
 from .test_mod import test_mod # noqa
+from .test_copyright_license import test_copyright_license # noqa
 from .test_topic_entity_tag_source import test_topic_entity_tag_source # noqa
 
 from agr_literature_service.api.crud.referencefile_crud import create_metadata
@@ -32,6 +34,21 @@ def test_reference(db, auth_headers): # noqa
         }
         response = client.post(url="/reference/", json=new_reference, headers=auth_headers)
         yield TestReferenceData(response, response.json())
+
+
+@pytest.fixture
+def test_referencefile(db, auth_headers, test_reference): # noqa
+    print("***** Adding a test referencefile *****")
+    new_referencefile = {
+        "display_name": "Bob",
+        "reference_curie": test_reference.new_ref_curie,
+        "file_class": "main",
+        "file_publication_status": "final",
+        "file_extension": "pdf",
+        "pdf_type": "pdf",
+        "md5sum": "1234567890"
+    }
+    yield create_metadata(db, ReferencefileSchemaPost(**new_referencefile))
 
 
 class TestReference:
@@ -104,13 +121,13 @@ class TestReference:
             res = client.get(url="/reference/does_not_exist")
             assert res.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_update_reference(self, auth_headers, test_reference): # noqa
+    def test_update_reference(self, auth_headers, test_reference, test_resource): # noqa
         with TestClient(app) as client:
             # patch docs says it needs a ReferenceSchemaUpdate
             # but does not work with this.
             # with pytest.raises(AttributeError):
             updated_fields = {"title": "new title", "category": "book", "language": "New",
-                              "date_published_start": "2022-10-01"}
+                              "date_published_start": "2022-10-01", "resource": test_resource.new_resource_curie}
             response = client.patch(url=f"/reference/{test_reference.new_ref_curie}", json=updated_fields,
                                     headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
@@ -123,8 +140,9 @@ class TestReference:
             assert updated_ref["abstract"] == "3"
             assert updated_ref["date_published_start"] == "2022-10-01"
             # Do we have a new citation
-            assert updated_ref["citation"] == ", () new title.  ():"
+            assert updated_ref["citation"] == ", () new title. Bob ():"
             assert updated_ref["copyright_license_id"] is None
+            assert updated_ref["resource_id"]
 
     def test_changesets(self, test_reference, auth_headers): # noqa
         with TestClient(app) as client:
@@ -249,6 +267,13 @@ class TestReference:
                         "note": "test"
                     }
                 ],
+                "mod_corpus_associations": [
+                    {
+                        "mod_abbreviation": test_mod.new_mod_abbreviation,
+                        "mod_corpus_sort_source": "mod_pubmed_search",
+                        "corpus": True
+                    }
+                ],
                 "issue_name": "4",
                 "language": "English",
                 "page_range": "538--541",
@@ -310,6 +335,28 @@ class TestReference:
 
             delete_response = client.delete(url=f"/reference/{new_curie}", headers=auth_headers)
             assert delete_response.status_code == status.HTTP_204_NO_CONTENT
+
+            assert response["mod_corpus_associations"]
+            for ont in response["mod_corpus_associations"]:
+                assert ont['mod_abbreviation'] == test_mod.new_mod_abbreviation
+
+    def test_bad_mod(self, auth_headers): # noqa
+        with TestClient(app) as client:
+            new_reference = {
+                "title": "Bob",
+                "category": "thesis",
+                "abstract": "3",
+                "language": "MadeUp",
+                "mod_corpus_associations": [
+                    {
+                        "mod_abbreviation": "Made up Mod",
+                        "mod_corpus_sort_source": "mod_pubmed_search",
+                        "corpus": True
+                    }
+                ]
+            }
+            response = client.post(url="/reference/", json=new_reference, headers=auth_headers)
+            assert json.loads(response.content.decode('utf-8'))['detail'] == 'Mod with abbreviation Made up Mod does not exist'
 
     def test_reference_merging(self, db, test_resource, auth_headers): # noqa
         with TestClient(app) as client:
@@ -504,6 +551,50 @@ class TestReference:
                                 headers=auth_headers)
             assert result.status_code == status.HTTP_200_OK
             assert result.json()
+
+    def test_reference_licenses(self, auth_headers, test_reference, test_copyright_license): # noqa
+        print(test_copyright_license)
+        with TestClient(app) as client:
+            response = client.post(url=f"/reference/add_license/{test_reference.new_ref_curie}/{test_copyright_license.new_license_name}",
+                                   headers=auth_headers)
+        print(response)
+        response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+        assert response.status_code == status.HTTP_200_OK
+        print(response.json())
+        assert response.json()["copyright_license_name"] == test_copyright_license.new_license_name
+        assert response.json()["copyright_license_url"] == "test url"
+        assert response.json()["copyright_license_description"] == "test description"
+        assert response.json()["copyright_license_open_access"]
+
+        # okay lets set it to blank
+        with TestClient(app) as client:
+            response = client.post(url=f"/reference/add_license/{test_reference.new_ref_curie}/No+license",
+                                   headers=auth_headers)
+        response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+        assert response.status_code == status.HTTP_200_OK
+        print(response.json())
+        assert response.json()["copyright_license_name"] is None
+
+        # okay test with a bad license name
+        with TestClient(app) as client:
+            response = client.post(url=f"/reference/add_license/{test_reference.new_ref_curie}/Made_Up_Name",
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+
+        # okay test with a bad reference name
+        with TestClient(app) as client:
+            response = client.post(url="/reference/add_license/MAdeUpRefCurie/l_name",
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_get_missing_files(self, auth_headers, test_reference, test_mod, test_referencefile): # noqa
+        with TestClient(app) as client:
+            response = client.get(url=f"/reference/missing_files/{test_mod.new_mod_abbreviation}?filter=default&page=1&order_by=",
+                                  headers=auth_headers)
+            print(f"response.json -> {response.json()}")
+            assert response.status_code == status.HTTP_200_OK
+            print(response)
+            assert response.json() == []
 
     @pytest.mark.webtest
     def test_add_pmid(self, auth_headers, test_mod, db): # noqa

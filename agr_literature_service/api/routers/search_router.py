@@ -22,6 +22,7 @@ db_user = Security(auth.get_user)
              status_code=200)
 def search(body: FacetsOptionsSchema):
     return search_crud.search_references(query=body.query, facets_values=body.facets_values,
+                                         negated_facets_values=body.negated_facets_values,
                                          facets_limits=body.facets_limits,
                                          size_result_count=body.size_result_count,
                                          sort_by_published_date_order=body.sort_by_published_date_order,

@@ -142,9 +142,25 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     obj_data["reference_curie"] = curie
                     try:
                         create_mod_corpus_association(db, obj_data)
-                    except HTTPException:
-                        logger.warning("skipping mod corpus association to a mod that is already associated to "
-                                       "the reference")
+                    except HTTPException as e:
+                        # We have several reasons why this could have failed
+                        # 1) Mod does not exist , this is a problem.
+                        if e.detail.startswith('Mod with abbreviation') and e.detail.endswith('does not exist'):
+                            logger.error(e.detail)
+                            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                                detail=e.detail)
+                        # 2) Reference does not exist, this is a problem
+                        elif e.detail.startswith('Reference with curie') and e.detail.endswith('does not exist'):
+                            logger.error(e.detail)
+                            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                                detail=e.detail)
+                        # 3) It already exists, not really a problem
+                        elif e.detail.startswith('ModCorpusAssociation with the reference_curie') and e.detail.endswith(
+                                'create duplicate record.'):
+                            logger.warning(e.detail)
+                        # We do not know what error this is so flag it
+                        else:
+                            raise
         elif field == "workflow_tags":
             if value is not None:
                 for obj in value:
@@ -510,7 +526,17 @@ def merge_comments_and_corrections(db, old_reference_id, new_reference_id, old_c
                 e))
 
 
-def get_citation_from_args(authorNames, year, title, journal, volume, issue, page_range):
+def author_order_sort(author: AuthorModel):
+    return author.order
+
+
+# Not used anymore?
+# Adding log error incase it is.
+# Used by alembic update but likelyhood of this being used again is very small
+# So if we do not see any error messages after a while, we can delete this.
+def get_citation_from_args(authorNames, year, title, journal, volume, issue, page_range):  # pragma: no cover
+    logger.error("get_citation_from_args scheduled to be removed."
+                 " Please notify blueteam to remove docs about removal.")
     if type(authorNames) == list:
         authorNames = "; ".join(authorNames)
 
@@ -526,11 +552,13 @@ def get_citation_from_args(authorNames, year, title, journal, volume, issue, pag
     return citation
 
 
-def author_order_sort(author: AuthorModel):
-    return author.order
-
-
-def citation_from_data(reference_data, authorNames):
+# Not used anymore?
+# Adding log error incase it is.
+# Used by alembic update but likelyhood of this being used again is very small
+# So if we do not see any error messages after a while, we can delete this.
+def citation_from_data(reference_data, authorNames):  # pragma: no cover
+    logger.error("citation_from_data scheduled to be removed."
+                 " Please notify blueteam to remove docs about removal.")
     if authorNames.endswith("; "):
         authorNames = authorNames[:-2]  # remove last '; '
     year = ''
@@ -558,7 +586,13 @@ def citation_from_data(reference_data, authorNames):
     return get_citation_from_args(authorNames, year, title, journal, volume, issue, page_range)
 
 
-def get_citation_from_obj(db: Session, ref_db_obj: ReferenceModel):
+# Not used anymore? Done by psql trigger.
+# Adding log error incase it is.
+# Used by alembic update but likelyhood of this being used again is very small
+# So if we do not see any error messages after a while, we can delete this.
+def get_citation_from_obj(db: Session, ref_db_obj: ReferenceModel):  # pragma: no cover
+    logger.error("get_citation_from_obj scheduled to be removed."
+                 " Please notify blueteam to remove docs about removal.")
     # Authors, (year) title.   Journal  volume (issue): page_range
     year = ''
     if ref_db_obj.date_published:

@@ -23,7 +23,8 @@ omit =
 	# will look into these scripts/utils at a later time
 	agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_download_pmc_files.py
 	agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_identify_main_pdfs.py
-	
+	agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_by_doi.py
+
         # to be added back when we have unit tests for them
         agr_literature_service/lit_processing/data_ingest/dqm_ingest/sort_dqm_json_reference_updates.py
         agr_literature_service/lit_processing/data_ingest/dqm_ingest/sort_dqm_json_resource_updates.py
@@ -35,6 +36,7 @@ omit =
 
 	# pretty much all functions related to topic end entity tags require A-team API calls and are thus web tests only
 	agr_literature_service/api/crud/topic_entity_tag_crud.py
+	agr_literature_service/api/crud/topic_entity_tag_crud_utils.py
 
 [report]
 exclude_lines =
