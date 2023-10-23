@@ -52,10 +52,7 @@ class TestModCorpusAssociation:
 
     def test_patch_mca(self, test_mca, auth_headers): # noqa
         with TestClient(app) as client:
-            test_mca_response = client.get(url=f"/reference/mod_corpus_association/{test_mca.new_mca_id}")
-            test_mca_abbreviation = test_mca_response.json()["mod_abbreviation"]
             patched_data = {"reference_curie": test_mca.related_ref_curie,
-                            "mod_abbreviation": test_mca_abbreviation,
                             "mod_corpus_sort_source": "assigned_for_review"
                             }
             patch_response = client.patch(url=f"/reference/mod_corpus_association/{test_mca.new_mca_id}",
