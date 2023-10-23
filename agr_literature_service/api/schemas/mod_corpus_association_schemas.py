@@ -53,7 +53,6 @@ class ModCorpusAssociationSchemaRelated(AuditedObjectModelSchema):
 class ModCorpusAssociationSchemaUpdate(BaseModel):
     reference_curie: Optional[str] = None
     mod_corpus_sort_source: Optional[ModCorpusSortSourceType] = None
-    mod_abbreviation: Optional[str] = None
     corpus: Optional[bool] = None
 
     class Config():
