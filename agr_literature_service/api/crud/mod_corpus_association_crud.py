@@ -100,14 +100,6 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                         detail=f"Reference with curie {reference_curie} does not exist")
                 mod_corpus_association_db_obj.reference = new_reference
-        elif field == "mod_abbreviation":
-            if value is not None:
-                mod_abbreviation = value
-                new_mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
-                if not new_mod:
-                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                        detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
-                mod_corpus_association_db_obj.mod = new_mod
         elif field == "corpus":
             if value is True and mod_corpus_association_db_obj.corpus is not True:
                 reference_obj = mod_corpus_association_db_obj.reference
