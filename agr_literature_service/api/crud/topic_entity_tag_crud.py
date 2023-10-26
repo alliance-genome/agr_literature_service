@@ -121,13 +121,15 @@ def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: OktaAccess):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
                                    f"is not available")
+
     """
-    if a tag is created by a curator through API or UI then created_by = okta_user_id
-       so we can set created_by_mod = the mod the created_by belongs to
-       when person data is in the database
-    else if the data is loaded by a script, then created_by = curator_id (not an okta_user_id)
-       so we have to set created_by_mod = mod in the topic_entity_tag_source table
-    At the moment, we always set it to mod in the topic_entity_tag_source table
+    If a tag is created by a curator via the API or UI, then `created_by` is set to `okta_user_id`.
+    This allows us to set `created_by_mod` based on the mod to which `created_by` is associated,
+    assuming person data is available in the database. However, if the tag is added by a script,
+    `created_by` is set to `curator_id` (which is not an `okta_user_id`). In this case, we set
+    `created_by_mod` based on the mod in the `topic_entity_tag_source` table.
+    Currently, `created_by_mod` always defaults to the mod in the `topic_entity_tag_source` table,
+    as we lack the database data to map each user's `okta_id` to a mod.
     """
     user_mod = OKTA_ACCESS_MOD_ABBR[mod_access]
     created_by_mod = topic_entity_tag.topic_entity_tag_source.mod.abbreviation
