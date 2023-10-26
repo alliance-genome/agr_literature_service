@@ -15,6 +15,7 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
     get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, add_audited_object_users_if_not_exist, \
     get_ancestors_or_descendants
+from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
     ReferenceModel, TopicEntityTagSourceModel, ModModel
@@ -113,13 +114,27 @@ def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagS
     return {"message": "updated"}
 
 
-def destroy_tag(db: Session, topic_entity_tag_id: int):
+def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: OktaAccess):
     topic_entity_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
         TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).one_or_none()
     if topic_entity_tag is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
                                    f"is not available")
+    """
+    if a tag is created by a curator through API or UI then created_by = okta_user_id
+       so we can set created_by_mod = the mod the created_by belongs to
+       when person data is in the database
+    else if the data is loaded by a script, then created_by = curator_id (not an okta_user_id)
+       so we have to set created_by_mod = mod in the topic_entity_tag_source table
+    At the moment, we always set it to mod in the topic_entity_tag_source table
+    """
+    user_mod = OKTA_ACCESS_MOD_ABBR[mod_access]
+    created_by_mod = topic_entity_tag.topic_entity_tag_source.mod.abbreviation
+    if mod_access != OktaAccess.ALL_ACCESS and user_mod != created_by_mod:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"You do not have permission to delete topic_entity_tag with the topic_entity_tag_id {topic_entity_tag_id} created by {created_by_mod}")
+
     db.delete(topic_entity_tag)
     db.commit()
 
