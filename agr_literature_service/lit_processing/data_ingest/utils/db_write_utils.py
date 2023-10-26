@@ -58,6 +58,8 @@ def change_mod_curie_status(db_session, mod, mod_curie_set, mod_curie_to_pmid, l
                     if logger:
                         logger.info(f"Changing {mod} curie to valid for {x.curie}")
             elif x.is_obsolete is False:
+                if _is_prepublication_pipeline(db_session, x.reference_id):
+                    continue
                 x.is_obsolete = True
                 db_session.add(x)
                 if logger:
@@ -136,12 +138,14 @@ def add_not_loaded_pubmed_papers(db_session, mod, mod_id, mod_curies_to_load, mo
 def move_obsolete_papers_out_of_corpus(db_session, mod, mod_id, curie_prefix, logger=None):
 
     rows = db_session.execute(f"SELECT mca.mod_corpus_association_id, cr.reference_id "
-                              f"FROM mod_corpus_association mca, cross_reference cr "
+                              f"FROM mod_corpus_association mca, cross_reference cr, reference r "
                               f"WHERE mca.mod_id = {mod_id} "
                               f"AND mca.corpus is True "
                               f"AND mca.reference_id = cr.reference_id "
                               f"AND cr.curie_prefix = '{curie_prefix}' "
-                              f"AND cr.is_obsolete is True").fetchall()
+                              f"AND cr.is_obsolete is True "
+                              f"AND cr.reference_id = r.reference_id "
+                              f"AND r.prepublication_pipeline is False").fetchall()
 
     for x in rows:
         positiveModCurie = db_session.execute(f"SELECT curie "
@@ -167,6 +171,14 @@ def move_obsolete_papers_out_of_corpus(db_session, mod, mod_id, curie_prefix, lo
     # db_session.rollback()
 
 
+def _is_prepublication_pipeline(db_session, reference_id):
+
+    rows = db_session.execute(f"SELECT prepublication_pipeline "
+                              f"FROM   reference "
+                              f"WHERE  reference_id = {reference_id}").fetchall()
+    return rows[0][0]
+
+
 def mark_not_in_mod_papers_as_out_of_corpus(mod, missing_papers_in_mod, logger=None):
 
     db_session = create_postgres_session(False)
@@ -177,6 +189,8 @@ def mark_not_in_mod_papers_as_out_of_corpus(mod, missing_papers_in_mod, logger=N
     for (xref_id, agr, pmid) in missing_papers_in_mod:
         try:
             cr = db_session.query(CrossReferenceModel).filter_by(curie=xref_id, is_obsolete=False).one_or_none()
+            if cr and _is_prepublication_pipeline(db_session, cr.reference_id):
+                continue
             if cr:
                 cr.is_obsolete = True
                 db_session.add(cr)
