@@ -133,6 +133,10 @@ def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: OktaAccess):
     """
     user_mod = OKTA_ACCESS_MOD_ABBR[mod_access]
     created_by_mod = topic_entity_tag.topic_entity_tag_source.mod.abbreviation
+    """
+    fixed HTTP_403_Forbidden to HTTP_404_NOT_FOUND in following code since mypy complains
+    about "HTTP_403_Forbidden" not found
+    """
     if mod_access != OktaAccess.ALL_ACCESS and user_mod != created_by_mod:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"You do not have permission to delete topic_entity_tag with the topic_entity_tag_id {topic_entity_tag_id} created by {created_by_mod}")
