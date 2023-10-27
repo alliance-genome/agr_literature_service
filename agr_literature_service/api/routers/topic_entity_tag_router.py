@@ -11,6 +11,7 @@ from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, TopicEn
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated, \
     TopicEntityTagSourceSchemaUpdate, TopicEntityTagSchemaUpdate, \
     TopicEntityTagSourceSchemaShow, TopicEntityTagSourceSchemaCreate
+from agr_literature_service.api.routers.okta_utils import get_okta_mod_access
 from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
@@ -59,7 +60,7 @@ def delete_tag(topic_entity_tag_id,
                user: OktaUser = db_user,
                db: Session = db_session):
     set_global_user_from_okta(db, user)
-    topic_entity_tag_crud.destroy_tag(db, topic_entity_tag_id)
+    topic_entity_tag_crud.destroy_tag(db, topic_entity_tag_id, get_okta_mod_access(user))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

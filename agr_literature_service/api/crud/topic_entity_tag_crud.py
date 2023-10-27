@@ -15,6 +15,7 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
     get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, add_audited_object_users_if_not_exist, \
     get_ancestors_or_descendants
+from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
     ReferenceModel, TopicEntityTagSourceModel, ModModel
@@ -113,13 +114,33 @@ def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagS
     return {"message": "updated"}
 
 
-def destroy_tag(db: Session, topic_entity_tag_id: int):
+def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: OktaAccess):
     topic_entity_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
         TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).one_or_none()
     if topic_entity_tag is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
                                    f"is not available")
+
+    """
+    If a tag is created by a curator via the API or UI, then `created_by` is set to `okta_user_id`.
+    This allows us to set `created_by_mod` based on the mod to which `created_by` is associated,
+    assuming person data is available in the database. However, if the tag is added by a script,
+    `created_by` is set to `curator_id` (which is not an `okta_user_id`). In this case, we set
+    `created_by_mod` based on the mod in the `topic_entity_tag_source` table.
+    Currently, `created_by_mod` always defaults to the mod in the `topic_entity_tag_source` table,
+    as we lack the database data to map each user's `okta_id` to a mod.
+    """
+    user_mod = OKTA_ACCESS_MOD_ABBR[mod_access]
+    created_by_mod = topic_entity_tag.topic_entity_tag_source.mod.abbreviation
+    """
+    fixed HTTP_403_Forbidden to HTTP_404_NOT_FOUND in following code since mypy complains
+    about "HTTP_403_Forbidden" not found
+    """
+    if mod_access != OktaAccess.ALL_ACCESS and user_mod != created_by_mod:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"You do not have permission to delete topic_entity_tag with the topic_entity_tag_id {topic_entity_tag_id} created by {created_by_mod}")
+
     db.delete(topic_entity_tag)
     db.commit()
 
