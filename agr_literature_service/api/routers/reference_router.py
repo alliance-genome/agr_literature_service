@@ -62,8 +62,11 @@ def add(request: ReferenceSchemaAddPmid,
     # if len(mod_curie_prefix) == 0 or len(mod_curie_id) == 0:
     #     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Malformed MOD curie")
     set_global_user_from_okta(db, user)
+    mod_curie = request.mod_curie
+    if mod_curie is None:
+        mod_curie = ''
     # return process_pmid(pubmed_id, mod_curie, mod_mca)
-    return process_pmid(request.pubmed_id, request.mod_curie, request.mod_mca)
+    return process_pmid(request.pubmed_id, mod_curie, request.mod_mca)
 
 
 @router.delete('/{curie_or_reference_id}',

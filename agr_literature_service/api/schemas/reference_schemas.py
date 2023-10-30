@@ -93,8 +93,8 @@ class ReferenceSchemaUpdate(BaseModel):
 
 
 class ReferenceSchemaAddPmid(BaseModel):
-    pubmed_id: str = None
-    mod_mca: str = None
+    pubmed_id: str
+    mod_mca: str
     mod_curie: Optional[str] = ''
 
     @validator('mod_curie')
