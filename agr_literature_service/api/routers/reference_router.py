@@ -56,16 +56,10 @@ def create(request: ReferenceSchemaPost,
 def add(request: ReferenceSchemaAddPmid,
         user: OktaUser = db_user,
         db: Session = db_session):
-    # if mod_curie.count(":") != 1:
-    #     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Malformed MOD curie")
-    # mod_curie_prefix, mod_curie_id = mod_curie.split(":")
-    # if len(mod_curie_prefix) == 0 or len(mod_curie_id) == 0:
-    #     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Malformed MOD curie")
     set_global_user_from_okta(db, user)
     mod_curie = request.mod_curie
     if mod_curie is None:
         mod_curie = ''
-    # return process_pmid(pubmed_id, mod_curie, mod_mca)
     return process_pmid(request.pubmed_id, mod_curie, request.mod_mca)
 
 

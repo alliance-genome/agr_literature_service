@@ -3,7 +3,6 @@ import logging.config
 from os import environ, path
 
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, ModModel
-# from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, ModModel, ModCorpusAssociationModel
 from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import download_pubmed_xml
@@ -73,14 +72,6 @@ def process_pmid(pmid: str, mod_curie: str, mod_mca: str):
                     }
                     new_mca = ModCorpusAssociationSchemaPost(**new_mca_dict)
                     create(db_session, new_mca)
-                    # mca = ModCorpusAssociationModel(reference_id=reference_id,
-                    #                                 mod_id=mod_id,
-                    #                                 mod_corpus_sort_source='manual_creation',
-                    #                                 corpus=True)
-                    # db_session.add(mca)
-                    # db_session.commit()
-                    # logger.info("INSERT MOD_CORPUS_ASSOCIATION: for reference_id = " + str(
-                    #     reference_id) + ", mod_id = " + str(mod_id) + ", mod_corpus_sort_source = manual_creation")
                 except Exception as e:
                     logger.info("INSERT MOD_CORPUS_ASSOCIATION: for reference_id = " + str(
                         reference_id) + ", mod_id = " + str(mod_id) + ", mod_corpus_sort_source = manual_creation " + str(e))
