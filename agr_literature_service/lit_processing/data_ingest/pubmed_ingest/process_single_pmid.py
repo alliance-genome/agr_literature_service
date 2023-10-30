@@ -65,7 +65,7 @@ def process_pmid(pmid: str, mod_curie: str, mod_mca: str):
             if mod_object and mod_mca != '':
                 mod_id = mod_object.mod_id
                 try:
-                    new_mca_dict: ModCorpusAssociationSchemaPost = {
+                    new_mca_dict = {
                         "mod_abbreviation": mod_object.abbreviation,
                         "mod_corpus_sort_source": "manual_creation",
                         "corpus": True,
