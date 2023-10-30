@@ -84,12 +84,30 @@ class ReferenceSchemaUpdate(BaseModel):
     @validator('category')
     def category_is_some(cls, v):
         if not v:
-            raise ValueError('Cannot set catagory to None or blank string')
+            raise ValueError('Cannot set category to None or blank string')
         return v
 
     class Config():
         orm_mode = True
         extra = "forbid"
+
+
+class ReferenceSchemaAddPmid(BaseModel):
+    pubmed_id: str
+    mod_mca: str
+    mod_curie: Optional[str] = ''
+
+    @validator('mod_curie')
+    def mod_curie_is_valid(cls, v):
+        if v:
+            if v == '':
+                return v
+            if v.count(":") != 1:
+                raise ValueError('Malformed MOD curie, must have colon')
+            mod_curie_prefix, mod_curie_id = v.split(":")
+            if len(mod_curie_prefix) == 0 or len(mod_curie_id) == 0:
+                raise ValueError('Malformed MOD curie, must have prefix and identifier')
+        return v
 
 
 class CommentAndCorrectionSchemaRelations(BaseModel):

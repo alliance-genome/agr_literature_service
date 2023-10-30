@@ -13,6 +13,7 @@ from agr_literature_service.api.deps import s3_auth
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (ReferenceSchemaPost, ReferenceSchemaShow,
                                                 ReferenceSchemaUpdate, ResponseMessageSchema)
+from agr_literature_service.api.schemas.reference_schemas import ReferenceSchemaAddPmid
 from agr_literature_service.api.user import set_global_user_from_okta
 
 import datetime
@@ -48,21 +49,18 @@ def create(request: ReferenceSchemaPost,
     return reference_crud.create(db, request)
 
 
-@router.post('/add/{pubmed_id}/{mod_curie}/{mod_mca}/',
+# @router.post('/add/{pubmed_id}/{mod_curie}/{mod_mca}/',
+@router.post('/add/',
              status_code=status.HTTP_201_CREATED,
              response_model=str)
-def add(pubmed_id: str,
-        mod_curie: str,
-        mod_mca: str,
+def add(request: ReferenceSchemaAddPmid,
         user: OktaUser = db_user,
         db: Session = db_session):
-    if mod_curie.count(":") != 1:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Malformed MOD curie")
-    mod_curie_prefix, mod_curie_id = mod_curie.split(":")
-    if len(mod_curie_prefix) == 0 or len(mod_curie_id) == 0:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Malformed MOD curie")
     set_global_user_from_okta(db, user)
-    return process_pmid(pubmed_id, mod_curie, mod_mca)
+    mod_curie = request.mod_curie
+    if mod_curie is None:
+        mod_curie = ''
+    return process_pmid(request.pubmed_id, mod_curie, request.mod_mca)
 
 
 @router.delete('/{curie_or_reference_id}',
