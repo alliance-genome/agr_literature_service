@@ -3,6 +3,7 @@ import logging.config
 from os import environ, path
 
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, ModModel, ModCorpusAssociationModel
+from agr_literature_service.api.schemas import ModCorpusAssociationSchemaCreate
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import download_pubmed_xml
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
@@ -63,7 +64,7 @@ def process_pmid(pmid: str, mod_curie: str, mod_mca: str):
             if mod_object and mod_mca != '':
                 mod_id = mod_object.mod_id
                 try:
-                    new_mca = {
+                    new_mca: ModCorpusAssociationSchemaCreate = {
                         "mod_abbreviation": mod_object.abbreviation,
                         "mod_corpus_sort_source": "manual_creation",
                         "corpus": True,
