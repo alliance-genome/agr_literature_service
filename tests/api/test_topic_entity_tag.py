@@ -33,6 +33,7 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_ta
             "species": "NCBITaxon:6239",
             "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
             "negated": False,
+            "novel_topic_data": True,
             "note": "test note",
             "created_by": "WBPerson1",
             "date_created": "2020-01-01"
@@ -59,6 +60,7 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": -1,
                 "negated": False,
+                "novel_topic_data": False,
                 "note": "test note",
                 "created_by": "WBPerson1",
                 "date_created": "2020-01-01"
@@ -77,6 +79,7 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                 "negated": False,
+                "novel_topic_data": True,
                 "note": "test note",
                 "created_by": "WBPerson1"
             }
@@ -97,6 +100,8 @@ class TestTopicEntityTag:
                 "entity_source": "alliance",
                 "entity_published_as": "test",
                 "display_tag": None,
+                "novel_topic_data": True,
+                "negated": False,
                 "species": "NCBITaxon:6239"
             }
             for key, value in expected_fields.items():
@@ -108,7 +113,8 @@ class TestTopicEntityTag:
                 "topic": "new_topic",
                 "entity_type": "new_type",
                 "entity": "new_entity",
-                "updated_by": "new_user"
+                "updated_by": "new_user",
+                "novel_topic_data": False,
             }
             response = client.patch(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers,
                                     json=patch_data)
@@ -193,7 +199,8 @@ class TestTopicEntityTag:
                 "entity_source": "alliance",
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": auth_source_1_resp.json(),
-                "negated": True
+                "negated": True,
+                "novel_topic_data": True
             }
             validating_tag_aut_2 = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -203,7 +210,8 @@ class TestTopicEntityTag:
                 "entity_source": "alliance",
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": auth_source_2_resp.json(),
-                "negated": True
+                "negated": True,
+                "novel_topic_data": False
             }
             client.post(url="/topic_entity_tag/", json=validating_tag_aut_1, headers=auth_headers)
             client.post(url="/topic_entity_tag/", json=validating_tag_aut_2, headers=auth_headers)
@@ -236,7 +244,8 @@ class TestTopicEntityTag:
                 "entity_source": "alliance",
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": response.json(),
-                "negated": True
+                "negated": True,
+                "novel_topic_data": True
             }
             validating_tag_cur_2 = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -246,7 +255,8 @@ class TestTopicEntityTag:
                 "entity_source": "alliance",
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": response.json(),
-                "negated": False
+                "negated": False,
+                "novel_topic_data": False,
             }
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_1, headers=auth_headers)
             cur_2_tag_id = client.post(url="/topic_entity_tag/", json=validating_tag_cur_2, headers=auth_headers).json()
@@ -267,7 +277,8 @@ class TestTopicEntityTag:
                 "entity_source": "alliance",
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": response.json(),
-                "negated": False
+                "negated": False,
+                "novel_topic_data": True
             }
             validating_tag_cur_tools_2 = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -277,7 +288,8 @@ class TestTopicEntityTag:
                 "entity_source": "alliance",
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": response.json(),
-                "negated": False
+                "negated": False,
+                "novel_topic_data": True
             }
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_tools_1, headers=auth_headers)
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_tools_2, headers=auth_headers)
@@ -315,13 +327,15 @@ class TestTopicEntityTag:
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000009",  # more generic topic
                 "topic_entity_tag_source_id": auth_source_1_resp.json(),
-                "negated": False
+                "negated": False,
+                "novel_topic_data": True
             }
             more_generic_tag_2 = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000068",  # more generic topic
                 "topic_entity_tag_source_id": auth_source_1_resp.json(),
-                "negated": False
+                "negated": False,
+                "novel_topic_data": True
             }
             more_specific_tag = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -331,7 +345,8 @@ class TestTopicEntityTag:
                 "entity_source": "alliance",
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": auth_source_2_resp.json(),
-                "negated": False
+                "negated": False,
+                "novel_topic_data": False
             }
             more_specific_tag_2 = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -341,7 +356,8 @@ class TestTopicEntityTag:
                 "entity_source": "alliance",
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": auth_source_2_resp.json(),
-                "negated": False
+                "negated": False,
+                "novel_topic_data": True
             }
 
             # add the new tags
