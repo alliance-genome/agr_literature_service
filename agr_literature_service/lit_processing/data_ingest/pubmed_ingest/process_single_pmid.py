@@ -2,7 +2,8 @@ import argparse
 import logging.config
 from os import environ, path
 
-from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, ModModel, ModCorpusAssociationModel
+from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, ModModel
+# from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, ModModel, ModCorpusAssociationModel
 from agr_literature_service.api.schemas import ModCorpusAssociationSchemaCreate
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import download_pubmed_xml
