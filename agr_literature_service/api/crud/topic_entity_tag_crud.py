@@ -285,7 +285,6 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
         return query.count()
     else:
         if sort_by:
-            # if sort_by in ['topic', 'entity_type', 'species', 'entity', 'display_tag']:
             if sort_by in ['topic', 'entity_type', 'species', 'display_tag', 'entity']:
                 column_property = getattr(TopicEntityTagModel, sort_by, None)
                 column = column_property.property.columns[0]
@@ -299,6 +298,9 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
                 if sort_by in ['source_mod_id', 'source_evidence', 'source_validation_type', 'source_description']:
                     sort_by = sort_by.replace('source_', '')
 
+                if sort_by == 'mod_id':
+                    sort_by = 'abbreviation'
+
                 # check if the column exists in TopicEntityTagModel
                 if hasattr(TopicEntityTagModel, sort_by):
                     column_property = getattr(TopicEntityTagModel, sort_by)
@@ -307,6 +309,14 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
                     # explicitly join the topic_entity_tag_source table for sorting
                     query = query.join(TopicEntityTagSourceModel,
                                        TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id)
+                elif hasattr(ModModel, sort_by):
+                    column_property = getattr(ModModel, sort_by)
+                    query = query.join(
+                        TopicEntityTagSourceModel,
+                        TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id)
+                    query = query.join(
+                        ModModel, TopicEntityTagSourceModel.mod_id == ModModel.mod_id
+                    )
                 else:
                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                         detail=f"The column '{sort_by}' does not exist in either TopicEntityTagModel or TopicEntityTagSourceModel.")
