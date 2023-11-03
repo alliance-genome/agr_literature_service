@@ -28,8 +28,11 @@ def show_need_review(mod_abbreviation, count, db: Session):
         ModCorpusAssociationModel.mod
     ).filter(
         ModModel.abbreviation == mod_abbreviation
-    ).outerjoin(ReferenceModel.copyright_license
-    ).order_by(ReferenceModel.curie.desc()).limit(count)
+    ).outerjoin(
+        ReferenceModel.copyright_license
+    ).order_by(
+        ReferenceModel.curie.desc()
+    ).limit(count)
     references = references_query.all()
     return show_sort_result(references, mod_abbreviation, db)
 
@@ -63,7 +66,7 @@ def show_sort_result(references, mod_abbreviation, db):
             prepublication_pipeline=reference.prepublication_pipeline,
             resource_title=reference.resource.title if reference.resource else "",
             referencefiles=[ReferencefileSchemaRelated(
-                referencefile_id=rf.referencefile_id,  display_name=rf.display_name,
+                referencefile_id=rf.referencefile_id, display_name=rf.display_name,
                 file_class=rf.file_class, file_publication_status=rf.file_publication_status,
                 file_extension=rf.file_extension,
                 md5sum=rf.md5sum, is_annotation=rf.is_annotation,
@@ -131,6 +134,6 @@ def get_referencefile_mod(referencefile_id, db: Session):
     referencefile_mod = referencefile_mod_query.all()
     mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
     return [
-         ReferencefileModSchemaShow(
-                referencefile_id=rfm.referencefile_id,  referencefile_mod_id=rfm.referencefile_mod_id,
-                mod_abbreviation=mod_id_to_mod.get(rfm.mod_id, '')) for rfm in referencefile_mod]
+        ReferencefileModSchemaShow(
+            referencefile_id=rfm.referencefile_id, referencefile_mod_id=rfm.referencefile_mod_id,
+            mod_abbreviation=mod_id_to_mod.get(rfm.mod_id, '')) for rfm in referencefile_mod]
