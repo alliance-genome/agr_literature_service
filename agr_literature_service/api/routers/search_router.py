@@ -42,3 +42,10 @@ def search(body: FacetsOptionsSchema):
             response_model=List[ReferenceSchemaNeedReviewShow])
 def show_need_review(mod_abbreviation: str, count: int = None, db: Session = db_session):
     return search_crud.show_need_review(mod_abbreviation, count, db)
+
+
+@router.get('/sort_prepublication_pipeline',
+            status_code=200,
+            response_model=List[ReferenceSchemaNeedReviewShow])
+def show_sort_prepublication_pipeline(mod_abbreviation: str, count: int = None, db: Session = db_session):
+    return search_crud.show_sort_prepublication_pipeline(mod_abbreviation, count, db)
