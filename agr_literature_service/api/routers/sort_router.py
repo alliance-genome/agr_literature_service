@@ -1,0 +1,32 @@
+from sqlalchemy.orm import Session
+from fastapi import APIRouter, Security, Depends
+from typing import List
+
+from agr_literature_service.api import database
+from agr_literature_service.api.routers.authentication import auth
+from agr_literature_service.api.crud import sort_crud
+from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow
+
+
+router = APIRouter(
+    prefix="/sort",
+    tags=["Sort"])
+
+
+get_db = database.get_db
+db_session: Session = Depends(get_db)
+db_user = Security(auth.get_user)
+
+
+@router.get('/need_review',
+            status_code=200,
+            response_model=List[ReferenceSchemaNeedReviewShow])
+def show_need_review(mod_abbreviation: str, count: int = None, db: Session = db_session):
+    return sort_crud.show_need_review(mod_abbreviation, count, db)
+
+
+@router.get('/prepublication_pipeline',
+            status_code=200,
+            response_model=List[ReferenceSchemaNeedReviewShow])
+def show_prepublication_pipeline(mod_abbreviation: str, count: int = None, db: Session = db_session):
+    return sort_crud.show_prepublication_pipeline(mod_abbreviation, count, db)
