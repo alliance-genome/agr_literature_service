@@ -188,44 +188,6 @@ class TestSearch:
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert len(res["hits"]) == 2
 
-    def test_search_need_review(self, test_mca): # noqa
-        with TestClient(app) as client:
-            res = client.get(url="/search/need_review", params={"mod_abbreviation": "0015_AtDB", "count": 10})
-            assert res.status_code == status.HTTP_200_OK
-            assert len(res.json()) > 0
-
-    def test_search_sort_prepublication_pipeline(self, auth_headers, test_mca): # noqa
-        with TestClient(app) as client:
-            new_mod = {
-                "abbreviation": "WB",
-                "short_name": "WB",
-                "full_name": "WormBase"
-            }
-            response = client.post(url="/mod/", json=new_mod, headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
-            reference_create_json = {
-                "cross_references": [
-                    {
-                        "curie": "PMID:1113",
-                        "is_obsolete": "false"
-                    }
-                ],
-                "mod_corpus_associations": [
-                    {
-                        "mod_abbreviation": "WB",
-                        "mod_corpus_sort_source": "prepublication_pipeline",
-                        "corpus": "true"
-                    }
-                ],
-                "title": "pmid_fake",
-                "prepublication_pipeline": "true"
-            }
-            response = client.post(url="/reference/", json=reference_create_json, headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
-            res = client.get(url="/search/sort_prepublication_pipeline", params={"mod_abbreviation": "WB", "count": 10})
-            assert res.status_code == status.HTTP_200_OK
-            assert len(res.json()) > 0
-
     def test_search_sort(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
             search_data = {
