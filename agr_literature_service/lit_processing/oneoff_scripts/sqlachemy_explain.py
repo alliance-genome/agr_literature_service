@@ -14,21 +14,16 @@ def examine_query():
     db_session = create_postgres_session(False)
 
     example_qs = []
-    q = db_session.query(ReferenceModel).\
-        filter(ReferenceModel.prepublication_pipeline == True)\
-    .join(
-        ReferenceModel.mod_corpus_association
-    ).join(
-        ModCorpusAssociationModel.mod
-    ).filter(
-        ModModel.abbreviation == mod_abbreviation
-    ).join(
-        CrossReferenceModel, CrossReferenceModel.reference_id == ReferenceModel.reference_id
-    ).filter(
-        CrossReferenceModel.curie_prefix == 'PMID'
-    ).order_by(
-        ReferenceModel.curie.desc()
-    )
+    q = db_session.query(ReferenceModel
+                         ).filter(ReferenceModel.prepublication_pipeline == True  # noqa
+                                  ).join(ReferenceModel.mod_corpus_association
+                                         ).join(ModCorpusAssociationModel.mod
+                                                ).filter(ModModel.abbreviation == mod_abbreviation
+                                                         ).join(CrossReferenceModel,
+                                                                CrossReferenceModel.reference_id == ReferenceModel.reference_id
+                                                                ).filter(CrossReferenceModel.curie_prefix == 'PMID'
+                                                                         ).order_by(ReferenceModel.curie.desc
+                                                                                    )
     example_qs.append(q)
     # add more example here as needed.
 
