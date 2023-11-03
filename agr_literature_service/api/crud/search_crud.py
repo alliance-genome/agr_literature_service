@@ -390,8 +390,11 @@ def show_sort_search_result(references, mod_abbreviation, db):
                 cross_reference_id=xref.cross_reference_id, curie=xref.curie, curie_prefix=xref.curie_prefix,
                 url=convert_xref_curie_to_url(xref.curie, resource_descriptor_default_urls_dict),
                 is_obsolete=xref.is_obsolete, pages=xref.pages) for xref in reference.cross_reference],
+            mod_corpus_association_corpus=[mca.corpus for mca in reference.mod_corpus_association if
+                                           mca.mod.abbreviation == mod_abbreviation][0],
             mod_corpus_association_id=[mca.mod_corpus_association_id for mca in reference.mod_corpus_association if
                                        mca.mod.abbreviation == mod_abbreviation][0],
+            prepublication_pipeline=reference.prepublication_pipeline,
             resource_title=reference.resource.title if reference.resource else "",
             referencefiles=[ReferencefileSchemaRelated(
                 referencefile_id=rf.referencefile_id,  display_name=rf.display_name,

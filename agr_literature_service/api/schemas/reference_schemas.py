@@ -167,6 +167,7 @@ class ReferenceSchemaNeedReviewShow(BaseModel):
     category: Optional[str] = None
     abstract: Optional[str] = None
     mod_corpus_association_id: int
+    mod_corpus_association_corpus: Optional[bool]
     prepublication_pipeline: Optional[bool]
     resource_title: Optional[str] = None
     cross_references: Optional[List[CrossReferenceSchemaShow]]
