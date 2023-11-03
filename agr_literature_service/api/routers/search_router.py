@@ -1,11 +1,10 @@
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, Security, Depends
-from typing import List
 
 from agr_literature_service.api import database
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.crud import search_crud
-from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, FacetsOptionsSchema
+from agr_literature_service.api.schemas import FacetsOptionsSchema
 
 
 router = APIRouter(
@@ -35,10 +34,3 @@ def search(body: FacetsOptionsSchema):
                                          date_created=body.date_created,
                                          query_fields=body.query_fields,
                                          partial_match=body.partial_match)
-
-
-@router.get('/need_review',
-            status_code=200,
-            response_model=List[ReferenceSchemaNeedReviewShow])
-def show_need_review(mod_abbreviation: str, count: int = None, db: Session = db_session):
-    return search_crud.show_need_review(mod_abbreviation, count, db)
