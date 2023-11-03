@@ -1,16 +1,11 @@
-from typing import Dict, List, Any, Optional
 import logging
-from datetime import datetime, timezone
 
-from elasticsearch import Elasticsearch
-from agr_literature_service.api.config import config
+
 from agr_literature_service.api.models import ReferenceModel, WorkflowTagModel, CrossReferenceModel
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.models import ModCorpusAssociationModel, ModModel, ResourceDescriptorModel, CopyrightLicenseModel, ReferencefileModel, ReferencefileModAssociationModel
+from agr_literature_service.api.models import ModCorpusAssociationModel, ModModel, ResourceDescriptorModel, ReferencefileModAssociationModel
 from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, CrossReferenceSchemaShow, ReferencefileSchemaRelated, ReferencefileModSchemaShow
-
-from fastapi import HTTPException, status
 
 logger = logging.getLogger(__name__)
 
