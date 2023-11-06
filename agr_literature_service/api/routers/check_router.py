@@ -1,12 +1,10 @@
-from fastapi import APIRouter, Depends, Response, Security, status
-from fastapi_okta import OktaUser
+from fastapi import APIRouter, Depends, Security
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import check_crud
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (AteamApiSchemaShow, DatabaseSchemaShow, EnvironmentsSchemaShow)
-from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
     prefix="/check",

@@ -72,8 +72,8 @@ def show_environments():
     """
     res = {}
     for test_env in ['API_PORT', 'API_SERVER', 'XML_PATH', 'ENV_STATE',
-                'PSQL_HOST', 'PSQL_PORT', 'PSQL_DATABASE',
-                'HOST', 'ATEAM_API_URL']:
+                     'PSQL_HOST', 'PSQL_PORT', 'PSQL_DATABASE',
+                     'HOST', 'ATEAM_API_URL']:
         res[test_env] = environ.get(test_env)
 
     return res
