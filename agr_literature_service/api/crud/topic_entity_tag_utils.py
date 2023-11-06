@@ -129,7 +129,7 @@ def get_map_aterm_entity_curies_to_names(entity_type_to_entities):
 
 
 def get_map_ateam_curies_to_names(curies_category, curies):
-    ateam_api_base_url = environ.get('ATEAM_API_URL', "https://beta-curation.alliancegenome.org/api")
+    ateam_api_base_url = environ.get('ATEAM_API_URL')
     ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit=1000&page=0'
     request_body = {
         "searchFilters": {
