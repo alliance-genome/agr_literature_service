@@ -82,13 +82,16 @@ def get_pmid_for_doi(doi): # noqa
         "term": f"{doi}[DOI]",
         'api_key': environ['NCBI_API_KEY']
     }
-    response = requests.get(base_url, params=params)
-    if response.status_code == 429:  # Too Many Requests
-        time.sleep(10)  # Wait for 10 seconds before retrying
+    try:
         response = requests.get(base_url, params=params)
-    tree = ElementTree.fromstring(response.content)
-    pmids = [elem.text for elem in tree.findall(".//Id")]
-    return pmids
+        if response.status_code == 429:  # Too Many Requests
+            time.sleep(10)  # Wait for 10 seconds before retrying
+            response = requests.get(base_url, params=params)
+        tree = ElementTree.fromstring(response.content)
+        pmids = [elem.text for elem in tree.findall(".//Id")]
+        return pmids
+    except Exception as e:
+        logger.info(f"Error(s) occurred when searching PubMed: {e}")
 
 
 def add_pmid_to_existing_papers(db, papers_to_add_pmid): # noqa

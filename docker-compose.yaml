@@ -178,6 +178,7 @@ services:
       PSQL_DATABASE: "${PSQL_DATABASE}"
       RESOURCE_DESCRIPTOR_URL: "${RESOURCE_DESCRIPTOR_URL}"
       REG: "${REG}"
+      NCBI_API_KEY: "${NCBI_API_KEY}"
       LOG_PATH: "/var/log/automated_scripts/"
       LOG_URL: "${LOG_URL}"
       CRONTAB_EMAIL: "${CRONTAB_EMAIL}"
