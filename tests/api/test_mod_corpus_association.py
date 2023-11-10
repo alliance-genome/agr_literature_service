@@ -5,6 +5,7 @@ from fastapi import status
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import ReferenceModel, CrossReferenceModel
+from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
@@ -99,16 +100,8 @@ class TestModCorpusAssociation:
 
     def test_mca_modid_wb(self, db, test_reference, auth_headers): # noqa
         with TestClient(app) as client:
-            new_mod = {
-                "abbreviation": "WB",
-                "short_name": "WB",
-                "full_name": "WormBase"
-            }
-            response = client.post(url="/mod/", json=new_mod, headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
+            populate_test_mods()
 
-            # reference_obj = db.query(ReferenceModel).filter(
-            #     ReferenceModel.curie == test_reference.new_ref_curie).first()
             new_mca = {
                 "mod_abbreviation": "WB",
                 "reference_curie": test_reference.new_ref_curie,
@@ -135,13 +128,7 @@ class TestModCorpusAssociation:
     def test_mca_modid_wb_obsolete_xref(self, db, test_reference, auth_headers): # noqa
         # allow creating of xref via mca if xref already has mod + reference but is_obsolete
         with TestClient(app) as client:
-            new_mod = {
-                "abbreviation": "WB",
-                "short_name": "WB",
-                "full_name": "WormBase"
-            }
-            response = client.post(url="/mod/", json=new_mod, headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
+            populate_test_mods()
 
             obs_cross_ref = {"curie": "WB:WBPaper00001234", "reference_curie": test_reference.new_ref_curie,
                              "is_obsolete": True}
