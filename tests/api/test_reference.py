@@ -10,6 +10,7 @@ from fastapi import status
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, CrossReferenceModel
 from agr_literature_service.api.schemas import ReferencefileSchemaPost
+from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from ..fixtures import db, populate_test_mod_reference_types # noqa
 from .fixtures import auth_headers # noqa
 from .test_resource import test_resource # noqa
@@ -172,13 +173,8 @@ class TestReference:
 
     def test_reference_mca_wb(self, db, auth_headers): # noqa
         with TestClient(app) as client:
-            new_mod = {
-                "abbreviation": "WB",
-                "short_name": "WB",
-                "full_name": "WormBase"
-            }
-            response = client.post(url="/mod/", json=new_mod, headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
+            populate_test_mods()
+
             full_xml = {
                 "category": "research_article",
                 "mod_corpus_associations": [
