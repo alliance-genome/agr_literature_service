@@ -75,4 +75,3 @@ def show(curie: str,
 def show_all(curies: List[str],
              db: Session = db_session):
     return cross_reference_crud.show_from_curies(db, curies)
-

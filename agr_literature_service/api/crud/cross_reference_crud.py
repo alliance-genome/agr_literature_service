@@ -110,9 +110,9 @@ def format_cross_reference_data(db: Session, cross_reference_object: CrossRefere
                         page_url = rd_page.url
                         break
                 pages_data.append({
-                                      "name": cr_page,
-                                      "url": page_url.replace("[%s]", local_id)
-                                  })
+                    "name": cr_page,
+                    "url": page_url.replace("[%s]", local_id)
+                })
             cross_reference_data["pages"] = pages_data
     elif cross_reference_data["pages"]:
         pages_data = []
