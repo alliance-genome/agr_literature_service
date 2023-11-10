@@ -96,9 +96,8 @@ def format_cross_reference_data(db: Session, cross_reference_object: CrossRefere
         cross_reference_data["reference_curie"] = cross_reference_object.reference.curie
     del cross_reference_data["reference_id"]
 
-    # TODO: read resource descriptor data for all xrefs to minimize number of db queries
     [db_prefix, local_id] = cross_reference_object.curie.split(":", 1)
-    resource_descriptor = resource_desc_prefix_obj_map[db_prefix]
+    resource_descriptor = resource_desc_prefix_obj_map[db_prefix] if db_prefix in resource_desc_prefix_obj_map else None
     if resource_descriptor:
         default_url = resource_descriptor.default_url.replace("[%s]", local_id)
         cross_reference_data["url"] = default_url
