@@ -3,7 +3,7 @@ cross_reference_crud.py
 =======================
 """
 import os
-from typing import List
+from typing import List, Dict
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -13,8 +13,7 @@ from sqlalchemy.orm import Session, subqueryload
 
 from agr_literature_service.api.crud.reference_resource import (add_reference_resource,
                                                                 create_obj)
-from agr_literature_service.api.models import (CrossReferenceModel, ReferenceModel,
-                                               ResourceDescriptorModel, ResourceModel)
+from agr_literature_service.api.models import (CrossReferenceModel, ReferenceModel, ResourceDescriptorModel)
 
 
 def set_curie_prefix(xref_db_obj: CrossReferenceModel):
@@ -71,7 +70,7 @@ def show_from_curies(db: Session, curies: List[str]) -> List[dict]:
     cross_references = db.query(CrossReferenceModel).options(subqueryload(CrossReferenceModel.reference)).options(
         subqueryload(CrossReferenceModel.resource)).filter(
         CrossReferenceModel.curie.in_(curies)).all()
-    unique_cross_refs = {}
+    unique_cross_refs: Dict[str, CrossReferenceModel] = {}
     for xref in cross_references:
         if xref.curie not in unique_cross_refs or unique_cross_refs[xref.curie].is_obsolete is True:
             unique_cross_refs[xref.curie] = xref
