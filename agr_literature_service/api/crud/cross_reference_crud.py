@@ -127,7 +127,7 @@ def show(db: Session, curie_or_cross_reference_id: str) -> dict:
     cross_reference_data = jsonable_encoder(cross_reference)
     db_prefix = cross_reference.curie.split(":")[0]
     resource_descriptor = db.query(ResourceDescriptorModel).filter(
-        ResourceDescriptorModel.db_prefix == db_prefix).all()
+        ResourceDescriptorModel.db_prefix == db_prefix).first()
     resource_desc_prefix_obj_map = {db_prefix: resource_descriptor}
     return format_cross_reference_data(db=db, cross_reference_object=cross_reference,
                                        cross_reference_data=cross_reference_data,
