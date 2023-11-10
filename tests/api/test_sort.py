@@ -2,6 +2,7 @@ from starlette.testclient import TestClient
 
 from fastapi import status
 from agr_literature_service.api.main import app
+from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from .test_mod_corpus_association import test_mca # noqa
 from ..fixtures import db # noqa
 from .test_reference import test_reference # noqa
@@ -19,20 +20,7 @@ class TestSort:
 
     def test_sort_prepublication_pipeline(self, db, auth_headers): # noqa
         with TestClient(app) as client:
-            wb_mod = {
-                "abbreviation": "WB",
-                "short_name": "WB",
-                "full_name": "WormBase"
-            }
-            response = client.post(url="/mod/", json=wb_mod, headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
-            sgd_mod = {
-                "abbreviation": "SGD",
-                "short_name": "SGD",
-                "full_name": "Saccharomyces Genome Database"
-            }
-            response = client.post(url="/mod/", json=sgd_mod, headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
+            populate_test_mods()
 
             reference_create_json = {
                 "cross_references": [
@@ -158,6 +146,30 @@ class TestSort:
                 "mod_corpus_associations": [
                     {
                         "mod_abbreviation": "WB",
+                        "mod_corpus_sort_source": "dqm_files",
+                        "corpus": "true"
+                    }
+                ],
+                "title": "pp pmid wb dqm_files",
+                "prepublication_pipeline": "true"
+            }
+            response = client.post(url="/reference/", json=reference_create_json, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            new_curie = response.text
+            if new_curie.startswith('"') and new_curie.endswith('"'):
+                curie_pp_pmid_wb_source = new_curie[1:-1]
+            curie_pp_pmid_wb_source_bool = False
+
+            reference_create_json = {
+                "cross_references": [
+                    {
+                        "curie": "PMID:1115",
+                        "is_obsolete": "false"
+                    }
+                ],
+                "mod_corpus_associations": [
+                    {
+                        "mod_abbreviation": "WB",
                         "mod_corpus_sort_source": "prepublication_pipeline",
                         "corpus": "true"
                     }
@@ -185,6 +197,8 @@ class TestSort:
                     curie_pp_pmid_wb_outside_bool = True
                 if ref['curie'] == curie_nopp_pmid_wb:
                     curie_nopp_pmid_wb_bool = True
+                if ref['curie'] == curie_pp_pmid_wb_source:
+                    curie_pp_pmid_wb_source_bool = True
                 if ref['curie'] == curie_pp_pmid_wb_2:
                     curie_pp_pmid_wb_2_bool = True
             assert curie_pp_pmid_wb_bool is True
@@ -192,18 +206,13 @@ class TestSort:
             assert curie_pp_pmid_sgd_bool is False
             assert curie_pp_pmid_wb_outside_bool is True
             assert curie_nopp_pmid_wb_bool is False
+            assert curie_pp_pmid_wb_source_bool is True
             assert curie_pp_pmid_wb_2_bool is True
 
 
     def test_sort_prepublication_pipeline_simple(self, db, auth_headers):  # noqa
         with TestClient(app) as client:
-            new_mod = {
-                "abbreviation": "WB",
-                "short_name": "WB",
-                "full_name": "WormBase"
-            }
-            response = client.post(url="/mod/", json=new_mod, headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
+            populate_test_mods()
             reference_create_json = {
                 "cross_references": [
                     {
