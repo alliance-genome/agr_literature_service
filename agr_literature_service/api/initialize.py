@@ -46,8 +46,8 @@ def update_resource_descriptor(db: Session = db_session):
                     else:
                         resource_descriptor_data[field] = value
 
-            resource_descriptor_obj = ResourceDescriptorModel(**resource_descriptor_data)
-            db.add(resource_descriptor_obj)
+                resource_descriptor_obj = ResourceDescriptorModel(**resource_descriptor_data)
+                db.add(resource_descriptor_obj)
             db.commit()
     except Exception as e:
         logging.error(f"Unable to process resource_descriptor '{config.RESOURCE_DESCRIPTOR_URL}' with error {e}")
