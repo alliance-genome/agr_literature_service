@@ -3,6 +3,7 @@ cross_reference_crud.py
 =======================
 """
 import os
+from typing import List
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -66,20 +67,28 @@ def patch(db: Session, cross_reference_id: int, cross_reference_update) -> dict:
     return {"message": "updated"}
 
 
-def show(db: Session, curie_or_cross_reference_id: str) -> dict:
-    cross_reference = get_cross_reference(db, curie_or_cross_reference_id)
-    cross_reference_data = jsonable_encoder(cross_reference)
+def show_from_curies(db: Session, curies: List[str]) -> List[dict]:
+    cross_references = db.query(CrossReferenceModel).filter(
+        CrossReferenceModel.curie.in_(curies)).all()
+    formatted_cross_references = []
+    for cross_reference in cross_references:
+        cross_reference_data = jsonable_encoder(cross_reference)
+        formatted_cross_references.append(format_cross_reference_data(db, cross_reference, cross_reference_data))
+    return formatted_cross_references
+
+
+def format_cross_reference_data(db: Session, cross_reference_object: CrossReferenceModel,
+                                cross_reference_data: dict) -> dict:
     if cross_reference_data["resource_id"]:
-        cross_reference_data["resource_curie"] = db.query(ResourceModel.curie).filter(
-            ResourceModel.resource_id == cross_reference_data["resource_id"]).first().curie
+        cross_reference_data["resource_curie"] = cross_reference_object.resource.curie
     del cross_reference_data["resource_id"]
 
     if cross_reference_data["reference_id"]:
-        cross_reference_data["reference_curie"] = db.query(ReferenceModel.curie).filter(
-            ReferenceModel.reference_id == cross_reference_data['reference_id']).first().curie
+        cross_reference_data["reference_curie"] = cross_reference_object.reference.curie
     del cross_reference_data["reference_id"]
 
-    [db_prefix, local_id] = cross_reference.curie.split(":", 1)
+    # TODO: read resource descriptor data for all xrefs to minimize number of db queries
+    [db_prefix, local_id] = cross_reference_object.curie.split(":", 1)
     resource_descriptor = db.query(ResourceDescriptorModel).filter(
         ResourceDescriptorModel.db_prefix == db_prefix).first()
     if resource_descriptor:
@@ -94,16 +103,24 @@ def show(db: Session, curie_or_cross_reference_id: str) -> dict:
                     if rd_page.name == cr_page:
                         page_url = rd_page.url
                         break
-                pages_data.append({"name": cr_page,
-                                   "url": page_url.replace("[%s]", local_id)})
+                pages_data.append({
+                                      "name": cr_page,
+                                      "url": page_url.replace("[%s]", local_id)
+                                  })
             cross_reference_data["pages"] = pages_data
     elif cross_reference_data["pages"]:
         pages_data = []
         for cr_page in cross_reference_data["pages"]:
             pages_data.append({"name": cr_page})
         cross_reference_data["pages"] = pages_data
-
     return cross_reference_data
+
+
+def show(db: Session, curie_or_cross_reference_id: str) -> dict:
+    cross_reference = get_cross_reference(db, curie_or_cross_reference_id)
+    cross_reference_data = jsonable_encoder(cross_reference)
+    return format_cross_reference_data(db=db, cross_reference_object=cross_reference,
+                                       cross_reference_data=cross_reference_data)
 
 
 def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, mod_abbreviation: str):
