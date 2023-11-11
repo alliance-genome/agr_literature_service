@@ -3,17 +3,17 @@ cross_reference_crud.py
 =======================
 """
 import os
+from typing import List, Dict
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import or_, and_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, subqueryload
 
 from agr_literature_service.api.crud.reference_resource import (add_reference_resource,
                                                                 create_obj)
-from agr_literature_service.api.models import (CrossReferenceModel, ReferenceModel,
-                                               ResourceDescriptorModel, ResourceModel)
+from agr_literature_service.api.models import (CrossReferenceModel, ReferenceModel, ResourceDescriptorModel)
 
 
 def set_curie_prefix(xref_db_obj: CrossReferenceModel):
@@ -66,22 +66,37 @@ def patch(db: Session, cross_reference_id: int, cross_reference_update) -> dict:
     return {"message": "updated"}
 
 
-def show(db: Session, curie_or_cross_reference_id: str) -> dict:
-    cross_reference = get_cross_reference(db, curie_or_cross_reference_id)
-    cross_reference_data = jsonable_encoder(cross_reference)
+def show_from_curies(db: Session, curies: List[str]) -> List[dict]:
+    cross_references = db.query(CrossReferenceModel).options(subqueryload(CrossReferenceModel.reference)).options(
+        subqueryload(CrossReferenceModel.resource)).filter(
+        CrossReferenceModel.curie.in_(curies)).all()
+    unique_cross_refs: Dict[str, CrossReferenceModel] = {}
+    for xref in cross_references:
+        if xref.curie not in unique_cross_refs or unique_cross_refs[xref.curie].is_obsolete is True:
+            unique_cross_refs[xref.curie] = xref
+    resource_descriptors = db.query(ResourceDescriptorModel).filter(
+        ResourceDescriptorModel.db_prefix.in_([curie.split(":")[0] for curie in curies])).all()
+    resource_desc_prefix_obj_map = {rd.db_prefix: rd for rd in resource_descriptors}
+    formatted_cross_references = []
+    for cross_reference in unique_cross_refs.values():
+        cross_reference_data = jsonable_encoder(cross_reference)
+        formatted_cross_references.append(format_cross_reference_data(db, cross_reference, cross_reference_data,
+                                                                      resource_desc_prefix_obj_map))
+    return formatted_cross_references
+
+
+def format_cross_reference_data(db: Session, cross_reference_object: CrossReferenceModel,
+                                cross_reference_data: dict, resource_desc_prefix_obj_map: dict) -> dict:
     if cross_reference_data["resource_id"]:
-        cross_reference_data["resource_curie"] = db.query(ResourceModel.curie).filter(
-            ResourceModel.resource_id == cross_reference_data["resource_id"]).first().curie
+        cross_reference_data["resource_curie"] = cross_reference_object.resource.curie
     del cross_reference_data["resource_id"]
 
     if cross_reference_data["reference_id"]:
-        cross_reference_data["reference_curie"] = db.query(ReferenceModel.curie).filter(
-            ReferenceModel.reference_id == cross_reference_data['reference_id']).first().curie
+        cross_reference_data["reference_curie"] = cross_reference_object.reference.curie
     del cross_reference_data["reference_id"]
 
-    [db_prefix, local_id] = cross_reference.curie.split(":", 1)
-    resource_descriptor = db.query(ResourceDescriptorModel).filter(
-        ResourceDescriptorModel.db_prefix == db_prefix).first()
+    [db_prefix, local_id] = cross_reference_object.curie.split(":", 1)
+    resource_descriptor = resource_desc_prefix_obj_map[db_prefix] if db_prefix in resource_desc_prefix_obj_map else None
     if resource_descriptor:
         default_url = resource_descriptor.default_url.replace("[%s]", local_id)
         cross_reference_data["url"] = default_url
@@ -94,16 +109,29 @@ def show(db: Session, curie_or_cross_reference_id: str) -> dict:
                     if rd_page.name == cr_page:
                         page_url = rd_page.url
                         break
-                pages_data.append({"name": cr_page,
-                                   "url": page_url.replace("[%s]", local_id)})
+                pages_data.append({
+                    "name": cr_page,
+                    "url": page_url.replace("[%s]", local_id)
+                })
             cross_reference_data["pages"] = pages_data
     elif cross_reference_data["pages"]:
         pages_data = []
         for cr_page in cross_reference_data["pages"]:
             pages_data.append({"name": cr_page})
         cross_reference_data["pages"] = pages_data
-
     return cross_reference_data
+
+
+def show(db: Session, curie_or_cross_reference_id: str) -> dict:
+    cross_reference = get_cross_reference(db, curie_or_cross_reference_id)
+    cross_reference_data = jsonable_encoder(cross_reference)
+    db_prefix = cross_reference.curie.split(":")[0]
+    resource_descriptor = db.query(ResourceDescriptorModel).filter(
+        ResourceDescriptorModel.db_prefix == db_prefix).first()
+    resource_desc_prefix_obj_map = {db_prefix: resource_descriptor}
+    return format_cross_reference_data(db=db, cross_reference_object=cross_reference,
+                                       cross_reference_data=cross_reference_data,
+                                       resource_desc_prefix_obj_map=resource_desc_prefix_obj_map)
 
 
 def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, mod_abbreviation: str):

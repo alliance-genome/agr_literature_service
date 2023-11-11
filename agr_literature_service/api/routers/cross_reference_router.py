@@ -1,3 +1,5 @@
+from typing import List
+
 from fastapi import APIRouter, Depends, Response, Security, status
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
@@ -65,3 +67,11 @@ def show_version(cross_reference_id: int,
 def show(curie: str,
          db: Session = db_session):
     return cross_reference_crud.show(db, curie)
+
+
+@router.post('/show_all',
+             response_model=List[CrossReferenceSchemaShow],
+             status_code=200)
+def show_all(curies: List[str],
+             db: Session = db_session):
+    return cross_reference_crud.show_from_curies(db, curies)

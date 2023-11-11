@@ -113,6 +113,24 @@ class TestCrossRef:
             assert response.json()['curie'] == "XREF:123456"
             assert response.json()['reference_curie'] == test_cross_reference.related_ref_curie
 
+    def test_show_all_xrefs(self, db, test_cross_reference, test_reference, auth_headers): # noqa
+        with TestClient(app) as client:
+            db.execute("INSERT INTO resource_descriptors (db_prefix, name, default_url) "
+                       "VALUES ('XREF2', 'Madeup2', 'http://www.bob2.com/[%s]')")
+            db.execute("INSERT INTO resource_descriptors (db_prefix, name, default_url) "
+                       "VALUES ('XREF', 'Madeup', 'http://www.bob.com/[%s]')")
+            db.commit()
+            new_cross_ref = {
+                "curie": "XREF2:123456",
+                "reference_curie": test_reference.new_ref_curie,
+                "pages": ["reference"]
+            }
+            client.post(url="/cross_reference/", json=new_cross_ref, headers=auth_headers)
+            response = client.post(url="/cross_reference/show_all", json=["XREF:123456", "XREF2:123456"])
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json()[0]['curie'] in ["XREF:123456", "XREF2:123456"]
+            assert response.json()[1]['curie'] in ["XREF:123456", "XREF2:123456"]
+
     def test_patch_xref(self, db, test_cross_reference, auth_headers): # noqa
         with TestClient(app) as client:
             patched_xref = {
