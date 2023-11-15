@@ -184,6 +184,36 @@ class TestSort:
                 curie_pp_pmid_wb_2 = new_curie[1:-1]
             curie_pp_pmid_wb_2_bool = False
 
+            reference_create_json = {
+                "cross_references": [
+                    {
+                        "curie": "PMID:1116",
+                        "is_obsolete": "false"
+                    }
+                ],
+                "mod_corpus_associations": [
+                    {
+                        "mod_abbreviation": "WB",
+                        "mod_corpus_sort_source": "prepublication_pipeline",
+                        "corpus": "true"
+                    }
+                ],
+                "workflow_tags": [
+                    {
+                        "workflow_tag_id": "ATP:0000103",
+                        "mod_abbreviation": ""
+                    }
+                ],
+                "title": "pp pmid wb",
+                "prepublication_pipeline": "true"
+            }
+            response = client.post(url="/reference/", json=reference_create_json, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            new_curie = response.text
+            if new_curie.startswith('"') and new_curie.endswith('"'):
+                curie_sorted = new_curie[1:-1]
+            curie_sorted_bool = False
+
             res = client.get(url="/sort/prepublication_pipeline", params={"mod_abbreviation": "WB", "count": 10})
             assert res.status_code == status.HTTP_200_OK
             for ref in res.json():
@@ -201,6 +231,8 @@ class TestSort:
                     curie_pp_pmid_wb_source_bool = True
                 if ref['curie'] == curie_pp_pmid_wb_2:
                     curie_pp_pmid_wb_2_bool = True
+                if ref['curie'] == curie_sorted:
+                    curie_sorted_bool = True
             assert curie_pp_pmid_wb_bool is True
             assert curie_pp_nopmid_wb_bool is False
             assert curie_pp_pmid_sgd_bool is False
@@ -208,6 +240,8 @@ class TestSort:
             assert curie_nopp_pmid_wb_bool is False
             assert curie_pp_pmid_wb_source_bool is True
             assert curie_pp_pmid_wb_2_bool is True
+            assert curie_sorted_bool is False
+
 
 
     def test_sort_prepublication_pipeline_simple(self, db, auth_headers):  # noqa
