@@ -260,6 +260,10 @@
             "type": "keyword",
             "normalizer": "sortNormalizer",
             "ignore_above": 256
+          },
+          "autocomplete": {
+            "type" : "text",
+            "analyzer" : "autocompleteAnalyzer"
           }
         }
       },

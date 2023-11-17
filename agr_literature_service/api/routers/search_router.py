@@ -42,3 +42,8 @@ def search(body: FacetsOptionsSchema):
             response_model=List[ReferenceSchemaNeedReviewShow])
 def show_need_review(mod_abbreviation: str, count: int = None, db: Session = db_session):
     return search_crud.show_need_review(mod_abbreviation, count, db)
+
+@router.get('/autocomplete_on_id',
+            status_code=200)
+def autocomplete_search(query: str):
+    return search_crud.autocomplete_on_id(query)

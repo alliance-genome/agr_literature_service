@@ -412,3 +412,55 @@ def get_referencefile_mod(referencefile_id, db: Session):
          ReferencefileModSchemaShow(
                 referencefile_id=rfm.referencefile_id,  referencefile_mod_id=rfm.referencefile_mod_id,
                 mod_abbreviation=mod_id_to_mod.get(rfm.mod_id, '')) for rfm in referencefile_mod]
+
+def autocomplete_on_id(query):
+    es_host = config.ELASTICSEARCH_HOST
+    es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
+    '''
+    es_body: Dict[str, Any] = {
+        "query": {
+            "bool": {
+                "must": [
+                    {"match": {"cross_references.curie": "WB:"}}
+                ],
+                "should": [
+                    {"match": {"cross_references.curie": query}}
+                ]
+            }
+        },
+        "highlight": {
+            "fields": {
+                "cross_references.curie": {
+                    "number_of_fragments": 0
+                }
+            }
+        }
+    }
+    '''
+    es_body: Dict[str, Any] = {
+        "suggest": {
+            "text": query,
+            "simple_phrase": {
+                "phrase": {
+                    "field": "cross_references.curie.autocomplete",
+                    "direct_generator": [{
+                        "field": "cross_references.curie.autocomplete",
+                        "suggest_mode": "always",
+                        "prefix_length": "0"
+                    }]
+                }
+            }
+        }
+    }
+
+
+    res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
+
+    return res
+
+    return {
+        "results": [{
+            ref["fields"]
+        } for ref in res["hits"]["hits"]],
+        "return_count": res["hits"]["total"]["value"]
+    }
