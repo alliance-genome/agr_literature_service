@@ -1,10 +1,10 @@
 import logging
-from os import environ
-from dotenv import load_dotenv
-from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_s3
+# from dotenv import load_dotenv
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_download_pmc_files \
+    import upload_suppl_file_to_s3
 
 
-load_dotenv()
+# load_dotenv()
 
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
@@ -29,32 +29,7 @@ def upload_pdf_files():  # pragma: no cover
                    'e1e20d1bcb657945885003aa2f34dd74', 'e60fe1b06f90a74a27241bdede662f98']:
         logger.info(f"Uploading PDF with md5sum: {md5sum} to s3")
         pdf_file = dataDir + md5sum + ".gz"
-        upload_pdf_file_to_s3(pdf_file, md5sum)
-
-
-def upload_pdf_file_to_s3(gzip_file_with_path, md5sum):  # pragma: no cover
-
-    if environ.get('ENV_STATE') is None or environ.get('ENV_STATE') == 'test':
-        return
-
-    s3_file_path = "/reference/documents/"
-
-    storage = None
-    if environ.get('ENV_STATE') == 'prod':
-        s3_file_path = 'prod' + s3_file_path
-        storage = 'GLACIER_IR'
-    else:
-        s3_file_path = 'develop' + s3_file_path
-        storage = 'STANDARD'
-    s3_file_path = s3_file_path + md5sum[0] + "/" + md5sum[1] + \
-        "/" + md5sum[2] + "/" + md5sum[3] + "/"
-    s3_file_location = s3_file_path + md5sum + ".gz"
-
-    logger.info("Uploading " + gzip_file_with_path.split("/")[-1] + " to AGR s3: " + s3_file_location)
-
-    status = upload_file_to_s3(gzip_file_with_path, s3_bucket, s3_file_location, storage)
-
-    return status
+        upload_suppl_file_to_s3(pdf_file, md5sum)
 
 
 if __name__ == "__main__":
