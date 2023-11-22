@@ -37,6 +37,9 @@ def create(db: Session, workflow_tag: WorkflowTagSchemaPost) -> int:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
         mod_id = mod.mod_id
+    if not mod_id:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
     workflow_tag_db_obj = db.query(WorkflowTagModel).filter(
         WorkflowTagModel.reference_id == reference.reference_id).filter(
         WorkflowTagModel.mod_id == mod_id).filter(
