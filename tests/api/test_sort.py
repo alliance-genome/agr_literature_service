@@ -201,7 +201,7 @@ class TestSort:
                 "workflow_tags": [
                     {
                         "workflow_tag_id": "ATP:0000103",
-                        "mod_abbreviation": ""
+                        "mod_abbreviation": "WB"
                     }
                 ],
                 "title": "pp pmid wb",
