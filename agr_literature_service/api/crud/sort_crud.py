@@ -82,6 +82,10 @@ def show_prepublication_pipeline(mod_abbreviation, count, db: Session):
         WorkflowTagModel
     ).filter(
         WorkflowTagModel.workflow_tag_id.in_(['ATP:0000103', 'ATP:0000104', 'ATP:0000106'])
+    ).join(
+        ModCorpusAssociationModel.mod
+    ).filter(
+        ModModel.abbreviation == mod_abbreviation
     )
     wfts = query_ref_mod_curatability.all()
     references_with_curatability = []
