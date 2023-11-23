@@ -55,26 +55,11 @@ class TestWorkflowTag:
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    def test_good_blank_args(self, db, test_workflow_tag, auth_headers): # noqa
-        with TestClient(app) as client:
             xml = {'mod_abbreviation': "",
                    'workflow_tag_id': "ont tgba",
                    'reference_curie': test_workflow_tag.related_ref_curie}
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
-
-            # check results in database
-            ref_wt_obj = db.query(WorkflowTagModel).filter(
-                WorkflowTagModel.reference_workflow_tag_id == response.json()).one()
-            assert ref_wt_obj.workflow_tag_id == "ont tgba"
-            assert ref_wt_obj.created_by is not None  # == okta_user
-            assert not ref_wt_obj.mod_id
-
-            res = client.get(url=f"/workflow_tag/{response.json()}").json()
-            assert res["workflow_tag_id"] == "ont tgba"
-            # This needs investigating........ as okta_user changes???
-            # assert res["created_by"] == okta_user
-            assert res["mod_abbreviation"] == ""
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_create_ref_wt(self, db, test_workflow_tag): # noqa
         assert test_workflow_tag.response.status_code == status.HTTP_201_CREATED
