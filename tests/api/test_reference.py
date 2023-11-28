@@ -373,13 +373,15 @@ class TestReference:
                 ],
                 "resource": test_resource.new_resource_curie,
                 "title": "Another title",
-                "volume": "013a"
+                "volume": "013a",
+                "prepublication_pipeline": True
             }
             response1 = client.post(url="/reference/", json=ref1_data, headers=auth_headers)
 
             ref2_data = copy.deepcopy(ref1_data)
             ref2_data['volume'] = '013b'
             ref2_data['abstract'] = "013 - abs B"
+            ref2_data['prepublication_pipeline'] = False
             response2 = client.post(url="/reference/", json=ref2_data, headers=auth_headers)
 
             ref3_data = copy.deepcopy(ref2_data)
@@ -403,6 +405,8 @@ class TestReference:
             response_merge1 = client.post(url=f"/reference/merge/{response1.json()}/{response2.json()}",
                                           headers=auth_headers)
             assert response_merge1.status_code == status.HTTP_201_CREATED
+            response_ref2 = client.get(url=f"/reference/{response2.json()}")
+            assert response_ref2.json()['prepublication_pipeline']
             # merge 2 into 3
             response_merge2 = client.post(url=f"/reference/merge/{response2.json()}/{response3.json()}",
                                           headers=auth_headers)
