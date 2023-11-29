@@ -29,6 +29,7 @@ sgd_omics_topics = ['ATP:0000085', 'ATP:0000150']
 sgd_additional_topics = ['ATP:0000142', 'ATP:0000011', 'ATP:0000088', 'ATP:0000070',
                          'ATP:0000022', 'ATP:0000149', 'ATP:0000054', 'ATP:0000006',
                          'other additional literature']
+species_atp = 'ATP:0000123'
 
 
 def get_reference_id_from_curie_or_id(db: Session, curie_or_reference_id):
@@ -230,6 +231,14 @@ def get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str =
     except HTTPError:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail="Error from A-team API")
+
+
+def check_and_set_species(topic_entity_tag_data):
+
+    topic = topic_entity_tag_data['topic']
+    entity_type = topic_entity_tag_data['entity_type']
+    if topic == species_atp or entity_type == species_atp:
+        topic_entity_tag_data['species'] = None
 
 
 def check_and_set_sgd_display_tag(topic_entity_tag_data):

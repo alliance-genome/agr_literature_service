@@ -152,12 +152,14 @@ class TopicEntityTagModel(AuditedModel, Base):
     __table_args__ = (
         CheckConstraint(
             or_(
-                and_(entity_type.isnot(None), entity.isnot(None), entity_source.isnot(None), species.isnot(None)),
+                and_(entity_type.isnot(None), entity.isnot(None), entity_source.isnot(None),
+                     species.isnot(None), topic != 'ATP:0000123', entity_type != 'ATP:0000123'),
+                and_(topic == 'ATP:0000123', entity_type == 'ATP:0000123', entity_source.isnot(None), species.is_(None)),
                 and_(entity_type.is_(None), entity.is_(None), entity_source.is_(None)),
-                and_(entity_type.isnot(None), entity.is_(None), entity_source.is_(None), species.isnot(None),
-                     negated.is_(True))
+                and_(entity_type.isnot(None), entity.is_(None), entity_source.is_(None),
+                     species.isnot(None), negated.is_(True))
             ),
-            name="entity_entity_source_and_species_not_null_when_entity_type_provided"
+            name="valid_entity_type_dependencies"
         ),
     )
 
