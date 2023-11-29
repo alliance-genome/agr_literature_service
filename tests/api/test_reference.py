@@ -374,19 +374,20 @@ class TestReference:
                 "resource": test_resource.new_resource_curie,
                 "title": "Another title",
                 "volume": "013a",
-                "prepublication_pipeline": True
+                "prepublication_pipeline": False
             }
             response1 = client.post(url="/reference/", json=ref1_data, headers=auth_headers)
 
             ref2_data = copy.deepcopy(ref1_data)
             ref2_data['volume'] = '013b'
             ref2_data['abstract'] = "013 - abs B"
-            ref2_data['prepublication_pipeline'] = False
+            ref2_data['prepublication_pipeline'] = True
             response2 = client.post(url="/reference/", json=ref2_data, headers=auth_headers)
 
             ref3_data = copy.deepcopy(ref2_data)
             ref3_data['volume'] = '013c'
             ref3_data['abstract'] = "013 - abs C"
+            ref3_data['prepublication_pipeline'] = False
             response3 = client.post(url="/reference/", json=ref3_data, headers=auth_headers)
 
             # update ref_obj with a different category
@@ -406,11 +407,16 @@ class TestReference:
                                           headers=auth_headers)
             assert response_merge1.status_code == status.HTTP_201_CREATED
             response_ref2 = client.get(url=f"/reference/{response2.json()}")
+            # old: False new: True merged: True
             assert response_ref2.json()['prepublication_pipeline']
             # merge 2 into 3
             response_merge2 = client.post(url=f"/reference/merge/{response2.json()}/{response3.json()}",
                                           headers=auth_headers)
             assert response_merge2.status_code == status.HTTP_201_CREATED
+            response_ref3 = client.get(url=f"/reference/{response3.json()}")
+            # old: True new: False merge: True
+            assert response_ref3.json()['prepublication_pipeline']
+
             # So now if we look up ref_obj we should get ref3_obj
             # and if we lookup ref2_obj we should get ref3_obj
             response_ref1 = client.get(url=f"/reference/{response1.json()}")
