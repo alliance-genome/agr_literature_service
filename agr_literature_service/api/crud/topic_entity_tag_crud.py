@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session, joinedload, subqueryload
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
-    get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, add_audited_object_users_if_not_exist, \
-    get_ancestors_or_descendants
+    get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, check_and_set_species, \
+    add_audited_object_users_if_not_exist, get_ancestors_or_descendants
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
@@ -46,6 +46,8 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified source")
     if source.mod.abbreviation == "SGD":
         check_and_set_sgd_display_tag(topic_entity_tag_data)
+    else:
+        check_and_set_species(topic_entity_tag_data)
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
     try:
