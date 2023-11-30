@@ -483,6 +483,9 @@ def merge_references(db: Session,
     db.delete(old_ref)
     db.commit()
 
+    if old_ref.prepublication_pipeline or new_ref.prepublication_pipeline:
+        new_ref.prepublication_pipeline = True
+        db.commit()
     # find which mods refefrent this paper
 
     mods = db.query(ModModel).join(ModCorpusAssociationModel). \
