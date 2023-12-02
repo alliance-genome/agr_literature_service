@@ -34,3 +34,11 @@ def search(body: FacetsOptionsSchema):
                                          date_created=body.date_created,
                                          query_fields=body.query_fields,
                                          partial_match=body.partial_match)
+
+
+@router.get('/autocomplete_on_id',
+            status_code=200)
+def autocomplete_search(
+        prefix: str,
+        query: str):
+    return search_crud.autocomplete_on_id(prefix, query)

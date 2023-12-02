@@ -337,3 +337,26 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         "aggregations": res["aggregations"],
         "return_count": res["hits"]["total"]["value"]
     }
+
+
+def autocomplete_on_id(prefix, query):
+    es_host = config.ELASTICSEARCH_HOST
+    es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
+    es_body: Dict[str, Any] = {
+        "query": {
+            "wildcard": {
+                "cross_references.curie.keyword": {
+                    "value": prefix + ":*" + query + "*"
+                }
+            }
+        }
+    }
+
+    res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
+
+    results = {"results": [], "return_count": res["hits"]["total"]["value"]}
+    for ref in res["hits"]["hits"]:
+        for xref_curie in ref["_source"]["cross_references"]:
+            if prefix in xref_curie["curie"] and query in xref_curie["curie"]:
+                results["results"].append(xref_curie["curie"])
+    return results
