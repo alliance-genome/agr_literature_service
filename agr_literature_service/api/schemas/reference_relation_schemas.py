@@ -2,13 +2,13 @@ from typing import Optional
 
 from pydantic import BaseModel, validator
 
-from agr_literature_service.api.schemas import ReferenceCommentAndCorrectionType
+from agr_literature_service.api.schemas import ReferenceRelationType
 
 
-class ReferenceCommentAndCorrectionSchemaPost(BaseModel):
+class ReferenceRelationSchemaPost(BaseModel):
     reference_curie_from: str
     reference_curie_to: str
-    reference_comment_and_correction_type: ReferenceCommentAndCorrectionType
+    reference_relation_type: ReferenceRelationType
 
     @validator('reference_curie_from')
     def from_must_be_alliance_reference_curie(cls, v):
@@ -27,29 +27,29 @@ class ReferenceCommentAndCorrectionSchemaPost(BaseModel):
         extra = "forbid"
 
 
-class ReferenceCommentAndCorrectionSchemaShow(ReferenceCommentAndCorrectionSchemaPost):
-    reference_comment_and_correction_id: int
+class ReferenceRelationSchemaShow(ReferenceRelationSchemaPost):
+    reference_relation_id: int
 
     class Config():
         orm_mode = True
         extra = "forbid"
 
 
-class ReferenceCommentAndCorrectionSchemaPatch(BaseModel):
+class ReferenceRelationSchemaPatch(BaseModel):
     reference_curie_from: Optional[str] = None
     reference_curie_to: Optional[str] = None
-    reference_comment_and_correction_type: Optional[ReferenceCommentAndCorrectionType] = None
+    reference_relation_type: Optional[ReferenceRelationType] = None
 
     class Config():
         orm_mode = True
         extra = "forbid"
 
 
-class ReferenceCommentAndCorrectionSchemaRelated(BaseModel):
-    reference_comment_and_correction_id: Optional[int] = None
+class ReferenceRelationSchemaRelated(BaseModel):
+    reference_relation_id: Optional[int] = None
     reference_curie_from: Optional[str] = None
     reference_curie_to: Optional[str] = None
-    reference_comment_and_correction_type: Optional[ReferenceCommentAndCorrectionType] = None
+    reference_relation_type: Optional[ReferenceRelationType] = None
 
     class Config():
         orm_mode = True

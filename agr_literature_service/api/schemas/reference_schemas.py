@@ -11,7 +11,7 @@ from agr_literature_service.api.schemas import (AuthorSchemaPost, AuthorSchemaSh
                                                 ModReferenceTypeSchemaRelated,
                                                 ModCorpusAssociationSchemaCreate,
                                                 PubMedPublicationStatus, ReferenceCategory,
-                                                ReferenceCommentAndCorrectionSchemaRelated,
+                                                ReferenceRelationSchemaRelated,
                                                 ReferencefileSchemaRelated,
                                                 ModCorpusAssociationSchemaRelated)
 from agr_literature_service.api.schemas.cross_reference_schemas import CrossReferenceSchemaCreate
@@ -110,9 +110,9 @@ class ReferenceSchemaAddPmid(BaseModel):
         return v
 
 
-class CommentAndCorrectionSchemaRelations(BaseModel):
-    to_references: Optional[List[ReferenceCommentAndCorrectionSchemaRelated]] = None
-    from_references: Optional[List[ReferenceCommentAndCorrectionSchemaRelated]] = None
+class ReferenceRelationSchemaRelations(BaseModel):
+    to_references: Optional[List[ReferenceRelationSchemaRelated]] = None
+    from_references: Optional[List[ReferenceRelationSchemaRelated]] = None
 
 
 class ReferenceSchemaShow(AuditedObjectModelSchema):
@@ -154,7 +154,7 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     copyright_license_last_updated_by: Optional[str] = None
     invalid_cross_reference_ids: Optional[List[str]] = None
     authors: Optional[List[AuthorSchemaShow]] = None
-    comment_and_corrections: CommentAndCorrectionSchemaRelations
+    refernce_relations: ReferenceRelationSchemaRelations
     citation: Optional[str] = None
     citation_short: Optional[str] = None
     citation_id: Optional[int] = None

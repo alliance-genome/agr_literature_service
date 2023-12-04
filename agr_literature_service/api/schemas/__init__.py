@@ -66,13 +66,13 @@ from agr_literature_service.api.schemas.mod_schemas import (
     ModSchemaShow,
     ModSchemaCreate)
 
-from agr_literature_service.api.schemas.reference_comment_and_correction_type import ReferenceCommentAndCorrectionType
+from agr_literature_service.api.schemas.reference_relation_type import ReferenceRelationType
 
-from agr_literature_service.api.schemas.reference_comment_and_correction_schemas import (
-    ReferenceCommentAndCorrectionSchemaShow,
-    ReferenceCommentAndCorrectionSchemaPost,
-    ReferenceCommentAndCorrectionSchemaPatch,
-    ReferenceCommentAndCorrectionSchemaRelated)
+from agr_literature_service.api.schemas.reference_relation_schemas import (
+    ReferenceRelationSchemaShow,
+    ReferenceRelationSchemaPost,
+    ReferenceRelationSchemaPatch,
+    ReferenceRelationSchemaRelated)
 
 from agr_literature_service.api.schemas.workflow_tag_schemas import (
     WorkflowTagSchemaCreate,

@@ -17,7 +17,7 @@ from agr_literature_service.api.routers import (author_router, bulk_downloads_ro
                                                 editor_router, mesh_detail_router,
                                                 mod_reference_type_router,
                                                 mod_router, mod_corpus_association_router,
-                                                reference_comment_and_correction_router,
+                                                reference_relation_router,
                                                 reference_router, resource_descriptor_router,
                                                 resource_router, search_router, sort_router,
                                                 workflow_tag_router, topic_entity_tag_router,
@@ -71,7 +71,7 @@ app.include_router(resource_descriptor_router.router)
 app.include_router(mesh_detail_router.router)
 app.include_router(mod_reference_type_router.router)
 app.include_router(database_router.router)
-app.include_router(reference_comment_and_correction_router.router)
+app.include_router(reference_relation_router.router)
 app.include_router(bulk_downloads_router.router)
 app.include_router(mod_router.router)
 app.include_router(mod_corpus_association_router.router)

@@ -637,7 +637,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         # python3 xml_to_json.py -f inputs/alliance_pmids
         generate_json(pmids_wanted, [], base_dir=base_dir)
 
-        # if wanting to recursively download comments and corrections, which Ceri does not want
+        # if wanting to recursively download reference_relations, which Ceri does not want
         # untested equivalent to
         # python3 process_many_pmids_to_json.py -s -f inputs/alliance_pmids > logs/log_process_many_pmids_to_json_update_create
         # download_and_convert_pmids(pmids_wanted, True)
@@ -649,7 +649,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         # equivalent to python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -m all
         aggregate_dqm_with_pubmed('dqm_data_updates_new/', mod, output_directory_name + '/')
 
-        # if wanting to process the pmids from recursive download of comments and corrections, which Ceri does not want
+        # if wanting to process the pmids from recursive download of reference_relations, which Ceri does not want
         # untested equivalent to
         # python3 parse_pubmed_json_reference.py -f inputs/pubmed_only_pmids > logs/log_parse_pubmed_json_reference_update_create
         # sanitize_pubmed_json_list(pmids_wanted, [])

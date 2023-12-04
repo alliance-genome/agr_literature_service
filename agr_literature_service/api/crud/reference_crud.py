@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast, or_
 
 from agr_literature_service.api.crud import (cross_reference_crud,
-                                             reference_comment_and_correction_crud)
+                                             reference_relation_crud)
 from agr_literature_service.api.crud.cross_reference_crud import set_curie_prefix
 from agr_literature_service.api.crud.referencefile_crud import cleanup
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
@@ -29,7 +29,7 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ModModel,
                                                ModCorpusAssociationModel,
                                                ObsoleteReferenceModel,
-                                               ReferenceCommentAndCorrectionModel,
+                                               ReferenceRelationModel,
                                                ReferenceModel,
                                                ResourceModel,
                                                CopyrightLicenseModel,
@@ -395,19 +395,19 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         reference_data['authors'] = authors
         del reference_data['author']
 
-    comment_and_corrections_data = {"to_references": [], "from_references": []}  # type: Dict[str, List[str]]
-    for comment_and_correction in reference.comment_and_corrections_out:
-        comment_and_correction_data = reference_comment_and_correction_crud.show(db,
-                                                                                 comment_and_correction.reference_comment_and_correction_id)
-        del comment_and_correction_data["reference_curie_from"]
-        comment_and_corrections_data["to_references"].append(comment_and_correction_data)
-    for comment_and_correction in reference.comment_and_corrections_in:
-        comment_and_correction_data = reference_comment_and_correction_crud.show(db,
-                                                                                 comment_and_correction.reference_comment_and_correction_id)
-        del comment_and_correction_data["reference_curie_to"]
-        comment_and_corrections_data["from_references"].append(comment_and_correction_data)
+    reference_relations_data = {"to_references": [], "from_references": []}  # type: Dict[str, List[str]]
+    for reference_relation in reference.reference_relation_out:
+        reference_relation_data = reference_relation_crud.show(db,
+                                                                                 reference_relation.reference_relation_id)
+        del reference_relation_data["reference_curie_from"]
+        reference_relations_data["to_references"].append(reference_relation_data)
+    for reference_relation in reference.reference_relation_in:
+        reference_relation_data = reference_relation_crud.show(db,
+                                                                                 reference_relation.reference_relation_id)
+        del reference_relation_data["reference_curie_to"]
+        reference_relations_data["from_references"].append(reference_relation_data)
 
-    reference_data["comment_and_corrections"] = comment_and_corrections_data
+    reference_data["reference_relations"] = reference_relations_data
     logger.debug("returning {}".format(reference_data))
     return reference_data
 
@@ -459,7 +459,7 @@ def merge_references(db: Session,
     old_ref = get_reference(db=db, curie_or_reference_id=old_curie)
     new_ref = get_reference(db=db, curie_or_reference_id=new_curie)
 
-    merge_comments_and_corrections(db, old_ref.reference_id, new_ref.reference_id,
+    merge_reference_relations(db, old_ref.reference_id, new_ref.reference_id,
                                    old_curie, new_curie)
 
     # Check if old_curie is already in the obsolete table (It may have been merged itself)
@@ -502,21 +502,21 @@ def merge_references(db: Session,
     return new_curie
 
 
-def merge_comments_and_corrections(db, old_reference_id, new_reference_id, old_curie, new_curie):
+def merge_reference_relations(db, old_reference_id, new_reference_id, old_curie, new_curie):
     try:
-        for x in db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=old_reference_id).all():
-            y = db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=new_reference_id,
+        for x in db.query(ReferenceRelationModel).filter_by(reference_id_from=old_reference_id).all():
+            y = db.query(ReferenceRelationModel).filter_by(reference_id_from=new_reference_id,
                                                                        reference_id_to=x.reference_id_to,
-                                                                       reference_comment_and_correction_type=x.reference_comment_and_correction_type).one_or_none()
+                                                                       reference_relation_type=x.reference_relation_type).one_or_none()
             if y is None:
                 x.reference_id_from = new_reference_id
                 db.add(x)
             else:
                 db.delete(x)
-        for x in db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_to=old_reference_id).all():
-            y = db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=x.reference_id_from,
+        for x in db.query(ReferenceRelationModel).filter_by(reference_id_to=old_reference_id).all():
+            y = db.query(ReferenceRelationModel).filter_by(reference_id_from=x.reference_id_from,
                                                                        reference_id_to=new_reference_id,
-                                                                       reference_comment_and_correction_type=x.reference_comment_and_correction_type).one_or_none()
+                                                                       reference_relation_type=x.reference_relation_type).one_or_none()
             if y is None:
                 x.reference_id_to = new_reference_id
                 db.add(x)
@@ -525,7 +525,7 @@ def merge_comments_and_corrections(db, old_reference_id, new_reference_id, old_c
         db.commit()
     except Exception as e:
         logger.warning(
-            "An error occurred when transferring the comments/corrections from " + old_curie + " to " + new_curie + " : " + str(
+            "An error occurred when transferring the reference_relations from " + old_curie + " to " + new_curie + " : " + str(
                 e))
 
 

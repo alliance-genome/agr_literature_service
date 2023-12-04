@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class ReferenceCommentAndCorrectionType(str, Enum):
+class ReferenceRelationType(str, Enum):
     RetractionOf = "RetractionOf"
     CommentOn = "CommentOn"
     ErratumFor = "ErratumFor"
@@ -9,3 +9,4 @@ class ReferenceCommentAndCorrectionType(str, Enum):
     UpdateOf = "UpdateOf"
     ExpressionOfConcernFor = "ExpressionOfConcernFor"
     RepublishedFrom = "RepublishedFrom"
+    ChapterIn = "ChapterIn"

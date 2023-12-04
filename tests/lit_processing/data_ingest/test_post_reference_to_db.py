@@ -3,14 +3,14 @@ from os import path
 
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
     AuthorModel, ModCorpusAssociationModel, MeshDetailModel, \
-    ModModel, ReferenceCommentAndCorrectionModel, ReferenceModReferencetypeAssociationModel
+    ModModel, ReferenceRelationModel, ReferenceModReferencetypeAssociationModel
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_journal_data
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import \
     insert_reference, insert_authors, insert_cross_references, get_doi_data, \
     set_primaryId, insert_mesh_terms, insert_mod_reference_types, \
     insert_mod_corpus_associations, read_data_and_load_references, \
-    insert_comment_corrections
+    insert_reference_relations
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from ...fixtures import db, populate_test_mod_reference_types # noqa
 
@@ -45,19 +45,19 @@ class TestPostReferenceToDb:
         primaryId = set_primaryId(json_data[0])
         assert primaryId == 'PMID:33622238'
 
-        ## test insert_comment_corrections()
+        ## test insert_reference_relations()
         reference_id = refs[0].reference_id
         correctionData = {
             "RepublishedFrom": [
                 "34354223"
             ]
         }
-        insert_comment_corrections(db, primaryId, reference_id, correctionData)
+        insert_reference_relations(db, primaryId, reference_id, correctionData)
         db.commit()
-        cc = db.query(ReferenceCommentAndCorrectionModel).first()
+        cc = db.query(ReferenceRelationModel).first()
         assert cc.reference_id_from == reference_id
         assert cc.reference_id_to == refs[1].reference_id
-        assert cc.reference_comment_and_correction_type == 'RepublishedFrom'
+        assert cc.reference_relation_type == 'RepublishedFrom'
 
     def test_load_one_reference(self, db, populate_test_mod_reference_types): # noqa
         populate_test_mods()

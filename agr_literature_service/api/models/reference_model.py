@@ -43,15 +43,15 @@ class ReferenceModel(Base, AuditedModel):
         passive_deletes=True
     )
 
-    comment_and_corrections_out = relationship(
-        "ReferenceCommentAndCorrectionModel",
-        foreign_keys="ReferenceCommentAndCorrectionModel.reference_id_from",
+    reference_relation_out = relationship(
+        "ReferenceRelationModel",
+        foreign_keys="ReferenceRelationModel.reference_id_from",
         back_populates="reference_from"
     )
 
-    comment_and_corrections_in = relationship(
-        "ReferenceCommentAndCorrectionModel",
-        foreign_keys="ReferenceCommentAndCorrectionModel.reference_id_to",
+    reference_relation_in = relationship(
+        "ReferenceRelationModel",
+        foreign_keys="ReferenceRelationModel.reference_id_to",
         back_populates="reference_to"
     )
 

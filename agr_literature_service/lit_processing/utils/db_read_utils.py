@@ -9,7 +9,7 @@ from sqlalchemy.orm import joinedload, Session
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.api.models import ReferenceModel, ResourceModel, \
-    CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceCommentAndCorrectionModel, \
+    CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceRelationModel, \
     ReferenceModReferencetypeAssociationModel, ModReferencetypeAssociationModel
 
 
@@ -269,33 +269,33 @@ def get_cross_reference_data_for_resource(db_session):
     return (resource_id_to_issn, resource_id_to_nlm)
 
 
-def get_comment_correction_data(db_session, mod, reference_id_list):
-    reference_ids_to_comment_correction_type = {}
+def get_reference_relation_data(db_session, mod, reference_id_list):
+    reference_ids_to_reference_relation_type = {}
 
-    allCommentCorrections = None
+    allReferenceRelations = None
     if mod:
-        allCommentCorrections = db_session.query(ReferenceCommentAndCorrectionModel).join(
-            ReferenceModel.comment_and_corrections_in or ReferenceModel.comment_and_corrections_out).outerjoin(
+        allReferenceRelations = db_session.query(ReferenceRelationModel).join(
+            ReferenceModel.reference_relation_in or ReferenceModel.reference_relation_out).outerjoin(
             ReferenceModel.mod_corpus_association).outerjoin(ModCorpusAssociationModel.mod).filter(
             ModModel.abbreviation == mod).all()
     elif reference_id_list and len(reference_id_list) > 0:
-        allCommentCorrections = db_session.query(ReferenceCommentAndCorrectionModel).filter(
-            or_(ReferenceCommentAndCorrectionModel.reference_id_from.in_(reference_id_list),
-                ReferenceCommentAndCorrectionModel.reference_id_to.in_(reference_id_list))).all()
+        allReferenceRelations = db_session.query(ReferenceRelationModel).filter(
+            or_(ReferenceRelationModel.reference_id_from.in_(reference_id_list),
+                ReferenceRelationModel.reference_id_to.in_(reference_id_list))).all()
 
-    if allCommentCorrections is None:
-        return reference_ids_to_comment_correction_type
+    if allReferenceRelations is None:
+        return reference_ids_to_reference_relation_type
 
-    for x in allCommentCorrections:
-        type = x.reference_comment_and_correction_type.replace("x.reference_comment_and_correction_type", "")
-        reference_ids_to_comment_correction_type[(x.reference_id_from, x.reference_id_to)] = type
+    for x in allReferenceRelations:
+        type = x.reference_relation_type.replace("x.reference_relation_type", "")
+        reference_ids_to_reference_relation_type[(x.reference_id_from, x.reference_id_to)] = type
 
-    return reference_ids_to_comment_correction_type
+    return reference_ids_to_reference_relation_type
 
 
-def get_all_comment_correction_data(db_session, logger=None):
+def get_all_reference_relation_data(db_session, logger=None):
 
-    reference_id_to_comment_correction_data = {}
+    reference_id_to_reference_relation_data = {}
 
     type_mapping = {
         'ErratumFor': 'ErratumIn',
@@ -308,38 +308,38 @@ def get_all_comment_correction_data(db_session, logger=None):
 
     reference_id_to_curies = {}
     rs = db_session.execute(
-        "select cc.reference_id, cc.curie, r.curie from cross_reference cc, reference r where cc.reference_id = r.reference_id and (cc.reference_id in (select reference_id_from from reference_comments_and_corrections) or cc.reference_id in (select reference_id_to from reference_comments_and_corrections))")
+        "select cc.reference_id, cc.curie, r.curie from cross_reference cc, reference r where cc.reference_id = r.reference_id and (cc.reference_id in (select reference_id_from from reference_relation) or cc.reference_id in (select reference_id_to from reference_relation))")
     rows = rs.fetchall()
     for x in rows:
         if x[1].startswith('PMID:'):
             reference_id_to_curies[x[0]] = (x[1], x[2])
 
     rs = db_session.execute(
-        "select reference_id_from, reference_id_to, reference_comment_and_correction_type from reference_comments_and_corrections")
+        "select reference_id_from, reference_id_to, reference_relation_type from reference_relation")
 
     for x in rs:
 
         type_db = x[2]
-        type_db = type_db.replace("ReferenceCommentAndCorrectionType.", "")
+        type_db = type_db.replace("ReferenceRelationType.", "")
         reference_id_from = x[0]
         reference_id_to = x[1]
 
         ## for reference_id_from
         data = {}
-        if reference_id_from in reference_id_to_comment_correction_data:
-            data = reference_id_to_comment_correction_data[reference_id_from]
+        if reference_id_from in reference_id_to_reference_relation_data:
+            data = reference_id_to_reference_relation_data[reference_id_from]
         if reference_id_to in reference_id_to_curies:
             (pmid, ref_curie) = reference_id_to_curies[reference_id_to]
             if type_db not in data:
                 data[type_db] = []
             data[type_db].append({"PMID": pmid,
                                   "reference_curie": ref_curie})
-            reference_id_to_comment_correction_data[reference_id_from] = data
+            reference_id_to_reference_relation_data[reference_id_from] = data
 
         ## for reference_id_to
         data = {}
-        if reference_id_to in reference_id_to_comment_correction_data:
-            data = reference_id_to_comment_correction_data[reference_id_to]
+        if reference_id_to in reference_id_to_reference_relation_data:
+            data = reference_id_to_reference_relation_data[reference_id_to]
 
         if reference_id_from in reference_id_to_curies:
             (pmid, ref_curie) = reference_id_to_curies[reference_id_from]
@@ -352,9 +352,9 @@ def get_all_comment_correction_data(db_session, logger=None):
                     data[type] = []
                 data[type].append({"PMID": pmid,
                                    "reference_curie": ref_curie})
-                reference_id_to_comment_correction_data[reference_id_to] = data
+                reference_id_to_reference_relation_data[reference_id_to] = data
 
-    return reference_id_to_comment_correction_data
+    return reference_id_to_reference_relation_data
 
 
 def get_journal_data(db_session):

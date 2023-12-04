@@ -108,11 +108,11 @@ class TestExportSingleModReferencesToJson:
                                                                                         sort_keys=True)
 
         ## test get_reference_data_and_generate_json()
-        reference_id_to_comment_correction_data = {}
+        reference_id_to_reference_relation_data = {}
         resource_id_to_journal = {}
         json_file = json_path + "reference_WB.json"
         datestamp = str(date.today()).replace("-", "")
-        get_reference_data_and_generate_json('WB', reference_id_to_comment_correction_data,
+        get_reference_data_and_generate_json('WB', reference_id_to_reference_relation_data,
                                              resource_id_to_journal,
                                              json_file, datestamp)
         assert path.exists(json_file)

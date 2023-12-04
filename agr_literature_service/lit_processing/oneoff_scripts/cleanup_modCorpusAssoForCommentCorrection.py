@@ -17,14 +17,14 @@ def cleanup_data():
 
     # in rdsdev
     # select * from mod_corpus_association where reference_id in
-    # (select reference_id_from from reference_comments_and_corrections);
+    # (select reference_id_from from reference_relation);
     # 930
 
     # select * from mod_corpus_association where reference_id in
-    # (select reference_id_to from reference_comments_and_corrections);
+    # (select reference_id_to from reference_relation);
     # 6281
 
-    # select distinct reference_id_to from reference_comments_and_corrections;
+    # select distinct reference_id_to from reference_relation;
     # 6382
 
     # for reference_id_to
@@ -39,9 +39,9 @@ def cleanup_data():
 
     reference_id_to_mca_rows = get_mod_corpus_association_data(db_connection)
 
-    log.info("Retrieving data from reference_comments_and_corrections table...")
+    log.info("Retrieving data from reference_relation table...")
 
-    rs = db_connection.execute("SELECT reference_id_from, reference_id_to from reference_comments_and_corrections")
+    rs = db_connection.execute("SELECT reference_id_from, reference_id_to from reference_relation")
 
     rows = rs.fetchall()
 

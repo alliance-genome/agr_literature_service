@@ -20,11 +20,11 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_u
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_author_data, get_mesh_term_data, get_cross_reference_data, \
-    get_cross_reference_data_for_resource, get_comment_correction_data, get_journal_data, \
+    get_cross_reference_data_for_resource, get_reference_relation_data, get_journal_data, \
     get_reference_ids_by_pmids, get_pmid_to_reference_id_for_papers_not_associated_with_mod, \
     get_pmid_to_reference_id
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
-    update_authors, update_comment_corrections, update_mesh_terms, update_cross_reference
+    update_authors, update_reference_relations, update_mesh_terms, update_cross_reference
 from agr_literature_service.lit_processing.utils.report_utils import \
     write_log_and_send_pubmed_update_report, \
     write_log_and_send_pubmed_no_update_report
@@ -226,10 +226,10 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
     log.info("Getting author info from database...")
     reference_id_to_authors = get_author_data(db_session, mod, reference_id_list, query_cutoff)
 
-    ## (reference_id_from, reference_id_to) => a list of reference_comment_and_correction_type
-    fw.write("Getting comment/correction info from database...\n")
-    log.info("Getting comment/correction info from database...")
-    reference_ids_to_comment_correction_type = get_comment_correction_data(db_session, mod,
+    ## (reference_id_from, reference_id_to) => a list of reference_reference_relation_type
+    fw.write("Getting reference_relation info from database...\n")
+    log.info("Getting reference_relation info from database...")
+    reference_ids_to_reference_relation_type = get_reference_relation_data(db_session, mod,
                                                                            reference_id_list)
 
     ## reference_id => a list of mesh_terms in order
@@ -265,7 +265,7 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
                                                                            reference_id_to_pmid,
                                                                            pmid_to_reference_id,
                                                                            reference_id_to_authors,
-                                                                           reference_ids_to_comment_correction_type,
+                                                                           reference_ids_to_reference_relation_type,
                                                                            reference_id_to_mesh_terms,
                                                                            reference_id_to_doi,
                                                                            reference_id_to_pmcid,
@@ -285,7 +285,7 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
     return authors_with_first_or_corresponding_flag
 
 
-def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_comment_correction_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, old_md5sum, new_md5sum, count, authors_with_first_or_corresponding_flag, json_path, pmids_with_json_updated, bad_date_published, update_log, offset):  # noqa: C901 pragma: no cover
+def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_reference_relation_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, old_md5sum, new_md5sum, count, authors_with_first_or_corresponding_flag, json_path, pmids_with_json_updated, bad_date_published, update_log, offset):  # noqa: C901 pragma: no cover
 
     ## only update 3000 references per session (set in max_rows_per_db_session)
     ## just in case the database get disconnected during the update process
@@ -390,9 +390,9 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
 
         authors_with_first_or_corresponding_flag = authors_with_first_or_corresponding_flag + authors
 
-        ## update reference_comment_and_correction table
-        update_comment_corrections(db_session, fw, pmid, x.reference_id, pmid_to_reference_id,
-                                   reference_ids_to_comment_correction_type,
+        ## update erences_single_mod.py:    get_cross_reference_data_for_resource, get_reference_relation_data, get_journal_data, \ table
+        update_reference_relations(db_session, fw, pmid, x.reference_id, pmid_to_reference_id,
+                                   reference_ids_to_reference_relation_type,
                                    json_data.get('commentsCorrections'), update_log)
 
         ## update mesh_detail table
@@ -413,7 +413,7 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
                                                                                reference_id_to_pmid,
                                                                                pmid_to_reference_id,
                                                                                reference_id_to_authors,
-                                                                               reference_ids_to_comment_correction_type,
+                                                                               reference_ids_to_reference_relation_type,
                                                                                reference_id_to_mesh_terms,
                                                                                reference_id_to_doi,
                                                                                reference_id_to_pmcid,

@@ -179,14 +179,14 @@ def test_load_references():
 
 def erratum_check(agr_data, value):
     """
-    future: check a database reference has comment_and_corrections connection to another reference
+    future: check a database reference has reference_relations connection to another reference
 
     :param agr_data:
     :param value:
     :return:
     """
 
-    # when comments and corrections loaded, check that an xref is made to value e.g. PMID:2 to PMID:8
+    # when reference_relations loaded, check that an xref is made to value e.g. PMID:2 to PMID:8
     return 'Success: Errata references created, but connections not created yet, add to sample_reference_populate_load.sh later'
 
 
