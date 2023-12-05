@@ -59,5 +59,5 @@ def initialize():
         logger.error(e)
 
 
-class ReferenceRelationModel:
-    pass
+#   class ReferenceRelationModel:
+#    pass

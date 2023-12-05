@@ -20,7 +20,7 @@ enable_versioning()
 class ReferenceRelationModel(Base):
     __tablename__ = "reference_relation"
     __versioned__: Dict = {}
-    __table_args__ = (UniqueConstraint('reference_id_from', 'reference_id_to', 'reference_relation_type', name='rccm_uniq'),)
+    __table_args__ = (UniqueConstraint('reference_id_from', 'reference_id_to', 'reference_relation_type', name='rc_uniq'),)
 
     reference_relation_id = Column(
         Integer,
