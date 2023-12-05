@@ -2,12 +2,16 @@ from typing import Dict, List, Any, Optional
 import logging
 from datetime import datetime
 
+from sqlalchemy.orm import Session
 from elasticsearch import Elasticsearch
 from agr_literature_service.api.config import config
 
 from fastapi import HTTPException, status
 
+from agr_literature_service.api.models import CrossReferenceModel
+
 logger = logging.getLogger(__name__)
+
 
 def date_str_to_micro_seconds(date_str: str, start: bool):
     # convert string to Datetime int that is stored in Elastic search
@@ -339,24 +343,22 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     }
 
 
-def autocomplete_on_id(prefix, query):
-    es_host = config.ELASTICSEARCH_HOST
-    es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
-    es_body: Dict[str, Any] = {
-        "query": {
-            "wildcard": {
-                "cross_references.curie.keyword": {
-                    "value": prefix + ":*" + query + "*"
-                }
-            }
-        }
-    }
+def autocomplete_on_id(prefix: str, query: str, return_prefix: bool, db: Session):
+    string_before_id = ""
+    if prefix == "WB":
+        string_before_id = "WBPaper"
+    if query.startswith(string_before_id):
+        query = query[len(string_before_id)]
+    matching_xrefs_query = db.query(CrossReferenceModel.curie).filter(
+        CrossReferenceModel.curie.like(f"{prefix}:{string_before_id}{query}%")
+    )
+    matching_xrefs_count = matching_xrefs_query.count()
+    matching_xrefs = matching_xrefs_query.limit(20).all()
+    matching_curies = ["".join(matching_xref.curie.split(":")[1:]) if not return_prefix else matching_xref.curie for
+                       matching_xref in matching_xrefs]
+    if matching_xrefs_count > 20:
+        matching_curies.append("more ...")
+    if prefix == "WB":
+        matching_curies = "\n".join(matching_curies)
+    return matching_curies
 
-    res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
-
-    results = {"results": [], "return_count": res["hits"]["total"]["value"]}
-    for ref in res["hits"]["hits"]:
-        for xref_curie in ref["_source"]["cross_references"]:
-            if prefix in xref_curie["curie"] and query in xref_curie["curie"]:
-                results["results"].append(xref_curie["curie"])
-    return results
