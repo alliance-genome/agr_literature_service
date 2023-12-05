@@ -154,7 +154,7 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     copyright_license_last_updated_by: Optional[str] = None
     invalid_cross_reference_ids: Optional[List[str]] = None
     authors: Optional[List[AuthorSchemaShow]] = None
-    refernce_relations: ReferenceRelationSchemaRelations
+    reference_relations: ReferenceRelationSchemaRelations
     citation: Optional[str] = None
     citation_short: Optional[str] = None
     citation_id: Optional[int] = None
