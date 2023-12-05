@@ -62,6 +62,16 @@ def show_version(cross_reference_id: int,
     return cross_reference_crud.show_changesets(db, cross_reference_id)
 
 
+@router.get('/autocomplete_on_id',
+            status_code=200, response_class=PlainTextResponse)
+def autocomplete_search(
+        prefix: str,
+        query: str,
+        return_prefix: bool = False,
+        db: Session = db_session):
+    return cross_reference_crud.autocomplete_on_id(prefix, query, return_prefix, db)
+
+
 @router.get('/{curie:path}',
             response_model=CrossReferenceSchemaShow,
             status_code=200)
@@ -76,13 +86,3 @@ def show(curie: str,
 def show_all(curies: List[str],
              db: Session = db_session):
     return cross_reference_crud.show_from_curies(db, curies)
-
-
-@router.get('/autocomplete_on_id',
-            status_code=200, response_class=PlainTextResponse)
-def autocomplete_search(
-        prefix: str,
-        query: str,
-        return_prefix: bool = False,
-        db: Session = db_session):
-    return cross_reference_crud.autocomplete_on_id(prefix, query, return_prefix, db)
