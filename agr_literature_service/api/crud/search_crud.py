@@ -2,13 +2,11 @@ from typing import Dict, List, Any, Optional
 import logging
 from datetime import datetime
 
-from sqlalchemy.orm import Session
 from elasticsearch import Elasticsearch
 from agr_literature_service.api.config import config
 
 from fastapi import HTTPException, status
 
-from agr_literature_service.api.models import CrossReferenceModel
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +23,7 @@ def date_str_to_micro_seconds(date_str: str, start: bool):
         return_date = date_time.replace(hour=23, minute=59)
 
     return int(return_date.timestamp() * 1000000)
+
 
 def search_date_range(es_body,
                       date_pubmed_modified: Optional[List[str]] = None,
@@ -341,23 +340,3 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         "aggregations": res["aggregations"],
         "return_count": res["hits"]["total"]["value"]
     }
-
-
-def autocomplete_on_id(prefix: str, query: str, return_prefix: bool, db: Session):
-    string_before_id = ""
-    if prefix == "WB":
-        string_before_id = "WBPaper"
-    if query.startswith(string_before_id):
-        query = query[len(string_before_id)]
-    matching_xrefs_query = db.query(CrossReferenceModel.curie).filter(
-        CrossReferenceModel.curie.like(f"{prefix}:{string_before_id}{query}%")
-    )
-    matching_xrefs_count = matching_xrefs_query.count()
-    matching_xrefs = matching_xrefs_query.limit(20).all()
-    matching_curies = ["".join(matching_xref.curie.split(":")[1:]) if not return_prefix else matching_xref.curie for
-                       matching_xref in matching_xrefs]
-    if matching_xrefs_count > 20:
-        matching_curies.append("more ...")
-    matching_curies_plain_text = "\n".join(matching_curies)
-    return matching_curies_plain_text
-

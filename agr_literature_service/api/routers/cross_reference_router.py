@@ -3,6 +3,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Response, Security, status
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
+from starlette.responses import PlainTextResponse
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import cross_reference_crud
@@ -75,3 +76,13 @@ def show(curie: str,
 def show_all(curies: List[str],
              db: Session = db_session):
     return cross_reference_crud.show_from_curies(db, curies)
+
+
+@router.get('/autocomplete_on_id',
+            status_code=200, response_class=PlainTextResponse)
+def autocomplete_search(
+        prefix: str,
+        query: str,
+        return_prefix: bool = False,
+        db: Session = db_session):
+    return cross_reference_crud.autocomplete_on_id(prefix, query, return_prefix, db)

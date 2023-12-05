@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, Security, Depends
-from starlette.responses import PlainTextResponse
 
 from agr_literature_service.api import database
 from agr_literature_service.api.routers.authentication import auth
@@ -35,13 +34,3 @@ def search(body: FacetsOptionsSchema):
                                          date_created=body.date_created,
                                          query_fields=body.query_fields,
                                          partial_match=body.partial_match)
-
-
-@router.get('/autocomplete_on_id',
-            status_code=200, response_class=PlainTextResponse)
-def autocomplete_search(
-        prefix: str,
-        query: str,
-        return_prefix: bool = False,
-        db: Session = db_session):
-    return search_crud.autocomplete_on_id(prefix, query, return_prefix, db)
