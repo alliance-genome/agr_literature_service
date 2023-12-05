@@ -358,7 +358,6 @@ def autocomplete_on_id(prefix: str, query: str, return_prefix: bool, db: Session
                        matching_xref in matching_xrefs]
     if matching_xrefs_count > 20:
         matching_curies.append("more ...")
-    if prefix == "WB":
-        matching_curies = "\n".join(matching_curies)
-    return matching_curies
+    matching_curies_plain_text = "\n".join(matching_curies)
+    return matching_curies_plain_text
 
