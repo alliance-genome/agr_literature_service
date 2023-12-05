@@ -195,7 +195,10 @@ def autocomplete_on_id(prefix: str, query: str, return_prefix: bool, db: Session
                        matching_xref in matching_xrefs]
     if matching_xrefs_count < 20:
         matching_xrefs_query_expanded = db.query(CrossReferenceModel.curie).filter(
-            CrossReferenceModel.curie.like(f"{prefix}:{string_before_id}%{query}%")
+            and_(
+                CrossReferenceModel.curie.like(f"{prefix}:{string_before_id}%{query}%"),
+                CrossReferenceModel.curie.notin_([matching_xref.curie for matching_xref in matching_xrefs])
+            )
         )
         matching_xrefs_expanded = matching_xrefs_query_expanded.order_by(CrossReferenceModel.curie).limit(
             20 - matching_xrefs_count).all()
