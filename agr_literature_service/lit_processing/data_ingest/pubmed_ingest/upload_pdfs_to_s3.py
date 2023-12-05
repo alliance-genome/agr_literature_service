@@ -1,5 +1,5 @@
 import logging
-# from dotenv import load_dotenv
+from os import path
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_download_pmc_files \
     import upload_suppl_file_to_s3
 
@@ -11,7 +11,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 s3_bucket = 'agr-literature'
-dataDir = 'data_for_pubmed_processing/'
+dataDir = path.dirname(path.abspath(__file__)) + "/data_for_pubmed_processing/"
 
 
 def upload_pdf_files():  # pragma: no cover
