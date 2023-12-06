@@ -57,7 +57,3 @@ def initialize():
     except Exception as e:
         logger.error('Create triggers Error: ' + str(type(e)))
         logger.error(e)
-
-
-#   class ReferenceRelationModel:
-#    pass

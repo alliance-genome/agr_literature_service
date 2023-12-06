@@ -45,8 +45,8 @@ def create(db: Session, reference_relation: ReferenceRelationSchemaPost):
                             detail=f"Reference Relation with reference_curie_from  {reference_curie_from} and reference curie_to {reference_curie_to} already exists with id {db_obj.reference_relation_id}")
 
     db_obj = ReferenceRelationModel(reference_relation_type=reference_relation_type,
-                                                reference_from=reference_from,
-                                                reference_to=reference_to)
+                                    reference_from=reference_from,
+                                    reference_to=reference_to)
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)

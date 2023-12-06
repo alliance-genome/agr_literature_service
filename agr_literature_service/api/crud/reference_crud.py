@@ -398,12 +398,12 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
     reference_relations_data = {"to_references": [], "from_references": []}  # type: Dict[str, List[str]]
     for reference_relation in reference.reference_relation_out:
         reference_relation_data = reference_relation_crud.show(db,
-                                                                                 reference_relation.reference_relation_id)
+                                                               reference_relation.reference_relation_id)
         del reference_relation_data["reference_curie_from"]
         reference_relations_data["to_references"].append(reference_relation_data)
     for reference_relation in reference.reference_relation_in:
         reference_relation_data = reference_relation_crud.show(db,
-                                                                                 reference_relation.reference_relation_id)
+                                                               reference_relation.reference_relation_id)
         del reference_relation_data["reference_curie_to"]
         reference_relations_data["from_references"].append(reference_relation_data)
 
@@ -460,7 +460,7 @@ def merge_references(db: Session,
     new_ref = get_reference(db=db, curie_or_reference_id=new_curie)
 
     merge_reference_relations(db, old_ref.reference_id, new_ref.reference_id,
-                                   old_curie, new_curie)
+                              old_curie, new_curie)
 
     # Check if old_curie is already in the obsolete table (It may have been merged itself)
     # by looking for it in the new_id column.
@@ -506,8 +506,8 @@ def merge_reference_relations(db, old_reference_id, new_reference_id, old_curie,
     try:
         for x in db.query(ReferenceRelationModel).filter_by(reference_id_from=old_reference_id).all():
             y = db.query(ReferenceRelationModel).filter_by(reference_id_from=new_reference_id,
-                                                                       reference_id_to=x.reference_id_to,
-                                                                       reference_relation_type=x.reference_relation_type).one_or_none()
+                                                           reference_id_to=x.reference_id_to,
+                                                           reference_relation_type=x.reference_relation_type).one_or_none()
             if y is None:
                 x.reference_id_from = new_reference_id
                 db.add(x)
@@ -515,8 +515,8 @@ def merge_reference_relations(db, old_reference_id, new_reference_id, old_curie,
                 db.delete(x)
         for x in db.query(ReferenceRelationModel).filter_by(reference_id_to=old_reference_id).all():
             y = db.query(ReferenceRelationModel).filter_by(reference_id_from=x.reference_id_from,
-                                                                       reference_id_to=new_reference_id,
-                                                                       reference_relation_type=x.reference_relation_type).one_or_none()
+                                                           reference_id_to=new_reference_id,
+                                                           reference_relation_type=x.reference_relation_type).one_or_none()
             if y is None:
                 x.reference_id_to = new_reference_id
                 db.add(x)

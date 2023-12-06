@@ -194,8 +194,8 @@ def insert_reference_relations(db_session, primaryId, reference_id, reference_re
         for (reference_id_from, reference_id_to, type) in reference_ids_types:
             try:
                 x = ReferenceRelationModel(reference_id_from=reference_id_from,
-                                                       reference_id_to=reference_id_to,
-                                                       reference_relation_type=type)
+                                           reference_id_to=reference_id_to,
+                                           reference_relation_type=type)
                 db_session.add(x)
                 log.info(primaryId + ": INSERT reference_relation: for reference_id_from = " + str(reference_id_from) + ", reference_id_to = " + str(reference_id_to) + ", reference_relation_type = " + type)
             except Exception as e:
