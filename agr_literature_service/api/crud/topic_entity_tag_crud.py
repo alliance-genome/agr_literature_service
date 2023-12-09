@@ -295,7 +295,7 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
                                                                 sort_by, desc_sort)
                 curie_ordering = case({curie: index for index, curie in enumerate(sorted_column_values)},
                                       value=getattr(TopicEntityTagModel, sort_by))
-                query = query.order_by(order_expression, curie_ordering)
+                query = query.order_by(order_expression, curie_ordering, TopicEntityTagModel.topic_entity_tag_id)
             else:
                 if sort_by == 'mod':
                     sort_by = 'abbreviation'
@@ -325,7 +325,8 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
 
                 # check for None values and order accordingly
                 order_expression = case([(column_property.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
-                query = query.order_by(order_expression, column_property.desc() if desc_sort else column_property)
+                query = query.order_by(order_expression, column_property.desc() if desc_sort else column_property,
+                                       TopicEntityTagModel.topic_entity_tag_id)
 
         mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
         all_tet = []
