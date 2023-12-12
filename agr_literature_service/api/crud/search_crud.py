@@ -7,7 +7,9 @@ from agr_literature_service.api.config import config
 
 from fastapi import HTTPException, status
 
+
 logger = logging.getLogger(__name__)
+
 
 def date_str_to_micro_seconds(date_str: str, start: bool):
     # convert string to Datetime int that is stored in Elastic search
@@ -21,6 +23,7 @@ def date_str_to_micro_seconds(date_str: str, start: bool):
         return_date = date_time.replace(hour=23, minute=59)
 
     return int(return_date.timestamp() * 1000000)
+
 
 def search_date_range(es_body,
                       date_pubmed_modified: Optional[List[str]] = None,

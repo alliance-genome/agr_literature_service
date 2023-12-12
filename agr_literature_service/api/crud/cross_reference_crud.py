@@ -178,3 +178,34 @@ def show_changesets(db: Session, cross_reference_id: int):
             }
         )
     return history
+
+
+def autocomplete_on_id(prefix: str, query: str, return_prefix: bool, db: Session):
+    string_before_id = ""
+    if prefix == "WB":
+        string_before_id = "WBPaper"
+    if query.startswith(string_before_id):
+        query = query[len(string_before_id)]
+    matching_xrefs_query = db.query(CrossReferenceModel.curie).filter(
+        CrossReferenceModel.curie.like(f"{prefix}:{string_before_id}{query}%")
+    )
+    matching_xrefs_count = matching_xrefs_query.count()
+    matching_xrefs = matching_xrefs_query.order_by(CrossReferenceModel.curie).limit(20).all()
+    matching_curies = ["".join(matching_xref.curie.split(":")[1:]) if not return_prefix else matching_xref.curie for
+                       matching_xref in matching_xrefs]
+    if matching_xrefs_count < 20:
+        matching_xrefs_query_expanded = db.query(CrossReferenceModel.curie).filter(
+            and_(
+                CrossReferenceModel.curie.like(f"{prefix}:{string_before_id}%{query}%"),
+                CrossReferenceModel.curie.notin_([matching_xref.curie for matching_xref in matching_xrefs])
+            )
+        )
+        matching_xrefs_expanded = matching_xrefs_query_expanded.order_by(CrossReferenceModel.curie).limit(
+            20 - matching_xrefs_count).all()
+        matching_xrefs_count = matching_xrefs_count + matching_xrefs_query_expanded.count()
+        matching_curies.extend(["".join(matching_xref_expanded.curie.split(":")[1:]) if not return_prefix else
+                                matching_xref_expanded.curie for matching_xref_expanded in matching_xrefs_expanded])
+    if matching_xrefs_count > 20:
+        matching_curies.append("more ...")
+    matching_curies_plain_text = "\n".join(matching_curies)
+    return matching_curies_plain_text
