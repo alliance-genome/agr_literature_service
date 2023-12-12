@@ -43,7 +43,7 @@ def upgrade():
     So use raw SQL to drop the index with a long name 
     """
     # op.execute('DROP INDEX IF EXISTS ix_reference_comments_and_corrections_version_end_trans_c6e0')
-    op.drop_index('ix_ref_comments_and_corrections_version_end_trans_c6e0',
+    op.drop_index('ix_reference_comments_and_corrections_version_end_trans_c6e0',
                   table_name='reference_relation_version')
     op.drop_index('ix_reference_comments_and_corrections_version_operation_type', table_name='reference_relation_version')
     op.drop_index('ix_reference_comments_and_corrections_version_reference_id_from', table_name='reference_relation_version')
