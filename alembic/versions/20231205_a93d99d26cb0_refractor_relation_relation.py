@@ -29,8 +29,8 @@ def upgrade():
     op.drop_index('ix_reference_comments_and_corrections_reference_id_to', table_name='reference_relation')
 
     # create the new indexes with the updated names
-    op.create_index('ix_ref_relation_reference_id_from', 'reference_relation', ['reference_id_from'], unique=False)
-    op.create_index('ix_ref_relation_reference_id_to', 'reference_relation', ['reference_id_to'], unique=False)
+    op.create_index('ix_reference_relation_reference_id_from', 'reference_relation', ['reference_id_from'], unique=False)
+    op.create_index('ix_reference_relation_reference_id_to', 'reference_relation', ['reference_id_to'], unique=False)
 
     # update the version table and indexes
     op.rename_table('reference_comments_and_corrections_version', 'reference_relation_version')
@@ -42,18 +42,20 @@ def upgrade():
     is too long so SQLAlchemy will complain
     So use raw SQL to drop the index with a long name 
     """
-    op.execute('DROP INDEX IF EXISTS ix_reference_comments_and_corrections_version_end_trans_c6e0')
+    # op.execute('DROP INDEX IF EXISTS ix_reference_comments_and_corrections_version_end_trans_c6e0')
+    op.drop_index('ix_ref_comments_and_corrections_version_end_trans_c6e0',
+                  table_name='reference_relation_version')
     op.drop_index('ix_reference_comments_and_corrections_version_operation_type', table_name='reference_relation_version')
     op.drop_index('ix_reference_comments_and_corrections_version_reference_id_from', table_name='reference_relation_version')
     op.drop_index('ix_reference_comments_and_corrections_version_reference_id_to', table_name='reference_relation_version')
     op.drop_index('ix_reference_comments_and_corrections_version_transaction_id', table_name='reference_relation_version')
 
     # create new version table indexes
-    op.create_index('ix_ref_rel_ver_end_trans_id', 'reference_relation_version', ['end_transaction_id'], unique=False)
-    op.create_index('ix_ref_rel_ver_operation_type', 'reference_relation_version', ['operation_type'], unique=False)
-    op.create_index('ix_ref_rel_ver_reference_id_from', 'reference_relation_version', ['reference_id_from'], unique=False)
-    op.create_index('ix_ref_rel_ver_reference_id_to', 'reference_relation_version', ['reference_id_to'], unique=False)
-    op.create_index('ix_ref_rel_ver_transaction_id', 'reference_relation_version', ['transaction_id'], unique=False)
+    op.create_index('ix_reference_relation_version_end_transaction_id', 'reference_relation_version', ['end_transaction_id'], unique=False)
+    op.create_index('ix_reference_relation_version_operation_type', 'reference_relation_version', ['operation_type'], unique=False)
+    op.create_index('ix_reference_relation_version_reference_id_from', 'reference_relation_version', ['reference_id_from'], unique=False)
+    op.create_index('ix_reference_relation_version_reference_id_to', 'reference_relation_version', ['reference_id_to'], unique=False)
+    op.create_index('ix_reference_relation_version_transaction_id', 'reference_relation_version', ['transaction_id'], unique=False)
 
     # rename the column in the main table
     op.alter_column('reference_relation', 'reference_comment_and_correction_id', new_column_name='reference_relation_id')
@@ -62,6 +64,8 @@ def upgrade():
     # rename the column in the version table
     op.alter_column('reference_relation_version', 'reference_comment_and_correction_id', new_column_name='reference_relation_id')
     op.alter_column('reference_relation_version', 'reference_comment_and_correction_type', new_column_name='reference_relation_type')
+    op.alter_column('reference_relation_version', 'reference_comment_and_correction_type_mod',
+                    new_column_name='reference_relation_type_mod')
 
     # drop the old unique constraint
     op.drop_constraint('rccm_uniq', 'reference_relation', type_='unique')
@@ -118,8 +122,8 @@ def downgrade():
     op.rename_table('reference_relation', 'reference_comments_and_corrections')
 
     # drop the new indexes
-    op.drop_index('ix_ref_relation_reference_id_from', table_name='reference_comments_and_corrections')
-    op.drop_index('ix_ref_relation_reference_id_to', table_name='reference_comments_and_corrections')
+    op.drop_index('ix_reference_relation_reference_id_from', table_name='reference_comments_and_corrections')
+    op.drop_index('ix_reference_relation_reference_id_to', table_name='reference_comments_and_corrections')
 
     # recreate the original indexes with the old names
     op.create_index('ix_reference_comments_and_corrections_reference_id_from', 'reference_comments_and_corrections', ['reference_id_from'], unique=False)
@@ -129,11 +133,11 @@ def downgrade():
     op.rename_table('reference_relation_version', 'reference_comments_and_corrections_version')
 
     # drop the new version table indexes
-    op.drop_index('ix_ref_rel_ver_end_trans_id', table_name='reference_comments_and_corrections_version')
-    op.drop_index('ix_ref_rel_ver_operation_type', table_name='reference_comments_and_corrections_version')
-    op.drop_index('ix_ref_rel_ver_reference_id_from', table_name='reference_comments_and_corrections_version')
-    op.drop_index('ix_ref_rel_ver_reference_id_to', table_name='reference_comments_and_corrections_version')
-    op.drop_index('ix_ref_rel_ver_transaction_id', table_name='reference_comments_and_corrections_version')
+    op.drop_index('ix_reference_relation_version_end_transaction_id', table_name='reference_comments_and_corrections_version')
+    op.drop_index('ix_reference_relation_version_operation_type', table_name='reference_comments_and_corrections_version')
+    op.drop_index('ix_reference_relation_version_reference_id_from', table_name='reference_comments_and_corrections_version')
+    op.drop_index('ix_reference_relation_version_reference_id_to', table_name='reference_comments_and_corrections_version')
+    op.drop_index('ix_reference_relation_version_transaction_id', table_name='reference_comments_and_corrections_version')
 
     # recreate the original version table indexes
     # ix_reference_comments_and_corrections_version_end_transaction_id is too long
@@ -153,6 +157,8 @@ def downgrade():
     # revert the column name change in the version table
     op.alter_column('reference_comments_and_corrections_version', 'reference_relation_id', new_column_name='reference_comment_and_correction_id')
     op.alter_column('reference_comments_and_corrections_version', 'reference_relation_type', new_column_name='reference_comment_and_correction_type')
+    op.alter_column('reference_comments_and_corrections_version', 'reference_relation_type_mod',
+                    new_column_name='reference_comment_and_correction_type_mod')
 
     # drop the new unique constraint
     op.drop_constraint('rc_uniq', 'reference_comments_and_corrections', type_='unique')
@@ -168,7 +174,7 @@ def downgrade():
         ALTER TABLE reference_comments_and_corrections_version ALTER COLUMN reference_comment_and_correction_type TYPE VARCHAR(255);
         DROP TYPE IF EXISTS   referencerelationtype;
         CREATE TYPE referencecommentandcorrectiontype AS ENUM 
-            ('RetractionOf', 'CommentOn', 'ErratumFor', 'ReprintOf', 'UpdateOf', 'ExpressionOfConcernFor', 'RepublishedFrom');
+            ('RetractionOf', 'CommentOn', 'ErratumFor', 'ReprintOf', 'UpdateOf', 'ExpressionOfConcernFor', 'RepublishedFrom','ChapterIn');
         ALTER TABLE reference_comments_and_corrections ALTER COLUMN reference_comment_and_correction_type TYPE referencecommentandcorrectiontype
             USING (reference_comment_and_correction_type::referencecommentandcorrectiontype);
         ALTER TABLE reference_comments_and_corrections_version ALTER COLUMN reference_comment_and_correction_type TYPE referencecommentandcorrectiontype
