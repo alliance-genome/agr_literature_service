@@ -299,6 +299,7 @@ def get_all_comment_correction_data(db_session, logger=None):
 
     type_mapping = {
         'ErratumFor': 'ErratumIn',
+        'CommentIn': 'CommentOn',
         'RepublishedFrom': 'RepublishedIn',
         'RetractionOf': 'RetractionIn',
         'ExpressionOfConcernFor': 'ExpressionOfConcernIn',
