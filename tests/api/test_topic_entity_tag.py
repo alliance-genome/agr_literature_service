@@ -222,7 +222,7 @@ class TestTopicEntityTag:
             ).one()
             assert len(tag_obj.validated_by) == 2
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
-            assert response.json()["validation_value_author"] == "validated_wrong"
+            assert response.json()["validation_by_author"] == "validated_wrong"
 
     @pytest.mark.webtest
     def test_validation_wrong(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
@@ -294,13 +294,13 @@ class TestTopicEntityTag:
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_tools_1, headers=auth_headers)
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_tools_2, headers=auth_headers)
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
-            assert response.json()["validation_value_author"] == "not_validated"
-            assert response.json()["validation_value_curator"] == "validation_conflict"
-            assert response.json()["validation_value_curation_tools"] == "validated_right"
+            assert response.json()["validation_by_author"] == "not_validated"
+            assert response.json()["validation_by_curator"] == "validation_conflict"
+            assert response.json()["validation_by_data_curation"] == "validated_right"
             response = client.get(f"/topic_entity_tag/{cur_2_tag_id}")
-            assert response.json()["validation_value_author"] == "not_validated"
-            assert response.json()["validation_value_curator"] == "validation_conflict"
-            assert response.json()["validation_value_curation_tools"] == "validated_right"
+            assert response.json()["validation_by_author"] == "not_validated"
+            assert response.json()["validation_by_curator"] == "validation_conflict"
+            assert response.json()["validation_by_data_curation"] == "validated_right"
 
     @pytest.mark.webtest
     def test_validate_generic_specific(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
