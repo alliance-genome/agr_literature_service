@@ -74,14 +74,16 @@ def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagMo
                 "validated_wrong"
         else:
             return "validation_conflict"
+    elif topic_entity_tag_db_obj.topic_entity_tag_source.validation_type == validation_type:
+        return "self_validated"
     return "not_validated"
 
 
 def add_validation_values_to_tag(topic_entity_tag_db_obj: TopicEntityTagModel, tag_data_dict: Dict):
-    tag_data_dict["validation_value_author"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj, "author")
-    tag_data_dict["validation_value_curator"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj, "curator")
-    tag_data_dict["validation_value_curation_tools"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj,
-                                                                                          "curation_tools")
+    tag_data_dict["validation_by_author"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj, "author")
+    tag_data_dict["validation_by_curator"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj, "curator")
+    tag_data_dict["validation_by_data_curation"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj,
+                                                                                      "curation_tools")
 
 
 def show_tag(db: Session, topic_entity_tag_id: int):
