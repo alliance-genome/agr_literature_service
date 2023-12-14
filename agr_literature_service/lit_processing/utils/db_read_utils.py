@@ -303,7 +303,8 @@ def get_all_reference_relation_data(db_session, logger=None):
         'RetractionOf': 'RetractionIn',
         'ExpressionOfConcernFor': 'ExpressionOfConcernIn',
         'ReprintOf': 'ReprintIn',
-        'UpdateOf': 'UpdateIn'
+        'UpdateOf': 'UpdateIn',
+        'ChapterIn': 'hasChapter'
     }
 
     reference_id_to_curies = {}
