@@ -722,6 +722,7 @@ def update_reference_relations(db_session, fw, pmid, reference_id, pmid_to_refer
         return
 
     type_mapping = {'ErratumIn': 'ErratumFor',
+                    'CommentIn': 'CommentOn',
                     'RepublishedIn': 'RepublishedFrom',
                     'RetractionIn': 'RetractionOf',
                     'ExpressionOfConcernIn': 'ExpressionOfConcernFor',
@@ -744,14 +745,16 @@ def update_reference_relations(db_session, fw, pmid, reference_id, pmid_to_refer
         if type.endswith('For') or type.endswith('From') or type.endswith('Of'):
             reference_id_from = reference_id
             for reference_id_to in other_reference_ids:
-                new_reference_ids_to_reference_relation_type[(reference_id_from, reference_id_to)] = type
+                if reference_id_from != reference_id_to:
+                    new_reference_ids_to_reference_relation_type[(reference_id_from, reference_id_to)] = type
         else:
             type = type_mapping.get(type)
             if type is None:
                 continue
             reference_id_to = reference_id
             for reference_id_from in other_reference_ids:
-                new_reference_ids_to_reference_relation_type[(reference_id_from, reference_id_to)] = type
+                if reference_id_from != reference_id_to:
+                    new_reference_ids_to_reference_relation_type[(reference_id_from, reference_id_to)] = type
 
     if len(new_reference_ids_to_reference_relation_type.keys()) == 0:
         return
