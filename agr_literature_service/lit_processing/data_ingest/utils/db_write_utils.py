@@ -755,7 +755,6 @@ def update_reference_relations(db_session, fw, pmid, reference_id, pmid_to_refer
             for reference_id_from in other_reference_ids:
                 if reference_id_from != reference_id_to:
                     new_reference_ids_to_reference_relation_type[(reference_id_from, reference_id_to)] = type
-
     if len(new_reference_ids_to_reference_relation_type.keys()) == 0:
         return
 

@@ -299,6 +299,7 @@ def get_all_reference_relation_data(db_session, logger=None):
 
     type_mapping = {
         'ErratumFor': 'ErratumIn',
+        'CommentOn': 'CommentIn',
         'RepublishedFrom': 'RepublishedIn',
         'RetractionOf': 'RetractionIn',
         'ExpressionOfConcernFor': 'ExpressionOfConcernIn',

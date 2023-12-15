@@ -161,6 +161,7 @@ def insert_reference_relations(db_session, primaryId, reference_id, reference_re
         return
 
     type_mapping = {'ErratumIn': 'ErratumFor',
+                    'CommentIn': 'CommentOn',
                     'RepublishedIn': 'RepublishedFrom',
                     'RetractionIn': 'RetractionOf',
                     'ExpressionOfConcernIn': 'ExpressionOfConcernFor',
@@ -182,7 +183,8 @@ def insert_reference_relations(db_session, primaryId, reference_id, reference_re
             reference_id_from = reference_id
             for reference_id_to in other_reference_ids:
                 if (reference_id_from, reference_id_to, type) not in reference_ids_types:
-                    reference_ids_types.append((reference_id_from, reference_id_to, type))
+                    if reference_id_from != reference_id_to:
+                        reference_ids_types.append((reference_id_from, reference_id_to, type))
         else:
             type = type_mapping.get(type)
             if type is None:
@@ -190,7 +192,8 @@ def insert_reference_relations(db_session, primaryId, reference_id, reference_re
             reference_id_to = reference_id
             for reference_id_from in other_reference_ids:
                 if (reference_id_from, reference_id_to, type) not in reference_ids_types:
-                    reference_ids_types.append((reference_id_from, reference_id_to, type))
+                    if reference_id_from != reference_id_to:
+                        reference_ids_types.append((reference_id_from, reference_id_to, type))
         for (reference_id_from, reference_id_to, type) in reference_ids_types:
             try:
                 x = ReferenceRelationModel(reference_id_from=reference_id_from,
