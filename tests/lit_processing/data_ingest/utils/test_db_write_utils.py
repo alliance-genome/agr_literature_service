@@ -3,13 +3,13 @@ from os import path
 
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
     AuthorModel, ModModel, ModCorpusAssociationModel, MeshDetailModel, \
-    ReferenceCommentAndCorrectionModel, ReferenceModReferencetypeAssociationModel
+    ReferenceRelationModel, ReferenceModReferencetypeAssociationModel
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_references_by_curies, get_pmid_to_reference_id
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     add_cross_references, update_authors, update_mod_corpus_associations, \
     update_mod_reference_types, add_mca_to_existing_references, \
-    update_comment_corrections, update_mesh_terms, update_cross_reference, \
+    update_reference_relations, update_mesh_terms, update_cross_reference, \
     mark_false_positive_papers_as_out_of_corpus, mark_not_in_mod_papers_as_out_of_corpus
 
 from ....fixtures import db, load_sanitized_references, populate_test_mod_reference_types # noqa
@@ -164,20 +164,20 @@ class TestDbReadUtils:
         get_pmid_to_reference_id(db, mod, pmid_to_reference_id, reference_id_to_pmid)
         reference_id = pmid_to_reference_id[pmid]
 
-        ## test update_comment_corrections()
-        reference_ids_to_comment_correction_type = {}
-        comment_correction_in_json = {
+        ## test update_reference_relations()
+        reference_ids_to_reference_relation_type = {}
+        reference_relation_in_json = {
             "ErratumIn": [
                 "34354223"
             ]
         }
-        update_comment_corrections(db, fw, pmid, reference_id, pmid_to_reference_id,
-                                   reference_ids_to_comment_correction_type,
-                                   comment_correction_in_json, update_log)
+        update_reference_relations(db, fw, pmid, reference_id, pmid_to_reference_id,
+                                   reference_ids_to_reference_relation_type,
+                                   reference_relation_in_json, update_log)
         db.commit()
 
-        rcc = db.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_to=reference_id).one_or_none()
-        assert rcc.reference_comment_and_correction_type == 'ErratumFor'
+        rcc = db.query(ReferenceRelationModel).filter_by(reference_id_to=reference_id).one_or_none()
+        assert rcc.reference_relation_type == 'ErratumFor'
         assert rcc.reference_id_from == pmid_to_reference_id['34354223']
 
         ## test update_mesh_terms()

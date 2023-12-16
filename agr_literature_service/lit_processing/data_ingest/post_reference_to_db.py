@@ -6,7 +6,7 @@ from typing import List
 
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
-    AuthorModel, ModCorpusAssociationModel, ModModel, ReferenceCommentAndCorrectionModel, MeshDetailModel
+    AuthorModel, ModCorpusAssociationModel, ModModel, ReferenceRelationModel, MeshDetailModel
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.utils.db_read_utils import get_journal_data, \
     get_doi_data, get_reference_by_pmid
@@ -98,7 +98,7 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
 
             if entry.get('commentsCorrections'):
 
-                insert_comment_corrections(db_session, primaryId, reference_id,
+                insert_reference_relations(db_session, primaryId, reference_id,
                                            entry['commentsCorrections'])
 
             if entry.get('MODReferenceTypes'):
@@ -155,9 +155,9 @@ def insert_mod_reference_types(db_session, primaryId, reference_id, mod_ref_type
             log.info(primaryId + ": INSERT MOD_REFERENCE_TYPE: for reference_id = " + str(reference_id) + ", source = " + x['source'] + ", reference_type = " + x['referenceType'] + " " + str(e))
 
 
-def insert_comment_corrections(db_session, primaryId, reference_id, comment_corrections_from_json):
+def insert_reference_relations(db_session, primaryId, reference_id, reference_relations_from_json):
 
-    if str(comment_corrections_from_json) == '{}':
+    if str(reference_relations_from_json) == '{}':
         return
 
     type_mapping = {'ErratumIn': 'ErratumFor',
@@ -169,8 +169,8 @@ def insert_comment_corrections(db_session, primaryId, reference_id, comment_corr
                     'UpdateIn': 'UpdateOf'}
 
     reference_ids_types = []
-    for type in comment_corrections_from_json:
-        other_pmids = comment_corrections_from_json[type]
+    for type in reference_relations_from_json:
+        other_pmids = reference_relations_from_json[type]
         other_reference_ids = []
         for this_pmid in other_pmids:
             other_reference_id = get_reference_by_pmid(db_session, this_pmid)
@@ -196,13 +196,13 @@ def insert_comment_corrections(db_session, primaryId, reference_id, comment_corr
                         reference_ids_types.append((reference_id_from, reference_id_to, type))
         for (reference_id_from, reference_id_to, type) in reference_ids_types:
             try:
-                x = ReferenceCommentAndCorrectionModel(reference_id_from=reference_id_from,
-                                                       reference_id_to=reference_id_to,
-                                                       reference_comment_and_correction_type=type)
+                x = ReferenceRelationModel(reference_id_from=reference_id_from,
+                                           reference_id_to=reference_id_to,
+                                           reference_relation_type=type)
                 db_session.add(x)
-                log.info(primaryId + ": INSERT COMMENT/CORRECTION: for reference_id_from = " + str(reference_id_from) + ", reference_id_to = " + str(reference_id_to) + ", reference_comment_and_correction_type = " + type)
+                log.info(primaryId + ": INSERT reference_relation: for reference_id_from = " + str(reference_id_from) + ", reference_id_to = " + str(reference_id_to) + ", reference_relation_type = " + type)
             except Exception as e:
-                log.info(primaryId + ": INSERT COMMENT/CORRECTION: for reference_id_from = " + str(reference_id_from) + ", reference_id_to = " + str(reference_id_to) + ", reference_comment_and_correction_type = " + type + " " + str(e))
+                log.info(primaryId + ": INSERT reference_relation: for reference_id_from = " + str(reference_id_from) + ", reference_id_to = " + str(reference_id_to) + ", reference_relation_type = " + type + " " + str(e))
 
 
 def insert_mesh_terms(db_session, primaryId, reference_id, mesh_terms_from_json):

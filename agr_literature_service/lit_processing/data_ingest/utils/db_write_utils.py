@@ -8,7 +8,7 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_reference_id_by_curie, get_reference_id_by_pmid
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
-    CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceCommentAndCorrectionModel, \
+    CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceRelationModel, \
     MeshDetailModel, ReferenceModReferencetypeAssociationModel, \
     ReferencefileModel, ReferencefileModAssociationModel
 
@@ -658,27 +658,27 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, log
     return (log_path, log_url, not_loaded_pmids)
 
 
-def _insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
+def _insert_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
 
     ## check to see if any newly added ones matches this entry
-    rows = db_session.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to).all()
+    rows = db_session.query(ReferenceRelationModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to).all()
     if len(rows) > 0:
         return
 
     data = {"reference_id_from": reference_id_from,
             "reference_id_to": reference_id_to,
-            "reference_comment_and_correction_type": type}
+            "reference_relation_type": type}
     try:
-        x = ReferenceCommentAndCorrectionModel(**data)
+        x = ReferenceRelationModel(**data)
         db_session.add(x)
-        fw.write("PMID:" + str(pmid) + ": INSERT CommentsAndCorrections: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + "\n")
+        fw.write("PMID:" + str(pmid) + ": INSERT reference_relations: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + "\n")
     except Exception as e:
-        fw.write("PMID:" + str(pmid) + ": INSERT CommentsAndCorrections: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + " failed: " + str(e) + "\n")
+        fw.write("PMID:" + str(pmid) + ": INSERT reference_relations: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + " failed: " + str(e) + "\n")
 
 
-def _update_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
+def _update_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
 
-    all = db_session.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to).all()
+    all = db_session.query(ReferenceRelationModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to).all()
 
     if len(all) == 0:
         return
@@ -686,26 +686,26 @@ def _update_comment_correction(db_session, fw, pmid, reference_id_from, referenc
     for x in all:
         db_session.delete(x)
 
-    _insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
+    _insert_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type)
 
 
-def _delete_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
+def _delete_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
 
-    for x in db_session.query(ReferenceCommentAndCorrectionModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to, reference_comment_and_correction_type=type).all():
+    for x in db_session.query(ReferenceRelationModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to, reference_relation_type=type).all():
         try:
             db_session.delete(x)
-            fw.write("PMID:" + str(pmid) + ": DELETE CommentsAndCorrections: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + "\n")
+            fw.write("PMID:" + str(pmid) + ": DELETE reference_relations: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + "\n")
         except Exception as e:
-            fw.write("PMID:" + str(pmid) + ": DELETE CommentsAndCorrections: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + " failed: " + str(e) + "\n")
+            fw.write("PMID:" + str(pmid) + ": DELETE reference_relations: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + " failed: " + str(e) + "\n")
 
 
-def _get_curator_email_who_added_comment_correction(db_session, reference_id_from, reference_id_to, type):
+def _get_curator_email_who_added_reference_relation(db_session, reference_id_from, reference_id_to, type):
 
     rows = db_session.execute(f"SELECT u.email "
-                              f"FROM reference_comments_and_corrections_version rcc, transaction t, users u "
+                              f"FROM reference_relation_version rcc, transaction t, users u "
                               f"WHERE rcc.reference_id_from = {reference_id_from} "
                               f"AND rcc.reference_id_to = {reference_id_to} "
-                              f"AND rcc.reference_comment_and_correction_type = '{type}' "
+                              f"AND rcc.reference_relation_type = '{type}' "
                               f"AND rcc.transaction_id = t.id "
                               f"AND u.id = t.user_id").fetchall()
     if len(rows) == 0:
@@ -716,9 +716,9 @@ def _get_curator_email_who_added_comment_correction(db_session, reference_id_fro
     return None
 
 
-def update_comment_corrections(db_session, fw, pmid, reference_id, pmid_to_reference_id, reference_ids_to_comment_correction_type, comment_correction_in_json, update_log):  # noqa: C901
+def update_reference_relations(db_session, fw, pmid, reference_id, pmid_to_reference_id, reference_ids_to_reference_relation_type, reference_relation_in_json, update_log):  # noqa: C901
 
-    if comment_correction_in_json is None or str(comment_correction_in_json) == '{}':
+    if reference_relation_in_json is None or str(reference_relation_in_json) == '{}':
         return
 
     type_mapping = {'ErratumIn': 'ErratumFor',
@@ -729,9 +729,9 @@ def update_comment_corrections(db_session, fw, pmid, reference_id, pmid_to_refer
                     'ReprintIn': 'ReprintOf',
                     'UpdateIn': 'UpdateOf'}
 
-    new_reference_ids_to_comment_correction_type = {}
-    for type in comment_correction_in_json:
-        other_pmids = comment_correction_in_json[type]
+    new_reference_ids_to_reference_relation_type = {}
+    for type in reference_relation_in_json:
+        other_pmids = reference_relation_in_json[type]
         other_reference_ids = []
         for this_pmid in other_pmids:
             other_reference_id = pmid_to_reference_id.get(this_pmid)
@@ -746,7 +746,7 @@ def update_comment_corrections(db_session, fw, pmid, reference_id, pmid_to_refer
             reference_id_from = reference_id
             for reference_id_to in other_reference_ids:
                 if reference_id_from != reference_id_to:
-                    new_reference_ids_to_comment_correction_type[(reference_id_from, reference_id_to)] = type
+                    new_reference_ids_to_reference_relation_type[(reference_id_from, reference_id_to)] = type
         else:
             type = type_mapping.get(type)
             if type is None:
@@ -754,36 +754,35 @@ def update_comment_corrections(db_session, fw, pmid, reference_id, pmid_to_refer
             reference_id_to = reference_id
             for reference_id_from in other_reference_ids:
                 if reference_id_from != reference_id_to:
-                    new_reference_ids_to_comment_correction_type[(reference_id_from, reference_id_to)] = type
-
-    if len(new_reference_ids_to_comment_correction_type.keys()) == 0:
+                    new_reference_ids_to_reference_relation_type[(reference_id_from, reference_id_to)] = type
+    if len(new_reference_ids_to_reference_relation_type.keys()) == 0:
         return
 
-    for key in new_reference_ids_to_comment_correction_type:
-        if key in reference_ids_to_comment_correction_type:
-            if reference_ids_to_comment_correction_type[key] == new_reference_ids_to_comment_correction_type[key]:
+    for key in new_reference_ids_to_reference_relation_type:
+        if key in reference_ids_to_reference_relation_type:
+            if reference_ids_to_reference_relation_type[key] == new_reference_ids_to_reference_relation_type[key]:
                 continue
             (reference_id_from, reference_id_to) = key
-            _update_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
+            _update_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type)
             update_log['comment_erratum'] = update_log['comment_erratum'] + 1
             update_log['pmids_updated'].append(pmid)
         else:
-            _insert_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
+            _insert_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type)
             update_log['comment_erratum'] = update_log['comment_erratum'] + 1
             update_log['pmids_updated'].append(pmid)
 
-    for key in reference_ids_to_comment_correction_type:
-        if key in new_reference_ids_to_comment_correction_type:
+    for key in reference_ids_to_reference_relation_type:
+        if key in new_reference_ids_to_reference_relation_type:
             continue
         (reference_id_from, reference_id_to) = key
         if reference_id in [reference_id_from, reference_id_to]:
             ## only remove the ones that are associated with given PMIDs
-            email = _get_curator_email_who_added_comment_correction(db_session,
+            email = _get_curator_email_who_added_reference_relation(db_session,
                                                                     reference_id_from,
                                                                     reference_id_to,
                                                                     type)
             if email is None:
-                _delete_comment_correction(db_session, fw, pmid, reference_id_from, reference_id_to, type)
+                _delete_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type)
                 update_log['comment_erratum'] = update_log['comment_erratum'] + 1
                 update_log['pmids_updated'].append(pmid)
 

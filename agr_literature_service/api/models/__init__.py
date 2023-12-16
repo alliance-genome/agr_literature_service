@@ -14,8 +14,8 @@ from agr_literature_service.api.models.mod_reference_type_model import Reference
     ModReferencetypeAssociationModel, ReferenceModReferencetypeAssociationModel
 from agr_literature_service.api.models.mod_model import ModModel
 from agr_literature_service.api.models.mod_corpus_association_model import ModCorpusAssociationModel
-from agr_literature_service.api.models.reference_comment_and_correction_model import \
-    ReferenceCommentAndCorrectionModel
+from agr_literature_service.api.models.reference_relation_model import \
+    ReferenceRelationModel
 from agr_literature_service.api.models.reference_model import ReferenceModel
 from agr_literature_service.api.models.resource_descriptor_models import (
     ResourceDescriptorModel, ResourceDescriptorPageModel)

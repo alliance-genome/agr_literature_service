@@ -14,7 +14,7 @@ from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp
 # to force skip of downloading xml
 # pipenv run python process_many_pmids_to_json.py -s -f inputs/alliance_pmids
 #
-# enter a file with a list of pmids as an argument, download xml, convert to json, find new pmids in commentsCorrections, recurse, output list of pubmed-based (as opposed to MOD-DQM-based) pmids to  inputs/pubmed_only_pmids
+# enter a file with a list of pmids as an argument, download xml, convert to json, find new pmids in reference_relations, recurse, output list of pubmed-based (as opposed to MOD-DQM-based) pmids to  inputs/pubmed_only_pmids
 
 logging.basicConfig(level=logging.INFO,
                     stream=sys.stdout,

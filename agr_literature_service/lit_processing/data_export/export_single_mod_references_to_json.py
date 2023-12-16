@@ -11,7 +11,7 @@ import html
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_s3
 from agr_literature_service.lit_processing.utils.db_read_utils import get_journal_by_resource_id,\
-    get_all_comment_correction_data, get_mod_corpus_association_data_for_ref_ids, \
+    get_all_reference_relation_data, get_mod_corpus_association_data_for_ref_ids, \
     get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
     get_mesh_term_data_for_ref_ids, get_mod_reference_type_data_for_ref_ids
 from agr_literature_service.lit_processing.utils.report_utils import send_data_export_report
@@ -54,9 +54,9 @@ def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
 
     db_session = create_postgres_session(False)
 
-    log.info("Getting comment/correction data from the database...")
+    log.info("Getting reference_relation data from the database...")
 
-    reference_id_to_comment_correction_data = get_all_comment_correction_data(db_session)
+    reference_id_to_reference_relation_data = get_all_reference_relation_data(db_session)
 
     log.info("Getting journal data from the database...")
 
@@ -66,7 +66,7 @@ def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
 
     log.info("Getting data from Reference table and generating json file...")
     try:
-        get_reference_data_and_generate_json(mod, reference_id_to_comment_correction_data,
+        get_reference_data_and_generate_json(mod, reference_id_to_reference_relation_data,
                                              resource_id_to_journal, json_path + json_file,
                                              datestamp)
 
@@ -230,7 +230,7 @@ def get_reference_col_names():
             'date_created']
 
 
-def get_reference_data_and_generate_json(mod, reference_id_to_comment_correction_data, resource_id_to_journal, json_file_with_path, datestamp):
+def get_reference_data_and_generate_json(mod, reference_id_to_reference_relation_data, resource_id_to_journal, json_file_with_path, datestamp):
 
     metaData = get_meta_data(mod, datestamp)
 
@@ -304,7 +304,7 @@ def get_reference_data_and_generate_json(mod, reference_id_to_comment_correction
         reference_id_to_mod_corpus_data = get_mod_corpus_association_data_for_ref_ids(db_session, ref_ids)
         reference_id_to_mod_reference_types = get_mod_reference_type_data_for_ref_ids(db_session, ref_ids)
 
-        count_index = generate_json_data(rows, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_comment_correction_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, data)
+        count_index = generate_json_data(rows, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_reference_relation_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, data)
         i += count_index
 
     db_session.close()
@@ -339,7 +339,7 @@ def escape_special_characters(text, curie):
     return text
 
 
-def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_comment_correction_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, data):  # pragma: no cover
+def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_reference_relation_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, data):  # pragma: no cover
 
     i = 0
     for x in ref_data:
@@ -384,8 +384,11 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
         row['mod_reference_types'] = reference_id_to_mod_reference_types.get(reference_id, [])
 
         row['mesh_terms'] = reference_id_to_mesh_terms.get(reference_id, [])
-
-        row['comment_and_corrections'] = reference_id_to_comment_correction_data.get(reference_id, {})
+        if 'ChapterIn' in reference_id_to_reference_relation_data.get(reference_id, {}):
+            row['reference_relations'] = reference_id_to_reference_relation_data.get(reference_id, {})
+        else:
+            row['comment_and_corrections'] = reference_id_to_reference_relation_data.get(reference_id, {})
+        # row['reference_relations'] = reference_id_to_reference_relation_data.get(reference_id, {})
 
         row['mod_corpus_associations'] = reference_id_to_mod_corpus_data.get(reference_id, [])
 
