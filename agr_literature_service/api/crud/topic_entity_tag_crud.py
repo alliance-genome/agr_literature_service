@@ -150,7 +150,7 @@ def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: OktaAccess):
 
 
 def validate_tags_already_in_db(new_tag_obj: TopicEntityTagModel, related_tags_in_db):
-    if new_tag_obj.topic_entity_tag_source.validation_type is not None:
+    if new_tag_obj.topic_entity_tag_source.validation_type is not None and new_tag_obj.negated is not None:
         more_generic_topics = set(get_ancestors_or_descendants(onto_node=new_tag_obj.topic))
         more_generic_topics.add(new_tag_obj.topic)
         tag_in_db: TopicEntityTagModel
@@ -169,12 +169,14 @@ def validate_tags_already_in_db(new_tag_obj: TopicEntityTagModel, related_tags_i
 
 
 def validate_tag_with_tags_in_db(new_tag_obj: TopicEntityTagModel, related_tags_in_db):
+    if new_tag_obj.negated is None:
+        return
     more_specific_topics = set(get_ancestors_or_descendants(onto_node=new_tag_obj.topic,
                                                             ancestors_or_descendants='descendants'))
     more_specific_topics.add(new_tag_obj.topic)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_tags_in_db:
-        if tag_in_db.topic_entity_tag_source.validation_type is not None:
+        if tag_in_db.topic_entity_tag_source.validation_type is not None and tag_in_db.negated is not None:
             if tag_in_db.topic in more_specific_topics:
                 if new_tag_obj.entity_type is None or (tag_in_db.entity_type == new_tag_obj.entity_type
                                                        and tag_in_db.entity == new_tag_obj.entity):
