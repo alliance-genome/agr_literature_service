@@ -114,7 +114,7 @@ class TopicEntityTagModel(AuditedModel, Base):
 
     negated = Column(
         Boolean,
-        nullable=False,
+        nullable=True,
         unique=False,
         default=False,
         server_default='false'
