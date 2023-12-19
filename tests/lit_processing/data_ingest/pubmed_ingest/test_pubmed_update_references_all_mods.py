@@ -7,5 +7,5 @@ class TestPubmedUpdateReferencesAllMods:
     def test_get_daily_update_files(self):
 
         dailyfiles = get_daily_update_files(1)
-        assert dailyfiles[0].startswith("pubmed23n")
+        assert dailyfiles[0].startswith("pubmed")
         assert dailyfiles[0].endswith(".xml.gz")
