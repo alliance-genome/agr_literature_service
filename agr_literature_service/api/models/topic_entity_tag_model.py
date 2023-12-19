@@ -114,10 +114,8 @@ class TopicEntityTagModel(AuditedModel, Base):
 
     negated = Column(
         Boolean,
-        nullable=False,
-        unique=False,
-        default=False,
-        server_default='false'
+        nullable=True,
+        unique=False
     )
 
     confidence_level = Column(
