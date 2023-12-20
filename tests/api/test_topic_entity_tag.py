@@ -394,6 +394,39 @@ class TestTopicEntityTag:
             ).one()
             assert len(specific_tag_obj_2.validated_by) == 0  # nothing should validate the more specific tag
 
+    def test_validate_negated_null(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
+        with TestClient(app) as client:
+            author_source_1 = {
+                "source_type": "community curation",
+                "source_method": "acknowledge",
+                "validation_type": "author",
+                "evidence": "test_eco_code",
+                "description": "author from acknowledge",
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            auth_source_1_resp = client.post(url="/topic_entity_tag/source", json=author_source_1, headers=auth_headers)
+            positive_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",
+                "topic_entity_tag_source_id": auth_source_1_resp.json(),
+                "negated": False,
+                "novel_topic_data": True
+            }
+            null_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",
+                "topic_entity_tag_source_id": auth_source_1_resp.json(),
+                "negated": None,
+                "novel_topic_data": True
+            }
+            # add the new tags
+            positive_tag_id = client.post(url="/topic_entity_tag/", json=positive_tag, headers=auth_headers).json()
+            null_tag_id = client.post(url="/topic_entity_tag/", json=null_tag, headers=auth_headers).json()
+            positive_tag_resp = client.get(url=f"/topic_entity_tag/{positive_tag_id}", headers=auth_headers)
+            assert positive_tag_resp.json()["validation_by_author"] == "self_validated"
+            null_tag_resp = client.get(url=f"/topic_entity_tag/{null_tag_id}", headers=auth_headers)
+            assert null_tag_resp.json()["validation_by_author"] == "self_validated"
+
     @pytest.mark.webtest
     def test_get_map_entity_curie_to_name(self, test_topic_entity_tag, test_topic_entity_tag_source, test_mod, # noqa
                                           auth_headers): # noqa

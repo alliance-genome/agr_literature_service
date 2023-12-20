@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 from pydantic import BaseModel, Field, constr
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
@@ -42,7 +42,7 @@ class TopicEntityTagSchemaCreate(AuditedObjectModelSchema):
     species: Optional[constr(min_length=1)] = None  # type: ignore
     display_tag: Optional[constr(min_length=1)] = None  # type: ignore
     topic_entity_tag_source_id: int
-    negated: Optional[bool] = False
+    negated: Optional[Union[bool, None]] = False
     novel_topic_data: Optional[bool] = False
     confidence_level: Optional[constr(min_length=1)] = None  # type: ignore
     note: Optional[constr(min_length=1)] = None  # type: ignore
@@ -62,7 +62,7 @@ class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     species: Optional[str] = None
     display_tag: Optional[str] = None
     topic_entity_tag_source_id: int
-    negated: Optional[bool] = False
+    negated: Optional[Union[bool, None]] = False
     novel_topic_data: Optional[bool] = False
     confidence_level: Optional[str] = None
     note: Optional[str] = None
@@ -83,7 +83,7 @@ class TopicEntityTagSchemaUpdate(AuditedObjectModelSchema):
     entity_published_as: Optional[constr(min_length=1)] = None  # type: ignore
     species: Optional[constr(min_length=1)] = None  # type: ignore
     display_tag: Optional[constr(min_length=1)] = None  # type: ignore
-    negated: Optional[bool] = False
+    negated: Optional[Union[bool, None]] = False
     novel_topic_data: Optional[bool] = False
     confidence_level: Optional[constr(min_length=1)] = None  # type: ignore
     note: Optional[constr(min_length=1)] = None  # type: ignore
