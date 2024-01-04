@@ -730,8 +730,8 @@ def update_reference_relations(db_session, fw, pmid, reference_id, pmid_to_refer
                     'UpdateIn': 'UpdateOf'}
 
     new_reference_ids_to_reference_relation_type = {}
-    for type in reference_relation_in_json:
-        other_pmids = reference_relation_in_json[type]
+    for original_type in reference_relation_in_json:
+        other_pmids = reference_relation_in_json[original_type]
         other_reference_ids = []
         for this_pmid in other_pmids:
             other_reference_id = pmid_to_reference_id.get(this_pmid)
@@ -742,13 +742,13 @@ def update_reference_relations(db_session, fw, pmid, reference_id, pmid_to_refer
             other_reference_ids.append(other_reference_id)
         if len(other_reference_ids) == 0:
             continue
-        if type.endswith('For') or type.endswith('From') or type.endswith('Of'):
+        if any(original_type.endswith(suffix) for suffix in ['For', 'From', 'Of', 'On']):
             reference_id_from = reference_id
             for reference_id_to in other_reference_ids:
                 if reference_id_from != reference_id_to:
-                    new_reference_ids_to_reference_relation_type[(reference_id_from, reference_id_to)] = type
+                    new_reference_ids_to_reference_relation_type[(reference_id_from, reference_id_to)] = original_type
         else:
-            type = type_mapping.get(type)
+            type = type_mapping.get(original_type)
             if type is None:
                 continue
             reference_id_to = reference_id
@@ -757,8 +757,8 @@ def update_reference_relations(db_session, fw, pmid, reference_id, pmid_to_refer
                     new_reference_ids_to_reference_relation_type[(reference_id_from, reference_id_to)] = type
     if len(new_reference_ids_to_reference_relation_type.keys()) == 0:
         return
-
     for key in new_reference_ids_to_reference_relation_type:
+        type = new_reference_ids_to_reference_relation_type[key]
         if key in reference_ids_to_reference_relation_type:
             if reference_ids_to_reference_relation_type[key] == new_reference_ids_to_reference_relation_type[key]:
                 continue
@@ -772,6 +772,7 @@ def update_reference_relations(db_session, fw, pmid, reference_id, pmid_to_refer
             update_log['pmids_updated'].append(pmid)
 
     for key in reference_ids_to_reference_relation_type:
+        type = reference_ids_to_reference_relation_type[key]
         if key in new_reference_ids_to_reference_relation_type:
             continue
         (reference_id_from, reference_id_to) = key
