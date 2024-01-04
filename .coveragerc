@@ -4,6 +4,7 @@ source = agr_literature_service
 omit =
         agr_literature_service/api/routers/*
         agr_literature_service/lit_processing/oneoff_scripts/*
+	agr_literature_service/lit_processing/end_of_year_update/*
         agr_literature_service/lit_processing/tests/*
         *__init__*
         agr_literature_service/lit_processing/utils/email_utils.py
