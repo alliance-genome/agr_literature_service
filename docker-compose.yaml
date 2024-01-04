@@ -370,6 +370,7 @@ services:
       - /usr/share/jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
       - /usr/bin/docker:/usr/bin/docker
+      - /usr/local/bin/docker-compose:/usr/bin/docker-compose
     ports:
       - "49001:8080"
       - "50000:50000"
