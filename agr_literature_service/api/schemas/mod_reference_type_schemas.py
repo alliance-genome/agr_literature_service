@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 class ModReferenceTypeSchemaCreate(BaseModel):
     reference_type: str
-    source: Optional[str] = None
+    mod_abbreviation: Optional[str] = None
 
     class Config():
         orm_mode = True
@@ -39,7 +39,7 @@ class ModReferenceTypeSchemaRelated(ModReferenceTypeSchemaCreate):
 class ModReferenceTypeSchemaUpdate(BaseModel):
     reference_curie: Optional[str]
     reference_type: Optional[str]
-    source: Optional[str]
+    mod_abbreviation: Optional[str]
 
     class Config():
         orm_mode = True

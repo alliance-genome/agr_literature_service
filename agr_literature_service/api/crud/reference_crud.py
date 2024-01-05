@@ -186,7 +186,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                                        "the reference")
         elif field == "mod_reference_types":
             for obj in value or []:
-                insert_mod_reference_type_into_db(db, reference.pubmed_types, obj.source, obj.reference_type,
+                insert_mod_reference_type_into_db(db, reference.pubmed_types, obj.mod_abbreviation, obj.reference_type,
                                                   reference_db_obj.reference_id)
     return curie
 
@@ -358,7 +358,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
                 jsonable_encoder(ModReferenceTypeSchemaRelated(
                     mod_reference_type_id=ref_mod_referencetype.reference_mod_referencetype_id,
                     reference_type=ref_mod_referencetype.mod_referencetype.referencetype.label,
-                    source=ref_mod_referencetype.mod_referencetype.mod.abbreviation)))
+                    mod_abbreviation=ref_mod_referencetype.mod_referencetype.mod.abbreviation)))
     reference_data["obsolete_references"] = [obs_reference["curie"] for obs_reference in
                                              reference_data["obsolete_reference"]]
     del reference_data["obsolete_reference"]
@@ -825,3 +825,4 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
             ]
         } for (reference_id, reference_curie), reffiles_md5sums_sources_dates in aggregated_reffiles.items()
     ]
+
