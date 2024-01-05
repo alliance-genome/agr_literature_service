@@ -227,7 +227,7 @@ class TestReference:
                 "mod_reference_types": [
                     {
                         "reference_type": "Journal",
-                        "source": "ZFIN"
+                        "mod_abbreviation": "ZFIN"
                     }
                 ],
                 "cross_references": [

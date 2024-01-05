@@ -825,4 +825,3 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
             ]
         } for (reference_id, reference_curie), reffiles_md5sums_sources_dates in aggregated_reffiles.items()
     ]
-
