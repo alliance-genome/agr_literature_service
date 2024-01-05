@@ -142,7 +142,7 @@ def download_and_parse_daily_update(db_session, pmids_all):  # pragma: no cover
     return (updated_pmids_for_mod, deleted_pmids_for_mod)
 
 
-def get_daily_update_files(days=None):
+def get_daily_update_files(days=None):  # pragma: no cover
 
     """
     some examples of pubmed daily update files:
