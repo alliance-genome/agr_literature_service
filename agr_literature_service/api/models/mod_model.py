@@ -5,8 +5,7 @@ mod_model.py
 
 
 from typing import Dict
-
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import ARRAY, Column, Integer, String
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -42,6 +41,12 @@ class ModModel(Base, AuditedModel):
         String(100),
         unique=True,
         nullable=False
+    )
+
+    taxon_ids = Column(
+        ARRAY(String()),
+        unique=False,
+        nullable=True
     )
 
     referencetypes = relationship("ModReferencetypeAssociationModel")
