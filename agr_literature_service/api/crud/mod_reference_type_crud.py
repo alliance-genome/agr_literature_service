@@ -57,7 +57,7 @@ def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost) -> int:
     # this is going to create a new mod_referencetype entry and possibly a new referencetype if the entry is not in the
     # db and mod is SGD and the label is a valid pubmed type
     new_mod_ref_type_id = insert_mod_reference_type_into_db(db, reference.pubmed_types,
-                                                            mod_reference_type_data["source"],
+                                                            mod_reference_type_data["mod_abbreviation"],
                                                             mod_reference_type_data["reference_type"],
                                                             reference.reference_id)
     if new_mod_ref_type_id is None:
@@ -109,15 +109,15 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update):
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"Reference with curie {mrt_data['reference_curie']} does not exist")
         ref_mod_ref_type_obj.reference_id = reference.reference_id
-    if "reference_type" in mrt_data or "source" in mrt_data:
+    if "reference_type" in mrt_data or "mod_abbreviation" in mrt_data:
         if reference is None:
             reference = db.query(ReferenceModel).filter(
                 ReferenceModel.reference_id == ref_mod_ref_type_obj.reference_id).first()
-        if "source" in mrt_data:
-            mod = db.query(ModModel).filter(ModModel.abbreviation == mrt_data["source"]).one_or_none()
+        if "mod_abbreviation" in mrt_data:
+            mod = db.query(ModModel).filter(ModModel.abbreviation == mrt_data["mod_abbreviation"]).one_or_none()
             if mod is None:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                    detail=f"Mod with abbreviation {mrt_data['source']} does not exist")
+                                    detail=f"Mod with abbreviation {mrt_data['mod_abbreviation']} does not exist")
         else:
             mod = ref_mod_ref_type_obj.mod_referencetype.mod
         if "reference_type" in mrt_data:
@@ -160,7 +160,7 @@ def show(db: Session, mod_reference_type_id: int):
     mod_reference_type_data["mod_reference_type_id"] = ref_mod_reference_type.reference_mod_referencetype_id
     mod_reference_type_data["reference_curie"] = ref_curie
     mod_reference_type_data["reference_type"] = ref_mod_reference_type.mod_referencetype.referencetype.label
-    mod_reference_type_data["source"] = ref_mod_reference_type.mod_referencetype.mod.abbreviation
+    mod_reference_type_data["mod_abbreviation"] = ref_mod_reference_type.mod_referencetype.mod.abbreviation
     return mod_reference_type_data
 
 

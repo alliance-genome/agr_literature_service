@@ -24,7 +24,7 @@ def test_mod_ref_type(db, auth_headers, test_reference, populate_test_mod_refere
         new_mod_ref_type = {
             "reference_curie": test_reference.new_ref_curie,
             "reference_type": "Journal",
-            "source": "ZFIN"
+            "mod_abbreviation": "ZFIN"
         }
         response = client.post(url="/reference/mod_reference_type/", json=new_mod_ref_type, headers=auth_headers)
         yield TestModRefTypeData(response, response.json(), test_reference.new_ref_curie)
@@ -54,7 +54,7 @@ class TestModReferenceType:
             patch_data = {
                 "reference_curie": test_reference2.new_ref_curie,
                 "reference_type": "Review",
-                "source": "ZFIN"
+                "mod_abbreviation": "ZFIN"
             }
             response = client.patch(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}",
                                     json=patch_data, headers=auth_headers)
@@ -64,7 +64,7 @@ class TestModReferenceType:
             mrt = response.json()
             assert mrt["reference_type"] == "Review"
             assert mrt["reference_curie"] == test_reference2.new_ref_curie
-            assert mrt["source"] == "ZFIN"
+            assert mrt["mod_abbreviation"] == "ZFIN"
 
             from_id = client.get(url=f"/reference/{test_mod_ref_type.related_ref_curie}").json()["reference_id"]
             to_id = client.get(url=f"/reference/{test_reference2.new_ref_curie}").json()["reference_id"]
