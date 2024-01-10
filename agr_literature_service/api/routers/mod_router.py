@@ -50,6 +50,13 @@ def show(abbreviation: str,
     return mod_crud.show(db, abbreviation)
 
 
+@router.get('/taxons/{type}',
+            status_code=200)
+def taxons(type: str,
+           db: Session = db_session):
+    return mod_crud.taxons(db, type)
+
+
 @router.get('/{mod_id}/versions',
             status_code=200)
 def show_versions(mod_id: int,
