@@ -87,6 +87,20 @@ def show(db: Session, abbreviation: str):
     return mod_data
 
 
+def taxons(db: Session, type='default'):
+
+    taxons = []
+    for mod in db.query(ModModel).all():
+        if mod.abbreviation != 'GO':
+            if type == 'all':
+                taxons.append({'mod_abbreviation': mod.abbreviation,
+                               'taxon_ids': mod.taxon_ids})
+            else:
+                taxons.append({'mod_abbreviation': mod.abbreviation,
+                               'taxon_id': mod.taxon_ids[0]})
+    return taxons
+
+
 def show_changesets(db: Session, mod_id: int):
     """
 
