@@ -165,7 +165,7 @@ def validate_tags_already_in_db_with_positive_tag(new_tag_obj: TopicEntityTagMod
     if new_tag_obj.entity is not None and new_tag_obj.entity_type != new_tag_obj.topic:
         for tag_in_db in related_tags_in_db:
             if (tag_in_db.topic == tag_in_db.entity_type == new_tag_obj.entity_type
-                    and new_tag_obj.entity == tag_in_db.entity ):
+                    and new_tag_obj.entity == tag_in_db.entity):
                 tag_in_db.validated_by.append(new_tag_obj)
 
 
