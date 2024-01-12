@@ -240,7 +240,7 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel):
             TopicEntityTagModel.topic_entity_tag_source.has(
                 TopicEntityTagSourceModel.mod_id == new_tag_obj.topic_entity_tag_source.mod_id
             ),
-            TopicEntityTagModel.negated.is_not(None)
+            TopicEntityTagModel.negated.isnot(None)
         )
     ).all()
     # The current tag can validate existing tags or be validated by other tags only if it has a True or False negated
