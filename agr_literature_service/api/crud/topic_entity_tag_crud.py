@@ -257,9 +257,9 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel):
     related_validating_tags_in_db = [related_tag for related_tag in related_tags_in_db if
                                      related_tag.topic_entity_tag_source.validation_type is not None]
     if new_tag_obj.negated is True:
-        validate_positive_tag_with_tags_in_db(new_tag_obj, related_validating_tags_in_db)
-    else:
         validate_negative_tag_with_tags_in_db(new_tag_obj, related_validating_tags_in_db)
+    else:
+        validate_positive_tag_with_tags_in_db(new_tag_obj, related_validating_tags_in_db)
     db.commit()
 
 
