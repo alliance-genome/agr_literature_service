@@ -64,11 +64,20 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
 
 
 def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagModel, validation_type: str):
-    # TODO: validation at the moment works only for directly validating tags. Validation conflicts should be calculated
-    # in chain, for example in case a positive tag is validated negative by a more generic negative tag but there's also
-    # a more generic positive tag in conflict with the negative one.
-    validating_tags_values = [validating_tag.negated for validating_tag in topic_entity_tag_db_obj.validated_by if
-                              validating_tag.topic_entity_tag_source.validation_type == validation_type]
+    validating_tags_values = []
+    validating_tags_added_ids = set()
+    validating_tags_to_add = [topic_entity_tag_db_obj]
+    validating_tags_added_ids.add(topic_entity_tag_db_obj.topic_entity_tag_id)
+    while len(validating_tags_to_add) > 0:
+        validating_tag = validating_tags_to_add.pop()
+        additional_validating_tags = [tag for tag in validating_tag.validated_by
+                                      if tag.topic_entity_tag_source.validation_type == validation_type and
+                                      tag.topic_entity_tag_id not in validating_tags_added_ids]
+        additional_validating_tag_values = [tag.negated for tag in additional_validating_tags]
+        additional_validating_tag_ids = [tag.topic_entity_tag_id for tag in additional_validating_tags]
+        validating_tags_values.extend(additional_validating_tag_values)
+        validating_tags_added_ids.update(additional_validating_tag_ids)
+        validating_tags_to_add.extend(additional_validating_tags)
     if len(validating_tags_values) > 0:
         if topic_entity_tag_db_obj.topic_entity_tag_source.validation_type == validation_type:
             validating_tags_values.append(topic_entity_tag_db_obj.negated)
