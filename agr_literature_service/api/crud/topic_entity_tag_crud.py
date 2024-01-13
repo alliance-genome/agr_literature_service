@@ -64,6 +64,9 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
 
 
 def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagModel, validation_type: str):
+    # TODO: validation at the moment works only for directly validating tags. Validation conflicts should be calculated
+    # in chain, for example in case a positive tag is validated negative by a more generic negative tag but there's also
+    # a more generic positive tag in conflict with the negative one.
     validating_tags_values = [validating_tag.negated for validating_tag in topic_entity_tag_db_obj.validated_by if
                               validating_tag.topic_entity_tag_source.validation_type == validation_type]
     if len(validating_tags_values) > 0:

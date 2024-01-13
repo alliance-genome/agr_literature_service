@@ -394,6 +394,168 @@ class TestTopicEntityTag:
             ).one()
             assert len(specific_tag_obj_2.validated_by) == 0  # nothing should validate the more specific tag
 
+    @pytest.mark.webtest
+    def test_validate_positive_with_pos_and_neg(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db,
+                                                test_topic_entity_tag_source):  # noqa
+        with TestClient(app) as client:
+            author_source = {
+                "source_type": "manual",
+                "source_method": "ACKnowledge",
+                "validation_type": "author",
+                "evidence": "test_eco_code",
+                "description": "author from acknowledge",
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            curator_source = {
+                "source_type": "manual",
+                "source_method": "abc_interface",
+                "validation_type": "curator",
+                "evidence": "test_eco_code",
+                "description": "Curator using the ABC",
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            author_source_resp = client.post(url="/topic_entity_tag/source", json=author_source, headers=auth_headers)
+            curator_source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            positive_tag_not_validating = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000079",  # genetic phenotype
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,  # automated tag
+                "negated": False,
+                "novel_topic_data": True
+            }
+            more_generic_positive_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",  # phenotype
+                "topic_entity_tag_source_id": author_source_resp.json(),
+                "negated": False,
+                "novel_topic_data": True
+            }
+            more_generic_negative_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",  # phenotype
+                "topic_entity_tag_source_id": author_source_resp.json(),
+                "negated": True,
+                "novel_topic_data": True
+            }
+            more_specific_positive_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000084",  # overexpression phenotype
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_source": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": author_source_resp.json(),
+                "negated": False,
+                "novel_topic_data": False
+            }
+            more_specific_negative_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000082",  # RNAi phenotype
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_source": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": curator_source_resp.json(),
+                "negated": True,
+                "novel_topic_data": True
+            }
+            positive_tag_id = client.post(url="/topic_entity_tag/", json=positive_tag_not_validating,
+                                          headers=auth_headers).json()
+            client.post(url="/topic_entity_tag/", json=more_generic_positive_tag, headers=auth_headers).json()
+            more_generic_negative_tag_id = client.post(url="/topic_entity_tag/", json=more_generic_negative_tag,
+                                                       headers=auth_headers).json()
+            more_specific_positive_id = client.post(url="/topic_entity_tag/", json=more_specific_positive_tag,
+                                                    headers=auth_headers).json()
+            client.post(url="/topic_entity_tag/", json=more_specific_negative_tag, headers=auth_headers).json()
+            positive_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == positive_tag_id).one()
+            assert len(positive_tag.validated_by) == 2
+            validating_tags = [int(validating_tag.topic_entity_tag_id) for validating_tag in positive_tag.validated_by]
+            assert int(more_specific_positive_id) in validating_tags
+            assert int(more_generic_negative_tag_id) in validating_tags
+
+    @pytest.mark.webtest
+    def test_validate_negative_with_pos_and_neg(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db,
+                                                test_topic_entity_tag_source):  # noqa
+        with TestClient(app) as client:
+            author_source = {
+                "source_type": "manual",
+                "source_method": "ACKnowledge",
+                "validation_type": "author",
+                "evidence": "test_eco_code",
+                "description": "author from acknowledge",
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            curator_source = {
+                "source_type": "manual",
+                "source_method": "abc_interface",
+                "validation_type": "curator",
+                "evidence": "test_eco_code",
+                "description": "Curator using the ABC",
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            author_source_resp = client.post(url="/topic_entity_tag/source", json=author_source,
+                                             headers=auth_headers)
+            curator_source_resp = client.post(url="/topic_entity_tag/source", json=curator_source,
+                                              headers=auth_headers)
+            negative_tag_not_validating = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000079",  # genetic phenotype
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,  # automated tag
+                "negated": True,
+                "novel_topic_data": True
+            }
+            more_generic_positive_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",  # phenotype
+                "topic_entity_tag_source_id": author_source_resp.json(),
+                "negated": False,
+                "novel_topic_data": True
+            }
+            more_generic_negative_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",  # phenotype
+                "topic_entity_tag_source_id": author_source_resp.json(),
+                "negated": True,
+                "novel_topic_data": True
+            }
+            more_specific_positive_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000084",  # overexpression phenotype
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_source": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": author_source_resp.json(),
+                "negated": False,
+                "novel_topic_data": False
+            }
+            more_specific_negative_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000082",  # RNAi phenotype
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_source": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": curator_source_resp.json(),
+                "negated": True,
+                "novel_topic_data": True
+            }
+            negative_tag_id = client.post(url="/topic_entity_tag/", json=negative_tag_not_validating,
+                                          headers=auth_headers).json()
+            client.post(url="/topic_entity_tag/", json=more_generic_positive_tag, headers=auth_headers).json()
+            more_generic_negative_tag_id = client.post(url="/topic_entity_tag/", json=more_generic_negative_tag,
+                                                       headers=auth_headers).json()
+            more_specific_positive_tag_id = client.post(url="/topic_entity_tag/", json=more_specific_positive_tag,
+                                                        headers=auth_headers).json()
+            client.post(url="/topic_entity_tag/", json=more_specific_negative_tag, headers=auth_headers).json()
+            negative_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == negative_tag_id).one()
+            assert len(negative_tag.validated_by) == 2
+            validating_tags = [int(validating_tag.topic_entity_tag_id) for validating_tag in negative_tag.validated_by]
+            assert int(more_specific_positive_tag_id) in validating_tags
+            assert int(more_generic_negative_tag_id) in validating_tags
+
     def test_validate_negated_null(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
         with TestClient(app) as client:
             author_source_1 = {
