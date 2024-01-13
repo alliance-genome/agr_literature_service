@@ -395,8 +395,8 @@ class TestTopicEntityTag:
             assert len(specific_tag_obj_2.validated_by) == 0  # nothing should validate the more specific tag
 
     @pytest.mark.webtest
-    def test_validate_positive_with_pos_and_neg(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db,
-                                                test_topic_entity_tag_source):  # noqa
+    def test_validate_positive_with_pos_and_neg(self, test_topic_entity_tag, test_reference, test_mod,  # noqa
+                                                auth_headers, db, test_topic_entity_tag_source):  # noqa
         with TestClient(app) as client:
             author_source = {
                 "source_type": "manual",
@@ -475,8 +475,8 @@ class TestTopicEntityTag:
             assert int(more_generic_negative_tag_id) in validating_tags
 
     @pytest.mark.webtest
-    def test_validate_negative_with_pos_and_neg(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db,
-                                                test_topic_entity_tag_source):  # noqa
+    def test_validate_negative_with_pos_and_neg(self, test_topic_entity_tag, test_reference, test_mod,  # noqa
+                                                auth_headers, db, test_topic_entity_tag_source):  # noqa
         with TestClient(app) as client:
             author_source = {
                 "source_type": "manual",
