@@ -4,6 +4,7 @@ topic_entity_tag_crud.py
 """
 from collections import defaultdict
 from typing import Dict
+# from os import getcwd
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -11,6 +12,7 @@ from sqlalchemy import case, and_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
+from agr_literature_service.api.models.audited_model import get_default_user_value
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
     get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, check_and_set_species, \
@@ -49,18 +51,47 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
     else:
         check_and_set_species(topic_entity_tag_data)
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
+
+    new_tag_data = topic_entity_tag_data
+    new_tag_data.pop('date_created', None)
+    new_tag_data.pop('date_updated', None)
+    created_by_user = get_default_user_value()
+    if new_tag_data.get('created_by', None) is None:
+        new_tag_data['created_by'] = created_by_user
+    if new_tag_data.get('updated_by', None) is None:
+        new_tag_data['updated_by'] = created_by_user
+
+    existing_tag = db.query(TopicEntityTagModel).filter_by(**new_tag_data).first()
+    if existing_tag:
+        """
+        log_file_with_path = getcwd() + "/topic_entity_tag_data.log"
+        with open(log_file_with_path, "a") as f:
+            f.write("new_tag_data = " + str(new_tag_data) + "\n")
+            f.write("existing_tag=" + str(existing_tag.topic) + "\n\n")
+        """
+        return {
+            "status": "exists",
+            "message": "Tag already exists in the database.",
+            "data": new_tag_data
+        }
+
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
     try:
         db.add(new_db_obj)
         db.flush()
         db.refresh(new_db_obj)
-        topic_entity_tag_id = new_db_obj.topic_entity_tag_id
+        # topic_entity_tag_id = new_db_obj.topic_entity_tag_id
         validate_tags(db=db, new_tag_obj=new_db_obj)
+        return {
+            "status": "success",
+            "message": "New tag created successfully.",
+            "data": new_tag_data
+        }
     except (IntegrityError, HTTPException) as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"invalid request: {e}")
-    return topic_entity_tag_id
+    # return topic_entity_tag_id
 
 
 def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagModel, validation_type: str):
