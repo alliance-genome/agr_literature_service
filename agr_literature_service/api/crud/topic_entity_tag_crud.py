@@ -70,9 +70,10 @@ def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagMo
     validating_tags_added_ids.add(topic_entity_tag_db_obj.topic_entity_tag_id)
     while len(validating_tags_to_add) > 0:
         validating_tag = validating_tags_to_add.pop()
-        additional_validating_tags = [tag for tag in validating_tag.validated_by
-                                      if tag.topic_entity_tag_source.validation_type == validation_type and
-                                      tag.topic_entity_tag_id not in validating_tags_added_ids]
+        additional_validating_tags = [
+            tag for tag in validating_tag.validated_by
+            if tag.topic_entity_tag_source.validation_type == validation_type and tag.topic_entity_tag_id not in
+            validating_tags_added_ids]
         additional_validating_tag_values = [tag.negated for tag in additional_validating_tags]
         additional_validating_tag_ids = [tag.topic_entity_tag_id for tag in additional_validating_tags]
         validating_tags_values.extend(additional_validating_tag_values)
