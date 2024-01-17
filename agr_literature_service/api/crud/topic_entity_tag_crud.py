@@ -63,16 +63,17 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
 
     existing_tag = db.query(TopicEntityTagModel).filter_by(**new_tag_data).first()
     if existing_tag:
+        tag_data = populate_tag_field_names(db, reference_id, new_tag_data)
         """
         log_file_with_path = getcwd() + "/topic_entity_tag_data.log"
         with open(log_file_with_path, "a") as f:
-            f.write("new_tag_data = " + str(new_tag_data) + "\n")
+            f.write("tag_data = " + str(tag_data) + "\n")
             f.write("existing_tag=" + str(existing_tag.topic) + "\n\n")
         """
         return {
             "status": "exists",
             "message": "Tag already exists in the database.",
-            "data": new_tag_data
+            "data": tag_data
         }
 
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
@@ -394,6 +395,23 @@ def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str):
     for curie_without_name in (set(all_entities) | set(all_topics_and_entities)) - set(entity_curie_to_name.keys()):
         entity_curie_to_name[curie_without_name] = curie_without_name
     return entity_curie_to_name
+
+
+def populate_tag_field_names(db, reference_id, tag_data):
+
+    curie_to_name = get_map_entity_curie_to_name(db, str(reference_id))
+    new_tag_data = {}
+    for field in tag_data:
+        curie = tag_data[field]
+        new_tag_data[field] = curie
+        new_field = field + "_name"
+        if field == 'species':
+            taxon_id_to_name = get_map_ateam_curies_to_names(curies_category="ncbitaxonterm",
+                                                             curies=[curie])
+            new_tag_data[new_field] = taxon_id_to_name.get(curie, curie)
+        elif curie in curie_to_name:
+            new_tag_data[new_field] = curie_to_name[curie]
+    return new_tag_data
 
 
 def show_source_by_name(db: Session, source_type: str, source_method: str, mod_abbreviation: str):
