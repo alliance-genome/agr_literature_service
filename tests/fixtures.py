@@ -37,15 +37,19 @@ def delete_all_table_content(engine):
 @pytest.fixture
 def db() -> Session:
     print("***** Creating DB session *****")
-    engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
-    initialize()
-    delete_all_table_content(engine)
-    db = sessionmaker(bind=engine, autoflush=True)()
-    yield db
-    delete_all_table_content(engine)
-    drop_open_db_sessions(db)
-    print("***** Closing DB session *****")
-    db.close()
+    if ("rds.amazonaws.com" in environ.get("PSQL_HOST")):
+        msg = "***** Warning: not allow to run test on stage or prod database *****"
+        pytest.exit(msg)
+    else:
+        engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
+        initialize()
+        delete_all_table_content(engine)
+        db = sessionmaker(bind=engine, autoflush=True)()
+        yield db
+        delete_all_table_content(engine)
+        drop_open_db_sessions(db)
+        print("***** Closing DB session *****")
+        db.close()
 
 
 @pytest.fixture
