@@ -479,10 +479,10 @@ def merge_references(db: Session,
         db.add(obs_ref_cur_db_obj)
         # Commit remapping in obsolete_reference_curie to avoid deleting them when deleting old_ref
         db.commit()
-    except:
+    except Exception as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"Cannot merge these two references.")
+                            detail=f"Cannot merge these two references. {e}")
 
     # Delete the old_curie object
     db.delete(old_ref)
