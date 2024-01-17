@@ -104,8 +104,6 @@ class TestSearch:
 
     def test_search_references_no_facets(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
-            if (config.ELASTICSEARCH_HOST == "vpc-literature-search-dev-x3wsul3qqekeiesxbgazx3a5re.us-east-1.es.amazonaws.com" or config.ELASTICSEARCH_HOST == "elasticsearch"):
-                assert False
             search_data = {"query": "cell", "facets_values": None, "return_facets_only": False}
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert len(res) > 0
