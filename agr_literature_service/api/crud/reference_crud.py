@@ -465,19 +465,24 @@ def merge_references(db: Session,
     # Check if old_curie is already in the obsolete table (It may have been merged itself)
     # by looking for it in the new_id column.
     # If so then we also want to update that to the new_id.
-    prev_obs_ref_cur = db.query(ObsoleteReferenceModel).filter(
-        ObsoleteReferenceModel.new_id == old_ref.reference_id).all()
-    for old in prev_obs_ref_cur:
-        old.new_id = new_ref.reference_id
-    obs_ref_cur_data = {
-        'new_id': new_ref.reference_id,
-        'curie': old_ref.curie
-    }
-    # Add old_curie and new_id into the obsolete_reference_curie table.
-    obs_ref_cur_db_obj = ObsoleteReferenceModel(**obs_ref_cur_data)
-    db.add(obs_ref_cur_db_obj)
-    # Commit remapping in obsolete_reference_curie to avoid deleting them when deleting old_ref
-    db.commit()
+    try:
+        prev_obs_ref_cur = db.query(ObsoleteReferenceModel).filter(
+            ObsoleteReferenceModel.new_id == old_ref.reference_id).all()
+        for old in prev_obs_ref_cur:
+            old.new_id = new_ref.reference_id
+        obs_ref_cur_data = {
+            'new_id': new_ref.reference_id,
+            'curie': old_ref.curie
+        }
+        # Add old_curie and new_id into the obsolete_reference_curie table.
+        obs_ref_cur_db_obj = ObsoleteReferenceModel(**obs_ref_cur_data)
+        db.add(obs_ref_cur_db_obj)
+        # Commit remapping in obsolete_reference_curie to avoid deleting them when deleting old_ref
+        db.commit()
+    except:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Cannot merge these two references.")
 
     # Delete the old_curie object
     db.delete(old_ref)
