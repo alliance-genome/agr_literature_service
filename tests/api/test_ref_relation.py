@@ -137,7 +137,7 @@ class TestReferenceRelation:
                                      headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_merge_references_rcc(self, test_reference, test_reference2, test_reference3, auth_headers): # noqa
+    def test_merge_references_rcc_fail_constraint(self, test_reference, test_reference2, test_reference3, auth_headers): # noqa
         with TestClient(app) as client:
             ref1 = test_reference.new_ref_curie
             ref2 = test_reference2.new_ref_curie
@@ -157,7 +157,7 @@ class TestReferenceRelation:
             # merge reference 2 into reference 3
             response_merge1 = client.post(url=f"/reference/merge/{ref2}/{ref3}",
                                           headers=auth_headers)
-            assert response_merge1.status_code == status.HTTP_201_CREATED
+            assert response_merge1.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
             ref2_type_bool = False
             ref3_type_bool = False
             response_ref1 = client.get(url=f"/reference/{ref1}")
