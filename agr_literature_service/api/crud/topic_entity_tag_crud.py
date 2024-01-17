@@ -33,7 +33,7 @@ ATP_ID_SOURCE_CURATOR = "curator"
 ATP_ID_SOURCE_CURATION_TOOLS = "curation_tools"
 
 
-def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
+def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
     reference_curie = topic_entity_tag_data.pop("reference_curie", None)
     if reference_curie is None:
