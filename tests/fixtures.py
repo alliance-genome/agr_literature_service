@@ -16,6 +16,7 @@ from os import environ, path
 
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
+from agr_literature_service.api.config import config
 
 
 def delete_all_table_content(engine):
@@ -37,7 +38,7 @@ def delete_all_table_content(engine):
 @pytest.fixture
 def db() -> Session:
     print("***** Creating DB session *****")
-    if ("rds.amazonaws.com" in environ.get("PSQL_HOST")):
+    if ("rds.amazonaws.com" in config.PSQL_HOST):
         msg = "***** Warning: not allow to run test on stage or prod database *****"
         pytest.exit(msg)
     else:
