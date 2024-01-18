@@ -12,6 +12,7 @@ from .test_reference import test_reference # noqa
 
 test_reference2 = test_reference
 test_reference3 = test_reference
+test_reference4 = test_reference
 
 TestRefComAndCorData = namedtuple('TestRefComAndCorData', ['response', 'new_rcc_id', 'ref_curie_from', 'ref_curie_to'])
 
@@ -136,6 +137,76 @@ class TestReferenceRelation:
             response = client.delete(url=f"/reference_relation/{test_ref_cc.new_rcc_id}",
                                      headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_merge_references_rcc(self, test_reference, test_reference2, test_reference3, test_reference4, auth_headers): # noqa
+        with TestClient(app) as client:
+            ref1 = test_reference.new_ref_curie
+            ref2 = test_reference2.new_ref_curie
+            ref3 = test_reference3.new_ref_curie
+            ref4 = test_reference3.new_ref_curie
+            new_rcc = {"reference_curie_from": ref1,
+                       "reference_curie_to": ref2,
+                       "reference_relation_type": "CommentOn"
+                       }
+            response_rcc = client.post(url="/reference_relation/", json=new_rcc, headers=auth_headers)
+            assert response_rcc.status_code == status.HTTP_201_CREATED
+            new_rcc2 = {"reference_curie_from": ref3,
+                        "reference_curie_to": ref4,
+                        "reference_relation_type": "ChapterIn"
+                        }
+            response_rcc2 = client.post(url="/reference_relation/", json=new_rcc2, headers=auth_headers)
+            assert response_rcc2.status_code == status.HTTP_201_CREATED
+            # merge reference 1 into reference 3
+            response_merge1 = client.post(url=f"/reference/merge/{ref1}/{ref3}",
+                                          headers=auth_headers)
+            assert response_merge1.status_code == status.HTTP_201_CREATED
+            ref2_type_bool = False
+            ref3_type_bool = False
+            response_ref1 = client.get(url=f"/reference/{ref3}")
+            for rcc_to in response_ref1.json()['reference_relations']['to_references']:
+                if rcc_to['reference_relation_type'] == 'CommentOn':
+                    ref2_type_bool = True
+                if rcc_to['reference_relation_type'] == 'ChapterIn':
+                    ref3_type_bool = True
+            assert ref2_type_bool is True
+            assert ref3_type_bool is True
+
+    def test_merge_references_rcc_merge_self(self, test_reference, test_reference2, test_reference3, auth_headers): # noqa
+        with TestClient(app) as client:
+            ref1 = test_reference.new_ref_curie
+            ref2 = test_reference2.new_ref_curie
+            ref3 = test_reference3.new_ref_curie
+            new_rcc = {"reference_curie_from": ref1,
+                       "reference_curie_to": ref2,
+                       "reference_relation_type": "CommentOn"
+                       }
+            response_rcc = client.post(url="/reference_relation/", json=new_rcc, headers=auth_headers)
+            assert response_rcc.status_code == status.HTTP_201_CREATED
+            new_rcc2 = {"reference_curie_from": ref1,
+                        "reference_curie_to": ref3,
+                        "reference_relation_type": "ChapterIn"
+                        }
+            response_rcc2 = client.post(url="/reference_relation/", json=new_rcc2, headers=auth_headers)
+            assert response_rcc2.status_code == status.HTTP_201_CREATED
+
+            # merge reference 1 into reference 3
+            response_merge1 = client.post(url=f"/reference/merge/{ref1}/{ref3}",
+                                          headers=auth_headers)
+            assert response_merge1.status_code == status.HTTP_201_CREATED
+
+            response_ref3 = client.get(url=f"/reference/{ref3}")
+            assert len(response_ref3.json()['reference_relations']['from_references']) == 0
+            assert len(response_ref3.json()['reference_relations']['to_references']) == 1
+            assert response_ref3.json()['reference_relations']['to_references'][0]['reference_curie_from'] == None
+            assert response_ref3.json()['reference_relations']['to_references'][0]['reference_curie_to'] == ref2
+            assert response_ref3.json()['reference_relations']['to_references'][0]['reference_relation_type'] == 'CommentOn'
+
+            response_ref2 = client.get(url=f"/reference/{ref2}")
+            assert len(response_ref2.json()['reference_relations']['from_references']) == 1
+            assert len(response_ref2.json()['reference_relations']['to_references']) == 0
+            assert response_ref2.json()['reference_relations']['from_references'][0]['reference_curie_from'] == ref3
+            assert response_ref2.json()['reference_relations']['from_references'][0]['reference_curie_to'] == None
+            assert response_ref2.json()['reference_relations']['from_references'][0]['reference_relation_type'] == 'CommentOn'
 
     def test_merge_references_rcc_fail_constraint(self, test_reference, test_reference2, test_reference3, auth_headers): # noqa
         with TestClient(app) as client:
