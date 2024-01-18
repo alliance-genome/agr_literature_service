@@ -514,8 +514,11 @@ def merge_reference_relations(db, old_reference_id, new_reference_id, old_curie,
                                                            reference_id_to=x.reference_id_to,
                                                            reference_relation_type=x.reference_relation_type).one_or_none()
             if y is None:
-                x.reference_id_from = new_reference_id
-                db.add(x)
+                if x.reference_id_to != new_reference_id:
+                    x.reference_id_from = new_reference_id
+                    db.add(x)
+                else:
+                    db.delete(x)
             else:
                 db.delete(x)
         for x in db.query(ReferenceRelationModel).filter_by(reference_id_to=old_reference_id).all():
@@ -523,8 +526,11 @@ def merge_reference_relations(db, old_reference_id, new_reference_id, old_curie,
                                                            reference_id_to=new_reference_id,
                                                            reference_relation_type=x.reference_relation_type).one_or_none()
             if y is None:
-                x.reference_id_to = new_reference_id
-                db.add(x)
+                if x.reference_id_from != new_reference_id:
+                    x.reference_id_to = new_reference_id
+                    db.add(x)
+                else:
+                    db.delete(x)
             else:
                 db.delete(x)
         db.commit()
