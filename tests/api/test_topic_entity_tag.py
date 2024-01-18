@@ -39,7 +39,7 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_ta
             "date_created": "2020-01-01"
         }
         response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
-        yield TestTETData(response, response.topic_entity_tag_id, test_reference.new_ref_curie)
+        yield TestTETData(response, response.json()['topic_entity_tag_id'], test_reference.new_ref_curie)
 
 
 class TestTopicEntityTag:
