@@ -34,6 +34,9 @@ from .fixtures import auth_headers # noqa
 @pytest.fixture(scope='module')
 def initialize_elasticsearch():
     print("***** Initializing Elasticsearch Data *****")
+    if ("es.amazonaws.com" in config.ELASTICSEARCH_HOST):
+        msg = "**** Warning: not allow to run test on stage or prod elasticsearch index *****"
+        pytest.exit(msg)
     es = Elasticsearch(hosts=config.ELASTICSEARCH_HOST + ":" + config.ELASTICSEARCH_PORT)
     date1 = '2022-01-01'
     date2 = '2022-03-28'
