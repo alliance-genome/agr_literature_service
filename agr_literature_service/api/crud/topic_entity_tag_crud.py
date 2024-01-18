@@ -4,6 +4,7 @@ topic_entity_tag_crud.py
 """
 from collections import defaultdict
 from typing import Dict
+# from os import getcwd
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -11,6 +12,7 @@ from sqlalchemy import case, and_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
+from agr_literature_service.api.models.audited_model import get_default_user_value
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
     get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, check_and_set_species, \
@@ -31,7 +33,7 @@ ATP_ID_SOURCE_CURATOR = "curator"
 ATP_ID_SOURCE_CURATION_TOOLS = "curation_tools"
 
 
-def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
+def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
     reference_curie = topic_entity_tag_data.pop("reference_curie", None)
     if reference_curie is None:
@@ -49,18 +51,48 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> int:
     else:
         check_and_set_species(topic_entity_tag_data)
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
+
+    new_tag_data = topic_entity_tag_data
+    new_tag_data.pop('date_created', None)
+    new_tag_data.pop('date_updated', None)
+    created_by_user = get_default_user_value()
+    if new_tag_data.get('created_by', None) is None:
+        new_tag_data['created_by'] = created_by_user
+    if new_tag_data.get('updated_by', None) is None:
+        new_tag_data['updated_by'] = created_by_user
+
+    existing_tag = db.query(TopicEntityTagModel).filter_by(**new_tag_data).first()
+    if existing_tag:
+        tag_data = populate_tag_field_names(db, reference_id, new_tag_data)
+        """
+        log_file_with_path = getcwd() + "/topic_entity_tag_data.log"
+        with open(log_file_with_path, "a") as f:
+            f.write("tag_data = " + str(tag_data) + "\n")
+            f.write("existing_tag=" + str(existing_tag.topic) + "\n\n")
+        """
+        return {
+            "status": "exists",
+            "message": "Tag already exists in the database.",
+            "data": tag_data
+        }
+
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
     try:
         db.add(new_db_obj)
         db.flush()
         db.refresh(new_db_obj)
-        topic_entity_tag_id = new_db_obj.topic_entity_tag_id
+        # topic_entity_tag_id = new_db_obj.topic_entity_tag_id
         validate_tags(db=db, new_tag_obj=new_db_obj)
+        return {
+            "status": "success",
+            "message": "New tag created successfully.",
+            "topic_entity_tag_id": new_db_obj.topic_entity_tag_id
+        }
     except (IntegrityError, HTTPException) as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"invalid request: {e}")
-    return topic_entity_tag_id
+    # return topic_entity_tag_id
 
 
 def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagModel, validation_type: str):
@@ -428,6 +460,23 @@ def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str):
     for curie_without_name in (set(all_entities) | set(all_topics_and_entities)) - set(entity_curie_to_name.keys()):
         entity_curie_to_name[curie_without_name] = curie_without_name
     return entity_curie_to_name
+
+
+def populate_tag_field_names(db, reference_id, tag_data):
+
+    curie_to_name = get_map_entity_curie_to_name(db, str(reference_id))
+    new_tag_data = {}
+    for field in tag_data:
+        curie = tag_data[field]
+        new_tag_data[field] = curie
+        new_field = field + "_name"
+        if field == 'species':
+            taxon_id_to_name = get_map_ateam_curies_to_names(curies_category="ncbitaxonterm",
+                                                             curies=[curie])
+            new_tag_data[new_field] = taxon_id_to_name.get(curie, curie)
+        elif curie in curie_to_name:
+            new_tag_data[new_field] = curie_to_name[curie]
+    return new_tag_data
 
 
 def show_source_by_name(db: Session, source_type: str, source_method: str, mod_abbreviation: str):

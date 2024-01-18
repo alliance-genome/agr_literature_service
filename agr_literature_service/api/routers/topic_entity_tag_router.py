@@ -25,12 +25,8 @@ db_session: Session = Depends(get_db)
 db_user = Security(auth.get_user)
 
 
-@router.post('/',
-             status_code=status.HTTP_201_CREATED,
-             response_model=str)
-def create_tag(request: TopicEntityTagSchemaPost,
-               user: OktaUser = db_user,
-               db: Session = db_session):
+@router.post('/', status_code=status.HTTP_201_CREATED, response_model=dict)
+def create_tag(request: TopicEntityTagSchemaPost, user: OktaUser = db_user, db: Session = db_session):
     set_global_user_from_okta(db, user)
     return topic_entity_tag_crud.create_tag(db, request)
 
