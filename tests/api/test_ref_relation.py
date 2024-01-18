@@ -197,7 +197,7 @@ class TestReferenceRelation:
             response_ref3 = client.get(url=f"/reference/{ref3}")
             assert len(response_ref3.json()['reference_relations']['from_references']) == 0
             assert len(response_ref3.json()['reference_relations']['to_references']) == 1
-            assert response_ref3.json()['reference_relations']['to_references'][0]['reference_curie_from'] == None
+            assert response_ref3.json()['reference_relations']['to_references'][0]['reference_curie_from'] is None
             assert response_ref3.json()['reference_relations']['to_references'][0]['reference_curie_to'] == ref2
             assert response_ref3.json()['reference_relations']['to_references'][0]['reference_relation_type'] == 'CommentOn'
 
@@ -205,7 +205,7 @@ class TestReferenceRelation:
             assert len(response_ref2.json()['reference_relations']['from_references']) == 1
             assert len(response_ref2.json()['reference_relations']['to_references']) == 0
             assert response_ref2.json()['reference_relations']['from_references'][0]['reference_curie_from'] == ref3
-            assert response_ref2.json()['reference_relations']['from_references'][0]['reference_curie_to'] == None
+            assert response_ref2.json()['reference_relations']['from_references'][0]['reference_curie_to'] is None
             assert response_ref2.json()['reference_relations']['from_references'][0]['reference_relation_type'] == 'CommentOn'
 
     def test_merge_references_rcc_fail_constraint(self, test_reference, test_reference2, test_reference3, auth_headers): # noqa
