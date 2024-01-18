@@ -582,8 +582,8 @@ class TestTopicEntityTag:
                 "novel_topic_data": True
             }
             # add the new tags
-            positive_tag_id = client.post(url="/topic_entity_tag/", json=positive_tag, headers=auth_headers).json()
-            null_tag_id = client.post(url="/topic_entity_tag/", json=null_tag, headers=auth_headers).json()
+            positive_tag_id = client.post(url="/topic_entity_tag/", json=positive_tag, headers=auth_headers).json()['topic_entity_tag_id']
+            null_tag_id = client.post(url="/topic_entity_tag/", json=null_tag, headers=auth_headers).json()['topic_entity_tag_id']
             positive_tag_resp = client.get(url=f"/topic_entity_tag/{positive_tag_id}", headers=auth_headers)
             assert positive_tag_resp.json()["validation_by_author"] == "self_validated"
             null_tag_resp = client.get(url=f"/topic_entity_tag/{null_tag_id}", headers=auth_headers)
