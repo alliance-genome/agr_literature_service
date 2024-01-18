@@ -86,7 +86,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
         return {
             "status": "success",
             "message": "New tag created successfully.",
-            "data": new_tag_data
+            "topic_entity_tag_id": new_db_obj.topic_entity_tag_id
         }
     except (IntegrityError, HTTPException) as e:
         db.rollback()
