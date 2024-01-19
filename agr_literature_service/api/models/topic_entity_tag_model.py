@@ -21,12 +21,14 @@ topic_entity_tag_validation = Table(
     Column(
         "validated_topic_entity_tag_id",
         ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete='CASCADE'),
+        index=True,
         primary_key=True
     ),
 
     Column(
         "validating_topic_entity_tag_id",
         ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete='CASCADE'),
+        index=True,
         primary_key=True,
     )
 )
