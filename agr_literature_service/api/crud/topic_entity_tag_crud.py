@@ -432,7 +432,9 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
         mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
         all_tet = []
         for tet in query.offset((page - 1) * page_size if page_size else None).limit(page_size).all():
-            tet_data = jsonable_encoder(tet)
+            tet_data = jsonable_encoder(vars(tet), exclude={"validated_by"})
+            if "validated_by" in tet_data:
+                del tet_data["validated_by"]
             add_validation_values_to_tag(tet, tet_data)
             tet_data["topic_entity_tag_source"]["mod"] = mod_id_to_mod[tet.topic_entity_tag_source.mod_id]
             all_tet.append(tet_data)
