@@ -16,7 +16,7 @@ from agr_literature_service.api.models.audited_model import get_default_user_val
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
     get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, check_and_set_species, \
-    add_audited_object_users_if_not_exist, get_ancestors_or_descendants
+    add_audited_object_users_if_not_exist, get_ancestors, get_descendants
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
@@ -197,7 +197,7 @@ def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: OktaAccess):
 def validate_tags_already_in_db_with_positive_tag(new_tag_obj: TopicEntityTagModel, related_tags_in_db):
     # 1. new tag positive, existing tag positive = validate existing (right) if existing is more generic
     # 2. new tag positive, existing tag negative = validate existing (wrong) if existing is more generic
-    more_generic_topics = set(get_ancestors_or_descendants(onto_node=new_tag_obj.topic))
+    more_generic_topics = set(get_ancestors(onto_node=new_tag_obj.topic))
     more_generic_topics.add(new_tag_obj.topic)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_tags_in_db:
@@ -217,8 +217,7 @@ def validate_tags_already_in_db_with_positive_tag(new_tag_obj: TopicEntityTagMod
 def validate_tags_already_in_db_with_negative_tag(new_tag_obj: TopicEntityTagModel, related_tags_in_db):
     # 1. new tag negative, existing tag positive = validate existing (wrong) if existing is more specific
     # 2. new tag negative, existing tag negative = validate existing (right) if existing is more specific
-    more_specific_topics = set(get_ancestors_or_descendants(onto_node=new_tag_obj.topic,
-                                                            ancestors_or_descendants='descendants'))
+    more_specific_topics = set(get_descendants(onto_node=new_tag_obj.topic))
     more_specific_topics.add(new_tag_obj.topic)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_tags_in_db:
@@ -242,10 +241,9 @@ def validate_new_tag_with_existing_tags(new_tag_obj: TopicEntityTagModel, relate
     # 2. new tag negative, existing tag positive = validate new tag (wrong) if existing is more specific
     # 3. new tag positive, existing tag negative = validate new tag (wrong) if existing is more generic
     # 4. new tag negative, existing tag negative = validate new tag (right) if existing is more generic
-    more_specific_topics = set(get_ancestors_or_descendants(onto_node=new_tag_obj.topic,
-                                                            ancestors_or_descendants='descendants'))
+    more_specific_topics = set(get_descendants(onto_node=new_tag_obj.topic))
     more_specific_topics.add(new_tag_obj.topic)
-    more_generic_topics = set(get_ancestors_or_descendants(onto_node=new_tag_obj.topic))
+    more_generic_topics = set(get_ancestors(onto_node=new_tag_obj.topic))
     more_generic_topics.add(new_tag_obj.topic)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_validating_tags_in_db:

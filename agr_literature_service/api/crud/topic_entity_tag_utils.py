@@ -171,7 +171,7 @@ def get_map_ateam_curies_to_names(curies_category, curies):
 
 
 @ttl_cache(maxsize=128, ttl=60 * 60)
-def get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str = 'ancestors') -> List[str]:
+def _get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str = 'ancestors') -> List[str]:
     """
 
     This method `get_ancestors_or_descendants` is used to fetch the ancestors or descendants of a given ontology node.
@@ -231,6 +231,14 @@ def get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str =
     except HTTPError:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail="Error from A-team API")
+
+
+def get_ancestors(onto_node: str):
+    return _get_ancestors_or_descendants(onto_node=onto_node, ancestors_or_descendants="ancestors")
+
+
+def get_descendants(onto_node: str):
+    return _get_ancestors_or_descendants(onto_node=onto_node, ancestors_or_descendants="descendants")
 
 
 def check_and_set_species(topic_entity_tag_data):
