@@ -22,12 +22,14 @@ class AuditedModel(object):
     date_created = Column(
         DateTime,
         nullable=False,
+        index=True,
         default=lambda: datetime.now(tz=pytz.timezone("UTC"))
     )
 
     date_updated = Column(
         DateTime,
         nullable=True,
+        index=True,
         default=lambda: datetime.now(tz=pytz.timezone("UTC")),
         onupdate=lambda: datetime.now(tz=pytz.timezone("UTC"))
     )
