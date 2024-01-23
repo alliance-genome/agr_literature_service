@@ -259,7 +259,8 @@ class TestTopicEntityTag:
                 "novel_topic_data": False,
             }
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_1, headers=auth_headers)
-            cur_2_tag_id = client.post(url="/topic_entity_tag/", json=validating_tag_cur_2, headers=auth_headers).json()
+            cur_2_tag_id = client.post(url="/topic_entity_tag/", json=validating_tag_cur_2,
+                                       headers=auth_headers).json()["topic_entity_tag_id"]
             curation_tools_source = {
                 "source_type": "curation",
                 "source_method": "WB curation",
@@ -362,13 +363,13 @@ class TestTopicEntityTag:
 
             # add the new tags
             more_generic_tag_id = client.post(url="/topic_entity_tag/", json=more_generic_tag,
-                                              headers=auth_headers).json()
+                                              headers=auth_headers).json()["topic_entity_tag_id"]
             more_specific_tag_id = client.post(url="/topic_entity_tag/", json=more_specific_tag,
-                                               headers=auth_headers).json()
+                                               headers=auth_headers).json()["topic_entity_tag_id"]
             more_specific_tag_id_2 = client.post(url="/topic_entity_tag/", json=more_specific_tag_2,
-                                                 headers=auth_headers).json()
+                                                 headers=auth_headers).json()["topic_entity_tag_id"]
             more_generic_tag_id_2 = client.post(url="/topic_entity_tag/", json=more_generic_tag_2,
-                                                headers=auth_headers).json()
+                                                headers=auth_headers).json()["topic_entity_tag_id"]
 
             # next, we check if the validation process is correct. Supposed that your system recognizes more specific
             # tags validate more generic ones, so:
@@ -460,12 +461,12 @@ class TestTopicEntityTag:
                 "novel_topic_data": True
             }
             positive_tag_id = client.post(url="/topic_entity_tag/", json=positive_tag_not_validating,
-                                          headers=auth_headers).json()
+                                          headers=auth_headers).json()["topic_entity_tag_id"]
             client.post(url="/topic_entity_tag/", json=more_generic_positive_tag, headers=auth_headers).json()
             more_generic_negative_tag_id = client.post(url="/topic_entity_tag/", json=more_generic_negative_tag,
-                                                       headers=auth_headers).json()
+                                                       headers=auth_headers).json()["topic_entity_tag_id"]
             more_specific_positive_id = client.post(url="/topic_entity_tag/", json=more_specific_positive_tag,
-                                                    headers=auth_headers).json()
+                                                    headers=auth_headers).json()["topic_entity_tag_id"]
             client.post(url="/topic_entity_tag/", json=more_specific_negative_tag, headers=auth_headers).json()
             positive_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
                 TopicEntityTagModel.topic_entity_tag_id == positive_tag_id).one()
@@ -542,19 +543,28 @@ class TestTopicEntityTag:
                 "novel_topic_data": True
             }
             negative_tag_id = client.post(url="/topic_entity_tag/", json=negative_tag_not_validating,
-                                          headers=auth_headers).json()
-            client.post(url="/topic_entity_tag/", json=more_generic_positive_tag, headers=auth_headers).json()
+                                          headers=auth_headers).json()["topic_entity_tag_id"]
+            client.post(url="/topic_entity_tag/", json=more_generic_positive_tag, headers=auth_headers)
             more_generic_negative_tag_id = client.post(url="/topic_entity_tag/", json=more_generic_negative_tag,
-                                                       headers=auth_headers).json()
+                                                       headers=auth_headers).json()["topic_entity_tag_id"]
             more_specific_positive_tag_id = client.post(url="/topic_entity_tag/", json=more_specific_positive_tag,
-                                                        headers=auth_headers).json()
-            client.post(url="/topic_entity_tag/", json=more_specific_negative_tag, headers=auth_headers).json()
+                                                        headers=auth_headers).json()["topic_entity_tag_id"]
+            client.post(url="/topic_entity_tag/", json=more_specific_negative_tag, headers=auth_headers)
             negative_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
                 TopicEntityTagModel.topic_entity_tag_id == negative_tag_id).one()
             assert len(negative_tag.validated_by) == 2
             validating_tags = [int(validating_tag.topic_entity_tag_id) for validating_tag in negative_tag.validated_by]
             assert int(more_specific_positive_tag_id) in validating_tags
             assert int(more_generic_negative_tag_id) in validating_tags
+            all_tags_resp = client.get(url=f"/topic_entity_tag/by_reference/{test_reference.new_ref_curie}",
+                                       headers=auth_headers)
+            assert all_tags_resp.status_code == status.HTTP_200_OK
+            all_tags = all_tags_resp.json()
+            assert len(all_tags) == 6
+            for tag in all_tags:
+                if tag["topic"] == "ATP:0000079":
+                    assert tag["validation_by_author"] == "validation_conflict"
+
 
     def test_validate_negated_null(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
         with TestClient(app) as client:
