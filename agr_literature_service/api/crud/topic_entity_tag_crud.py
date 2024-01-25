@@ -4,6 +4,7 @@ topic_entity_tag_crud.py
 """
 from collections import defaultdict
 from typing import Dict
+import copy
 # from os import getcwd
 
 from fastapi import HTTPException, status
@@ -36,6 +37,7 @@ ATP_ID_SOURCE_CURATION_TOOLS = "curation_tools"
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
     reference_curie = topic_entity_tag_data.pop("reference_curie", None)
+    force_insertion = topic_entity_tag_data.pop("force_insertion", None)
     if reference_curie is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="reference_curie not within topic_entity_tag_data")
@@ -52,29 +54,43 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
         check_and_set_species(topic_entity_tag_data)
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
 
-    new_tag_data = topic_entity_tag_data
-    new_tag_data.pop('date_created', None)
-    new_tag_data.pop('date_updated', None)
-    created_by_user = get_default_user_value()
-    if new_tag_data.get('created_by', None) is None:
-        new_tag_data['created_by'] = created_by_user
-    if new_tag_data.get('updated_by', None) is None:
-        new_tag_data['updated_by'] = created_by_user
+    if force_insertion is None:
+        new_tag_data = topic_entity_tag_data
+        new_tag_data.pop('date_created', None)
+        new_tag_data.pop('date_updated', None)
+        created_by_user = get_default_user_value()
+        if new_tag_data.get('created_by', None) is None:
+            new_tag_data['created_by'] = created_by_user
+        if new_tag_data.get('updated_by', None) is None:
+            new_tag_data['updated_by'] = created_by_user
 
-    existing_tag = db.query(TopicEntityTagModel).filter_by(**new_tag_data).first()
-    if existing_tag:
-        tag_data = populate_tag_field_names(db, reference_id, new_tag_data)
-        """
-        log_file_with_path = getcwd() + "/topic_entity_tag_data.log"
-        with open(log_file_with_path, "a") as f:
-            f.write("tag_data = " + str(tag_data) + "\n")
-            f.write("existing_tag=" + str(existing_tag.topic) + "\n\n")
-        """
-        return {
-            "status": "exists",
-            "message": "Tag already exists in the database.",
-            "data": tag_data
-        }
+        existing_tag = db.query(TopicEntityTagModel).filter_by(**new_tag_data).first()
+        if existing_tag:
+            tag_data = populate_tag_field_names(db, reference_id, new_tag_data)
+            """
+            log_file_with_path = getcwd() + "/topic_entity_tag_data.log"
+            with open(log_file_with_path, "a") as f:
+                f.write("tag_data = " + str(tag_data) + "\n")
+                f.write("existing_tag=" + str(existing_tag.topic) + "\n\n")
+            """
+            return {
+                "status": "exists",
+                "message": "The tag already exists in the database.",
+                "data": tag_data
+            }
+        # created_by = new_tag_data['created_by']
+        # updated_by = new_tag_data['updated_by']
+        new_tag_data_wo_creator = copy.copy(new_tag_data)
+        new_tag_data_wo_creator.pop('created_by')
+        new_tag_data_wo_creator.pop('updated_by')
+        existing_tag = db.query(TopicEntityTagModel).filter_by(**new_tag_data_wo_creator).first()
+        if existing_tag:
+            tag_data = populate_tag_field_names(db, reference_id, new_tag_data)
+            return {
+                "status": f"exists: {existing_tag.created_by} | {existing_tag.updated_by}" ,
+                "message": "The tag, created by another curator, already exists in the database.",
+                "data": tag_data
+            }
 
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
     try:
