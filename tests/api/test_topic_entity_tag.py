@@ -171,7 +171,6 @@ class TestTopicEntityTag:
             response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}").json()
             assert len(response) > 0
 
-    @pytest.mark.webtest
     def test_validation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
@@ -513,7 +512,6 @@ class TestTopicEntityTag:
             assert int(more_specific_positive_id) in validating_tags
             assert int(more_generic_negative_tag_id) in validating_tags
 
-    @pytest.mark.webtest
     def test_validate_negative_with_pos_and_neg(self, test_topic_entity_tag, test_reference, test_mod,  # noqa
                                                 auth_headers, db, test_topic_entity_tag_source):  # noqa
         with TestClient(app) as client, \
