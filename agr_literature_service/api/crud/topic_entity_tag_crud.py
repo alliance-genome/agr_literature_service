@@ -466,12 +466,14 @@ def populate_tag_field_names(db, reference_id, tag_data):
         curie = tag_data[field]
         new_tag_data[field] = curie
         new_field = field + "_name"
-        if field == 'species':
+        # if (field == 'species' and curie) or (field == 'entity' and curie and curie.startswith('NCBITaxon:')):
+        if (field == 'species' and curie):
             taxon_id_to_name = get_map_ateam_curies_to_names(curies_category="ncbitaxonterm",
                                                              curies=[curie])
             new_tag_data[new_field] = taxon_id_to_name.get(curie, curie)
         elif curie in curie_to_name:
             new_tag_data[new_field] = curie_to_name[curie]
+
     return new_tag_data
 
 

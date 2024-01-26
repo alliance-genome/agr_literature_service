@@ -25,6 +25,7 @@ class ModTaxonModel(AuditedModel, Base):
     mod_id = Column(
         Integer(),
         ForeignKey("mod.mod_id"),
+        index=True,
         unique=False,
         nullable=False
     )
