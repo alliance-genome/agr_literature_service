@@ -302,6 +302,20 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel):
     db.commit()
 
 
+def revalidate_all_tags(db: Session, delete_all_first: bool = False):
+    if delete_all_first:
+        db.execute("DELETE FROM topic_entity_tag_validation")
+    for tag in db.query(TopicEntityTagModel).all():
+        if not delete_all_first:
+            for validating_tag in tag.validated_by:
+                for validating_validating_tag in validating_tag.validated_by:
+                    if validating_validating_tag.topic_entity_tag_id == tag.topic_entity_tag_id:
+                        validating_validating_tag.validated_by.remove(tag)
+            tag.validated_by = []
+            db.commit()
+        validate_tags(db=db, new_tag_obj=tag)
+
+
 def create_source(db: Session, source: TopicEntityTagSourceSchemaCreate):
     source_data = {key: value for key, value in jsonable_encoder(source).items() if value is not None}
     source_obj = add_source_obj_to_db_session(db, source_data)
