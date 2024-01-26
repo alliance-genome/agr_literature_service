@@ -51,5 +51,6 @@ class WorkflowTagModel(AuditedModel, Base):
     mod_id = Column(
         Integer,
         ForeignKey("mod.mod_id"),
+        index=True,
         nullable=True
     )
