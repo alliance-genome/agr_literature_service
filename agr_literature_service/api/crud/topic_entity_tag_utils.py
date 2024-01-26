@@ -159,9 +159,11 @@ def get_map_ateam_curies_to_names(curies_category, curies):
             resp_obj = json.loads(resp)
             # from the A-team API, atp values have a "name" field and other entities (e.g., genes and alleles) have
             # symbol objects - e.g., geneSymbol.displayText
-            return {entity["curie"]: entity["name"] if "name" in entity else entity[
-                curies_category + "Symbol"]["displayText"] if curies_category + "Symbol" in entity else entity["curie"]
-                    for entity in (resp_obj["results"] if "results" in resp_obj else [])}
+            return {
+                entity["curie"]: entity["name"] if "name" in entity else entity[curies_category + "Symbol"][
+                    "displayText"] if curies_category + "Symbol" in entity else entity["curie"] for entity in (
+                    resp_obj["results"] if "results" in resp_obj else [])
+            }
     except HTTPError as e:
         logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
         return {}
