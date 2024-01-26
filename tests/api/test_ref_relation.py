@@ -78,6 +78,15 @@ class TestReferenceRelation:
             response = client.post(url="/reference_relation/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_409_CONFLICT
 
+    def test_create_bad_duplicate_backward(self, test_ref_cc, auth_headers): # noqa
+        with TestClient(app) as client:
+            xml = {"reference_curie_from": test_ref_cc.ref_curie_to,
+                   "reference_curie_to": test_ref_cc.ref_curie_from,
+                   "reference_relation_type": "CommentOn"
+                   }
+            response = client.post(url="/reference_relation/", json=xml, headers=auth_headers)
+            assert response.status_code == status.HTTP_409_CONFLICT
+
     def test_create_rcc(self, db, test_ref_cc): # noqa
         # check results in database
         rcc_obj = db.query(ReferenceRelationModel).join(

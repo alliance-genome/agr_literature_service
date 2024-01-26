@@ -6,6 +6,7 @@ reference_relation_crud.py
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import (ReferenceRelationModel,
@@ -44,14 +45,23 @@ def create(db: Session, reference_relation: ReferenceRelationSchemaPost):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail=f"Reference Relation with reference_curie_from  {reference_curie_from} and reference curie_to {reference_curie_to} already exists with id {db_obj.reference_relation_id}")
 
+    db_obj = db.query(ReferenceRelationModel).filter(ReferenceRelationModel.reference_id_from == reference_id_to, ReferenceRelationModel.reference_id_to == reference_id_from).first()
+    if db_obj:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail=f"Reference Relation with reference_curie_from  {reference_curie_from} and reference curie_to {reference_curie_to} already exists with id {db_obj.reference_relation_id}")
+
     db_obj = ReferenceRelationModel(reference_relation_type=reference_relation_type,
                                     reference_from=reference_from,
                                     reference_to=reference_to)
-    db.add(db_obj)
-    db.commit()
-    db.refresh(db_obj)
-
-    return db_obj.reference_relation_id
+    try:
+        db.add(db_obj)
+        db.commit()
+        db.refresh(db_obj)
+        return db_obj.reference_relation_id
+    except (IntegrityError, HTTPException) as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"invalid request: {e}")
 
 
 def destroy(db: Session, reference_relation_id: int):
