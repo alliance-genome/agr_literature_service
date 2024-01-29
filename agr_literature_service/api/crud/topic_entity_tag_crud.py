@@ -42,6 +42,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
                             detail="reference_curie not within topic_entity_tag_data")
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     topic_entity_tag_data["reference_id"] = reference_id
+    force_insertion = None
     if reference_curie.isdigit():
         force_insertion = 1
     source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
