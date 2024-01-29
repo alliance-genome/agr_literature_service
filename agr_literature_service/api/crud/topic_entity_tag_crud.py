@@ -42,9 +42,9 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
                             detail="reference_curie not within topic_entity_tag_data")
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     topic_entity_tag_data["reference_id"] = reference_id
-    force_insertion = None
+    check_for_duplicates = True
     if reference_curie.isdigit():
-        force_insertion = 1
+        check_for_duplicates = False
     source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
         TopicEntityTagSourceModel.topic_entity_tag_source_id == topic_entity_tag_data["topic_entity_tag_source_id"]
     ).one_or_none()
@@ -55,7 +55,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
     else:
         check_and_set_species(topic_entity_tag_data)
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
-    if force_insertion is None:
+    if check_for_duplicates:
         new_tag_data = topic_entity_tag_data
         new_tag_data.pop('date_created', None)
         new_tag_data.pop('date_updated', None)
