@@ -133,3 +133,13 @@ def show_all_reference_tags(curie_or_reference_id: str,
 def get_map_entity_curie_to_name(curie_or_reference_id: str,
                                  db: Session = db_session):
     return topic_entity_tag_crud.get_map_entity_curie_to_name(db, curie_or_reference_id)
+
+
+@router.get('/revalidate_all_tags/',
+            status_code=200)
+def revalidate_all_tags(delete_all_tags_first: bool = False,
+                        user: OktaUser = db_user,
+                        db: Session = db_session):
+    set_global_user_from_okta(db, user)
+    return topic_entity_tag_crud.revalidate_all_tags(db, delete_all_first=delete_all_tags_first)
+
