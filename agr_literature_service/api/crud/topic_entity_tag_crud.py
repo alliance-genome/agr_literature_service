@@ -37,12 +37,13 @@ ATP_ID_SOURCE_CURATION_TOOLS = "curation_tools"
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
     reference_curie = topic_entity_tag_data.pop("reference_curie", None)
-    force_insertion = topic_entity_tag_data.pop("force_insertion", None)
     if reference_curie is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="reference_curie not within topic_entity_tag_data")
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     topic_entity_tag_data["reference_id"] = reference_id
+    if reference_curie.isdigit():
+        force_insertion = 1
     source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
         TopicEntityTagSourceModel.topic_entity_tag_source_id == topic_entity_tag_data["topic_entity_tag_source_id"]
     ).one_or_none()
@@ -53,7 +54,6 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
     else:
         check_and_set_species(topic_entity_tag_data)
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
-
     if force_insertion is None:
         new_tag_data = topic_entity_tag_data
         new_tag_data.pop('date_created', None)
