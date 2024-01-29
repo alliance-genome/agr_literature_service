@@ -1,10 +1,11 @@
 from collections import namedtuple
+from unittest.mock import patch
 
 import pytest
 from starlette.testclient import TestClient
 from fastapi import status
 
-from agr_literature_service.api.crud.topic_entity_tag_utils import get_ancestors_or_descendants
+from agr_literature_service.api.crud.topic_entity_tag_utils import get_ancestors, get_descendants
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import TopicEntityTagModel
 from agr_literature_service.lit_processing.utils.okta_utils import get_authentication_token
@@ -170,9 +171,12 @@ class TestTopicEntityTag:
             response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}").json()
             assert len(response) > 0
 
-    @pytest.mark.webtest
     def test_validation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
-        with TestClient(app) as client:
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
             author_source_1 = {
                 "source_type": "community curation",
                 "source_method": "acknowledge",
@@ -224,9 +228,12 @@ class TestTopicEntityTag:
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
             assert response.json()["validation_by_author"] == "validated_wrong"
 
-    @pytest.mark.webtest
     def test_validation_wrong(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
-        with TestClient(app) as client:
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
             curator_source = {
                 "source_type": "curator",
                 "source_method": "abc_literature_system",
@@ -303,9 +310,10 @@ class TestTopicEntityTag:
             assert response.json()["validation_by_curator"] == "validation_conflict"
             assert response.json()["validation_by_data_curation"] == "validated_right"
 
-    @pytest.mark.webtest
     def test_validate_generic_specific(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
-        with TestClient(app) as client:
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
             author_source_1 = {
                 "source_type": "community curation",
                 "source_method": "acknowledge",
@@ -362,12 +370,24 @@ class TestTopicEntityTag:
             }
 
             # add the new tags
+            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009'}
+            mock_get_descendants.return_value = {'ATP:0000009', 'ATP:0000033', 'ATP:0000034', 'ATP:0000079',
+                                                 'ATP:0000080', 'ATP:0000081', 'ATP:0000082', 'ATP:0000083',
+                                                 'ATP:0000084', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087',
+                                                 'ATP:0000100'}
             more_generic_tag_id = client.post(url="/topic_entity_tag/", json=more_generic_tag,
                                               headers=auth_headers).json()["topic_entity_tag_id"]
+            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009', 'ATP:0000079'}
+            mock_get_descendants.return_value = {'ATP:0000068', 'ATP:0000071'}
             more_specific_tag_id = client.post(url="/topic_entity_tag/", json=more_specific_tag,
                                                headers=auth_headers).json()["topic_entity_tag_id"]
+            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000015', 'ATP:0000068',
+                                               'ATP:0000071'}
+            mock_get_descendants.return_value = {'ATP:0000071'}
             more_specific_tag_id_2 = client.post(url="/topic_entity_tag/", json=more_specific_tag_2,
                                                  headers=auth_headers).json()["topic_entity_tag_id"]
+            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000015', 'ATP:0000068'}
+            mock_get_descendants.return_value = {'ATP:0000068', 'ATP:0000071'}
             more_generic_tag_id_2 = client.post(url="/topic_entity_tag/", json=more_generic_tag_2,
                                                 headers=auth_headers).json()["topic_entity_tag_id"]
 
@@ -395,10 +415,11 @@ class TestTopicEntityTag:
             ).one()
             assert len(specific_tag_obj_2.validated_by) == 0  # nothing should validate the more specific tag
 
-    @pytest.mark.webtest
     def test_validate_positive_with_pos_and_neg(self, test_topic_entity_tag, test_reference, test_mod,  # noqa
                                                 auth_headers, db, test_topic_entity_tag_source):  # noqa
-        with TestClient(app) as client:
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
             author_source = {
                 "source_type": "manual",
                 "source_method": "ACKnowledge",
@@ -460,13 +481,29 @@ class TestTopicEntityTag:
                 "negated": True,
                 "novel_topic_data": True
             }
+            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009', 'ATP:0000079'}
+            mock_get_descendants.return_value = {'ATP:0000079', 'ATP:0000082', 'ATP:0000083', 'ATP:0000084'}
             positive_tag_id = client.post(url="/topic_entity_tag/", json=positive_tag_not_validating,
                                           headers=auth_headers).json()["topic_entity_tag_id"]
+            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009'}
+            mock_get_descendants.return_value = {'ATP:0000009', 'ATP:0000033', 'ATP:0000034', 'ATP:0000079',
+                                                 'ATP:0000080', 'ATP:0000081', 'ATP:0000082', 'ATP:0000083',
+                                                 'ATP:0000084', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087',
+                                                 'ATP:0000100'}
             client.post(url="/topic_entity_tag/", json=more_generic_positive_tag, headers=auth_headers).json()
+            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009'}
+            mock_get_descendants.return_value = {'ATP:0000009', 'ATP:0000033', 'ATP:0000034', 'ATP:0000079',
+                                                 'ATP:0000080', 'ATP:0000081', 'ATP:0000082', 'ATP:0000083',
+                                                 'ATP:0000084', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087',
+                                                 'ATP:0000100'}
             more_generic_negative_tag_id = client.post(url="/topic_entity_tag/", json=more_generic_negative_tag,
                                                        headers=auth_headers).json()["topic_entity_tag_id"]
+            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009', 'ATP:0000079', 'ATP:0000082'}
+            mock_get_descendants.return_value = {'ATP:0000082'}
             more_specific_positive_id = client.post(url="/topic_entity_tag/", json=more_specific_positive_tag,
                                                     headers=auth_headers).json()["topic_entity_tag_id"]
+            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009', 'ATP:0000079'}
+            mock_get_descendants.return_value = {'ATP:0000079', 'ATP:0000082', 'ATP:0000083', 'ATP:0000084'}
             client.post(url="/topic_entity_tag/", json=more_specific_negative_tag, headers=auth_headers).json()
             positive_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
                 TopicEntityTagModel.topic_entity_tag_id == positive_tag_id).one()
@@ -475,10 +512,11 @@ class TestTopicEntityTag:
             assert int(more_specific_positive_id) in validating_tags
             assert int(more_generic_negative_tag_id) in validating_tags
 
-    @pytest.mark.webtest
     def test_validate_negative_with_pos_and_neg(self, test_topic_entity_tag, test_reference, test_mod,  # noqa
                                                 auth_headers, db, test_topic_entity_tag_source):  # noqa
-        with TestClient(app) as client:
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
             author_source = {
                 "source_type": "manual",
                 "source_method": "ACKnowledge",
@@ -542,13 +580,23 @@ class TestTopicEntityTag:
                 "negated": True,
                 "novel_topic_data": True
             }
+            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009', 'ATP:0000079'}
+            mock_get_descendants.return_value = {'ATP:0000079', 'ATP:0000082', 'ATP:0000083', 'ATP:0000084'}
             negative_tag_id = client.post(url="/topic_entity_tag/", json=negative_tag_not_validating,
                                           headers=auth_headers).json()["topic_entity_tag_id"]
+            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009'}
+            mock_get_descendants.return_value = {'ATP:0000009', 'ATP:0000033', 'ATP:0000034', 'ATP:0000079', 'ATP:0000080', 'ATP:0000081', 'ATP:0000082', 'ATP:0000083', 'ATP:0000084', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087', 'ATP:0000100'}
             client.post(url="/topic_entity_tag/", json=more_generic_positive_tag, headers=auth_headers)
+            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009'}
+            mock_get_descendants.return_value = {'ATP:0000009', 'ATP:0000033', 'ATP:0000034', 'ATP:0000079', 'ATP:0000080', 'ATP:0000081', 'ATP:0000082', 'ATP:0000083', 'ATP:0000084', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087', 'ATP:0000100'}
             more_generic_negative_tag_id = client.post(url="/topic_entity_tag/", json=more_generic_negative_tag,
                                                        headers=auth_headers).json()["topic_entity_tag_id"]
+            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009', 'ATP:0000079', 'ATP:0000084'}
+            mock_get_descendants.return_value = {'ATP:0000084'}
             more_specific_positive_tag_id = client.post(url="/topic_entity_tag/", json=more_specific_positive_tag,
                                                         headers=auth_headers).json()["topic_entity_tag_id"]
+            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009', 'ATP:0000079', 'ATP:0000082'}
+            mock_get_descendants.return_value = {'ATP:0000082'}
             client.post(url="/topic_entity_tag/", json=more_specific_negative_tag, headers=auth_headers)
             negative_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
                 TopicEntityTagModel.topic_entity_tag_id == negative_tag_id).one()
@@ -567,7 +615,9 @@ class TestTopicEntityTag:
 
 
     def test_validate_negated_null(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
-        with TestClient(app) as client:
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
             author_source_1 = {
                 "source_type": "community curation",
                 "source_method": "acknowledge",
@@ -592,7 +642,11 @@ class TestTopicEntityTag:
                 "novel_topic_data": True
             }
             # add the new tags
+            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009'}
+            mock_get_descendants.return_value = {'ATP:0000009', 'ATP:0000033', 'ATP:0000034', 'ATP:0000079', 'ATP:0000080', 'ATP:0000081', 'ATP:0000082', 'ATP:0000083', 'ATP:0000084', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087', 'ATP:0000100'}
             positive_tag_id = client.post(url="/topic_entity_tag/", json=positive_tag, headers=auth_headers).json()['topic_entity_tag_id']
+            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009'}
+            mock_get_descendants.return_value = {'ATP:0000009', 'ATP:0000033', 'ATP:0000034', 'ATP:0000079', 'ATP:0000080', 'ATP:0000081', 'ATP:0000082', 'ATP:0000083', 'ATP:0000084', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087', 'ATP:0000100'}
             null_tag_id = client.post(url="/topic_entity_tag/", json=null_tag, headers=auth_headers).json()['topic_entity_tag_id']
             positive_tag_resp = client.get(url=f"/topic_entity_tag/{positive_tag_id}", headers=auth_headers)
             assert positive_tag_resp.json()["validation_by_author"] == "self_validated"
@@ -618,7 +672,7 @@ class TestTopicEntityTag:
             assert response.json() == {
                 'ATP:0000005': 'gene',
                 'ATP:0000009': 'phenotype',
-                'ATP:0000122': 'entity type',
+                'ATP:0000122': 'ATP:0000122',
                 'WB:WBGene00003001': 'lin-12'
             }
             alliance_topic_tag = {
@@ -640,7 +694,7 @@ class TestTopicEntityTag:
             assert response.json() == {
                 'ATP:0000005': 'gene',
                 'ATP:0000009': 'phenotype',
-                'ATP:0000122': 'entity type',
+                'ATP:0000122': 'ATP:0000122',
                 'WB:WBGene00003001': 'lin-12',
                 'string': 'string'
             }
@@ -664,7 +718,7 @@ class TestTopicEntityTag:
                 'ATP:0000005': 'gene',
                 'ATP:0000009': 'phenotype',
                 'ATP:0000099': 'existing transgenic construct',
-                'ATP:0000122': 'entity type',
+                'ATP:0000122': 'ATP:0000122',  # not present in the ontology
                 'WB:WBGene00003001': 'lin-12',
                 'string': 'string'
             }
@@ -672,14 +726,14 @@ class TestTopicEntityTag:
     @pytest.mark.webtest
     def test_get_ancestors(self, auth_headers):  # noqa
         onto_node = "ATP:0000079"
-        ancestors = get_ancestors_or_descendants(onto_node)
+        ancestors = get_ancestors(onto_node)
         expected_ancestors = {"ATP:0000001", "ATP:0000002", "ATP:0000009"}
         assert [ancestor in expected_ancestors for ancestor in ancestors]
 
     @pytest.mark.webtest
     def test_get_descendants(self, auth_headers):  # noqa
         onto_node = "ATP:0000009"
-        descendants = get_ancestors_or_descendants(onto_node, ancestors_or_descendants='descendants')
+        descendants = get_descendants(onto_node)
         expected_descendants = {'ATP:0000079', 'ATP:0000080', 'ATP:0000081', 'ATP:0000082', 'ATP:0000083',
                                 'ATP:0000084', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087', 'ATP:0000033',
                                 'ATP:0000034', 'ATP:0000100'}
@@ -688,5 +742,5 @@ class TestTopicEntityTag:
     @pytest.mark.webtest
     def test_get_ancestors_non_existent(self, auth_headers):  # noqa
         onto_node = "ATP:000007"
-        ancestors = get_ancestors_or_descendants(onto_node)
+        ancestors = get_ancestors(onto_node)
         assert len(ancestors) == 0
