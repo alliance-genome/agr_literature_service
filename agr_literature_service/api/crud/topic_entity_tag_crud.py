@@ -3,6 +3,7 @@ topic_entity_tag_crud.py
 ===========================
 """
 from collections import defaultdict
+from os import environ
 from typing import Dict
 # from os import getcwd
 
@@ -26,7 +27,7 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEn
                                                                          TopicEntityTagSourceSchemaUpdate,
                                                                          TopicEntityTagSourceSchemaCreate,
                                                                          TopicEntityTagSchemaUpdate)
-
+from agr_literature_service.lit_processing.utils.email_utils import send_email
 
 ATP_ID_SOURCE_AUTHOR = "author"
 ATP_ID_SOURCE_CURATOR = "curator"
@@ -273,7 +274,7 @@ def validate_new_tag_with_existing_tags(new_tag_obj: TopicEntityTagModel, relate
                 new_tag_obj.validated_by.append(new_tag_obj)
 
 
-def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel):
+def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_tag: bool = True):
     related_tags_in_db = db.query(TopicEntityTagModel).options(
         subqueryload(TopicEntityTagModel.topic_entity_tag_source)).filter(
         and_(
@@ -296,24 +297,30 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel):
         else:
             validate_tags_already_in_db_with_negative_tag(new_tag_obj, related_tags_in_db)
     # Validate current tag with existing ones
-    related_validating_tags_in_db = [related_tag for related_tag in related_tags_in_db if
-                                     related_tag.topic_entity_tag_source.validation_type is not None]
-    validate_new_tag_with_existing_tags(new_tag_obj, related_validating_tags_in_db)
+    if validate_new_tag:
+        related_validating_tags_in_db = [related_tag for related_tag in related_tags_in_db if
+                                         related_tag.topic_entity_tag_source.validation_type is not None]
+        validate_new_tag_with_existing_tags(new_tag_obj, related_validating_tags_in_db)
     db.commit()
 
 
-def revalidate_all_tags(db: Session, delete_all_first: bool = False):
+def revalidate_all_tags(db: Session, email: str, delete_all_first: bool = False):
     if delete_all_first:
         db.execute("DELETE FROM topic_entity_tag_validation")
     for tag in db.query(TopicEntityTagModel).all():
         if not delete_all_first:
-            for validating_tag in tag.validated_by:
-                for validating_validating_tag in validating_tag.validated_by:
-                    if validating_validating_tag.topic_entity_tag_id == tag.topic_entity_tag_id:
-                        validating_validating_tag.validated_by.remove(tag)
-            tag.validated_by = []
-            db.commit()
-        validate_tags(db=db, new_tag_obj=tag)
+            db.execute(f"DELETE FROM topic_entity_tag_validation "
+                       f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}")
+        validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False)
+
+    email_recipients = email
+    sender_email = environ.get('SENDER_EMAIL', None)
+    sender_password = environ.get('SENDER_PASSWORD', None)
+    reply_to = environ.get('REPLY_TO', sender_email)
+    email_body = "Finished re-validating all tags."
+
+    send_email("Alliance ABC notification: all tags re-validated", email_recipients, email_body, sender_email,
+               sender_password, reply_to)
 
 
 def create_source(db: Session, source: TopicEntityTagSourceSchemaCreate):
