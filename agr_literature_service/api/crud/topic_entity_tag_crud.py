@@ -107,10 +107,11 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
         new_tag_data_wo_creator = copy.copy(new_tag_data)
         new_tag_data_wo_creator.pop('created_by')
         new_tag_data_wo_creator.pop('updated_by')
-        note = new_tag_data_wo_creator.pop('note', None)
         existing_tag = db.query(TopicEntityTagModel).filter_by(**new_tag_data_wo_creator).first()
         if existing_tag:
             tag_data = populate_tag_field_names(db, reference_id, new_tag_data)
+            if note:
+                tag_data['note'] = note
             if existing_tag.note == note or note is None:
                 return {
                     "status": f"exists: {existing_tag.created_by} | {existing_tag.note}" ,
