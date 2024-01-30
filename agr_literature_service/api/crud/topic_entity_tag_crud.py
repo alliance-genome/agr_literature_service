@@ -59,6 +59,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
         new_tag_data = topic_entity_tag_data
         new_tag_data.pop('date_created', None)
         new_tag_data.pop('date_updated', None)
+        note = new_tag_data.pop('note', None)
         created_by_user = get_default_user_value()
         if new_tag_data.get('created_by', None) is None:
             new_tag_data['created_by'] = created_by_user
@@ -74,31 +75,63 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
                 f.write("tag_data = " + str(tag_data) + "\n")
                 f.write("existing_tag=" + str(existing_tag.topic) + "\n\n")
             """
-            return {
-                "status": "exists",
-                "message": "The tag already exists in the database.",
-                "data": tag_data
-            }
+            if note == existing_tag.note or note is None:
+                return {
+                    "status": "exists",
+                    "message": "The tag already exists in the database.",
+                    "data": tag_data
+                }
+            else:
+                message = "The new note was added to the previously empty note column for the tag already in the database."
+                new_note = note
+                if existing_tag.note is not None:
+                    message = "The new note was appended to the existing one for the tag already in the database."
+                    new_note = existing_tag.note + " | " + note
+                try:
+                    existing_tag.note = new_note
+                    existing_tag.updated_by = created_by_user
+                    db.add(existing_tag)
+                    db.commit()
+                    return {
+                        "status": "exists",
+                        "message": message,
+                        "data": tag_data
+                    }
+                except (IntegrityError, HTTPException) as e:
+                    db.rollback()
+                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                        detail=f"invalid request: {e}")
+
         # created_by = new_tag_data['created_by']
         # updated_by = new_tag_data['updated_by']
         new_tag_data_wo_creator = copy.copy(new_tag_data)
         new_tag_data_wo_creator.pop('created_by')
         new_tag_data_wo_creator.pop('updated_by')
+        note = new_tag_data_wo_creator.pop('note', None)
         existing_tag = db.query(TopicEntityTagModel).filter_by(**new_tag_data_wo_creator).first()
         if existing_tag:
             tag_data = populate_tag_field_names(db, reference_id, new_tag_data)
-            return {
-                "status": f"exists: {existing_tag.created_by} | {existing_tag.updated_by}" ,
-                "message": "The tag, created by another curator, already exists in the database.",
-                "data": tag_data
-            }
+            if existing_tag.note == note or note is None:
+                return {
+                    "status": f"exists: {existing_tag.created_by} | {existing_tag.note}" ,
+                    "message": "The tag, created by another curator, already exists in the database.",
+                    "data": tag_data
+                }
+            else:
+                message = "The tag without a note, created by another curator, already exists in the database."
+                if existing_tag.note:
+                    message = "The tag with a different note, created by another curator, already exists in the database."
+                return {
+                    "status": f"exists: {existing_tag.created_by} | {existing_tag.note}" ,
+                    "message": message,
+                    "data": tag_data
+                }
 
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
     try:
         db.add(new_db_obj)
         db.flush()
         db.refresh(new_db_obj)
-        # topic_entity_tag_id = new_db_obj.topic_entity_tag_id
         validate_tags(db=db, new_tag_obj=new_db_obj)
         return {
             "status": "success",
