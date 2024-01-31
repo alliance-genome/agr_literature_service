@@ -291,7 +291,8 @@ def validate_new_tag_with_existing_tags(new_tag_obj: TopicEntityTagModel, relate
                 new_tag_obj.validated_by.append(new_tag_obj)
 
 
-def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_tag: bool = True):
+def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_tag: bool = True,
+                  commit_changes: bool = True):
     related_tags_in_db = db.query(TopicEntityTagModel).options(
         subqueryload(TopicEntityTagModel.topic_entity_tag_source)).filter(
         and_(
@@ -318,17 +319,22 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
         related_validating_tags_in_db = [related_tag for related_tag in related_tags_in_db if
                                          related_tag.topic_entity_tag_source.validation_type is not None]
         validate_new_tag_with_existing_tags(new_tag_obj, related_validating_tags_in_db)
-    db.commit()
+    if commit_changes:
+        db.commit()
 
 
 def revalidate_all_tags(db: Session, email: str, delete_all_first: bool = False):
     if delete_all_first:
         db.execute("DELETE FROM topic_entity_tag_validation")
-    for tag in db.query(TopicEntityTagModel).all():
+        db.commit()
+    for tag_counter, tag in enumerate(db.query(TopicEntityTagModel).all()):
         if not delete_all_first:
             db.execute(f"DELETE FROM topic_entity_tag_validation "
                        f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}")
-        validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False)
+        validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False, commit_changes=False)
+        if tag_counter % 200 == 0:
+            db.commit()
+    db.commit()
 
     email_recipients = email
     sender_email = environ.get('SENDER_EMAIL', None)
