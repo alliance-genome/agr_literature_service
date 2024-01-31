@@ -34,7 +34,7 @@ ATP_ID_SOURCE_CURATOR = "curator"
 ATP_ID_SOURCE_CURATION_TOOLS = "curation_tools"
 
 
-def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
+def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:  # noqa: C901 pragma: no cover
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
     reference_curie = topic_entity_tag_data.pop("reference_curie", None)
     if reference_curie is None:
@@ -56,7 +56,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
         check_and_set_species(topic_entity_tag_data)
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
     if check_for_duplicates:
-        new_tag_data = topic_entity_tag_data
+        new_tag_data = copy.copy(topic_entity_tag_data)
         new_tag_data.pop('date_created', None)
         new_tag_data.pop('date_updated', None)
         note = new_tag_data.pop('note', None)
@@ -69,6 +69,8 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
         existing_tag = db.query(TopicEntityTagModel).filter_by(**new_tag_data).first()
         if existing_tag:
             tag_data = populate_tag_field_names(db, reference_id, new_tag_data)
+            if note:
+                tag_data['note'] = note
             """
             log_file_with_path = getcwd() + "/topic_entity_tag_data.log"
             with open(log_file_with_path, "a") as f:
