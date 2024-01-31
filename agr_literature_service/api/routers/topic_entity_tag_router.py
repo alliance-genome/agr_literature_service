@@ -1,6 +1,6 @@
 from typing import List, Dict, Union
 
-from fastapi import APIRouter, Depends, Response, Security, status
+from fastapi import APIRouter, Depends, Response, Security, status, HTTPException
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 from multiprocessing import Process, Value
@@ -152,6 +152,9 @@ def revalidate_all_tags(email: str,
                         delete_all_tags_first: bool = False,
                         user: OktaUser = db_user,
                         db: Session = db_session):
+    if "SuperAdmin" not in user.groups:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail=f"Only users in the okta 'SuperAdmin' group are allowed to perform this request.")
     set_global_user_from_okta(db, user)
     global revalidate_all_tags_already_running
     if email is None:
