@@ -114,6 +114,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
             tag_data = populate_tag_field_names(db, reference_id, new_tag_data)
             if note:
                 tag_data['note'] = note
+            tag_data['topic_entity_tag_id'] = existing_tag.topic_entity_tag_id
             if existing_tag.note == note or note is None:
                 return {
                     "status": f"exists: {existing_tag.created_by} | {existing_tag.note}" ,
@@ -124,8 +125,9 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
                 message = "The tag without a note, created by another curator, already exists in the database."
                 if existing_tag.note:
                     message = "The tag with a different note, created by another curator, already exists in the database."
+                note_in_db = existing_tag.note if existing_tag.note else ''
                 return {
-                    "status": f"exists: {existing_tag.created_by} | {existing_tag.note}" ,
+                    "status": f"exists: {existing_tag.created_by} | {note_in_db}" ,
                     "message": message,
                     "data": tag_data
                 }
