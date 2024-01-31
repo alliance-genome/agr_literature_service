@@ -57,7 +57,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
     if check_for_duplicates:
         duplicate_check_result = check_for_duplicate_tags(db, topic_entity_tag_data, reference_id)
-        if duplicate_check_result is not None:
+        if duplicate_check_result and duplicate_check_result.status is not None:
             return duplicate_check_result
 
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
@@ -398,7 +398,11 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
             }
 
     # if no duplicates found, return None
-    return None
+    return {
+        "status": None,
+        "message": "No duplicate data",
+        "data": {}
+    }
 
 
 def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
