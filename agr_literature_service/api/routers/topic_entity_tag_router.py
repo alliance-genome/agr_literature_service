@@ -152,7 +152,7 @@ def revalidate_all_tags(email: str,
                         delete_all_tags_first: bool = False,
                         user: OktaUser = db_user,
                         db: Session = db_session):
-    if "SuperAdmin" not in user.groups:
+    if not user.groups or "SuperAdmin" not in user.groups:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Only users in the okta 'SuperAdmin' group are allowed to perform this request.")
     set_global_user_from_okta(db, user)
