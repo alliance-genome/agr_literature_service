@@ -327,7 +327,7 @@ def filter_tet_data_by_column(query, column_name, values):
     return query
 
 
-def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference_id: int) -> dict:
+def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference_id: int):
     new_tag_data = copy.copy(topic_entity_tag_data)
     new_tag_data.pop('date_created', None)
     new_tag_data.pop('date_updated', None)
@@ -398,11 +398,7 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
             }
 
     # if no duplicates found, return None
-    return {
-        "status": None,
-        "message": "No duplicate data",
-        "data": {}
-    }
+    return None
 
 
 def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
