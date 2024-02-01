@@ -1,8 +1,9 @@
 from typing import List, Dict, Union
 
-from fastapi import APIRouter, Depends, Response, Security, status
+from fastapi import APIRouter, Depends, Response, Security, status, HTTPException
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
+from multiprocessing import Process, Value
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import topic_entity_tag_crud
@@ -23,6 +24,8 @@ router = APIRouter(
 get_db = database.get_db
 db_session: Session = Depends(get_db)
 db_user = Security(auth.get_user)
+
+revalidate_all_tags_already_running = Value('b', False)
 
 
 @router.post('/', status_code=status.HTTP_201_CREATED, response_model=dict)
@@ -133,3 +136,40 @@ def show_all_reference_tags(curie_or_reference_id: str,
 def get_map_entity_curie_to_name(curie_or_reference_id: str,
                                  db: Session = db_session):
     return topic_entity_tag_crud.get_map_entity_curie_to_name(db, curie_or_reference_id)
+
+
+def revalidate_tags_process_wrapper(already_running, email: str, delete_all_first: bool, db: Session):
+    try:
+        already_running.value = True
+        topic_entity_tag_crud.revalidate_all_tags(db=db, email=email, delete_all_first=delete_all_first)
+    finally:
+        already_running.value = False
+
+
+@router.get('/revalidate_all_tags/',
+            status_code=200)
+def revalidate_all_tags(email: str,
+                        delete_all_tags_first: bool = False,
+                        user: OktaUser = db_user,
+                        db: Session = db_session):
+    if not user.groups or "SuperAdmin" not in user.groups:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Only users in the okta 'SuperAdmin' group are allowed to perform this request.")
+    set_global_user_from_okta(db, user)
+    global revalidate_all_tags_already_running
+    if email is None:
+        return {
+            "message": "You need to provide an email address to revalidate all tags. You will receive an email at "
+                       "the end of the validation process"
+        }
+    if revalidate_all_tags_already_running.value:
+        return {
+            "message": "Revalidation in progress, no need to submit the request again."
+        }
+    else:
+        p = Process(target=revalidate_tags_process_wrapper,
+                    args=(revalidate_all_tags_already_running, email, delete_all_tags_first, db))
+        p.start()
+        return {
+            "message": "Revalidation of all tags started. You will receive an email when done."
+        }

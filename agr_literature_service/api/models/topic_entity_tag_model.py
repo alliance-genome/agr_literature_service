@@ -30,7 +30,10 @@ topic_entity_tag_validation = Table(
         ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete='CASCADE'),
         index=True,
         primary_key=True,
-    )
+    ),
+
+    UniqueConstraint(
+        'validated_topic_entity_tag_id', 'validating_topic_entity_tag_id', name='validation_unique'),
 )
 
 
