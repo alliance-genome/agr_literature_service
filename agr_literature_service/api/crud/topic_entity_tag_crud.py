@@ -8,7 +8,7 @@ from typing import Dict
 import copy
 # from os import getcwd
 
-from fastapi import HTTPException, status, Depends
+from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import case, and_, create_engine
 from sqlalchemy.exc import IntegrityError
