@@ -8,12 +8,13 @@ from typing import Dict
 import copy
 # from os import getcwd
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Depends
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import case, and_
+from sqlalchemy import case, and_, create_engine
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload, subqueryload
+from sqlalchemy.orm import Session, joinedload, subqueryload, sessionmaker
 
+from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models.audited_model import get_default_user_value
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
@@ -289,7 +290,10 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
         db.commit()
 
 
-def revalidate_all_tags(db: Session, email: str, delete_all_first: bool = False):
+def revalidate_all_tags(email: str, delete_all_first: bool = False):
+    engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
+    new_session = sessionmaker(bind=engine, autoflush=True)
+    db = new_session()
     if delete_all_first:
         db.execute("DELETE FROM topic_entity_tag_validation")
         db.commit()
@@ -301,6 +305,7 @@ def revalidate_all_tags(db: Session, email: str, delete_all_first: bool = False)
         if tag_counter % 200 == 0:
             db.commit()
     db.commit()
+    db.close()
 
     email_recipients = email
     sender_email = environ.get('SENDER_EMAIL', None)
