@@ -1,8 +1,6 @@
-import time
 import logging
 import requests
-from os import path, environ
-from xml.etree import ElementTree
+from os import path
 from agr_literature_service.api.models import CrossReferenceModel
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.user import set_global_user_id
@@ -11,12 +9,12 @@ logging.basicConfig(format='%(message)s')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
-
+doi_root_url = "https://doi.org/"
+bad_doi = "DOI:10.1016/j.bbagen.xxxx.130210"
 batch_commit_size = 200
 
 
-def set_DOIs_obsolete():
+def reset_DOI_status():
 
     db_session = create_postgres_session(False)
 
@@ -25,11 +23,15 @@ def set_DOIs_obsolete():
 
     rows = db_session.execute("select reference_id, curie "
                               "from   cross_reference "
-                              "where  is_obsolete is False "
-                              "and    curie_prefix = 'DOI' "
+                              "where  curie_prefix = 'DOI' "
                               "and    reference_id in "
                               "(select reference_id from cross_reference "
                               "where curie_prefix = 'PMID' and is_obsolete is True)").fetchall()
+
+    found = check_for_doi_in_doi_resolver(bad_doi)
+    if found:
+        logger.info("Something wrong with DOI resolver")
+        return
 
     record = 0
     for row in rows:
@@ -37,19 +39,21 @@ def set_DOIs_obsolete():
         if valid_pmid_status:
             # it is a valid PubMed paper so let PubMed update script take care of it
             continue
-        DOI = row['curie']
-        doi_count = check_for_doi_in_pubmed(DOI)
-        if int(doi_count) > 0:
-            # DOI is in PubMed
-            continue
-        x = db_session.query(CrossReferenceModel).filter_by(curie=DOI).one_or_none()
+        doi = row['curie']
+        isValidDOI = check_for_doi_in_doi_resolver(doi)
+
+        x = db_session.query(CrossReferenceModel).filter_by(curie=doi).one_or_none()
         record += 1
         if x:
             try:
-                x.is_obsolete = True
-                logger.info(f"{record} The XREF for {DOI} is set to obsolete")
+                if x.is_obsolete is False and not isValidDOI:
+                    x.is_obsolete = True
+                    logger.info(f"{record} The XREF for {doi} is set to obsolete")
+                elif x.is_obsolete is True and isValidDOI:
+                    x.is_obsolete = False
+                    logger.info(f"{record} The XREF for {doi} is set to valid")
             except Exception as e:
-                logger.info(f"{record} An error occurred when setting the XREF for {DOI} to obsolete: {e}")
+                logger.info(f"{record} An error occurred when setting the XREF for {doi} status: {e}")
         if record % batch_commit_size == 0:
             db_session.commit()
             # db_session.rollback()
@@ -57,6 +61,16 @@ def set_DOIs_obsolete():
     # db_session.rollback()
 
 
+def check_for_doi_in_doi_resolver(doi):
+    url = doi_root_url + doi.replace("DOI:", "doi:")
+    response = requests.get(url)
+    result = response.content.decode('UTF-8')
+    if "DOI Not Found" in result:
+        return False
+    return True
+
+
+"""
 def check_for_doi_in_pubmed(doi): # noqa
     params = {
         "db": "pubmed",
@@ -73,6 +87,7 @@ def check_for_doi_in_pubmed(doi): # noqa
         return tree.find('Count').text
     except Exception as e:
         logger.info(f"Error(s) occurred when searching PubMed: {e}")
+"""
 
 
 def check_for_valid_pmid(db_session, reference_id):
@@ -89,4 +104,4 @@ def check_for_valid_pmid(db_session, reference_id):
 
 if __name__ == "__main__":
 
-    set_DOIs_obsolete()
+    reset_DOI_status()
