@@ -37,9 +37,9 @@ ATP_ID_SOURCE_CURATION_TOOLS = "curation_tools"
 
 
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
-    if topic_entity_tag.entity is None:
-        topic_entity_tag.entity_type = None
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
+    if topic_entity_tag_data["entity"] is None:
+        topic_entity_tag_data["entity_type"] = None
     reference_curie = topic_entity_tag_data.pop("reference_curie", None)
     if reference_curie is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
