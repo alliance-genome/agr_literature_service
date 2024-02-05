@@ -26,7 +26,7 @@ def upgrade():
         'topic_entity_tag',
         sa.sql.text("""
                 (
-                    (entity_type IS NOT NULL AND entity IS NOT NULL AND entity_source IS NOT NULL AND species IS NOT NULL)
+                    (entity_type IS NOT NULL AND entity IS NOT NULL AND entity_source IS NOT NULL)
                     OR
                     (entity_type IS NULL AND entity IS NULL AND entity_source IS NULL)
                 )

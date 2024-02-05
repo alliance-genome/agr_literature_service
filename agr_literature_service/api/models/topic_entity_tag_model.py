@@ -155,7 +155,7 @@ class TopicEntityTagModel(AuditedModel, Base):
     __table_args__ = (
         CheckConstraint(
             or_(
-                and_(entity_type.isnot(None), entity.isnot(None), entity_source.isnot(None), species.isnot(None)),
+                and_(entity_type.isnot(None), entity.isnot(None), entity_source.isnot(None)),
                 and_(entity_type.is_(None), entity.is_(None), entity_source.is_(None))
             ),
             name="valid_entity_type_dependencies"
