@@ -253,7 +253,7 @@ def write_log_and_send_pubmed_no_update_report(fw, mod, email_subject):
     send_report(email_subject, email_message)
 
 
-def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, update_log, bad_date_published, authors_with_first_or_corresponding_flag, not_found_xml_list, log_url, log_dir, email_subject):
+def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, update_log, bad_date_published, authors_with_first_or_corresponding_flag, not_found_xml_list, log_url, log_dir, email_subject, pmids_with_pub_status_changed, pmids_with_no_pub_status_changed):  # noqa: C901
 
     message = None
     if mod:
@@ -294,9 +294,9 @@ def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, upda
 
     if len(authors_with_first_or_corresponding_flag) > 0:
 
-        logger.info("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database")
-        fw.write("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database\n")
-        email_message = email_message + "Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database<p>"
+        logger.info("The following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database")
+        fw.write("The following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database\n")
+        email_message = email_message + "The following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database<p>"
 
         for x in authors_with_first_or_corresponding_flag:
             (paper_id, name, first_author, corresponding_author) = x
@@ -310,15 +310,42 @@ def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, upda
             if not str(pmid).isdigit():
                 continue
             if i == 0:
-                logger.info("Following PMID(s) are missing while updating pubmed data")
-                fw.write("Following PMID(s) are missing while updating pubmed data")
-                email_message = email_message + "<p>Following PMID(s) are missing while updating pubmed data:<p>"
+                logger.info("The following PMID(s) are missing while updating pubmed data")
+                fw.write("The following PMID(s) are missing while updating pubmed data")
+                email_message = email_message + "<p>The following PMID(s) are missing while updating pubmed data:<p>"
             i += 1
             logger.info("PMID:" + str(pmid))
             fw.write("PMID:" + str(pmid) + "\n")
             email_message = email_message + "PMID:" + str(pmid) + "<br>"
         email_message = email_message + "<p>"
 
+    i = 0
+    for pmid in pmids_with_pub_status_changed:
+        ## newly published papers
+        if i == 0:
+            logger.info("The following papers have had their publication_status and at least one of Journal, Volume, or Issue updated last week.")
+            fw.write("The following papers have had their publication_status and at least one of Journal, Volume, or Issue updated last week.\n")
+            email_message = email_message + "<p>The following papers have had their publication_status and at least one of Journal, Volume, or Issue updated last week.<p>"
+        i += 1
+        data = pmids_with_pub_status_changed[pmid]
+        for colName in data:
+            logger.info(f"PMID:{pmid}: {colName} {data[colName]}")
+            fw.write(f"PMID:{pmid}: {colName} {data[colName]}")
+            email_message = email_message + f"PMID:{pmid}: {colName} {data[colName]}"
+
+    i = 0
+    for pmid in pmids_with_no_pub_status_changed:
+        ## old papers
+        if i == 0:
+            logger.info("The following papers had updates to at least one of Journal, Volume, or Issue, but no updates to publication_status last week.")
+            fw.write("The following papers had updates to at least one of Journal, Volume, or Issue, but no updates to publication_status last week.\n")
+            email_message = email_message + "<p>The following papers had updates to at least one of Journal, Volume, or Issue, but no updates to publication_status last week.<p>"
+        i += 1
+        data = pmids_with_no_pub_status_changed[pmid]
+        for colName in data:
+            logger.info(f"PMID:{pmid}: {colName} {data[colName]}")
+            fw.write(f"PMID:{pmid}: {colName} {data[colName]}")
+            email_message = email_message + f"PMID:{pmid}: {colName} {data[colName]}"
     if mod:
         email_message = email_message + "DONE!<p>"
 

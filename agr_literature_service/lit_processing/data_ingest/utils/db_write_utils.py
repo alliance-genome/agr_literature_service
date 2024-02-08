@@ -947,19 +947,19 @@ def _insert_pmcid(db_session, fw, pmid, reference_id, pmcid, logger=None):  # pr
         fw.write("PMID:" + str(pmid) + ": INSERT PMCID:" + pmcid + " failed: " + str(e) + "\n")
 
 
-def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_in_db, doi_json, pmcid_db, pmcid_list_in_db, pmcid_json, update_log, logger=None):
+def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_in_db, doi_json, pmcid_db, pmcid_list_in_db, pmcid_json, pub_status_changed, pmids_with_pub_status_changed, pmids_with_no_pub_status_changed, update_log, logger=None):
 
     doi_json = doi_json.replace("DOI:", "") if doi_json else None
     pmcid_json = pmcid_json.replace("PMCID:", "") if pmcid_json else None
 
-    if doi_json is None and pmcid_json is None:
-        return
+    # if doi_json is None and pmcid_json is None:
+    #    return
 
     ## take care of DOI
     if doi_json and (doi_db is None or doi_json != doi_db) and doi_json in doi_list_in_db:
         fw.write("PMID:" + str(pmid) + ": DOI:" + doi_json + " is in the database for another paper.\n")
     else:
-        if doi_json and doi_json != doi_db:
+        if doi_json != doi_db:
             try:
                 if doi_db is None:
                     _insert_doi(db_session, fw, pmid, reference_id, doi_json, logger)
@@ -977,8 +977,8 @@ def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_
         else:
             pmcid_json = None
 
-    if pmcid_json is None:
-        return
+    # if pmcid_json is None:
+    #    return
 
     if pmcid_db and pmcid_db == pmcid_json:
         return
@@ -993,6 +993,16 @@ def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_
 
         update_log['pmcid'] = update_log['pmcid'] + 1
         update_log['pmids_updated'].append(pmid)
+
+        message = f"From '{pmcid_db}' to '{pmcid_json}'"
+        if pub_status_changed:
+            data_changed = pmids_with_pub_status_changed.get(pmid, {})
+            data_changed['PMCID'] = message
+            pmids_with_pub_status_changed[pmid] = data_changed
+        else:
+            data_changed = pmids_with_no_pub_status_changed.get(pmid, {})
+            data_changed['PMCID'] = message
+            pmids_with_no_pub_status_changed[pmid] = data_changed
 
 
 def insert_referencefile_mod_for_pmc(db_session, pmid, file_name_with_suffix, referencefile_id, logger):
