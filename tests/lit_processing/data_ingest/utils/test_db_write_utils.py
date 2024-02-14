@@ -59,7 +59,7 @@ class TestDbReadUtils:
                 "name": "Hello There"
             }
         ]
-        pub_status_changed = "Some text"
+        pub_status_changed = "pubmed_publiction_status: 'aheadofprint' to 'ppublish'"
         pmids_with_pub_status_changed = {}
         update_authors(db, reference_id, db_entry.get('author', []), author_list_in_json,
                        pub_status_changed, pmids_with_pub_status_changed, logger)
@@ -207,7 +207,7 @@ class TestDbReadUtils:
         pmcid_db = ""
         pmcid_json = "PMCID:PMC667788"
         pmcid_list_in_db = []
-        pub_status_changed = "Some text"
+        pub_status_changed = "pubmed_publiction_status: 'aheadofprint' to 'ppublish'"
         pmids_with_pub_status_changed = {}
         update_cross_reference(db, fw, pmid, reference_id, doi_db, doi_list_in_db, doi_json,
                                pmcid_db, pmcid_list_in_db, pmcid_json, pub_status_changed,
