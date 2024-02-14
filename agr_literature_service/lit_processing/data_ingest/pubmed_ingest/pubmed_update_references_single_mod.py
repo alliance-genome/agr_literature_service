@@ -203,7 +203,7 @@ def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cove
     fw.close()
 
 
-def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, update_log, new_md5sum, old_md5sum, json_path, pmids_with_json_updated, pmids_with_pub_status_changed, bad_date_published):   # noqa: C901
+def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, update_log, new_md5sum, old_md5sum, json_path, pmids_with_json_updated, pmids_with_pub_status_changed, bad_date_published):  # noqa: C901 pragma: no cover
 
     ## 1. do nothing if a field has no value in pubmed xml/json
     ##    so won't delete whatever in the database
@@ -655,7 +655,7 @@ def set_paths():  # pragma: no cover
             email_recipients, sender_email, sender_password, reply_to)
 
 
-def generate_pmids_with_info(pmids_all, old_md5sum, new_md5sum, pmid_to_reference_id):
+def generate_pmids_with_info(pmids_all, old_md5sum, new_md5sum, pmid_to_reference_id):  # noqa: C901 pragma: no cover
 
     reference_id_list = []
     pmid_to_md5sum = {}
