@@ -51,8 +51,8 @@ field_names_to_report = refColName_to_update + ['doi', 'pmcid', 'author_name', '
 limit = 500
 max_rows_per_commit = 250
 download_xml_max_size = 5000
-# query_cutoff = 500
-query_cutoff = 1000
+query_cutoff = 8000
+batch_size = 500
 sleep_time = 10
 
 init_tmp_dir()
@@ -116,17 +116,16 @@ def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cove
         else:
             update_log[field_name] = 0
 
-    if resourceUpdated is None:
-        fw.write(str(datetime.now()) + "\n")
-        fw.write("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...\n")
-        log.info("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...")
-        if len(pmids_all) > download_xml_max_size:
-            for index in range(0, len(pmids_all), download_xml_max_size):
-                pmids_slice = pmids_all[index:index + download_xml_max_size]
-                download_pubmed_xml(pmids_slice)
-                time.sleep(sleep_time)
-        else:
-            download_pubmed_xml(pmids_all)
+    fw.write(str(datetime.now()) + "\n")
+    fw.write("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...\n")
+    log.info("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...")
+    if len(pmids_all) > download_xml_max_size:
+        for index in range(0, len(pmids_all), download_xml_max_size):
+            pmids_slice = pmids_all[index:index + download_xml_max_size]
+            download_pubmed_xml(pmids_slice)
+            time.sleep(sleep_time)
+    else:
+        download_pubmed_xml(pmids_all)
 
     fw.write(str(datetime.now()) + "\n")
     md5dict = load_database_md5data(['PMID'])
@@ -295,9 +294,11 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
     doi_list_in_db = list(reference_id_to_doi.values())
     pmcid_list_in_db = list(reference_id_to_pmcid.values())
 
-    all = None
+    all_data = []
+    query_all_papers = False
     if mod and len(reference_id_list) > query_cutoff:
-        all = db_session.query(
+        query_all_papers = True
+        all_data = db_session.query(
             ReferenceModel
         ).join(
             ReferenceModel.mod_corpus_association
@@ -313,18 +314,31 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
             limit
         ).all()
     else:
-        all = db_session.query(
-            ReferenceModel
-        ).filter(
-            ReferenceModel.reference_id.in_(reference_id_list)
-        ).all()
+        # determine the number of batches needed
+        num_batches = len(reference_id_list) // batch_size + (1 if len(reference_id_list) % batch_size else 0)
 
-    if len(all) == 0:
+        for batch_num in range(num_batches):
+            # calculate start and end indices for the current batch
+            start_index = batch_num * batch_size
+            end_index = start_index + batch_size
+
+            # get a slice of reference IDs for the current batch
+            batch_reference_ids = reference_id_list[start_index:end_index]
+
+            # query the database for the current batch of reference IDs
+            batch_query = db_session.query(ReferenceModel).filter(
+                ReferenceModel.reference_id.in_(batch_reference_ids)
+            ).all()
+
+            # extend the all_data list with the results of the current batch query
+            all_data.extend(batch_query)
+
+    if query_all_papers and len(all_data) == 0:
         return authors_with_first_or_corresponding_flag
 
     i = 0
 
-    for x in all:
+    for x in all_data:
 
         if x.category in ['Obsolete', 'obsolete']:
             continue
