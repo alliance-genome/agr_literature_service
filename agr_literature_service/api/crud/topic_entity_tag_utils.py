@@ -91,7 +91,7 @@ def get_sorted_column_values(reference_id: int, db: Session, column_name: str, d
                 entity_type_to_entities[result.entity_type].append(result.entity)
             else:
                 entity_type_to_entities[result.entity_type] = [result.entity]
-        curie_name_map = get_map_aterm_entity_curies_to_names(entity_type_to_entities)
+        curie_name_map = get_map_ateam_entity_curies_to_names(entity_type_to_entities)
     else:
         curies = db.query(getattr(TopicEntityTagModel, column_name)).filter(
             TopicEntityTagModel.reference_id == reference_id).distinct()
@@ -103,7 +103,7 @@ def get_sorted_column_values(reference_id: int, db: Session, column_name: str, d
                                             key=lambda x: x[0], reverse=desc)]
 
 
-def get_map_aterm_entity_curies_to_names(entity_type_to_entities):
+def get_map_ateam_entity_curies_to_names(entity_type_to_entities):
 
     entity_types = [entity_type for entity_type in entity_type_to_entities.keys() if entity_type is not None]
 
@@ -130,46 +130,51 @@ def get_map_aterm_entity_curies_to_names(entity_type_to_entities):
 
 
 def get_map_ateam_curies_to_names(curies_category, curies):
+    curies = list(set(curies))
     ateam_api_base_url = environ.get('ATEAM_API_URL')
     ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit=1000&page=0'
-    request_body = {
-        "searchFilters": {
-            "nameFilters": {
-                "curie_keyword": {
-                    "queryString": " ".join(curies),
-                    "tokenOperator": "OR"
+    chunked_values = [curies[i:i + 1000] for i in range(0, len(curies), 1000)]
+    return_dict = {}
+    for chunk in chunked_values:
+        request_body = {
+            "searchFilters": {
+                "nameFilters": {
+                    "curie_keyword": {
+                        "queryString": " ".join(chunk),
+                        "tokenOperator": "OR"
+                    }
                 }
             }
         }
-    }
-    token = get_authentication_token()
-    try:
-        request_data_encoded = json.dumps(request_body)
-        request_data_encoded_str = str(request_data_encoded)
-        request = urllib.request.Request(url=ateam_api, data=request_data_encoded_str.encode('utf-8'))
-        request.add_header("Authorization", f"Bearer {token}")
-        request.add_header("Content-type", "application/json")
-        request.add_header("Accept", "application/json")
-    except Exception as e:
-        logger.error(f"Exception setting up request:get_map_ateam_curies_to_names: {e}")
-        return {}
-    try:
-        with urllib.request.urlopen(request) as response:
-            resp = response.read().decode("utf8")
-            resp_obj = json.loads(resp)
-            # from the A-team API, atp values have a "name" field and other entities (e.g., genes and alleles) have
-            # symbol objects - e.g., geneSymbol.displayText
-            return {
-                entity["curie"]: entity["name"] if "name" in entity else entity[curies_category + "Symbol"][
-                    "displayText"] if curies_category + "Symbol" in entity else entity["curie"] for entity in (
-                    resp_obj["results"] if "results" in resp_obj else [])
-            }
-    except HTTPError as e:
-        logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
-        return {}
-    except Exception as e:
-        logger.error(f"Exception setting up request:get_map_ateam_curies_to_names: {e}")
-        return {}
+        token = get_authentication_token()
+        try:
+            request_data_encoded = json.dumps(request_body)
+            request_data_encoded_str = str(request_data_encoded)
+            request = urllib.request.Request(url=ateam_api, data=request_data_encoded_str.encode('utf-8'))
+            request.add_header("Authorization", f"Bearer {token}")
+            request.add_header("Content-type", "application/json")
+            request.add_header("Accept", "application/json")
+        except Exception as e:
+            logger.error(f"Exception setting up request:get_map_ateam_curies_to_names: {e}")
+            continue
+        try:
+            with urllib.request.urlopen(request) as response:
+                resp = response.read().decode("utf8")
+                resp_obj = json.loads(resp)
+                # from the A-team API, atp values have a "name" field and other entities (e.g., genes and alleles) have
+                # symbol objects - e.g., geneSymbol.displayText
+                return_dict.update({
+                    entity["curie"]: entity["name"] if "name" in entity else entity[curies_category + "Symbol"][
+                        "displayText"] if curies_category + "Symbol" in entity else entity["curie"] for entity in (
+                        resp_obj["results"] if "results" in resp_obj else [])
+                })
+        except HTTPError as e:
+            logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
+            continue
+        except Exception as e:
+            logger.error(f"Exception setting up request:get_map_ateam_curies_to_names: {e}")
+            continue
+    return return_dict
 
 
 @ttl_cache(maxsize=128, ttl=60 * 60)
