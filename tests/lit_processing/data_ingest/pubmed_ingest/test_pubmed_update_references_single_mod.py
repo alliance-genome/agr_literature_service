@@ -49,9 +49,11 @@ class TestPubmedUpdateReferenceSingleMod:
                 assert x.issue_name == "66"
                 assert "OLD2: " in x.title
 
+        pmids_with_pub_status_changed = {}
         update_database(fw, mod, reference_id_list, reference_id_to_pmid,
                         pmid_to_reference_id, update_log, new_md5sum,
                         old_md5sum, json_path, pmids_with_json_updated,
+                        pmids_with_pub_status_changed,
                         bad_date_published)
 
         for x in db.query(ReferenceModel).all():
@@ -70,16 +72,6 @@ class TestPubmedUpdateReferenceSingleMod:
                 assert x.issue_name == "1"
                 assert x.title.startswith("Mapping lung squamous cell")
                 assert "OLD2: " not in x.title
-
-        ## test create_new_citation()
-        # journal = None
-        # if ref.resource_id:
-        #    res = db.query(ResourceModel).filter_by(resource_id=ref.resource_id).one_or_none()
-        #    journal = res.title
-        # reference_id_to_authors = get_author_data(db, mod, reference_id_list, 50)
-        # authors = reference_id_to_authors.get(pmid_to_reference_id[pmid])
-        # citation = create_new_citation(authors, ref.date_published, ref.title,
-        #                               journal, ref.volume, ref.issue_name, ref.page_range)
 
         ## test generate_pmids_with_info()
         (ref_id_list, pmid_to_md5sum) = generate_pmids_with_info([pmid, pmid2],
@@ -123,8 +115,10 @@ class TestPubmedUpdateReferenceSingleMod:
         reference_id_list = [reference_id]
         reference_id_to_authors = get_author_data(db, mod, reference_id_list, 50)
         authors = reference_id_to_authors.get(reference_id, [])
+        pmids_with_pub_status_changed = {}
         update_reference_table(db, fw, pmid, ref, json_data, None, None,
-                               authors, bad_date_published, update_log, 1)
+                               authors, bad_date_published, pmids_with_pub_status_changed,
+                               update_log, 1)
         db.commit()
 
         for x in db.query(ReferenceModel).all():
