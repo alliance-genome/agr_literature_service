@@ -1,6 +1,6 @@
 import logging
 import gzip
-import re
+# import re
 import time
 import requests
 from dotenv import load_dotenv
@@ -51,8 +51,7 @@ def update_all_data():  # pragma: no cover
         return
 
     logger.info("Retrieving pmids from PubMed daily update file:")
-    (updated_pmids_for_mod, deleted_pmids_for_mod) = download_and_parse_daily_update(db_session,
-                                                                                     set(pmids_all))
+    (updated_pmids_for_mod, deleted_pmids_for_mod) = download_and_parse_daily_update(db_session, set(pmids_all))
     db_session.close()
 
     resourceUpdated = 1
@@ -112,14 +111,9 @@ def download_and_parse_daily_update(db_session, pmids_all):  # pragma: no cover
                 for line in lines:
                     if '<PMID Version="1">' in line:
                         pmid = line.split('>')[1].split('<')[0]
-                        if pmid in pmids_all:
+                        if pmid and pmid.isdigit() and pmid in pmids_all:
                             updated_pmids.append(pmid)
-                            logger.info(f"generating xml file for PMID:{pmid}")
-                            record = re.sub(r'\s*\n\s*', '', record)
-                            record = record.strip()
-                            with open(xml_path + pmid + ".xml", "w") as f_out:
-                                f_out.write(header + "<PubmedArticleSet>" + record + "</PubmedArticle></PubmedArticleSet>\n")
-
+                        break
             for record in deleteRecords:
                 if record.startswith('<PMID Version'):
                     pmid = record.split('>')[1].split('<')[0]
