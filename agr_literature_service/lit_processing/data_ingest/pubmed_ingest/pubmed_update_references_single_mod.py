@@ -2,7 +2,7 @@ import argparse
 import logging
 from os import environ, makedirs, path
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, date
 import json
 import time
 
@@ -22,6 +22,8 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_cross_reference_data_for_resource, get_reference_relation_data, get_journal_data, \
     get_reference_ids_by_pmids, get_pmid_to_reference_id_for_papers_not_associated_with_mod, \
     get_pmid_to_reference_id
+from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
+    remove_old_files
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     update_authors, update_reference_relations, update_mesh_terms, update_cross_reference
 from agr_literature_service.lit_processing.utils.report_utils import \
@@ -49,13 +51,13 @@ field_names_to_report = refColName_to_update + ['doi', 'pmcid', 'author_name', '
 limit = 500
 max_rows_per_commit = 250
 download_xml_max_size = 5000
-query_cutoff = 500
+# query_cutoff = 500
+query_cutoff = 1000
 sleep_time = 10
 
 init_tmp_dir()
 
 
-# def update_data(mod, pmids, md5dict=None, newly_added_pmids=None):  # noqa: C901 pragma: no cover
 def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cover
 
     if resourceUpdated is None:
@@ -66,8 +68,6 @@ def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cove
     scriptNm = path.basename(__file__).replace(".py", "")
     set_global_user_id(db_session, scriptNm)
 
-    # datestamp = str(date.today()).replace("-", "")
-
     (xml_path, json_path, old_xml_path, old_json_path, log_path, log_url,
      email_recipients, sender_email, sender_password, reply_to) = set_paths()
 
@@ -75,11 +75,16 @@ def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cove
     if mod and mod != 'NONE':
         email_subject = mod + " " + email_subject
 
+    # remove old log files
+    remove_old_files(log_path, 30)
+
+    # set new log file with date stamp
+    datestamp = str(date.today()).replace("-", "")
     log_file = log_path + "update_pubmed_papers_"
     if mod:
-        log_file = log_file + mod + ".log"
+        log_file = f"{log_file}{mod}_{datestamp}.log"
     else:
-        log_file = log_file + ".log"
+        log_file = f"{log_file}_{datestamp}.log"
 
     fw = open(log_file, "w")
 
@@ -97,10 +102,9 @@ def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cove
                                                                         reference_id_to_pmid)
         else:
             get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id_to_pmid)
-        pmids_all = list(pmid_to_reference_id.keys())
     else:
         get_reference_ids_by_pmids(db_session, pmids, pmid_to_reference_id, reference_id_to_pmid)
-        pmids_all = pmids.split('|')
+    pmids_all = list(pmid_to_reference_id.keys())
     pmids_all.sort()
 
     db_session.close()
@@ -112,11 +116,10 @@ def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cove
         else:
             update_log[field_name] = 0
 
-    fw.write(str(datetime.now()) + "\n")
-    fw.write("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...\n")
-    log.info("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...")
-
     if resourceUpdated is None:
+        fw.write(str(datetime.now()) + "\n")
+        fw.write("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...\n")
+        log.info("Downloading pubmed xml files for " + str(len(pmids_all)) + " PMIDs...")
         if len(pmids_all) > download_xml_max_size:
             for index in range(0, len(pmids_all), download_xml_max_size):
                 pmids_slice = pmids_all[index:index + download_xml_max_size]
@@ -126,24 +129,8 @@ def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cove
             download_pubmed_xml(pmids_all)
 
     fw.write(str(datetime.now()) + "\n")
-
     md5dict = load_database_md5data(['PMID'])
     old_md5sum = md5dict['PMID']
-
-    ## for testing purpose, test run for SGD
-    # old_md5sum.pop('8460134')
-    # old_md5sum.pop('9489999')
-    # old_md5sum.pop('9334203')
-    # old_md5sum.pop('2506425')
-    # old_md5sum.pop('10525964')
-    ## for testing purpose, test run for WB
-    # old_md5sum.pop('15279955')
-    # old_md5sum.pop('15302406')
-    # old_md5sum.pop('19167330')
-    # old_md5sum.pop('18931687')
-    # old_md5sum.pop('19116311')
-    # old_md5sum.pop('17276139')
-    ## end testing
 
     fw.write(str(datetime.now()) + "\n")
     fw.write("Generating json files...\n")
@@ -151,11 +138,6 @@ def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cove
 
     not_found_xml_set = set()
     generate_json(pmids_all, [], not_found_xml_set)
-
-    # if newly_added_pmids:
-    #    for pmid in newly_added_pmids:
-    #        not_found_xml_set.discard(pmid)
-    # not_found_xml_list = list(not_found_xml_set)
 
     new_md5sum = get_md5sum(json_path)
 
@@ -177,19 +159,17 @@ def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cove
     pmids_with_json_updated = []
     ## the following two lists are storing the papers that have data updated from PubMed
     pmids_with_pub_status_changed = {}
-    pmids_with_no_pub_status_changed = {}
     bad_date_published = {}
     try:
         authors_with_first_or_corresponding_flag = update_database(fw, mod,
-                                                               reference_id_list,
-                                                               reference_id_to_pmid,
-                                                               pmid_to_reference_id,
-                                                               update_log, new_md5sum,
-                                                               old_md5sum, json_path,
-                                                               pmids_with_json_updated,
-                                                               pmids_with_pub_status_changed,
-                                                               pmids_with_no_pub_status_changed,
-                                                               bad_date_published)
+                                                                   reference_id_list,
+                                                                   reference_id_to_pmid,
+                                                                   pmid_to_reference_id,
+                                                                   update_log, new_md5sum,
+                                                                   old_md5sum, json_path,
+                                                                   pmids_with_json_updated,
+                                                                   pmids_with_pub_status_changed,
+                                                                   bad_date_published)
 
     except Exception as e:
         log.info(f"Error updating data for {mod}: {e}")
@@ -198,12 +178,14 @@ def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cove
     # to not report not_found_xml_list for now, but log it
     # log.info("not_found_xml_list count = " + str(len(not_found_xml_list)))
     not_found_xml_list = []
-    write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, update_log,
-                                            bad_date_published,
-                                            authors_with_first_or_corresponding_flag,
-                                            not_found_xml_list, log_url, log_path,
-                                            email_subject, pmids_with_pub_status_changed,
-                                            pmids_with_no_pub_status_changed)
+    try:
+        write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, update_log,
+                                                bad_date_published,
+                                                authors_with_first_or_corresponding_flag,
+                                                not_found_xml_list, log_url, log_path,
+                                                email_subject, pmids_with_pub_status_changed)
+    except Exception as e:
+        log.info(f"Error sending slack report for {mod}: {e}")
 
     md5dict = {'PMID': pmid_to_md5sum}
     save_database_md5data(md5dict)
@@ -222,7 +204,7 @@ def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cove
     fw.close()
 
 
-def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, update_log, new_md5sum, old_md5sum, json_path, pmids_with_json_updated, pmids_with_pub_status_changed, pmids_with_no_pub_status_changed, bad_date_published):   # noqa: C901
+def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, update_log, new_md5sum, old_md5sum, json_path, pmids_with_json_updated, pmids_with_pub_status_changed, bad_date_published):   # noqa: C901
 
     ## 1. do nothing if a field has no value in pubmed xml/json
     ##    so won't delete whatever in the database
@@ -291,7 +273,6 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
                                                                            json_path,
                                                                            pmids_with_json_updated,
                                                                            pmids_with_pub_status_changed,
-                                                                           pmids_with_no_pub_status_changed,
                                                                            bad_date_published,
                                                                            update_log,
                                                                            offset)
@@ -299,17 +280,7 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
     return authors_with_first_or_corresponding_flag
 
 
-def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid,
-                                pmid_to_reference_id, reference_id_to_authors,
-                                reference_ids_to_reference_relation_type,
-                                reference_id_to_mesh_terms, reference_id_to_doi,
-                                reference_id_to_pmcid, journal_to_resource_id,
-                                resource_id_to_issn, resource_id_to_nlm,
-                                old_md5sum, new_md5sum, count,
-                                authors_with_first_or_corresponding_flag, json_path,
-                                pmids_with_json_updated, pmids_with_pub_status_changed,
-                                pmids_with_no_pub_status_changed, bad_date_published,
-                                update_log, offset):  # noqa: C901 pragma: no cover
+def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_reference_relation_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, old_md5sum, new_md5sum, count, authors_with_first_or_corresponding_flag, json_path, pmids_with_json_updated, pmids_with_pub_status_changed, bad_date_published, update_log, offset):  # noqa: C901 pragma: no cover
 
     ## only update 3000 references per session (set in max_rows_per_db_session)
     ## just in case the database get disconnected during the update process
@@ -323,7 +294,7 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
 
     doi_list_in_db = list(reference_id_to_doi.values())
     pmcid_list_in_db = list(reference_id_to_pmcid.values())
-    
+
     all = None
     if mod and len(reference_id_list) > query_cutoff:
         all = db_session.query(
@@ -390,49 +361,62 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
             if json_data.get('journal') in journal_to_resource_id:
                 (new_resource_id, journal_title) = journal_to_resource_id[json_data.get('journal')]
 
+        pub_status_changed = False
         try:
             pub_status_changed = update_reference_table(db_session, fw, pmid, x, json_data,
-                                                    new_resource_id, journal_title,
-                                                    reference_id_to_authors.get(x.reference_id),
-                                                    bad_date_published, pmids_with_pub_status_changed,
-                                                    pmids_with_no_pub_status_changed,
-                                                    update_log, count)
+                                                        new_resource_id, journal_title,
+                                                        reference_id_to_authors.get(x.reference_id),
+                                                        bad_date_published, pmids_with_pub_status_changed,
+                                                        update_log, count)
         except Exception as e:
             log.info(f"PMID:{pmid}: Error occurred when updating reference table: {e}")
-            
+
         ## update cross_reference table for reference
         if json_data.get('doi') or json_data.get('pmc'):
-            update_cross_reference(db_session, fw, pmid, x.reference_id,
-                                   reference_id_to_doi.get(x.reference_id),
-                                   doi_list_in_db,
-                                   json_data.get('doi'),
-                                   reference_id_to_pmcid.get(x.reference_id),
-                                   pmcid_list_in_db,
-                                   json_data.get('pmc'),
-                                   pub_status_changed,
-                                   pmids_with_pub_status_changed,
-                                   pmids_with_no_pub_status_changed,
-                                   update_log, log)
+            try:
+                update_cross_reference(db_session, fw, pmid, x.reference_id,
+                                       reference_id_to_doi.get(x.reference_id),
+                                       doi_list_in_db,
+                                       json_data.get('doi'),
+                                       reference_id_to_pmcid.get(x.reference_id),
+                                       pmcid_list_in_db,
+                                       json_data.get('pmc'),
+                                       pub_status_changed,
+                                       pmids_with_pub_status_changed,
+                                       update_log, log)
+            except Exception as e:
+                log.info(f"PMID:{pmid}: Error occurred when updating cross_reference table: {e}")
 
         ## update author table
         # author_list_with_first_or_corresponding_author =
         # a list of (pmid, name, first_author, corresponding_author)
-        authors = update_authors(db_session, x.reference_id,
-                                 reference_id_to_authors.get(x.reference_id),
-                                 json_data.get('authors'),
-                                 None, fw, pmid, update_log)
+        try:
+            authors = update_authors(db_session, x.reference_id,
+                                     reference_id_to_authors.get(x.reference_id),
+                                     json_data.get('authors'),
+                                     pub_status_changed,
+                                     pmids_with_pub_status_changed,
+                                     None, fw, pmid, update_log)
+        except Exception as e:
+            log.info(f"PMID:{pmid}: Error occurred when updating author table: {e}")
 
         authors_with_first_or_corresponding_flag = authors_with_first_or_corresponding_flag + authors
 
         ## update comments/corrections
-        update_reference_relations(db_session, fw, pmid, x.reference_id, pmid_to_reference_id,
-                                   reference_ids_to_reference_relation_type,
-                                   json_data.get('commentsCorrections'), update_log)
+        try:
+            update_reference_relations(db_session, fw, pmid, x.reference_id, pmid_to_reference_id,
+                                       reference_ids_to_reference_relation_type,
+                                       json_data.get('commentsCorrections'), update_log)
+        except Exception as e:
+            log.info(f"PMID:{pmid}: Error occurred when updating reference_relation table: {e}")
 
         ## update mesh_detail table
-        update_mesh_terms(db_session, fw, pmid, x.reference_id,
-                          reference_id_to_mesh_terms.get(x.reference_id),
-                          json_data.get('meshTerms'), update_log)
+        try:
+            update_mesh_terms(db_session, fw, pmid, x.reference_id,
+                              reference_id_to_mesh_terms.get(x.reference_id),
+                              json_data.get('meshTerms'), update_log)
+        except Exception as e:
+            log.info(f"PMID:{pmid}: Error occurred when updating mesh_detail table: {e}")
 
     db_session.rollback()
     # db_session.commit()
@@ -461,7 +445,6 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
                                                                                json_path,
                                                                                pmids_with_json_updated,
                                                                                pmids_with_pub_status_changed,
-                                                                               pmids_with_no_pub_status_changed,
                                                                                bad_date_published,
                                                                                update_log,
                                                                                offset)
@@ -469,7 +452,7 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
     return authors_with_first_or_corresponding_flag
 
 
-def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, journal_title, authors, bad_date_published, pmids_with_pub_status_changed, pmids_with_no_pub_status_changed, update_log, count):  # noqa: C901 pragma: no cover
+def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, journal_title, authors, bad_date_published, pmids_with_pub_status_changed, update_log, count):  # noqa: C901 pragma: no cover
 
     colName_to_json_key = {'issue_name': 'issueName',
                            'page_range': 'pages',
@@ -490,13 +473,12 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
     has_update = 0
     for colName in refColName_to_update:
         if colName == 'resource_id':
-            handle_resource_id_update(fw, pmid, x, new_resource_id, update_log, has_update)
+            handle_resource_id_update(fw, pmid, x, new_resource_id, journal_title, update_log, has_update)
             set_data_changed(pmid, colName, pub_status_changed,
                              pmids_with_pub_status_changed,
-                             pmids_with_no_pub_status_changed,
                              x.resource.title, journal_title)
         elif colName in ['date_last_modified_in_pubmed', 'date_arrived_in_pubmed']:
-            old_value = str(getattr(x, colName))[0:10]
+            old_value = str(getattr(x, colName, ''))[0:10]
             j_key = colName_to_json_key[colName]
             new_value = None
             if json_data.get(j_key) and json_data[j_key].get('date_string'):
@@ -505,19 +487,19 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
                                   update_log, has_update)
         elif colName in ['pubmed_abstract_languages', 'pubmed_types']:
             j_key = colName_to_json_key[colName]
-            old_value = getattr(x, colName, [])
-            new_value = json_data.get(j_key) if json_data.get(j_key) else []
+            old_value = getattr(x, colName)
+            new_value = json_data.get(j_key, [])
+            if old_value is None:
+                old_value = []
             handle_generic_update(fw, pmid, x, colName, old_value, new_value,
                                   update_log, has_update)
         elif colName == 'keywords':
-            if json_data.get('keywords'):
-                # WARNING: never delete keywords - only add new one(s)
-                old_keywords = x.keywords
-                if old_keywords is None:
-                    old_keywords = []
-                new_keywords = list(set(old_keywords + json_data['keywords']))
-                handle_generic_update(fw, pmid, x, colName, old_keywords,
-                                      new_keywords, update_log, has_update)
+            old_keywords = x.keywords
+            if old_keywords is None:
+                old_keywords = []
+            new_keywords = json_data.get('keywords', [])
+            handle_generic_update(fw, pmid, x, colName, old_keywords,
+                                  new_keywords, update_log, has_update)
         else:
             j_key = colName_to_json_key[colName] if colName_to_json_key.get(colName) else colName
             old_value = getattr(x, colName)
@@ -530,9 +512,6 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
                     old_value = str(old_value)[0:10]
                 if new_value:
                     new_value = str(new_value)[0:10]
-            # if new_value is None:
-            #    continue
-            ## 2024-02-07: we want to update all data based on the data from PubMed
             if colName == 'category':
                 if old_value:
                     old_value = old_value.replace("ReferenceCategory.", "")
@@ -546,10 +525,8 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
             if str(new_value) != str(old_value) and colName in ['volume', 'issue_name']:
                 set_data_changed(pmid, colName, pub_status_changed,
                                  pmids_with_pub_status_changed,
-                                 pmids_with_no_pub_status_changed,
                                  old_value, new_value)
     if has_update:
-        # x.date_updated = date.today()
         db_session.add(x)
         update_log['pmids_updated'].append(pmid)
         log.info(f"{count} PMID:{pmid} Reference table has been updated")
@@ -569,11 +546,10 @@ def log_update(fw, pmid, colName, old_value, new_value, update_log, has_update):
     has_update += 1
 
 
-def handle_resource_id_update(fw, pmid, x, new_resource_id, update_log, has_update):
-    if new_resource_id and new_resource_id != x.resource_id:
+def handle_resource_id_update(fw, pmid, x, new_resource_id, journal_title, update_log, has_update):
+    if new_resource_id and new_resource_id != x.resource_id and x.resource.title != journal_title:
         log_update(fw, pmid, 'resource_id', x.resource_id, new_resource_id,
                    update_log, has_update)
-        # setattr(x, 'resource_id', new_resource_id)
         x.resource_id = new_resource_id
 
 
@@ -583,6 +559,7 @@ def handle_generic_update(fw, pmid, x, colName, old_value, new_value, update_log
             log_update(fw, pmid, colName, old_value, new_value, update_log, has_update)
             setattr(x, colName, new_value)
     else:
+        old_value = None if not old_value else old_value
         if str(new_value) != str(old_value):
             log_update(fw, pmid, colName, old_value, new_value, update_log, has_update)
             setattr(x, colName, new_value)
@@ -593,23 +570,21 @@ def set_pub_status_changed(pub_status_db, json_key, json_data):
     if pub_status_db:
         pub_status_db = pub_status_db.replace("PubMedPublicationStatus.", "")
     pub_status_new = json_data.get(json_key)
-    if pub_status_db == 'aheadofprint' and pub_status_new and pub_status_new in ['ppublish', 'epublish']:
-        return True
-    return False
+    return f"pubmed_publiction_status: '{pub_status_db}' to '{pub_status_new}'"
 
 
-def set_data_changed(pmid, colName, pub_status_changed, pmids_with_pub_status_changed,
-                     pmids_with_no_pub_status_changed, old_value, new_value):
+def set_data_changed(pmid, colName, pub_status_changed, pmids_with_pub_status_changed, old_value, new_value):
 
-    message = f"From '{old_value}' to '{new_value}'"
-    if pub_status_changed:
-        data_changed = pmids_with_pub_status_changed.get(pmid, {})
-        data_changed[colName] = message
-        pmids_with_pub_status_changed[pmid] = data_changed
-    else:
-        data_changed = pmids_with_no_pub_status_changed.get(pmid, {})
-        data_changed[colName] = message
-        pmids_with_no_pub_status_changed[pmid] = data_changed
+    if not old_value:
+        old_value = None
+    if old_value == new_value:
+        return
+    message = f"from '{old_value}' to '{new_value}'"
+    status_changed = pmids_with_pub_status_changed.get(pub_status_changed, {})
+    data_changed = status_changed.get(pmid, {})
+    data_changed[colName] = message
+    status_changed[pmid] = data_changed
+    pmids_with_pub_status_changed[pub_status_changed] = status_changed
 
 
 def get_md5sum(md5sum_path):  # pragma: no cover
@@ -674,8 +649,8 @@ def generate_pmids_with_info(pmids_all, old_md5sum, new_md5sum, pmid_to_referenc
         pmid_with_prefix = "PMID:" + pmid
         if pmid_with_prefix not in new_md5sum:
             continue
-        if old_md5sum.get(pmid_with_prefix) and new_md5sum[pmid_with_prefix] == old_md5sum[pmid_with_prefix]:
-            continue
+        # if old_md5sum.get(pmid_with_prefix) and new_md5sum[pmid_with_prefix] == old_md5sum[pmid_with_prefix]:
+        #    continue
         pmid_to_md5sum[pmid_with_prefix] = new_md5sum[pmid_with_prefix]
         if pmid in pmid_to_reference_id:
             reference_id_list.append(pmid_to_reference_id[pmid])
