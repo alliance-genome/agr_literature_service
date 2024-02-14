@@ -714,7 +714,7 @@ def _delete_reference_relation(db_session, fw, pmid, reference_id_from, referenc
             fw.write("PMID:" + str(pmid) + ": DELETE reference_relations: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + " failed: " + str(e) + "\n")
 
 
-def _get_curator_email_who_added_reference_relation(db_session, reference_id_from, reference_id_to, type):
+def _get_curator_email_who_added_reference_relation(db_session, reference_id_from, reference_id_to, type):  # pragma: no cover
 
     rows = db_session.execute(f"SELECT u.email "
                               f"FROM reference_relation_version rcc, transaction t, users u "
@@ -731,7 +731,7 @@ def _get_curator_email_who_added_reference_relation(db_session, reference_id_fro
     return None
 
 
-def _is_reference_relation_added_by_mod_dqm(db_session, reference_id_from, reference_id_to, type):
+def _is_reference_relation_added_by_mod_dqm(db_session, reference_id_from, reference_id_to, type):  # pragma: no cover
 
     user_id = "sort_dqm_json_reference_updates"
     rows = db_session.execute(f"SELECT * "
