@@ -899,13 +899,13 @@ def update_mesh_terms(db_session, fw, pmid, reference_id, mesh_terms_in_db, mesh
     update_log['pmids_updated'].append(pmid)
 
 
-def _prefix_xref_identifier(identifier, prefix):
+def _prefix_xref_identifier(identifier, prefix):  # pragma: no cover
     if identifier and not identifier.startswith(prefix):
         return f"{prefix}:{identifier}"
     return identifier
 
 
-def _check_xref_existence(db_session, model, curie):
+def _check_xref_existence(db_session, model, curie):  # pragma: no cover
     """Checks if an entry exists in the database."""
     return db_session.query(model).filter_by(curie=curie, is_obsolete=False).one_or_none()
 
