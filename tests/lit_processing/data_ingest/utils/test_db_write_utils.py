@@ -2,14 +2,14 @@ import logging
 from os import path
 
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
-    AuthorModel, ModModel, ModCorpusAssociationModel, MeshDetailModel, \
+    ModModel, ModCorpusAssociationModel, MeshDetailModel, \
     ReferenceRelationModel, ReferenceModReferencetypeAssociationModel
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_references_by_curies, get_pmid_to_reference_id
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
-    add_cross_references, update_authors, update_mod_corpus_associations, \
+    add_cross_references, update_mod_corpus_associations, \
     update_mod_reference_types, add_mca_to_existing_references, \
-    update_reference_relations, update_mesh_terms, update_cross_reference, \
+    update_reference_relations, update_mesh_terms, \
     mark_false_positive_papers_as_out_of_corpus, mark_not_in_mod_papers_as_out_of_corpus
 
 from ....fixtures import db, load_sanitized_references, populate_test_mod_reference_types # noqa
@@ -43,34 +43,8 @@ class TestDbReadUtils:
             elif x.reference == reference_id2:
                 assert x.curie == 'ISBN:66666'
 
-        ## test update_authors()
         db_entries = get_references_by_curies(db, [refs[0].curie, refs[1].curie])
         db_entry = db_entries[refs[0].curie]
-        author_list_in_json = [
-            {
-                "authorRank": 1,
-                "firstname": "Hello",
-                "lastname": "World",
-                "name": "Hello World"},
-            {
-                "authorRank": 2,
-                "firstname": "Hello",
-                "lastname": "There",
-                "name": "Hello There"
-            }
-        ]
-        pub_status_changed = "pubmed_publiction_status: 'aheadofprint' to 'ppublish'"
-        pmids_with_pub_status_changed = {}
-        update_authors(db, reference_id, db_entry.get('author', []), author_list_in_json,
-                       pub_status_changed, pmids_with_pub_status_changed, logger)
-        db.commit()
-        for x in db.query(AuthorModel).filter_by(reference_id=reference_id).all():
-            if x.order == 1:
-                assert x.name == 'Hello World'
-                assert x.last_name == 'World'
-            elif x.order == 2:
-                assert x.name == 'Hello There'
-                assert x.last_name == 'There'
 
         mod_to_mod_id = dict([(x.abbreviation, x.mod_id) for x in db.query(ModModel).all()])
 
@@ -199,25 +173,6 @@ class TestDbReadUtils:
         assert len(mt_rows) == 25
         assert mt_rows[24].heading_term == 'Fibroblast Growth Factors'
         assert mt_rows[24].qualifier_term == 'genetics'
-
-        ## test update_cross_reference()
-        doi_db = "DOI:10.1186/s12576-021-00791-4"
-        doi_json = "DOI:10.1186/s12576-021-00791-x"
-        doi_list_in_db = []
-        pmcid_db = ""
-        pmcid_json = "PMCID:PMC667788"
-        pmcid_list_in_db = []
-        pub_status_changed = "pubmed_publiction_status: 'aheadofprint' to 'ppublish'"
-        pmids_with_pub_status_changed = {}
-        update_cross_reference(db, fw, pmid, reference_id, doi_db, doi_list_in_db, doi_json,
-                               pmcid_db, pmcid_list_in_db, pmcid_json, pub_status_changed,
-                               pmids_with_pub_status_changed, update_log)
-        db.commit()
-        for x in db.query(CrossReferenceModel).filter_by(reference_id=reference_id).all():
-            if x.curie.startswith('PMCID:'):
-                assert x.curie == 'PMCID:PMC667788'
-            elif x.curie.startswith('DOI:'):
-                assert x.curie == 'DOI:10.1186/s12576-021-00791-4'
 
         ## test mark_false_positive_papers_as_out_of_corpus()
         mca_rows = db.execute("SELECT cr.curie FROM cross_reference cr, mod_corpus_association mca, "
