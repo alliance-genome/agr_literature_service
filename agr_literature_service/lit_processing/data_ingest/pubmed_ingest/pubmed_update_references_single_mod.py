@@ -36,7 +36,7 @@ logging.basicConfig(format='%(message)s')
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 
-refColName_to_update = ['title', 'volume', 'issue_name', 'page_range', 'citation',
+refColName_to_update = ['title', 'volume', 'issue_name', 'page_range',
                         'abstract', 'pubmed_types', 'pubmed_publication_status',
                         'keywords', 'category', 'plain_language_abstract',
                         'pubmed_abstract_languages', 'language', 'date_published',
@@ -488,9 +488,10 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
     for colName in refColName_to_update:
         if colName == 'resource_id':
             handle_resource_id_update(fw, pmid, x, new_resource_id, journal_title, update_log, has_update)
+            old_journal_title = x.resource.title if x.resource else None
             set_data_changed(pmid, colName, pub_status_changed,
                              pmids_with_pub_status_changed,
-                             x.resource.title, journal_title)
+                             old_journal_title, journal_title)
         elif colName in ['date_last_modified_in_pubmed', 'date_arrived_in_pubmed']:
             old_value = str(getattr(x, colName, ''))[0:10]
             j_key = colName_to_json_key[colName]
@@ -561,7 +562,8 @@ def log_update(fw, pmid, colName, old_value, new_value, update_log, has_update):
 
 
 def handle_resource_id_update(fw, pmid, x, new_resource_id, journal_title, update_log, has_update):
-    if new_resource_id and new_resource_id != x.resource_id and x.resource.title != journal_title:
+    old_title = x.resource.title if x.resource else None
+    if new_resource_id and new_resource_id != x.resource_id and old_title != journal_title:
         log_update(fw, pmid, 'resource_id', x.resource_id, new_resource_id,
                    update_log, has_update)
         x.resource_id = new_resource_id

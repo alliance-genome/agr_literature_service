@@ -1015,6 +1015,10 @@ def _insert_pmcid(db_session, fw, pmid, reference_id, pmcid, logger=None):  # pr
         if logger:
             logger.info(f"Key (curie_prefix, reference_id)=(PMCID, {reference_id}) already exists")
         return
+    x = db_session.query(CrossReferenceModel).filter_by(curie="PMCID:" + pmcid, reference_id=reference_id).one_or_none()
+    if x and x.is_obsolete is True:
+        x.is_obsolete = False
+        return
     data = {"curie": "PMCID:" + pmcid,
             "curie_prefix": "PMCID",
             "reference_id": reference_id,
