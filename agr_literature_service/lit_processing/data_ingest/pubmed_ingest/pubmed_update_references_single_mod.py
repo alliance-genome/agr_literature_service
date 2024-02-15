@@ -350,8 +350,8 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
         count = count + 1
 
         if i > max_rows_per_commit:
-            db_session.rollback()
-            # db_session.commit()
+            # db_session.rollback()
+            db_session.commit()
             i = 0
 
         json_file = json_path + pmid + ".json"
@@ -433,8 +433,8 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
             log.info(f"PMID:{pmid}: Error occurred when updating mesh_detail table: {e}")
 
     db_session.rollback()
-    # db_session.commit()
-    db_session.close()
+    db_session.commit()
+    # db_session.close()
 
     if mod and len(reference_id_list) > query_cutoff:
         ## call itself until all rows have been retrieved from the database for the given mod
