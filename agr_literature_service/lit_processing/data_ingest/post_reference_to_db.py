@@ -72,9 +72,10 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
             continue
 
         try:
+            if entry.get('crossReferences') is None:
+                continue
 
             reference_id, curie = insert_reference(db_session, primaryId, journal_to_resource_id, entry)
-            new_ref_curies.append(curie)
 
             if reference_id is None:
                 log.info(primaryId + ": Error loading reference table")
@@ -82,14 +83,15 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
 
             log.info(primaryId + ": reference_id = " + str(reference_id))
 
+            foundXREF = insert_cross_references(db_session, primaryId, reference_id,
+                                                doi_to_reference_id, entry['crossReferences'])
+            if not foundXREF:
+                db_session.rollback()
+                continue
+
             if entry.get('authors'):
 
                 insert_authors(db_session, primaryId, reference_id, entry['authors'])
-
-            if entry.get('crossReferences'):
-
-                insert_cross_references(db_session, primaryId, reference_id,
-                                        doi_to_reference_id, entry['crossReferences'])
 
             if entry.get('meshTerms'):
 
@@ -116,7 +118,7 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
                 db_session.commit()
             else:
                 db_session.rollback()
-
+            new_ref_curies.append(curie)
         except Exception as e:
             log.info("An error occurred when adding the new reference into database for primaryId = " + primaryId + " " + str(e))
             db_session.rollback()
@@ -221,6 +223,7 @@ def insert_mesh_terms(db_session, primaryId, reference_id, mesh_terms_from_json)
 def insert_cross_references(db_session, primaryId, reference_id, doi_to_reference_id, cross_refs_from_json):
 
     found = {}
+    foundXREF = 0
     for c in cross_refs_from_json:
         curie = c['id']
         # if primaryId.startswith('PMID'):
@@ -250,9 +253,11 @@ def insert_cross_references(db_session, primaryId, reference_id, doi_to_referenc
                                                 curie_prefix=curie.split(":")[0],
                                                 reference_id=reference_id)
             db_session.add(cross_ref)
+            foundXREF += 1
             log.info(primaryId + ": INSERT CROSS_REFERENCE: " + curie)
         except Exception as e:
             log.info(primaryId + ": INSERT CROSS_REFERENCE: " + curie + " failed: " + str(e))
+    return foundXREF
 
 
 def insert_authors(db_session, primaryId, reference_id, author_list_from_json):
