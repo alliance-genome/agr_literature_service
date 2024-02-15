@@ -432,9 +432,9 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
         except Exception as e:
             log.info(f"PMID:{pmid}: Error occurred when updating mesh_detail table: {e}")
 
-    db_session.rollback()
+    # db_session.rollback()
     db_session.commit()
-    # db_session.close()
+    db_session.close()
 
     if mod and len(reference_id_list) > query_cutoff:
         ## call itself until all rows have been retrieved from the database for the given mod
