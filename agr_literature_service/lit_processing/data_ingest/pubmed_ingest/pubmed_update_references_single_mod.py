@@ -44,7 +44,7 @@ refColName_to_update = ['title', 'volume', 'issue_name', 'page_range',
                         'date_arrived_in_pubmed', 'date_last_modified_in_pubmed',
                         'publisher', 'resource_id']
 
-field_names_to_report = refColName_to_update + ['doi', 'pmcid', 'author_name', 'journal',
+field_names_to_report = refColName_to_update + ['doi', 'pmcid', 'author_name',
                                                 'comment_erratum', 'mesh_term',
                                                 'pmids_updated']
 # limit = 1000
