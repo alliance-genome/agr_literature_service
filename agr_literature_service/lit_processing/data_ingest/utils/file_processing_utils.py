@@ -4,7 +4,8 @@ import tarfile
 import gzip
 import shutil
 from urllib import request
-from os import environ, path
+import datetime
+from os import environ, path, listdir, remove
 
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
@@ -119,6 +120,20 @@ def gzip_file(file_with_path):
         gzip_file_with_path = None
 
     return gzip_file_with_path
+
+
+def remove_old_files(dir_path, days_old):
+
+    now = datetime.datetime.now()
+
+    # iterate over all files in the directory
+    for filename in listdir(dir_path):
+        file_path = path.join(dir_path, filename)
+        if path.isfile(file_path):
+            file_mod_time = datetime.datetime.fromtimestamp(path.getmtime(file_path))
+            delta = now - file_mod_time
+            if delta.days > days_old:
+                remove(file_path)
 
 
 def get_pmids_from_exclude_list(mod=None):

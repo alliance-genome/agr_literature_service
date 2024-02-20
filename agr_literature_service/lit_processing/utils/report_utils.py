@@ -1,3 +1,4 @@
+import re
 from os import environ
 import logging
 from agr_literature_service.lit_processing.utils.email_utils import send_email
@@ -253,7 +254,17 @@ def write_log_and_send_pubmed_no_update_report(fw, mod, email_subject):
     send_report(email_subject, email_message)
 
 
-def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, update_log, bad_date_published, authors_with_first_or_corresponding_flag, not_found_xml_list, log_url, log_dir, email_subject):
+def check_pubmed_status_change(text):
+
+    pattern = r'pubmed_publiction_status:\s*\'(ppublish|epublish)\'\s*to\s*\'(ppublish|epublish)\''
+
+    if re.search(pattern, text):
+        return True
+    else:
+        return False
+
+
+def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, update_log, bad_date_published, authors_with_first_or_corresponding_flag, not_found_xml_list, log_url, log_dir, email_subject, pmids_with_pub_status_changed):  # noqa: C901
 
     message = None
     if mod:
@@ -294,9 +305,9 @@ def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, upda
 
     if len(authors_with_first_or_corresponding_flag) > 0:
 
-        logger.info("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database")
-        fw.write("Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database\n")
-        email_message = email_message + "Following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database<p>"
+        logger.info("The following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database")
+        fw.write("The following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database\n")
+        email_message = email_message + "<b>The following PMID(s) with author info updated in PubMed, but they have first_author or corresponding_author flaged in the database</b><p>"
 
         for x in authors_with_first_or_corresponding_flag:
             (paper_id, name, first_author, corresponding_author) = x
@@ -310,14 +321,52 @@ def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, upda
             if not str(pmid).isdigit():
                 continue
             if i == 0:
-                logger.info("Following PMID(s) are missing while updating pubmed data")
-                fw.write("Following PMID(s) are missing while updating pubmed data")
-                email_message = email_message + "<p>Following PMID(s) are missing while updating pubmed data:<p>"
+                logger.info("The following PMID(s) are missing while updating pubmed data")
+                fw.write("The following PMID(s) are missing while updating pubmed data")
+                email_message = email_message + "<p><b>The following PMID(s) are missing while updating pubmed data</b>:<p>"
             i += 1
             logger.info("PMID:" + str(pmid))
             fw.write("PMID:" + str(pmid) + "\n")
             email_message = email_message + "PMID:" + str(pmid) + "<br>"
         email_message = email_message + "<p>"
+
+    changes_for_published_papers = {}
+    for pub_status_change in pmids_with_pub_status_changed:
+        data_change_for_status = pmids_with_pub_status_changed[pub_status_change]
+        if check_pubmed_status_change(pub_status_change):
+            for pmid, values_list in data_change_for_status.items():
+                changes_for_published_papers[pmid] = values_list
+
+        i = 0
+        for pmid in data_change_for_status:
+            if i == 0:
+                logger.info(f"Updates in Journal, Volume, or Issue Fields for Papers Changing {pub_status_change}:")
+                fw.write(f"Updates in Journal, Volume, or Issue Fields for Papers Changing {pub_status_change}:\n")
+                # email_message = email_message + f"<p><b>Updates in Journal, Volume, or Issue Fields for Papers Changing {pub_status_change}:</b><p>"
+            i += 1
+            data = data_change_for_status[pmid]
+            for colName in data:
+                displayColName = "journal" if colName == 'resource_id' else colName
+                logger.info(f"PMID:{pmid}: {displayColName} {data[colName]}")
+                fw.write(f"PMID:{pmid}: {displayColName} {data[colName]}\n")
+                # email_message = email_message + f"PMID:{pmid}: {displayColName} {data[colName]}<br>"
+
+    i = 0
+    rows = ''
+    for pmid in sorted(changes_for_published_papers):
+        if i == 0:
+            email_message = email_message + "<p><b>Updates in Journal, Author, Volume, or Issue Fields for Published Papers:</b><p>"
+            rows = "<tr><th style='text-align:left' width=150>PubMed ID</th><th style='text-align:left' width=130>Data Type</th><th style='text-align:left' width=300>Old Value</th><th style='text-align:left' width=300>New Value</th></tr>"
+        i += 1
+        data = changes_for_published_papers[pmid]
+        for colName in sorted(data):
+            displayColName = "journal" if colName == 'resource_id' else colName
+            displayColName = displayColName.lower()
+            [fromVal, toVal] = data[colName].replace("from '", "").split("' to '")
+            toVal = toVal.replace("'", "")
+            rows = rows + f"<tr><th style='text-align:left'>PMID:{pmid}</th><td style='text-align:left'><strong>{displayColName}</strong></td><td style='text-align:left'>{fromVal}</td><td style='text-align:left'>{toVal}</td></tr>"
+    if rows:
+        email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
 
     if mod:
         email_message = email_message + "DONE!<p>"

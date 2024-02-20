@@ -881,9 +881,13 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
                 #     logger.info("patch %s field keywords from db %s to dqm %s", agr, keywords_changed[2], keywords_changed[1])
                 #     update_json['keywords'] = keywords_changed[1]
 
+                pub_status_changed = "publication status change place holder"
+                pmids_with_pub_status_changed = {}
                 update_authors(db_session, db_entry['reference_id'],
                                db_entry.get('author', []),
                                dqm_entry.get('authors', []),
+                               pub_status_changed,
+                               pmids_with_pub_status_changed,
                                logger)
 
                 # if curators want to get reports of how resource change, put this back,

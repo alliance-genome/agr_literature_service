@@ -15,7 +15,7 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
 batch_size_for_commit = 250
 
 
-def move_mod_papers_into_corpus(db_session, mod, mod_id, mod_reference_id_set, logger=None):
+def move_mod_papers_into_corpus(db_session, mod, mod_id, mod_reference_id_set, logger=None):  # pragma: no cover
 
     try:
         for x in db_session.query(ModCorpusAssociationModel).filter_by(
@@ -37,7 +37,7 @@ def move_mod_papers_into_corpus(db_session, mod, mod_id, mod_reference_id_set, l
     # db_session.rollback()
 
 
-def change_mod_curie_status(db_session, mod, mod_curie_set, mod_curie_to_pmid, logger=None):
+def change_mod_curie_status(db_session, mod, mod_curie_set, mod_curie_to_pmid, logger=None):  # pragma: no cover
 
     curie_prefix = mod
     if mod == 'XB':
@@ -88,7 +88,7 @@ def change_mod_curie_status(db_session, mod, mod_curie_set, mod_curie_to_pmid, l
                                  mod_curie_to_pmid, logger)
 
 
-def add_not_loaded_pubmed_papers(db_session, mod, mod_id, mod_curies_to_load, mod_curie_to_pmid, logger):
+def add_not_loaded_pubmed_papers(db_session, mod, mod_id, mod_curies_to_load, mod_curie_to_pmid, logger):  # pragma: no cover
 
     mod_curies_not_in_db = set()
     for curie in mod_curies_to_load:
@@ -135,7 +135,7 @@ def add_not_loaded_pubmed_papers(db_session, mod, mod_id, mod_curies_to_load, mo
         logger.info(f"{mod} curies that are not loaded into the database: {mod_curies_not_in_db}")
 
 
-def move_obsolete_papers_out_of_corpus(db_session, mod, mod_id, curie_prefix, logger=None):
+def move_obsolete_papers_out_of_corpus(db_session, mod, mod_id, curie_prefix, logger=None):  # pragma: no cover
 
     rows = db_session.execute(f"SELECT mca.mod_corpus_association_id, cr.reference_id "
                               f"FROM mod_corpus_association mca, cross_reference cr, reference r "
@@ -171,7 +171,7 @@ def move_obsolete_papers_out_of_corpus(db_session, mod, mod_id, curie_prefix, lo
     # db_session.rollback()
 
 
-def _is_prepublication_pipeline(db_session, reference_id):
+def _is_prepublication_pipeline(db_session, reference_id):  # pragma: no cover
 
     rows = db_session.execute(f"SELECT prepublication_pipeline "
                               f"FROM   reference "
@@ -346,28 +346,30 @@ def _write_log_message(reference_id, log_message, pmid, logger, fw):  # pragma: 
         fw.write(log_message + "\n")
 
 
-def update_authors(db_session, reference_id, author_list_in_db, author_list_in_json, logger=None, fw=None, pmid=None, update_log=None):  # noqa: C901
+def update_authors(db_session, reference_id, author_list_in_db, author_list_in_json, pub_status_changed, pmids_with_pub_status_changed, logger=None, fw=None, pmid=None, update_log=None):  # noqa: C901 # pragma: no cover
     # If any of the author fields are different, check if any of our ABC authors
     # have a different corresponding_author or first_author, in which case do not
     # update the authors at all (in theory, eventually send a message to a curator,
     # but for now don't do that).  If the first/corr flags have not been changed,
     # then get rid of all the ABC authors, and repopulate them from the PubMed data
 
-    if author_list_in_json is None or len(author_list_in_json) == 0:
-        return []
+    if author_list_in_json is None:
+        author_list_in_json = []
 
     authors_in_db = []
+    names_db = []
     author_list_with_first_or_corresponding_author = []
     if author_list_in_db:
         for x in author_list_in_db:
             if x['first_author'] or x['corresponding_author']:
                 id = "REFERENCE_ID:" + str(reference_id)
                 if pmid is not None:
-                    id = "PMID:" + str(pmid)
+                    id = f"PMID:{pmid}"
                 author_list_with_first_or_corresponding_author.append((id, x['name'], "first_author = " + str(x['first_author']), "corresponding_author = " + str(x['corresponding_author'])))
             affiliations = x['affiliations'] if x['affiliations'] else []
             orcid = x['orcid'] if x['orcid'] else ''
             authors_in_db.append((x['name'], x['first_name'], x['last_name'], x['first_initial'], x['order'], '|'.join(affiliations), orcid))
+            names_db.append(x['name'])
 
     authors_in_json = []
     noAuthorRankInJson = False
@@ -375,6 +377,7 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
         noAuthorRankInJson = True
         # will use the order in the author list
     i = 0
+    names_json = []
     for x in author_list_in_json:
         orcid = 'ORCID:' + x['orcid'] if x.get('orcid') else ''
         affiliations = x['affiliations'] if x.get('affiliations') else []
@@ -385,7 +388,9 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
         firstName = x['firstname'] if 'firstname' in x else x.get('firstName', '')
         lastName = x['lastname'] if 'lastname' in x else x.get('lastName', '')
         firstInitial = x['firstinit'] if 'firstinit' in x else x.get('firstInit', '')
-        authors_in_json.append((x.get('name', ''), firstName, lastName, firstInitial, authorRank, '|'.join(affiliations), orcid))
+        name = x.get('name', '').strip()
+        authors_in_json.append((name, firstName, lastName, firstInitial, authorRank, '|'.join(affiliations), orcid))
+        names_json.append(name)
 
     if set(authors_in_db) == set(authors_in_json):
         return []
@@ -438,6 +443,16 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
         except Exception as e:
             log_message = ": INSERT AUTHOR: " + name + " failed: " + str(e)
             _write_log_message(reference_id, log_message, pmid, logger, fw)
+
+    author_list_db = ", ".join(names_db)
+    author_list_json = ", ".join(names_json)
+    if author_list_db.lower() != author_list_json.lower():
+        message = f"from '{author_list_db}' to '{author_list_json}'"
+        status_changed = pmids_with_pub_status_changed.get(pub_status_changed, {})
+        data_changed = status_changed.get(pmid, {})
+        data_changed['authors'] = message
+        status_changed[pmid] = data_changed
+        pmids_with_pub_status_changed[pub_status_changed] = status_changed
 
     return []
 
@@ -699,7 +714,7 @@ def _delete_reference_relation(db_session, fw, pmid, reference_id_from, referenc
             fw.write("PMID:" + str(pmid) + ": DELETE reference_relations: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + " failed: " + str(e) + "\n")
 
 
-def _get_curator_email_who_added_reference_relation(db_session, reference_id_from, reference_id_to, type):
+def _get_curator_email_who_added_reference_relation(db_session, reference_id_from, reference_id_to, type):  # pragma: no cover
 
     rows = db_session.execute(f"SELECT u.email "
                               f"FROM reference_relation_version rcc, transaction t, users u "
@@ -716,10 +731,22 @@ def _get_curator_email_who_added_reference_relation(db_session, reference_id_fro
     return None
 
 
-def update_reference_relations(db_session, fw, pmid, reference_id, pmid_to_reference_id, reference_ids_to_reference_relation_type, reference_relation_in_json, update_log):  # noqa: C901
+def _is_reference_relation_added_by_mod_dqm(db_session, reference_id_from, reference_id_to, type):  # pragma: no cover
 
-    if reference_relation_in_json is None or str(reference_relation_in_json) == '{}':
-        return
+    user_id = "sort_dqm_json_reference_updates"
+    rows = db_session.execute(f"SELECT * "
+                              f"FROM reference_relation_version rcc, transaction t "
+                              f"WHERE rcc.reference_id_from = {reference_id_from} "
+                              f"AND rcc.reference_id_to = {reference_id_to} "
+                              f"AND rcc.reference_relation_type = '{type}' "
+                              f"AND rcc.transaction_id = t.id "
+                              f"AND t.user_id = '{user_id}'").fetchall()
+    if len(rows) > 0:
+        return True
+    return False
+
+
+def update_reference_relations(db_session, fw, pmid, reference_id, pmid_to_reference_id, reference_ids_to_reference_relation_type, reference_relation_in_json, update_log):  # noqa: C901
 
     type_mapping = {'ErratumIn': 'ErratumFor',
                     'CommentIn': 'CommentOn',
@@ -729,63 +756,75 @@ def update_reference_relations(db_session, fw, pmid, reference_id, pmid_to_refer
                     'ReprintIn': 'ReprintOf',
                     'UpdateIn': 'UpdateOf'}
 
+    if reference_relation_in_json is None or str(reference_relation_in_json) == '{}':
+        reference_relation_in_json = {}
+
     new_reference_ids_to_reference_relation_type = {}
-    for original_type in reference_relation_in_json:
-        other_pmids = reference_relation_in_json[original_type]
-        other_reference_ids = []
-        for this_pmid in other_pmids:
-            other_reference_id = pmid_to_reference_id.get(this_pmid)
-            if other_reference_id is None:
-                other_reference_id = get_reference_id_by_pmid(db_session, this_pmid)
+    with db_session.no_autoflush:
+        for original_type in reference_relation_in_json:
+            other_pmids = reference_relation_in_json[original_type]
+            other_reference_ids = []
+            for this_pmid in other_pmids:
+                other_reference_id = pmid_to_reference_id.get(this_pmid)
                 if other_reference_id is None:
-                    continue
-            other_reference_ids.append(other_reference_id)
-        if len(other_reference_ids) == 0:
-            continue
-        if any(original_type.endswith(suffix) for suffix in ['For', 'From', 'Of', 'On']):
-            reference_id_from = reference_id
-            for reference_id_to in other_reference_ids:
-                if reference_id_from != reference_id_to:
-                    new_reference_ids_to_reference_relation_type[(reference_id_from, reference_id_to)] = original_type
-        else:
-            type = type_mapping.get(original_type)
-            if type is None:
+                    other_reference_id = get_reference_id_by_pmid(db_session, this_pmid)
+                    if other_reference_id is None:
+                        continue
+                other_reference_ids.append(other_reference_id)
+            if len(other_reference_ids) == 0:
                 continue
-            reference_id_to = reference_id
-            for reference_id_from in other_reference_ids:
-                if reference_id_from != reference_id_to:
-                    new_reference_ids_to_reference_relation_type[(reference_id_from, reference_id_to)] = type
-    if len(new_reference_ids_to_reference_relation_type.keys()) == 0:
-        return
+            if any(original_type.endswith(suffix) for suffix in ['For', 'From', 'Of', 'On']):
+                reference_id_from = reference_id
+                for reference_id_to in other_reference_ids:
+                    if reference_id_from != reference_id_to:
+                        new_reference_ids_to_reference_relation_type[(reference_id_from, reference_id_to)] = original_type
+            else:
+                type = type_mapping.get(original_type)
+                if type is None:
+                    continue
+                reference_id_to = reference_id
+                for reference_id_from in other_reference_ids:
+                    if reference_id_from != reference_id_to:
+                        new_reference_ids_to_reference_relation_type[(reference_id_from, reference_id_to)] = type
+
+    # process new and existing reference relations outside the no_autoflush block
     for key in new_reference_ids_to_reference_relation_type:
         type = new_reference_ids_to_reference_relation_type[key]
-        if key in reference_ids_to_reference_relation_type:
-            if reference_ids_to_reference_relation_type[key] == new_reference_ids_to_reference_relation_type[key]:
-                continue
-            (reference_id_from, reference_id_to) = key
-            _update_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type)
-            update_log['comment_erratum'] = update_log['comment_erratum'] + 1
-            update_log['pmids_updated'].append(pmid)
-        else:
-            _insert_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type)
-            update_log['comment_erratum'] = update_log['comment_erratum'] + 1
-            update_log['pmids_updated'].append(pmid)
-
-    for key in reference_ids_to_reference_relation_type:
-        type = reference_ids_to_reference_relation_type[key]
-        if key in new_reference_ids_to_reference_relation_type:
-            continue
-        (reference_id_from, reference_id_to) = key
-        if reference_id in [reference_id_from, reference_id_to]:
-            ## only remove the ones that are associated with given PMIDs
-            email = _get_curator_email_who_added_reference_relation(db_session,
-                                                                    reference_id_from,
-                                                                    reference_id_to,
-                                                                    type)
-            if email is None:
-                _delete_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type)
+        # assuming _update_reference_relation and _insert_reference_relation might involve queries
+        with db_session.no_autoflush:
+            if key in reference_ids_to_reference_relation_type:
+                if reference_ids_to_reference_relation_type[key] == new_reference_ids_to_reference_relation_type[key]:
+                    continue
+                (reference_id_from, reference_id_to) = key
+                _update_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type)
                 update_log['comment_erratum'] = update_log['comment_erratum'] + 1
                 update_log['pmids_updated'].append(pmid)
+            else:
+                _insert_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type)
+                update_log['comment_erratum'] = update_log['comment_erratum'] + 1
+                update_log['pmids_updated'].append(pmid)
+
+    # Assuming deletion might also involve queries
+    for key in reference_ids_to_reference_relation_type:
+        type = reference_ids_to_reference_relation_type[key]
+        if key not in new_reference_ids_to_reference_relation_type:
+            (reference_id_from, reference_id_to) = key
+            with db_session.no_autoflush:
+                if reference_id in [reference_id_from, reference_id_to]:
+                    ## only remove the ones that are coming from PubMed
+                    email = _get_curator_email_who_added_reference_relation(db_session,
+                                                                            reference_id_from,
+                                                                            reference_id_to,
+                                                                            type)
+                    is_added_by_dqm_script = _is_reference_relation_added_by_mod_dqm(db_session,
+                                                                                     reference_id_from,
+                                                                                     reference_id_to,
+                                                                                     type)
+                    if email or is_added_by_dqm_script:
+                        continue
+                    _delete_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type)
+                    update_log['comment_erratum'] = update_log['comment_erratum'] + 1
+                    update_log['pmids_updated'].append(pmid)
 
 
 def _insert_mesh_term(db_session, fw, pmid, reference_id, terms):  # pragma: no cover
@@ -827,7 +866,7 @@ def _delete_mesh_term(db_session, fw, pmid, reference_id, terms):  # pragma: no 
 def update_mesh_terms(db_session, fw, pmid, reference_id, mesh_terms_in_db, mesh_terms_in_json_data, update_log):
 
     if mesh_terms_in_json_data is None:
-        return
+        mesh_terms_in_json_data = []
 
     mesh_terms_in_json = []
 
@@ -841,7 +880,7 @@ def update_mesh_terms(db_session, fw, pmid, reference_id, mesh_terms_in_db, mesh
     if mesh_terms_in_db is None:
         mesh_terms_in_db = []
 
-    if len(mesh_terms_in_json) == 0 or set(mesh_terms_in_json) == set(mesh_terms_in_db):
+    if set(mesh_terms_in_json) == set(mesh_terms_in_db):
         return
 
     for m in mesh_terms_in_json:
@@ -860,33 +899,58 @@ def update_mesh_terms(db_session, fw, pmid, reference_id, mesh_terms_in_db, mesh
     update_log['pmids_updated'].append(pmid)
 
 
+def _prefix_xref_identifier(identifier, prefix):  # pragma: no cover
+    if identifier and not identifier.startswith(prefix):
+        return f"{prefix}:{identifier}"
+    return identifier
+
+
+def _check_xref_existence(db_session, model, curie):  # pragma: no cover
+    """Checks if an entry exists in the database."""
+    return db_session.query(model).filter_by(curie=curie, is_obsolete=False).one_or_none()
+
+
 def _update_doi(db_session, fw, pmid, reference_id, old_doi, new_doi):  # pragma: no cover
 
     try:
-        x = db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie == 'DOI:' + new_doi).all()
-        if len(x) > 0:
-            fw.write('DOI:' + new_doi + " is already in the database.\n")
-            return
-        x = db_session.query(CrossReferenceModel).filter_by(reference_id=reference_id, is_obsolete=False).filter(CrossReferenceModel.curie == 'DOI:' + old_doi).one_or_none()
-        if x is None:
-            return
-        x.curie = "DOI:" + new_doi
-        db_session.add(x)
-        fw.write("PMID:" + str(pmid) + ": UPDATE DOI from " + old_doi + " to " + new_doi + "\n")
+        new_doi_curie = None
+        old_doi_curie = None
+        if new_doi:
+            new_doi_curie = _prefix_xref_identifier(new_doi, 'DOI')
+            x = _check_xref_existence(db_session, CrossReferenceModel, new_doi_curie)
+            if x:
+                fw.write(f"{new_doi_curie} is already in the database.\n")
+                return
+        if old_doi:
+            old_doi_curie = _prefix_xref_identifier(old_doi, 'DOI')
+            x = db_session.query(CrossReferenceModel).filter_by(
+                reference_id=reference_id, is_obsolete=False, curie=old_doi_curie).one_or_none()
+            if x is None:
+                return
+            if new_doi_curie:
+                x.curie = new_doi_curie
+                db_session.add(x)
+                fw.write(f"PMID:{pmid}: UPDATE DOI from {old_doi}  to {new_doi}\n")
+            else:
+                x.is_obsolete = True
+                db_session.add(x)
+                fw.write(f"PMID:{pmid}: SET DOI:{old_doi} to invalid\n")
     except Exception as e:
-        fw.write("PMID:" + str(pmid) + ": UPDATE DOI from " + old_doi + " to " + new_doi + " failed: " + str(e) + "\n")
+        fw.write(f"PMID:{pmid}: UPDATE DOI from {old_doi} to {new_doi} failed: {e}\n")
 
 
 def _insert_doi(db_session, fw, pmid, reference_id, doi, logger=None):  # pragma: no cover
 
     ## for some reason, we need to add this check to make sure it is not in db
-    x = db_session.query(CrossReferenceModel).filter_by(curie="DOI:" + doi).one_or_none()
+    doi_curie = _prefix_xref_identifier(doi, 'DOI')
+    x = _check_xref_existence(db_session, CrossReferenceModel, doi_curie)
     if x:
         if x.reference_id != reference_id:
             if logger:
-                logger.info("The DOI:" + doi + " is associated with two papers: reference_ids=" + str(reference_id) + ", " + str(x.reference_id))
+                logger.info(f"new {doi_curie} for PMID:{pmid} is associated with another paper in the database: reference_id={x.reference_id}")
         return
-    x = db_session.query(CrossReferenceModel).filter_by(curie_prefix="DOI", reference_id=reference_id, is_obsolete=False).one_or_none()
+    x = db_session.query(CrossReferenceModel).filter_by(
+        curie_prefix="DOI", reference_id=reference_id, is_obsolete=False).one_or_none()
     if x:
         if logger:
             logger.info(f"Key (curie_prefix, reference_id)=(DOI, {reference_id}) already exists")
@@ -898,43 +962,64 @@ def _insert_doi(db_session, fw, pmid, reference_id, doi, logger=None):  # pragma
     try:
         x = CrossReferenceModel(**data)
         db_session.add(x)
-        fw.write("PMID:" + str(pmid) + ": INSERT DOI:" + doi + "\n")
+        fw.write(f"PMID:{pmid}: INSERT DOI:{doi}\n")
     except Exception as e:
-        fw.write("PMID:" + str(pmid) + ": INSERT DOI:" + doi + " failed: " + str(e) + "\n")
+        fw.write(f"PMID:{pmid}: INSERT DOI:{doi} failed: {e}\n")
 
 
 def _update_pmcid(db_session, fw, pmid, reference_id, old_pmcid, new_pmcid, logger):  # pragma: no cover
 
-    x = db_session.query(CrossReferenceModel).filter_by(curie='PMCID:' + new_pmcid, is_obsolete=False).one_or_none()
-    if x:
-        if logger:
-            logger.info(f"Key (curie)=(PMCID:{new_pmcid}) already exists")
-        return
-    try:
-        x = db_session.query(CrossReferenceModel).filter_by(reference_id=reference_id).filter(CrossReferenceModel.curie == 'PMCID:' + old_pmcid).one_or_none()
+    new_pmcid_curie = None
+    old_pmcid_curie = None
+    if new_pmcid:
+        new_pmcid_curie = _prefix_xref_identifier(new_pmcid, 'PMCID')
+        x = _check_xref_existence(db_session, CrossReferenceModel, new_pmcid_curie)
+        if x:
+            if logger:
+                logger.info(f"Key (curie)=(PMCID:{new_pmcid}) already exists for another paper in the database: reference_id={x.reference_id}")
+            return
+    if old_pmcid:
+        old_pmcid_curie = _prefix_xref_identifier(old_pmcid, 'PMCID')
+        x = db_session.query(CrossReferenceModel).filter_by(
+            reference_id=reference_id, curie=old_pmcid_curie).one_or_none()
         if x is None:
             return
-        x.curie = "PMCID:" + new_pmcid
-        db_session.add(x)
-        fw.write("PMID:" + str(pmid) + ": UPDATE PMCID from " + old_pmcid + " to " + new_pmcid + "\n")
-    except Exception as e:
-        fw.write("PMID:" + str(pmid) + ": UPDATE PMCID from " + old_pmcid + " to " + new_pmcid + " failed: " + str(e) + "\n")
+        try:
+            if new_pmcid_curie:
+                x.curie = new_pmcid_curie
+                db_session.add(x)
+                fw.write(f"PMID:{pmid}: UPDATE PMCID from {old_pmcid} to {new_pmcid}\n")
+            else:
+                x.is_obsolete = True
+                db_session.add(x)
+                fw.write(f"PMID:{pmid}: SET PMCID{old_pmcid} to invalid\n")
+        except Exception as e:
+            fw.write(f"PMID:{pmid}: UPDATE PMCID from {old_pmcid} to {new_pmcid} failed: {e}\n")
 
 
 def _insert_pmcid(db_session, fw, pmid, reference_id, pmcid, logger=None):  # pragma: no cover
 
     ## for some reason, we need to add this check to make sure it is not in db
-    x = db_session.query(CrossReferenceModel).filter_by(curie="PMCID:" + pmcid).one_or_none()
+    curie = _prefix_xref_identifier(pmcid, 'PMCID')
+    x = _check_xref_existence(db_session, CrossReferenceModel, curie)
     if x:
         if x.reference_id != reference_id:
             if logger:
-                logger.info("The PMCID:" + pmcid + " is associated with two papers: reference_ids=" + str(reference_id) + ", " + str(x.reference_id))
-        return
-    x = db_session.query(CrossReferenceModel).filter_by(curie_prefix="PMCID", reference_id=reference_id, is_obsolete=False).one_or_none()
+                logger.info(f"The new PMCID:{pmcid} for PMID:{pmid} is associated with another paper in the database: reference_id={x.reference_id}")
+            return
+        if x.reference_id == reference_id:
+            return
+    x = db_session.query(CrossReferenceModel).filter_by(
+        curie_prefix="PMCID", reference_id=reference_id, is_obsolete=False).one_or_none()
     if x:
         if logger:
             logger.info(f"Key (curie_prefix, reference_id)=(PMCID, {reference_id}) already exists")
-            return
+        return
+    x = db_session.query(CrossReferenceModel).filter_by(curie="PMCID:" + pmcid, reference_id=reference_id).one_or_none()
+    if x and x.is_obsolete is True:
+        x.is_obsolete = False
+        db_session.add(x)
+        return
     data = {"curie": "PMCID:" + pmcid,
             "curie_prefix": "PMCID",
             "reference_id": reference_id,
@@ -942,24 +1027,21 @@ def _insert_pmcid(db_session, fw, pmid, reference_id, pmcid, logger=None):  # pr
     try:
         x = CrossReferenceModel(**data)
         db_session.add(x)
-        fw.write("PMID:" + str(pmid) + ": INSERT PMCID:" + pmcid + "\n")
+        fw.write(f"PMID:{pmid}: INSERT PMCID:{pmcid}\n")
     except Exception as e:
-        fw.write("PMID:" + str(pmid) + ": INSERT PMCID:" + pmcid + " failed: " + str(e) + "\n")
+        fw.write(f"PMID:{pmid}: INSERT PMCID:{pmcid} failed: {e}\n")
 
 
-def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_in_db, doi_json, pmcid_db, pmcid_list_in_db, pmcid_json, update_log, logger=None):
+def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_in_db, doi_json, pmcid_db, pmcid_list_in_db, pmcid_json, pub_status_changed, pmids_with_pub_status_changed, update_log, logger=None):  # pragma: no cover
 
     doi_json = doi_json.replace("DOI:", "") if doi_json else None
     pmcid_json = pmcid_json.replace("PMCID:", "") if pmcid_json else None
 
-    if doi_json is None and pmcid_json is None:
-        return
-
     ## take care of DOI
     if doi_json and (doi_db is None or doi_json != doi_db) and doi_json in doi_list_in_db:
-        fw.write("PMID:" + str(pmid) + ": DOI:" + doi_json + " is in the database for another paper.\n")
+        fw.write(f"PMID:{pmid}: DOI:{doi_json} is in the database for another paper.\n")
     else:
-        if doi_json and doi_json != doi_db:
+        if doi_json != doi_db:
             try:
                 if doi_db is None:
                     _insert_doi(db_session, fw, pmid, reference_id, doi_json, logger)
@@ -969,6 +1051,7 @@ def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_
                 update_log['pmids_updated'].append(pmid)
             except Exception as e:
                 logger.info(str(e))
+
     ## take care of PMCID
     if pmcid_json:
         if pmcid_json.startswith('PMC'):
@@ -977,14 +1060,11 @@ def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_
         else:
             pmcid_json = None
 
-    if pmcid_json is None:
-        return
-
-    if pmcid_db and pmcid_db == pmcid_json:
+    if pmcid_db == pmcid_json:
         return
 
     if pmcid_json and (pmcid_db is None or pmcid_json != pmcid_db) and pmcid_json in pmcid_list_in_db:
-        fw.write("PMID:" + str(pmid) + ": PMC:" + pmcid_json + " is in the database for another paper.\n")
+        fw.write(f"PMID:{pmid}: PMCID:{pmcid_json} is in the database for another paper.\n")
     else:
         if pmcid_db:
             _update_pmcid(db_session, fw, pmid, reference_id, pmcid_db, pmcid_json, logger)
@@ -994,8 +1074,15 @@ def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_
         update_log['pmcid'] = update_log['pmcid'] + 1
         update_log['pmids_updated'].append(pmid)
 
+        message = f"from '{pmcid_db}' to '{pmcid_json}'"
+        status_changed = pmids_with_pub_status_changed.get(pub_status_changed, {})
+        data_changed = status_changed.get(pmid, {})
+        data_changed['PMCID'] = message
+        status_changed[pmid] = data_changed
+        pmids_with_pub_status_changed[pub_status_changed] = status_changed
 
-def insert_referencefile_mod_for_pmc(db_session, pmid, file_name_with_suffix, referencefile_id, logger):
+
+def insert_referencefile_mod_for_pmc(db_session, pmid, file_name_with_suffix, referencefile_id, logger):  # pragma: no cover
 
     try:
         x = ReferencefileModAssociationModel(referencefile_id=referencefile_id)
@@ -1005,7 +1092,7 @@ def insert_referencefile_mod_for_pmc(db_session, pmid, file_name_with_suffix, re
         logger.info("PMID:" + pmid + ": pmc oa file = " + file_name_with_suffix + ": an error occurred when loading data into Referencefile_modtable: " + str(e))
 
 
-def insert_referencefile(db_session, pmid, file_class, file_publication_status, file_name_with_suffix, reference_id, md5sum, logger):
+def insert_referencefile(db_session, pmid, file_class, file_publication_status, file_name_with_suffix, reference_id, md5sum, logger):  # pragma: no cover
 
     file_extension = file_name_with_suffix.split(".")[-1].lower()
     display_name = file_name_with_suffix.replace("." + file_extension, "")
