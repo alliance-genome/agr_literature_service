@@ -67,8 +67,7 @@ class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     confidence_level: Optional[str] = None
     note: Optional[str] = None
     validation_by_author: str
-    validation_by_curator: str
-    validation_by_data_curation: str
+    validation_by_professional_biocurator: str
 
 
 class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
