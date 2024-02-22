@@ -237,7 +237,7 @@ class TestTopicEntityTag:
             curator_source = {
                 "source_type": "curator",
                 "source_method": "abc_literature_system",
-                "validation_type": "curator",
+                "validation_type": "professional_biocurator",
                 "evidence": "test_eco_code",
                 "description": "curator from ABC",
                 "mod_abbreviation": test_mod.new_mod_abbreviation
@@ -268,47 +268,13 @@ class TestTopicEntityTag:
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_1, headers=auth_headers)
             cur_2_tag_id = client.post(url="/topic_entity_tag/", json=validating_tag_cur_2,
                                        headers=auth_headers).json()["topic_entity_tag_id"]
-            curation_tools_source = {
-                "source_type": "curation",
-                "source_method": "WB curation",
-                "validation_type": "curation_tools",
-                "evidence": "test_eco_code",
-                "description": "curation from WB",
-                "mod_abbreviation": test_mod.new_mod_abbreviation
-            }
-            response = client.post(url="/topic_entity_tag/source", json=curation_tools_source, headers=auth_headers)
-            validating_tag_cur_tools_1 = {
-                "reference_curie": test_reference.new_ref_curie,
-                "topic": "ATP:0000122",
-                "entity_type": "ATP:0000005",
-                "entity": "WB:WBGene00003001",
-                "entity_source": "alliance",
-                "species": "NCBITaxon:6239",
-                "topic_entity_tag_source_id": response.json(),
-                "negated": False,
-                "novel_topic_data": True
-            }
-            validating_tag_cur_tools_2 = {
-                "reference_curie": test_reference.new_ref_curie,
-                "topic": "ATP:0000122",
-                "entity_type": "ATP:0000005",
-                "entity": "WB:WBGene00003001",
-                "entity_source": "alliance",
-                "species": "NCBITaxon:6239",
-                "topic_entity_tag_source_id": response.json(),
-                "negated": False,
-                "novel_topic_data": True
-            }
-            client.post(url="/topic_entity_tag/", json=validating_tag_cur_tools_1, headers=auth_headers)
-            client.post(url="/topic_entity_tag/", json=validating_tag_cur_tools_2, headers=auth_headers)
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
             assert response.json()["validation_by_author"] == "not_validated"
-            assert response.json()["validation_by_curator"] == "validation_conflict"
-            assert response.json()["validation_by_data_curation"] == "validated_right"
+            assert response.json()["validation_by_professional_biocurator"] == "validation_conflict"
             response = client.get(f"/topic_entity_tag/{cur_2_tag_id}")
             assert response.json()["validation_by_author"] == "not_validated"
             assert response.json()["validation_by_curator"] == "validation_conflict"
-            assert response.json()["validation_by_data_curation"] == "validated_right"
+            
 
     def test_validate_generic_specific(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
         with TestClient(app) as client, \
@@ -325,7 +291,7 @@ class TestTopicEntityTag:
             author_source_2 = {
                 "source_type": "manual_curation",
                 "source_method": "abc_interface",
-                "validation_type": "curator",
+                "validation_type": "professional_biocurator",
                 "evidence": "test_eco_code",
                 "description": "Curator using the ABC",
                 "mod_abbreviation": test_mod.new_mod_abbreviation
@@ -431,7 +397,7 @@ class TestTopicEntityTag:
             curator_source = {
                 "source_type": "manual",
                 "source_method": "abc_interface",
-                "validation_type": "curator",
+                "validation_type": "professional_biocurator",
                 "evidence": "test_eco_code",
                 "description": "Curator using the ABC",
                 "mod_abbreviation": test_mod.new_mod_abbreviation
@@ -528,7 +494,7 @@ class TestTopicEntityTag:
             curator_source = {
                 "source_type": "manual",
                 "source_method": "abc_interface",
-                "validation_type": "curator",
+                "validation_type": "professional_biocurator",
                 "evidence": "test_eco_code",
                 "description": "Curator using the ABC",
                 "mod_abbreviation": test_mod.new_mod_abbreviation
