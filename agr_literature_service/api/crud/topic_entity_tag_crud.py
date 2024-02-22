@@ -32,8 +32,7 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEn
 from agr_literature_service.lit_processing.utils.email_utils import send_email
 
 ATP_ID_SOURCE_AUTHOR = "author"
-ATP_ID_SOURCE_CURATOR = "curator"
-ATP_ID_SOURCE_CURATION_TOOLS = "curation_tools"
+ATP_ID_SOURCE_CURATOR = "professional_biocurator"
 
 
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
@@ -112,10 +111,10 @@ def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagMo
 
 
 def add_validation_values_to_tag(topic_entity_tag_db_obj: TopicEntityTagModel, tag_data_dict: Dict):
-    tag_data_dict["validation_by_author"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj, "author")
-    tag_data_dict["validation_by_curator"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj, "curator")
-    tag_data_dict["validation_by_data_curation"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj,
-                                                                                      "curation_tools")
+    tag_data_dict["validation_by_author"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj,
+                                                                               ATP_ID_SOURCE_AUTHOR)
+    tag_data_dict["validation_by_professional_biocurator"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj,
+                                                                                                ATP_ID_SOURCE_CURATOR)
 
 
 def show_tag(db: Session, topic_entity_tag_id: int):
