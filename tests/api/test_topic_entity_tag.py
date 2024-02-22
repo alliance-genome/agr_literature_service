@@ -273,7 +273,7 @@ class TestTopicEntityTag:
             assert response.json()["validation_by_professional_biocurator"] == "validation_conflict"
             response = client.get(f"/topic_entity_tag/{cur_2_tag_id}")
             assert response.json()["validation_by_author"] == "not_validated"
-            assert response.json()["validation_by_curator"] == "validation_conflict"
+            assert response.json()["validation_by_professional_biocurator"] == "validation_conflict"
 
 
     def test_validate_generic_specific(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
