@@ -65,9 +65,7 @@ class TestReferenceRelation:
                                 }
             response = client.post(url="/reference_relation/", json=same_as_test_obj,
                                    headers=auth_headers)
-            assert response is response
-            # TODO uncomment this after adding this constraint to the models
-            # assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_409_CONFLICT
 
     def test_create_bad_duplicate(self, test_ref_cc, auth_headers): # noqa
         with TestClient(app) as client:

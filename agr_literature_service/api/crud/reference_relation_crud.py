@@ -40,6 +40,10 @@ def create(db: Session, reference_relation: ReferenceRelationSchemaPost):
     reference_id_from = reference_from.reference_id
     reference_id_to = reference_to.reference_id
 
+    if reference_id_from == reference_id_to:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail=f"Reference Relation with reference_curie_from  {reference_curie_from} and reference curie_to {reference_curie_to} are the same reference")
+
     db_obj = db.query(ReferenceRelationModel).filter(ReferenceRelationModel.reference_id_from == reference_id_from, ReferenceRelationModel.reference_id_to == reference_id_to).first()
     if db_obj:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
