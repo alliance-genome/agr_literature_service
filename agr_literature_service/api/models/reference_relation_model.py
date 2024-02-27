@@ -6,7 +6,7 @@ reference_relation_model.py
 
 from typing import Dict
 
-from sqlalchemy import Column, Enum, ForeignKey, Integer, event
+from sqlalchemy import Column, Enum, ForeignKey, Integer, event, CheckConstraint
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -59,6 +59,9 @@ class ReferenceRelationModel(Base):
         nullable=False
     )
 
+    __table_args__ = (
+        CheckConstraint('reference_id_from != reference_id_to', name='check_ref_ids_not_equal'),
+    )
 
 @event.listens_for(ReferenceRelationModel.__table__, 'after_create')
 def receive_after_create(target, connection, **kw):
