@@ -63,6 +63,7 @@ class ReferenceRelationModel(Base):
         CheckConstraint('reference_id_from != reference_id_to', name='check_ref_ids_not_equal'),
     )
 
+
 @event.listens_for(ReferenceRelationModel.__table__, 'after_create')
 def receive_after_create(target, connection, **kw):
     connection.execute(
