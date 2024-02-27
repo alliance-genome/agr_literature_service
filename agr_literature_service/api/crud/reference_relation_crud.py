@@ -97,7 +97,10 @@ def patch(db: Session, reference_relation_id: int, reference_relation_update):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference relation with reference_relation_id "
                                    f"{reference_relation_id} not found")
-
+    # on occasions where patching switches from and to cannot update db_obj while looping through items, or querying
+    # reference will trigger an autoflush failure because of constraint a relation cannot connect a reference to itself
+    db_obj_reference_id_from = None
+    db_obj_reference_id_to = None
     for field, value in reference_relation_update.items():
         if field == "reference_curie_to" and value:
             reference_curie_to = value
@@ -105,20 +108,29 @@ def patch(db: Session, reference_relation_id: int, reference_relation_update):
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Reference with curie {reference_curie_to} does not exist")
-            db_obj.reference_to = reference
+            db_obj_reference_id_to = reference.reference_id
         elif field == "reference_curie_from" and value:
             reference_curie_from = value
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_from).first()
             if not reference:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Reference with curie {reference_curie_from} does not exist")
-            db_obj.reference_from = reference
+            db_obj_reference_id_from = reference.reference_id
         else:
             setattr(db_obj, field, value)
-
-    db.commit()
-
-    return {"message": "updated"}
+    if db_obj_reference_id_from is not None:
+        db_obj.reference_id_from = db_obj_reference_id_from
+    if db_obj_reference_id_to is not None:
+        db_obj.reference_id_to = db_obj_reference_id_to
+    try:
+        db.add(db_obj)
+        db.commit()
+        db.refresh(db_obj)
+        return {"message": "updated"}
+    except (IntegrityError, HTTPException) as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"invalid request: {e}")
 
 
 def show(db: Session, reference_relation_id: int):
