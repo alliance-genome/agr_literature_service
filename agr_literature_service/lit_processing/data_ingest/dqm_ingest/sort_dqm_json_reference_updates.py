@@ -35,8 +35,8 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_references_by_curies, get_curie_to_title_mapping, get_mod_abbreviations
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     add_cross_references, update_authors, update_mod_corpus_associations, \
-    update_mod_reference_types, mark_not_in_mod_papers_as_out_of_corpus, \
-    change_mod_curie_status
+    update_mod_reference_types, update_workflow_tags, \
+    mark_not_in_mod_papers_as_out_of_corpus, change_mod_curie_status
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
 from agr_literature_service.api.user import set_global_user_id
 
@@ -191,7 +191,7 @@ def filter_from_md5sum(mod):
     return
 
 
-def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa: C901
+def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir=base_path):      # noqa: C901
     """
 
     # TODO
@@ -363,7 +363,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
 #             logger.info(f"primaryId {primary_id} old {old_md5}")
 #             logger.info(f"primaryId {primary_id} new {new_md5}")
 
-            if old_md5 == new_md5:
+            if not update_all_papers and old_md5 == new_md5:
                 continue
             if old_md5 == 'none':
                 logger.info(f"primaryId {primary_id} is new for {mod} but could pre-exist for other mod")
@@ -606,10 +606,10 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         add_cross_references(cross_reference_to_add, agr_list_for_cross_refs_to_add, logger, live_change)
 
         ## update references with md5sum changed
-        update_db_entries(mod_to_mod_id, aggregate_mod_specific_fields_only,
+        update_db_entries(mod, mod_to_mod_id, aggregate_mod_specific_fields_only,
                           fh_mod_report[mod], 'mod_specific_fields_only')
 
-        update_db_entries(mod_to_mod_id, aggregate_mod_biblio_all, fh_mod_report[mod],
+        update_db_entries(mod, mod_to_mod_id, aggregate_mod_biblio_all, fh_mod_report[mod],
                           'mod_biblio_all')
 
         output_directory_name = 'process_dqm_update_' + mod
@@ -737,7 +737,7 @@ def save_new_references_to_file(references_to_create, mod):
     write_json(json_filename, dqm_data)
 
 
-def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):      # noqa: C901
+def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_flag):      # noqa: C901
     """
     Take a dict of Alliance Reference curies and DQM MODReferenceTypes to compare against
     data stored in DB and update to match DQM data.
@@ -842,6 +842,11 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
                                        set(db_entry_pubmed_types) | set(dqm_entry_pubmed_types),
                                        logger)
 
+            update_workflow_tags(db_session, mod_to_mod_id[mod], db_entry['reference_id'],
+                                 db_entry.get('workflow_tag', []),
+                                 dqm_entry.get('workflowTags', []),
+                                 logger)
+
             if processing_flag == 'mod_biblio_all':
                 update_json = dict()
                 for field_camel in fields_simple_camel:
@@ -938,6 +943,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--file', action='store', help='take input from REFERENCE files in full path')
     parser.add_argument('-m', '--mod', action='store', help='which mod, use all or leave blank for all')
+    parser.add_argument('-a', '--all', action='store_true', help='update all papers, not just ones with md5sum changed')
 
     args = vars(parser.parse_args())
 
@@ -951,9 +957,9 @@ if __name__ == "__main__":
 
     dqm_path = args['file'] if args['file'] else "dqm_data"
     mods = [args['mod']] if args['mod'] else get_mod_abbreviations()
-    for mod in get_mod_abbreviations():
+    for mod in mods:
         try:
-            sort_dqm_references(dqm_path, mod)
+            sort_dqm_references(dqm_path, mod, args['all'])
         except Exception as e:
             send_report(f"{mod} DQM Loading Failed",
                         f"Error message: {e}")
