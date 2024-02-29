@@ -76,6 +76,7 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
                 continue
 
             reference_id, curie = insert_reference(db_session, primaryId, journal_to_resource_id, entry)
+            # new_ref_curies.append(curie)
 
             if reference_id is None:
                 log.info(primaryId + ": Error loading reference table")
@@ -108,11 +109,18 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
                 insert_mod_reference_types(db_session, primaryId, reference_id, entry['MODReferenceTypes'],
                                            entry.get('pubmedType', []))
 
+            mod_id = None
             if entry.get('modCorpusAssociations'):
 
-                insert_mod_corpus_associations(db_session, primaryId, reference_id, mod_to_mod_id,
-                                               entry['modCorpusAssociations'])
+                mod_id = insert_mod_corpus_associations(db_session, primaryId, reference_id,
+                                                        mod_to_mod_id,
+                                                        entry['modCorpusAssociations'])
 
+            if entry.get('workflowTags') and mod_id:
+                
+                insert_workflow_tags(db_session, primaryId, reference_id, mod_id,
+                                     entry['workflowTags'])
+                
             log.info("The new reference for for primaryId = " + primaryId + " has been added into database")
             if live_change:
                 db_session.commit()
@@ -125,8 +133,22 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
     return new_ref_curies
 
 
+def insert_workflow_tags(db_session, primaryId, reference_id, mod_id, workflowTags):
+
+    for atp in workflowTags:
+        try:
+            x = WorkflowTagModel(reference_id=reference_id,
+                                 mod_id=mod_id,
+                                 workflow_tag_id=atp)
+            db_session.add(x)
+            log.info(primaryId + ": INSERT WORKFLOW_TAG: for reference_id = " + str(reference_id) +", mod_id = " + str(mod_id) + ", workflog_tag_id = " + atp)
+        except Exception as e:
+            log.info(primaryId + ": INSERT WORKFLOW_TAG: for reference_id = " + str(reference_id) +", mod_id = " + str(mod_id) + ", workflog_tag_id = " + atp + " " + str(e))
+
+
 def insert_mod_corpus_associations(db_session, primaryId, reference_id, mod_to_mod_id, mod_corpus_associations_from_json):
 
+    mod_id = None
     for x in mod_corpus_associations_from_json:
         try:
             mod_id = mod_to_mod_id.get(x.get('modAbbreviation'))
@@ -141,6 +163,7 @@ def insert_mod_corpus_associations(db_session, primaryId, reference_id, mod_to_m
             log.info(primaryId + ": INSERT MOD_CORPUS_ASSOCIATION: for reference_id = " + str(reference_id) + ", mod_id = " + str(mod_id) + ", mod_corpus_sort_source = " + x['modCorpusSortSource'])
         except Exception as e:
             log.info(primaryId + ": INSERT MOD_CORPUS_ASSOCIATION: for reference_id = " + str(reference_id) + ", mod_id = " + str(mod_id) + ", mod_corpus_sort_source = " + x['modCorpusSortSource'] + " " + str(e))
+    return mod_id
 
 
 def insert_mod_reference_types(db_session, primaryId, reference_id, mod_ref_types_from_json, pubmed_types: List[str]):
