@@ -10,7 +10,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceRelationModel, \
     MeshDetailModel, ReferenceModReferencetypeAssociationModel, \
-    ReferencefileModel, ReferencefileModAssociationModel
+    ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel
 
 batch_size_for_commit = 250
 
@@ -455,6 +455,36 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
         pmids_with_pub_status_changed[pub_status_changed] = status_changed
 
     return []
+
+
+def update_workflow_tags(db_session, mod_id, reference_id, workflow_tag_rows_db, workflow_tags_json, logger):
+
+    workflow_tags_db = [x['workflow_tag_id'] for x in workflow_tag_rows_db]
+
+    if sorted(workflow_tags_db) == sorted(workflow_tags_json):
+        return
+
+    for atp in workflow_tags_json:
+        if atp not in workflow_tags_db:
+            try:
+                x = WorkflowTagModel(reference_id=reference_id,
+                                     mod_id=mod_id,
+                                     workflow_tag_id=atp)
+                db_session.add(x)
+                logger.info(f"The workflow_tag row for reference_id = {reference_id}, mod_id = {mod_id}, and workflow_tag_id = {atp} has been added into database.")
+            except Exception as e:
+                logger.info(f"An error occurred when adding workflow_tag row for reference_id = {reference_id}, mod_id = {mod_id}, and workflow_tag_id = {atp}. {e}")
+
+    for atp in workflow_tags_db:
+        if atp not in workflow_tags_json:
+            try:
+                x = db_session.query(WorkflowTagModel).filter_by(
+                    reference_id=reference_id, mod_id=mod_id, workflow_tag_id=atp).one_or_none()
+                if x:
+                    db_session.delete(x)
+                    logger.info(f"The workflow_tag row for reference_id = {reference_id}, mod_id = {mod_id}, and workflow_tag_id = {atp} has been removed from database.")
+            except Exception as e:
+                logger.info(f"An error occurred when deleting workflow_tag row for reference_id = {reference_id}, mod_id = {mod_id}, and workflow_tag_id = {atp}. {e}")
 
 
 def update_mod_corpus_associations(db_session, mod_to_mod_id, reference_id, mod_corpus_association_db, mod_corpus_association_json, logger):
