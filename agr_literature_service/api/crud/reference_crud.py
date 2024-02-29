@@ -797,8 +797,11 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     return bib_info.get_formatted_bib(format_type=return_format)
 
 
-def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=None, from_reference_id: int = None,
-                                  page_size: int = 1000):
+def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=None, workflow_tag=None, from_reference_id: int = None, page_size: int = 1000):
+    if workflow_tag and not workflow_tag.upper().startswith('ATP:'):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="The workflow_tag passed in is not an ATP curie.")
+
     select_stmt = f"""SELECT r.curie, r.reference_id, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
       FROM reference r
       JOIN mod_corpus_association mca on r.reference_id = mca.reference_id
@@ -816,8 +819,22 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
         select_stmt += f" AND r.reference_id > {from_reference_id}"
     if files_updated_from_date:
         select_stmt += f" AND rf.date_updated >= '{files_updated_from_date}'"
+
+    # join with workflow_tag table if workflow_tag is provided
+    if workflow_tag is not None:
+        select_stmt += f""" AND r.reference_id IN (
+            SELECT wt.reference_id
+            FROM workflow_tag wt
+            WHERE wt.workflow_tag_id = {workflow_tag.upper()}
+            AND wt.mod_id = rfm.mod_id
+        )"""
+
     select_stmt += f" ORDER BY r.reference_id LIMIT {page_size}"
     textpresso_referencefiles = db.execute(select_stmt).fetchall()
+    if not textpresso_referencefiles and workflow_tag is not None:
+        # if workflow_tag is provided but no results, return empty list
+        return []
+
     aggregated_reffiles = defaultdict(set)
     for reffile in textpresso_referencefiles:
         aggregated_reffiles[(reffile.reference_id, reffile.curie)].add((reffile.referencefile_id, reffile.md5sum,
