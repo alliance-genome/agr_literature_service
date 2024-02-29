@@ -797,21 +797,28 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     return bib_info.get_formatted_bib(format_type=return_format)
 
 
-def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=None, from_reference_id: int = None,
-                                  page_size: int = 1000):
+def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=None, workflow_tag=None, from_reference_id: int = None, page_size: int = 1000):
+    if workflow_tag and not workflow_tag.upper().startswith('ATP:'):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="The workflow_tag passed in is not an ATP curie.")
+    mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
+    if not mod:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"The mod_abbreviation: {mod_abbreviation} is not in the database.")
+    mod_id = mod.mod_id
     select_stmt = f"""SELECT r.curie, r.reference_id, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
       FROM reference r
       JOIN mod_corpus_association mca on r.reference_id = mca.reference_id
-      JOIN mod mcam ON mca.mod_id = mcam.mod_id
       JOIN referencefile rf ON rf.reference_id = r.reference_id
       JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
-      LEFT JOIN mod rfmm ON rfm.mod_id = rfmm.mod_id
       WHERE mca.corpus is True
-      AND mcam.abbreviation = '{mod_abbreviation}'
+      AND mca.mod_id = {mod_id}
       AND rf.file_class = 'main'
       AND rf.file_extension = 'pdf'
-      AND (rfm.mod_id is NULL OR rfmm.abbreviation = '{mod_abbreviation}')"""
+      AND (rfm.mod_id is NULL OR rfm.mod_id = {mod_id})"""
 
+    if workflow_tag:
+        select_stmt += f" AND r.reference_id IN (SELECT reference_id FROM workflow_tag WHERE workflow_tag_id = '{workflow_tag}' AND mod_id = {mod_id})"
     if from_reference_id:
         select_stmt += f" AND r.reference_id > {from_reference_id}"
     if files_updated_from_date:
