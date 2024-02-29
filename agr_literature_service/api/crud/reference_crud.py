@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from starlette.background import BackgroundTask
-from sqlalchemy import ARRAY, Boolean, String, func
+from sqlalchemy import ARRAY, Boolean, String, func, text
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast, or_
 
@@ -802,7 +802,8 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="The workflow_tag passed in is not an ATP curie.")
 
-    select_stmt = f"""SELECT r.curie, r.reference_id, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
+    sql_query = text("""
+      SELECT r.curie, r.reference_id, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
       FROM reference r
       JOIN mod_corpus_association mca on r.reference_id = mca.reference_id
       JOIN mod mcam ON mca.mod_id = mcam.mod_id
@@ -810,27 +811,35 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
       JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
       LEFT JOIN mod rfmm ON rfm.mod_id = rfmm.mod_id
       WHERE mca.corpus is True
-      AND mcam.abbreviation = '{mod_abbreviation}'
+      AND mcam.abbreviation = :mod_abbreviation
       AND rf.file_class = 'main'
       AND rf.file_extension = 'pdf'
-      AND (rfm.mod_id is NULL OR rfmm.abbreviation = '{mod_abbreviation}')"""
+      AND (rfm.mod_id is NULL OR rfmm.abbreviation = :mod_abbreviation)
+    """)
+
+    params = {"mod_abbreviation": mod_abbreviation, "page_size": page_size}
 
     if from_reference_id:
-        select_stmt += f" AND r.reference_id > {from_reference_id}"
+        sql_query += " AND r.reference_id > :from_reference_id"
+        params["from_reference_id"] = from_reference_id
     if files_updated_from_date:
-        select_stmt += f" AND rf.date_updated >= '{files_updated_from_date}'"
+        sql_query += " AND rf.date_updated >= :files_updated_from_date"
+        params["files_updated_from_date"] = files_updated_from_date
 
     # join with workflow_tag table if workflow_tag is provided
     if workflow_tag is not None:
-        select_stmt += f""" AND r.reference_id IN (
-            SELECT wt.reference_id
-            FROM workflow_tag wt
-            WHERE wt.workflow_tag_id = {workflow_tag.upper()}
-            AND wt.mod_id = rfm.mod_id
-        )"""
+        sql_query += """
+           AND r.reference_id IN (
+               SELECT wt.reference_id
+               FROM workflow_tag wt
+               WHERE wt.workflow_tag_id = :workflow_tag
+               AND wt.mod_id = rfm.mod_id
+           )
+        """
+        params["workflow_tag"] = workflow_tag.upper()
 
-    select_stmt += f" ORDER BY r.reference_id LIMIT {page_size}"
-    textpresso_referencefiles = db.execute(select_stmt).fetchall()
+    sql_query += " ORDER BY r.reference_id LIMIT :page_size"
+    textpresso_referencefiles = db.execute(sql_query, **params).fetchall()
     if not textpresso_referencefiles and workflow_tag is not None:
         # if workflow_tag is provided but no results, return empty list
         return []
