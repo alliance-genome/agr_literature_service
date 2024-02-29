@@ -78,7 +78,7 @@ def get_references_by_curies(db_session, curie_list):
     query = query.options(joinedload(ReferenceModel.obsolete_reference))
     query = query.options(joinedload(ReferenceModel.mesh_term))
     query = query.options(joinedload(ReferenceModel.workflow_tag))
-    
+
     for x in query.filter(ReferenceModel.curie.in_(curie_list)).all():
         ref_curie_to_reference[x.curie] = jsonable_encoder(x)
 
