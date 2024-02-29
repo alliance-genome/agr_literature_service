@@ -16,7 +16,8 @@ from agr_literature_service.lit_processing.data_ingest.utils.file_processing_uti
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session, sqlalchemy_load_ref_xref
-from agr_literature_service.lit_processing.utils.report_utils import send_dqm_loading_report
+from agr_literature_service.lit_processing.utils.report_utils import send_dqm_loading_report, \
+    send_report
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.parse_dqm_json_reference import \
     generate_pmid_data, aggregate_dqm_with_pubmed
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import \
@@ -949,10 +950,11 @@ if __name__ == "__main__":
         # update_resource_pubmed_nlm()
 
     dqm_path = args['file'] if args['file'] else "dqm_data"
-    if args['mod']:
-        sort_dqm_references(dqm_path, args['mod'])
-    else:
-        for mod in get_mod_abbreviations():
+    mods = [args['mod']] if args['mod'] else get_mod_abbreviations()
+    for mod in get_mod_abbreviations():
+        try:
             sort_dqm_references(dqm_path, mod)
-
+        except Exception as e:
+            send_report(f"{mod} DQM Loading Failed",
+                        f"Error message: {e}")
     logger.info("ending sort_dqm_json_reference_updates.py")

@@ -1,6 +1,7 @@
 import re
 from os import environ
 import logging
+from datetime import datetime
 from agr_literature_service.lit_processing.utils.email_utils import send_email
 
 logging.basicConfig(format='%(message)s')
@@ -228,7 +229,11 @@ def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_t
             log_path = log_path + log_file
             email_message = email_message + "<p>The clashed PMID list is available at " + log_path
 
-    send_report(email_subject, email_message)
+    ## only send report once a week - on Saturday
+    now = datetime.now()
+    if now.weekday() == 5:
+        # it returns the day of the week as an integer, where Monday is 0.
+        send_report(email_subject, email_message)
 
 
 def write_log_and_send_pubmed_no_update_report(fw, mod, email_subject):
