@@ -175,7 +175,6 @@ def get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret):
 def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
     if curies_category == 'transgenicconstruct':
         curies_category = 'construct'
-        maxret = 2
         return get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret)
 
     curies = list(set(curies))
