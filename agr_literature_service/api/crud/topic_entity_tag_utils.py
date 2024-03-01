@@ -184,28 +184,16 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
     chunked_values = [curies[i:i + maxret] for i in range(0, len(curies), maxret)]
     return_dict = {}
     for chunk in chunked_values:
-        if curies_category == 'construct':
-            request_body = {
-                "searchFilters": {
-                    "modEntityIdFilters": {
-                        "modEntityId": {
-                            "queryString": " ".join(chunk),
-                            "tokenOperator": "OR"
-                        }
+        request_body = {
+            "searchFilters": {
+                "nameFilters": {
+                     "curie_keyword": {
+                        "queryString": " ".join(chunk),
+                        "tokenOperator": "OR"
                     }
-                }
+                 }
             }
-        else:
-            request_body = {
-                "searchFilters": {
-                    "nameFilters": {
-                        "curie_keyword": {
-                            "queryString": " ".join(chunk),
-                            "tokenOperator": "OR"
-                        }
-                    }
-                }
-            }
+        }
         token = get_authentication_token()
         try:
             request_data_encoded = json.dumps(request_body)
