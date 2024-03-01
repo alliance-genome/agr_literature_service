@@ -129,11 +129,58 @@ def get_map_ateam_entity_curies_to_names(entity_type_to_entities):
     return entity_curie_to_name_map
 
 
-def get_map_ateam_curies_to_names(curies_category, curies):
+def get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret):
     curies = list(set(curies))
     ateam_api_base_url = environ.get('ATEAM_API_URL')
-    ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit=1000&page=0'
-    chunked_values = [curies[i:i + 1000] for i in range(0, len(curies), 1000)]
+    ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit={maxret}&page=0'
+    chunked_values = [curies[i:i + maxret] for i in range(0, len(curies), maxret)]
+    return_dict = {}
+    for chunk in chunked_values:
+        request_body = {
+            "searchFilters": {
+                "modEntityIdFilters": {
+                    "modEntityId": {
+                        "queryString": " ".join(chunk),
+                        "tokenOperator": "OR"
+                    }
+                }
+            }
+        }
+        token = get_authentication_token()
+        try:
+            request_data_encoded = json.dumps(request_body)
+            request_data_encoded_str = str(request_data_encoded)
+            request = urllib.request.Request(url=ateam_api, data=request_data_encoded_str.encode('utf-8'))
+            request.add_header("Authorization", f"Bearer {token}")
+            request.add_header("Content-type", "application/json")
+            request.add_header("Accept", "application/json")
+        except Exception as e:
+            logger.error(f"Exception setting up request:get_map_ateam_curies_to_names: {e}")
+            continue
+        try:
+            with urllib.request.urlopen(request) as response:
+                resp = response.read().decode("utf8")
+                resp_obj = json.loads(resp)
+                for res in resp_obj["results"]:
+                    return_dict[res['modEntityId']] = res['uniqueId'].split('|')[0]
+        except HTTPError as e:
+            logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
+            continue
+        except Exception as e:
+            logger.error(f"Exception running request:get_map_ateam_curies_to_names: {e}")
+            continue
+    return return_dict
+
+
+def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
+    if curies_category == 'transgenicconstruct':
+        curies_category = 'construct'
+        return get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret)
+
+    curies = list(set(curies))
+    ateam_api_base_url = environ.get('ATEAM_API_URL')
+    ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit={maxret}&page=0'
+    chunked_values = [curies[i:i + maxret] for i in range(0, len(curies), maxret)]
     return_dict = {}
     for chunk in chunked_values:
         request_body = {
@@ -168,11 +215,12 @@ def get_map_ateam_curies_to_names(curies_category, curies):
                         "displayText"] if curies_category + "Symbol" in entity else entity["curie"] for entity in (
                         resp_obj["results"] if "results" in resp_obj else [])
                 })
+
         except HTTPError as e:
             logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
             continue
         except Exception as e:
-            logger.error(f"Exception setting up request:get_map_ateam_curies_to_names: {e}")
+            logger.error(f"Exception running request:get_map_ateam_curies_to_names: {e}")
             continue
     return return_dict
 
