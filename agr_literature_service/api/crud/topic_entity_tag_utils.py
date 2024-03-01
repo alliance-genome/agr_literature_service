@@ -191,7 +191,7 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
                         "queryString": " ".join(chunk),
                         "tokenOperator": "OR"
                     }
-                 }
+                }
             }
         }
         token = get_authentication_token()
