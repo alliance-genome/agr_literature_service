@@ -131,7 +131,7 @@ def get_map_ateam_entity_curies_to_names(entity_type_to_entities):
 
 
 def get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret):
-    curies = list(set(curies))
+    # curies = list(set(curies))
     ateam_api_base_url = environ.get('ATEAM_API_URL')
     ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit={maxret}&page=0'
     chunked_values = [curies[i:i + maxret] for i in range(0, len(curies), maxret)]
@@ -164,6 +164,7 @@ def get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret):
                 resp_obj = json.loads(resp)
                 for res in resp_obj["results"]:
                     return_dict[res['modEntityId']] = res['uniqueId'].split('|')[0]
+                    id_to_name_cache[res['modEntityId']] = res['uniqueId'].split('|')[0]
         except HTTPError as e:
             logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
             continue
