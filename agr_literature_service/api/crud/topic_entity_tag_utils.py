@@ -1,4 +1,5 @@
 import json
+import time
 import urllib.request
 from os import environ
 from typing import Dict, List
@@ -30,7 +31,33 @@ sgd_additional_topics = ['ATP:0000142', 'ATP:0000011', 'ATP:0000088', 'ATP:00000
                          'ATP:0000022', 'ATP:0000149', 'ATP:0000054', 'ATP:0000006',
                          'other additional literature']
 species_atp = 'ATP:0000123'
-id_to_name_cache = {}
+
+
+class ExpiringCache:
+    def __init__(self, expiration_time=3600):  # default expiration time is 1 hour
+        self.cache = {}
+        self.expiration_time = expiration_time
+
+    def set(self, key, value):
+        self.cache[key] = (value, time.time() + self.expiration_time)
+
+    def get(self, key):
+        if key in self.cache:
+            value, expires_at = self.cache[key]
+            if time.time() < expires_at:
+                return value
+            else:
+                del self.cache[key]  # Remove expired entry
+        return None  # Return None if not found or expired
+
+    def expire(self):
+        """Manually trigger expiration of old entries."""
+        to_delete = [key for key, (_, expires_at) in self.cache.items() if time.time() >= expires_at]
+        for key in to_delete:
+            del self.cache[key]
+
+
+id_to_name_cache = ExpiringCache(expiration_time=3600)
 
 
 def get_reference_id_from_curie_or_id(db: Session, curie_or_reference_id):
@@ -164,7 +191,7 @@ def get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret):
                 resp_obj = json.loads(resp)
                 for res in resp_obj["results"]:
                     return_dict[res['modEntityId']] = res['uniqueId'].split('|')[0]
-                    id_to_name_cache[res['modEntityId']] = res['uniqueId'].split('|')[0]
+                    id_to_name_cache.set(res['modEntityId'], res['uniqueId'].split('|')[0])
         except HTTPError as e:
             logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
             continue
@@ -179,7 +206,7 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
     curies_not_in_cache = [curie for curie in set(curies) if curie not in id_to_name_cache]
     # return if all curies are in the cache
     if not curies_not_in_cache:
-        return {curie: id_to_name_cache[curie] for curie in list(set(curies))}
+        return {curie: id_to_name_cache.get(curie) for curie in set(curies)}
 
     if curies_category == 'transgenicconstruct':
         curies_category = 'construct'
@@ -216,15 +243,17 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
                     for entity in resp_obj.get("results", [])
                 }
                 # update return dictionary and cache
-                return_dict.update(new_mappings)
-                id_to_name_cache.update(new_mappings)
+                for curie, name in new_mappings.items():
+                    id_to_name_cache.set(curie, name)
+                    return_dict[curie] = name
         except HTTPError as e:
             logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
         except Exception as e:
             logger.error(f"Exception in get_map_ateam_curies_to_names: {e}")
 
     # add already cached curies to return_dict
-    return_dict.update({curie: id_to_name_cache[curie] for curie in set(curies) - set(curies_not_in_cache)})
+    for curie in set(curies) - set(curies_not_in_cache):
+        return_dict[curie] = id_to_name_cache.get(curie)
     return return_dict
 
 
