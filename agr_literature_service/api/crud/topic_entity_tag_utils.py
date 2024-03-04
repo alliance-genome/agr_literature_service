@@ -14,6 +14,7 @@ from agr_literature_service.api.models import TopicEntityTagSourceModel, Referen
 from agr_literature_service.api.user import add_user_if_not_exists
 from agr_literature_service.lit_processing.utils.okta_utils import get_authentication_token
 import logging
+from os import getcwd
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ sgd_additional_topics = ['ATP:0000142', 'ATP:0000011', 'ATP:0000088', 'ATP:00000
 species_atp = 'ATP:0000123'
 
 
+"""
 class ExpiringCache:
     def __init__(self, expiration_time=3600):  # default expiration time is 1 hour
         self.cache = {}
@@ -42,6 +44,7 @@ class ExpiringCache:
         self.cache[key] = (value, time.time() + self.expiration_time)
 
     def get(self, key):
+        self.expire() # check for and remove expired entries before getting the value
         if key in self.cache:
             value, expires_at = self.cache[key]
             if time.time() < expires_at:
@@ -51,9 +54,32 @@ class ExpiringCache:
         return None  # Return None if not found or expired
 
     def expire(self):
-        """Manually trigger expiration of old entries."""
-        to_delete = [key for key, (_, expires_at) in self.cache.items() if time.time() >= expires_at]
-        for key in to_delete:
+        # manually trigger expiration of old entries
+        current_time = time.time()
+        expired_keys = [key for key, (_, expires_at) in self.cache.items() if current_time >= expires_at]
+        for key in expired_keys:
+            del self.cache[key]
+"""
+
+class ExpiringCache:
+    def __init__(self, expiration_time=3600):
+        self.cache = {}
+        self.expiration_time = expiration_time
+
+    def set(self, key, value):
+        self.cache[key] = (value, time.time() + self.expiration_time)
+
+    def get(self, key):
+        self.expire()  # check for and remove expired entries before getting the value
+
+        if key in self.cache:
+            return self.cache[key][0]  # access value directly from tuple
+        return None  # return None if not found or expired
+
+    def expire(self):
+        current_time = time.time()
+        expired_keys = [key for key, (_, expires_at) in self.cache.items() if current_time >= expires_at]
+        for key in expired_keys:
             del self.cache[key]
 
 
@@ -203,14 +229,22 @@ def get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret):
 
 def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
 
+    # cache_fw.write(f"Updated cache with {curie}: {name}\n")
+    logfile = getcwd() + "/cache_test.log"
+    cache_fw = open(logfile, "a")
+    cache_fw.write("FOR debugging:\n")
+
     curies_not_in_cache = [curie for curie in set(curies) if curie not in id_to_name_cache]
     # return if all curies are in the cache
     if not curies_not_in_cache:
+        cache_fw.write("all curies are in the cache:\n")
         return {curie: id_to_name_cache.get(curie) for curie in set(curies)}
 
     if curies_category == 'transgenicconstruct':
         curies_category = 'construct'
         return get_map_ateam_construct_ids_to_symbols(curies_category, curies_not_in_cache, maxret)
+
+    cache_fw.write("Getting id to name mapping from a-team api\n")
 
     return_dict = {}
     ateam_api_base_url = environ.get('ATEAM_API_URL')
@@ -243,17 +277,22 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
                     for entity in resp_obj.get("results", [])
                 }
                 # update return dictionary and cache
+                cache_fw.write("updating return dictionary and cache:\n")
                 for curie, name in new_mappings.items():
                     id_to_name_cache.set(curie, name)
                     return_dict[curie] = name
+                    cache_fw.write(f"Updated cache with {curie}: {name}\n")
         except HTTPError as e:
             logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
         except Exception as e:
             logger.error(f"Exception in get_map_ateam_curies_to_names: {e}")
 
     # add already cached curies to return_dict
+    cache_fw.write("adding already cached curies to return_dict:\n")
     for curie in set(curies) - set(curies_not_in_cache):
         return_dict[curie] = id_to_name_cache.get(curie)
+        cache_fw.write(f"Cache hit for {curie}: {id_to_name_cache.get(curie)}")
+    cache_fw.close()
     return return_dict
 
 
