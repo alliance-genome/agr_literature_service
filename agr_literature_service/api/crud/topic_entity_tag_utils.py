@@ -5,6 +5,7 @@ from typing import Dict, List
 from urllib.error import HTTPError
 
 from cachetools.func import ttl_cache
+from cachetools import TTLCache
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from starlette import status
@@ -13,6 +14,7 @@ from agr_literature_service.api.models import TopicEntityTagSourceModel, Referen
 from agr_literature_service.api.user import add_user_if_not_exists
 from agr_literature_service.lit_processing.utils.okta_utils import get_authentication_token
 import logging
+# from os import getcwd
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,23 @@ sgd_additional_topics = ['ATP:0000142', 'ATP:0000011', 'ATP:0000088', 'ATP:00000
                          'ATP:0000022', 'ATP:0000149', 'ATP:0000054', 'ATP:0000006',
                          'other additional literature']
 species_atp = 'ATP:0000123'
+
+
+class ExpiringCache:
+    def __init__(self, expiration_time=3600):  # set default to 1hr
+        # to store up to 50,000 items at any given time
+        self.cache = TTLCache(maxsize=50_000, ttl=expiration_time)
+
+    def set(self, key, value):
+        # set a value in the cache; it will automatically expire after the TTL
+        self.cache[key] = value
+
+    def get(self, key):
+        # get a value from the cache; returns None if the key is expired or not found
+        return self.cache.get(key, None)
+
+
+id_to_name_cache = ExpiringCache(expiration_time=7200)
 
 
 def get_reference_id_from_curie_or_id(db: Session, curie_or_reference_id):
@@ -130,7 +149,7 @@ def get_map_ateam_entity_curies_to_names(entity_type_to_entities):
 
 
 def get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret):
-    curies = list(set(curies))
+    # curies = list(set(curies))
     ateam_api_base_url = environ.get('ATEAM_API_URL')
     ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit={maxret}&page=0'
     chunked_values = [curies[i:i + maxret] for i in range(0, len(curies), maxret)]
@@ -163,6 +182,7 @@ def get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret):
                 resp_obj = json.loads(resp)
                 for res in resp_obj["results"]:
                     return_dict[res['modEntityId']] = res['uniqueId'].split('|')[0]
+                    id_to_name_cache.set(res['modEntityId'], res['uniqueId'].split('|')[0])
         except HTTPError as e:
             logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
             continue
@@ -173,15 +193,19 @@ def get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret):
 
 
 def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
+
+    curies_not_in_cache = [curie for curie in set(curies) if id_to_name_cache.get(curie) is None]
+    if len(curies_not_in_cache) == 0:
+        return {curie: id_to_name_cache.get(curie) for curie in set(curies)}
+
     if curies_category == 'transgenicconstruct':
         curies_category = 'construct'
-        return get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret)
+        return get_map_ateam_construct_ids_to_symbols(curies_category, curies_not_in_cache, maxret)
 
-    curies = list(set(curies))
+    return_dict = {}
     ateam_api_base_url = environ.get('ATEAM_API_URL')
     ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit={maxret}&page=0'
-    chunked_values = [curies[i:i + maxret] for i in range(0, len(curies), maxret)]
-    return_dict = {}
+    chunked_values = [curies_not_in_cache[i:i + maxret] for i in range(0, len(curies_not_in_cache), maxret)]
     for chunk in chunked_values:
         request_body = {
             "searchFilters": {
@@ -195,33 +219,31 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
         }
         token = get_authentication_token()
         try:
-            request_data_encoded = json.dumps(request_body)
-            request_data_encoded_str = str(request_data_encoded)
-            request = urllib.request.Request(url=ateam_api, data=request_data_encoded_str.encode('utf-8'))
+            request_data_encoded = json.dumps(request_body).encode('utf-8')
+            request = urllib.request.Request(url=ateam_api, data=request_data_encoded)
             request.add_header("Authorization", f"Bearer {token}")
             request.add_header("Content-type", "application/json")
             request.add_header("Accept", "application/json")
-        except Exception as e:
-            logger.error(f"Exception setting up request:get_map_ateam_curies_to_names: {e}")
-            continue
-        try:
             with urllib.request.urlopen(request) as response:
                 resp = response.read().decode("utf8")
                 resp_obj = json.loads(resp)
-                # from the A-team API, atp values have a "name" field and other entities (e.g., genes and alleles) have
-                # symbol objects - e.g., geneSymbol.displayText
-                return_dict.update({
-                    entity["curie"]: entity["name"] if "name" in entity else entity[curies_category + "Symbol"][
-                        "displayText"] if curies_category + "Symbol" in entity else entity["curie"] for entity in (
-                        resp_obj["results"] if "results" in resp_obj else [])
-                })
-
+                # process the API response
+                new_mappings = {
+                    entity["curie"]: entity.get("name") or entity.get(curies_category + "Symbol", {}).get("displayText", entity["curie"])
+                    for entity in resp_obj.get("results", [])
+                }
+                # update return dictionary and cache
+                for curie, name in new_mappings.items():
+                    id_to_name_cache.set(curie, name)
+                    return_dict[curie] = name
         except HTTPError as e:
             logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
-            continue
         except Exception as e:
-            logger.error(f"Exception running request:get_map_ateam_curies_to_names: {e}")
-            continue
+            logger.error(f"Exception in get_map_ateam_curies_to_names: {e}")
+
+    # add already cached curies to return_dict
+    for curie in set(curies) - set(curies_not_in_cache):
+        return_dict[curie] = id_to_name_cache.get(curie)
     return return_dict
 
 
