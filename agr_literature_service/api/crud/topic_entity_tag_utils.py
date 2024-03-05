@@ -1,11 +1,11 @@
 import json
-import time
 import urllib.request
 from os import environ
 from typing import Dict, List
 from urllib.error import HTTPError
 
 from cachetools.func import ttl_cache
+from cachetools import TTLCache
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from starlette import status
@@ -36,24 +36,16 @@ species_atp = 'ATP:0000123'
 
 class ExpiringCache:
     def __init__(self, expiration_time=3600):  # set default to 1hr
-        self.cache = {}
-        self.expiration_time = expiration_time
+        # to store up to 50,000 items at any given time
+        self.cache = TTLCache(maxsize=50_000, ttl=expiration_time)
 
     def set(self, key, value):
-        self.cache[key] = (value, time.time() + self.expiration_time)
+        # set a value in the cache; it will automatically expire after the TTL
+        self.cache[key] = value
 
     def get(self, key):
-        self.expire()  # check for and remove expired entries before getting the value
-
-        if key in self.cache:
-            return self.cache[key][0]  # access value directly from tuple
-        return None  # return None if not found or expired
-
-    def expire(self):
-        current_time = time.time()
-        expired_keys = [key for key, (_, expires_at) in self.cache.items() if current_time >= expires_at]
-        for key in expired_keys:
-            del self.cache[key]
+        # get a value from the cache; returns None if the key is expired or not found
+        return self.cache.get(key, None)
 
 
 id_to_name_cache = ExpiringCache(expiration_time=7200)
