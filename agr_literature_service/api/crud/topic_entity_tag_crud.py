@@ -494,7 +494,8 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
                     query = query.join(TopicEntityTagSourceModel,
                                        TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id)
                 elif sort_by == 'data_provider' or sort_by == 'secondary_data_provider':
-                    column_property = getattr(ModModel, "abbreviation")
+                    column_property_name = "abbreviation"
+                    column_property = getattr(ModModel, column_property_name)
                     query = query.join(
                         TopicEntityTagSourceModel,
                         TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id)
