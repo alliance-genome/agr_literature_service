@@ -53,7 +53,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
     ).one_or_none()
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified source")
-    if source.data_provider == "SGD":
+    if source.secondary_data_provider.abbreviation == "SGD":
         check_and_set_sgd_display_tag(topic_entity_tag_data)
     else:
         check_and_set_species(topic_entity_tag_data)
