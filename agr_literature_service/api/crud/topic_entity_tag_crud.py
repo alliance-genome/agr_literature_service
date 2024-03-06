@@ -458,9 +458,7 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
         distinct_column_values = db.query(getattr(TopicEntityTagModel, column_only)).filter_by(
             reference_id=reference_id).distinct().all()
         distinct_values = [x[0] for x in distinct_column_values if x[0] is not None]
-        tet_data = jsonable_encoder(distinct_values)
-        tet_data_with_names = populate_tet_curie_names(db, tet_data)
-        return tet_data_with_names
+        return jsonable_encoder(distinct_values)
 
     query = db.query(TopicEntityTagModel).options(
         joinedload(TopicEntityTagModel.topic_entity_tag_source)).filter(
