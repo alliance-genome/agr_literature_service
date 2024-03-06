@@ -53,7 +53,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
     ).one_or_none()
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified source")
-    if source.mod.abbreviation == "SGD":
+    if source.data_provider.abbreviation == "SGD":
         check_and_set_sgd_display_tag(topic_entity_tag_data)
     else:
         check_and_set_species(topic_entity_tag_data)
@@ -267,7 +267,8 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
             TopicEntityTagModel.topic_entity_tag_id != new_tag_obj.topic_entity_tag_id,
             TopicEntityTagModel.reference_id == new_tag_obj.reference_id,
             TopicEntityTagModel.topic_entity_tag_source.has(
-                TopicEntityTagSourceModel.mod_id == new_tag_obj.topic_entity_tag_source.mod_id
+                TopicEntityTagSourceModel.secondary_data_provider_id == new_tag_obj.topic_entity_tag_source
+                .secondary_data_provider_id
             ),
             TopicEntityTagModel.negated.isnot(None)
         )
@@ -349,8 +350,10 @@ def patch_source(db: Session, topic_entity_tag_source_id: int, source_patch: Top
 def show_source(db: Session, topic_entity_tag_source_id: int):
     source = get_source_from_db(db, topic_entity_tag_source_id)
     source_data = jsonable_encoder(source)
-    del source_data["mod_id"]
-    source_data["mod_abbreviation"] = source.mod.abbreviation
+    del source_data["data_provider_id"]
+    source_data["data_provider_abbreviation"] = source.data_provider.abbreviation
+    del source_data["secondary_data_provider_id"]
+    source_data["secondary_data_provider_abbreviation"] = source.secondary_data_provider.abbreviation
     return source_data
 
 
@@ -567,20 +570,29 @@ def populate_tag_field_names(db, reference_id, tag_data):
     return new_tag_data
 
 
-def show_source_by_name(db: Session, source_type: str, source_method: str, mod_abbreviation: str):
-    mod = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
-    if mod is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
+def show_source_by_name(db: Session, source_evidence_assertion: str, source_method: str,
+                        data_provider_abbreviation: str, secondary_data_provider_abbreviation: str):
+    data_provider = db.query(ModModel.mod_id).filter(ModModel.abbreviation == data_provider_abbreviation).one_or_none()
+    if data_provider is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified data provider")
+    secondary_data_provider = db.query(ModModel.mod_id).filter(
+        ModModel.abbreviation == secondary_data_provider_abbreviation).one_or_none()
+    if secondary_data_provider is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Cannot find the specified secondary data provider")
     source = db.query(TopicEntityTagSourceModel).filter(
         and_(
-            TopicEntityTagSourceModel.source_type == source_type,
+            TopicEntityTagSourceModel.source_evidence_assertion == source_evidence_assertion,
             TopicEntityTagSourceModel.source_method == source_method,
-            TopicEntityTagSourceModel.mod_id == mod.mod_id
+            TopicEntityTagSourceModel.data_provider_id == data_provider.mod_id,
+            TopicEntityTagSourceModel.secondary_data_provider_id == secondary_data_provider.mod_id
         )
     ).one_or_none()
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified Source")
     source_data = jsonable_encoder(source)
-    del source_data["mod_id"]
-    source_data["mod_abbreviation"] = mod_abbreviation
+    del source_data["data_provider_id"]
+    source_data["data_provider_abbreviation"] = data_provider_abbreviation
+    del source_data["secondary_data_provider_id"]
+    source_data["secondary_data_provider_abbreviation"] = secondary_data_provider_abbreviation
     return source_data
