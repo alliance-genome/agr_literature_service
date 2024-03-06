@@ -584,14 +584,16 @@ def populate_tet_curie_names(db, tet_data):
 
     ## map entities for each entity type (eg, gene, allele, etc) to names
     for entity_type in entity_type_to_entities:
-        curie_to_name_mapping.update(get_map_ateam_curies_to_names(
-            curies_category=curie_to_name_mapping[entity_type].replace(" ", ""),
-            curies=entity_type_to_entities[entity_type]))
+        if entity_type is not None and len(entity_type_to_entities) > 0:
+            curie_to_name_mapping.update(get_map_ateam_curies_to_names(
+                curies_category=curie_to_name_mapping[entity_type].replace(" ", ""),
+                curies=entity_type_to_entities[entity_type]))
 
     ## map species curies to names
-    curie_to_name_mapping.update(get_map_ateam_curies_to_names(
-        curies_category="ncbitaxonterm",
-        curies=list(species_curies)))
+    if len(species_curies) > 0:
+        curie_to_name_mapping.update(get_map_ateam_curies_to_names(
+            curies_category="ncbitaxonterm",
+            curies=list(species_curies)))
 
     curie_fields = atp_field_names.copy()
     curie_fields.extend(['entity', 'species'])
