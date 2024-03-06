@@ -485,9 +485,6 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
                                       value=getattr(TopicEntityTagModel, sort_by))
                 query = query.order_by(order_expression, curie_ordering, TopicEntityTagModel.topic_entity_tag_id)
             else:
-                if sort_by == 'mod':
-                    sort_by = 'abbreviation'
-
                 # check if the column exists in TopicEntityTagModel
                 if hasattr(TopicEntityTagModel, sort_by):
                     column_property = getattr(TopicEntityTagModel, sort_by)
@@ -496,14 +493,19 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
                     # explicitly join the topic_entity_tag_source table for sorting
                     query = query.join(TopicEntityTagSourceModel,
                                        TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id)
-                elif hasattr(ModModel, sort_by):
-                    column_property = getattr(ModModel, sort_by)
+                elif sort_by == 'data_provider' or sort_by == 'secondary_data_provider':
+                    column_property = getattr(ModModel, "abbreviation")
                     query = query.join(
                         TopicEntityTagSourceModel,
                         TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id)
-                    query = query.join(
-                        ModModel, TopicEntityTagSourceModel.mod_id == ModModel.mod_id
-                    )
+                    if sort_by == "data_provider":
+                        query = query.join(
+                            ModModel, TopicEntityTagSourceModel.data_provider_id == ModModel.mod_id
+                        )
+                    else:
+                        query = query.join(
+                            ModModel, TopicEntityTagSourceModel.secondary_data_provider_id == ModModel.mod_id
+                        )
                 else:
                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                         detail=f"The column '{sort_by}' does not exist in either TopicEntityTagModel or TopicEntityTagSourceModel.")
@@ -523,7 +525,10 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
             if "validated_by" in tet_data:
                 del tet_data["validated_by"]
             add_validation_values_to_tag(tet, tet_data)
-            tet_data["topic_entity_tag_source"]["mod"] = mod_id_to_mod[tet.topic_entity_tag_source.mod_id]
+            tet_data["topic_entity_tag_source"]["data_provider_abbreviation"] = mod_id_to_mod[
+                tet.topic_entity_tag_source.data_provider_id]
+            tet_data["topic_entity_tag_source"]["secondary_data_provider_abbreviation"] = mod_id_to_mod[
+                tet.topic_entity_tag_source.secondary_data_provider_id]
             all_tet.append(tet_data)
         return all_tet
 
