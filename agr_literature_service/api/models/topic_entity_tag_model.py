@@ -226,6 +226,6 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
 
     __table_args__ = (
         UniqueConstraint(
-            'source_evidence_assertion', 'source_method', 'data_provider', 'secondary_data_provider',
+            'source_evidence_assertion', 'source_method', 'data_provider_id', 'secondary_data_provider_id',
             name='topic_entity_tag_source_unique'),
     )
