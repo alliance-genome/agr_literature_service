@@ -107,11 +107,11 @@ def show_source(topic_entity_tag_source_id: int,
             status_code=200)
 def show_source_by_name(source_evidence_assertion: str,
                         source_method: str,
-                        data_provider_abbreviation: str,
+                        data_provider: str,
                         secondary_data_provider_abbreviation: str,
                         db: Session = db_session):
     return topic_entity_tag_crud.show_source_by_name(db, source_evidence_assertion, source_method,
-                                                     data_provider_abbreviation, secondary_data_provider_abbreviation)
+                                                     data_provider, secondary_data_provider_abbreviation)
 
 
 @router.get('/by_reference/{curie_or_reference_id}',

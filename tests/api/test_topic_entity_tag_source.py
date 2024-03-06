@@ -21,7 +21,7 @@ def test_topic_entity_tag_source(db, auth_headers, test_mod): # noqa
             "source_method": "phenotype neural network",
             "validation_type": None,
             "description": "a test source",
-            "data_provider_abbreviation": test_mod.new_mod_abbreviation,
+            "data_provider": "WB",
             "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation,
             "created_by": "somebody"
         }
@@ -43,7 +43,7 @@ class TestTopicEntityTagSource:
             assert res_obj["source_method"] == "phenotype neural network"
             assert res_obj["source_evidence_assertion"] == "automated"
             assert res_obj["description"] == "a test source"
-            assert res_obj["data_provider_abbreviation"] == test_mod.new_mod_abbreviation
+            assert res_obj["data_provider"] == "WB"
             assert res_obj["secondary_data_provider_abbreviation"] == test_mod.new_mod_abbreviation
 
     def test_patch_source(self, test_topic_entity_tag_source, auth_headers): # noqa

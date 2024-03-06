@@ -182,7 +182,7 @@ class TestTopicEntityTag:
                 "source_method": "acknowledge",
                 "validation_type": "author",
                 "description": "author from acknowledge",
-                "data_provider_abbreviation": test_mod.new_mod_abbreviation,
+                "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             author_source_2 = {
@@ -190,7 +190,7 @@ class TestTopicEntityTag:
                 "source_method": "AFP",
                 "validation_type": "author",
                 "description": "author from AFP",
-                "data_provider_abbreviation": test_mod.new_mod_abbreviation,
+                "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             auth_source_1_resp = client.post(url="/topic_entity_tag/source", json=author_source_1, headers=auth_headers)
@@ -239,7 +239,7 @@ class TestTopicEntityTag:
                 "source_method": "abc_literature_system",
                 "validation_type": "professional_biocurator",
                 "description": "curator from ABC",
-                "data_provider_abbreviation": test_mod.new_mod_abbreviation,
+                "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             response = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
@@ -285,7 +285,7 @@ class TestTopicEntityTag:
                 "source_method": "acknowledge",
                 "validation_type": "author",
                 "description": "author from acknowledge",
-                "data_provider_abbreviation": test_mod.new_mod_abbreviation,
+                "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             author_source_2 = {
@@ -293,7 +293,7 @@ class TestTopicEntityTag:
                 "source_method": "abc_interface",
                 "validation_type": "professional_biocurator",
                 "description": "Curator using the ABC",
-                "data_provider_abbreviation": test_mod.new_mod_abbreviation,
+                "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             auth_source_1_resp = client.post(url="/topic_entity_tag/source", json=author_source_1, headers=auth_headers)
@@ -391,7 +391,7 @@ class TestTopicEntityTag:
                 "source_method": "ACKnowledge",
                 "validation_type": "author",
                 "description": "author from acknowledge",
-                "data_provider_abbreviation": test_mod.new_mod_abbreviation,
+                "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             curator_source = {
@@ -399,7 +399,7 @@ class TestTopicEntityTag:
                 "source_method": "abc_interface",
                 "validation_type": "professional_biocurator",
                 "description": "Curator using the ABC",
-                "data_provider_abbreviation": test_mod.new_mod_abbreviation,
+                "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             author_source_resp = client.post(url="/topic_entity_tag/source", json=author_source, headers=auth_headers)
@@ -488,7 +488,7 @@ class TestTopicEntityTag:
                 "source_method": "ACKnowledge",
                 "validation_type": "author",
                 "description": "author from acknowledge",
-                "data_provider_abbreviation": test_mod.new_mod_abbreviation,
+                "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             curator_source = {
@@ -496,7 +496,7 @@ class TestTopicEntityTag:
                 "source_method": "abc_interface",
                 "validation_type": "professional_biocurator",
                 "description": "Curator using the ABC",
-                "data_provider_abbreviation": test_mod.new_mod_abbreviation,
+                "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             author_source_resp = client.post(url="/topic_entity_tag/source", json=author_source,
@@ -589,7 +589,7 @@ class TestTopicEntityTag:
                 "source_method": "acknowledge",
                 "validation_type": "author",
                 "description": "author from acknowledge",
-                "data_provider_abbreviation": test_mod.new_mod_abbreviation,
+                "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             auth_source_1_resp = client.post(url="/topic_entity_tag/source", json=author_source_1, headers=auth_headers)

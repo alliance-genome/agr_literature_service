@@ -53,7 +53,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
     ).one_or_none()
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified source")
-    if source.data_provider.abbreviation == "SGD":
+    if source.data_provider == "SGD":
         check_and_set_sgd_display_tag(topic_entity_tag_data)
     else:
         check_and_set_species(topic_entity_tag_data)
@@ -350,8 +350,6 @@ def patch_source(db: Session, topic_entity_tag_source_id: int, source_patch: Top
 def show_source(db: Session, topic_entity_tag_source_id: int):
     source = get_source_from_db(db, topic_entity_tag_source_id)
     source_data = jsonable_encoder(source)
-    del source_data["data_provider_id"]
-    source_data["data_provider_abbreviation"] = source.data_provider.abbreviation
     del source_data["secondary_data_provider_id"]
     source_data["secondary_data_provider_abbreviation"] = source.secondary_data_provider.abbreviation
     return source_data
@@ -493,23 +491,18 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
                     # explicitly join the topic_entity_tag_source table for sorting
                     query = query.join(TopicEntityTagSourceModel,
                                        TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id)
-                elif sort_by == 'data_provider' or sort_by == 'secondary_data_provider':
+                elif sort_by == 'secondary_data_provider':
                     column_property_name = "abbreviation"
                     column_property = getattr(ModModel, column_property_name)
                     query = query.join(
                         TopicEntityTagSourceModel,
                         TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id)
-                    if sort_by == "data_provider":
-                        query = query.join(
-                            ModModel, TopicEntityTagSourceModel.data_provider_id == ModModel.mod_id
-                        )
-                    else:
-                        query = query.join(
-                            ModModel, TopicEntityTagSourceModel.secondary_data_provider_id == ModModel.mod_id
-                        )
+                    query = query.join(
+                        ModModel, TopicEntityTagSourceModel.secondary_data_provider_id == ModModel.mod_id)
                 else:
                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                        detail=f"The column '{sort_by}' does not exist in either TopicEntityTagModel or TopicEntityTagSourceModel.")
+                                        detail=f"The column '{sort_by}' does not exist in either TopicEntityTagModel "
+                                               f"or TopicEntityTagSourceModel.")
                 if column_property is None:
                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                         detail=f"Failed to get the column '{sort_by}' from the models.")
@@ -526,8 +519,6 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
             if "validated_by" in tet_data:
                 del tet_data["validated_by"]
             add_validation_values_to_tag(tet, tet_data)
-            tet_data["topic_entity_tag_source"]["data_provider_abbreviation"] = mod_id_to_mod[
-                tet.topic_entity_tag_source.data_provider_id]
             tet_data["topic_entity_tag_source"]["secondary_data_provider_abbreviation"] = mod_id_to_mod[
                 tet.topic_entity_tag_source.secondary_data_provider_id]
             all_tet.append(tet_data)
@@ -577,10 +568,7 @@ def populate_tag_field_names(db, reference_id, tag_data):
 
 
 def show_source_by_name(db: Session, source_evidence_assertion: str, source_method: str,
-                        data_provider_abbreviation: str, secondary_data_provider_abbreviation: str):
-    data_provider = db.query(ModModel.mod_id).filter(ModModel.abbreviation == data_provider_abbreviation).one_or_none()
-    if data_provider is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified data provider")
+                        data_provider: str, secondary_data_provider_abbreviation: str):
     secondary_data_provider = db.query(ModModel.mod_id).filter(
         ModModel.abbreviation == secondary_data_provider_abbreviation).one_or_none()
     if secondary_data_provider is None:
@@ -590,15 +578,13 @@ def show_source_by_name(db: Session, source_evidence_assertion: str, source_meth
         and_(
             TopicEntityTagSourceModel.source_evidence_assertion == source_evidence_assertion,
             TopicEntityTagSourceModel.source_method == source_method,
-            TopicEntityTagSourceModel.data_provider_id == data_provider.mod_id,
+            TopicEntityTagSourceModel.data_provider == data_provider,
             TopicEntityTagSourceModel.secondary_data_provider_id == secondary_data_provider.mod_id
         )
     ).one_or_none()
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified Source")
     source_data = jsonable_encoder(source)
-    del source_data["data_provider_id"]
-    source_data["data_provider_abbreviation"] = data_provider_abbreviation
     del source_data["secondary_data_provider_id"]
     source_data["secondary_data_provider_abbreviation"] = secondary_data_provider_abbreviation
     return source_data

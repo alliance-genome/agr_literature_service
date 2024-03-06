@@ -173,16 +173,11 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
         autoincrement=True
     )
 
-    data_provider_id = Column(
-        Integer,
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
-        index=True,
-        nullable=False
-    )
-
-    data_provider = relationship(
-        "ModModel",
-        foreign_keys="TopicEntityTagSourceModel.data_provider_id"
+    data_provider = Column(
+        String(),
+        unique=False,
+        nullable=False,
+        index=True
     )
 
     secondary_data_provider_id = Column(
@@ -226,6 +221,6 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
 
     __table_args__ = (
         UniqueConstraint(
-            'source_evidence_assertion', 'source_method', 'data_provider_id', 'secondary_data_provider_id',
+            'source_evidence_assertion', 'source_method', 'data_provider', 'secondary_data_provider_id',
             name='topic_entity_tag_source_unique'),
     )
