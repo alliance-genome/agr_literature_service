@@ -574,6 +574,7 @@ def populate_tet_curie_names(db, tet_data):
                 entity_type = None
                 entity = None
 
+    return tet_data
     curie_to_name_mapping = {}
 
     ## map atp curies to names (topic, entity_type, display_tag)
