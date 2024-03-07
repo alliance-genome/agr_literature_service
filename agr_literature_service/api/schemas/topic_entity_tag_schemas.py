@@ -4,12 +4,12 @@ from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
 
 class TopicEntityTagSourceSchemaCreate(AuditedObjectModelSchema):
-    source_type: str = Field(..., min_length=1)
+    source_evidence_assertion: str = Field(..., min_length=1)
     source_method: str = Field(..., min_length=1)
     validation_type: Optional[constr(min_length=1)] = None  # type: ignore
-    evidence: str = Field(..., min_length=1)
     description: str
-    mod_abbreviation: str
+    data_provider: str
+    secondary_data_provider_abbreviation: str
 
 
 class TopicEntityTagSourceSchemaShow(TopicEntityTagSourceSchemaCreate):
@@ -17,12 +17,12 @@ class TopicEntityTagSourceSchemaShow(TopicEntityTagSourceSchemaCreate):
 
 
 class TopicEntityTagSourceSchemaUpdate(BaseModel):
-    source_type: Optional[constr(min_length=1)]  # type: ignore
+    source_evidence_assertion: Optional[constr(min_length=1)]  # type: ignore
     source_method: Optional[constr(min_length=1)]  # type: ignore
     validation_type: Optional[constr(min_length=1)]  # type: ignore
-    evidence: Optional[constr(min_length=1)]  # type: ignore
     description: Optional[constr(min_length=1)]  # type: ignore
-    mod_abbreviation: Optional[constr(min_length=1)]  # type: ignore
+    data_provider_abbreviation: Optional[constr(min_length=1)]  # type: ignore
+    secondary_data_provider_abbreviation: Optional[constr(min_length=1)]  # type: ignore
     date_created: Optional[constr(min_length=1)]  # type: ignore
     date_updated: Optional[constr(min_length=1)]  # type: ignore
     created_by: Optional[constr(min_length=1)]  # type: ignore

@@ -178,20 +178,20 @@ class TestTopicEntityTag:
             mock_get_ancestors.return_value = []
             mock_get_descendants.return_value = []
             author_source_1 = {
-                "source_type": "community curation",
+                "source_evidence_assertion": "community curation",
                 "source_method": "acknowledge",
                 "validation_type": "author",
-                "evidence": "test_eco_code",
                 "description": "author from acknowledge",
-                "mod_abbreviation": test_mod.new_mod_abbreviation
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             author_source_2 = {
-                "source_type": "community curation",
+                "source_evidence_assertion": "community curation",
                 "source_method": "AFP",
                 "validation_type": "author",
-                "evidence": "test_eco_code",
                 "description": "author from AFP",
-                "mod_abbreviation": test_mod.new_mod_abbreviation
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             auth_source_1_resp = client.post(url="/topic_entity_tag/source", json=author_source_1, headers=auth_headers)
             auth_source_2_resp = client.post(url="/topic_entity_tag/source", json=author_source_2, headers=auth_headers)
@@ -235,12 +235,12 @@ class TestTopicEntityTag:
             mock_get_ancestors.return_value = []
             mock_get_descendants.return_value = []
             curator_source = {
-                "source_type": "curator",
+                "source_evidence_assertion": "curator",
                 "source_method": "abc_literature_system",
                 "validation_type": "professional_biocurator",
-                "evidence": "test_eco_code",
                 "description": "curator from ABC",
-                "mod_abbreviation": test_mod.new_mod_abbreviation
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             response = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
             validating_tag_cur_1 = {
@@ -281,20 +281,20 @@ class TestTopicEntityTag:
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
             author_source_1 = {
-                "source_type": "community curation",
+                "source_evidence_assertion": "community curation",
                 "source_method": "acknowledge",
                 "validation_type": "author",
-                "evidence": "test_eco_code",
                 "description": "author from acknowledge",
-                "mod_abbreviation": test_mod.new_mod_abbreviation
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             author_source_2 = {
-                "source_type": "manual_curation",
+                "source_evidence_assertion": "manual_curation",
                 "source_method": "abc_interface",
                 "validation_type": "professional_biocurator",
-                "evidence": "test_eco_code",
                 "description": "Curator using the ABC",
-                "mod_abbreviation": test_mod.new_mod_abbreviation
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             auth_source_1_resp = client.post(url="/topic_entity_tag/source", json=author_source_1, headers=auth_headers)
             auth_source_2_resp = client.post(url="/topic_entity_tag/source", json=author_source_2, headers=auth_headers)
@@ -387,20 +387,20 @@ class TestTopicEntityTag:
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
             author_source = {
-                "source_type": "manual",
+                "source_evidence_assertion": "manual",
                 "source_method": "ACKnowledge",
                 "validation_type": "author",
-                "evidence": "test_eco_code",
                 "description": "author from acknowledge",
-                "mod_abbreviation": test_mod.new_mod_abbreviation
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             curator_source = {
-                "source_type": "manual",
+                "source_evidence_assertion": "manual",
                 "source_method": "abc_interface",
                 "validation_type": "professional_biocurator",
-                "evidence": "test_eco_code",
                 "description": "Curator using the ABC",
-                "mod_abbreviation": test_mod.new_mod_abbreviation
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             author_source_resp = client.post(url="/topic_entity_tag/source", json=author_source, headers=auth_headers)
             curator_source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
@@ -484,20 +484,20 @@ class TestTopicEntityTag:
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
             author_source = {
-                "source_type": "manual",
+                "source_evidence_assertion": "manual",
                 "source_method": "ACKnowledge",
                 "validation_type": "author",
-                "evidence": "test_eco_code",
                 "description": "author from acknowledge",
-                "mod_abbreviation": test_mod.new_mod_abbreviation
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             curator_source = {
-                "source_type": "manual",
+                "source_evidence_assertion": "manual",
                 "source_method": "abc_interface",
                 "validation_type": "professional_biocurator",
-                "evidence": "test_eco_code",
                 "description": "Curator using the ABC",
-                "mod_abbreviation": test_mod.new_mod_abbreviation
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             author_source_resp = client.post(url="/topic_entity_tag/source", json=author_source,
                                              headers=auth_headers)
@@ -585,12 +585,12 @@ class TestTopicEntityTag:
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
             author_source_1 = {
-                "source_type": "community curation",
+                "source_evidence_assertion": "community curation",
                 "source_method": "acknowledge",
                 "validation_type": "author",
-                "evidence": "test_eco_code",
                 "description": "author from acknowledge",
-                "mod_abbreviation": test_mod.new_mod_abbreviation
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             auth_source_1_resp = client.post(url="/topic_entity_tag/source", json=author_source_1, headers=auth_headers)
             positive_tag = {
