@@ -583,13 +583,11 @@ def populate_tet_curie_names(db, tet_data):
             curies=list(atp_curies))
 
     ## map entities for each entity type (eg, gene, allele, etc) to names
-    """
     for entity_type in entity_type_to_entities:
         if entity_type is not None and len(entity_type_to_entities[entity_type]) > 0:
             curie_to_name_mapping.update(get_map_ateam_curies_to_names(
                 curies_category=curie_to_name_mapping[entity_type].replace(" ", ""),
                 curies=entity_type_to_entities[entity_type]))
-    """
 
     ## map species curies to names
     if len(species_curies) > 0:
