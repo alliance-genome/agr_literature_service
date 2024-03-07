@@ -484,7 +484,7 @@ class TestTopicEntityTag:
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as \
                 mock_get_descendants, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_map_ateam_curies_to_names") as \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_map_ateam_curies_to_names") as \
                 mock_get_map_ateam_curies_to_name:
             author_source = {
                 "source_type": "manual",
