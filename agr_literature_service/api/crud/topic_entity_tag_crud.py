@@ -585,8 +585,16 @@ def populate_tet_curie_names(db, tet_data):
     ## map entities for each entity type (eg, gene, allele, etc) to names
     for entity_type in entity_type_to_entities:
         if entity_type is not None and len(entity_type_to_entities[entity_type]) > 0:
+            if curie_to_name_mapping[entity_type] == 'species':
+                curie_category = "ncbitaxonterm"
+            elif curie_to_name_mapping[entity_type] in ["AGMs", "strain", "genotype", "fish"]:
+                curie_category = "agm"
+            elif curie_to_name_mapping[entity_type].startswith('transgenic'):
+                curie_category = 'transgenicconstruct'
+            else:
+                curie_category = curie_to_name_mapping[entity_type].replace(" ", "")
             curie_to_name_mapping.update(get_map_ateam_curies_to_names(
-                curies_category=curie_to_name_mapping[entity_type].replace(" ", ""),
+                curies_category=curie_category,
                 curies=entity_type_to_entities[entity_type]))
 
     ## map species curies to names
