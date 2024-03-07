@@ -590,14 +590,12 @@ def populate_tet_curie_names(db, tet_data):
                 curies_category=curie_to_name_mapping[entity_type].replace(" ", ""),
                 curies=entity_type_to_entities[entity_type]))
     """
-    
+
     ## map species curies to names
-    """
     if len(species_curies) > 0:
         curie_to_name_mapping.update(get_map_ateam_curies_to_names(
             curies_category="ncbitaxonterm",
             curies=list(species_curies)))
-    """
 
     curie_fields = atp_field_names.copy()
     curie_fields.extend(['entity', 'species'])
