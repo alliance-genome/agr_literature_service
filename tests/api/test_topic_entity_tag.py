@@ -574,8 +574,9 @@ class TestTopicEntityTag:
             assert int(more_specific_positive_tag_id) in validating_tags
             assert int(more_generic_negative_tag_id) in validating_tags
             mock_get_map_ateam_curies_to_name.return_value = {
-                'ATP:0000005': 'gene', 'ATP:0000009': 'phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000082':
-                    'RNAi phenotype', 'ATP:0000084': 'overexpression phenotype', 'ATP:0000122': 'ATP:0000122'
+                'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
+                'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
+                'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
             }
             all_tags_resp = client.get(url=f"/topic_entity_tag/by_reference/{test_reference.new_ref_curie}",
                                        headers=auth_headers)
