@@ -482,7 +482,10 @@ class TestTopicEntityTag:
                                                 auth_headers, db, test_topic_entity_tag_source):  # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as \
+                mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_map_ateam_curies_to_names") as \
+                mock_get_map_ateam_curies_to_name:
             author_source = {
                 "source_evidence_assertion": "manual",
                 "source_method": "ACKnowledge",
@@ -570,6 +573,11 @@ class TestTopicEntityTag:
             validating_tags = [int(validating_tag.topic_entity_tag_id) for validating_tag in negative_tag.validated_by]
             assert int(more_specific_positive_tag_id) in validating_tags
             assert int(more_generic_negative_tag_id) in validating_tags
+            mock_get_map_ateam_curies_to_name.return_value = {
+                'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
+                'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
+                'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
+            }
             all_tags_resp = client.get(url=f"/topic_entity_tag/by_reference/{test_reference.new_ref_curie}",
                                        headers=auth_headers)
             assert all_tags_resp.status_code == status.HTTP_200_OK
