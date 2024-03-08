@@ -522,7 +522,8 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
             tet_data["topic_entity_tag_source"]["secondary_data_provider_abbreviation"] = mod_id_to_mod[
                 tet.topic_entity_tag_source.secondary_data_provider_id]
             all_tet.append(tet_data)
-        return all_tet
+        tet_data_with_names = populate_tet_curie_names(db, all_tet)
+        return tet_data_with_names
 
 
 def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str):
@@ -546,6 +547,78 @@ def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str):
     for curie_without_name in (set(all_entities) | set(all_topics_and_entities)) - set(entity_curie_to_name.keys()):
         entity_curie_to_name[curie_without_name] = curie_without_name
     return entity_curie_to_name
+
+
+def populate_tet_curie_names(db, tet_data):
+
+    atp_field_names = ['topic', 'entity_type', 'display_tag']
+    atp_curies = set()
+    entity_type_to_entities = {}
+    species_curies = set()
+    for tet in tet_data:
+        entity_type = None
+        entity = None
+        for field in tet:
+            if field in atp_field_names and tet.get(field):
+                atp_curies.add(tet[field])
+                if field == 'entity_type' and tet.get(field):
+                    entity_type = tet[field]
+            elif field == 'entity' and tet.get(field):
+                entity = tet[field]
+            elif field == 'species' and tet.get(field):
+                species_curies.add(tet[field])
+            if entity_type and entity:
+                entities = entity_type_to_entities.get(entity_type, [])
+                entities.append(entity)
+                entity_type_to_entities[entity_type] = entities
+                entity_type = None
+                entity = None
+
+    curie_to_name_mapping = {}
+
+    ## map atp curies to names (topic, entity_type, display_tag)
+    if len(atp_curies) > 0:
+        curie_to_name_mapping = get_map_ateam_curies_to_names(
+            curies_category="atpterm",
+            curies=list(atp_curies))
+
+    ## map entities for each entity type (eg, gene, allele, etc) to names
+    for entity_type in entity_type_to_entities:
+        if entity_type and len(entity_type_to_entities[entity_type]) > 0:
+            entity_type_name = curie_to_name_mapping[entity_type]
+            if entity_type_name == 'species':
+                curie_category = "ncbitaxonterm"
+            elif entity_type_name in ["AGMs", "affected genomic model", "strain", "genotype", "fish"]:
+                curie_category = "agm"
+            elif entity_type_name.startswith('transgenic'):
+                curie_category = 'transgenicconstruct'
+            else:
+                # gene, allele
+                curie_category = entity_type_name
+            curie_to_name_mapping.update(get_map_ateam_curies_to_names(
+                curies_category=curie_category,
+                curies=entity_type_to_entities[entity_type]))
+
+    ## map species curies to names
+    curie_to_name_mapping.update(get_map_ateam_curies_to_names(
+        curies_category="ncbitaxonterm",
+        curies=list(species_curies)))
+
+    curie_fields = atp_field_names.copy()
+    curie_fields.extend(['entity', 'species'])
+
+    new_tet_data = []
+    for tet in tet_data:
+        new_tet = {}
+        for field in tet:
+            new_tet[field] = tet[field]
+            if field in curie_fields:
+                curie = tet[field]
+                new_field = f"{field}_name"
+                new_tet[new_field] = curie_to_name_mapping.get(curie, curie)
+        new_tet_data.append(new_tet)
+
+    return new_tet_data
 
 
 def populate_tag_field_names(db, reference_id, tag_data):
