@@ -102,7 +102,7 @@ def show_source(topic_entity_tag_source_id: int,
     return topic_entity_tag_crud.show_source(db, topic_entity_tag_source_id)
 
 
-@router.get('/source/{source_evidence_assertion}/{source_method}/{mod_abbreviation}',
+@router.get('/source/{source_evidence_assertion}/{source_method}/{data_provider}/{secondary_data_provider_abbreviation}',
             response_model=TopicEntityTagSourceSchemaShow,
             status_code=200)
 def show_source_by_name(source_evidence_assertion: str,
