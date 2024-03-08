@@ -81,12 +81,14 @@ def add_audited_object_users_if_not_exist(db: Session, audited_obj: Dict):
 
 
 def add_source_obj_to_db_session(db: Session, source: Dict):
-    mod = db.query(ModModel.mod_id).filter(ModModel.abbreviation == source['mod_abbreviation']).one_or_none()
-    if mod is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified MOD")
+    secondary_data_provider = db.query(ModModel.mod_id).filter(
+        ModModel.abbreviation == source['secondary_data_provider_abbreviation']).one_or_none()
+    if secondary_data_provider is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Cannot find the specified secondary data provider")
     add_audited_object_users_if_not_exist(db, source)
-    del source["mod_abbreviation"]
-    source["mod_id"] = mod.mod_id
+    del source["secondary_data_provider_abbreviation"]
+    source["secondary_data_provider_id"] = secondary_data_provider.mod_id
     source_obj = TopicEntityTagSourceModel(**source)
     db.add(source_obj)
     return source_obj
