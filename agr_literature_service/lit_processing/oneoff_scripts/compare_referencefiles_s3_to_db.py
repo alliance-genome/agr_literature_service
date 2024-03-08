@@ -3,7 +3,7 @@ import string
 import boto3
 # from botocore.exceptions import ClientError
 from os import environ
-from typing import Set
+from typing import Set, Dict
 # remove
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from dotenv import load_dotenv
@@ -23,7 +23,7 @@ def compare_s3_files():
 
     db_md5sum = set()    # type: Set
     s3_md5sum = set()    # type: Set
-    s3_md5sum_dict = dict()	# type: Dict
+    s3_md5sum_dict = dict()  # type: Dict
 
     db_session = create_postgres_session(False)
     rs = db_session.execute("SELECT md5sum FROM referencefile")
@@ -63,7 +63,7 @@ def compare_s3_files():
                         for obj in objects['Contents']:
                             name = obj['Key'].replace(prefix, '').replace('.gz', '')
                             s3_md5sum.add(name)
-                            s3_md5sum_dict[name] = { 'size': obj['Size'], 'date': obj['LastModified'] }
+                            s3_md5sum_dict[name] = {'size': obj['Size'], 'date': obj['LastModified']}
 
     for md5sum in s3_md5sum:
         if md5sum not in db_md5sum:
