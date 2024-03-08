@@ -3,7 +3,7 @@ import string
 import boto3
 # from botocore.exceptions import ClientError
 from os import environ
-from typing import Set
+from typing import Set, Dict
 # remove
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from dotenv import load_dotenv
@@ -23,6 +23,7 @@ def compare_s3_files():
 
     db_md5sum = set()    # type: Set
     s3_md5sum = set()    # type: Set
+    s3_md5sum_dict = dict()  # type: Dict
 
     db_session = create_postgres_session(False)
     rs = db_session.execute("SELECT md5sum FROM referencefile")
@@ -60,11 +61,13 @@ def compare_s3_files():
                     objects = s3_client.list_objects_v2(Bucket=S3_BUCKET, Prefix=prefix)
                     if 'Contents' in objects:
                         for obj in objects['Contents']:
-                            s3_md5sum.add(obj['Key'].replace(prefix, '').replace('.gz', ''))
+                            name = obj['Key'].replace(prefix, '').replace('.gz', '')
+                            s3_md5sum.add(name)
+                            s3_md5sum_dict[name] = {'size': obj['Size'], 'date': obj['LastModified']}
 
     for md5sum in s3_md5sum:
         if md5sum not in db_md5sum:
-            print(f"{md5sum} in s3 not in db")
+            print(f"date {s3_md5sum_dict[md5sum]['date']} : {md5sum} in s3 not in db, size {s3_md5sum_dict[md5sum]['size']}")
 
     for md5sum in db_md5sum:
         if md5sum not in s3_md5sum:
