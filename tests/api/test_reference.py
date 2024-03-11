@@ -655,3 +655,58 @@ class TestReference:
                 if xref['curie'] == 'WB:WBPaper00000001':
                     xrefs_ok = xrefs_ok + 1
             assert xrefs_ok == 2
+
+
+    def test_get_patterns(self, auth_headers): # noqa
+        with TestClient(app) as client:
+            response = client.get(url=f"/reference/get/patterns",
+                                  headers=auth_headers)
+            print(f"response.json -> {response.json()}")
+            assert response.status_code == status.HTTP_200_OK
+            print(response)
+            assert response.json()['WB'] == r'^WBPaper\d+$'
+
+
+    def test_get_patterns_prefixed(self, auth_headers): # noqa
+        with TestClient(app) as client:
+            response = client.get(url=f"/reference/get/patterns/prefixed",
+                                  headers=auth_headers)
+            print(f"response.json -> {response.json()}")
+            assert response.status_code == status.HTTP_200_OK
+            print(response)
+            assert response.json()['WB'] == r'^WB:WBPaper\d+$'
+
+
+    def test_good_patterns(self, auth_headers): # noqa
+        with TestClient(app) as client:
+            response = client.get(url=f"/reference/check/WB/WBPaper12345",
+                                  headers=auth_headers)
+            print(f"response.json -> {response.json()}")
+            assert response.status_code == status.HTTP_200_OK
+            print(response)
+            assert response.json() is True
+
+            # now try with the prefix
+            response = client.get(url=f"/reference/check/WB/WB:WBPaper12345",
+                                  headers=auth_headers)
+            print(f"response.json -> {response.json()}")
+            assert response.status_code == status.HTTP_200_OK
+            print(response)
+            assert response.json() is True
+
+
+    def test_bad_pattern(self, auth_headers): # noqa
+        with TestClient(app) as client:
+            response = client.get(url=f"/reference/check/ZFIN/WBPaper12345",
+                                  headers=auth_headers)
+            print(f"response.json -> {response.json()}")
+            assert response.status_code == status.HTTP_200_OK
+            print(response)
+            assert response.json() is False
+
+
+    def test_bad_species(self, auth_headers): # noqa
+        with TestClient(app) as client:
+            response = client.get(url=f"/reference/check/MADEUP/WBPaper12345",
+                                  headers=auth_headers)
+            assert response.status_code is status.HTTP_400_BAD_REQUEST

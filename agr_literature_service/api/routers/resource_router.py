@@ -69,3 +69,20 @@ def show(curie: str,
 def show_versions(curie: str,
                   db: Session = db_session):
     return resource_crud.show_changesets(db, curie)
+
+
+@router.get('/patterns',
+            status_code=200,
+            )
+def show_resource_patterns():
+    return resource_crud.get_patterns()
+
+
+@router.get('/check/{species}/{curie}',
+            status_code=200,
+            )
+def check_pattern(species: str, curie: str):
+    ret = resource_crud.check_pattern(species, curie)
+    if ret is None:
+        Response(status_code=status.HTTP_400_BAD_REQUEST)
+    return ret

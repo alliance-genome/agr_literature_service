@@ -255,3 +255,27 @@ def get_textpresso_reference_list(mod_abbreviation: str,
                                                         workflow_tag,
                                                         from_reference_id,
                                                         page_size)
+
+
+@router.get('/get/patterns',
+            status_code=200,
+            )
+def show_reference_patterns():
+    return reference_crud.get_patterns()
+
+
+@router.get('/get/patterns/prefixed',
+            status_code=200,
+            )
+def show_reference_patterns():
+    return reference_crud.get_patterns(with_prefix=True)
+
+
+@router.get('/check/{species}/{curie}',
+            status_code=200,
+            )
+def check_pattern(species: str, curie: str):
+    ret = reference_crud.check_pattern(species, curie)
+    if ret is None:
+        return Response(status_code=status.HTTP_400_BAD_REQUEST)
+    return ret
