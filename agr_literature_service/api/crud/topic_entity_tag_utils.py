@@ -204,6 +204,12 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
         curies_category = 'construct'
         return get_map_ateam_construct_ids_to_symbols(curies_category, curies_not_in_cache, maxret)
 
+    subtype = None
+    if curies_category in ["AGMs", "AffectedGenomeModel", "affected genome model",
+                           "strain", "genotype", "fish"]:
+        if curies_category in ["strain", "genotype", "fish"]:
+            subtype = curies_category
+        curies_category = "agm"
     return_dict = {}
     ateam_api_base_url = environ.get('ATEAM_API_URL')
     ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit={maxret}&page=0'
@@ -219,6 +225,13 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
                 }
             }
         }
+        if subtype:
+            request_body["searchFilters"]["subtypeFilters"] = {
+                "subtype.name": {
+                    "queryString": subtype,
+                    "tokenOperator": "OR"
+                }
+            }
         token = get_authentication_token()
         try:
             request_data_encoded = json.dumps(request_body).encode('utf-8')
@@ -230,10 +243,16 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
                 resp = response.read().decode("utf8")
                 resp_obj = json.loads(resp)
                 # process the API response
-                new_mappings = {
-                    entity["curie"]: entity.get("name") or entity.get(curies_category + "Symbol", {}).get("displayText", entity["curie"])
-                    for entity in resp_obj.get("results", [])
-                }
+                new_mappings = {}
+                if curies_category == "agm":
+                    new_mappings = {
+                        entity["curie"]: entity.get("name") for entity in resp_obj.get("results", [])
+                    }
+                else:
+                    new_mappings = {
+                        entity["curie"]: entity.get("name") or entity.get(curies_category + "Symbol", {}).get("displayText", entity["curie"])
+                        for entity in resp_obj.get("results", [])
+                    }
                 # update return dictionary and cache
                 for curie, name in new_mappings.items():
                     id_to_name_cache.set(curie, name)
