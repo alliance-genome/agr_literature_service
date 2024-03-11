@@ -1,0 +1,25 @@
+# NOTE: pattern does not have species abbr at start in pattern.
+#       either set it in api or get api to add it if requested.
+
+RGD:
+    example: 'RGD:1311419'
+    pattern: '^\d+$'
+ZFIN:
+    example: 'ZFIN:ZDB-PUB-200229-13'
+    pattern: '^ZDB-PUB\S+$'
+XB:
+    example: 'XB-ART-59369'
+    # Xenbase:XB-ART-11903
+    pattern: '^XB-ART-\d+$'
+FB:
+    example: 'FB:FBrf0111489'
+    pattern: '^FBrf[0-9]{7}$'
+MGI:
+    example: 'MGI:5427319'
+    pattern: '^\d+$'
+SGD:
+    example: 'SGD:S000126523'
+    pattern: '^S\d+$'
+WB:
+    example: 'WB:WBPaper00031514'
+    pattern: '^WBPaper\d+$'
