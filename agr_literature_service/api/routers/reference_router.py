@@ -257,18 +257,18 @@ def get_textpresso_reference_list(mod_abbreviation: str,
                                                         page_size)
 
 
-@router.get('/get/patterns',
-            status_code=200,
-            )
-def show_reference_patterns():
-    return reference_crud.get_patterns()
-
-
 @router.get('/get/patterns/prefixed',
             status_code=200,
             )
 def show_reference_patterns():
     return reference_crud.get_patterns(with_prefix=True)
+
+
+@router.get('/get/patterns',
+            status_code=200,
+            )
+def show_reference_patterns():
+    return reference_crud.get_patterns()
 
 
 @router.get('/check/{species}/{curie}',
