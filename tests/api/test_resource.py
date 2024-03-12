@@ -161,12 +161,12 @@ class TestResource:
 
     def test_get_patterns(self, auth_headers): # noqa
         with TestClient(app) as client:
-            response = client.get(url="/reference/get/patterns",
+            response = client.get(url="/resource/get/patterns",
                                   headers=auth_headers)
             print(f"response.json -> {response.json()}")
             assert response.status_code == status.HTTP_200_OK
             print(response)
-            assert response.json()['WB'] == r'^WBPaper\d+$'
+            assert response.json()['XB'] == r'XB-ART-59369'
 
 
     def test_get_patterns_prefixed(self, auth_headers): # noqa
