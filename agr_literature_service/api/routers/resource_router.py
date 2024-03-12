@@ -75,8 +75,8 @@ def show_versions(curie: str,
 @router.get('/get/patterns/prefixed',
             status_code=200,
             )
-def show_reference_patterns_prefixed():
-    return patterns_check.get_patterns(with_prefix=True)['reference']
+def show_resource_patterns_prefixed():
+    return patterns_check.get_patterns(with_prefix=True)['resource']
 
 
 @router.get('/get/patterns',
