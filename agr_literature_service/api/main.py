@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi_health import health
 
-from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL, SQLALCHEMY_DATABASE_NOPASS
+from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_NOPASS
 from agr_literature_service.api.database.main import is_database_online
 from agr_literature_service.api.database.setup import setup_database
 from agr_literature_service.api.routers import (author_router, bulk_downloads_router,

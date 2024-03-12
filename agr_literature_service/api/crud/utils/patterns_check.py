@@ -11,11 +11,12 @@ import yaml
 import re
 from os import path
 from fastapi import HTTPException, status
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
-patterns = {}
-patterns_prefixed = {}
+patterns: Dict = {}
+patterns_prefixed: Dict = {}
 
 logger = logging.getLogger(__name__)
 

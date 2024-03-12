@@ -94,4 +94,3 @@ def check_pattern(species: str, curie: str):
     if ret is None:
         return Response(status_code=status.HTTP_400_BAD_REQUEST)
     return ret
-
