@@ -7,8 +7,7 @@ import re
 from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, List
-from os import getcwd, path
-import yaml
+from os import getcwd
 
 from fastapi.responses import FileResponse
 from fastapi import HTTPException, status
@@ -50,8 +49,6 @@ from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 logger = logging.getLogger(__name__)
 
-patterns = {}
-patterns_prefixed = {}
 
 def create(db: Session, reference: ReferenceSchemaPost):  # noqa
     """
@@ -846,45 +843,3 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
             ]
         } for (reference_id, reference_curie), reffiles_md5sums_sources_dates in aggregated_reffiles.items()
     ]
-
-
-def get_patterns(with_prefix=False):
-    global patterns_prefixed
-    global patterns
-    if not patterns:
-        try:
-            yml_ret = yaml.load(open(f'{path.dirname(__file__)}/../yml/reference.yml'), Loader=yaml.FullLoader)
-            for key in yml_ret:
-                patterns[key] = yml_ret[key]['pattern']
-                patterns_prefixed[key] = patterns[key].replace('^', f'^{key}:')
-                patterns[key] = yml_ret[key]['pattern']
-        except Exception as e:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                                detail=f"Error convert reference yml file: {e}")
-    if with_prefix:
-        return patterns_prefixed
-    return patterns
-
-
-def check_pattern(species: str, curie: str, prefix: bool = None):
-    global patterns_prefixed
-    global patterns
-    if not patterns:
-        get_patterns()
-    # presume if key is in patterns it will also be in patterns_prefixed as they are built together
-    if species not in patterns:
-        logger.error(f"Unable to find species abbreviation {species} in pattern list")
-        return None
-    if prefix is None:  # prefix not defined so try both dictionarys
-        if re.match(patterns[species], curie):
-            return True
-        if re.match(patterns_prefixed[species], curie):
-            return True
-        return False
-    if prefix:
-        if re.match(patterns_prefixed[species], curie):
-            return True
-    else:
-        if re.match(patterns[species], curie):
-            return True
-    return False
