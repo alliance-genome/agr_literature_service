@@ -166,7 +166,7 @@ class TestResource:
             print(f"response.json -> {response.json()}")
             assert response.status_code == status.HTTP_200_OK
             print(response)
-            assert response.json()['XB'] == r'XB-ART-59369'
+            assert response.json()['XB'] == r'^XB-ART-\d+$'
 
 
     def test_get_patterns_prefixed(self, auth_headers): # noqa
