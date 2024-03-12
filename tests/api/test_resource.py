@@ -145,6 +145,7 @@ class TestResource:
 
             assert len(res.cross_reference) == 1
 
+
     def test_delete_resource(self, auth_headers, test_resource): # noqa
         with TestClient(app) as client:
             response = client.delete(url=f"/resource/{test_resource.new_resource_curie}", headers=auth_headers)
@@ -156,8 +157,6 @@ class TestResource:
             # Deleting it again should give an error as the lookup will fail.
             response = client.delete(url=f"/resource/{test_resource.new_resource_curie}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
-
-
 
 
     def test_get_patterns(self, auth_headers): # noqa
