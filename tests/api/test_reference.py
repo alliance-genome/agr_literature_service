@@ -664,7 +664,7 @@ class TestReference:
             print(f"response.json -> {response.json()}")
             assert response.status_code == status.HTTP_200_OK
             print(response)
-            assert response.json()['WB'] == r'^WBPaper\d+$'
+            assert response.json()['WB'][0] == r'^WBPaper\d+$'
 
 
     def test_get_patterns_prefixed(self, auth_headers): # noqa
@@ -674,7 +674,7 @@ class TestReference:
             print(f"response.json -> {response.json()}")
             assert response.status_code == status.HTTP_200_OK
             print(response)
-            assert response.json()['WB'] == r'^WB:WBPaper\d+$'
+            assert response.json()['WB'][0] == r'^WB:WBPaper\d+$'
 
 
     def test_good_patterns(self, auth_headers): # noqa

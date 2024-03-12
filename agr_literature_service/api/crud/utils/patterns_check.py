@@ -32,9 +32,11 @@ def get_patterns(with_prefix=False):
                 patterns[filename] = {}
                 patterns_prefixed[filename] = {}
                 for key in yml_ret:
-                    patterns[filename][key] = yml_ret[key]['pattern']
-                    patterns_prefixed[filename][key] = patterns[filename][key].replace('^', f'^{key}:')
-                    patterns[filename][key] = yml_ret[key]['pattern']
+                    patterns[filename][key] = []
+                    patterns_prefixed[filename][key] = []
+                    for pattern in yml_ret[key]['pattern']:
+                        patterns[filename][key].append(pattern)
+                        patterns_prefixed[filename][key].append(pattern.replace('^', f'^{key}:'))
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail=f"Error convert {filename} yml file: {e}")
@@ -55,16 +57,12 @@ def check_pattern(key: str, species: str, curie: str, prefix: bool = None):
     if species not in patterns[key]:
         logger.error(f"Unable to find species abbreviation {species} in pattern list")
         return None
-    if prefix is None:  # prefix not defined so try both dictionarys
-        if re.match(patterns[key][species], curie):
-            return True
-        if re.match(patterns_prefixed[key][species], curie):
-            return True
-        return False
-    if prefix:
-        if re.match(patterns_prefixed[key][species], curie):
-            return True
-    else:
-        if re.match(patterns[key][species], curie):
-            return True
+    if prefix is None or prefix is False:  # prefix not defined so try both dictionarys
+        for pattern in patterns[key][species]:
+            if re.match(pattern, curie):
+                return True
+    if prefix is None or prefix is True:
+        for pattern in patterns_prefixed[key][species]:
+            if re.match(pattern, curie):
+                return True
     return False
