@@ -121,6 +121,8 @@ alembic-apply-latest-migration:
 	docker-compose --env-file ${ENV_FILE} rm -svf dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server dbz_setup
 	docker-compose --env-file ${ENV_FILE} rm -s -f api
 	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app alembic upgrade head
+	$(MAKE) ENV_FILE=${ENV_FILE} restart-api-and-automated-scripts
+	$(MAKE) ENV_FILE=${ENV_FILE} restart-debezium-aws
 
 restart-automated-scripts:
 	docker-compose --env-file ${ENV_FILE} rm -s -f automated_scripts
