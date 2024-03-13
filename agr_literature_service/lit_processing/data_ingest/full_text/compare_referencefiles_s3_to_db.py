@@ -78,7 +78,8 @@ def compare_s3_files():
             # print(f"{md5sum} in db not in s3")
 
     email_subject = 's3 files differ from rdsprod literature'
-    send_report(email_subject, email_message)
+    if email_message != '':
+        send_report(email_subject, email_message)
 
 # this might list everything, but there's too much, takes too long
 #     s3r = boto3.resource('s3',
