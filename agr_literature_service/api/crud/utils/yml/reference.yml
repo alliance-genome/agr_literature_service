@@ -32,4 +32,4 @@ WB:
     pattern: [['^WBPaper\d+$', 'WB'],
               ['^cgc\d{1,4}$', 'CGC'],
               ['^\S+$', 'WM'],
-              ['^wbg\d{ 1,2 }[ . ]\d', 'WBG']]
+              ['^wbg\d{ 1,2 }[.]\d', 'WBG']]
