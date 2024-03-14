@@ -188,14 +188,6 @@ class TestResource:
             print(response)
             assert response.json() is True
 
-            # now try with the prefix
-            response = client.get(url="/resource/check/WB/WB:WBPaper12345",
-                                  headers=auth_headers)
-            print(f"response.json -> {response.json()}")
-            assert response.status_code == status.HTTP_200_OK
-            print(response)
-            assert response.json() is True
-
 
     def test_bad_pattern(self, auth_headers): # noqa
         with TestClient(app) as client:
@@ -207,7 +199,7 @@ class TestResource:
             assert response.json() is False
 
 
-    def test_bad_species(self, auth_headers): # noqa
+    def test_bad_curie_prefix(self, auth_headers): # noqa
         with TestClient(app) as client:
             response = client.get(url="/resource/check/MADEUP/WBPaper12345",
                                   headers=auth_headers)

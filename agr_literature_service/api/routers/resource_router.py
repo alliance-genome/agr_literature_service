@@ -72,25 +72,18 @@ def show_versions(curie: str,
     return resource_crud.show_changesets(db, curie)
 
 
-@router.get('/get/patterns/prefixed',
-            status_code=200,
-            )
-def show_resource_patterns_prefixed():
-    return patterns_check.get_patterns(with_prefix=True)['resource']
-
-
-@router.get('/get/patterns',
+@router.get('/check/patterns',
             status_code=200,
             )
 def show_resource_patterns():
     return patterns_check.get_patterns()['resource']
 
 
-@router.get('/check/{species}/{curie}',
+@router.get('/check/{curie_prefix}/{curie}',
             status_code=200,
             )
-def check_pattern(species: str, curie: str):
-    ret = patterns_check.check_pattern('resource', species, curie)
+def check_pattern(curie_prefix: str, curie: str):
+    ret = patterns_check.check_pattern('resource', curie_prefix, curie)
     if ret is None:
         return Response(status_code=status.HTTP_400_BAD_REQUEST)
     return ret

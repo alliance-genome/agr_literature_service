@@ -258,25 +258,18 @@ def get_textpresso_reference_list(mod_abbreviation: str,
                                                         page_size)
 
 
-@router.get('/get/patterns/prefixed',
-            status_code=200,
-            )
-def show_reference_patterns_prefixed():
-    return patterns_check.get_patterns(with_prefix=True)['reference']
-
-
-@router.get('/get/patterns',
+@router.get('/check/patterns',
             status_code=200,
             )
 def show_reference_patterns():
     return patterns_check.get_patterns()['reference']
 
 
-@router.get('/check/{species}/{curie}',
+@router.get('/check/{curie_prefix}/{curie}',
             status_code=200,
             )
-def check_pattern(species: str, curie: str):
-    ret = patterns_check.check_pattern('reference', species, curie)
+def check_pattern(curie_prefix: str, curie: str):
+    ret = patterns_check.check_pattern('reference', curie_prefix, curie)
     if ret is None:
         return Response(status_code=status.HTTP_400_BAD_REQUEST)
     return ret

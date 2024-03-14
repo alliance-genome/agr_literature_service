@@ -1,25 +1,35 @@
-# NOTE: pattern does not have species abbr at start in pattern.
-#       either set it in api or get api to add it if requested.
+#
+#  NOTE: species has been left in here so that particular curie prefixes can be easily found
+#        and incase we need to be species specific at some point.
+#
 
+ALL:
+    pattern: [['^\d{2}[.]\d{4,5}/\S+$', 'DOI'],
+              ['^\d{13}$', 'ISBN'],
+              ['^PMC\d+$', 'PMCID'],
+              ['^\d+$', 'PMID']]
 RGD:
     example: 'RGD:1311419'
     pattern: ['^\d+$']
 ZFIN:
     example: 'ZFIN:ZDB-PUB-200229-13'
-    pattern: ['^ZDB-PUB\S+$']
+    pattern: [['^ZDB-PUB\S+$', 'ZFIN']]
 XB:
     example: 'XB-ART-59369'
     # Xenbase:XB-ART-11903
-    pattern: ['^XB-ART-\d+$']
+    pattern: [['^XB-ART-\d+$', 'XenBase']]
 FB:
     example: 'FB:FBrf0111489'
-    pattern: ['^FBrf[0-9]{7}$']
+    pattern: [['^FBrf[0-9]{7}$', 'FB']]
 MGI:
     example: 'MGI:5427319'
-    pattern: ['^\d+$']
+    pattern: [['^\d+$', 'MGI']]
 SGD:
     example: 'SGD:S000126523'
-    pattern: ['^S\d+$']
+    pattern: [['^S\d+$', 'SGD']]
 WB:
     example: 'WB:WBPaper00031514'
-    pattern: ['^WBPaper\d+$']
+    pattern: [['^WBPaper\d+$', 'WB'],
+              ['^cgc\d{1,4}$', 'CGC'],
+              ['^\S+$', 'WM'],
+              ['^wbg\d{ 1,2 }[ . ]\d', 'WBG']]

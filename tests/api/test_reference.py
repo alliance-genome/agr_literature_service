@@ -659,35 +659,17 @@ class TestReference:
 
     def test_get_patterns(self, auth_headers): # noqa
         with TestClient(app) as client:
-            response = client.get(url="/reference/get/patterns",
+            response = client.get(url="/reference/check/patterns",
                                   headers=auth_headers)
             print(f"response.json -> {response.json()}")
             assert response.status_code == status.HTTP_200_OK
             print(response)
-            assert response.json()['WB'][0] == r'^WBPaper\d+$'
-
-
-    def test_get_patterns_prefixed(self, auth_headers): # noqa
-        with TestClient(app) as client:
-            response = client.get(url="/reference/get/patterns/prefixed",
-                                  headers=auth_headers)
-            print(f"response.json -> {response.json()}")
-            assert response.status_code == status.HTTP_200_OK
-            print(response)
-            assert response.json()['WB'][0] == r'^WB:WBPaper\d+$'
+            assert response.json()['CGC'] == r'^cgc\d{1,4}$'
 
 
     def test_good_patterns(self, auth_headers): # noqa
         with TestClient(app) as client:
             response = client.get(url="/reference/check/WB/WBPaper12345",
-                                  headers=auth_headers)
-            print(f"response.json -> {response.json()}")
-            assert response.status_code == status.HTTP_200_OK
-            print(response)
-            assert response.json() is True
-
-            # now try with the prefix
-            response = client.get(url="/reference/check/WB/WB:WBPaper12345",
                                   headers=auth_headers)
             print(f"response.json -> {response.json()}")
             assert response.status_code == status.HTTP_200_OK
@@ -705,7 +687,7 @@ class TestReference:
             assert response.json() is False
 
 
-    def test_bad_species(self, auth_headers): # noqa
+    def test_bad_prefix(self, auth_headers): # noqa
         with TestClient(app) as client:
             response = client.get(url="/reference/check/MADEUP/WBPaper12345",
                                   headers=auth_headers)
