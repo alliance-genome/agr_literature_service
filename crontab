@@ -12,4 +12,5 @@ BASH_ENV=/container.env
 0 0 17 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_check/check_references_for_cross_references.py > /var/log/automated_scripts/find_refs_with_no_xrefs.log 2>&1
 0 4 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_export/dump_database.py -t cron > /var/log/automated_scripts/dump_prod_database.log  2>&1
 0 14 * * 7 [ "${ENV_STATE}" = "build" ] && python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/upload_pdfs_to_s3.py > /var/log/automated_scripts/upload_pdfs_to_s3.log 2>&1
+0 0 15 * * [ "${ENV_STATE}" = "prod" ] && python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/full_text/compare_referencefiles_s3_to_db.py > /var/log/automated_scripts/compare_referencefiles_s3_to_db.log 2>&1
 

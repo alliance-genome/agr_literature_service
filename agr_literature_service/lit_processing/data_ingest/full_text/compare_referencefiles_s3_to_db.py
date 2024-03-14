@@ -6,6 +6,7 @@ from os import environ
 from typing import Set, Dict
 # remove
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
+from agr_literature_service.lit_processing.utils.report_utils import send_report
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -65,13 +66,20 @@ def compare_s3_files():
                             s3_md5sum.add(name)
                             s3_md5sum_dict[name] = {'size': obj['Size'], 'date': obj['LastModified']}
 
+    email_message = ''
     for md5sum in s3_md5sum:
         if md5sum not in db_md5sum:
-            print(f"date {s3_md5sum_dict[md5sum]['date']} : {md5sum} in s3 not in db, size {s3_md5sum_dict[md5sum]['size']}")
+            email_message = email_message + "date " + s3_md5sum_dict[md5sum]['date'] + " : " + md5sum + " in s3 not in db, size " + s3_md5sum_dict[md5sum]['size'] + "<br/>"
+            # print(f"date {s3_md5sum_dict[md5sum]['date']} : {md5sum} in s3 not in db, size {s3_md5sum_dict[md5sum]['size']}")
 
     for md5sum in db_md5sum:
         if md5sum not in s3_md5sum:
-            print(f"{md5sum} in db not in s3")
+            email_message = email_message + md5sum + " in db not in s3<br/>"
+            # print(f"{md5sum} in db not in s3")
+
+    email_subject = 's3 files differ from rdsprod literature'
+    if email_message != '':
+        send_report(email_subject, email_message)
 
 # this might list everything, but there's too much, takes too long
 #     s3r = boto3.resource('s3',
