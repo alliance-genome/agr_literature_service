@@ -29,8 +29,6 @@ def upgrade():
     op.drop_column('topic_entity_tag_version', 'entity_source')
     op.drop_column('topic_entity_tag_version', 'entity_source_mod')
 
-    op.drop_constraint('valid_entity_type_dependencies', 'topic_entity_tag', type_='check')
-
     # Add the new check constraint
     op.create_check_constraint(
         'valid_entity_type_dependencies',
@@ -58,8 +56,6 @@ def downgrade():
     op.add_column('topic_entity_tag', sa.Column('entity_source', sa.VARCHAR(), autoincrement=False, nullable=True))
     conn.execute(sa.text("UPDATE topic_entity_tag SET entity_source = entity_id_validation"))
     op.drop_column('topic_entity_tag', 'entity_id_validation')
-
-    op.drop_constraint('valid_entity_type_dependencies', 'topic_entity_tag', type_='check')
 
     # Add the new check constraint
     op.create_check_constraint(
