@@ -171,7 +171,7 @@ class TestResource:
 
     def test_good_patterns(self, auth_headers): # noqa
         with TestClient(app) as client:
-            response = client.get(url="/resource/check/WB/WBPaper12345",
+            response = client.get(url="/resource/check/ZFIN/ZDB-JRNL-200229-13",
                                   headers=auth_headers)
             print(f"response.json -> {response.json()}")
             assert response.status_code == status.HTTP_200_OK
