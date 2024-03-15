@@ -15,7 +15,7 @@ logger.setLevel(logging.INFO)
 post_url = environ['API_URL'] + "topic_entity_tag/"
 datafile = "./data/sgd_triage_data_20230824.txt"
 mod = 'SGD'
-entity_source = "alliance"
+entity_id_validation = "alliance"
 
 
 def load_data():
@@ -70,7 +70,7 @@ def load_data():
                 logger.info(f"The entity_type {pieces[3]} can't be mapped to an ATP ID.")
                 continue
             entity_sgdid = pieces[5]
-            source = entity_source
+            source = entity_id_validation
 
         note = pieces[6] if pieces[6] else None
         created_by = pieces[7]
@@ -83,7 +83,7 @@ def load_data():
             "topic": topic_atp,
             "entity_type": entity_type_atp,
             "entity": entity_sgdid,
-            "entity_source": source,
+            "entity_id_validation": source,
             "species": "NCBITaxon:559292",
             "topic_entity_tag_source_id": topic_entity_tag_source_id,
             "negated": False,

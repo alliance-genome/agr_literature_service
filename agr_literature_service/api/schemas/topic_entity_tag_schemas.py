@@ -37,7 +37,7 @@ class TopicEntityTagSchemaCreate(AuditedObjectModelSchema):
     topic: str = Field(..., min_length=1)
     entity_type: Optional[constr(min_length=1)] = None  # type: ignore
     entity: Optional[constr(min_length=1)] = None  # type: ignore
-    entity_source: Optional[constr(min_length=1)] = None  # type: ignore
+    entity_id_validation: Optional[constr(min_length=1)] = None  # type: ignore
     entity_published_as: Optional[constr(min_length=1)] = None  # type: ignore
     species: Optional[constr(min_length=1)] = None  # type: ignore
     display_tag: Optional[constr(min_length=1)] = None  # type: ignore
@@ -57,7 +57,7 @@ class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     topic: str
     entity_type: Optional[str] = None
     entity: Optional[str] = None
-    entity_source: Optional[str] = None
+    entity_id_validation: Optional[str] = None
     entity_published_as: Optional[str] = None
     species: Optional[str] = None
     display_tag: Optional[str] = None
@@ -78,7 +78,7 @@ class TopicEntityTagSchemaUpdate(AuditedObjectModelSchema):
     topic: Optional[constr(min_length=1)] = None  # type: ignore
     entity_type: Optional[constr(min_length=1)] = None  # type: ignore
     entity: Optional[constr(min_length=1)] = None  # type: ignore
-    entity_source: Optional[constr(min_length=1)] = None  # type: ignore
+    entity_id_validation: Optional[constr(min_length=1)] = None  # type: ignore
     entity_published_as: Optional[constr(min_length=1)] = None  # type: ignore
     species: Optional[constr(min_length=1)] = None  # type: ignore
     display_tag: Optional[constr(min_length=1)] = None  # type: ignore
