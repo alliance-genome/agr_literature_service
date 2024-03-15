@@ -537,7 +537,7 @@ def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str):
             all_topics_and_entities.append(tag.display_tag)
         if tag.entity_type is not None:
             all_topics_and_entities.append(tag.entity_type)
-            if tag.entity_source == "alliance":
+            if tag.entity_id_validation == "alliance":
                 all_entities[tag.entity_type].append(tag.entity)
     entity_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=all_topics_and_entities)
     for atpterm_curie in all_entities.keys():

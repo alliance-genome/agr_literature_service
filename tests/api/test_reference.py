@@ -256,7 +256,7 @@ class TestReference:
                         "topic": "string",
                         "entity_type": "string",
                         "entity": "string",
-                        "entity_source": "string",
+                        "entity_id_validation": "string",
                         "species": "string",
                         "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                         "negated": False,
