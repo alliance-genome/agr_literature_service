@@ -1,12 +1,13 @@
 #
-# resource yml file.
+# resource yml
 #
 
 ZFIN:
     example: 'ZFIN:ZDB-JRNL-200229-13'
-    pattern: [['^ZDB-PUB\S+$', 'ZFIN']]
+    pattern: [['^ZDB-JRNL-\d+-\d+$', 'ZFIN']]
 FB:
     example: 'FB:FBrf0111489'
     pattern: [['^FBrf[0-9]{7}$', 'FB']]
+
 
 
