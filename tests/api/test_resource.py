@@ -166,7 +166,7 @@ class TestResource:
             print(f"response.json -> {response.json()}")
             assert response.status_code == status.HTTP_200_OK
             print(response)
-            assert response.json()['ZFIN'] == r'^ZDB-PUB\S+$'
+            assert response.json()['ZFIN'] == r'^ZDB-JRNL-\d+-\d+$'
 
 
     def test_good_patterns(self, auth_headers): # noqa
