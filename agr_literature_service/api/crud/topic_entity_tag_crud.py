@@ -106,7 +106,7 @@ def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagMo
         else:
             return "validation_conflict"
     elif topic_entity_tag_db_obj.topic_entity_tag_source.validation_type == validation_type:
-        return "self_validated"
+        return "validated_right_self"
     return "not_validated"
 
 
