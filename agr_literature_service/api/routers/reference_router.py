@@ -8,6 +8,7 @@ from multiprocessing import Process, Manager, Lock
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import cross_reference_crud, reference_crud
+from agr_literature_service.api.crud.utils import patterns_check
 from agr_literature_service.api.s3 import download
 from agr_literature_service.api.deps import s3_auth
 from agr_literature_service.api.routers.authentication import auth
@@ -255,3 +256,20 @@ def get_textpresso_reference_list(mod_abbreviation: str,
                                                         workflow_tag,
                                                         from_reference_id,
                                                         page_size)
+
+
+@router.get('/check/patterns',
+            status_code=200,
+            )
+def show_reference_patterns():
+    return patterns_check.get_patterns()['reference']
+
+
+@router.get('/check/{curie}',
+            status_code=200,
+            )
+def check_pattern(curie: str):
+    ret = patterns_check.check_pattern('reference', curie)
+    if ret is None:
+        return Response(status_code=status.HTTP_400_BAD_REQUEST)
+    return ret
