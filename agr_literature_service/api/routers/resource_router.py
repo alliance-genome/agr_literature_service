@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import resource_crud
+from agr_literature_service.api.crud.utils import patterns_check
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (ResourceSchemaPost,
                                                 ResourceSchemaShow, ResourceSchemaUpdate,
@@ -69,3 +70,20 @@ def show(curie: str,
 def show_versions(curie: str,
                   db: Session = db_session):
     return resource_crud.show_changesets(db, curie)
+
+
+@router.get('/check/patterns',
+            status_code=200,
+            )
+def show_resource_patterns():
+    return patterns_check.get_patterns()['resource']
+
+
+@router.get('/check/{curie}',
+            status_code=200,
+            )
+def check_pattern(curie: str):
+    ret = patterns_check.check_pattern('resource', curie)
+    if ret is None:
+        return Response(status_code=status.HTTP_400_BAD_REQUEST)
+    return ret
