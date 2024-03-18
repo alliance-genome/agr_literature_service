@@ -37,7 +37,7 @@ def get_patterns():
     return patterns
 
 
-def check_pattern(key: str, curie_prefix: str, curie: str):
+def check_pattern(key: str, curie: str):
     """
     key: type of pattern, currently 'reference' or 'resource'
     curie_prefix: type od cross reference i.e. 'DOI', 'MGI', 'ISBN'
@@ -49,6 +49,7 @@ def check_pattern(key: str, curie_prefix: str, curie: str):
     if key not in patterns:
         logger.error(f"Unable to find {key} in pattern list")
         return None
+    curie_prefix = curie.split(':')[0]
     if curie_prefix not in patterns[key]:
         logger.error(f"Unable to find curie prefix {curie_prefix} in pattern list for {key}")
         return None

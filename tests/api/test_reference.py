@@ -664,12 +664,12 @@ class TestReference:
             print(f"response.json -> {response.json()}")
             assert response.status_code == status.HTTP_200_OK
             print(response)
-            assert response.json()['CGC'] == r'^cgc\d{1,4}$'
+            assert response.json()['CGC'] == r'^CGC:cgc\d{1,4}$'
 
 
     def test_good_patterns(self, auth_headers): # noqa
         with TestClient(app) as client:
-            response = client.get(url="/reference/check/WB/WBPaper12345",
+            response = client.get(url="/reference/check/WB:WBPaper12345",
                                   headers=auth_headers)
             print(f"response.json -> {response.json()}")
             assert response.status_code == status.HTTP_200_OK
@@ -679,7 +679,7 @@ class TestReference:
 
     def test_bad_pattern(self, auth_headers): # noqa
         with TestClient(app) as client:
-            response = client.get(url="/reference/check/ZFIN/WBPaper12345",
+            response = client.get(url="/reference/check/ZFIN:WBPaper12345",
                                   headers=auth_headers)
             print(f"response.json -> {response.json()}")
             assert response.status_code == status.HTTP_200_OK
@@ -689,6 +689,6 @@ class TestReference:
 
     def test_bad_prefix(self, auth_headers): # noqa
         with TestClient(app) as client:
-            response = client.get(url="/reference/check/MADEUP/WBPaper12345",
+            response = client.get(url="/reference/check/MADEUP:WBPaper12345",
                                   headers=auth_headers)
             assert response.status_code is status.HTTP_400_BAD_REQUEST

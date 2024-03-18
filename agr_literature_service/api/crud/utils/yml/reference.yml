@@ -4,32 +4,32 @@
 #
 
 ALL:
-    pattern: [['^\d{2}[.]\d{4,5}/\S+$', 'DOI'],
-              ['^\d{13}$', 'ISBN'],
-              ['^PMC\d+$', 'PMCID'],
-              ['^\d+$', 'PMID']]
+    pattern: [['^DOI:\d{2}[.]\d{4,5}/\S+$', 'DOI'],
+              ['^ISBN:\d{13}$', 'ISBN'],
+              ['^PMCID:PMC\d+$', 'PMCID'],
+              ['^PMID\d+$', 'PMID']]
 RGD:
     example: 'RGD:1311419'
-    pattern: ['^\d+$']
+    pattern: ['^RGD\d+$']
 ZFIN:
     example: 'ZFIN:ZDB-PUB-200229-13'
-    pattern: [['^ZDB-PUB\S+$', 'ZFIN']]
+    pattern: [['^ZFIN:ZDB-PUB\S+$', 'ZFIN']]
 XB:
     example: 'XB-ART-59369'
     # Xenbase:XB-ART-11903
-    pattern: [['^XB-ART-\d+$', 'XenBase']]
+    pattern: [['^Xenbase:XB-ART-\d+$', 'XenBase']]
 FB:
     example: 'FB:FBrf0111489'
-    pattern: [['^FBrf[0-9]{7}$', 'FB']]
+    pattern: [['^FB:FBrf[0-9]{7}$', 'FB']]
 MGI:
     example: 'MGI:5427319'
-    pattern: [['^\d+$', 'MGI']]
+    pattern: [['^MGI:\d+$', 'MGI']]
 SGD:
     example: 'SGD:S000126523'
-    pattern: [['^S\d+$', 'SGD']]
+    pattern: [['^SGD:S\d+$', 'SGD']]
 WB:
     example: 'WB:WBPaper00031514'
-    pattern: [['^WBPaper\d+$', 'WB'],
-              ['^cgc\d{1,4}$', 'CGC'],
-              ['^\S+$', 'WM'],
-              ['^wbg\d{ 1,2 }[.]\d', 'WBG']]
+    pattern: [['^WB:WBPaper\d+$', 'WB'],
+              ['^CGC:cgc\d{1,4}$', 'CGC'],
+              ['^WM:\S+$', 'WM'],
+              ['^WBG:wbg\d{ 1,2 }[.]\d', 'WBG']]

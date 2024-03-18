@@ -79,11 +79,11 @@ def show_resource_patterns():
     return patterns_check.get_patterns()['resource']
 
 
-@router.get('/check/{curie_prefix}/{curie}',
+@router.get('/check/{curie}',
             status_code=200,
             )
-def check_pattern(curie_prefix: str, curie: str):
-    ret = patterns_check.check_pattern('resource', curie_prefix, curie)
+def check_pattern(curie: str):
+    ret = patterns_check.check_pattern('resource', curie)
     if ret is None:
         return Response(status_code=status.HTTP_400_BAD_REQUEST)
     return ret

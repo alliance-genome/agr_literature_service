@@ -166,12 +166,12 @@ class TestResource:
             print(f"response.json -> {response.json()}")
             assert response.status_code == status.HTTP_200_OK
             print(response)
-            assert response.json()['ZFIN'] == r'^ZDB-JRNL-\d+-\d+$'
+            assert response.json()['ZFIN'] == r'^ZFIN:ZDB-JRNL-\d+-\d+$'
 
 
     def test_good_patterns(self, auth_headers): # noqa
         with TestClient(app) as client:
-            response = client.get(url="/resource/check/ZFIN/ZDB-JRNL-200229-13",
+            response = client.get(url="/resource/check/ZFIN:ZDB-JRNL-200229-13",
                                   headers=auth_headers)
             print(f"response.json -> {response.json()}")
             assert response.status_code == status.HTTP_200_OK
@@ -181,7 +181,7 @@ class TestResource:
 
     def test_bad_pattern(self, auth_headers): # noqa
         with TestClient(app) as client:
-            response = client.get(url="/resource/check/ZFIN/WBPaper12345",
+            response = client.get(url="/resource/check/ZFIN:WBPaper12345",
                                   headers=auth_headers)
             print(f"response.json -> {response.json()}")
             assert response.status_code == status.HTTP_200_OK
@@ -191,6 +191,6 @@ class TestResource:
 
     def test_bad_curie_prefix(self, auth_headers): # noqa
         with TestClient(app) as client:
-            response = client.get(url="/resource/check/MADEUP/WBPaper12345",
+            response = client.get(url="/resource/check/MADEUP:WBPaper12345",
                                   headers=auth_headers)
             assert response.status_code is status.HTTP_400_BAD_REQUEST

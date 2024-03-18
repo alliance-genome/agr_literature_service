@@ -4,10 +4,10 @@
 
 ZFIN:
     example: 'ZFIN:ZDB-JRNL-200229-13'
-    pattern: [['^ZDB-JRNL-\d+-\d+$', 'ZFIN']]
+    pattern: [['^ZFIN:ZDB-JRNL-\d+-\d+$', 'ZFIN']]
 FB:
     example: 'FB:FBrf0111489'
-    pattern: [['^FBrf[0-9]{7}$', 'FB']]
+    pattern: [['^FB:FBrf[0-9]{7}$', 'FB']]
 
 
 
