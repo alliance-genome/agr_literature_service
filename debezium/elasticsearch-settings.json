@@ -265,6 +265,72 @@
       },
       "cross_references.is_obsolete": {
         "type": "boolean"
+      },
+      "topic_entity_tags.topic": {
+        "type": "text",
+        "analyzer": "autocompleteAnalyzer",
+        "search_analyzer": "autocompleteSearchAnalyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "topic_entity_tags.entity_type": {
+        "type": "text",
+        "analyzer": "autocompleteAnalyzer",
+        "search_analyzer": "autocompleteSearchAnalyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "topic_entity_tags.date_created": {
+        "type": "date",
+        "format": "date_optional_time||epoch_millis",
+        "null_value": null,
+        "ignore_malformed": true
+      },
+      "topic_entity_tags.date_updated": {
+        "type": "date",
+        "format": "date_optional_time||epoch_millis",
+        "null_value": null,
+        "ignore_malformed": true
+      },
+      "topic_entity_tags.entity": {
+        "type": "text",
+        "analyzer": "autocompleteAnalyzer",
+        "search_analyzer": "autocompleteSearchAnalyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "topic_entity_tags.species": {
+        "type": "text",
+        "analyzer": "autocompleteAnalyzer",
+        "search_analyzer": "autocompleteSearchAnalyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "topic_entity_tags.negated": {
+        "type": "boolean"
+      },
+      "topic_entity_tags.novel_entity_data": {
+        "type": "boolean"
       }
     }
   }

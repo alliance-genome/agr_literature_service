@@ -7,6 +7,7 @@ from agr_literature_service.api.config import config
 
 from fastapi import HTTPException, status
 
+from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
 
 logger = logging.getLogger(__name__)
 
@@ -210,6 +211,13 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "size": facets_limits[
                         "authors.name.keyword"] if "authors.name.keyword" in facets_limits else 10
                 }
+            },
+            "topic_entity_tags.topic.keyword": {
+                "terms": {
+                    "field": "topic_entity_tags.topic.keyword",
+                    "size": facets_limits[
+                        "topic_entity_tags.topic.keyword"] if "topic_entity_tags.topic.keyword" in facets_limits else 10
+                }
             }
         },
         "from": from_entry,
@@ -231,6 +239,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         del es_body["query"]
         es_body["size"] = 0
         res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
+        add_curie_to_name_values(res)
         return {"hits": [], "aggregations": res["aggregations"]}
     if query and (query_fields == "All" or query_fields is None):
         es_body["query"]["bool"]["must"].append({
@@ -321,6 +330,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     if author_filter:
         es_body["aggregations"]["authors.name.keyword"]["terms"]["include"] = ".*" + author_filter + ".*"
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
+    add_curie_to_name_values(res)
     return {
         "hits": [{
             "curie": ref["_source"]["curie"],
@@ -340,3 +350,15 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         "aggregations": res["aggregations"],
         "return_count": res["hits"]["total"]["value"]
     }
+
+
+def add_curie_to_name_values(es_result_object):
+    aggregations_atp = ["topic_entity_tags.topic.keyword"]
+    curie_to_name_map = get_map_ateam_curies_to_names(curies_category="atpterm", curies=[
+        bucket["key"] for aggreg_to_map in aggregations_atp for bucket in es_result_object["aggregations"][
+            aggreg_to_map]["buckets"]])
+    for aggreg_to_map in aggregations_atp:
+        for idx, bucket in enumerate(es_result_object["aggregations"][aggreg_to_map]["buckets"]):
+            es_result_object["aggregations"][aggreg_to_map]["buckets"][idx]["name"] = curie_to_name_map[
+                bucket["key"].upper()]
+
