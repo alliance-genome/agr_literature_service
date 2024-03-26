@@ -133,3 +133,6 @@ bulk_upload_reference_files:
 
 dump_prod_locally:
 	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app python3 agr_literature_service/lit_processing/data_export/dump_database.py  -t  ondemand
+
+test-command:
+	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app echo "test" > /usr/share/agr_env_files/test.txt
