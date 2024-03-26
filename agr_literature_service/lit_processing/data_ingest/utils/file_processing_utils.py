@@ -138,13 +138,17 @@ def remove_old_files(dir_path, days_old):
 
 def classify_pmc_file(file_name, file_extension):
 
+    """
     image_related_file_extensions = [
         'jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png',
         'eps', 'ai', 'bmp', 'svg', 'webp', 'emf'
     ]
+    """
+    image_related_file_extensions = ['jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png']
     if file_extension.lower() == "nxml":
         return "nXML"
-    if "fig" in file_name.lower() and file_extension.lower() in image_related_file_extensions:
+    # if "fig" in file_name.lower() and file_extension.lower() in image_related_file_extensions:
+    if file_extension.lower() in image_related_file_extensions:
         return "figure"
     if "thumb" in file_name.lower() and file_extension.lower() in image_related_file_extensions:
         return "thumbnail"
