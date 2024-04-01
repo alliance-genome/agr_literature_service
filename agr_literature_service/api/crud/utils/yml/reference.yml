@@ -7,10 +7,10 @@ ALL:
     pattern: [['^DOI:\d{2}[.]\d{4,5}/\S+$', 'DOI'],
               ['^ISBN:\d{13}$', 'ISBN'],
               ['^PMCID:PMC\d+$', 'PMCID'],
-              ['^PMID\d+$', 'PMID']]
+              ['^PMID:\d+$', 'PMID']]
 RGD:
     example: 'RGD:1311419'
-    pattern: ['^RGD\d+$']
+    pattern: ['^RGD:\d+$']
 ZFIN:
     example: 'ZFIN:ZDB-PUB-200229-13'
     pattern: [['^ZFIN:ZDB-PUB\S+$', 'ZFIN']]
