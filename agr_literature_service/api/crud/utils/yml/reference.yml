@@ -10,7 +10,7 @@ ALL:
               ['^PMID:\d+$', 'PMID']]
 RGD:
     example: 'RGD:1311419'
-    pattern: ['^RGD:\d+$']
+    pattern: [['^RGD:\d+$', 'RGD']]
 ZFIN:
     example: 'ZFIN:ZDB-PUB-200229-13'
     pattern: [['^ZFIN:ZDB-PUB\S+$', 'ZFIN']]
