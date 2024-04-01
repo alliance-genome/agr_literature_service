@@ -11,6 +11,7 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceRelationModel, \
     MeshDetailModel, ReferenceModReferencetypeAssociationModel, \
     ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel
+from agr_literature_service.api.crud.utils.patterns_check import check_pattern
 
 batch_size_for_commit = 250
 
@@ -317,9 +318,17 @@ def add_cross_references(cross_references_to_add, ref_curie_list, logger, live_c
                 logger.info("The XREF: " + entry["curie"] + " is already in cross_reference table. It is associated with reference_id = " + str(x[0]) + ", resource_id = " + str(x[1]) + ", is_obsolete=" + str(x[2]))
             continue
 
+        prefix = entry["curie"].split(':')[0]
+        status = check_pattern('reference', entry["curie"])
+        if status is None:
+            logger.info(f"Unable to find curie prefix {prefix} in pattern list for reference")
+            continue
+        if status is False:
+            logger.info(f"The curie {entry['curie']} doesn't match the pattern for reference")
+            continue
         try:
             x = CrossReferenceModel(reference_id=reference_id,
-                                    curie_prefix=entry["curie"].split(':')[0],
+                                    curie_prefix=prefix,
                                     curie=entry["curie"],
                                     pages=entry.get("pages"))
             db_session.add(x)
@@ -1064,6 +1073,16 @@ def _insert_pmcid(db_session, fw, pmid, reference_id, pmcid, logger=None):  # pr
 
 def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_in_db, doi_json, pmcid_db, pmcid_list_in_db, pmcid_json, pub_status_changed, pmids_with_pub_status_changed, update_log, logger=None):  # pragma: no cover
 
+    if doi_json:
+        status = check_pattern('reference', doi_json)
+        if not status:
+            logger.info(f"The curie {doi_json} doesn't match the pattern for reference")
+            return
+    if pmcid_json:
+        status = check_pattern('reference', pmcid_json)
+        if not status:
+            logger.info(f"The curie {pmcid_json} doesn't match the pattern for reference")
+            return
     doi_json = doi_json.replace("DOI:", "") if doi_json else None
     pmcid_json = pmcid_json.replace("PMCID:", "") if pmcid_json else None
 
