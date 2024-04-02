@@ -97,9 +97,6 @@ restart-debezium-aws:
 	sleep 20
 	docker-compose --env-file ${ENV_FILE} up -d --build dbz_setup
 
-restart-debezium-aws-test:
-	sh write_timestamp.sh
-
 stop-debezium:
 	docker-compose --env-file ${ENV_FILE} rm -svf dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server dbz_setup
 
