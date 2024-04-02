@@ -1,7 +1,6 @@
 FROM ubuntu:20.04
 
 RUN apt-get update && apt-get install -y cron git python3-pip
-
 WORKDIR /usr/src/app/
 
 ADD . .
@@ -16,8 +15,13 @@ RUN pip3 install -r requirements.txt  && \
     sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/postgres.list'  && \
     wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc |  apt-key add -  && \
     apt update  && \
-    apt install postgresql-client-13 -y
-
+    apt install postgresql-client-13 -y && \
+    apt install curl -y && \
+    apt install postgresql-client -y  && \
+    apt install gettext -y   && \
+    apt install bash -y   && \
+    apt install jq -y
+COPY debezium/* /
 RUN chmod 0644 /etc/cron.d/automate_scripts_crontab
 RUN crontab /etc/cron.d/automate_scripts_crontab
 
