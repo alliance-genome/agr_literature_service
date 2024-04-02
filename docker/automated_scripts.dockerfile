@@ -1,5 +1,6 @@
 FROM ubuntu:20.04
-
+# Set timezone:
+RUN ln -snf /usr/share/zoneinfo/$CONTAINER_TIMEZONE /etc/localtime && echo $CONTAINER_TIMEZONE
 RUN apt-get update && apt-get install -y cron git python3-pip
 WORKDIR /usr/src/app/
 
