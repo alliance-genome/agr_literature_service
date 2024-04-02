@@ -1,6 +1,7 @@
 FROM ubuntu:20.04
 # Set timezone:
-RUN ln -snf /usr/share/zoneinfo/$CONTAINER_TIMEZONE /etc/localtime && echo $CONTAINER_TIMEZONE
+ENV TZ=America/New_York
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN apt-get update && apt-get install -y cron git python3-pip
 WORKDIR /usr/src/app/
 
