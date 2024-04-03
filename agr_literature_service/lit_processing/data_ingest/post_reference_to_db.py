@@ -14,6 +14,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import get_journa
 from agr_literature_service.api.crud.reference_crud import get_citation_from_args
 from agr_literature_service.global_utils import get_next_reference_curie
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
+from agr_literature_service.api.crud.utils.patterns_check import check_pattern
 
 logging.basicConfig(format='%(message)s')
 log = logging.getLogger()
@@ -250,12 +251,13 @@ def insert_cross_references(db_session, primaryId, reference_id, doi_to_referenc
     foundXREF = 0
     for c in cross_refs_from_json:
         curie = c['id']
-        # if primaryId.startswith('PMID'):
-        #    prefix = curie.split(':')[0]
-        #    if prefix in ['NLM', 'ISSN']:
-        #        continue
         prefix = curie.split(':')[0]
-        if prefix in ['NLM', 'ISSN']:
+        status = check_pattern('reference', curie)
+        if status is None:
+            log.info(f"Unable to find curie prefix {prefix} in pattern list for reference")
+            continue
+        if status is False:
+            log.info(f"The curie {curie} doesn't match the pattern for reference")
             continue
         if curie.startswith('DOI:'):
             if curie in doi_to_reference_id:

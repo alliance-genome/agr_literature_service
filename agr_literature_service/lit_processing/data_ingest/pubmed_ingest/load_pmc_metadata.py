@@ -5,6 +5,8 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
 from agr_literature_service.lit_processing.utils.db_read_utils import get_pmid_to_reference_id_mapping
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     insert_referencefile_mod_for_pmc, insert_referencefile
+from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
+    classify_pmc_file
 from agr_literature_service.api.user import set_global_user_id
 
 logging.basicConfig(format='%(message)s')
@@ -13,7 +15,7 @@ logger.setLevel(logging.INFO)
 
 infile = "data/pmc_oa_files_uploaded.txt"
 
-file_class = "supplement"
+# file_class = "supplement"
 file_publication_status = "final"
 batch_commit_size = 250
 
@@ -64,6 +66,9 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
                     continue
 
             if not referencefile_id:
+                file_extension = file_name_with_suffix.split(".")[-1].lower()
+                file_name = file_name_with_suffix.replace("." + file_extension, "")
+                file_class = classify_pmc_file(file_name, file_extension)
                 referencefile_id = insert_referencefile(db_session, pmid, file_class,
                                                         file_publication_status,
                                                         file_name_with_suffix,
