@@ -195,6 +195,7 @@ services:
       DEBEZIUM_INDEX_NAME: "${DEBEZIUM_INDEX_NAME}"
       DEBEZIUM_KSQLDB_HOST: "${DEBEZIUM_KSQLDB_HOST}"
       DEBEZIUM_KSQLDB_PORT: "${DEBEZIUM_KSQLDB_PORT}"
+      TZ: "UTC"
     volumes:
       - "${LOG_PATH}:/var/log/automated_scripts"
       - /etc/localtime:/etc/localtime:ro

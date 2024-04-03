@@ -1,6 +1,6 @@
 FROM ubuntu:20.04
 # Set timezone:
-ENV TZ=America/New_York
+ENV TZ=UTC
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN apt-get update && apt-get install -y cron git python3-pip
 WORKDIR /usr/src/app/
@@ -19,7 +19,6 @@ RUN pip3 install -r requirements.txt  && \
     apt update  && \
     apt install postgresql-client-13 -y && \
     apt install curl -y && \
-    apt install postgresql-client -y  && \
     apt install gettext -y   && \
     apt install bash -y   && \
     apt install jq -y
