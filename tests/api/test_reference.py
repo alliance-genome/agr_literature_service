@@ -499,7 +499,7 @@ class TestReference:
                                       'year|\n' \
                                       'abstract|3\n'
 
-    def test_get_textpresso_reference_list(self, test_reference, auth_headers, test_mod, db):  # noqa
+    def test_get_textpresso_reference_list(self, test_reference, auth_headers, test_mod, test_topic_entity_tag_source, db):  # noqa
         with TestClient(app) as client:
             new_referencefile_main_1 = {
                 "display_name": "Bob1",
@@ -551,12 +551,38 @@ class TestReference:
                 "referencefile_id": reffile_id_sup_1,
                 "mod_abbreviation": test_mod.new_mod_abbreviation
             }
+            new_tet = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000142",
+                "entity_type": "ATP:0000123",
+                "entity": "NCBITaxon:6239",
+                "entity_id_validation": "alliance",
+                "entity_published_as": "test",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "novel_topic_data": True,
+                "note": "test note",
+                "created_by": "WBPerson1",
+                "date_created": "2020-01-01"
+            }
+            client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
             client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)
 
             result = client.get(url=f"/reference/get_textpresso_reference_list/{test_mod.new_mod_abbreviation}",
                                 headers=auth_headers)
             assert result.status_code == status.HTTP_200_OK
-            assert result.json()
+            assert len(result.json()) > 0
+
+            result = client.get(url=f"/reference/get_textpresso_reference_list/{test_mod.new_mod_abbreviation}?"
+                                    f"species=NCBITaxon%3A6239", headers=auth_headers)
+            assert result.status_code == status.HTTP_200_OK
+            assert len(result.json()) > 0
+
+            result = client.get(url=f"/reference/get_textpresso_reference_list/{test_mod.new_mod_abbreviation}?"
+                                    f"species=NCBITaxon%3A10090", headers=auth_headers)
+            assert result.status_code == status.HTTP_200_OK
+            assert len(result.json()) == 0
 
     def test_reference_licenses(self, auth_headers, test_reference, test_copyright_license): # noqa
         print(test_copyright_license)
