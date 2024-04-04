@@ -218,7 +218,15 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "size": facets_limits[
                         "topic_entity_tags.topic.keyword"] if "topic_entity_tags.topic.keyword" in facets_limits else 10
                 }
-            }
+            },
+            "topic_entity_tags.confidence_level.keyword": {
+                "terms": {
+                    "field": "topic_entity_tags.confidence_level.keyword",
+                    "size": facets_limits[
+                        "topic_entity_tags.confidence_level.keyword"] if "topic_entity_tags.confidence_level.keyword"
+                                                                         in facets_limits else 10
+                }
+            },
         },
         "from": from_entry,
         "size": size_result_count,
