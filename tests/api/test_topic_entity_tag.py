@@ -134,8 +134,8 @@ class TestTopicEntityTag:
 
     def test_get_all_reference_tags(self, auth_headers, test_topic_entity_tag_source): # noqa
         with TestClient(app) as client, \
-            patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_map_ateam_curies_to_names") as \
-                    mock_get_map_ateam_curies_to_name:
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_map_ateam_curies_to_names") as \
+                mock_get_map_ateam_curies_to_name:
             reference_data = {
                 "category": "research_article",
                 "abstract": "The Hippo (Hpo) pathway is a conserved tumor suppressor pathway",
