@@ -174,7 +174,7 @@ class TestTopicEntityTag:
             assert new_curie.startswith("AGRKB:")
             response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}")
             assert response.status_code == status.HTTP_200_OK
-            assert response.json() > 0
+            assert len(response.json()) > 0
 
     def test_validation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
         with TestClient(app) as client, \
