@@ -168,10 +168,13 @@ class TestTopicEntityTag:
                 ]
             }
 
-            new_curie = client.post(url="/reference/", json=reference_data, headers=auth_headers).json()
-            assert type(new_curie) is not dict and new_curie.startswith("AGRKB:")
-            response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}").json()
-            assert type(response) is not dict and len(response) > 0
+            new_ref_req = client.post(url="/reference/", json=reference_data, headers=auth_headers)
+            assert new_ref_req.status_code == status.HTTP_200_OK
+            new_curie = new_ref_req.json()
+            assert new_curie.startswith("AGRKB:")
+            response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}")
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json() > 0
 
     def test_validation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
         with TestClient(app) as client, \
