@@ -132,7 +132,7 @@ class TestTopicEntityTag:
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_get_all_reference_tags(self, auth_headers): # noqa
+    def test_get_all_reference_tags(self, auth_headers, test_topic_entity_tag_source): # noqa
         with TestClient(app) as client:
             reference_data = {
                 "category": "research_article",
@@ -162,14 +162,16 @@ class TestTopicEntityTag:
                         "entity_type": "ATP:0000005",
                         "entity": "WB:WBGene00003001",
                         "entity_id_validation": "alliance",
-                        "species": "NCBITaxon:6239"
+                        "species": "NCBITaxon:6239",
+                        "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id
                     }
                 ]
             }
 
             new_curie = client.post(url="/reference/", json=reference_data, headers=auth_headers).json()
+            assert type(new_curie) is not dict and new_curie.startswith("AGRKB:")
             response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}").json()
-            assert len(response) > 0
+            assert type(response) is not dict and len(response) > 0
 
     def test_validation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
         with TestClient(app) as client, \

@@ -117,6 +117,12 @@ def add_validation_values_to_tag(topic_entity_tag_db_obj: TopicEntityTagModel, t
                                                                                                 ATP_ID_SOURCE_CURATOR)
 
 
+def add_list_of_users_who_validated_tag(topic_entity_tag_db_obj: TopicEntityTagModel, tag_data_dict: Dict):
+    validating_tag: TopicEntityTagModel
+    tag_data_dict["validating_users"] = list({validating_tag.created_by for validating_tag in
+                                              topic_entity_tag_db_obj.validated_by})
+
+
 def show_tag(db: Session, topic_entity_tag_id: int):
     topic_entity_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
     if not topic_entity_tag:
@@ -519,6 +525,7 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
             if "validated_by" in tet_data:
                 del tet_data["validated_by"]
             add_validation_values_to_tag(tet, tet_data)
+            add_list_of_users_who_validated_tag(tet, tet_data)
             tet_data["topic_entity_tag_source"]["secondary_data_provider_abbreviation"] = mod_id_to_mod[
                 tet.topic_entity_tag_source.secondary_data_provider_id]
             all_tet.append(tet_data)
