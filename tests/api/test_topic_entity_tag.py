@@ -169,7 +169,7 @@ class TestTopicEntityTag:
             }
 
             new_ref_req = client.post(url="/reference/", json=reference_data, headers=auth_headers)
-            assert new_ref_req.status_code == status.HTTP_200_OK
+            assert new_ref_req.status_code == status.HTTP_201_CREATED
             new_curie = new_ref_req.json()
             assert new_curie.startswith("AGRKB:")
             response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}")
