@@ -163,7 +163,7 @@ class TestTopicEntityTag:
                         "entity": "WB:WBGene00003001",
                         "entity_id_validation": "alliance",
                         "species": "NCBITaxon:6239",
-                        "topic_entity_tag_id": test_topic_entity_tag_source.new_source_id
+                        "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id
                     }
                 ]
             }
