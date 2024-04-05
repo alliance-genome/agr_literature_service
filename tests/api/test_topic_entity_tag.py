@@ -132,8 +132,10 @@ class TestTopicEntityTag:
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_get_all_reference_tags(self, auth_headers): # noqa
-        with TestClient(app) as client:
+    def test_get_all_reference_tags(self, auth_headers, test_topic_entity_tag_source): # noqa
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_map_ateam_curies_to_names") as \
+                mock_get_map_ateam_curies_to_name:
             reference_data = {
                 "category": "research_article",
                 "abstract": "The Hippo (Hpo) pathway is a conserved tumor suppressor pathway",
@@ -162,14 +164,24 @@ class TestTopicEntityTag:
                         "entity_type": "ATP:0000005",
                         "entity": "WB:WBGene00003001",
                         "entity_id_validation": "alliance",
-                        "species": "NCBITaxon:6239"
+                        "species": "NCBITaxon:6239",
+                        "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id
                     }
                 ]
             }
 
-            new_curie = client.post(url="/reference/", json=reference_data, headers=auth_headers).json()
-            response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}").json()
-            assert len(response) > 0
+            new_ref_req = client.post(url="/reference/", json=reference_data, headers=auth_headers)
+            assert new_ref_req.status_code == status.HTTP_201_CREATED
+            new_curie = new_ref_req.json()
+            assert new_curie.startswith("AGRKB:")
+            mock_get_map_ateam_curies_to_name.return_value = {
+                'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
+                'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
+                'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
+            }
+            response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}")
+            assert response.status_code == status.HTTP_200_OK
+            assert len(response.json()) > 0
 
     def test_validation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
         with TestClient(app) as client, \
