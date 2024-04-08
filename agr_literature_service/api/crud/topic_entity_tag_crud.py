@@ -46,7 +46,9 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     topic_entity_tag_data["reference_id"] = reference_id
     check_for_duplicates = True
-    if reference_curie.isdigit():
+    # if reference_curie.isdigit():
+    force_insertion = topic_entity_tag_data.pop("force_insertion", None)
+    if force_insertion:
         check_for_duplicates = False
     source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
         TopicEntityTagSourceModel.topic_entity_tag_source_id == topic_entity_tag_data["topic_entity_tag_source_id"]
