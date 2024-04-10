@@ -1,8 +1,5 @@
-import json
 import logging
 from os import environ, path
-import urllib.request
-from urllib.error import HTTPError
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.crud.topic_entity_tag_utils import check_atp_ids_validity
