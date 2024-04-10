@@ -5,7 +5,7 @@ import urllib.request
 from urllib.error import HTTPError
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
-from agr_literature_service.lit_processing.utils.okta_utils import get_authentication_token
+from agr_literature_service.api.crud.topic_entity_tag_utils import check_atp_ids_validity
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 logging.basicConfig(format='%(message)s')
@@ -28,7 +28,7 @@ def check_data():
 
     logger.info(f"Total {len(all_distinct_curies)} unique ATP IDs are in topic_entity_tag table.")
 
-    valid_curies, atp_to_name = search_aterm(all_distinct_curies)
+    valid_curies, atp_to_name = check_atp_ids_validity(all_distinct_curies)
     obsolete_disappeared_curies = set(all_distinct_curies) - valid_curies
 
     logger.info(f"{len(obsolete_disappeared_curies)} out of {len(all_distinct_curies)} ATP ID(s) are obsolete or disappeared from A-team ATP table")
@@ -65,7 +65,7 @@ def check_data():
 
 def send_report_to_slack(mod, rows_to_report, atp_to_name):
 
-    email_subject = f"Report on Obsolete or Disappeared ATP IDs for {mod} Papers from the topic_entity_tag Table"
+    email_subject = f"Report on Obsolete or Disappeared ATP IDs in the topic_entity_tag Table for {mod} Papers"
 
     file_path = path.join(environ['LOG_PATH'], 'data_check/')
     log_url = environ['LOG_URL'] + "data_check/"
@@ -93,47 +93,6 @@ def send_report_to_slack(mod, rows_to_report, atp_to_name):
     email_message = "<table></tbody>" + html_rows + "</tbody></table>"
     email_message = email_message + "<p>The log file is available at " + "<a href=" + log_url + ">" + log_url + "</a><p>"
     send_report(email_subject, email_message)
-
-
-def search_aterm(curies):
-
-    valid_curies = set()
-    atp_to_name = {}
-    ateam_api_base_url = environ.get('ATEAM_API_URL')
-    ateam_api = f'{ateam_api_base_url}/atpterm/search?limit={maxret}&page=0'
-    chunked_values = [curies[i:i + maxret] for i in range(0, len(curies), maxret)]
-    for chunk in chunked_values:
-        request_body = {
-            "searchFilters": {
-                "nameFilters": {
-                    "curie_keyword": {
-                        "queryString": " ".join(chunk),
-                        "tokenOperator": "OR"
-                    }
-                }
-            }
-        }
-        token = get_authentication_token()
-        print("ateam_api=", ateam_api)
-        try:
-            request_data_encoded = json.dumps(request_body).encode('utf-8')
-            request = urllib.request.Request(url=ateam_api, data=request_data_encoded)
-            request.add_header("Authorization", f"Bearer {token}")
-            request.add_header("Content-type", "application/json")
-            request.add_header("Accept", "application/json")
-            with urllib.request.urlopen(request) as response:
-                resp = response.read().decode("utf8")
-                resp_obj = json.loads(resp)
-                for entry in resp_obj.get("results", []):
-                    atp_to_name[entry["curie"]] = entry["name"]
-                    if entry["obsolete"] is False:
-                        valid_curies.add(entry["curie"])
-        except HTTPError as e:
-            logger.error(f"HTTPError: in search_ateam: {e}")
-        except Exception as e:
-            logger.error(f"Exception: in search_ateam: {e}")
-
-    return valid_curies, atp_to_name
 
 
 if __name__ == "__main__":
