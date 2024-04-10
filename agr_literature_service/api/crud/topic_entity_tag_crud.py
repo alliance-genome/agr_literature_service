@@ -130,7 +130,7 @@ def add_validation_values_to_tag(topic_entity_tag_db_obj: TopicEntityTagModel, t
 
 
 def add_list_of_users_who_validated_tag(topic_entity_tag_db_obj: TopicEntityTagModel, tag_data_dict: Dict):
-    validating_tag: TopicEntityTagModel
+    # validating_tag: TopicEntityTagModel
     tag_data_dict["validating_users"] = list({validating_tag.created_by for validating_tag in
                                               topic_entity_tag_db_obj.validated_by})
 
