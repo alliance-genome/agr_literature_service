@@ -219,9 +219,11 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
         request_body = {
             "searchFilters": {
                 "nameFilters": {
-                    keyword_name + "_keyword": {
+                    keyword_name: {
                         "queryString": " ".join(chunk),
-                        "tokenOperator": "OR"
+                        "tokenOperator": "OR",
+                        "useKeywordFields": True,
+                        "queryType": "matchQuery"
                     }
                 }
             }
