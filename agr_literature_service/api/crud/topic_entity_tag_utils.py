@@ -269,6 +269,46 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
     return return_dict
 
 
+def check_atp_ids_validity(curies, maxret=1000):
+
+    valid_curies = set()
+    atp_to_name = {}
+    ateam_api_base_url = environ.get('ATEAM_API_URL')
+    ateam_api = f'{ateam_api_base_url}/atpterm/search?limit={maxret}&page=0'
+    chunked_values = [curies[i:i + maxret] for i in range(0, len(curies), maxret)]
+    for chunk in chunked_values:
+        request_body = {
+            "searchFilters": {
+                "nameFilters": {
+                    "curie_keyword": {
+                        "queryString": " ".join(chunk),
+                        "tokenOperator": "OR"
+                    }
+                }
+            }
+        }
+        token = get_authentication_token()
+        try:
+            request_data_encoded = json.dumps(request_body).encode('utf-8')
+            request = urllib.request.Request(url=ateam_api, data=request_data_encoded)
+            request.add_header("Authorization", f"Bearer {token}")
+            request.add_header("Content-type", "application/json")
+            request.add_header("Accept", "application/json")
+            with urllib.request.urlopen(request) as response:
+                resp = response.read().decode("utf8")
+                resp_obj = json.loads(resp)
+                for entry in resp_obj.get("results", []):
+                    atp_to_name[entry["curie"]] = entry["name"]
+                    if entry["obsolete"] is False:
+                        valid_curies.add(entry["curie"])
+        except HTTPError as e:
+            logger.error(f"HTTPError: in search_ateam: {e}")
+        except Exception as e:
+            logger.error(f"Exception: in search_ateam: {e}")
+
+    return valid_curies, atp_to_name
+
+
 @ttl_cache(maxsize=128, ttl=60 * 60)
 def _get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str = 'ancestors') -> List[str]:
     """
