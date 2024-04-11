@@ -26,7 +26,7 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_ta
     with TestClient(app) as client:
         new_tet = {
             "reference_curie": test_reference.new_ref_curie,
-            "topic": "ATP:0000122",
+            "topic": "ATP:0000012",
             "entity_type": "ATP:0000005",
             "entity": "WB:WBGene00003001",
             "entity_id_validation": "alliance",
