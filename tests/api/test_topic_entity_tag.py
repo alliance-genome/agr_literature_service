@@ -24,7 +24,7 @@ TestTETData = namedtuple('TestTETData', ['response', 'new_tet_id', 'related_ref_
 def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_tag_source, test_mod): # noqa
     print("***** Adding a test tag *****")
     with TestClient(app) as client:
-        with patch("agr_literature_service.api.crud.topic_entity_tag_utils.check_atp_ids_validity") as \
+        with patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
              mock_check_atp_ids_validity:
             new_tet = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -56,7 +56,7 @@ class TestTopicEntityTag:
 
     def test_create_wrong_source(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
-            with patch("agr_literature_service.api.crud.topic_entity_tag_utils.check_atp_ids_validity") as \
+            with patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
                  mock_check_atp_ids_validity:
                 new_tet = {
                     "reference_curie": test_topic_entity_tag.related_ref_curie,
@@ -81,7 +81,7 @@ class TestTopicEntityTag:
 
     def test_create_empty_string(self, test_topic_entity_tag, test_topic_entity_tag_source, auth_headers): # noqa
         with TestClient(app) as client:
-            with patch("agr_literature_service.api.crud.topic_entity_tag_utils.check_atp_ids_validity") as \
+            with patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
                  mock_check_atp_ids_validity:
                 new_tet = {
                     "reference_curie": test_topic_entity_tag.related_ref_curie,
