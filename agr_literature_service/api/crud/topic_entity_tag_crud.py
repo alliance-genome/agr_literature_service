@@ -335,7 +335,7 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
         sender_email = environ.get('SENDER_EMAIL', None)
         sender_password = environ.get('SENDER_PASSWORD', None)
         reply_to = environ.get('REPLY_TO', sender_email)
-        email_body = "Finished re-validating all tags."
+        email_body = "Finished re-validating all tags"
         if curie_or_reference_id:
             email_body += " for reference " + str(curie_or_reference_id)
         send_email("Alliance ABC notification: all tags re-validated", email_recipients, email_body, sender_email,
