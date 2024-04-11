@@ -49,6 +49,7 @@ class ExpiringCache:
 
 
 id_to_name_cache = ExpiringCache(expiration_time=7200)
+valid_id_to_name_cache = ExpiringCache(expiration_time=7200)
 
 
 def get_reference_id_from_curie_or_id(db: Session, curie_or_reference_id):
@@ -271,11 +272,15 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
 
 def check_atp_ids_validity(curies, maxret=1000):
 
-    valid_curies = set()
+    curies_not_in_cache = [curie for curie in set(curies) if valid_id_to_name_cache.get(curie) is None]
+    if len(curies_not_in_cache) == 0:
+        return set(curies), {curie: valid_id_to_name_cache.get(curie) for curie in set(curies)}
+
+    valid_curies = {curie for curie in curies if valid_id_to_name_cache.get(curie) is not None}
     atp_to_name = {}
     ateam_api_base_url = environ.get('ATEAM_API_URL')
     ateam_api = f'{ateam_api_base_url}/atpterm/search?limit={maxret}&page=0'
-    chunked_values = [curies[i:i + maxret] for i in range(0, len(curies), maxret)]
+    chunked_values = [curies_not_in_cache[i:i + maxret] for i in range(0, len(curies_not_in_cache), maxret)]
     for chunk in chunked_values:
         request_body = {
             "searchFilters": {
@@ -301,6 +306,7 @@ def check_atp_ids_validity(curies, maxret=1000):
                     atp_to_name[entry["curie"]] = entry["name"]
                     if entry["obsolete"] is False:
                         valid_curies.add(entry["curie"])
+                        valid_id_to_name_cache.set(entry["curie"], entry["name"])
         except HTTPError as e:
             logger.error(f"HTTPError: in search_ateam: {e}")
         except Exception as e:
