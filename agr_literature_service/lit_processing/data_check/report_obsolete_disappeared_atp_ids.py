@@ -62,7 +62,7 @@ def check_data():
 
 def send_report_to_slack(mod, rows_to_report, atp_to_name):
 
-    email_subject = f"Report on Obsolete or Disappeared ATP IDs in the topic_entity_tag Table for {mod} Papers"
+    email_subject = f"Report on Obsolete or Disappeared ATP IDs for {mod} Papers from the topic_entity_tag Table"
 
     file_path = path.join(environ['LOG_PATH'], 'data_check/')
     log_url = environ['LOG_URL'] + "data_check/"
