@@ -19,6 +19,10 @@ test_reference2 = test_reference
 
 TestTETData = namedtuple('TestTETData', ['response', 'new_tet_id', 'related_ref_curie'])
 
+CHECK_VALID_ATP_IDS_RETURN = (
+    {'ATP:0000005', 'ATP:0000009', 'ATP:0000068', 'ATP:0000071', 'ATP:0000079', 'ATP:0000082', 'ATP:0000084',
+     'ATP:0000099', 'ATP:0000122', 'WB:WBGene00003001', 'NCBITaxon:6239'}, {})
+
 
 @pytest.fixture
 def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_tag_source, test_mod): # noqa
@@ -41,9 +45,7 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_ta
                 "created_by": "WBPerson1",
                 "date_created": "2020-01-01"
             }
-            mock_check_atp_ids_validity.return_value = ({'ATP:0000122', 'ATP:0000005', 'WB:WBGene00003001', 'NCBITaxon:6239'}, {
-                'ATP:0000122': 'ATP:0000122', 'ATP:0000005': 'gene', 'WB:WBGene00003001': 'lin-12',
-                'NCBITaxon:6239': 'Caenorhabditis elegans'})
+            mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
             response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
             yield TestTETData(response, response.json()['topic_entity_tag_id'], test_reference.new_ref_curie)
 
@@ -73,9 +75,7 @@ class TestTopicEntityTag:
                     "created_by": "WBPerson1",
                     "date_created": "2020-01-01"
                 }
-                mock_check_atp_ids_validity.return_value = ({'ATP:0000122', 'ATP:0000005', 'WB:WBGene00003001', 'NCBITaxon:6239'}, {
-                    'ATP:0000122': 'ATP:0000122', 'ATP:0000005': 'gene', 'WB:WBGene00003001': 'lin-12',
-                    'NCBITaxon:6239': 'Caenorhabditis elegans'})
+                mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
                 response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
                 assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -96,9 +96,7 @@ class TestTopicEntityTag:
                     "note": "test note",
                     "created_by": "WBPerson1"
                 }
-                mock_check_atp_ids_validity.return_value = ({'ATP:0000122', 'ATP:0000005', 'WB:WBGene00003001', 'NCBITaxon:6239'}, {
-                    'ATP:0000122': 'ATP:0000122', 'ATP:0000005': 'gene', 'WB:WBGene00003001': 'lin-12',
-                    'NCBITaxon:6239': 'Caenorhabditis elegans'})
+                mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
                 response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
                 assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
@@ -150,7 +148,9 @@ class TestTopicEntityTag:
     def test_get_all_reference_tags(self, auth_headers, test_topic_entity_tag_source): # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_map_ateam_curies_to_names") as \
-                mock_get_map_ateam_curies_to_name:
+                mock_get_map_ateam_curies_to_name, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
+                mock_check_atp_ids_validity:
             reference_data = {
                 "category": "research_article",
                 "abstract": "The Hippo (Hpo) pathway is a conserved tumor suppressor pathway",
@@ -184,7 +184,7 @@ class TestTopicEntityTag:
                     }
                 ]
             }
-
+            mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
             new_ref_req = client.post(url="/reference/", json=reference_data, headers=auth_headers)
             assert new_ref_req.status_code == status.HTTP_201_CREATED
             new_curie = new_ref_req.json()
@@ -306,7 +306,10 @@ class TestTopicEntityTag:
     def test_validate_generic_specific(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
+                mock_check_atp_ids_validity:
+            mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
             author_source_1 = {
                 "source_evidence_assertion": "community curation",
                 "source_method": "acknowledge",
@@ -412,7 +415,10 @@ class TestTopicEntityTag:
                                                 auth_headers, db, test_topic_entity_tag_source):  # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
+                mock_check_atp_ids_validity:
+            mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
             author_source = {
                 "source_evidence_assertion": "manual",
                 "source_method": "ACKnowledge",
@@ -512,7 +518,10 @@ class TestTopicEntityTag:
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as \
                 mock_get_descendants, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_map_ateam_curies_to_names") as \
-                mock_get_map_ateam_curies_to_name:
+                mock_get_map_ateam_curies_to_name, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
+                mock_check_atp_ids_validity:
+            mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
             author_source = {
                 "source_evidence_assertion": "manual",
                 "source_method": "ACKnowledge",
@@ -683,7 +692,6 @@ class TestTopicEntityTag:
                 "entity": "WB:WBGene00003001",
                 "entity_id_validation": "alliance",
                 "species": "NCBITaxon:6239",
-                "display_tag": "string",
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id
             }
             client.post(url="/topic_entity_tag/", json=alliance_topic_tag, headers=auth_headers)
@@ -696,8 +704,7 @@ class TestTopicEntityTag:
                 'ATP:0000005': 'gene',
                 'ATP:0000009': 'phenotype',
                 'ATP:0000122': 'ATP:0000122',
-                'WB:WBGene00003001': 'lin-12',
-                'string': 'string'
+                'WB:WBGene00003001': 'lin-12'
             }
             wormbase_topic_tag = {
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
@@ -706,7 +713,6 @@ class TestTopicEntityTag:
                 "entity": "WB:WBTransgene0001",
                 "entity_id_validation": "wormbase",
                 "species": "NCBITaxon:6239",
-                "display_tag": "string",
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id
             }
             client.post(url="/topic_entity_tag/", json=wormbase_topic_tag, headers=auth_headers)
@@ -720,8 +726,7 @@ class TestTopicEntityTag:
                 'ATP:0000009': 'phenotype',
                 'ATP:0000099': 'existing transgenic construct',
                 'ATP:0000122': 'ATP:0000122',  # not present in the ontology
-                'WB:WBGene00003001': 'lin-12',
-                'string': 'string'
+                'WB:WBGene00003001': 'lin-12'
             }
 
     @pytest.mark.webtest

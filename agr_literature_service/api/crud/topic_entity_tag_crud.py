@@ -61,11 +61,12 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
     else:
         check_and_set_species(topic_entity_tag_data)
     # check atp ID's validity
-    atp_ids = [topic_entity_tag_data['topic'], topic_entity_tag_data['entity_type'],
-               topic_entity_tag_data['display_tag']]
+    atp_ids = [topic_entity_tag_data['topic'], topic_entity_tag_data['entity_type']]
+    if 'display_tag' in topic_entity_tag_data:
+        atp_ids.append(topic_entity_tag_data['display_tag'])
     atp_ids_filtered = [atp_id for atp_id in atp_ids if atp_id is not None]
     (valid_atp_ids, id_to_name) = check_atp_ids_validity(atp_ids_filtered)
-    invalid_atp_ids = set(atp_ids) - valid_atp_ids
+    invalid_atp_ids = set(atp_ids_filtered) - valid_atp_ids
     if len(invalid_atp_ids) > 0:
         message = " ".join(f"{id} is not valid." for id in invalid_atp_ids if id is not None)
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
