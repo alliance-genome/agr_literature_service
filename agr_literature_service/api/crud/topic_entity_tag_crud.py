@@ -64,7 +64,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
     atp_ids = [topic_entity_tag_data['topic'], topic_entity_tag_data['entity_type'],
                topic_entity_tag_data['display_tag']]
     atp_ids_filtered = [atp_id for atp_id in atp_ids if atp_id is not None]
-    valid_atp_ids, id_to_name = check_atp_ids_validity(atp_ids_filtered)
+    (valid_atp_ids, id_to_name) = check_atp_ids_validity(atp_ids_filtered)
     invalid_atp_ids = set(atp_ids) - valid_atp_ids
     if len(invalid_atp_ids) > 0:
         message = " ".join(f"{id} is not valid." for id in invalid_atp_ids if id is not None)
