@@ -253,8 +253,8 @@ class TestReference:
                 ],
                 "topic_entity_tags": [
                     {
-                        "topic": "string",
-                        "entity_type": "string",
+                        "topic": "ATP:0000142",
+                        "entity_type": "ATP:0000142",
                         "entity": "string",
                         "entity_id_validation": "string",
                         "species": "string",
