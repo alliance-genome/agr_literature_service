@@ -554,7 +554,7 @@ class TestReference:
             new_tet = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000142",
-                "entity_type": "ATP:0000123",
+                "entity_type": "ATP:0000006",
                 "entity": "NCBITaxon:6239",
                 "entity_id_validation": "alliance",
                 "entity_published_as": "test",

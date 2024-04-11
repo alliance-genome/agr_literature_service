@@ -112,7 +112,7 @@ class TestTopicEntityTag:
         with TestClient(app) as client:
             patch_data = {
                 "topic": "new_topic",
-                "entity_type": "new_type",
+                "entity_type": "ATP:0000099",
                 "entity": "new_entity",
                 "updated_by": "new_user",
                 "novel_topic_data": False,
@@ -175,7 +175,7 @@ class TestTopicEntityTag:
             new_curie = new_ref_req.json()
             assert new_curie.startswith("AGRKB:")
             mock_get_map_ateam_curies_to_name.return_value = {
-                'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000142': 'ATP:0000142',
+                'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000142': 'ATP:0000122',
                 'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
                 'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
             }
@@ -586,7 +586,7 @@ class TestTopicEntityTag:
             assert int(more_specific_positive_tag_id) in validating_tags
             assert int(more_generic_negative_tag_id) in validating_tags
             mock_get_map_ateam_curies_to_name.return_value = {
-                'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000142': 'ATP:0000142',
+                'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000142': 'ATP:0000122',
                 'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
                 'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
             }
@@ -658,7 +658,7 @@ class TestTopicEntityTag:
             assert response.json() == {
                 'ATP:0000005': 'gene',
                 'ATP:0000009': 'phenotype',
-                'ATP:0000142': 'ATP:0000142',
+                'ATP:0000142': 'ATP:0000122',
                 'WB:WBGene00003001': 'lin-12'
             }
             alliance_topic_tag = {
@@ -680,7 +680,7 @@ class TestTopicEntityTag:
             assert response.json() == {
                 'ATP:0000005': 'gene',
                 'ATP:0000009': 'phenotype',
-                'ATP:0000142': 'ATP:0000142',
+                'ATP:0000142': 'ATP:0000122',
                 'WB:WBGene00003001': 'lin-12',
                 'string': 'string'
             }
@@ -704,7 +704,7 @@ class TestTopicEntityTag:
                 'ATP:0000005': 'gene',
                 'ATP:0000009': 'phenotype',
                 'ATP:0000099': 'existing transgenic construct',
-                'ATP:0000142': 'ATP:0000142',  # not present in the ontology
+                'ATP:0000142': 'ATP:0000122',  # not present in the ontology
                 'WB:WBGene00003001': 'lin-12',
                 'string': 'string'
             }
