@@ -311,11 +311,12 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
         reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
         if not reference_id:
             reference_id = db.query(ReferenceModel.reference_id).filter(ReferenceModel.curie == curie_or_reference_id)
-        all_tag_ids_for_reference = [res.topc_entity_tag_id for res in db.query(
+        all_tag_ids_for_reference = [res[0] for res in db.query(
             TopicEntityTagModel.topic_entity_tag_id).filter(TopicEntityTagModel.reference_id == reference_id).all()]
-        reference_query_filter = (f"WHERE validating_topic_entity_tag_id IN ({', '.join(all_tag_ids_for_reference)}) "
-                                  f"OR validated_topic_entity_tag_id IN ({', '.join(all_tag_ids_for_reference)})")
-        query_tags.filter(TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids_for_reference))
+        all_tag_ids_str = [str(tag_id) for tag_id in all_tag_ids_for_reference]
+        reference_query_filter = (f" WHERE validating_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)}) "
+                                  f"OR validated_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)})")
+        query_tags = query_tags.filter(TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids_for_reference))
     if delete_all_first:
         db.execute("DELETE FROM topic_entity_tag_validation" + reference_query_filter)
         db.commit()
@@ -335,7 +336,8 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
         sender_password = environ.get('SENDER_PASSWORD', None)
         reply_to = environ.get('REPLY_TO', sender_email)
         email_body = "Finished re-validating all tags."
-
+        if curie_or_reference_id:
+            email_body += " for reference " + str(curie_or_reference_id)
         send_email("Alliance ABC notification: all tags re-validated", email_recipients, email_body, sender_email,
                    sender_password, reply_to)
 
