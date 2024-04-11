@@ -26,7 +26,7 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_ta
     with TestClient(app) as client:
         new_tet = {
             "reference_curie": test_reference.new_ref_curie,
-            "topic": "ATP:0000142",
+            "topic": "ATP:0000122",
             "entity_type": "ATP:0000005",
             "entity": "WB:WBGene00003001",
             "entity_id_validation": "alliance",
@@ -53,7 +53,7 @@ class TestTopicEntityTag:
         with TestClient(app) as client:
             new_tet = {
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
-                "topic": "ATP:0000142",
+                "topic": "ATP:0000122",
                 "entity_type": "ATP:0000005",
                 "entity": "WB:WBGene00003001",
                 "entity_id_validation": "alliance",
@@ -73,7 +73,7 @@ class TestTopicEntityTag:
         with TestClient(app) as client:
             new_tet = {
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
-                "topic": "ATP:0000142",
+                "topic": "ATP:0000122",
                 "entity_type": "",
                 "entity": "WB:WBGene00003001",
                 "entity_id_validation": "alliance",
@@ -95,7 +95,7 @@ class TestTopicEntityTag:
             expected_fields = {
                 "topic_entity_tag_id": int(test_topic_entity_tag.new_tet_id),
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
-                "topic": "ATP:0000142",
+                "topic": "ATP:0000122",
                 "entity_type": "ATP:0000005",
                 "entity": "WB:WBGene00003001",
                 "entity_id_validation": "alliance",
@@ -112,7 +112,7 @@ class TestTopicEntityTag:
         with TestClient(app) as client:
             patch_data = {
                 "topic": "new_topic",
-                "entity_type": "ATP:0000099",
+                "entity_type": "new_type",
                 "entity": "new_entity",
                 "updated_by": "new_user",
                 "novel_topic_data": False,
@@ -135,7 +135,9 @@ class TestTopicEntityTag:
     def test_get_all_reference_tags(self, auth_headers, test_topic_entity_tag_source): # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_map_ateam_curies_to_names") as \
-                mock_get_map_ateam_curies_to_name:
+                mock_get_map_ateam_curies_to_name, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.check_atp_ids_validity") as \
+                mock_check_atp_ids_validity:
             reference_data = {
                 "category": "research_article",
                 "abstract": "The Hippo (Hpo) pathway is a conserved tumor suppressor pathway",
@@ -160,7 +162,7 @@ class TestTopicEntityTag:
                 ],
                 "topic_entity_tags": [
                     {
-                        "topic": "ATP:0000142",
+                        "topic": "ATP:0000122",
                         "entity_type": "ATP:0000005",
                         "entity": "WB:WBGene00003001",
                         "entity_id_validation": "alliance",
@@ -175,10 +177,17 @@ class TestTopicEntityTag:
             new_curie = new_ref_req.json()
             assert new_curie.startswith("AGRKB:")
             mock_get_map_ateam_curies_to_name.return_value = {
-                'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000142': 'ATP:0000122',
+                'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
                 'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
                 'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
             }
+            mock_check_atp_ids_validity.return_value = {
+                'ATP:0000009', 'ATP:0000082', 'ATP:0000122', 'ATP:0000084', 'ATP:0000079',
+                'ATP:0000005', 'WB:WBGene00003001', 'NCBITaxon:6239'}, {
+                    'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype',
+                    'ATP:0000122': 'ATP:0000122', 'ATP:0000084': 'overexpression phenotype',
+                    'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
+                    'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'}
             response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}")
             assert response.status_code == status.HTTP_200_OK
             assert len(response.json()) > 0
@@ -209,7 +218,7 @@ class TestTopicEntityTag:
             auth_source_2_resp = client.post(url="/topic_entity_tag/source", json=author_source_2, headers=auth_headers)
             validating_tag_aut_1 = {
                 "reference_curie": test_reference.new_ref_curie,
-                "topic": "ATP:0000142",
+                "topic": "ATP:0000122",
                 "entity_type": "ATP:0000005",
                 "entity": "WB:WBGene00003001",
                 "entity_id_validation": "alliance",
@@ -220,7 +229,7 @@ class TestTopicEntityTag:
             }
             validating_tag_aut_2 = {
                 "reference_curie": test_reference.new_ref_curie,
-                "topic": "ATP:0000142",
+                "topic": "ATP:0000122",
                 "entity_type": "ATP:0000005",
                 "entity": "WB:WBGene00003001",
                 "entity_id_validation": "alliance",
@@ -257,7 +266,7 @@ class TestTopicEntityTag:
             response = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
             validating_tag_cur_1 = {
                 "reference_curie": test_reference.new_ref_curie,
-                "topic": "ATP:0000142",
+                "topic": "ATP:0000122",
                 "entity_type": "ATP:0000005",
                 "entity": "WB:WBGene00003001",
                 "entity_id_validation": "alliance",
@@ -268,7 +277,7 @@ class TestTopicEntityTag:
             }
             validating_tag_cur_2 = {
                 "reference_curie": test_reference.new_ref_curie,
-                "topic": "ATP:0000142",
+                "topic": "ATP:0000122",
                 "entity_type": "ATP:0000005",
                 "entity": "WB:WBGene00003001",
                 "entity_id_validation": "alliance",
@@ -496,6 +505,8 @@ class TestTopicEntityTag:
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as \
                 mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.check_atp_ids_validity") as \
+                mock_check_atp_ids_validity, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_map_ateam_curies_to_names") as \
                 mock_get_map_ateam_curies_to_name:
             author_source = {
@@ -586,10 +597,17 @@ class TestTopicEntityTag:
             assert int(more_specific_positive_tag_id) in validating_tags
             assert int(more_generic_negative_tag_id) in validating_tags
             mock_get_map_ateam_curies_to_name.return_value = {
-                'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000142': 'ATP:0000122',
+                'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
                 'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
                 'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
             }
+            mock_check_atp_ids_validity.return_value = {
+                'ATP:0000009', 'ATP:0000082', 'ATP:0000122', 'ATP:0000084', 'ATP:0000079',
+                'ATP:0000005', 'WB:WBGene00003001', 'NCBITaxon:6239'}, {
+                    'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype',
+                    'ATP:0000122': 'ATP:0000122', 'ATP:0000084': 'overexpression phenotype',
+                    'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
+                    'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'}
             all_tags_resp = client.get(url=f"/topic_entity_tag/by_reference/{test_reference.new_ref_curie}",
                                        headers=auth_headers)
             assert all_tags_resp.status_code == status.HTTP_200_OK
@@ -658,7 +676,7 @@ class TestTopicEntityTag:
             assert response.json() == {
                 'ATP:0000005': 'gene',
                 'ATP:0000009': 'phenotype',
-                'ATP:0000142': 'ATP:0000122',
+                'ATP:0000122': 'ATP:0000122',
                 'WB:WBGene00003001': 'lin-12'
             }
             alliance_topic_tag = {
@@ -680,7 +698,7 @@ class TestTopicEntityTag:
             assert response.json() == {
                 'ATP:0000005': 'gene',
                 'ATP:0000009': 'phenotype',
-                'ATP:0000142': 'ATP:0000122',
+                'ATP:0000122': 'ATP:0000122',
                 'WB:WBGene00003001': 'lin-12',
                 'string': 'string'
             }
@@ -704,7 +722,7 @@ class TestTopicEntityTag:
                 'ATP:0000005': 'gene',
                 'ATP:0000009': 'phenotype',
                 'ATP:0000099': 'existing transgenic construct',
-                'ATP:0000142': 'ATP:0000122',  # not present in the ontology
+                'ATP:0000122': 'ATP:0000122',  # not present in the ontology
                 'WB:WBGene00003001': 'lin-12',
                 'string': 'string'
             }
