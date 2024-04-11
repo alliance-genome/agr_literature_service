@@ -209,3 +209,76 @@ class TestCrossRef:
             check_xref_and_generate_mod_id(db, reference_obj2, 'WB')
             xref = db.query(CrossReferenceModel).filter_by(reference_id=reference_obj2.reference_id).one()
             assert xref.curie == 'WB:WBPaper00000002'
+
+
+    def test_get_patterns_reference(self, auth_headers): # noqa
+        with TestClient(app) as client:
+            response = client.get(url="/cross_reference/check/patterns/reference",
+                                  headers=auth_headers)
+            print(f"response.json -> {response.json()}")
+            assert response.status_code == status.HTTP_200_OK
+            print(response)
+            assert response.json()['CGC'] == r'^CGC:cgc\d{1,4}$'
+
+
+    def test_good_patterns_reference(self, auth_headers): # noqa
+        with TestClient(app) as client:
+            response = client.get(url="/cross_reference/check/curie/reference/WB:WBPaper12345",
+                                  headers=auth_headers)
+            print(f"response.json -> {response.json()}")
+            assert response.status_code == status.HTTP_200_OK
+            print(response)
+            assert response.json() is True
+
+
+    def test_bad_pattern_reference(self, auth_headers): # noqa
+        with TestClient(app) as client:
+            response = client.get(url="/cross_reference/check/curie/reference/ZFIN:WBPaper12345",
+                                  headers=auth_headers)
+            print(f"response.json -> {response.json()}")
+            assert response.status_code == status.HTTP_200_OK
+            print(response)
+            assert response.json() is False
+
+
+    def test_bad_prefix_reference(self, auth_headers): # noqa
+        with TestClient(app) as client:
+            response = client.get(url="/cross_reference/check/curie/reference/MADEUP:WBPaper12345",
+                                  headers=auth_headers)
+            assert response.status_code is status.HTTP_400_BAD_REQUEST
+
+    def test_get_patterns_resource(self, auth_headers): # noqa
+        with TestClient(app) as client:
+            response = client.get(url="/cross_reference/check/patterns/resource",
+                                  headers=auth_headers)
+            print(f"response.json -> {response.json()}")
+            assert response.status_code == status.HTTP_200_OK
+            print(response)
+            assert response.json()['ZFIN'] == r'^ZFIN:ZDB-JRNL-\d+-\d+$'
+
+
+    def test_good_patterns_resource(self, auth_headers): # noqa
+        with TestClient(app) as client:
+            response = client.get(url="/cross_reference/check/curie/resource/ZFIN:ZDB-JRNL-200229-13",
+                                  headers=auth_headers)
+            print(f"response.json -> {response.json()}")
+            assert response.status_code == status.HTTP_200_OK
+            print(response)
+            assert response.json() is True
+
+
+    def test_bad_pattern_resource(self, auth_headers): # noqa
+        with TestClient(app) as client:
+            response = client.get(url="/cross_reference/check/curie/resource/ZFIN:WBPaper12345",
+                                  headers=auth_headers)
+            print(f"response.json -> {response.json()}")
+            assert response.status_code == status.HTTP_200_OK
+            print(response)
+            assert response.json() is False
+
+
+    def test_bad_curie_prefix_resource(self, auth_headers): # noqa
+        with TestClient(app) as client:
+            response = client.get(url="/cross_reference/check/curie/resource/MADEUP:WBPaper12345",
+                                  headers=auth_headers)
+            assert response.status_code is status.HTTP_400_BAD_REQUEST

@@ -7,6 +7,7 @@ from starlette.responses import PlainTextResponse
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import cross_reference_crud
+from agr_literature_service.api.crud.utils import patterns_check
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (CrossReferenceSchemaPost,
                                                 CrossReferenceSchemaUpdate,
@@ -72,17 +73,34 @@ def autocomplete_search(
     return cross_reference_crud.autocomplete_on_id(prefix, query, return_prefix, db)
 
 
-@router.get('/{curie:path}',
-            response_model=CrossReferenceSchemaShow,
-            status_code=200)
-def show(curie: str,
-         db: Session = db_session):
-    return cross_reference_crud.show(db, curie)
-
-
 @router.post('/show_all',
              response_model=List[CrossReferenceSchemaShow],
              status_code=200)
 def show_all(curies: List[str],
              db: Session = db_session):
     return cross_reference_crud.show_from_curies(db, curies)
+
+
+@router.get('/check/patterns/{datatype}',
+            status_code=200,
+            )
+def show_patterns_reference(datatype: str):
+    return patterns_check.get_patterns()[datatype]
+
+
+@router.get('/check/curie/{datatype}/{curie}',
+            status_code=200,
+            )
+def check_curie_reference_pattern(datatype: str, curie: str):
+    ret = patterns_check.check_pattern(datatype, curie)
+    if ret is None:
+        return Response(status_code=status.HTTP_400_BAD_REQUEST)
+    return ret
+
+
+@router.get('/{curie:path}',
+            response_model=CrossReferenceSchemaShow,
+            status_code=200)
+def show(curie: str,
+         db: Session = db_session):
+    return cross_reference_crud.show(db, curie)
