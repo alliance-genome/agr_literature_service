@@ -305,18 +305,21 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
     new_session = sessionmaker(bind=engine, autoflush=True)
     db = new_session()
     reference_query_filter = ""
+    query_tags = db.query(TopicEntityTagModel)
     if curie_or_reference_id:
         delete_all_first = True
         reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
         if not reference_id:
             reference_id = db.query(ReferenceModel.reference_id).filter(ReferenceModel.curie == curie_or_reference_id)
-        all_tag_ids_for_reference = [res.topc_entity_tag_id for res in db.query(TopicEntityTagModel.topic_entity_tag_id).filter(
-            TopicEntityTagModel.reference_id == reference_id).all()]
-        reference_query_filter = f"WHERE topic_entity_tag_id in ({', '.join(all_tag_ids_for_reference)})"
+        all_tag_ids_for_reference = [res.topc_entity_tag_id for res in db.query(
+            TopicEntityTagModel.topic_entity_tag_id).filter(TopicEntityTagModel.reference_id == reference_id).all()]
+        reference_query_filter = (f"WHERE validating_topic_entity_tag_id IN ({', '.join(all_tag_ids_for_reference)}) "
+                                  f"OR validated_topic_entity_tag_id IN ({', '.join(all_tag_ids_for_reference)})")
+        query_tags.filter(TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids_for_reference))
     if delete_all_first:
         db.execute("DELETE FROM topic_entity_tag_validation" + reference_query_filter)
         db.commit()
-    for tag_counter, tag in enumerate(db.query(TopicEntityTagModel).all()):
+    for tag_counter, tag in enumerate(query_tags.all()):
         if not delete_all_first:
             db.execute(f"DELETE FROM topic_entity_tag_validation "
                        f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}")
