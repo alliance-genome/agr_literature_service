@@ -19,7 +19,8 @@ from agr_literature_service.api.models.audited_model import get_default_user_val
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
     get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, check_and_set_species, \
-    add_audited_object_users_if_not_exist, get_ancestors, get_descendants
+    add_audited_object_users_if_not_exist, get_ancestors, get_descendants, \
+    check_atp_ids_validity
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
@@ -59,12 +60,22 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
         check_and_set_sgd_display_tag(topic_entity_tag_data)
     else:
         check_and_set_species(topic_entity_tag_data)
+    # check atp ID's validity
+    atp_ids = [topic_entity_tag_data['topic'], topic_entity_tag_data['entity_type']]
+    if 'display_tag' in topic_entity_tag_data:
+        atp_ids.append(topic_entity_tag_data['display_tag'])
+    atp_ids_filtered = [atp_id for atp_id in atp_ids if atp_id is not None]
+    (valid_atp_ids, id_to_name) = check_atp_ids_validity(atp_ids_filtered)
+    invalid_atp_ids = set(atp_ids_filtered) - valid_atp_ids
+    if len(invalid_atp_ids) > 0:
+        message = " ".join(f"{id} is not valid." for id in invalid_atp_ids if id is not None)
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"{message}")
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
     if check_for_duplicates:
         duplicate_check_result = check_for_duplicate_tags(db, topic_entity_tag_data, reference_id)
         if duplicate_check_result is not None:
             return duplicate_check_result
-
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
     try:
         db.add(new_db_obj)
