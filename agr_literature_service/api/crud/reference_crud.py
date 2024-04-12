@@ -333,6 +333,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         reference_data["citation_short"] = f'No citation_id for ref:{reference.curie}'
 
     bad_cross_ref_ids = []
+    pmid = None
     if reference.cross_reference:
         cross_references = []
         for cross_reference in reference.cross_reference:
@@ -340,6 +341,8 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
                 cross_reference_crud.show(db, str(cross_reference.cross_reference_id)))
             del cross_reference_show["reference_curie"]
             cross_references.append(cross_reference_show)
+            if cross_reference_show["curie_prefix"] == 'PMID' and not cross_reference_show["is_obsolete"]:
+                pmid = cross_reference_show["curie"]
         reference_data["cross_references"] = cross_references
         for x in cross_references:
             pieces = x['curie'].split(":")
@@ -350,6 +353,20 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
                 ## will pick up something like 'FB:'
                 bad_cross_ref_ids.append(x['curie'])
     reference_data["invalid_cross_reference_ids"] = bad_cross_ref_ids
+
+    reference_data["resource_for_curation"] = []
+    if pmid:
+        resource_links = [
+            {
+                "display_name": "Ontomate",
+                "link_url": f"https://ontomate.rgd.mcw.edu/QueryBuilder/getResult/?qSource=pubmed&qPMID={pmid.lower()}"
+            },
+            {
+                "display_name": "Pubtator",
+                "link_url": f"https://www.ncbi.nlm.nih.gov/research/pubtator/?view=publication&pmid={pmid.replace('PMID:','')}"
+            }
+        ]
+        reference_data["resource_for_curation"] = resource_links
 
     if reference.mod_referencetypes:
         reference_data["mod_reference_types"] = []
