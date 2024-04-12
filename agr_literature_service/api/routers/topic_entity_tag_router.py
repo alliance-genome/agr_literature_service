@@ -140,18 +140,20 @@ def get_map_entity_curie_to_name(curie_or_reference_id: str,
     return topic_entity_tag_crud.get_map_entity_curie_to_name(db, curie_or_reference_id)
 
 
-def revalidate_tags_process_wrapper(already_running, email: str, delete_all_first: bool):
+def revalidate_tags_process_wrapper(already_running, email: str, delete_all_first: bool, curie_or_reference_id: str):
     try:
         already_running.value = True
-        topic_entity_tag_crud.revalidate_all_tags(email=email, delete_all_first=delete_all_first)
+        topic_entity_tag_crud.revalidate_all_tags(email=email, delete_all_first=delete_all_first,
+                                                  curie_or_reference_id=curie_or_reference_id)
     finally:
         already_running.value = False
 
 
 @router.get('/revalidate_all_tags/',
             status_code=200)
-def revalidate_all_tags(email: str,
+def revalidate_all_tags(email: str = None,
                         delete_all_tags_first: bool = False,
+                        curie_or_reference_id: str = None,
                         user: OktaUser = db_user,
                         db: Session = db_session):
     if not user.groups or "SuperAdmin" not in user.groups:
@@ -170,7 +172,7 @@ def revalidate_all_tags(email: str,
         }
     else:
         p = Process(target=revalidate_tags_process_wrapper,
-                    args=(revalidate_all_tags_already_running, email, delete_all_tags_first))
+                    args=(revalidate_all_tags_already_running, email, delete_all_tags_first, curie_or_reference_id))
         p.start()
         return {
             "message": "Revalidation of all tags started. You will receive an email when done."
