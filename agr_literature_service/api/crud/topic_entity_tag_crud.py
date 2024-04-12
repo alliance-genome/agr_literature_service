@@ -300,14 +300,27 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
         db.commit()
 
 
-def revalidate_all_tags(email: str, delete_all_first: bool = False):
+def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie_or_reference_id: str = None):
     engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
     new_session = sessionmaker(bind=engine, autoflush=True)
     db = new_session()
+    reference_query_filter = ""
+    query_tags = db.query(TopicEntityTagModel)
+    if curie_or_reference_id:
+        delete_all_first = True
+        reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
+        if not reference_id:
+            reference_id = db.query(ReferenceModel.reference_id).filter(ReferenceModel.curie == curie_or_reference_id)
+        all_tag_ids_for_reference = [res[0] for res in db.query(
+            TopicEntityTagModel.topic_entity_tag_id).filter(TopicEntityTagModel.reference_id == reference_id).all()]
+        all_tag_ids_str = [str(tag_id) for tag_id in all_tag_ids_for_reference]
+        reference_query_filter = (f" WHERE validating_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)}) "
+                                  f"OR validated_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)})")
+        query_tags = query_tags.filter(TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids_for_reference))
     if delete_all_first:
-        db.execute("DELETE FROM topic_entity_tag_validation")
+        db.execute("DELETE FROM topic_entity_tag_validation" + reference_query_filter)
         db.commit()
-    for tag_counter, tag in enumerate(db.query(TopicEntityTagModel).all()):
+    for tag_counter, tag in enumerate(query_tags.all()):
         if not delete_all_first:
             db.execute(f"DELETE FROM topic_entity_tag_validation "
                        f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}")
@@ -317,14 +330,16 @@ def revalidate_all_tags(email: str, delete_all_first: bool = False):
     db.commit()
     db.close()
 
-    email_recipients = email
-    sender_email = environ.get('SENDER_EMAIL', None)
-    sender_password = environ.get('SENDER_PASSWORD', None)
-    reply_to = environ.get('REPLY_TO', sender_email)
-    email_body = "Finished re-validating all tags."
-
-    send_email("Alliance ABC notification: all tags re-validated", email_recipients, email_body, sender_email,
-               sender_password, reply_to)
+    if email:
+        email_recipients = email
+        sender_email = environ.get('SENDER_EMAIL', None)
+        sender_password = environ.get('SENDER_PASSWORD', None)
+        reply_to = environ.get('REPLY_TO', sender_email)
+        email_body = "Finished re-validating all tags"
+        if curie_or_reference_id:
+            email_body += " for reference " + str(curie_or_reference_id)
+        send_email("Alliance ABC notification: all tags re-validated", email_recipients, email_body, sender_email,
+                   sender_password, reply_to)
 
 
 def create_source(db: Session, source: TopicEntityTagSourceSchemaCreate):
