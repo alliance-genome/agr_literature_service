@@ -366,6 +366,41 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
                 "link_url": f"https://www.ncbi.nlm.nih.gov/research/pubtator/?view=publication&pmid={pmid.replace('PMID:','')}"
             }
         ]
+        ## generate links to Textpresso
+        sql_query = f"""
+        SELECT rfm.mod_id
+        FROM referencefile rf
+        JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+        WHERE rf.reference_id = {reference.reference_id}
+        AND rf.file_class = 'main'
+        AND rf.file_extension = 'pdf'
+        AND rf.date_created <= NOW() - INTERVAL '7 days'
+        """
+        rows = db.execute(sql_query).fetchall()
+        pdf_eligible_mod_ids = [row['mod_id'] for row in rows if row['mod_id']]
+        is_pmc = any(row['mod_id'] is None for row in rows)
+        if is_pmc:
+            pdf_eligible_mod_ids = [1, 2, 3, 4, 5, 6, 7]
+
+        sql_query = f"""
+        SELECT m.mod_id, m.abbreviation
+        FROM mod m
+        JOIN mod_corpus_association mca ON m.mod_id = mca.mod_id
+        WHERE mca.reference_id = {reference.reference_id}
+        AND mca.corpus = True
+        """
+        rows = db.execute(sql_query).fetchall()
+        mod_list = set()
+        for row in rows:
+            if row['mod_id'] in pdf_eligible_mod_ids:
+                mod_list.add(row['abbreviation'])
+        sorted_mod_list = sorted(mod_list)
+        for mod in sorted_mod_list:
+            if mod not in ["RGD", "XB"]:
+                resource_links.append({
+                    "display_name": f"{mod} Textpresso",
+                    "link_url": f"https://www.alliancegenome.org/textpresso/{mod.lower()}/tpc/search?accession={pmid}&keyword="
+                })
         reference_data["resource_for_curation"] = resource_links
 
     if reference.mod_referencetypes:
