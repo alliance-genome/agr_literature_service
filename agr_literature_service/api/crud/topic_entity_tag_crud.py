@@ -19,7 +19,8 @@ from agr_literature_service.api.models.audited_model import get_default_user_val
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
     get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, check_and_set_species, \
-    add_audited_object_users_if_not_exist, get_ancestors, get_descendants
+    add_audited_object_users_if_not_exist, get_ancestors, get_descendants, \
+    check_atp_ids_validity
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
@@ -46,7 +47,9 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     topic_entity_tag_data["reference_id"] = reference_id
     check_for_duplicates = True
-    if reference_curie.isdigit():
+    # if reference_curie.isdigit():
+    force_insertion = topic_entity_tag_data.pop("force_insertion", None)
+    if force_insertion:
         check_for_duplicates = False
     source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
         TopicEntityTagSourceModel.topic_entity_tag_source_id == topic_entity_tag_data["topic_entity_tag_source_id"]
@@ -57,12 +60,22 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
         check_and_set_sgd_display_tag(topic_entity_tag_data)
     else:
         check_and_set_species(topic_entity_tag_data)
+    # check atp ID's validity
+    atp_ids = [topic_entity_tag_data['topic'], topic_entity_tag_data['entity_type']]
+    if 'display_tag' in topic_entity_tag_data:
+        atp_ids.append(topic_entity_tag_data['display_tag'])
+    atp_ids_filtered = [atp_id for atp_id in atp_ids if atp_id is not None]
+    (valid_atp_ids, id_to_name) = check_atp_ids_validity(atp_ids_filtered)
+    invalid_atp_ids = set(atp_ids_filtered) - valid_atp_ids
+    if len(invalid_atp_ids) > 0:
+        message = " ".join(f"{id} is not valid." for id in invalid_atp_ids if id is not None)
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"{message}")
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
     if check_for_duplicates:
         duplicate_check_result = check_for_duplicate_tags(db, topic_entity_tag_data, reference_id)
         if duplicate_check_result is not None:
             return duplicate_check_result
-
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
     try:
         db.add(new_db_obj)
@@ -115,6 +128,12 @@ def add_validation_values_to_tag(topic_entity_tag_db_obj: TopicEntityTagModel, t
                                                                                ATP_ID_SOURCE_AUTHOR)
     tag_data_dict["validation_by_professional_biocurator"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj,
                                                                                                 ATP_ID_SOURCE_CURATOR)
+
+
+def add_list_of_users_who_validated_tag(topic_entity_tag_db_obj: TopicEntityTagModel, tag_data_dict: Dict):
+    validating_tag: TopicEntityTagModel
+    tag_data_dict["validating_users"] = list({validating_tag.created_by for validating_tag in
+                                              topic_entity_tag_db_obj.validated_by})
 
 
 def show_tag(db: Session, topic_entity_tag_id: int):
@@ -292,14 +311,27 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
         db.commit()
 
 
-def revalidate_all_tags(email: str, delete_all_first: bool = False):
+def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie_or_reference_id: str = None):
     engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
     new_session = sessionmaker(bind=engine, autoflush=True)
     db = new_session()
+    reference_query_filter = ""
+    query_tags = db.query(TopicEntityTagModel)
+    if curie_or_reference_id:
+        delete_all_first = True
+        reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
+        if not reference_id:
+            reference_id = db.query(ReferenceModel.reference_id).filter(ReferenceModel.curie == curie_or_reference_id)
+        all_tag_ids_for_reference = [res[0] for res in db.query(
+            TopicEntityTagModel.topic_entity_tag_id).filter(TopicEntityTagModel.reference_id == reference_id).all()]
+        all_tag_ids_str = [str(tag_id) for tag_id in all_tag_ids_for_reference]
+        reference_query_filter = (f" WHERE validating_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)}) "
+                                  f"OR validated_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)})")
+        query_tags = query_tags.filter(TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids_for_reference))
     if delete_all_first:
-        db.execute("DELETE FROM topic_entity_tag_validation")
+        db.execute("DELETE FROM topic_entity_tag_validation" + reference_query_filter)
         db.commit()
-    for tag_counter, tag in enumerate(db.query(TopicEntityTagModel).all()):
+    for tag_counter, tag in enumerate(query_tags.all()):
         if not delete_all_first:
             db.execute(f"DELETE FROM topic_entity_tag_validation "
                        f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}")
@@ -309,14 +341,16 @@ def revalidate_all_tags(email: str, delete_all_first: bool = False):
     db.commit()
     db.close()
 
-    email_recipients = email
-    sender_email = environ.get('SENDER_EMAIL', None)
-    sender_password = environ.get('SENDER_PASSWORD', None)
-    reply_to = environ.get('REPLY_TO', sender_email)
-    email_body = "Finished re-validating all tags."
-
-    send_email("Alliance ABC notification: all tags re-validated", email_recipients, email_body, sender_email,
-               sender_password, reply_to)
+    if email:
+        email_recipients = email
+        sender_email = environ.get('SENDER_EMAIL', None)
+        sender_password = environ.get('SENDER_PASSWORD', None)
+        reply_to = environ.get('REPLY_TO', sender_email)
+        email_body = "Finished re-validating all tags"
+        if curie_or_reference_id:
+            email_body += " for reference " + str(curie_or_reference_id)
+        send_email("Alliance ABC notification: all tags re-validated", email_recipients, email_body, sender_email,
+                   sender_password, reply_to)
 
 
 def create_source(db: Session, source: TopicEntityTagSourceSchemaCreate):
@@ -519,6 +553,7 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
             if "validated_by" in tet_data:
                 del tet_data["validated_by"]
             add_validation_values_to_tag(tet, tet_data)
+            add_list_of_users_who_validated_tag(tet, tet_data)
             tet_data["topic_entity_tag_source"]["secondary_data_provider_abbreviation"] = mod_id_to_mod[
                 tet.topic_entity_tag_source.secondary_data_provider_id]
             all_tet.append(tet_data)

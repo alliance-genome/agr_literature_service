@@ -797,7 +797,8 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     return bib_info.get_formatted_bib(format_type=return_format)
 
 
-def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=None, workflow_tag=None, from_reference_id: int = None, page_size: int = 1000):
+def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=None, workflow_tag=None,
+                                  species: str = None, from_reference_id: int = None, page_size: int = 1000):
     if workflow_tag and not workflow_tag.upper().startswith('ATP:'):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="The workflow_tag passed in is not an ATP curie.")
@@ -819,6 +820,8 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
 
     if workflow_tag:
         select_stmt += f" AND r.reference_id IN (SELECT reference_id FROM workflow_tag WHERE workflow_tag_id = '{workflow_tag}' AND mod_id = {mod_id})"
+    if species:
+        select_stmt += f" AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity = '{species}')"
     if from_reference_id:
         select_stmt += f" AND r.reference_id > {from_reference_id}"
     if files_updated_from_date:
