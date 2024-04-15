@@ -139,7 +139,7 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     mod_reference_types: Optional[List[ModReferenceTypeSchemaRelated]] = None
     mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaRelated]] = None
     obsolete_references: Optional[List[str]] = None
-    resource_for_curation: Optional[List[Dict[str, str]]] = None
+    resources_for_curation: Optional[List[Dict[str, str]]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     mesh_terms: Optional[List[MeshDetailSchemaRelated]] = None

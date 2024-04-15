@@ -354,7 +354,6 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
                 bad_cross_ref_ids.append(x['curie'])
     reference_data["invalid_cross_reference_ids"] = bad_cross_ref_ids
 
-    reference_data["resource_for_curation"] = []
     if pmid:
         resource_links = [
             {
@@ -401,7 +400,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
                     "display_name": f"{mod} Textpresso",
                     "link_url": f"https://www.alliancegenome.org/textpresso/{mod.lower()}/tpc/search?accession={pmid}&keyword="
                 })
-        reference_data["resource_for_curation"] = resource_links
+        reference_data["resources_for_curation"] = resource_links
 
     if reference.mod_referencetypes:
         reference_data["mod_reference_types"] = []
