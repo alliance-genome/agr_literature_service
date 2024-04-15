@@ -50,6 +50,7 @@ class TopicEntityTagSchemaCreate(AuditedObjectModelSchema):
 
 class TopicEntityTagSchemaPost(TopicEntityTagSchemaCreate):
     reference_curie: str
+    force_insertion: Optional[bool] = False
 
 
 class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
