@@ -1,5 +1,4 @@
-from typing import List, Optional
-
+from typing import List, Optional, Dict
 from pydantic import BaseModel, validator
 
 from agr_literature_service.api.schemas import (AuthorSchemaPost, AuthorSchemaShow,
@@ -140,6 +139,7 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     mod_reference_types: Optional[List[ModReferenceTypeSchemaRelated]] = None
     mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaRelated]] = None
     obsolete_references: Optional[List[str]] = None
+    resources_for_curation: Optional[List[Dict[str, str]]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
     mesh_terms: Optional[List[MeshDetailSchemaRelated]] = None
