@@ -3,7 +3,7 @@ import requests
 from os import environ
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
-from agr_literature_service.lit_processing.utils.okta_utils import (
+from fastapi_okta.okta_utils import (
     get_authentication_token,
     generate_headers
 )

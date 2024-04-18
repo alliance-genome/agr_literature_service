@@ -14,7 +14,7 @@ import urllib.request
 from os import environ
 
 from sqlalchemy.orm import Session
-from agr_literature_service.lit_processing.utils.okta_utils import get_authentication_token
+from fastapi_okta.okta_utils import get_authentication_token
 
 import logging
 

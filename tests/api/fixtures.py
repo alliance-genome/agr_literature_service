@@ -1,6 +1,6 @@
 import pytest
 
-from agr_literature_service.lit_processing.utils.okta_utils import get_authentication_token, generate_headers
+from fastapi_okta.okta_utils import get_authentication_token, generate_headers
 
 
 @pytest.fixture(scope="session")
