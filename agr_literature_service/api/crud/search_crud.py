@@ -1,6 +1,7 @@
 from typing import Dict, List, Any, Optional
 import logging
 from datetime import datetime
+from os import getcwd
 
 from elasticsearch import Elasticsearch
 from agr_literature_service.api.config import config
@@ -115,7 +116,8 @@ def search_date_range(es_body,
 
 
 # flake8: noqa: C901
-def search_references(query: str = None, facets_values: Dict[str, List[str]] = None, negated_facets_values: Dict[str, List[str]] = None,
+def search_references(query: str = None, facets_values: Dict[str, List[str]] = None,
+                      negated_facets_values: Dict[str, List[str]] = None,
                       size_result_count: Optional[int] = 10, sort_by_published_date_order: Optional[str] = "asc",
                       page: Optional[int] = 1,
                       facets_limits: Dict[str, int] = None, return_facets_only: bool = False,
@@ -123,7 +125,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                       date_pubmed_arrive: Optional[List[str]] = None,
                       date_published: Optional[List[str]] = None,
                       date_created: Optional[List[str]] = None,
-                      query_fields: str = None, partial_match: bool = True):
+                      query_fields: str = None, partial_match: bool = True,
+                      apply_selections_to_one_tag: bool = False):
     if query is None and facets_values is None and not return_facets_only:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="requested a search but no query and no facets provided")
@@ -311,14 +314,18 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "cross_references.curie.keyword": "*" + query
                 }
             })
+
     if facets_values:
-        for facet_field, facet_list_values in facets_values.items():
-            if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
-                es_body["query"]["bool"]["filter"]["bool"]["must"] = []
-            es_body["query"]["bool"]["filter"]["bool"]["must"].append({"bool": {"must": []}})
-            for facet_value in facet_list_values:
-                es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"].append({"term": {}})
-                es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
+        if apply_selections_to_one_tag:
+            add_nested_topic_confidence_combinations(es_body, facets_values)
+        else:
+            for facet_field, facet_list_values in facets_values.items():
+                if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
+                    es_body["query"]["bool"]["filter"]["bool"]["must"] = []
+                es_body["query"]["bool"]["filter"]["bool"]["must"].append({"bool": {"must": []}})
+                for facet_value in facet_list_values:
+                    es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"].append({"term": {}})
+                    es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
 
     if negated_facets_values:
         for facet_field, facet_list_values in negated_facets_values.items():
@@ -337,6 +344,16 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
 
     if author_filter:
         es_body["aggregations"]["authors.name.keyword"]["terms"]["include"] = ".*" + author_filter + ".*"
+
+    # debugging
+    import json
+    logfile_with_path = getcwd() + "/search_es_body.log"
+    fw = open(logfile_with_path, 'w')
+    jsonStr = json.dumps(es_body, indent=4, sort_keys=True)
+    fw.write(jsonStr)
+    fw.close()
+    # end debugging
+    
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
     add_curie_to_name_values(res)
     return {
@@ -358,6 +375,52 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         "aggregations": res["aggregations"],
         "return_count": res["hits"]["total"]["value"]
     }
+
+
+def add_regular_facets(es_body, facet_values, ignore_field=None):
+    if "filter" not in es_body["query"]["bool"]:
+        es_body["query"]["bool"]["filter"] = {"bool": {"must": []}}
+
+    for facet_field, values in facet_values.items():
+        if ignore_field and ignore_field in facet_field:
+            continue
+        es_body["query"]["bool"]["filter"]["bool"]["must"].append({
+            "terms": {facet_field: values}
+        })
+
+
+def add_nested_topic_confidence_combinations(es_body, facet_values):
+"topic_entity_tags"
+    topics = facet_values.get("topic_entity_tags.topic.keyword", [])
+    confidence_levels = facet_values.get("topic_entity_tags.confidence_level.keyword", [])
+
+    if not topics or not confidence_levels:
+        add_regular_facets(es_body, facet_values)
+        return
+
+    nested_must = []
+    for topic in topics:
+        for confidence_level in confidence_levels:
+            nested_must.append({
+                "nested": {
+                    "path": "topic_entity_tags",
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {"term": {"topic_entity_tags.topic.keyword": topic}},
+                                {"term": {"topic_entity_tags.confidence_level.keyword": confidence_level}}
+                            ]
+                        }
+                    }
+                }
+            })
+
+    # add these nested queries to the main query's must clause
+    if "must" not in es_body["query"]["bool"]:
+        es_body["query"]["bool"]["must"] = []
+
+    es_body["query"]["bool"]["must"].extend(nested_must)
+    add_regular_facets(es_body, facet_values, "topic_entity_tags")
 
 
 def add_curie_to_name_values(es_result_object):
