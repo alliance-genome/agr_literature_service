@@ -33,4 +33,5 @@ def search(body: FacetsOptionsSchema):
                                          date_published=body.date_published,
                                          date_created=body.date_created,
                                          query_fields=body.query_fields,
-                                         partial_match=body.partial_match)
+                                         partial_match=body.partial_match,
+                                         apply_selections_to_one_tag=body.apply_selections_to_one_tag)

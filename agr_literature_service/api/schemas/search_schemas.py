@@ -19,3 +19,4 @@ class FacetsOptionsSchema(BaseModel):
     date_created: Optional[List[str]] = None
     query_fields: Optional[str]
     partial_match: bool = True
+    apply_selections_to_one_tag: bool = False
