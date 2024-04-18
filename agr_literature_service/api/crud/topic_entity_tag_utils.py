@@ -12,7 +12,7 @@ from starlette import status
 
 from agr_literature_service.api.models import TopicEntityTagSourceModel, ReferenceModel, ModModel, TopicEntityTagModel
 from agr_literature_service.api.user import add_user_if_not_exists
-from agr_literature_service.lit_processing.utils.okta_utils import get_authentication_token
+from fastapi_okta.okta_utils import get_authentication_token
 import logging
 # from os import getcwd
 
