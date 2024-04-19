@@ -316,8 +316,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             })
 
     if facets_values:
-        topics = facet_values.get("topic_entity_tags.topic.keyword", [])
-        confidence_levels = facet_values.get("topic_entity_tags.confidence_level.keyword", [])
+        topics = facets_values.get("topic_entity_tags.topic.keyword", [])
+        confidence_levels = facets_values.get("topic_entity_tags.confidence_level.keyword", [])
         if apply_selections_to_single_tag and len(topics) == 1 and len(confidence_levels) == 1:
             add_nested_topic_confidence_combination(es_body, topics[0],
                                                     confidence_levels[0], facets_values)
@@ -390,6 +390,9 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
 
 def add_nested_topic_confidence_combination(es_body, topic, confidence_level, facets_values):
 
+    topic_key = "topic_entity_tags.topic.keyword"
+    confidence_key = "topic_entity_tags.confidence_level.keyword"
+
     nested_query = {
         "nested": {
             "path": "topic_entity_tags",
@@ -403,6 +406,8 @@ def add_nested_topic_confidence_combination(es_body, topic, confidence_level, fa
             }
         }
     }
+    if "filter" not in es_body["query"]["bool"]:
+        es_body["query"]["bool"]["filter"] = []
     es_body["query"]["bool"]["filter"].append(nested_query)
         
     
