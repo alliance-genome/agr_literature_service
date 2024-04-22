@@ -323,9 +323,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 "wildcard": {
                     "cross_references.curie.keyword": "*" + query
                 }
-            })
-    if tet_nested_facets_values:
-        add_nested_topic_confidence_combinations(es_body, tet_nested_facets_values)        
+            })    
     if facets_values:
         for facet_field, facet_list_values in facets_values.items():
             if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
@@ -334,7 +332,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             for facet_value in facet_list_values:
                 es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"].append({"term": {}})
                 es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
-
     if negated_facets_values:
         for facet_field, facet_list_values in negated_facets_values.items():
             if "must_not" not in es_body["query"]["bool"]["filter"]["bool"]:
@@ -352,6 +349,10 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
 
     if author_filter:
         es_body["aggregations"]["authors.name.keyword"]["terms"]["include"] = ".*" + author_filter + ".*"
+
+    if tet_nested_facets_values:
+        add_nested_topic_confidence_combinations(es_body, tet_nested_facets_values)
+        
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
     
     add_curie_to_name_values(res)
@@ -388,7 +389,7 @@ def add_nested_topic_confidence_combinations(es_body: Dict, tet_nested_facets_va
         es_body["query"]["bool"]["filter"] = {"bool": {}}
     if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
         es_body["query"]["bool"]["filter"]["bool"]["must"] = []
-
+    
     for item in tet_nested_facets_values:
         topic = item.get("topic_entity_tags.topic.keyword")
         confidence_level = item.get("topic_entity_tags.confidence_level.keyword")
