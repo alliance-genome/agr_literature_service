@@ -1,7 +1,6 @@
 from typing import Dict, List, Any, Optional
 import logging
 from datetime import datetime
-# from os import getcwd
 
 from elasticsearch import Elasticsearch
 from agr_literature_service.api.config import config
@@ -213,32 +212,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "size": facets_limits[
                         "authors.name.keyword"] if "authors.name.keyword" in facets_limits else 10
                 }
-            },
-            "nested_topics": {
-                "nested": {
-                    "path": "topic_entity_tags"
-                },
-                "aggs": {
-                    "topics": {
-                        "terms": {
-                            "field": "topic_entity_tags.topic.keyword",
-                            "size": 10
-                        }
-                    }
-                }
-            },
-            "nested_confidence_level": {
-                "nested": {
-                    "path": "topic_entity_tags"
-                },
-                "aggs": {
-                    "confidence_levels": {
-                        "terms": {
-                            "field": "topic_entity_tags.confidence_level.keyword",
-                            "size": 10
-                        }
-                    }
-                }
             }
         },
         "from": from_entry,
@@ -351,34 +324,60 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         es_body["aggregations"]["authors.name.keyword"]["terms"]["include"] = ".*" + author_filter + ".*"
 
     if tet_nested_facets_values:
-        add_nested_topic_confidence_combinations(es_body, tet_nested_facets_values)
-        
-    res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
-    
-    add_curie_to_name_values(res)
+        add_nested_topic_confidence_combinations(es_body, tet_nested_facets_values, facets_limits)
+    else:
+        apply_normal_tet_nested_aggregations(es_body)
 
+    res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
+
+    formatted_results = process_search_results(res)
+    return formatted_results
+
+
+def process_search_results(res):
+
+    hits = [{
+        "curie": ref["_source"]["curie"],
+        "citation": ref["_source"]["citation"],
+        "title": ref["_source"]["title"],
+        "date_published": ref["_source"]["date_published"],
+        "date_published_start": ref["_source"]["date_published_start"],
+        "date_published_end": ref["_source"]["date_published_end"],
+        "date_created": ref["_source"]["date_created"],
+        "abstract": ref["_source"]["abstract"],
+        "cross_references": ref["_source"]["cross_references"],
+        "authors": ref["_source"]["authors"],
+        "mod_reference_types": ref["_source"]["mod_reference_types"],
+        "highlight": ref.get("highlight", "")
+    } for ref in res["hits"]["hits"]]
+
+    # process aggregations
+    topics = {}
+    confidence_levels = {}
+    if "topic_confidence_aggregation" in res['aggregations']:
+        topics = res['aggregations']['topic_confidence_aggregation']['filter_by_confidence']['topics']
+        confidence_levels = res['aggregations']['topic_confidence_aggregation']['filter_by_topic']['confidence_levels']
+        del res['aggregations']['topic_confidence_aggregation']
+    elif "nested_topics" in res['aggregations']:
+        topics = res['aggregations']['nested_topics']['topics']
+        del res['aggregations']['nested_topics']
+        if "nested_confidence_levels" in res['aggregations']:
+            confidence_levels = res['aggregations']['nested_confidence_levels']['confidence_levels']
+            del res['aggregations']['nested_confidence_levels']
+
+    add_curie_to_name_values(topics)
+
+    res['aggregations']['topics'] = topics
+    res['aggregations']['confidence_levels'] = confidence_levels
+    
     return {
-        "hits": [{
-            "curie": ref["_source"]["curie"],
-            "citation": ref["_source"]["citation"],
-            "title": ref["_source"]["title"],
-            "date_published": ref["_source"]["date_published"],
-            "date_published_start": ref["_source"]["date_published_start"],
-            "date_published_end": ref["_source"]["date_published_end"],
-            "date_created": ref["_source"]["date_created"],
-            "abstract": ref["_source"]["abstract"],
-            "cross_references": ref["_source"]["cross_references"],
-            "authors": ref["_source"]["authors"],
-            "mod_reference_types": ref["_source"]["mod_reference_types"],
-            "highlight":
-                ref["highlight"] if "highlight" in ref else ""
-        } for ref in res["hits"]["hits"]],
-        "aggregations": res["aggregations"],
+        "hits": hits,
+        "aggregations": res['aggregations'],
         "return_count": res["hits"]["total"]["value"]
     }
 
 
-def add_nested_topic_confidence_combinations(es_body: Dict, tet_nested_facets_values: List[Dict]):
+def add_nested_topic_confidence_combinations(es_body, tet_nested_facets_values, facets_limits):
 
     # make sure the structure of es_body is correct
     if "query" not in es_body:
@@ -389,7 +388,8 @@ def add_nested_topic_confidence_combinations(es_body: Dict, tet_nested_facets_va
         es_body["query"]["bool"]["filter"] = {"bool": {}}
     if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
         es_body["query"]["bool"]["filter"]["bool"]["must"] = []
-    
+
+    is_apply_to_single_tag = False
     for item in tet_nested_facets_values:
         topic = item.get("topic_entity_tags.topic.keyword")
         confidence_level = item.get("topic_entity_tags.confidence_level.keyword")
@@ -401,6 +401,9 @@ def add_nested_topic_confidence_combinations(es_body: Dict, tet_nested_facets_va
                 {"term": {"topic_entity_tags.topic.keyword": topic}},
                 {"term": {"topic_entity_tags.confidence_level.keyword": confidence_level}}
             ]
+            if not is_apply_to_single_tag:
+                is_apply_to_single_tag = True
+            apply_topic_and_confidence_aggregation(es_body, topic, confidence_level)
         elif topic:
             must_dict =	[{"term": {"topic_entity_tags.topic.keyword": topic}}]
         elif confidence_level:
@@ -416,32 +419,100 @@ def add_nested_topic_confidence_combinations(es_body: Dict, tet_nested_facets_va
                 }
             }
         }
-    
+
+        if not is_apply_to_single_tag:
+            apply_normal_tet_nested_aggregations(es_body)
+
         # append the nested query to the 'must' list within the 'filter' bool
         es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
-        
 
-def add_curie_to_name_values(es_result_object):
 
-    # assuming `nested_topics` has a nested "topics" key that actually holds the buckets
-    aggregations_atp = ["nested_topics"]
-    
-    # retrieve all curie keys from nested topics
+def apply_normal_tet_nested_aggregations(es_body):
+
+    es_body["aggregations"]["nested_topics"] = {
+        "nested": {
+            "path": "topic_entity_tags"
+        },
+        "aggs": {
+            "topics": {
+                "terms": {
+                    "field": "topic_entity_tags.topic.keyword",
+                    "size": 10
+                }
+            }
+        }
+    }
+    es_body["aggregations"]["nested_confidence_levels"] = {
+        "nested": {
+            "path": "topic_entity_tags"
+        },
+        "aggs": {
+            "confidence_levels": {
+                "terms": {
+                    "field": "topic_entity_tags.confidence_level.keyword",
+                    "size": 10
+                }
+            }
+        }
+    }
+
+
+def apply_topic_and_confidence_aggregation(es_body, topic_keyword, confidence_keyword):
+
+    # aggregation for confidence levels within a specific topic
+    # aggregation for topic within a specific confidence level
+    es_body["aggregations"]["topic_confidence_aggregation"] = {
+        "nested": {
+            "path": "topic_entity_tags"
+        },
+        "aggs": {
+            "filter_by_topic": {
+                "filter": {
+                    "term": {
+                        "topic_entity_tags.topic.keyword": topic_keyword
+                    }
+                },
+                "aggs": {
+                    "confidence_levels": {
+                        "terms": {
+                            "field": "topic_entity_tags.confidence_level.keyword",
+                            "size": 10  # Adjust as necessary
+                        }
+                    }
+                }
+            },
+            "filter_by_confidence": {
+                "filter": {
+                    "term": {
+                        "topic_entity_tags.confidence_level.keyword": confidence_keyword
+                    }
+                },
+                "aggs": {
+                    "topics": {
+                        "terms": {
+                            "field": "topic_entity_tags.topic.keyword",
+                            "size": 10  # Adjust as necessary
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+def add_curie_to_name_values(topics):
+
+    curie_keys = [
+        bucket["key"] for bucket in topics.get("buckets", [])
+    ]
+
     curie_to_name_map = get_map_ateam_curies_to_names(
         curies_category="atpterm",
-        curies=[
-            bucket["key"] for aggreg_to_map in aggregations_atp
-            for bucket in es_result_object.get("aggregations", {}).get(
-                aggreg_to_map, {}).get("topics", {}).get("buckets", [])
-        ]
+        curies=curie_keys
     )
-    
-    # iterate through the buckets and update names based on the curie_to_name_map
-    for aggreg_to_map in aggregations_atp:
-        buckets = es_result_object.get("aggregations", {}).get(
-            aggreg_to_map, {}).get("topics", {}).get("buckets", [])
-        
-        for idx, bucket in enumerate(buckets):
-            # Use upper() if CURIE keys are case-insensitive
-            curie_name = curie_to_name_map.get(bucket["key"].upper(), "Unknown")
-            bucket["name"] = curie_name
+
+    # iterate over the buckets and add names
+    for bucket in topics.get("buckets", []):
+        curie_name = curie_to_name_map.get(bucket["key"].upper(), "Unknown")
+        bucket["name"] = curie_name
+
