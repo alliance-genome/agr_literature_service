@@ -19,4 +19,4 @@ class FacetsOptionsSchema(BaseModel):
     date_created: Optional[List[str]] = None
     query_fields: Optional[str]
     partial_match: bool = True
-    tet_nested_facets_values: Optional[List[Dict[str, str]]] = []
+    tet_nested_facets_values: Optional[Dict] = {}
