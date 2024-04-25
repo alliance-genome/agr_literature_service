@@ -355,18 +355,20 @@ def process_search_results(res):
     # process aggregations
     topics = {}
     confidence_levels = {}
-    if "topic_confidence_aggregation" in res['aggregations']:
-        if "filter_by_confidence" in res['aggregations']['topic_confidence_aggregation']:
-            topics = res['aggregations']['topic_confidence_aggregation']['filter_by_confidence']['topics']
-        if "filter_by_topic" in res['aggregations']['topic_confidence_aggregation']:
-            confidence_levels = res['aggregations']['topic_confidence_aggregation']['filter_by_topic']['confidence_levels']
-        del res['aggregations']['topic_confidence_aggregation']
-    if not topics and "nested_topics" in res['aggregations']:
-        topics = res['aggregations']['nested_topics']['topics']
-        del res['aggregations']['nested_topics']
-    if not confidence_levels and "nested_confidence_levels" in res['aggregations']:
-        confidence_levels = res['aggregations']['nested_confidence_levels']['confidence_levels']
-        del res['aggregations']['nested_confidence_levels']
+    if "topic_aggregation" in res['aggregations']:
+        if "filter_by_confidence" in res['aggregations']['topic_aggregation']:
+            topics = res['aggregations']['topic_aggregation']['filter_by_confidence']['topics']
+        del res['aggregations']['topic_aggregation']
+    if "confidence_aggregation" in res['aggregations']:
+        if "filter_by_topic" in res['aggregations']['confidence_aggregation']:
+            confidence_levels = res['aggregations']['confidence_aggregation']['filter_by_topic']['confidence_levels']
+            del res['aggregations']['confidence_aggregation']
+    if not topics and "all_topic_aggregation" in res['aggregations']:
+        topics = res['aggregations']['all_topic_aggregation']['topics']
+        del res['aggregations']['all_topic_aggregation']
+    if not confidence_levels and "all_confidence_aggregation" in res['aggregations']:
+        confidence_levels = res['aggregations']['all_confidence_aggregation']['confidence_levels']
+        del res['aggregations']['all_confidence_aggregation']
 
     add_curie_to_name_values(topics)
 
@@ -439,7 +441,7 @@ def add_tet_facets_values(es_body, tet_nested_facets_values):
 
 def apply_all_tags_tet_aggregations(es_body):
 
-    es_body["aggregations"]["nested_topics"] = {
+    es_body["aggregations"]["all_topic_aggregation"] = {
         "nested": {
             "path": "topic_entity_tags"
         },
@@ -452,7 +454,7 @@ def apply_all_tags_tet_aggregations(es_body):
             }
         }
     }
-    es_body["aggregations"]["nested_confidence_levels"] = {
+    es_body["aggregations"]["all_confidence_aggregation"] = {
         "nested": {
             "path": "topic_entity_tags"
         },
@@ -469,47 +471,49 @@ def apply_all_tags_tet_aggregations(es_body):
 
 def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels):
 
-    path = "topic_entity_tags"
-    es_body["aggregations"] = {
-        "topic_confidence_aggregation": {
-            "nested": {
-                "path": path
-            },
-            "aggs": {}
-        }
-    }
-
-    # aggregate on topics if available
     if topics:
-        es_body["aggregations"]["topic_confidence_aggregation"]["aggs"]["filter_by_topic"] = {
-            "filter": {
-                "terms": {
-                    f"{path}.topic.keyword": topics
-                }
+        es_body["aggregations"]["confidence_aggregation"] = {
+            "nested": {
+                "path": "topic_entity_tags"
             },
             "aggs": {
-                "confidence_levels": {
-                    "terms": {
-                        "field": f"{path}.confidence_level.keyword",
-                        "size": 10
+                "filter_by_topic": {
+                    "filter": {
+                        "terms": {
+                            "topic_entity_tags.topic.keyword": topics
+                        }
+                    },
+                    "aggs": {
+                        "confidence_levels": {
+                            "terms": {
+                                "field": "topic_entity_tags.confidence_level.keyword",
+                                "size": 10 
+                            }
+                        }
                     }
                 }
             }
         }
 
-    # aggregate on confidence levels if available
     if confidence_levels:
-        es_body["aggregations"]["topic_confidence_aggregation"]["aggs"]["filter_by_confidence"] = {
-            "filter": {
-                "terms": {
-                    f"{path}.confidence_level.keyword": confidence_levels
-                }
+        es_body["aggregations"]["topic_aggregation"] = {
+            "nested": {
+                "path": "topic_entity_tags"
             },
             "aggs": {
-                "topics": {
-                    "terms": {
-                        "field": f"{path}.topic.keyword",
-                        "size": 10
+                "filter_by_confidence": {
+                    "filter": {
+                        "terms": {
+                            "topic_entity_tags.confidence_level.keyword": confidence_levels
+                        }
+                    },
+                    "aggs": {
+                        "topics": {
+                            "terms": {
+                                "field": "topic_entity_tags.topic.keyword",
+                                "size": 10
+                            }
+                        }
                     }
                 }
             }
