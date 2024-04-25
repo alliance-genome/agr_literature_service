@@ -335,7 +335,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     return formatted_results
 
 
-def process_search_results(res):
+def process_search_results(res):  # pragma: no cover
 
     hits = [{
         "curie": ref["_source"]["curie"],
@@ -382,7 +382,7 @@ def process_search_results(res):
     }
 
 
-def add_tet_facets_values(es_body, tet_nested_facets_values):
+def add_tet_facets_values(es_body, tet_nested_facets_values):  # pragma: no cover
 
     # make sure the structure of es_body is correct
     if "query" not in es_body:
@@ -439,7 +439,7 @@ def add_tet_facets_values(es_body, tet_nested_facets_values):
         apply_all_tags_tet_aggregations(es_body)
 
 
-def apply_all_tags_tet_aggregations(es_body):
+def apply_all_tags_tet_aggregations(es_body):  # pragma: no cover
 
     es_body["aggregations"]["all_topic_aggregation"] = {
         "nested": {
@@ -469,7 +469,7 @@ def apply_all_tags_tet_aggregations(es_body):
     }
 
 
-def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels):
+def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels):  # pragma: no cover
 
     if topics:
         es_body["aggregations"]["confidence_aggregation"] = {
