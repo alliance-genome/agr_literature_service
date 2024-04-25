@@ -3,7 +3,7 @@ from os import environ
 
 import pytest
 
-from agr_literature_service.lit_processing.utils.okta_utils import generate_headers, update_okta_token, \
+from fastapi_okta.okta_utils import generate_headers, update_okta_token, \
     get_authentication_token
 from ...fixtures import cleanup_tmp_files_when_done # noqa
 
