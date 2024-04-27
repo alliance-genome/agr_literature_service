@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from starlette.background import BackgroundTask
-from sqlalchemy import ARRAY, Boolean, String, func
+from sqlalchemy import ARRAY, Boolean, String, func, and_
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast, or_
 
@@ -45,6 +45,8 @@ from agr_literature_service.api.crud.workflow_tag_crud import (
 from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
 from agr_literature_service.global_utils import get_next_reference_curie
 from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import \
+    update_data
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 logger = logging.getLogger(__name__)
@@ -542,8 +544,8 @@ def merge_references(db: Session,
     if old_ref.prepublication_pipeline or new_ref.prepublication_pipeline:
         new_ref.prepublication_pipeline = True
         db.commit()
-    # find which mods refefrent this paper
 
+    # find which mods reference this paper
     mods = db.query(ModModel).join(ModCorpusAssociationModel). \
         filter(ModCorpusAssociationModel.reference_id == new_ref.reference_id,
                ModCorpusAssociationModel.mod_id == ModModel.mod_id).all()
@@ -553,8 +555,18 @@ def merge_references(db: Session,
     for mod in mods:
         mod_list.append(mod.abbreviation)
     message = f"{old_ref.curie} has been merged into {new_ref.curie} for {mod_list}"
-
     send_report("Reference Merge Report", message)
+
+    # if winning reference after merge has a valid pmid, update data from pubmed
+    cross_reference = db.query(CrossReferenceModel).filter(
+        and_(CrossReferenceModel.reference_id == new_ref.reference_id,
+             CrossReferenceModel.is_obsolete.is_(False),
+             CrossReferenceModel.curie_prefix == 'PMID')).order_by(
+        CrossReferenceModel.is_obsolete).first()
+    if cross_reference is not None:
+        pmid_number = cross_reference.curie.split(":")[1]
+        update_data(None, pmid_number)
+
     return new_curie
 
 
