@@ -10,7 +10,7 @@ logger.setLevel(logging.INFO)
 def add_citations():
 
     db_session = create_postgres_session(False)
-    rows = db_session.execute("SELECT reference_id FROM reference").fetchall()
+    rows = db_session.execute("SELECT reference_id FROM reference where citation_id is null").fetchall()
     count = 0
     for x in rows:
         count += 1
