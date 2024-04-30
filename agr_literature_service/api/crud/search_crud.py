@@ -450,6 +450,12 @@ def apply_all_tags_tet_aggregations(es_body):  # pragma: no cover
                 "terms": {
                     "field": "topic_entity_tags.topic.keyword",
                     "size": 10
+                },
+                "aggs": {
+                    # reverse nesting to count documents
+                    "docs_count": {
+                        "reverse_nested": {}
+                    }
                 }
             }
         }
@@ -463,6 +469,11 @@ def apply_all_tags_tet_aggregations(es_body):  # pragma: no cover
                 "terms": {
                     "field": "topic_entity_tags.confidence_level.keyword",
                     "size": 10
+                },
+                "aggs": {
+                    "docs_count": {
+                        "reverse_nested": {}
+                    }
                 }
             }
         }
@@ -488,6 +499,11 @@ def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels):  # pr
                             "terms": {
                                 "field": "topic_entity_tags.confidence_level.keyword",
                                 "size": 10 
+                            },
+                            "aggs": {
+                                "docs_count": {
+                                    "reverse_nested": {}
+                                }
                             }
                         }
                     }
@@ -512,6 +528,11 @@ def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels):  # pr
                             "terms": {
                                 "field": "topic_entity_tags.topic.keyword",
                                 "size": 10
+                            },
+                            "aggs": {
+                                "docs_count": {
+                                    "reverse_nested": {}
+                                }
                             }
                         }
                     }
