@@ -3,6 +3,7 @@ import logging
 import requests
 import gzip
 import shutil
+from typing import Set
 from os import environ, makedirs, path
 from dotenv import load_dotenv
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
@@ -291,8 +292,10 @@ if __name__ == "__main__":
     parser.add_argument('-t', '--type', action='store', type=str,
                         help='data type to update: MOL or GEN',
                         choices=['MOL', 'GEN'])
+    args = parser.parse_args()
     message = ''
-    full_obsolete_set = set()
+    full_obsolete_set: Set[str] = set()
+    """
     args = vars(parser.parse_args())
     if not any(args.values()) or args['all']:
         message = load_all(full_obsolete_set, message)
@@ -306,5 +309,20 @@ if __name__ == "__main__":
     elif args['type']:
         for datasetName in has_interactions[args['type']]:
             message = load_data(datasetName, args['type'], full_obsolete_set, message)
+    """
+    if args.all:
+        message = load_all(full_obsolete_set, message)
+    elif args.datasetName and args.type:
+        message = load_data(args.datasetName, args.type, full_obsolete_set, message)
+    elif args.datasetName:
+        types = ['GEN', 'MOL']
+        for type in types:
+            if args.datasetName in has_interactions[type]:
+                message = load_data(args.datasetName, type, full_obsolete_set, message)
+    elif args.type:
+        for datasetName in has_interactions[args.type]:
+            message = load_data(datasetName, args.type, full_obsolete_set, message)
+    else:
+        message = load_all(full_obsolete_set, message)
 
     send_slack_report(message, full_obsolete_set)
