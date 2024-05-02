@@ -650,3 +650,22 @@ def sort_pmids(db_session, pmids, mod_to_pmids):
             mod_to_pmids['NONE'].add(pmid)
 
     return mod_to_pmids
+
+
+def get_mod_papers(db_session, mod):
+
+    rows = db_session.execute(f"SELECT cr.curie, mca.corpus "
+                              f"FROM   cross_reference cr, mod_corpus_association mca, mod m "
+                              f"WHERE  cr.curie_prefix = 'PMID' "
+                              f"AND    cr.reference_id = mca.reference_id "
+                              f"AND    mca.mod_id = m.mod_id "
+                              f"AND    m.abbreviation = '{mod}'").fetchall()
+    in_corpus_set = set()
+    out_corpus_set = set()
+    for x in rows:
+        pmid = x['curie'].replace('PMID:', '')
+        if x['corpus'] is True:
+            in_corpus_set.add(pmid)
+        else:
+            out_corpus_set.add(pmid)
+    return in_corpus_set, out_corpus_set
