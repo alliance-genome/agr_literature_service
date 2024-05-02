@@ -293,23 +293,9 @@ if __name__ == "__main__":
                         help='data type to update: MOL or GEN',
                         choices=['MOL', 'GEN'])
     args = parser.parse_args()
+
     message = ''
     full_obsolete_set: Set[str] = set()
-    """
-    args = vars(parser.parse_args())
-    if not any(args.values()) or args['all']:
-        message = load_all(full_obsolete_set, message)
-    elif args['datasetName'] and args['type']:
-        message = load_data(args['datasetName'], args['type'], full_obsolete_set, message)
-    elif args['datasetName']:
-        if args['datasetName'] in has_interactions["GEN"]:
-            message = load_data(args['datasetName', "GEN"], full_obsolete_set, message)
-        if args['datasetName'] in has_interactions["MOL"]:
-            message = load_data(args['datasetName', "MOL"], full_obsolete_set, message)
-    elif args['type']:
-        for datasetName in has_interactions[args['type']]:
-            message = load_data(datasetName, args['type'], full_obsolete_set, message)
-    """
     if args.all:
         message = load_all(full_obsolete_set, message)
     elif args.datasetName and args.type:
