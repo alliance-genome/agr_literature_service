@@ -46,9 +46,11 @@ base_path = environ.get("XML_PATH", "")
 file_path = base_path + "interaction_data/"
 json_path = base_path + "pubmed_json/"
 xml_path = base_path + "pubmed_xml/"
+log_path = environ.get("LOG_PATH", "")
+log_url = environ.get("LOG_URL", "")
 
 
-def load_data(datasetName, dataType, message):
+def load_data(datasetName, dataType, full_obsolete_set, message):
 
     if not has_interactions.get(dataType) or datasetName not in has_interactions[dataType]:
         logger.error(f"We don't have {dataType} interaction data for {datasetName}")
@@ -63,9 +65,10 @@ def load_data(datasetName, dataType, message):
     new_pmids = all_pmids - set(all_pmids_db)
 
     if len(new_pmids) == 0:
-        check_pmids_and_compose_message(db_session, datasetName, file_name,
-                                        all_pmids, new_pmids, message)
-        return
+        message = check_pmids_and_compose_message(db_session, datasetName, file_name,
+                                                  all_pmids, new_pmids, pmid_to_src,
+                                                  full_obsolete_set, message)
+        return message
 
     clean_up_tmp_directories()
 
@@ -88,8 +91,10 @@ def load_data(datasetName, dataType, message):
 
     add_md5sum_to_database(db_session, None, pmids_loaded)
 
-    check_pmids_and_compose_message(db_session, datasetName, file_name,
-                                    all_pmids, pmids_loaded, message)
+    message = check_pmids_and_compose_message(db_session, datasetName, file_name,
+                                              all_pmids, pmids_loaded, pmid_to_src,
+                                              full_obsolete_set, message)
+    return message
 
 
 def extract_pmids(db_session, datasetName, dataType):
@@ -116,20 +121,35 @@ def extract_pmids(db_session, datasetName, dataType):
             if pmid:
                 all_pmids.add(pmid)
                 if len(items) > 12:
-                    pmid_to_src[pmid] = items[12]
+                    pmid_to_src[pmid] = items[12].split("(")[1].replace(")", "")
             # else:
             #    all_other_ids.append(items[8])
 
     return file_name, all_pmids, pmid_to_src
 
 
-def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmids, pmids_loaded, message):
+def compose_report_title(file_name):
+
+    # file_name = INTERACTION-GEN_SGD.tsv.gz
+    mod = file_name.replace(".tsv.gz", "").split("_")[1]
+    fileType = ""
+    if mod.startswith("XB"):
+        fileType = mod
+        mod = "XB"
+    title = file_name.split("_")[0]
+    return f"{mod}: {title} {fileType}"
+
+
+def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmids, pmids_loaded, pmid_to_src, full_obsolete_set, message):
 
     logger.info(f"{file_name}:\n")
-    logger.info(f"{len(pmids_loaded)} new reference(s) added into the database")
+    logger.info(f"New Reference(s) Added: {len(pmids_loaded)}")
 
-    message += f"<strong>Loading new papers from {file_name}</strong>:<p>"
-    message += f"{len(pmids_loaded)} new reference(s) added into the database<br>"
+    report_title = compose_report_title(file_name)
+
+    message += f"<b>{report_title}</b><p>"
+    message += "<ul>"
+    message += f"<li>New Reference(s) Added: {len(pmids_loaded)}"
 
     all_pmids_db = retrieve_all_pmids(db_session)
     pmids_out_db_set = all_pmids - set(all_pmids_db)
@@ -137,9 +157,13 @@ def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmid
     pmids_in_corpus_set = set()
     pmids_associated_with_mod_but_out_corpus_set = set()
     pmids_in_db_but_not_associated_with_mod_set = set()
+    logfile_name = file_name.replace(".tsv.gz", ".log")
+    fw = open(log_path + logfile_name, "w")
+    has_logfile = False
     if datasetName in ["SGD", "WB", "FB", "ZFIN", "MGI", "RGD", "XBXL", "XBXT"]:
         mod = datasetName
-        mod.replace("XL", "").replace("XT", "")
+        if mod.startswith("XB"):
+            mod = "XB"
         in_corpus_set, out_corpus_set = get_mod_papers(db_session, mod)
         for pmid in set(all_pmids):
             if pmid in in_corpus_set:
@@ -148,25 +172,51 @@ def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmid
                 pmids_associated_with_mod_but_out_corpus_set.add(pmid)
             elif pmid in all_pmids_db:
                 pmids_in_db_but_not_associated_with_mod_set.add(pmid)
-        logger.info(f"{len(pmids_in_corpus_set)} references are in {mod} corpus")
-        message += f"{len(pmids_in_corpus_set)} references are in {mod} corpus<br>"
-        logger.info(f"{len(pmids_associated_with_mod_but_out_corpus_set)} references are associated with {mod}, but are out of {mod} corpus")
-        message += f"{len(pmids_associated_with_mod_but_out_corpus_set)} reference(s) are associated with {mod}, but are out of {mod} corpus<br>"
-        logger.info(f"{len(pmids_in_db_but_not_associated_with_mod_set)} reference(s) are in the database, but not associated with {mod}")
-        message += f"{len(pmids_in_db_but_not_associated_with_mod_set)} reference(s) are in the database, but not associated with {mod}<br>"
+        logger.info(f"In {mod} Corpus: {len(pmids_in_corpus_set)}")
+        message += f"<li>In {mod} Corpus: {len(pmids_in_corpus_set)}"
+        logger.info(f"Associated but Outside Corpus: {len(pmids_associated_with_mod_but_out_corpus_set)}")
+        message += f"<li>Associated but Outside Corpus: {len(pmids_associated_with_mod_but_out_corpus_set)}"
+        logger.info(f"Not Associated with {mod}: {len(pmids_in_db_but_not_associated_with_mod_set)}")
+        message += f"<li>Not Associated with {mod}: {len(pmids_in_db_but_not_associated_with_mod_set)}"
+        if len(pmids_associated_with_mod_but_out_corpus_set) > 0:
+            fw.write("Associated but Outside Corpus:\n\n")
+            for pmid in pmids_associated_with_mod_but_out_corpus_set:
+                fw.write(f"PMID:{pmid}\n")
+            fw.write("\n")
+            has_logfile = True
+        if len(pmids_in_db_but_not_associated_with_mod_set) > 0:
+            fw.write("Not Associated with {mod}:\n\n")
+            for pmid in pmids_in_db_but_not_associated_with_mod_set:
+                fw.write(f"PMID:{pmid}\n")
+            fw.write("\n")
+            has_logfile = True
     else:
         pmids_in_db_but_not_associated_with_mod_set = set(all_pmids) - pmids_out_db_set
-        logger.info(f"{len(pmids_in_db_but_not_associated_with_mod_set)} references are in the database")
-        message += f"{len(pmids_in_db_but_not_associated_with_mod_set)} references are in the database<br>"
+        logger.info(f"In Database: {len(pmids_in_db_but_not_associated_with_mod_set)}")
+        message += f"<li>In Database: {len(pmids_in_db_but_not_associated_with_mod_set)}"
     obsolete_pmids, valid_pmids = search_pubmed(pmids_out_db_set)
     if len(obsolete_pmids) > 0:
-        logger.info(f"Obsolete PMIDs={obsolete_pmids}")
-        message += f"Obsolete PMIDs={obsolete_pmids}<br>"
+        logger.info(f"Obsolete PMIDs: {obsolete_pmids}")
+        message += f"<li>Obsolete PMIDs: {obsolete_pmids}"
+        fw.write("\nObsolete PMIDs:\n\n")
+        for o_pmid in obsolete_pmids:
+            pmid_with_src = f"PMID:{o_pmid}"
+            if pmid_to_src.get(o_pmid):
+                pmid_with_src = f"{pmid_with_src} {pmid_to_src.get(o_pmid)}"
+            fw.write(f"{pmid_with_src}\n")
+            full_obsolete_set.add(pmid_with_src)
+        fw.close()
+        has_logfile = True
     if len(valid_pmids) > 0:
-        logger.info(f"Valid new PMIDs, but not loaded={valid_pmids}")
-        message += f"Valid new PMIDs, but not loaded={valid_pmids}<br>"
-    message += "<br>"
+        logger.info(f"Valid new PMIDs, but not loaded: {valid_pmids}")
+        message += f"<li>Valid new PMIDs, but not loaded: {valid_pmids}<br>"
     logger.info("\n")
+
+    if has_logfile:
+        log_file = log_url + logfile_name
+        message += f"<li><a href='{log_file}'>log file</a>"
+    message += "</ul>"
+    return message
 
 
 def search_pubmed(pmids):
@@ -202,16 +252,32 @@ def clean_up_tmp_directories():
     makedirs(json_path)
 
 
-def load_all(message):
+def load_all(full_obsolete_set, message):
 
     combined_dataset_list = has_interactions["GEN"] + has_interactions["MOL"]
     unique_dataset_set = list(set(combined_dataset_list))
     unique_dataset_set.sort()
     for datasetName in unique_dataset_set:
         if datasetName in has_interactions["GEN"]:
-            load_data(datasetName, "GEN", message)
+            message = load_data(datasetName, "GEN", full_obsolete_set, message)
         if datasetName in has_interactions["MOL"]:
-            load_data(datasetName, "MOL", message)
+            message = load_data(datasetName, "MOL", full_obsolete_set, message)
+
+    return message
+
+
+def send_slack_report(message, full_obsolete_set):
+
+    email_subject = "Interaction Reference Loading Report"
+    if len(full_obsolete_set) > 0:
+        message += "<p><b>Obsolete PMID(s)</b><p>"
+        message += "<ul>"
+        obsolete_pmid_list = list(full_obsolete_set)
+        obsolete_pmid_list.sort()
+        for pmid_with_src in obsolete_pmid_list:
+            message += f"<li>{pmid_with_src}"
+        message += "</ul>"
+    send_report(email_subject, message)
 
 
 if __name__ == "__main__":
@@ -226,19 +292,19 @@ if __name__ == "__main__":
                         help='data type to update: MOL or GEN',
                         choices=['MOL', 'GEN'])
     message = ''
+    full_obsolete_set = set()
     args = vars(parser.parse_args())
     if not any(args.values()) or args['all']:
-        load_all(message)
+        message = load_all(full_obsolete_set, message)
     elif args['datasetName'] and args['type']:
-        load_data(args['datasetName'], args['type'], message)
+        message = load_data(args['datasetName'], args['type'], full_obsolete_set, message)
     elif args['datasetName']:
         if args['datasetName'] in has_interactions["GEN"]:
-            load_data(args['datasetName', "GEN"], message)
+            message = load_data(args['datasetName', "GEN"], full_obsolete_set, message)
         if args['datasetName'] in has_interactions["MOL"]:
-            load_data(args['datasetName', "MOL"], message)
+            message = load_data(args['datasetName', "MOL"], full_obsolete_set, message)
     elif args['type']:
         for datasetName in has_interactions[args['type']]:
-            load_data(datasetName, args['type'], message)
+            message = load_data(datasetName, args['type'], full_obsolete_set, message)
 
-    email_subject = "Interaction Reference Loading Report"
-    send_report(email_subject, message)
+    send_slack_report(message, full_obsolete_set)
