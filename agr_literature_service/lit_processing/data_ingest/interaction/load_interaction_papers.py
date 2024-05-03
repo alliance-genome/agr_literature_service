@@ -186,7 +186,7 @@ def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmid
             fw.write("\n")
             has_logfile = True
         if len(pmids_in_db_but_not_associated_with_mod_set) > 0:
-            fw.write("Not Associated with {mod}:\n\n")
+            fw.write(f"Not Associated with {mod}:\n\n")
             for pmid in pmids_in_db_but_not_associated_with_mod_set:
                 fw.write(f"PMID:{pmid}\n")
             fw.write("\n")
