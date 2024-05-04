@@ -154,7 +154,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 {"title": {"type": "unified"}},
                 {"abstract": {"type": "unified"}},
                 {"keywords": {"type": "unified"}},
-                {"citation": {"type": "unified"}}
+                {"citation": {"type": "unified"}},
+                {"authors.name": {"type": "unified"}}
             ]
         },
         "aggregations": {
@@ -242,13 +243,24 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 "should":
                     [
                         {
-                        "simple_query_string":{
-                            "fields":[
-                                "title","keywords","abstract","citation"
-                            ],
-                            "query" : query + "*" if partial_match else query,
-                            "analyze_wildcard": "true",
-                            "flags" : "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE"
+                            "simple_query_string": {
+                                "fields": [
+                                    "title",
+                                    "keywords",
+                                    "abstract",
+                                    "citation"
+                                ],
+                                "query": query + "*" if partial_match else query,
+                                "analyze_wildcard": "true",
+                                "flags" : "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE"
+                            }
+                        },
+                        {
+                            "match": {
+                                "authors.name": {
+                                    "query": query.lower(),
+                                    "analyzer": "authorNameAnalyzer"
+                                }
                             }
                         },
                         {
@@ -353,7 +365,7 @@ def process_search_results(res):  # pragma: no cover
         "cross_references": ref["_source"]["cross_references"],
         "authors": ref["_source"]["authors"],
         "mod_reference_types": ref["_source"]["mod_reference_types"],
-        "highlight": ref.get("highlight", "")
+        "highlight": remap_highlights(ref.get("highlight", {}))
     } for ref in res["hits"]["hits"]]
 
     # process aggregations
@@ -385,6 +397,15 @@ def process_search_results(res):  # pragma: no cover
     }
 
 
+def remap_highlights(highlights):  # pragma: no cover
+
+    remapped = {}
+    for key, value in highlights.items():
+        new_key = key.replace('authors.name', 'authors')
+        remapped[new_key] = value
+    return remapped
+
+    
 def extract_tet_aggregation_data(res, main_key, filter_key, data_key):  # pragma: no cover
 
     return res['aggregations'].get(main_key, {}).get(filter_key, {}).get(data_key, {})
