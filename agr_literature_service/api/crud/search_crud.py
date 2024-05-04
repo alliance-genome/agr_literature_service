@@ -324,10 +324,14 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     if author_filter:
         es_body["aggregations"]["authors.name.keyword"]["terms"]["include"] = ".*" + author_filter + ".*"
 
+    tet_facet_config = {
+        "topic": "topic_entity_tags.topic.keyword",
+        "confidence_level": "topic_entity_tags.confidence_level.keyword"
+    }
     if tet_nested_facets_values and "tet_facets_values" in tet_nested_facets_values:
-        add_tet_facets_values(es_body, tet_nested_facets_values)
+        add_tet_facets_values(es_body, tet_nested_facets_values, tet_facet_config)
     else:
-        apply_all_tags_tet_aggregations(es_body)
+        apply_all_tags_tet_aggregations(es_body, tet_facet_config)
 
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
 
@@ -382,51 +386,20 @@ def process_search_results(res):  # pragma: no cover
     }
 
 
-def add_tet_facets_values(es_body, tet_nested_facets_values):  # pragma: no cover
+def add_tet_facets_values(es_body, tet_nested_facets_values, config):  # pragma: no cover
 
-    # make sure the structure of es_body is correct
-    if "query" not in es_body:
-        es_body["query"] = {}
-    if "bool" not in es_body["query"]:
-        es_body["query"]["bool"] = {}
-    if "filter" not in es_body["query"]["bool"]:
-        es_body["query"]["bool"]["filter"] = {"bool": {}}
-    if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
-        es_body["query"]["bool"]["filter"]["bool"]["must"] = []
-
+    ensure_structure(es_body)
+    
     is_apply_to_single_tag = tet_nested_facets_values.get("apply_to_single_tag", False)
     topics = []
     confidence_levels = []
     for item in tet_nested_facets_values.get("tet_facets_values", []):
-        topic = item.get("topic_entity_tags.topic.keyword")
-        confidence_level = item.get("topic_entity_tags.confidence_level.keyword")
+        topic = item.get(config["topic"])
+        confidence_level = item.get(config["confidence_level"])
 
-        # create a nested query for each topic/confidence pair
-        must_dict = []
-        if topic and confidence_level:
-            must_dict = [
-                {"term": {"topic_entity_tags.topic.keyword": topic}},
-                {"term": {"topic_entity_tags.confidence_level.keyword": confidence_level}}
-            ]
-        elif topic:
-            must_dict =	[{"term": {"topic_entity_tags.topic.keyword": topic}}]
-        elif confidence_level:
-            must_dict = [{"term": {"topic_entity_tags.confidence_level.keyword": confidence_level}}]
-
-        nested_query = {
-            "nested": {
-                "path": "topic_entity_tags",
-                "query": {
-                    "bool": {
-                        "must": must_dict
-                    }
-                }
-            }
-        }
-
-        # append the nested query to the 'must' list within the 'filter' bool
-        es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
-
+        # add the nested query for topic and/or confidence level
+        add_nested_query(es_body, topic, confidence_level, config)
+        
         if is_apply_to_single_tag:
             if topic:
                 topics.append(topic)
@@ -434,12 +407,33 @@ def add_tet_facets_values(es_body, tet_nested_facets_values):  # pragma: no cove
                 confidence_levels.append(confidence_level)
 
     if is_apply_to_single_tag:
-        apply_single_tag_tet_aggregations(es_body, topics, confidence_levels)
+        apply_single_tag_tet_aggregations(es_body, topics, confidence_levels, config)
     else:
-        apply_all_tags_tet_aggregations(es_body)
+        apply_all_tags_tet_aggregations(es_body, config)
 
+    
+def add_nested_query(es_body, topic, confidence_level, config):
+   
+    must_conditions = []
+    if topic:
+        must_conditions.append({"term": {config["topic"]: topic}})
+    if confidence_level:
+        must_conditions.append({"term": {config["confidence_level"]: confidence_level}})
+    
+    nested_query = {
+        "nested": {
+            "path": "topic_entity_tags",
+            "query": {
+                "bool": {
+                    "must": must_conditions
+                }
+            }
+        }
+    }
+    es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
 
-def apply_all_tags_tet_aggregations(es_body):  # pragma: no cover
+    
+def apply_all_tags_tet_aggregations(es_body, config):  # pragma: no cover
 
     es_body["aggregations"]["all_topic_aggregation"] = {
         "nested": {
@@ -448,7 +442,7 @@ def apply_all_tags_tet_aggregations(es_body):  # pragma: no cover
         "aggs": {
             "topics": {
                 "terms": {
-                    "field": "topic_entity_tags.topic.keyword",
+                    "field": config["topic"],
                     "size": 10
                 },
                 "aggs": {
@@ -467,7 +461,7 @@ def apply_all_tags_tet_aggregations(es_body):  # pragma: no cover
         "aggs": {
             "confidence_levels": {
                 "terms": {
-                    "field": "topic_entity_tags.confidence_level.keyword",
+                    "field": config["confidence_level"],
                     "size": 10
                 },
                 "aggs": {
@@ -480,7 +474,7 @@ def apply_all_tags_tet_aggregations(es_body):  # pragma: no cover
     }
 
 
-def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels):  # pragma: no cover
+def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels, config):  # pragma: no cover
 
     if topics:
         es_body["aggregations"]["confidence_aggregation"] = {
@@ -490,14 +484,12 @@ def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels):  # pr
             "aggs": {
                 "filter_by_topic": {
                     "filter": {
-                        "terms": {
-                            "topic_entity_tags.topic.keyword": topics
-                        }
+                        "terms": { config["topic"]: topics }
                     },
                     "aggs": {
                         "confidence_levels": {
                             "terms": {
-                                "field": "topic_entity_tags.confidence_level.keyword",
+                                "field": config["confidence_level"],
                                 "size": 10 
                             },
                             "aggs": {
@@ -519,14 +511,12 @@ def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels):  # pr
             "aggs": {
                 "filter_by_confidence": {
                     "filter": {
-                        "terms": {
-                            "topic_entity_tags.confidence_level.keyword": confidence_levels
-                        }
+                        "terms": { config["confidence_level"]: confidence_levels }
                     },
                     "aggs": {
                         "topics": {
                             "terms": {
-                                "field": "topic_entity_tags.topic.keyword",
+                                "field": config["topic"],
                                 "size": 10
                             },
                             "aggs": {
@@ -542,7 +532,19 @@ def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels):  # pr
 
     # add a fallback aggregation for topics and confidence levels if either list is empty
     if not topics or not confidence_levels:
-        apply_all_tags_tet_aggregations(es_body)
+        apply_all_tags_tet_aggregations(es_body, config)
+
+
+def ensure_structure(es_body):
+
+    if "query" not in es_body:
+        es_body["query"] = {}
+    if "bool" not in es_body["query"]:
+        es_body["query"]["bool"] = {}
+    if "filter" not in es_body["query"]["bool"]:
+        es_body["query"]["bool"]["filter"] = {"bool": {}}
+    if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
+        es_body["query"]["bool"]["filter"]["bool"]["must"] = []
 
 
 def add_curie_to_name_values(topics):
