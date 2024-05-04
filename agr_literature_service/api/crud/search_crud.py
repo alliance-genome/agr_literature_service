@@ -385,7 +385,7 @@ def process_search_results(res):  # pragma: no cover
     }
 
 
-def extract_tet_aggregation_data(res, main_key, filter_key, data_key):
+def extract_tet_aggregation_data(res, main_key, filter_key, data_key):  # pragma: no cover
 
     return res['aggregations'].get(main_key, {}).get(filter_key, {}).get(data_key, {})
 
@@ -416,7 +416,7 @@ def add_tet_facets_values(es_body, tet_nested_facets_values, config):  # pragma:
         apply_all_tags_tet_aggregations(es_body, config)
 
     
-def add_nested_query(es_body, topic, confidence_level, config):
+def add_nested_query(es_body, topic, confidence_level, config):  # pragma: no cover
    
     must_conditions = []
     if topic:
@@ -436,18 +436,48 @@ def add_nested_query(es_body, topic, confidence_level, config):
     }
     es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
 
-    
-def apply_all_tags_tet_aggregations(es_body, config):  # pragma: no cover
 
-    es_body["aggregations"]["all_topic_aggregation"] = {
+def create_filtered_aggregation(path, filter_name, filter_field, filter_values, term_field, term_key, size=10):  # pragma: no cover
+
+    return {
         "nested": {
-            "path": "topic_entity_tags"
+            "path": path
         },
         "aggs": {
-            "topics": {
+            filter_name: {
+                "filter": {
+                    "terms": {filter_field: filter_values}
+                },
+                "aggs": {
+                    term_key: {
+                        "terms": {
+                            "field": term_field,
+                            "size": size
+                        },
+                        "aggs": {
+                            # reverse nesting to count documents
+                            "docs_count": {
+                                "reverse_nested": {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    
+def create_nested_aggregation(path, term_field, key_name, size=10):  # pragma: no cover
+
+    return {
+        "nested": {
+            "path": path
+        },
+        "aggs": {
+            key_name: {
                 "terms": {
-                    "field": config["topic"],
-                    "size": 10
+                    "field": term_field,
+                    "size": size
                 },
                 "aggs": {
                     # reverse nesting to count documents
@@ -458,82 +488,44 @@ def apply_all_tags_tet_aggregations(es_body, config):  # pragma: no cover
             }
         }
     }
-    es_body["aggregations"]["all_confidence_aggregation"] = {
-        "nested": {
-            "path": "topic_entity_tags"
-        },
-        "aggs": {
-            "confidence_levels": {
-                "terms": {
-                    "field": config["confidence_level"],
-                    "size": 10
-                },
-                "aggs": {
-                    "docs_count": {
-                        "reverse_nested": {}
-                    }
-                }
-            }
-        }
-    }
+
+    
+def apply_all_tags_tet_aggregations(es_body, config):  # pragma: no cover
+
+    es_body["aggregations"]["all_topic_aggregation"] = create_nested_aggregation(
+        "topic_entity_tags",
+        config["topic"],
+        "topics"
+    )
+    es_body["aggregations"]["all_confidence_aggregation"] = create_nested_aggregation(
+        "topic_entity_tags",
+        config["confidence_level"],
+        "confidence_levels"
+    )
 
 
 def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels, config):  # pragma: no cover
 
     if topics:
-        es_body["aggregations"]["confidence_aggregation"] = {
-            "nested": {
-                "path": "topic_entity_tags"
-            },
-            "aggs": {
-                "filter_by_topic": {
-                    "filter": {
-                        "terms": { config["topic"]: topics }
-                    },
-                    "aggs": {
-                        "confidence_levels": {
-                            "terms": {
-                                "field": config["confidence_level"],
-                                "size": 10 
-                            },
-                            "aggs": {
-                                "docs_count": {
-                                    "reverse_nested": {}
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        es_body["aggregations"]["confidence_aggregation"] = create_filtered_aggregation(
+            "topic_entity_tags",
+            "filter_by_topic",
+            config["topic"],
+            topics,
+            config["confidence_level"],
+            "confidence_levels"
+        )
 
     if confidence_levels:
-        es_body["aggregations"]["topic_aggregation"] = {
-            "nested": {
-                "path": "topic_entity_tags"
-            },
-            "aggs": {
-                "filter_by_confidence": {
-                    "filter": {
-                        "terms": { config["confidence_level"]: confidence_levels }
-                    },
-                    "aggs": {
-                        "topics": {
-                            "terms": {
-                                "field": config["topic"],
-                                "size": 10
-                            },
-                            "aggs": {
-                                "docs_count": {
-                                    "reverse_nested": {}
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
+        es_body["aggregations"]["topic_aggregation"] = create_filtered_aggregation(
+            "topic_entity_tags",
+            "filter_by_confidence",
+            config["confidence_level"],
+            confidence_levels,
+            config["topic"],
+            "topics"
+        )
+        
     # add a fallback aggregation for topics and confidence levels if either list is empty
     if not topics or not confidence_levels:
         apply_all_tags_tet_aggregations(es_body, config)
