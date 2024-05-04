@@ -65,13 +65,13 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
     all_pmids_db = retrieve_all_pmids(db_session)
     new_pmids = all_pmids - set(all_pmids_db)
 
+    clean_up_tmp_directories()
+
     if len(new_pmids) == 0:
         message = check_pmids_and_compose_message(db_session, datasetName, file_name,
                                                   all_pmids, new_pmids, pmid_to_src,
                                                   full_obsolete_set, message)
         return message
-
-    clean_up_tmp_directories()
 
     download_pubmed_xml(list(new_pmids))
     generate_json(list(new_pmids), [])
