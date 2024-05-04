@@ -359,20 +359,19 @@ def process_search_results(res):  # pragma: no cover
     # process aggregations
     topics = {}
     confidence_levels = {}
-    if "topic_aggregation" in res['aggregations']:
-        if "filter_by_confidence" in res['aggregations']['topic_aggregation']:
-            topics = res['aggregations']['topic_aggregation']['filter_by_confidence']['topics']
-        del res['aggregations']['topic_aggregation']
-    if "confidence_aggregation" in res['aggregations']:
-        if "filter_by_topic" in res['aggregations']['confidence_aggregation']:
-            confidence_levels = res['aggregations']['confidence_aggregation']['filter_by_topic']['confidence_levels']
-            del res['aggregations']['confidence_aggregation']
-    if not topics and "all_topic_aggregation" in res['aggregations']:
-        topics = res['aggregations']['all_topic_aggregation']['topics']
-        del res['aggregations']['all_topic_aggregation']
-    if not confidence_levels and "all_confidence_aggregation" in res['aggregations']:
-        confidence_levels = res['aggregations']['all_confidence_aggregation']['confidence_levels']
-        del res['aggregations']['all_confidence_aggregation']
+    topics = extract_tet_aggregation_data(res, 'topic_aggregation',
+                                          'filter_by_confidence', 'topics')
+    confidence_levels = extract_tet_aggregation_data(res, 'confidence_aggregation',
+                                                     'filter_by_topic', 'confidence_levels')
+
+    res['aggregations'].pop('topic_aggregation', None)
+    res['aggregations'].pop('confidence_aggregation', None)
+
+    # extract data using fallback keys if not already found
+    if not topics:
+        topics = res['aggregations'].pop('all_topic_aggregation', {}).get('topics', {})
+    if not confidence_levels:
+        confidence_levels = res['aggregations'].pop('all_confidence_aggregation', {}).get('confidence_levels', {})
 
     add_curie_to_name_values(topics)
 
@@ -384,6 +383,11 @@ def process_search_results(res):  # pragma: no cover
         "aggregations": res['aggregations'],
         "return_count": res["hits"]["total"]["value"]
     }
+
+
+def extract_tet_aggregation_data(res, main_key, filter_key, data_key):
+
+    return res['aggregations'].get(main_key, {}).get(filter_key, {}).get(data_key, {})
 
 
 def add_tet_facets_values(es_body, tet_nested_facets_values, config):  # pragma: no cover
