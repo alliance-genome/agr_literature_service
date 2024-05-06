@@ -334,8 +334,17 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         del es_body["query"]["bool"]["filter"]
 
     if author_filter:
-        es_body["aggregations"]["authors.name.keyword"]["terms"]["include"] = ".*" + author_filter + ".*"
-
+        # es_body["aggregations"]["authors.name.keyword"]["terms"]["include"] = ".*" + author_filter + ".*"
+        author_filter_query = {
+            "match": {
+                "authors.name": {
+                    "query": author_filter,
+                    "analyzer": "authorNameAnalyzer"
+                }
+            }
+        }
+        es_body["query"]["bool"]["must"].append(author_filter_query)
+    
     tet_facet_config = {
         "topic": "topic_entity_tags.topic.keyword",
         "confidence_level": "topic_entity_tags.confidence_level.keyword"
