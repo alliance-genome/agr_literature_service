@@ -98,24 +98,31 @@
         }
       },
       "authors": {
-	  "properties": {
-              "name": {
-		  "type": "text",
-		  "analyzer": "authorNameAnalyzer"
-              },
-              "orcid": {
-		  "type": "text",
-		  "analyzer": "autocompleteAnalyzer",
-		  "search_analyzer": "autocompleteSearchAnalyzer",
-		  "fields": {
-		      "keyword": {
-			  "type": "keyword",
-			  "normalizer": "sortNormalizer",
-			  "ignore_above": 256
-		      }
-		  }
+        "properties": {
+          "name": {
+            "type": "text",
+            "analyzer": "authorNameAnalyzer",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "sortNormalizer",
+                "ignore_above": 256
               }
-	  }
+            }
+          },
+          "orcid": {
+            "type": "text",
+            "analyzer": "autocompleteAnalyzer",
+            "search_analyzer": "autocompleteSearchAnalyzer",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "sortNormalizer",
+                "ignore_above": 256
+              }
+            }
+          }
+        }
       },
       "citation": {
         "type": "text",
