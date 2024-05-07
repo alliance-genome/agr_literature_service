@@ -15,12 +15,41 @@ from .fixtures import auth_headers # noqa
 
 
 @pytest.fixture(scope='module')
+def setup_elasticsearch():
+    es = Elasticsearch()
+    es.indices.create(index='test_ref_index', ignore=400)
+    yield
+    es.indices.delete(index='test_ref_index', ignore=[400, 404])
+
+
+@pytest.fixture(scope='module')
 def initialize_elasticsearch():
     print("***** Initializing Elasticsearch Data *****")
     if ("es.amazonaws.com" in config.ELASTICSEARCH_HOST):
         msg = "**** Warning: not allow to run test on stage or prod elasticsearch index *****"
         pytest.exit(msg)
     es = Elasticsearch(hosts=config.ELASTICSEARCH_HOST + ":" + config.ELASTICSEARCH_PORT)
+
+    # delete the index if it exists
+    if es.indices.exists(index=config.ELASTICSEARCH_INDEX):
+        es.indices.delete(index=config.ELASTICSEARCH_INDEX)
+
+    # Create the index with analyzer settings
+    index_settings = {
+        "settings": {
+            "analysis": {
+                "analyzer": {
+                    "authorNameAnalyzer": {
+                        "type": "custom",
+                        "tokenizer": "whitespace",
+                        "filter": ["asciifolding", "lowercase"]
+                    }
+                }
+            }
+        }
+    }
+    es.indices.create(index=config.ELASTICSEARCH_INDEX, body=index_settings)
+
     doc1 = {
         "curie": "AGRKB:101000000000001",
         "citation": "citation1",
@@ -30,7 +59,10 @@ def initialize_elasticsearch():
         "date_published": "1901",
         "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
         "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
-        "authors": [{"name": "John Q Public", "orcid": "null"}, {"name": "Socrates", "orcid": "null"}],
+        "authors": [
+            {"name": "John Q Public", "orcid": "0000-0000-0000-0000"},
+            {"name": "Socrates", "orcid": "0000-0000-0000-0001"}
+        ],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}],
         "mod_reference_types": ["review"],
         "date_created": "1636139454923830"
@@ -45,7 +77,7 @@ def initialize_elasticsearch():
         "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
         "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
         "date_published": "2022",
-        "authors": [{"name": "Jane Doe", "orcid": "null"}],
+        "authors": [{"name": "Jane Doe", "orcid": "0000-0000-0000-0002"}],
         "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}],
         "mod_reference_types": ["note"],
         "date_created": "1636139454923830"

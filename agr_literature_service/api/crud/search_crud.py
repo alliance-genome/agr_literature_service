@@ -154,7 +154,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 {"title": {"type": "unified"}},
                 {"abstract": {"type": "unified"}},
                 {"keywords": {"type": "unified"}},
-                {"citation": {"type": "unified"}}
+                {"citation": {"type": "unified"}},
+                {"authors.name": {"type": "unified"}}
             ]
         },
         "aggregations": {
@@ -242,13 +243,24 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 "should":
                     [
                         {
-                        "simple_query_string":{
-                            "fields":[
-                                "title","keywords","abstract","citation"
-                            ],
-                            "query" : query + "*" if partial_match else query,
-                            "analyze_wildcard": "true",
-                            "flags" : "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE"
+                            "simple_query_string": {
+                                "fields": [
+                                    "title",
+                                    "keywords",
+                                    "abstract",
+                                    "citation"
+                                ],
+                                "query": query + "*" if partial_match else query,
+                                "analyze_wildcard": "true",
+                                "flags" : "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE"
+                            }
+                        },
+                        {
+                            "match": {
+                                "authors.name": {
+                                    "query": query.lower(),
+                                    "analyzer": "authorNameAnalyzer"
+                                }
                             }
                         },
                         {
@@ -322,12 +334,25 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         del es_body["query"]["bool"]["filter"]
 
     if author_filter:
-        es_body["aggregations"]["authors.name.keyword"]["terms"]["include"] = ".*" + author_filter + ".*"
-
+        # es_body["aggregations"]["authors.name.keyword"]["terms"]["include"] = ".*" + author_filter + ".*"
+        author_filter_query = {
+            "match": {
+                "authors.name": {
+                    "query": author_filter,
+                    "analyzer": "authorNameAnalyzer"
+                }
+            }
+        }
+        es_body["query"]["bool"]["must"].append(author_filter_query)
+    
+    tet_facet_config = {
+        "topic": "topic_entity_tags.topic.keyword",
+        "confidence_level": "topic_entity_tags.confidence_level.keyword"
+    }
     if tet_nested_facets_values and "tet_facets_values" in tet_nested_facets_values:
-        add_tet_facets_values(es_body, tet_nested_facets_values)
+        add_tet_facets_values(es_body, tet_nested_facets_values, tet_facet_config)
     else:
-        apply_all_tags_tet_aggregations(es_body)
+        apply_all_tags_tet_aggregations(es_body, tet_facet_config)
 
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
 
@@ -349,26 +374,25 @@ def process_search_results(res):  # pragma: no cover
         "cross_references": ref["_source"]["cross_references"],
         "authors": ref["_source"]["authors"],
         "mod_reference_types": ref["_source"]["mod_reference_types"],
-        "highlight": ref.get("highlight", "")
+        "highlight": remap_highlights(ref.get("highlight", {}))
     } for ref in res["hits"]["hits"]]
 
     # process aggregations
     topics = {}
     confidence_levels = {}
-    if "topic_aggregation" in res['aggregations']:
-        if "filter_by_confidence" in res['aggregations']['topic_aggregation']:
-            topics = res['aggregations']['topic_aggregation']['filter_by_confidence']['topics']
-        del res['aggregations']['topic_aggregation']
-    if "confidence_aggregation" in res['aggregations']:
-        if "filter_by_topic" in res['aggregations']['confidence_aggregation']:
-            confidence_levels = res['aggregations']['confidence_aggregation']['filter_by_topic']['confidence_levels']
-            del res['aggregations']['confidence_aggregation']
-    if not topics and "all_topic_aggregation" in res['aggregations']:
-        topics = res['aggregations']['all_topic_aggregation']['topics']
-        del res['aggregations']['all_topic_aggregation']
-    if not confidence_levels and "all_confidence_aggregation" in res['aggregations']:
-        confidence_levels = res['aggregations']['all_confidence_aggregation']['confidence_levels']
-        del res['aggregations']['all_confidence_aggregation']
+    topics = extract_tet_aggregation_data(res, 'topic_aggregation',
+                                          'filter_by_confidence', 'topics')
+    confidence_levels = extract_tet_aggregation_data(res, 'confidence_aggregation',
+                                                     'filter_by_topic', 'confidence_levels')
+
+    res['aggregations'].pop('topic_aggregation', None)
+    res['aggregations'].pop('confidence_aggregation', None)
+
+    # extract data using fallback keys if not already found
+    if not topics:
+        topics = res['aggregations'].pop('all_topic_aggregation', {}).get('topics', {})
+    if not confidence_levels:
+        confidence_levels = res['aggregations'].pop('all_confidence_aggregation', {}).get('confidence_levels', {})
 
     add_curie_to_name_values(topics)
 
@@ -382,51 +406,34 @@ def process_search_results(res):  # pragma: no cover
     }
 
 
-def add_tet_facets_values(es_body, tet_nested_facets_values):  # pragma: no cover
+def remap_highlights(highlights):  # pragma: no cover
 
-    # make sure the structure of es_body is correct
-    if "query" not in es_body:
-        es_body["query"] = {}
-    if "bool" not in es_body["query"]:
-        es_body["query"]["bool"] = {}
-    if "filter" not in es_body["query"]["bool"]:
-        es_body["query"]["bool"]["filter"] = {"bool": {}}
-    if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
-        es_body["query"]["bool"]["filter"]["bool"]["must"] = []
+    remapped = {}
+    for key, value in highlights.items():
+        new_key = key.replace('authors.name', 'authors')
+        remapped[new_key] = value
+    return remapped
 
+    
+def extract_tet_aggregation_data(res, main_key, filter_key, data_key):  # pragma: no cover
+
+    return res['aggregations'].get(main_key, {}).get(filter_key, {}).get(data_key, {})
+
+
+def add_tet_facets_values(es_body, tet_nested_facets_values, config):  # pragma: no cover
+
+    ensure_structure(es_body)
+    
     is_apply_to_single_tag = tet_nested_facets_values.get("apply_to_single_tag", False)
     topics = []
     confidence_levels = []
     for item in tet_nested_facets_values.get("tet_facets_values", []):
-        topic = item.get("topic_entity_tags.topic.keyword")
-        confidence_level = item.get("topic_entity_tags.confidence_level.keyword")
+        topic = item.get(config["topic"])
+        confidence_level = item.get(config["confidence_level"])
 
-        # create a nested query for each topic/confidence pair
-        must_dict = []
-        if topic and confidence_level:
-            must_dict = [
-                {"term": {"topic_entity_tags.topic.keyword": topic}},
-                {"term": {"topic_entity_tags.confidence_level.keyword": confidence_level}}
-            ]
-        elif topic:
-            must_dict =	[{"term": {"topic_entity_tags.topic.keyword": topic}}]
-        elif confidence_level:
-            must_dict = [{"term": {"topic_entity_tags.confidence_level.keyword": confidence_level}}]
-
-        nested_query = {
-            "nested": {
-                "path": "topic_entity_tags",
-                "query": {
-                    "bool": {
-                        "must": must_dict
-                    }
-                }
-            }
-        }
-
-        # append the nested query to the 'must' list within the 'filter' bool
-        es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
-
+        # add the nested query for topic and/or confidence level
+        add_nested_query(es_body, topic, confidence_level, config)
+        
         if is_apply_to_single_tag:
             if topic:
                 topics.append(topic)
@@ -434,22 +441,73 @@ def add_tet_facets_values(es_body, tet_nested_facets_values):  # pragma: no cove
                 confidence_levels.append(confidence_level)
 
     if is_apply_to_single_tag:
-        apply_single_tag_tet_aggregations(es_body, topics, confidence_levels)
+        apply_single_tag_tet_aggregations(es_body, topics, confidence_levels, config)
     else:
-        apply_all_tags_tet_aggregations(es_body)
+        apply_all_tags_tet_aggregations(es_body, config)
 
-
-def apply_all_tags_tet_aggregations(es_body):  # pragma: no cover
-
-    es_body["aggregations"]["all_topic_aggregation"] = {
+    
+def add_nested_query(es_body, topic, confidence_level, config):  # pragma: no cover
+   
+    must_conditions = []
+    if topic:
+        must_conditions.append({"term": {config["topic"]: topic}})
+    if confidence_level:
+        must_conditions.append({"term": {config["confidence_level"]: confidence_level}})
+    
+    nested_query = {
         "nested": {
-            "path": "topic_entity_tags"
+            "path": "topic_entity_tags",
+            "query": {
+                "bool": {
+                    "must": must_conditions
+                }
+            }
+        }
+    }
+    es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
+
+
+def create_filtered_aggregation(path, filter_name, filter_field, filter_values, term_field, term_key, size=10):  # pragma: no cover
+
+    return {
+        "nested": {
+            "path": path
         },
         "aggs": {
-            "topics": {
+            filter_name: {
+                "filter": {
+                    "terms": {filter_field: filter_values}
+                },
+                "aggs": {
+                    term_key: {
+                        "terms": {
+                            "field": term_field,
+                            "size": size
+                        },
+                        "aggs": {
+                            # reverse nesting to count documents
+                            "docs_count": {
+                                "reverse_nested": {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    
+def create_nested_aggregation(path, term_field, key_name, size=10):  # pragma: no cover
+
+    return {
+        "nested": {
+            "path": path
+        },
+        "aggs": {
+            key_name: {
                 "terms": {
-                    "field": "topic_entity_tags.topic.keyword",
-                    "size": 10
+                    "field": term_field,
+                    "size": size
                 },
                 "aggs": {
                     # reverse nesting to count documents
@@ -460,89 +518,59 @@ def apply_all_tags_tet_aggregations(es_body):  # pragma: no cover
             }
         }
     }
-    es_body["aggregations"]["all_confidence_aggregation"] = {
-        "nested": {
-            "path": "topic_entity_tags"
-        },
-        "aggs": {
-            "confidence_levels": {
-                "terms": {
-                    "field": "topic_entity_tags.confidence_level.keyword",
-                    "size": 10
-                },
-                "aggs": {
-                    "docs_count": {
-                        "reverse_nested": {}
-                    }
-                }
-            }
-        }
-    }
+
+    
+def apply_all_tags_tet_aggregations(es_body, config):  # pragma: no cover
+
+    es_body["aggregations"]["all_topic_aggregation"] = create_nested_aggregation(
+        "topic_entity_tags",
+        config["topic"],
+        "topics"
+    )
+    es_body["aggregations"]["all_confidence_aggregation"] = create_nested_aggregation(
+        "topic_entity_tags",
+        config["confidence_level"],
+        "confidence_levels"
+    )
 
 
-def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels):  # pragma: no cover
+def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels, config):  # pragma: no cover
 
     if topics:
-        es_body["aggregations"]["confidence_aggregation"] = {
-            "nested": {
-                "path": "topic_entity_tags"
-            },
-            "aggs": {
-                "filter_by_topic": {
-                    "filter": {
-                        "terms": {
-                            "topic_entity_tags.topic.keyword": topics
-                        }
-                    },
-                    "aggs": {
-                        "confidence_levels": {
-                            "terms": {
-                                "field": "topic_entity_tags.confidence_level.keyword",
-                                "size": 10 
-                            },
-                            "aggs": {
-                                "docs_count": {
-                                    "reverse_nested": {}
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        es_body["aggregations"]["confidence_aggregation"] = create_filtered_aggregation(
+            "topic_entity_tags",
+            "filter_by_topic",
+            config["topic"],
+            topics,
+            config["confidence_level"],
+            "confidence_levels"
+        )
 
     if confidence_levels:
-        es_body["aggregations"]["topic_aggregation"] = {
-            "nested": {
-                "path": "topic_entity_tags"
-            },
-            "aggs": {
-                "filter_by_confidence": {
-                    "filter": {
-                        "terms": {
-                            "topic_entity_tags.confidence_level.keyword": confidence_levels
-                        }
-                    },
-                    "aggs": {
-                        "topics": {
-                            "terms": {
-                                "field": "topic_entity_tags.topic.keyword",
-                                "size": 10
-                            },
-                            "aggs": {
-                                "docs_count": {
-                                    "reverse_nested": {}
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
+        es_body["aggregations"]["topic_aggregation"] = create_filtered_aggregation(
+            "topic_entity_tags",
+            "filter_by_confidence",
+            config["confidence_level"],
+            confidence_levels,
+            config["topic"],
+            "topics"
+        )
+        
     # add a fallback aggregation for topics and confidence levels if either list is empty
     if not topics or not confidence_levels:
-        apply_all_tags_tet_aggregations(es_body)
+        apply_all_tags_tet_aggregations(es_body, config)
+
+
+def ensure_structure(es_body):
+
+    if "query" not in es_body:
+        es_body["query"] = {}
+    if "bool" not in es_body["query"]:
+        es_body["query"]["bool"] = {}
+    if "filter" not in es_body["query"]["bool"]:
+        es_body["query"]["bool"]["filter"] = {"bool": {}}
+    if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
+        es_body["query"]["bool"]["filter"]["bool"]["must"] = []
 
 
 def add_curie_to_name_values(topics):

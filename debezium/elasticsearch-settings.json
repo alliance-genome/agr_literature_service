@@ -22,6 +22,14 @@
         }
       },
       "analyzer": {
+        "authorNameAnalyzer": {
+          "type": "custom",
+          "tokenizer": "whitespace",
+          "filter": [
+            "asciifolding",
+            "lowercase"
+          ]
+        },	    
         "autocompleteAnalyzer": {
           "filter": [
             "asciifolding",
@@ -86,6 +94,33 @@
             "type": "keyword",
             "normalizer": "sortNormalizer",
             "ignore_above": 256
+          }
+        }
+      },
+      "authors": {
+        "properties": {
+          "name": {
+            "type": "text",
+            "analyzer": "authorNameAnalyzer",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "sortNormalizer",
+                "ignore_above": 256
+              }
+            }
+          },
+          "orcid": {
+            "type": "text",
+            "analyzer": "autocompleteAnalyzer",
+            "search_analyzer": "autocompleteSearchAnalyzer",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "sortNormalizer",
+                "ignore_above": 256
+              }
+            }
           }
         }
       },

@@ -61,11 +61,11 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
     scriptNm = path.basename(__file__).replace(".py", "")
     set_global_user_id(db_session, scriptNm)
 
+    clean_up_tmp_directories()
+
     file_name, all_pmids, pmid_to_src = extract_pmids(db_session, datasetName, dataType)
     all_pmids_db = retrieve_all_pmids(db_session)
     new_pmids = all_pmids - set(all_pmids_db)
-
-    clean_up_tmp_directories()
 
     if len(new_pmids) == 0:
         message = check_pmids_and_compose_message(db_session, datasetName, file_name,
