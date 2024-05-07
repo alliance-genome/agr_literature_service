@@ -15,8 +15,16 @@ from .fixtures import auth_headers # noqa
 @pytest.fixture(scope='module')
 def mock_elasticsearch():
     with patch('elasticsearch.Elasticsearch') as mock:
-        # mocking index existence
-        mock.return_value.indices.exists.return_value = True
+        mock_instance = mock.return_value
+        mock_instance.indices.exists.return_value = True
+        mock_instance.search.return_value = {
+            "aggregations": {
+                "pubmed_types.keyword": {
+                    "buckets": [{"key": "Journal Article", "doc_count": 10},
+                                {"key": "Review", "doc_count": 5}]
+                }
+            }
+        }
         yield mock
 
 
