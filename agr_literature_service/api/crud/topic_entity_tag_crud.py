@@ -2,6 +2,7 @@
 topic_entity_tag_crud.py
 ===========================
 """
+from dateutil import parser as date_parser
 from collections import defaultdict
 from os import environ
 from typing import Dict
@@ -46,11 +47,8 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
                             detail="reference_curie not within topic_entity_tag_data")
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     topic_entity_tag_data["reference_id"] = reference_id
-    check_for_duplicates = True
     # if reference_curie.isdigit():
     force_insertion = topic_entity_tag_data.pop("force_insertion", None)
-    if force_insertion:
-        check_for_duplicates = False
     source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
         TopicEntityTagSourceModel.topic_entity_tag_source_id == topic_entity_tag_data["topic_entity_tag_source_id"]
     ).one_or_none()
@@ -72,10 +70,9 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"{message}")
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
-    if check_for_duplicates:
-        duplicate_check_result = check_for_duplicate_tags(db, topic_entity_tag_data, reference_id)
-        if duplicate_check_result is not None:
-            return duplicate_check_result
+    duplicate_check_result = check_for_duplicate_tags(db, topic_entity_tag_data, reference_id, force_insertion)
+    if duplicate_check_result is not None:
+        return duplicate_check_result
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
     try:
         db.add(new_db_obj)
@@ -395,10 +392,10 @@ def filter_tet_data_by_column(query, column_name, values):
     return query
 
 
-def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference_id: int):
+def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference_id: int, force_insertion: bool = False):
     new_tag_data = copy.copy(topic_entity_tag_data)
     new_tag_data.pop('date_created', None)
-    new_tag_data.pop('date_updated', None)
+    date_updated: str = new_tag_data.pop('date_updated', '')
     note = new_tag_data.pop('note', None)
     created_by_user = get_default_user_value()
 
@@ -427,6 +424,8 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
             try:
                 existing_tag.note = new_note
                 existing_tag.updated_by = created_by_user
+                if date_updated and date_parser.parse(date_updated) > existing_tag.date_updated:
+                    existing_tag.date_updated = date_updated
                 db.add(existing_tag)
                 db.commit()
                 return {
@@ -439,6 +438,8 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"invalid request: {e}")
 
+    if force_insertion:
+        return
     new_tag_data_wo_creator = copy.copy(new_tag_data)
     new_tag_data_wo_creator.pop('created_by')
     new_tag_data_wo_creator.pop('updated_by')
@@ -450,7 +451,7 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
         tag_data['topic_entity_tag_id'] = existing_tag.topic_entity_tag_id
         if existing_tag.note == note or note is None:
             return {
-                "status": f"exists: {existing_tag.created_by} | {existing_tag.note}" ,
+                "status": f"exists: {existing_tag.created_by} | {existing_tag.note}",
                 "message": "The tag, created by another curator, already exists in the database.",
                 "data": tag_data
             }
@@ -460,7 +461,7 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
                 message = "The tag with a different note, created by another curator, already exists in the database."
             note_in_db = existing_tag.note if existing_tag.note else ''
             return {
-                "status": f"exists: {existing_tag.created_by} | {note_in_db}" ,
+                "status": f"exists: {existing_tag.created_by} | {note_in_db}",
                 "message": message,
                 "data": tag_data
             }

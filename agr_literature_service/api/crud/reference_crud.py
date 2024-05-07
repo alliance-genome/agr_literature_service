@@ -33,9 +33,10 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ReferenceModel,
                                                ResourceModel,
                                                CopyrightLicenseModel,
-                                               CitationModel)
+                                               CitationModel, TopicEntityTagModel)
 from agr_literature_service.api.routers.okta_utils import OktaAccess
-from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated
+from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated, \
+    TopicEntityTagSchemaPost
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.workflow_tag_crud import (
     create as create_workflow_tag,
@@ -518,6 +519,27 @@ def merge_references(db: Session,
 
     merge_reference_relations(db, old_ref.reference_id, new_ref.reference_id,
                               old_curie, new_curie)
+
+    old_ref_tets = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.reference_id == old_ref.reference_id).all()
+
+    for old_tet in old_ref_tets:
+        new_tet_data = TopicEntityTagSchemaPost()
+        new_tet_data.topic = old_tet.topic
+        new_tet_data.entity_type = old_tet.entity_type
+        new_tet_data.entity = old_tet.entity
+        new_tet_data.entity_id_validation = old_tet.entity_id_validation
+        new_tet_data.entity_published_as = old_tet.entity_published_as
+        new_tet_data.species = old_tet.species
+        new_tet_data.display_tag = old_tet.display_tag
+        new_tet_data.topic_entity_tag_source_id = old_tet.topic_entity_tag_source_id
+        new_tet_data.negated = old_tet.negated
+        new_tet_data.novel_topic_data = old_tet.novel_topic_data
+        new_tet_data.confidence_level = old_tet.confidence_level
+        new_tet_data.note = old_tet.note
+        new_tet_data.reference_curie = new_ref.curie
+        new_tet_data.force_insertion = True
+        create_tag(db, new_tet_data)
+    db.commit()
 
     # Check if old_curie is already in the obsolete table (It may have been merged itself)
     # by looking for it in the new_id column.
