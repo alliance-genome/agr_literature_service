@@ -15,6 +15,27 @@ from .fixtures import auth_headers # noqa
 
 
 @pytest.fixture(scope='module')
+def setup_elasticsearch():
+    es = Elasticsearch()
+    index_settings = {
+        "settings": {
+            "analysis": {
+                "analyzer": {
+                    "authorNameAnalyzer": {
+                        "type": "custom",
+                        "tokenizer": "whitespace",
+                        "filter": ["asciifolding", "lowercase"]
+                    }
+                }
+            }
+        }
+    }
+    es.indices.create(index='your_index_name', body=index_settings, ignore=400)
+    yield
+    es.indices.delete(index='your_index_name', ignore=[400, 404])
+
+
+@pytest.fixture(scope='module')
 def initialize_elasticsearch():
     print("***** Initializing Elasticsearch Data *****")
     if ("es.amazonaws.com" in config.ELASTICSEARCH_HOST):
