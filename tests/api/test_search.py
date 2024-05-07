@@ -17,6 +17,24 @@ from .fixtures import auth_headers # noqa
 @pytest.fixture(scope='module')
 def setup_elasticsearch():
     es = Elasticsearch()
+    es.indices.create(index='your_index_name', ignore=400)
+    yield
+    es.indices.delete(index='your_index_name', ignore=[400, 404])
+    
+
+@pytest.fixture(scope='module')
+def initialize_elasticsearch():
+    print("***** Initializing Elasticsearch Data *****")
+    if ("es.amazonaws.com" in config.ELASTICSEARCH_HOST):
+        msg = "**** Warning: not allow to run test on stage or prod elasticsearch index *****"
+        pytest.exit(msg)
+    es = Elasticsearch(hosts=config.ELASTICSEARCH_HOST + ":" + config.ELASTICSEARCH_PORT)
+
+    # delete the index if it exists
+    if es.indices.exists(index=config.ELASTICSEARCH_INDEX):
+        es.indices.delete(index=config.ELASTICSEARCH_INDEX)
+
+    # Create the index with analyzer settings
     index_settings = {
         "settings": {
             "analysis": {
@@ -30,18 +48,8 @@ def setup_elasticsearch():
             }
         }
     }
-    es.indices.create(index='your_index_name', body=index_settings, ignore=400)
-    yield
-    es.indices.delete(index='your_index_name', ignore=[400, 404])
-
-
-@pytest.fixture(scope='module')
-def initialize_elasticsearch():
-    print("***** Initializing Elasticsearch Data *****")
-    if ("es.amazonaws.com" in config.ELASTICSEARCH_HOST):
-        msg = "**** Warning: not allow to run test on stage or prod elasticsearch index *****"
-        pytest.exit(msg)
-    es = Elasticsearch(hosts=config.ELASTICSEARCH_HOST + ":" + config.ELASTICSEARCH_PORT)
+    es.indices.create(index=config.ELASTICSEARCH_INDEX, body=index_settings)
+    
     doc1 = {
         "curie": "AGRKB:101000000000001",
         "citation": "citation1",
