@@ -20,7 +20,7 @@ def setup_elasticsearch():
     es.indices.create(index='your_index_name', ignore=400)
     yield
     es.indices.delete(index='your_index_name', ignore=[400, 404])
-    
+
 
 @pytest.fixture(scope='module')
 def initialize_elasticsearch():
@@ -49,7 +49,7 @@ def initialize_elasticsearch():
         }
     }
     es.indices.create(index=config.ELASTICSEARCH_INDEX, body=index_settings)
-    
+
     doc1 = {
         "curie": "AGRKB:101000000000001",
         "citation": "citation1",
