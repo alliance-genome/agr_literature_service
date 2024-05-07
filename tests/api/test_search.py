@@ -66,7 +66,7 @@ def initialize_elasticsearch():
         "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
         "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
         "date_published": "2022",
-        "authors": [{"name": "Jane Doe", "orcid": "null"}],
+        # "authors": [{"name": "Jane Doe", "orcid": "null"}],
         "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}],
         "mod_reference_types": ["note"],
         "date_created": "1636139454923830"
