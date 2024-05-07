@@ -512,6 +512,10 @@ def merge_references(db: Session,
     old_ref = get_reference(db=db, curie_or_reference_id=old_curie)
     new_ref = get_reference(db=db, curie_or_reference_id=new_curie)
 
+    if old_ref.prepublication_pipeline or new_ref.prepublication_pipeline:
+        new_ref.prepublication_pipeline = True
+        db.commit()
+
     merge_reference_relations(db, old_ref.reference_id, new_ref.reference_id,
                               old_curie, new_curie)
 
@@ -540,10 +544,6 @@ def merge_references(db: Session,
     # Delete the old_curie object
     db.delete(old_ref)
     db.commit()
-
-    if old_ref.prepublication_pipeline or new_ref.prepublication_pipeline:
-        new_ref.prepublication_pipeline = True
-        db.commit()
 
     # find which mods reference this paper
     mods = db.query(ModModel).join(ModCorpusAssociationModel). \
