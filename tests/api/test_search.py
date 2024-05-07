@@ -1,9 +1,11 @@
 import pytest
-from unittest.mock import patch
+from datetime import datetime
+
+from elasticsearch import Elasticsearch
 from starlette.testclient import TestClient
 
 from fastapi import status
-# from agr_literature_service.api.config import config
+from agr_literature_service.api.config import config
 from agr_literature_service.api.main import app
 from .test_mod_corpus_association import test_mca # noqa
 from ..fixtures import db # noqa
@@ -13,208 +15,204 @@ from .fixtures import auth_headers # noqa
 
 
 @pytest.fixture(scope='module')
-def mock_elasticsearch():
-    with patch('elasticsearch.Elasticsearch') as mock:
-        mock_instance = mock.return_value
-        mock_instance.indices.exists.return_value = True
-        mock_instance.search.return_value = {
-            "aggregations": {
-                "pubmed_types.keyword": {
-                    "buckets": [{"key": "Journal Article", "doc_count": 10},
-                                {"key": "Review", "doc_count": 5}]
+def setup_elasticsearch():
+    es = Elasticsearch()
+    es.indices.create(index='your_index_name', ignore=400)
+    yield
+    es.indices.delete(index='your_index_name', ignore=[400, 404])
+
+
+@pytest.fixture(scope='module')
+def initialize_elasticsearch():
+    print("***** Initializing Elasticsearch Data *****")
+    if ("es.amazonaws.com" in config.ELASTICSEARCH_HOST):
+        msg = "**** Warning: not allow to run test on stage or prod elasticsearch index *****"
+        pytest.exit(msg)
+    es = Elasticsearch(hosts=config.ELASTICSEARCH_HOST + ":" + config.ELASTICSEARCH_PORT)
+
+    # delete the index if it exists
+    if es.indices.exists(index=config.ELASTICSEARCH_INDEX):
+        es.indices.delete(index=config.ELASTICSEARCH_INDEX)
+
+    # Create the index with analyzer settings
+    index_settings = {
+        "settings": {
+            "analysis": {
+                "analyzer": {
+                    "authorNameAnalyzer": {
+                        "type": "custom",
+                        "tokenizer": "whitespace",
+                        "filter": ["asciifolding", "lowercase"]
+                    }
                 }
             }
         }
-        yield mock
+    }
+    es.indices.create(index=config.ELASTICSEARCH_INDEX, body=index_settings)
+
+    doc1 = {
+        "curie": "AGRKB:101000000000001",
+        "citation": "citation1",
+        "title": "superlongword super super super super test test test",
+        "pubmed_types": ["Journal Article", "Review"],
+        "abstract": "Really quite a lot of great information in this article",
+        "date_published": "1901",
+        "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
+        "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
+        "authors": [
+            {"name": "John Q Public", "orcid": "0000-0000-0000-0000"},
+            {"name": "Socrates", "orcid": "0000-0000-0000-0001"}
+        ],
+        "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}],
+        "mod_reference_types": ["review"],
+        "date_created": "1636139454923830"
+
+    }
+    doc2 = {
+        "curie": "AGRKB:101000000000002",
+        "citation": "citation2",
+        "title": "cell title",
+        "pubmed_types": ["Book"],
+        "abstract": "Its really worth reading this article",
+        "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
+        "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
+        "date_published": "2022",
+        "authors": [{"name": "Jane Doe", "orcid": "0000-0000-0000-0002"}],
+        "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}],
+        "mod_reference_types": ["note"],
+        "date_created": "1636139454923830"
+    }
+    doc3 = {
+        "curie": "AGRKB:101000000000003",
+        "citation": "citation3",
+        "title": "Book 1",
+        "pubmed_types": ["Book", "Abstract", "Category1", "Category2", "Category3"],
+        "abstract": "A book written about science",
+        "date_published": "1950-06-03",
+        "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
+        "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
+        "authors": [{"name": "Sam", "orcid": "null"}, {"name": "Plato", "orcid": "null"}],
+        "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "SGD:S000000123", "is_obsolete": "true"}],
+        "mod_reference_types": ["Journal"],
+        "date_created": "1636139454923830"
+    }
+    doc4 = {
+        "curie": "AGRKB:101000000000004",
+        "citation": "citation4",
+        "title": "Book 2",
+        "pubmed_types": ["Book", "Category4", "Test", "category5", "Category6", "Category7"],
+        "abstract": "The other book written about science",
+        "date_published": "2010",
+        "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
+        "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
+        "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
+        "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
+        "mod_reference_types": ["paper"],
+        "date_created": "1636139454923830"
+    }
+    es.index(index=config.ELASTICSEARCH_INDEX, id=1, body=doc1)
+    es.index(index=config.ELASTICSEARCH_INDEX, id=2, body=doc2)
+    es.index(index=config.ELASTICSEARCH_INDEX, id=3, body=doc3)
+    es.index(index=config.ELASTICSEARCH_INDEX, id=4, body=doc4)
+    es.indices.refresh(index=config.ELASTICSEARCH_INDEX)
+    yield None
+    print("***** Cleaning Up Elasticsearch Data *****")
+    es.indices.delete(index=config.ELASTICSEARCH_INDEX)
+    print("deleted test index")
 
 
 class TestSearch:
 
-    def test_search_references_return_facets_only(self, mock_elasticsearch, auth_headers): # noqa
+    def test_search_references_return_facets_only(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
-            facets_values = {"pubmed_types.keyword": ["Journal Article", "Review"]}
-            search_data = {"query": None, "facets_values": facets_values, "return_facets_only": True}
-            response = client.post("/search/references/", json=search_data, headers=auth_headers)
-            res = response.json()
-
-            assert "aggregations" in res
-            assert len(res["aggregations"]["pubmed_types.keyword"]["buckets"]) == 2
-
-    def test_search_references_no_facets(self, mock_elasticsearch, auth_headers): # noqa
-        mock_es_instance = mock_elasticsearch.return_value
-        mock_es_instance.search.return_value = {
-            "hits": {
-                "total": {"value": 1, "relation": "eq"},
-                "hits": [{"_source": {"title": "cell title"}}]
+            facets_values = {
+                "pubmed_types.keyword": (["Journal Article", "Review"])
             }
-        }
+            search_data = {"query": None, "facets_values": facets_values, "return_facets_only": True}
+            response = client.post(url="/search/references/", json=search_data, headers=auth_headers)
+            res = response.json()
+            assert "aggregations" in res and "pubmed_types.keyword" in res["aggregations"]
+            assert len(res["aggregations"]["pubmed_types.keyword"]["buckets"]) > 0
 
+    def test_search_references_no_facets(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
             search_data = {"query": "cell", "facets_values": None, "return_facets_only": False}
-            response = client.post("/search/references/", json=search_data, headers=auth_headers)
-            res = response.json()
-        assert "hits" in res
-        assert len(res["hits"]) > 0
+            res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
+            assert len(res) > 0
 
-    def test_search_references_with_facets(self, mock_elasticsearch, auth_headers): # noqa
-        mock_es_instance = mock_elasticsearch.return_value
-        mock_es_instance.search.return_value = {
-            "hits": {
-                "total": {"value": 1, "relation": "eq"},
-                "hits": [{"_source": {"title": "cell title", "pubmed_types": ["Journal Article"]}}]
-            },
-            "aggregations": {
-                "pubmed_types.keyword": {
-                    "buckets": [{"key": "Journal Article", "doc_count": 1}]
-                }
-            }
-        }
-
+    def test_search_references_with_facets(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
             search_data = {
                 "query": "cell",
-                "facets_values": {"pubmed_types.keyword": ["Journal Article", "Review"]},
+                "facets_values": {
+                    "pubmed_types.keyword": ["Journal Article", "Review"]
+                },
                 "return_facets_only": False
             }
-            res = client.post("/search/references/", json=search_data, headers=auth_headers).json()
-
+            res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert "hits" in res
             assert "aggregations" in res
-            assert len(res["hits"]) == 1
 
-    def test_search_result_count(self, mock_elasticsearch, auth_headers): # noqa
-        mock_es_instance = mock_elasticsearch.return_value
-        mock_es_instance.search.return_value = {
-            "hits": {
-                "total": {"value": 1, "relation": "eq"},
-                "hits": [{"_source": {"title": "superlongword super super super super test test test"}}]
-            }
-        }
-
+    def test_search_result_count(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
             search_data = {
                 "query": "superlongword super super super super test test test",
-                "facets_values": {"pubmed_types.keyword": ["Journal Article", "Review"]},
+                "facets_values": {
+                    "pubmed_types.keyword": ["Journal Article", "Review"]
+                },
                 "return_facets_only": False
             }
-            res = client.post("/search/references/", json=search_data, headers=auth_headers).json()
+            res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
+            assert "return_count" in res
+            assert res["return_count"] == 1
 
-            assert "hits" in res
-            assert len(res["hits"]) == 1
-            assert res["hits"][0]["_source"]["title"] == "superlongword super super super super test test test"
-
-
-    def test_search_max_results(self, mock_elasticsearch, auth_headers): # noqa
-        mock_es_instance = mock_elasticsearch.return_value
-        mock_es_instance.search.return_value = {
-            "hits": {
-                "total": {"value": 2, "relation": "eq"},
-                "hits": [
-                    {"_source": {"title": "Book 1", "pubmed_types": ["Book"]}},
-                    {"_source": {"title": "Book 2", "pubmed_types": ["Book"]}}
-                ]
-            }
-        }
-
+    def test_search_max_results(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
+            test_size = 2
             search_data = {
                 "query": None,
-                "facets_values": {"pubmed_types.keyword": ["Book"]},
+                "facets_values": {
+                    "pubmed_types.keyword": ["Book"]
+                },
                 "return_facets_only": False,
-                "size_result_count": 2
+                "size_result_count": test_size
             }
-            res = client.post("/search/references/", json=search_data, headers=auth_headers).json()
-
+            res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert "hits" in res
-            assert len(res["hits"]) == 2
+            assert len(res["hits"]) == test_size
 
-    def test_search_references_facets_limits(self, mock_elasticsearch, auth_headers): # noqa
-        mock_es_instance = mock_elasticsearch.return_value
-        mock_es_instance.search.side_effect = [
-            {
-                "aggregations": {
-                    "pubmed_types.keyword": {
-                        "buckets": [{"key": "Journal Article", "doc_count": 12}]
-                    }
-                }
-            },
-            {
-                "aggregations": {
-                    "pubmed_types.keyword": {
-                        "buckets": [{"key": "Journal Article", "doc_count": 8}]
-                    }
-                }
-            }
-        ]
-
+    def test_search_references_facets_limits(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
             search_data = {
                 "return_facets_only": True,
                 "facets_limits": {"pubmed_types.keyword": 15}
             }
-            res = client.post("/search/references/", json=search_data, headers=auth_headers).json()
-            assert len(res["aggregations"]["pubmed_types.keyword"]["buckets"]) == 1
-            assert res["aggregations"]["pubmed_types.keyword"]["buckets"][0]["doc_count"] == 12
+            res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
+            assert len(res["aggregations"]["pubmed_types.keyword"]["buckets"]) > 10
+            res = client.post(url="/search/references/", json={"return_facets_only": True}, headers=auth_headers).json()
+            assert len(res["aggregations"]["pubmed_types.keyword"]["buckets"]) == 10
 
-            # Test default limits
-            search_data = {"return_facets_only": True}
-            res = client.post("/search/references/", json=search_data, headers=auth_headers).json()
-            assert len(res["aggregations"]["pubmed_types.keyword"]["buckets"]) == 1
-            assert res["aggregations"]["pubmed_types.keyword"]["buckets"][0]["doc_count"] == 8
-
-    def test_search_references_empty(self, mock_elasticsearch, auth_headers): # noqa
-        mock_es_instance = mock_elasticsearch.return_value
-        mock_es_instance.search.return_value = {
-            "hits": {
-                "total": {"value": 0, "relation": "eq"},
-                "hits": []
-            }
-        }
-
+    def test_search_references_empty(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
             search_data = {
                 "query": None,
                 "return_facets_only": None,
                 "facets_values": None
             }
-            response = client.post("/search/references/", json=search_data, headers=auth_headers)
+            res = client.post(url="/search/references/", json=search_data, headers=auth_headers)
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-
-    def test_search_references_wildcard(self, mock_elasticsearch, auth_headers): # noqa
-        mock_es_instance = mock_elasticsearch.return_value
-        mock_es_instance.search.return_value = {
-            "hits": {
-                "total": {"value": 2, "relation": "eq"},
-                "hits": [
-                    {"_source": {"title": "Book 1", "pubmed_types": ["Book"]}},
-                    {"_source": {"title": "Book 2", "pubmed_types": ["Book"]}}
-                ]
-            }
-        }
-
+    def test_search_references_wildcard(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
             search_data = {
                 "query": "boo*",
                 "return_facets_only": False,
                 "facets_values": None
             }
-            res = client.post("/search/references/", json=search_data, headers=auth_headers).json()
+            res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert len(res["hits"]) == 2
 
-
-    def test_search_on_abstract(self, mock_elasticsearch, auth_headers): # noqa
-        mock_es_instance = mock_elasticsearch.return_value
-        mock_es_instance.search.return_value = {
-            "hits": {
-                "total": {"value": 2, "relation": "eq"},
-                "hits": [
-                    {"_source": {"abstract": "Really quite a lot of great information in this article"}},
-                    {"_source": {"abstract": "Its really worth reading this article"}}
-                ]
-            }
-        }
-
+    def test_search_on_abstract(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
             search_data = {
                 "query": "really",
@@ -222,18 +220,10 @@ class TestSearch:
                 "facets_values": None,
                 "query_field": "abstract"
             }
-            res = client.post("/search/references/", json=search_data, headers=auth_headers).json()
+            res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert len(res["hits"]) == 2
 
-    def test_search_sort(self, mock_elasticsearch, auth_headers): # noqa
-        mock_es_instance = mock_elasticsearch.return_value
-        mock_es_instance.search.return_value = {
-            "hits": {
-                "total": {"value": 1, "relation": "eq"},
-                "hits": [{"_source": {"date_published": "1901"}}]
-            }
-        }
-
+    def test_search_sort(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:
             search_data = {
                 "query": "",
@@ -245,6 +235,6 @@ class TestSearch:
                     }
                 ]
             }
-            res = client.post("/search/references/", json=search_data, headers=auth_headers).json()
+            res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert "hits" in res
-            assert res["hits"][0]["_source"]["date_published"] == "1901"
+            assert res["hits"][0]['date_published'] == "1901"
