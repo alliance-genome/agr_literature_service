@@ -31,16 +31,6 @@ def mock_elasticsearch():
 class TestSearch:
 
     def test_search_references_return_facets_only(self, mock_elasticsearch, auth_headers): # noqa
-        mock_es_instance = mock_elasticsearch.return_value
-        mock_es_instance.search.return_value = {
-            "aggregations": {
-                "pubmed_types.keyword": {
-                    "buckets": [{"key": "Journal Article", "doc_count": 10},
-                                {"key": "Review", "doc_count": 5}]
-                }
-            }
-        }
-
         with TestClient(app) as client:
             facets_values = {"pubmed_types.keyword": ["Journal Article", "Review"]}
             search_data = {"query": None, "facets_values": facets_values, "return_facets_only": True}
@@ -49,7 +39,6 @@ class TestSearch:
 
             assert "aggregations" in res
             assert len(res["aggregations"]["pubmed_types.keyword"]["buckets"]) == 2
-
 
     def test_search_references_no_facets(self, mock_elasticsearch, auth_headers): # noqa
         mock_es_instance = mock_elasticsearch.return_value
