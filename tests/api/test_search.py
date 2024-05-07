@@ -17,9 +17,9 @@ from .fixtures import auth_headers # noqa
 @pytest.fixture(scope='module')
 def setup_elasticsearch():
     es = Elasticsearch()
-    es.indices.create(index='your_index_name', ignore=400)
+    es.indices.create(index='test_ref_index', ignore=400)
     yield
-    es.indices.delete(index='your_index_name', ignore=[400, 404])
+    es.indices.delete(index='test_ref_index', ignore=[400, 404])
 
 
 @pytest.fixture(scope='module')
