@@ -15,6 +15,8 @@ from .fixtures import auth_headers # noqa
 @pytest.fixture(scope='module')
 def mock_elasticsearch():
     with patch('elasticsearch.Elasticsearch') as mock:
+        # mocking index existence
+        mock.return_value.indices.exists.return_value = True
         yield mock
 
 
