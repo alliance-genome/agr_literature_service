@@ -182,6 +182,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                 for obj in value:
                     obj_data = obj.dict(exclude_unset=True)
                     obj_data["reference_curie"] = curie
+                    obj_data["force_insertion"] = True
                     try:
                         create_tag(db, obj_data)
                     except HTTPException:
@@ -523,22 +524,28 @@ def merge_references(db: Session,
     old_ref_tets = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.reference_id == old_ref.reference_id).all()
 
     for old_tet in old_ref_tets:
-        new_tet_data = TopicEntityTagSchemaPost()
-        new_tet_data.topic = old_tet.topic
-        new_tet_data.entity_type = old_tet.entity_type
-        new_tet_data.entity = old_tet.entity
-        new_tet_data.entity_id_validation = old_tet.entity_id_validation
-        new_tet_data.entity_published_as = old_tet.entity_published_as
-        new_tet_data.species = old_tet.species
-        new_tet_data.display_tag = old_tet.display_tag
-        new_tet_data.topic_entity_tag_source_id = old_tet.topic_entity_tag_source_id
-        new_tet_data.negated = old_tet.negated
-        new_tet_data.novel_topic_data = old_tet.novel_topic_data
-        new_tet_data.confidence_level = old_tet.confidence_level
-        new_tet_data.note = old_tet.note
-        new_tet_data.reference_curie = new_ref.curie
-        new_tet_data.force_insertion = True
-        create_tag(db, new_tet_data)
+        new_tet_data = {
+            "topic": old_tet.topic,
+            "entity_type": old_tet.entity_type,
+            "entity": old_tet.entity,
+            "entity_id_validation": old_tet.entity_id_validation,
+            "entity_published_as": old_tet.entity_published_as,
+            "species": old_tet.species,
+            "display_tag": old_tet.display_tag,
+            "topic_entity_tag_source_id": old_tet.topic_entity_tag_source_id,
+            "negated": old_tet.negated,
+            "novel_topic_data": old_tet.novel_topic_data,
+            "confidence_level": old_tet.confidence_level,
+            "note": old_tet.note,
+            "reference_curie": new_ref.curie,
+            "force_insertion": True,
+            "created_by": str(old_tet.created_by),
+            "updated_by": str(old_tet.updated_by),
+            "date_created": str(old_tet.date_created),
+            "date_updated": str(old_tet.date_updated)
+        }
+        new_tet = TopicEntityTagSchemaPost(**new_tet_data)
+        create_tag(db, new_tet)
     db.commit()
 
     # Check if old_curie is already in the obsolete table (It may have been merged itself)
