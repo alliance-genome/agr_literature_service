@@ -524,7 +524,8 @@ class TestReference:
                         "novel_topic_data": True,
                         "note": "test note",
                         "created_by": "WBPerson1",
-                        "date_created": "2020-01-01"
+                        "date_created": "2020-01-01",
+                        "date_updated": "2020-01-01"
                     },
                     {
                         "topic": "ATP:0000009",
@@ -575,7 +576,8 @@ class TestReference:
                         "novel_topic_data": True,
                         "note": "another note",  # only the note is different
                         "created_by": "WBPerson1",
-                        "date_created": "2020-01-01"
+                        "date_created": "2020-01-03",
+                        "date_updated": "2020-01-03"
                     },
                     {
                         "topic": "ATP:0000009",
