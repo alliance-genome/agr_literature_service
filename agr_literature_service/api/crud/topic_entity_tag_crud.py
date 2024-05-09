@@ -285,11 +285,11 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
                   commit_changes: bool = True):
     related_tags_in_db = db.query(TopicEntityTagModel).join(
         TopicEntityTagSourceModel, TopicEntityTagModel.topic_entity_tag_source).filter(
-            TopicEntityTagModel.topic_entity_tag_id != new_tag_obj.topic_entity_tag_id,
-            TopicEntityTagModel.reference_id == new_tag_obj.reference_id,
-            TopicEntityTagSourceModel.secondary_data_provider_id == new_tag_obj.topic_entity_tag_source.secondary_data_provider_id,
-            TopicEntityTagModel.negated.isnot(None)
-        ).all()
+        TopicEntityTagModel.topic_entity_tag_id != new_tag_obj.topic_entity_tag_id,
+        TopicEntityTagModel.reference_id == new_tag_obj.reference_id,
+        TopicEntityTagSourceModel.secondary_data_provider_id == new_tag_obj.topic_entity_tag_source.secondary_data_provider_id,
+        TopicEntityTagModel.negated.isnot(None)
+    ).all()
     # The current tag can validate existing tags or be validated by other tags only if it has a True or False negated
     # value
     if len(related_tags_in_db) == 0 or new_tag_obj.negated is None:
