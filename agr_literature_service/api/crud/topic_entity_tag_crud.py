@@ -321,6 +321,8 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
             reference_id = db.query(ReferenceModel.reference_id).filter(ReferenceModel.curie == curie_or_reference_id)
         all_tag_ids_for_reference = [res[0] for res in db.query(
             TopicEntityTagModel.topic_entity_tag_id).filter(TopicEntityTagModel.reference_id == reference_id).all()]
+        if not all_tag_ids_for_reference:
+            return
         all_tag_ids_str = [str(tag_id) for tag_id in all_tag_ids_for_reference]
         reference_query_filter = (f" WHERE validating_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)}) "
                                   f"OR validated_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)})")
@@ -406,6 +408,7 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
 
     existing_tag = db.query(TopicEntityTagModel).filter_by(**new_tag_data).first()
     if existing_tag:
+        existing_date_updated = existing_tag.date_updated
         tag_data = populate_tag_field_names(db, reference_id, new_tag_data)
         if note:
             tag_data['note'] = note
@@ -424,9 +427,12 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
             try:
                 existing_tag.note = new_note
                 existing_tag.updated_by = created_by_user
+                db.add(existing_tag)
+                db.commit()
                 if date_updated and date_parser.parse(date_updated) > existing_tag.date_updated:
                     existing_tag.date_updated = date_updated
-                db.add(existing_tag)
+                else:
+                    existing_tag.date_updated = existing_date_updated
                 db.commit()
                 return {
                     "status": "exists",

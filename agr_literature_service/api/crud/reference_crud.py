@@ -43,7 +43,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import (
     patch as update_workflow_tag,
     show as show_workflow_tag
 )
-from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
+from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag, revalidate_all_tags
 from agr_literature_service.global_utils import get_next_reference_curie
 from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import \
@@ -547,6 +547,8 @@ def merge_references(db: Session,
         new_tet = TopicEntityTagSchemaPost(**new_tet_data)
         create_tag(db, new_tet)
     db.commit()
+
+    revalidate_all_tags(curie_or_reference_id=new_ref.curie)
 
     # Check if old_curie is already in the obsolete table (It may have been merged itself)
     # by looking for it in the new_id column.
