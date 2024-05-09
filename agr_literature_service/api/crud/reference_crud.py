@@ -629,9 +629,12 @@ def merge_reference_relations(db, old_reference_id, new_reference_id, old_curie,
                 db.delete(x)
         db.commit()
     except Exception as e:
+        db.rollback()
         logger.warning(
             "An error occurred when transferring the reference_relations from " + old_curie + " to " + new_curie + " : " + str(
                 e))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Cannot merge these two references. {e}")
 
 
 def author_order_sort(author: AuthorModel):
