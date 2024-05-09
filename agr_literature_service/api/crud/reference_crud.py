@@ -365,6 +365,10 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             {
                 "display_name": "Pubtator",
                 "link_url": f"https://www.ncbi.nlm.nih.gov/research/pubtator/?view=publication&pmid={pmid.replace('PMID:','')}"
+            },
+            {
+                "display_name": "EuropePMC",
+                "link_url": f"https://europepmc.org/article/MED/{pmid.replace('PMID:','')}"
             }
         ]
         ## generate links to Textpresso
