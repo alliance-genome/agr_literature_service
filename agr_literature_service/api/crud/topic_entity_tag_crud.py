@@ -2,6 +2,8 @@
 topic_entity_tag_crud.py
 ===========================
 """
+import logging
+
 from dateutil import parser as date_parser
 from collections import defaultdict
 from os import environ
@@ -13,7 +15,7 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import case, and_, create_engine
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload, subqueryload, sessionmaker
+from sqlalchemy.orm import Session, joinedload, sessionmaker
 
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models.audited_model import get_default_user_value
@@ -32,6 +34,10 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEn
                                                                          TopicEntityTagSourceSchemaCreate,
                                                                          TopicEntityTagSchemaUpdate)
 from agr_literature_service.lit_processing.utils.email_utils import send_email
+
+
+logger = logging.getLogger(__name__)
+
 
 ATP_ID_SOURCE_AUTHOR = "author"
 ATP_ID_SOURCE_CURATOR = "professional_biocurator"
@@ -277,18 +283,21 @@ def validate_new_tag_with_existing_tags(new_tag_obj: TopicEntityTagModel, relate
 
 def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_tag: bool = True,
                   commit_changes: bool = True):
-    related_tags_in_db = db.query(TopicEntityTagModel).options(
-        subqueryload(TopicEntityTagModel.topic_entity_tag_source)).filter(
-        and_(
+    columns_to_load = [TopicEntityTagModel.negated, TopicEntityTagModel.topic, TopicEntityTagModel.entity_type,
+                       TopicEntityTagModel.entity, TopicEntityTagModel.species,
+                       TopicEntityTagSourceModel.validation_type]
+    related_tags_in_db = (
+        db.query(TopicEntityTagModel)
+        .join(TopicEntityTagSourceModel, TopicEntityTagModel.topic_entity_tag_source)
+        .filter(
             TopicEntityTagModel.topic_entity_tag_id != new_tag_obj.topic_entity_tag_id,
             TopicEntityTagModel.reference_id == new_tag_obj.reference_id,
-            TopicEntityTagModel.topic_entity_tag_source.has(
-                TopicEntityTagSourceModel.secondary_data_provider_id == new_tag_obj.topic_entity_tag_source
-                .secondary_data_provider_id
-            ),
+            TopicEntityTagSourceModel.secondary_data_provider_id == new_tag_obj.topic_entity_tag_source.secondary_data_provider_id,
             TopicEntityTagModel.negated.isnot(None)
         )
-    ).all()
+        .with_entities(*columns_to_load)
+        .all()
+    )
     # The current tag can validate existing tags or be validated by other tags only if it has a True or False negated
     # value
     if len(related_tags_in_db) == 0 or new_tag_obj.negated is None:
