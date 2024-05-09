@@ -1,6 +1,9 @@
 import copy
+import datetime
+import logging
 from collections import namedtuple
 import json
+from typing import Dict, Tuple
 
 import pytest
 from sqlalchemy_continuum import Operation
@@ -20,6 +23,15 @@ from .test_copyright_license import test_copyright_license # noqa
 from .test_topic_entity_tag_source import test_topic_entity_tag_source # noqa
 
 from agr_literature_service.api.crud.referencefile_crud import create_metadata
+
+
+logger = logging.getLogger(__name__)
+
+
+CHECK_VALID_ATP_IDS_RETURN: Tuple[set, Dict[str, str]] = (
+    {'ATP:0000005', 'ATP:0000009', 'ATP:0000068', 'ATP:0000071', 'ATP:0000079', 'ATP:0000082', 'ATP:0000084',
+     'ATP:0000099', 'ATP:0000122', 'WB:WBGene00003001', 'NCBITaxon:6239'}, {})
+
 
 TestReferenceData = namedtuple('TestReferenceData', ['response', 'new_ref_curie'])
 
@@ -472,6 +484,234 @@ class TestReference:
             ########################################
             # 3) changesets, see test_001_reference.
             ########################################
+
+    def test_merge_with_tets(self, db, test_resource, test_topic_entity_tag_source, auth_headers): # noqa
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
+                mock_check_atp_ids_validity, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_map_ateam_curies_to_names") as \
+                mock_get_map_ateam_curies_to_name:
+            mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
+            mock_get_map_ateam_curies_to_name.return_value = {
+                'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
+                'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
+                'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
+            }
+            ref1_data = {
+                "category": "research_article",
+                "abstract": "013 - abs B",
+                "authors": [
+                    {
+                        "name": "S. K",
+                        "order": 1
+                        # "orcid": 'ORCID:1234-1234-1234-123X'
+                    },
+                    {
+                        "name": "S. W",
+                        "order": 2
+                        # "orcid": 'ORCID:1111-2222-3333-444X'  # New
+                    }
+                ],
+                "resource": test_resource.new_resource_curie,
+                "title": "Another title",
+                "volume": "013b",
+                "prepublication_pipeline": True,
+                "topic_entity_tags": [
+                    {
+                        "topic": "ATP:0000122",
+                        "entity_type": "ATP:0000005",
+                        "entity": "WB:WBGene00003001",
+                        "entity_id_validation": "alliance",
+                        "entity_published_as": "test",
+                        "species": "NCBITaxon:6239",
+                        "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                        "negated": False,
+                        "novel_topic_data": True,
+                        "note": "test note",
+                        "created_by": "WBPerson1",
+                        "date_created": "2020-01-01",
+                        "date_updated": "2020-01-01"
+                    },
+                    {
+                        "topic": "ATP:0000009",
+                        "entity_type": None,
+                        "entity": None,
+                        "entity_id_validation": None,
+                        "species": "NCBITaxon:6239",
+                        "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                        "negated": False,
+                        "novel_topic_data": True,
+                        "note": "test note",
+                        "created_by": "WBPerson1",
+                        "date_created": "2020-01-02"
+                    }
+                ]
+            }
+            response1 = client.post(url="/reference/", json=ref1_data, headers=auth_headers)
+
+            ref2_data = {
+                "category": "research_article",
+                "abstract": "013 - abs A",
+                "authors": [
+                    {
+                        "name": "S. K",
+                        "order": 1
+                        # "orcid": 'ORCID:1234-1234-1234-123X'
+                    },
+                    {
+                        "name": "S. W",
+                        "order": 2
+                        # "orcid": 'ORCID:1111-2222-3333-444X'  # New
+                    }
+                ],
+                "resource": test_resource.new_resource_curie,
+                "title": "Another title",
+                "volume": "013a",
+                "prepublication_pipeline": False,
+                "topic_entity_tags": [
+                    {
+                        "topic": "ATP:0000122",
+                        "entity_type": "ATP:0000005",
+                        "entity": "WB:WBGene00003001",
+                        "entity_id_validation": "alliance",
+                        "entity_published_as": "test",
+                        "species": "NCBITaxon:6239",
+                        "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                        "negated": False,
+                        "novel_topic_data": True,
+                        "note": "another note",  # only the note is different
+                        "created_by": "WBPerson1",
+                        "date_created": "2020-01-03",
+                        "date_updated": "2020-01-03"
+                    },
+                    {
+                        "topic": "ATP:0000009",
+                        "entity_type": None,
+                        "entity": None,
+                        "entity_id_validation": None,
+                        "species": "NCBITaxon:6239",
+                        "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                        "negated": False,
+                        "novel_topic_data": True,
+                        "note": "test note",
+                        "created_by": "WBPerson1",
+                        "date_created": "2020-01-02"
+                    },
+                    {
+                        "topic": "ATP:0000009",
+                        "entity_type": None,
+                        "entity": None,
+                        "entity_id_validation": None,
+                        "species": "NCBITaxon:6239",
+                        "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                        "negated": False,
+                        "novel_topic_data": True,
+                        "note": "test note",
+                        "created_by": "WBPerson2",  # same tag but created by a different user
+                        "date_created": "2020-01-03"
+                    }
+                ]
+            }
+            response2 = client.post(url="/reference/", json=ref2_data, headers=auth_headers)
+            response_merge = client.post(url=f"/reference/merge/{response1.json()}/{response2.json()}",
+                                         headers=auth_headers)
+            assert response_merge.status_code == status.HTTP_201_CREATED
+            tets = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}").json()
+            assert len(tets) == 3
+            assert any(tet["note"] == "another note | test note" for tet in tets)
+
+    @pytest.mark.webtest
+    def test_merge_with_a_lot_of_tets(self, db, test_resource, test_topic_entity_tag_source, auth_headers):  # noqa
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
+                mock_check_atp_ids_validity, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_map_ateam_curies_to_names") as \
+                mock_get_map_ateam_curies_to_name:
+            mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
+            mock_get_map_ateam_curies_to_name.return_value = {
+                'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
+                'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
+                'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
+            }
+            num_tags_per_ref = 1000
+            template_tet = {
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "entity_published_as": "test",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "novel_topic_data": True,
+                "note": "test note",
+                "created_by": "WBPerson",
+                "date_created": "2020-01-01",
+                "date_updated": "2020-01-01"
+            }
+
+            ref1_data = {
+                "category": "research_article",
+                "abstract": "013 - abs B",
+                "authors": [
+                    {
+                        "name": "S. K",
+                        "order": 1
+                        # "orcid": 'ORCID:1234-1234-1234-123X'
+                    },
+                    {
+                        "name": "S. W",
+                        "order": 2
+                        # "orcid": 'ORCID:1111-2222-3333-444X'  # New
+                    }
+                ],
+                "resource": test_resource.new_resource_curie,
+                "title": "Another title",
+                "volume": "013b",
+                "prepublication_pipeline": True,
+                "topic_entity_tags": []
+            }
+            for i in range(num_tags_per_ref):
+                template_tet_copy = copy.deepcopy(template_tet)
+                template_tet_copy["created_by"] = "WBPerson" + str(i + 1)
+                ref1_data["topic_entity_tags"].append(template_tet_copy)
+            start_time = datetime.datetime.now()
+            response1 = client.post(url="/reference/", json=ref1_data, headers=auth_headers)
+
+            ref2_data = {
+                "category": "research_article",
+                "abstract": "013 - abs A",
+                "authors": [
+                    {
+                        "name": "S. K",
+                        "order": 1
+                        # "orcid": 'ORCID:1234-1234-1234-123X'
+                    },
+                    {
+                        "name": "S. W",
+                        "order": 2
+                        # "orcid": 'ORCID:1111-2222-3333-444X'  # New
+                    }
+                ],
+                "resource": test_resource.new_resource_curie,
+                "title": "Another title",
+                "volume": "013a",
+                "prepublication_pipeline": False,
+                "topic_entity_tags": []
+            }
+            for i in range(num_tags_per_ref):
+                template_tet_copy = copy.deepcopy(template_tet)
+                template_tet_copy["created_by"] = "WBPerson" + str(i + 1 + num_tags_per_ref)
+                ref2_data["topic_entity_tags"].append(template_tet_copy)
+            response2 = client.post(url="/reference/", json=ref2_data, headers=auth_headers)
+            logger.info(f"inserting refs with tags took {datetime.datetime.now() - start_time}")
+            start_time = datetime.datetime.now()
+            response_merge = client.post(url=f"/reference/merge/{response1.json()}/{response2.json()}",
+                                         headers=auth_headers)
+            logger.info(f"merging refs took {datetime.datetime.now() - start_time}")
+            assert response_merge.status_code == status.HTTP_201_CREATED
+            tets = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}").json()
+            assert len(tets) == num_tags_per_ref * 2
 
     def test_show_mod_reference_types_by_mod(self, populate_test_mod_reference_types): # noqa
         with TestClient(app) as client:

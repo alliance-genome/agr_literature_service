@@ -33,16 +33,17 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ReferenceModel,
                                                ResourceModel,
                                                CopyrightLicenseModel,
-                                               CitationModel)
+                                               CitationModel, TopicEntityTagModel)
 from agr_literature_service.api.routers.okta_utils import OktaAccess
-from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated
+from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated, \
+    TopicEntityTagSchemaPost
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.workflow_tag_crud import (
     create as create_workflow_tag,
     patch as update_workflow_tag,
     show as show_workflow_tag
 )
-from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
+from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag, revalidate_all_tags
 from agr_literature_service.global_utils import get_next_reference_curie
 from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import \
@@ -181,11 +182,13 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                 for obj in value:
                     obj_data = obj.dict(exclude_unset=True)
                     obj_data["reference_curie"] = curie
+                    obj_data["force_insertion"] = True
                     try:
-                        create_tag(db, obj_data)
+                        create_tag(db, obj_data, validate_on_insert=False)
                     except HTTPException:
                         logger.warning("skipping topic_entity_tag as that is already associated to "
                                        "the reference")
+                revalidate_all_tags(curie_or_reference_id=str(reference_db_obj.reference_id))
         elif field == "mod_reference_types":
             for obj in value or []:
                 insert_mod_reference_type_into_db(db, reference.pubmed_types, obj.mod_abbreviation, obj.reference_type,
@@ -516,8 +519,41 @@ def merge_references(db: Session,
     old_ref = get_reference(db=db, curie_or_reference_id=old_curie)
     new_ref = get_reference(db=db, curie_or_reference_id=new_curie)
 
+    if old_ref.prepublication_pipeline or new_ref.prepublication_pipeline:
+        new_ref.prepublication_pipeline = True
+        db.commit()
+
     merge_reference_relations(db, old_ref.reference_id, new_ref.reference_id,
                               old_curie, new_curie)
+
+    old_ref_tets = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.reference_id == old_ref.reference_id).all()
+
+    for old_tet in old_ref_tets:
+        new_tet_data = {
+            "topic": old_tet.topic,
+            "entity_type": old_tet.entity_type,
+            "entity": old_tet.entity,
+            "entity_id_validation": old_tet.entity_id_validation,
+            "entity_published_as": old_tet.entity_published_as,
+            "species": old_tet.species,
+            "display_tag": old_tet.display_tag,
+            "topic_entity_tag_source_id": old_tet.topic_entity_tag_source_id,
+            "negated": old_tet.negated,
+            "novel_topic_data": old_tet.novel_topic_data,
+            "confidence_level": old_tet.confidence_level,
+            "note": old_tet.note,
+            "reference_curie": new_ref.curie,
+            "force_insertion": True,
+            "created_by": str(old_tet.created_by),
+            "updated_by": str(old_tet.updated_by),
+            "date_created": str(old_tet.date_created),
+            "date_updated": str(old_tet.date_updated)
+        }
+        new_tet = TopicEntityTagSchemaPost(**new_tet_data)
+        create_tag(db, new_tet, validate_on_insert=False)
+    db.commit()
+
+    revalidate_all_tags(curie_or_reference_id=new_ref.curie)
 
     # Check if old_curie is already in the obsolete table (It may have been merged itself)
     # by looking for it in the new_id column.
@@ -544,10 +580,6 @@ def merge_references(db: Session,
     # Delete the old_curie object
     db.delete(old_ref)
     db.commit()
-
-    if old_ref.prepublication_pipeline or new_ref.prepublication_pipeline:
-        new_ref.prepublication_pipeline = True
-        db.commit()
 
     # find which mods reference this paper
     mods = db.query(ModModel).join(ModCorpusAssociationModel). \
@@ -602,9 +634,12 @@ def merge_reference_relations(db, old_reference_id, new_reference_id, old_curie,
                 db.delete(x)
         db.commit()
     except Exception as e:
+        db.rollback()
         logger.warning(
             "An error occurred when transferring the reference_relations from " + old_curie + " to " + new_curie + " : " + str(
                 e))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Cannot merge these two references. {e}")
 
 
 def author_order_sort(author: AuthorModel):
