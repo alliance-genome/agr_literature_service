@@ -37,7 +37,7 @@ ATP_ID_SOURCE_AUTHOR = "author"
 ATP_ID_SOURCE_CURATOR = "professional_biocurator"
 
 
-def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
+def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate_on_insert: bool = True) -> dict:
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
     if topic_entity_tag_data["entity"] is None:
         topic_entity_tag_data["entity_type"] = None
@@ -47,7 +47,6 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
                             detail="reference_curie not within topic_entity_tag_data")
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     topic_entity_tag_data["reference_id"] = reference_id
-    # if reference_curie.isdigit():
     force_insertion = topic_entity_tag_data.pop("force_insertion", None)
     source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
         TopicEntityTagSourceModel.topic_entity_tag_source_id == topic_entity_tag_data["topic_entity_tag_source_id"]
@@ -78,7 +77,8 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost) -> dict:
         db.add(new_db_obj)
         db.flush()
         db.refresh(new_db_obj)
-        validate_tags(db=db, new_tag_obj=new_db_obj)
+        if validate_on_insert:
+            validate_tags(db=db, new_tag_obj=new_db_obj)
         return {
             "status": "success",
             "message": "New tag created successfully.",

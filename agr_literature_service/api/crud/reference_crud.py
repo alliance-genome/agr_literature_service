@@ -184,10 +184,11 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     obj_data["reference_curie"] = curie
                     obj_data["force_insertion"] = True
                     try:
-                        create_tag(db, obj_data)
+                        create_tag(db, obj_data, validate_on_insert=False)
                     except HTTPException:
                         logger.warning("skipping topic_entity_tag as that is already associated to "
                                        "the reference")
+                    revalidate_all_tags(curie_or_reference_id=str(reference_db_obj.reference_id))
         elif field == "mod_reference_types":
             for obj in value or []:
                 insert_mod_reference_type_into_db(db, reference.pubmed_types, obj.mod_abbreviation, obj.reference_type,
@@ -545,7 +546,7 @@ def merge_references(db: Session,
             "date_updated": str(old_tet.date_updated)
         }
         new_tet = TopicEntityTagSchemaPost(**new_tet_data)
-        create_tag(db, new_tet)
+        create_tag(db, new_tet, validate_on_insert=False)
     db.commit()
 
     revalidate_all_tags(curie_or_reference_id=new_ref.curie)
