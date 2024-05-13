@@ -1,6 +1,6 @@
 #!/bin/bash
-DEBEZIUM_INDEX_NAME_ORIG="${DEBEZIUM_INDEX_NAME}"
-DEBEZIUM_INDEX_NAME="${DEBEZIUM_INDEX_NAME}_temp"
+export DEBEZIUM_INDEX_NAME_ORIG="${DEBEZIUM_INDEX_NAME}"
+export DEBEZIUM_INDEX_NAME="${DEBEZIUM_INDEX_NAME}_temp"
 
 curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME}
 curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME} -d @/elasticsearch-settings.json
@@ -12,6 +12,7 @@ curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/c
 curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/postgres-source-mod-referencetype
 curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/postgres-source-referencetype
 curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/postgres-source-joined_tables
+sleep 10
 psql -h ${PSQL_HOST} -U ${PSQL_USERNAME} -p ${PSQL_PORT} -d ${PSQL_DATABASE} -c "select pg_drop_replication_slot('debezium_mod'); select pg_drop_replication_slot('debezium_referencetype'); select pg_drop_replication_slot('debezium_reference'); select pg_drop_replication_slot('debezium_joined_tables'); select pg_drop_replication_slot('debezium_citation'); select pg_drop_replication_slot('debezium_mod_referencetype');"
 
 export SINK_NAME="elastic-sink-temp"
@@ -25,7 +26,7 @@ curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json"
 sleep 10
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$PSQL_HOST$PSQL_USERNAME$PSQL_PORT$PSQL_DATABASE$PSQL_PASSWORD' < /postgres-source-joined_tables.json)
 
-sleep 20000
+sleep 4000
 new_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME}/_count | jq '.count')
 if [[ $new_index_doc_count -gt 0 ]]
 then
