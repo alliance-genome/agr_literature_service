@@ -195,7 +195,7 @@ def get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret):
     return return_dict
 
 
-def get_map_complex_pathway_ids_to_names(curies_category, curies):
+def get_map_complex_pathway_ids_to_names(curies_category, curies):  # pragma: no cover
 
     curie_list = "|".join(curies).replace(" ", "+")
     sgd_api_base_url = environ.get("SGD_API_URL")
