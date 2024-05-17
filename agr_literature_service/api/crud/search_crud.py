@@ -350,7 +350,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         "confidence_level": "topic_entity_tags.confidence_level.keyword"
     }
     if tet_nested_facets_values and "tet_facets_values" in tet_nested_facets_values:
-        add_tet_facets_values(es_body, tet_nested_facets_values, tet_facet_config)
+        add_tet_facets_values(es_body, tet_nested_facets_values, tet_facet_config, facets_limits)
     else:
         apply_all_tags_tet_aggregations(es_body, tet_facet_config)
 
@@ -420,7 +420,7 @@ def extract_tet_aggregation_data(res, main_key, filter_key, data_key):  # pragma
     return res['aggregations'].get(main_key, {}).get(filter_key, {}).get(data_key, {})
 
 
-def add_tet_facets_values(es_body, tet_nested_facets_values, config):  # pragma: no cover
+def add_tet_facets_values(es_body, tet_nested_facets_values, config, facets_limits):  # pragma: no cover
 
     ensure_structure(es_body)
     
@@ -441,9 +441,9 @@ def add_tet_facets_values(es_body, tet_nested_facets_values, config):  # pragma:
                 confidence_levels.append(confidence_level)
 
     if is_apply_to_single_tag:
-        apply_single_tag_tet_aggregations(es_body, topics, confidence_levels, config)
+        apply_single_tag_tet_aggregations(es_body, topics, confidence_levels, config, facets_limits)
     else:
-        apply_all_tags_tet_aggregations(es_body, config)
+        apply_all_tags_tet_aggregations(es_body, config, facets_limits)
 
     
 def add_nested_query(es_body, topic, confidence_level, config):  # pragma: no cover
@@ -520,21 +520,23 @@ def create_nested_aggregation(path, term_field, key_name, size=10):  # pragma: n
     }
 
     
-def apply_all_tags_tet_aggregations(es_body, config):  # pragma: no cover
+def apply_all_tags_tet_aggregations(es_body, config, facets_limits):  # pragma: no cover
 
     es_body["aggregations"]["all_topic_aggregation"] = create_nested_aggregation(
         "topic_entity_tags",
         config["topic"],
-        "topics"
+        "topics",
+        facets_limits["topics"]
     )
     es_body["aggregations"]["all_confidence_aggregation"] = create_nested_aggregation(
         "topic_entity_tags",
         config["confidence_level"],
-        "confidence_levels"
+        "confidence_levels",
+        facets_limits["confidence_levels"]
     )
 
 
-def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels, config):  # pragma: no cover
+def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels, config, facets_limits):  # pragma: no cover
 
     if topics:
         es_body["aggregations"]["confidence_aggregation"] = create_filtered_aggregation(
@@ -543,7 +545,8 @@ def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels, config
             config["topic"],
             topics,
             config["confidence_level"],
-            "confidence_levels"
+            "confidence_levels",
+            facets_limits["confidence_levels"]
         )
 
     if confidence_levels:
@@ -553,12 +556,13 @@ def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels, config
             config["confidence_level"],
             confidence_levels,
             config["topic"],
-            "topics"
+            "topics",
+            facets_limits["topics"]
         )
         
     # add a fallback aggregation for topics and confidence levels if either list is empty
     if not topics or not confidence_levels:
-        apply_all_tags_tet_aggregations(es_body, config)
+        apply_all_tags_tet_aggregations(es_body, config, facets_limits)
 
 
 def ensure_structure(es_body):
