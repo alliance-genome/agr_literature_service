@@ -349,10 +349,11 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         "topic": "topic_entity_tags.topic.keyword",
         "confidence_level": "topic_entity_tags.confidence_level.keyword"
     }
-    if tet_nested_facets_values and "tet_facets_values" in tet_nested_facets_values:
+    if (tet_nested_facets_values.get("apply_to_single_tag", False) and tet_nested_facets_values and "tet_facets_values"
+            in tet_nested_facets_values):
         add_tet_facets_values(es_body, tet_nested_facets_values, tet_facet_config, facets_limits)
     else:
-        apply_all_tags_tet_aggregations(es_body, tet_facet_config)
+        apply_all_tags_tet_aggregations(es_body, tet_facet_config, facets_limits)
 
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
 
@@ -423,8 +424,6 @@ def extract_tet_aggregation_data(res, main_key, filter_key, data_key):  # pragma
 def add_tet_facets_values(es_body, tet_nested_facets_values, config, facets_limits):  # pragma: no cover
 
     ensure_structure(es_body)
-    
-    is_apply_to_single_tag = tet_nested_facets_values.get("apply_to_single_tag", False)
     topics = []
     confidence_levels = []
     for item in tet_nested_facets_values.get("tet_facets_values", []):
@@ -434,16 +433,12 @@ def add_tet_facets_values(es_body, tet_nested_facets_values, config, facets_limi
         # add the nested query for topic and/or confidence level
         add_nested_query(es_body, topic, confidence_level, config)
         
-        if is_apply_to_single_tag:
-            if topic:
-                topics.append(topic)
-            if confidence_level:
-                confidence_levels.append(confidence_level)
+        if topic:
+            topics.append(topic)
+        if confidence_level:
+            confidence_levels.append(confidence_level)
 
-    if is_apply_to_single_tag:
-        apply_single_tag_tet_aggregations(es_body, topics, confidence_levels, config, facets_limits)
-    else:
-        apply_all_tags_tet_aggregations(es_body, config, facets_limits)
+    apply_single_tag_tet_aggregations(es_body, topics, confidence_levels, config, facets_limits)
 
     
 def add_nested_query(es_body, topic, confidence_level, config):  # pragma: no cover
