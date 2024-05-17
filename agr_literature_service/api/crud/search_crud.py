@@ -465,9 +465,14 @@ def create_filtered_aggregation(path, filter_name, filter_field, filter_values, 
     tet_agg = {
         "nested": {
             "path": path
-        },
-        "aggs": {
+        }
+    }
+    if filter_field and filter_values:
+        tet_agg["aggs"] = {
             filter_name: {
+                "filter": {
+                    "terms": {filter_field: filter_values}
+                },
                 "aggs": {
                     term_key: {
                         "terms": {
@@ -484,11 +489,20 @@ def create_filtered_aggregation(path, filter_name, filter_field, filter_values, 
                 }
             }
         }
-    }
-
-    if filter_field and filter_values:
-        tet_agg["aggs"][filter_name]["filter"] = {
-            "terms": {filter_field: filter_values}
+    else:
+        tet_agg["aggs"] = {
+            term_key: {
+                "terms": {
+                    "field": term_field,
+                    "size": size
+                },
+                "aggs": {
+                    # reverse nesting to count documents
+                    "docs_count": {
+                        "reverse_nested": {}
+                    }
+                }
+            }
         }
     return tet_agg
 
