@@ -388,14 +388,14 @@ def process_search_results(res):  # pragma: no cover
     confidence_levels = extract_tet_aggregation_data(res, 'confidence_aggregation',
                                                      'filter_by_topic', 'confidence_levels')
 
-    res['aggregations'].pop('topic_aggregation', None)
-    res['aggregations'].pop('confidence_aggregation', None)
-
     # extract data using fallback keys if not already found
     if not topics:
-        topics = res['aggregations'].pop('all_topic_aggregation', {}).get('topics', {})
+        topics = res['aggregations'].pop('topic_aggregation', {}).get('topics', {})
     if not confidence_levels:
-        confidence_levels = res['aggregations'].pop('all_confidence_aggregation', {}).get('confidence_levels', {})
+        confidence_levels = res['aggregations'].pop('confidence_aggregation', {}).get('confidence_levels', {})
+
+    res['aggregations'].pop('topic_aggregation', None)
+    res['aggregations'].pop('confidence_aggregation', None)
 
     add_curie_to_name_values(topics)
 
