@@ -511,18 +511,18 @@ def apply_all_tags_tet_aggregations(es_body, config, tet_facet_values, facets_li
 
     es_body["aggregations"]["topic_aggregation"] = create_filtered_aggregation(
         path="topic_entity_tags",
-        filter_name=config["topic"],
+        filter_name="filter_by_topic",
         filter_field="topics",
-        filter_values=tet_facet_values,
+        filter_values=tet_facet_values["topics"],
         term_field=config["topic"],
         term_key="topics",
         size=facets_limits["topics"]
     )
     es_body["aggregations"]["confidence_aggregation"] = create_filtered_aggregation(
         path="topic_entity_tags",
-        filter_name=config["confidence_level"],
+        filter_name="filter_by_confidence",
         filter_field="confidence_levels",
-        filter_values=tet_facet_values,
+        filter_values=tet_facet_values["topics"],
         term_field=config["confidence_level"],
         term_key="confidence_levels",
         size=facets_limits["confidence_levels"]
