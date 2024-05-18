@@ -232,12 +232,22 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         del es_body["sort"]
     elif sort_by_published_date_order not in ["desc", "asc"]:
         del es_body["sort"]
+    tet_facet_config = {
+        "topic": "topic_entity_tags.topic.keyword",
+        "confidence_level": "topic_entity_tags.confidence_level.keyword"
+    }
+    ensure_structure(es_body)
+    tet_facets = {}
+    if tet_nested_facets_values and "tet_facets_values" in tet_nested_facets_values:
+        tet_facets = add_tet_facets_values(es_body, tet_nested_facets_values, tet_facet_config,
+                                           tet_nested_facets_values.get("apply_to_single_tag", False))
+    apply_all_tags_tet_aggregations(es_body, tet_facet_config, tet_facets, facets_limits)
     if return_facets_only:
         del es_body["query"]
         es_body["size"] = 0
         res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
         add_curie_to_name_values(res)
-        return {"hits": [], "aggregations": res["aggregations"]}
+        return process_search_results(res)
     if query and (query_fields == "All" or query_fields is None):
         es_body["query"]["bool"]["must"].append({
             "bool": {
@@ -345,20 +355,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             }
         }
         es_body["query"]["bool"]["must"].append(author_filter_query)
-    
-    tet_facet_config = {
-        "topic": "topic_entity_tags.topic.keyword",
-        "confidence_level": "topic_entity_tags.confidence_level.keyword"
-    }
-    ensure_structure(es_body)
-    tet_facets = {}
-    if (tet_nested_facets_values and "tet_facets_values" in tet_nested_facets_values):
-        tet_facets = add_tet_facets_values(es_body, tet_nested_facets_values, tet_facet_config,
-                                           tet_nested_facets_values.get("apply_to_single_tag", False))
-    apply_all_tags_tet_aggregations(es_body, tet_facet_config, tet_facets, facets_limits)
 
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
-
     formatted_results = process_search_results(res)
     return formatted_results
 
