@@ -471,7 +471,7 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
         tet_agg["aggs"] = {
             "filter_by_other_tet_values": {
                 "filter": {
-                    "terms": {f"topic_entity_tag.{filter_field}.keyword": filter_values for filter_field, filter_values in tet_facets.items()}
+                    "terms": {f"topic_entity_tags.{filter_field}.keyword": filter_values for filter_field, filter_values in tet_facets.items()}
                 },
                 "aggs": {
                     term_key: {
