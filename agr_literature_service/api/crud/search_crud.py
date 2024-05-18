@@ -352,9 +352,9 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     }
     ensure_structure(es_body)
     tet_facets = {}
-    if (tet_nested_facets_values and "tet_facets_values" in tet_nested_facets_values and
-            tet_nested_facets_values.get("apply_to_single_tag", False)):
-        tet_facets = add_tet_facets_values(es_body, tet_nested_facets_values, tet_facet_config, facets_limits)
+    if (tet_nested_facets_values and "tet_facets_values" in tet_nested_facets_values):
+        tet_facets = add_tet_facets_values(es_body, tet_nested_facets_values, tet_facet_config,
+                                           tet_nested_facets_values.get("apply_to_single_tag", False))
     apply_all_tags_tet_aggregations(es_body, tet_facet_config, tet_facets, facets_limits)
 
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
@@ -423,7 +423,7 @@ def extract_tet_aggregation_data(res, main_key, filter_key, data_key):  # pragma
     return res['aggregations'].get(main_key, {}).get(filter_key, {}).get(data_key, {})
 
 
-def add_tet_facets_values(es_body, tet_nested_facets_values, config, facets_limits):  # pragma: no cover
+def add_tet_facets_values(es_body, tet_nested_facets_values, config, apply_to_single_tet):  # pragma: no cover
     tet_facet_values = defaultdict(list)
     for item in tet_nested_facets_values.get("tet_facets_values", []):
         topic = item.get(config["topic"])
@@ -431,11 +431,12 @@ def add_tet_facets_values(es_body, tet_nested_facets_values, config, facets_limi
 
         # add the nested query for topic and/or confidence level
         add_nested_query(es_body, topic, confidence_level, config)
-        
-        if topic:
-            tet_facet_values["topic"].append(topic)
-        if confidence_level:
-            tet_facet_values["confidence_level"].append(confidence_level)
+
+        if apply_to_single_tet:
+            if topic:
+                tet_facet_values["topic"].append(topic)
+            if confidence_level:
+                tet_facet_values["confidence_level"].append(confidence_level)
     return tet_facet_values
 
     
