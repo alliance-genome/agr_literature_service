@@ -419,28 +419,18 @@ def extract_tet_aggregation_data(res, main_key, filter_key, data_key):  # pragma
 
 def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet):  # pragma: no cover
     tet_facet_values = defaultdict(list)
-    for item in tet_nested_facets_values.get("tet_facets_values", []):
-        topic = item.get("topic_entity_tags.topic.keyword")
-        confidence_level = item.get("topic_entity_tags.confidence_level.keyword")
-
-        # add the nested query for topic and/or confidence level
-        add_nested_query(es_body, topic, confidence_level)
-
+    for facet_name_value in tet_nested_facets_values.get("tet_facets_values", []):
+        facet_name = list(facet_name_value.keys())[0]
+        facet_value = list(facet_name_value.values())[0]
+        add_nested_query(es_body, facet_name, facet_value)
         if apply_to_single_tet:
-            if topic:
-                tet_facet_values["topic"].append(topic)
-            if confidence_level:
-                tet_facet_values["confidence_level"].append(confidence_level)
+            tet_facet_values[facet_name.replace("topic_entity_tags.", "").replace(".keyword", "")].append(facet_value)
     return tet_facet_values
 
     
-def add_nested_query(es_body, topic, confidence_level):  # pragma: no cover
-   
-    must_conditions = []
-    if topic:
-        must_conditions.append({"term": {"topic_entity_tags.topic.keyword": topic}})
-    if confidence_level:
-        must_conditions.append({"term": {"topic_entity_tags.confidence_level.keyword": confidence_level}})
+def add_nested_query(es_body, facet_name, facet_values):  # pragma: no cover
+
+    must_conditions = [{"term": {facet_name: facet_values}}]
     
     nested_query = {
         "nested": {
