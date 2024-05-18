@@ -351,11 +351,11 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         "confidence_level": "topic_entity_tags.confidence_level.keyword"
     }
     ensure_structure(es_body)
-    tet_facet_values = {}
+    tet_facets = {}
     if (tet_nested_facets_values and "tet_facets_values" in tet_nested_facets_values and
             tet_nested_facets_values.get("apply_to_single_tag", False)):
-        tet_facet_values = add_tet_facets_values(es_body, tet_nested_facets_values, tet_facet_config, facets_limits)
-    apply_all_tags_tet_aggregations(es_body, tet_facet_config, tet_facet_values, facets_limits)
+        tet_facets = add_tet_facets_values(es_body, tet_nested_facets_values, tet_facet_config, facets_limits)
+    apply_all_tags_tet_aggregations(es_body, tet_facet_config, tet_facets, facets_limits)
 
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
 
@@ -384,9 +384,9 @@ def process_search_results(res):  # pragma: no cover
     topics = {}
     confidence_levels = {}
     topics = extract_tet_aggregation_data(res, 'topic_aggregation',
-                                          'filter_by_confidence', 'topics')
+                                          'filter_by_other_tet_values', 'topics')
     confidence_levels = extract_tet_aggregation_data(res, 'confidence_aggregation',
-                                                     'filter_by_topic', 'confidence_levels')
+                                                     'filter_by_other_tet_values', 'confidence_levels')
 
     # extract data using fallback keys if not already found
     if not topics:
@@ -433,9 +433,9 @@ def add_tet_facets_values(es_body, tet_nested_facets_values, config, facets_limi
         add_nested_query(es_body, topic, confidence_level, config)
         
         if topic:
-            tet_facet_values["topics"].append(topic)
+            tet_facet_values["topic"].append(topic)
         if confidence_level:
-            tet_facet_values["confidence_levels"].append(confidence_level)
+            tet_facet_values["confidence_level"].append(confidence_level)
     return tet_facet_values
 
     
@@ -460,18 +460,18 @@ def add_nested_query(es_body, topic, confidence_level, config):  # pragma: no co
     es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
 
 
-def create_filtered_aggregation(path, filter_name, filter_field, filter_values, term_field, term_key, size=10):  # pragma: no cover
+def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10):  # pragma: no cover
 
     tet_agg = {
         "nested": {
             "path": path
         }
     }
-    if filter_field and filter_values:
+    if tet_facets:
         tet_agg["aggs"] = {
-            filter_name: {
+            "filter_by_other_tet_values": {
                 "filter": {
-                    "terms": {filter_field: filter_values}
+                    "terms": {f"topic_entity_tag.{filter_field}.keyword": filter_values for filter_field, filter_values in tet_facets.items()}
                 },
                 "aggs": {
                     term_key: {
@@ -507,22 +507,18 @@ def create_filtered_aggregation(path, filter_name, filter_field, filter_values, 
     return tet_agg
 
     
-def apply_all_tags_tet_aggregations(es_body, config, tet_facet_values, facets_limits):  # pragma: no cover
+def apply_all_tags_tet_aggregations(es_body, config, tet_facets, facets_limits):  # pragma: no cover
 
     es_body["aggregations"]["topic_aggregation"] = create_filtered_aggregation(
         path="topic_entity_tags",
-        filter_name="filter_by_topic",
-        filter_field="topics",
-        filter_values=tet_facet_values["topics"],
+        tet_facets=tet_facets,
         term_field=config["topic"],
         term_key="topics",
         size=facets_limits["topics"]
     )
     es_body["aggregations"]["confidence_aggregation"] = create_filtered_aggregation(
         path="topic_entity_tags",
-        filter_name="filter_by_confidence",
-        filter_field="confidence_levels",
-        filter_values=tet_facet_values["topics"],
+        tet_facets=tet_facets,
         term_field=config["confidence_level"],
         term_key="confidence_levels",
         size=facets_limits["confidence_levels"]
