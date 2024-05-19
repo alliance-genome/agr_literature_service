@@ -378,12 +378,8 @@ def process_search_results(res):  # pragma: no cover
     } for ref in res["hits"]["hits"]]
 
     # process aggregations
-    topics = {}
-    confidence_levels = {}
-    topics = extract_tet_aggregation_data(res, 'topic_aggregation',
-                                          'filter_by_confidence', 'topics')
-    confidence_levels = extract_tet_aggregation_data(res, 'confidence_aggregation',
-                                                     'filter_by_topic', 'confidence_levels')
+    topics = extract_tet_aggregation_data(res, 'topic_aggregation', 'topics')
+    confidence_levels = extract_tet_aggregation_data(res, 'confidence_aggregation', 'confidence_levels')
 
     res['aggregations'].pop('topic_aggregation', None)
     res['aggregations'].pop('confidence_aggregation', None)
@@ -415,9 +411,9 @@ def remap_highlights(highlights):  # pragma: no cover
     return remapped
 
     
-def extract_tet_aggregation_data(res, main_key, filter_key, data_key):  # pragma: no cover
+def extract_tet_aggregation_data(res, main_key, data_key):  # pragma: no cover
 
-    return res['aggregations'].get(main_key, {}).get(filter_key, {}).get(data_key, {})
+    return res['aggregations'].get(main_key, {}).get('filtered', {}).get(data_key, {})
 
 
 def add_tet_facets_values(es_body, tet_nested_facets_values, config):  # pragma: no cover
@@ -467,14 +463,14 @@ def add_nested_query(es_body, topic, confidence_level, config):  # pragma: no co
     es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
 
 
-def create_filtered_aggregation(path, filter_name, filter_field, filter_values, term_field, term_key, size=10):  # pragma: no cover
+def create_filtered_aggregation(path, filter_field, filter_values, term_field, term_key, size=10):  # pragma: no cover
 
     return {
         "nested": {
             "path": path
         },
         "aggs": {
-            filter_name: {
+            "filtered": {
                 "filter": {
                     "terms": {filter_field: filter_values}
                 },
@@ -539,7 +535,6 @@ def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels, config
     if topics:
         es_body["aggregations"]["confidence_aggregation"] = create_filtered_aggregation(
             "topic_entity_tags",
-            "filter_by_topic",
             config["topic"],
             topics,
             config["confidence_level"],
@@ -549,7 +544,6 @@ def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels, config
     if confidence_levels:
         es_body["aggregations"]["topic_aggregation"] = create_filtered_aggregation(
             "topic_entity_tags",
-            "filter_by_confidence",
             config["confidence_level"],
             confidence_levels,
             config["topic"],
