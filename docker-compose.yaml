@@ -106,6 +106,7 @@ services:
       SENDER_PASSWORD: "${SENDER_PASSWORD}"
       REPLY_TO: "${REPLY_TO}"
       ATEAM_API_URL: "${ATEAM_API_URL}"
+      SGD_API_URL: "${SGD_API_URL}"
     hostname: literature_api
     networks:
       - agr-literature
