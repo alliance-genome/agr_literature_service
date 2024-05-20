@@ -375,26 +375,30 @@ def process_search_results(res):  # pragma: no cover
     } for ref in res["hits"]["hits"]]
 
     # process aggregations
-    topics = {}
-    confidence_levels = {}
     topics = extract_tet_aggregation_data(res, 'topic_aggregation',
                                           'filter_by_other_tet_values', 'topics')
     confidence_levels = extract_tet_aggregation_data(res, 'confidence_aggregation',
                                                      'filter_by_other_tet_values', 'confidence_levels')
+    source_methods = extract_tet_aggregation_data(res, 'source_method_aggregation',
+                                                  'filter_by_other_tet_values', 'source_methods')
 
     # extract data using fallback keys if not already found
     if not topics:
         topics = res['aggregations'].pop('topic_aggregation', {}).get('topics', {})
     if not confidence_levels:
         confidence_levels = res['aggregations'].pop('confidence_aggregation', {}).get('confidence_levels', {})
+    if not source_methods:
+        source_methods = res['aggregations'].pop('source_method_aggregation', {}).get('source_methods', {})
 
     res['aggregations'].pop('topic_aggregation', None)
     res['aggregations'].pop('confidence_aggregation', None)
+    res['aggregations'].pop('source_method_aggregation', None)
 
     add_curie_to_name_values(topics)
 
     res['aggregations']['topics'] = topics
     res['aggregations']['confidence_levels'] = confidence_levels
+    res['aggregations']['source_methods'] = source_methods
     
     return {
         "hits": hits,
@@ -504,14 +508,21 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits):  # prag
         tet_facets=tet_facets,
         term_field="topic_entity_tags.topic.keyword",
         term_key="topics",
-        size=facets_limits["topics"]
+        size=facets_limits["topics"] if "topics" in facets_limits else 10
     )
     es_body["aggregations"]["confidence_aggregation"] = create_filtered_aggregation(
         path="topic_entity_tags",
         tet_facets=tet_facets,
         term_field="topic_entity_tags.confidence_level.keyword",
         term_key="confidence_levels",
-        size=facets_limits["confidence_levels"]
+        size=facets_limits["confidence_levels"] if "confidence_levels" in facets_limits else 10
+    )
+    es_body["aggregations"]["source_method_aggregation"] = create_filtered_aggregation(
+        path="topic_entity_tags",
+        tet_facets=tet_facets,
+        term_field="topic_entity_tags.source_method.keyword",
+        term_key="source_methods",
+        size=facets_limits["source_methods"] if "source_methods" in facets_limits else 10
     )
 
 
