@@ -418,12 +418,11 @@ def extract_tet_aggregation_data(res: Dict[str, Any], main_key: str, data_key: s
 
 def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet):  # pragma: no cover
     tet_facet_values = defaultdict(list)
-    for facet_name_values_dict in tet_nested_facets_values.get("tet_facets_values", []):
-        add_nested_query(es_body, facet_name_values_dict)
+    for facet_name_value_dict in tet_nested_facets_values.get("tet_facets_values", []):
+        add_nested_query(es_body, facet_name_value_dict)
         if apply_to_single_tet:
-            for facet_name, facet_values in facet_name_values_dict.items():
-                tet_facet_values[facet_name.replace("topic_entity_tags.", "").replace(".keyword", "")].append(
-                    facet_values)
+            for facet_name, facet_value in facet_name_value_dict.items():
+                tet_facet_values[facet_name.replace("topic_entity_tags.", "").replace(".keyword", "")] = facet_value
     return tet_facet_values
 
     
@@ -458,8 +457,8 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
                 "filter": {
                     "bool": {
                         "must": [
-                            {"terms": {f"topic_entity_tags.{filter_field}.keyword": filter_values}}
-                            for filter_field, filter_values in tet_facets.items()
+                            {"term": {f"topic_entity_tags.{filter_field}.keyword": filter_value}}
+                            for filter_field, filter_value in tet_facets.items()
                         ]
                     }
                 },
