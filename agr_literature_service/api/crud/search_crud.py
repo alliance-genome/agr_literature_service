@@ -381,6 +381,9 @@ def process_search_results(res):  # pragma: no cover
                                                      'filter_by_other_tet_values', 'confidence_levels')
     source_methods = extract_tet_aggregation_data(res, 'source_method_aggregation',
                                                   'filter_by_other_tet_values', 'source_methods')
+    source_evidence_assertion = extract_tet_aggregation_data(res, 'source_evidence_assertion_aggregation',
+                                                             'filter_by_other_tet_values',
+                                                             'source_evidence_assertions')
 
     # extract data using fallback keys if not already found
     if not topics:
@@ -389,16 +392,21 @@ def process_search_results(res):  # pragma: no cover
         confidence_levels = res['aggregations'].pop('confidence_aggregation', {}).get('confidence_levels', {})
     if not source_methods:
         source_methods = res['aggregations'].pop('source_method_aggregation', {}).get('source_methods', {})
+    if not source_evidence_assertion:
+        source_evidence_assertion = res['aggregations'].pop('source_evidence_assertion_aggregation', {}).get(
+            'source_evidence_assertions', {})
 
     res['aggregations'].pop('topic_aggregation', None)
     res['aggregations'].pop('confidence_aggregation', None)
     res['aggregations'].pop('source_method_aggregation', None)
+    res['aggregations'].pop('source_evidence_assertion_aggregation', None)
 
     add_curie_to_name_values(topics)
 
     res['aggregations']['topics'] = topics
     res['aggregations']['confidence_levels'] = confidence_levels
     res['aggregations']['source_methods'] = source_methods
+    res['aggregations']['source_evidence_assertions'] = source_evidence_assertion
     
     return {
         "hits": hits,
@@ -523,6 +531,13 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits):  # prag
         term_field="topic_entity_tags.source_method.keyword",
         term_key="source_methods",
         size=facets_limits["source_methods"] if "source_methods" in facets_limits else 10
+    )
+    es_body["aggregations"]["source_evidence_assertion_aggregation"] = create_filtered_aggregation(
+        path="topic_entity_tags",
+        tet_facets=tet_facets,
+        term_field="topic_entity_tags.source_evidence_assertion.keyword",
+        term_key="source_evidence_assertions",
+        size=facets_limits["source_evidence_assertions"] if "source_evidence_assertions" in facets_limits else 10
     )
 
 
