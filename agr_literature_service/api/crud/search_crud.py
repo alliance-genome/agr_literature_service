@@ -418,18 +418,19 @@ def extract_tet_aggregation_data(res: Dict[str, Any], main_key: str, data_key: s
 
 def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet):  # pragma: no cover
     tet_facet_values = defaultdict(list)
-    for facet_name_value in tet_nested_facets_values.get("tet_facets_values", []):
-        facet_name = list(facet_name_value.keys())[0]
-        facet_value = list(facet_name_value.values())[0]
-        add_nested_query(es_body, facet_name, facet_value)
+    for facet_name_values_dict in tet_nested_facets_values.get("tet_facets_values", []):
+        add_nested_query(es_body, facet_name_values_dict)
         if apply_to_single_tet:
-            tet_facet_values[facet_name.replace("topic_entity_tags.", "").replace(".keyword", "")].append(facet_value)
+            for facet_name, facet_values in facet_name_values_dict.items():
+                tet_facet_values[facet_name.replace("topic_entity_tags.", "").replace(".keyword", "")].append(
+                    facet_values)
     return tet_facet_values
 
     
-def add_nested_query(es_body, facet_name, facet_values):  # pragma: no cover
+def add_nested_query(es_body, facet_name_values_dict):  # pragma: no cover
 
-    must_conditions = [{"term": {facet_name: facet_values}}]
+    must_conditions = [{"term": {facet_name: facet_values}} for facet_name, facet_values in
+                       facet_name_values_dict.items()]
     
     nested_query = {
         "nested": {
