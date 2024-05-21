@@ -374,26 +374,11 @@ def process_search_results(res):  # pragma: no cover
     } for ref in res["hits"]["hits"]]
 
     # process aggregations
-    topics = extract_tet_aggregation_data(res, 'topic_aggregation',
-                                          'filter_by_other_tet_values', 'topics')
-    confidence_levels = extract_tet_aggregation_data(res, 'confidence_aggregation',
-                                                     'filter_by_other_tet_values', 'confidence_levels')
-    source_methods = extract_tet_aggregation_data(res, 'source_method_aggregation',
-                                                  'filter_by_other_tet_values', 'source_methods')
+    topics = extract_tet_aggregation_data(res, 'topic_aggregation','topics')
+    confidence_levels = extract_tet_aggregation_data(res, 'confidence_aggregation', 'confidence_levels')
+    source_methods = extract_tet_aggregation_data(res, 'source_method_aggregation', 'source_methods')
     source_evidence_assertions = extract_tet_aggregation_data(res, 'source_evidence_assertion_aggregation',
-                                                              'filter_by_other_tet_values',
                                                               'source_evidence_assertions')
-
-    # extract data using fallback keys if not already found
-    if not topics:
-        topics = res['aggregations'].pop('topic_aggregation', {}).get('topics', {})
-    if not confidence_levels:
-        confidence_levels = res['aggregations'].pop('confidence_aggregation', {}).get('confidence_levels', {})
-    if not source_methods:
-        source_methods = res['aggregations'].pop('source_method_aggregation', {}).get('source_methods', {})
-    if not source_evidence_assertions:
-        source_evidence_assertions = res['aggregations'].pop('source_evidence_assertion_aggregation', {}).get(
-            'source_evidence_assertions', {})
 
     res['aggregations'].pop('topic_aggregation', None)
     res['aggregations'].pop('confidence_aggregation', None)
@@ -423,10 +408,12 @@ def remap_highlights(highlights):  # pragma: no cover
         remapped[new_key] = value
     return remapped
 
-    
-def extract_tet_aggregation_data(res, main_key, filter_key, data_key):  # pragma: no cover
 
-    return res['aggregations'].get(main_key, {}).get(filter_key, {}).get(data_key, {})
+def extract_tet_aggregation_data(res: Dict[str, Any], main_key: str, data_key: str) -> Dict[str, Any]:
+    main_agg = res['aggregations'].get(main_key, {})
+    if main_agg.get('filter_by_other_tet_values'):
+        return main_agg.get('filter_by_other_tet_values', {}).get(data_key, {})
+    return main_agg.get(data_key, {})
 
 
 def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet):  # pragma: no cover
