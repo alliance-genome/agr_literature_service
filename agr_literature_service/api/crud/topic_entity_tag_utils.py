@@ -212,7 +212,7 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
             subtype = curies_category
         curies_category = "agm"
     return_dict = {}
-    keyword_name = "curie" if curies_category in ["atpterm", "ncbitaxonterm"] else "modEntityId"
+    keyword_name = "curie" if curies_category in ["atpterm", "ncbitaxonterm", "ecoterm"] else "modEntityId"
     ateam_api_base_url = environ.get('ATEAM_API_URL')
     ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit={maxret}&page=0'
     chunked_values = [curies_not_in_cache[i:i + maxret] for i in range(0, len(curies_not_in_cache), maxret)]

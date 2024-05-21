@@ -242,7 +242,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         del es_body["query"]
         es_body["size"] = 0
         res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
-        add_curie_to_name_values(res)
         return process_search_results(res)
     if query and (query_fields == "All" or query_fields is None):
         es_body["query"]["bool"]["must"].append({
@@ -381,9 +380,9 @@ def process_search_results(res):  # pragma: no cover
                                                      'filter_by_other_tet_values', 'confidence_levels')
     source_methods = extract_tet_aggregation_data(res, 'source_method_aggregation',
                                                   'filter_by_other_tet_values', 'source_methods')
-    source_evidence_assertion = extract_tet_aggregation_data(res, 'source_evidence_assertion_aggregation',
-                                                             'filter_by_other_tet_values',
-                                                             'source_evidence_assertions')
+    source_evidence_assertions = extract_tet_aggregation_data(res, 'source_evidence_assertion_aggregation',
+                                                              'filter_by_other_tet_values',
+                                                              'source_evidence_assertions')
 
     # extract data using fallback keys if not already found
     if not topics:
@@ -392,8 +391,8 @@ def process_search_results(res):  # pragma: no cover
         confidence_levels = res['aggregations'].pop('confidence_aggregation', {}).get('confidence_levels', {})
     if not source_methods:
         source_methods = res['aggregations'].pop('source_method_aggregation', {}).get('source_methods', {})
-    if not source_evidence_assertion:
-        source_evidence_assertion = res['aggregations'].pop('source_evidence_assertion_aggregation', {}).get(
+    if not source_evidence_assertions:
+        source_evidence_assertions = res['aggregations'].pop('source_evidence_assertion_aggregation', {}).get(
             'source_evidence_assertions', {})
 
     res['aggregations'].pop('topic_aggregation', None)
@@ -402,11 +401,12 @@ def process_search_results(res):  # pragma: no cover
     res['aggregations'].pop('source_evidence_assertion_aggregation', None)
 
     add_curie_to_name_values(topics)
+    add_curie_to_name_values(source_evidence_assertions)
 
     res['aggregations']['topics'] = topics
     res['aggregations']['confidence_levels'] = confidence_levels
     res['aggregations']['source_methods'] = source_methods
-    res['aggregations']['source_evidence_assertions'] = source_evidence_assertion
+    res['aggregations']['source_evidence_assertions'] = source_evidence_assertions
     
     return {
         "hits": hits,
@@ -553,19 +553,23 @@ def ensure_structure(es_body):
         es_body["query"]["bool"]["filter"]["bool"]["must"] = []
 
 
-def add_curie_to_name_values(topics):
+def add_curie_to_name_values(aggregations):
 
     curie_keys = [
-        bucket["key"] for bucket in topics.get("buckets", [])
+        bucket["key"] for bucket in aggregations.get("buckets", [])
     ]
 
     curie_to_name_map = get_map_ateam_curies_to_names(
         curies_category="atpterm",
-        curies=curie_keys
+        curies=[curie_key for curie_key in curie_keys if curie_key.startswith("atp:")]
     )
+    curie_to_name_map.update(get_map_ateam_curies_to_names(
+        curies_category="ecoterm",
+        curies=[curie_key for curie_key in curie_keys if curie_key.startswith("eco:")]
+    ))
 
     # iterate over the buckets and add names
-    for bucket in topics.get("buckets", []):
+    for bucket in aggregations.get("buckets", []):
         curie_name = curie_to_name_map.get(bucket["key"].upper(), "Unknown")
         bucket["name"] = curie_name
 
