@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Dict, List, Any, Optional
 import logging
 from datetime import datetime
@@ -231,12 +232,17 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         del es_body["sort"]
     elif sort_by_published_date_order not in ["desc", "asc"]:
         del es_body["sort"]
+    ensure_structure(es_body)
+    tet_facets = {}
+    if tet_nested_facets_values and "tet_facets_values" in tet_nested_facets_values:
+        tet_facets = add_tet_facets_values(es_body, tet_nested_facets_values,
+                                           tet_nested_facets_values.get("apply_to_single_tag", False))
+    apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits)
     if return_facets_only:
         del es_body["query"]
         es_body["size"] = 0
         res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
-        add_curie_to_name_values(res)
-        return {"hits": [], "aggregations": res["aggregations"]}
+        return process_search_results(res)
     if query and (query_fields == "All" or query_fields is None):
         es_body["query"]["bool"]["must"].append({
             "bool": {
@@ -330,7 +336,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     if date_pubmed_modified or date_pubmed_arrive or date_published or date_created:
         date_range = True
         search_date_range(es_body, date_pubmed_modified, date_pubmed_arrive, date_published, date_created)
-    if not facets_values and not date_range and not negated_facets_values:
+    if not facets_values and not date_range and not negated_facets_values and not tet_facets:
         del es_body["query"]["bool"]["filter"]
 
     if author_filter:
@@ -344,18 +350,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             }
         }
         es_body["query"]["bool"]["must"].append(author_filter_query)
-    
-    tet_facet_config = {
-        "topic": "topic_entity_tags.topic.keyword",
-        "confidence_level": "topic_entity_tags.confidence_level.keyword"
-    }
-    if tet_nested_facets_values and "tet_facets_values" in tet_nested_facets_values:
-        add_tet_facets_values(es_body, tet_nested_facets_values, tet_facet_config)
-    else:
-        apply_all_tags_tet_aggregations(es_body, tet_facet_config)
 
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
-
     formatted_results = process_search_results(res)
     return formatted_results
 
@@ -378,26 +374,24 @@ def process_search_results(res):  # pragma: no cover
     } for ref in res["hits"]["hits"]]
 
     # process aggregations
-    topics = {}
-    confidence_levels = {}
-    topics = extract_tet_aggregation_data(res, 'topic_aggregation',
-                                          'filter_by_confidence', 'topics')
-    confidence_levels = extract_tet_aggregation_data(res, 'confidence_aggregation',
-                                                     'filter_by_topic', 'confidence_levels')
+    topics = extract_tet_aggregation_data(res, 'topic_aggregation','topics')
+    confidence_levels = extract_tet_aggregation_data(res, 'confidence_aggregation', 'confidence_levels')
+    source_methods = extract_tet_aggregation_data(res, 'source_method_aggregation', 'source_methods')
+    source_evidence_assertions = extract_tet_aggregation_data(res, 'source_evidence_assertion_aggregation',
+                                                              'source_evidence_assertions')
 
     res['aggregations'].pop('topic_aggregation', None)
     res['aggregations'].pop('confidence_aggregation', None)
-
-    # extract data using fallback keys if not already found
-    if not topics:
-        topics = res['aggregations'].pop('all_topic_aggregation', {}).get('topics', {})
-    if not confidence_levels:
-        confidence_levels = res['aggregations'].pop('all_confidence_aggregation', {}).get('confidence_levels', {})
+    res['aggregations'].pop('source_method_aggregation', None)
+    res['aggregations'].pop('source_evidence_assertion_aggregation', None)
 
     add_curie_to_name_values(topics)
+    add_curie_to_name_values(source_evidence_assertions)
 
     res['aggregations']['topics'] = topics
     res['aggregations']['confidence_levels'] = confidence_levels
+    res['aggregations']['source_methods'] = source_methods
+    res['aggregations']['source_evidence_assertions'] = source_evidence_assertions
     
     return {
         "hits": hits,
@@ -414,45 +408,28 @@ def remap_highlights(highlights):  # pragma: no cover
         remapped[new_key] = value
     return remapped
 
-    
-def extract_tet_aggregation_data(res, main_key, filter_key, data_key):  # pragma: no cover
 
-    return res['aggregations'].get(main_key, {}).get(filter_key, {}).get(data_key, {})
+def extract_tet_aggregation_data(res: Dict[str, Any], main_key: str, data_key: str) -> Dict[str, Any]:
+    main_agg = res['aggregations'].get(main_key, {})
+    if main_agg.get('filter_by_other_tet_values'):
+        return main_agg.get('filter_by_other_tet_values', {}).get(data_key, {})
+    return main_agg.get(data_key, {})
 
 
-def add_tet_facets_values(es_body, tet_nested_facets_values, config):  # pragma: no cover
-
-    ensure_structure(es_body)
-    
-    is_apply_to_single_tag = tet_nested_facets_values.get("apply_to_single_tag", False)
-    topics = []
-    confidence_levels = []
-    for item in tet_nested_facets_values.get("tet_facets_values", []):
-        topic = item.get(config["topic"])
-        confidence_level = item.get(config["confidence_level"])
-
-        # add the nested query for topic and/or confidence level
-        add_nested_query(es_body, topic, confidence_level, config)
-        
-        if is_apply_to_single_tag:
-            if topic:
-                topics.append(topic)
-            if confidence_level:
-                confidence_levels.append(confidence_level)
-
-    if is_apply_to_single_tag:
-        apply_single_tag_tet_aggregations(es_body, topics, confidence_levels, config)
-    else:
-        apply_all_tags_tet_aggregations(es_body, config)
+def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet):  # pragma: no cover
+    tet_facet_values = defaultdict(list)
+    for facet_name_value_dict in tet_nested_facets_values.get("tet_facets_values", []):
+        add_nested_query(es_body, facet_name_value_dict)
+        if apply_to_single_tet:
+            for facet_name, facet_value in facet_name_value_dict.items():
+                tet_facet_values[facet_name.replace("topic_entity_tags.", "").replace(".keyword", "")] = facet_value
+    return tet_facet_values
 
     
-def add_nested_query(es_body, topic, confidence_level, config):  # pragma: no cover
-   
-    must_conditions = []
-    if topic:
-        must_conditions.append({"term": {config["topic"]: topic}})
-    if confidence_level:
-        must_conditions.append({"term": {config["confidence_level"]: confidence_level}})
+def add_nested_query(es_body, facet_name_values_dict):  # pragma: no cover
+
+    must_conditions = [{"term": {facet_name: facet_values}} for facet_name, facet_values in
+                       facet_name_values_dict.items()]
     
     nested_query = {
         "nested": {
@@ -467,16 +444,23 @@ def add_nested_query(es_body, topic, confidence_level, config):  # pragma: no co
     es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
 
 
-def create_filtered_aggregation(path, filter_name, filter_field, filter_values, term_field, term_key, size=10):  # pragma: no cover
+def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10):  # pragma: no cover
 
-    return {
+    tet_agg = {
         "nested": {
             "path": path
-        },
-        "aggs": {
-            filter_name: {
+        }
+    }
+    if tet_facets:
+        tet_agg["aggs"] = {
+            "filter_by_other_tet_values": {
                 "filter": {
-                    "terms": {filter_field: filter_values}
+                    "bool": {
+                        "must": [
+                            {"term": {f"topic_entity_tags.{filter_field}.keyword": filter_value}}
+                            for filter_field, filter_value in tet_facets.items()
+                        ]
+                    }
                 },
                 "aggs": {
                     term_key: {
@@ -494,17 +478,9 @@ def create_filtered_aggregation(path, filter_name, filter_field, filter_values, 
                 }
             }
         }
-    }
-
-    
-def create_nested_aggregation(path, term_field, key_name, size=10):  # pragma: no cover
-
-    return {
-        "nested": {
-            "path": path
-        },
-        "aggs": {
-            key_name: {
+    else:
+        tet_agg["aggs"] = {
+            term_key: {
                 "terms": {
                     "field": term_field,
                     "size": size
@@ -517,48 +493,39 @@ def create_nested_aggregation(path, term_field, key_name, size=10):  # pragma: n
                 }
             }
         }
-    }
+    return tet_agg
 
     
-def apply_all_tags_tet_aggregations(es_body, config):  # pragma: no cover
+def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits):  # pragma: no cover
 
-    es_body["aggregations"]["all_topic_aggregation"] = create_nested_aggregation(
-        "topic_entity_tags",
-        config["topic"],
-        "topics"
+    es_body["aggregations"]["topic_aggregation"] = create_filtered_aggregation(
+        path="topic_entity_tags",
+        tet_facets=tet_facets,
+        term_field="topic_entity_tags.topic.keyword",
+        term_key="topics",
+        size=facets_limits["topics"] if "topics" in facets_limits else 10
     )
-    es_body["aggregations"]["all_confidence_aggregation"] = create_nested_aggregation(
-        "topic_entity_tags",
-        config["confidence_level"],
-        "confidence_levels"
+    es_body["aggregations"]["confidence_aggregation"] = create_filtered_aggregation(
+        path="topic_entity_tags",
+        tet_facets=tet_facets,
+        term_field="topic_entity_tags.confidence_level.keyword",
+        term_key="confidence_levels",
+        size=facets_limits["confidence_levels"] if "confidence_levels" in facets_limits else 10
     )
-
-
-def apply_single_tag_tet_aggregations(es_body, topics, confidence_levels, config):  # pragma: no cover
-
-    if topics:
-        es_body["aggregations"]["confidence_aggregation"] = create_filtered_aggregation(
-            "topic_entity_tags",
-            "filter_by_topic",
-            config["topic"],
-            topics,
-            config["confidence_level"],
-            "confidence_levels"
-        )
-
-    if confidence_levels:
-        es_body["aggregations"]["topic_aggregation"] = create_filtered_aggregation(
-            "topic_entity_tags",
-            "filter_by_confidence",
-            config["confidence_level"],
-            confidence_levels,
-            config["topic"],
-            "topics"
-        )
-        
-    # add a fallback aggregation for topics and confidence levels if either list is empty
-    if not topics or not confidence_levels:
-        apply_all_tags_tet_aggregations(es_body, config)
+    es_body["aggregations"]["source_method_aggregation"] = create_filtered_aggregation(
+        path="topic_entity_tags",
+        tet_facets=tet_facets,
+        term_field="topic_entity_tags.source_method.keyword",
+        term_key="source_methods",
+        size=facets_limits["source_methods"] if "source_methods" in facets_limits else 10
+    )
+    es_body["aggregations"]["source_evidence_assertion_aggregation"] = create_filtered_aggregation(
+        path="topic_entity_tags",
+        tet_facets=tet_facets,
+        term_field="topic_entity_tags.source_evidence_assertion.keyword",
+        term_key="source_evidence_assertions",
+        size=facets_limits["source_evidence_assertions"] if "source_evidence_assertions" in facets_limits else 10
+    )
 
 
 def ensure_structure(es_body):
@@ -573,19 +540,23 @@ def ensure_structure(es_body):
         es_body["query"]["bool"]["filter"]["bool"]["must"] = []
 
 
-def add_curie_to_name_values(topics):
+def add_curie_to_name_values(aggregations):
 
     curie_keys = [
-        bucket["key"] for bucket in topics.get("buckets", [])
+        bucket["key"] for bucket in aggregations.get("buckets", [])
     ]
 
     curie_to_name_map = get_map_ateam_curies_to_names(
         curies_category="atpterm",
-        curies=curie_keys
+        curies=[curie_key for curie_key in curie_keys if curie_key.startswith("atp:")]
     )
+    curie_to_name_map.update(get_map_ateam_curies_to_names(
+        curies_category="ecoterm",
+        curies=[curie_key for curie_key in curie_keys if curie_key.startswith("eco:")]
+    ))
 
     # iterate over the buckets and add names
-    for bucket in topics.get("buckets", []):
+    for bucket in aggregations.get("buckets", []):
         curie_name = curie_to_name_map.get(bucket["key"].upper(), "Unknown")
         bucket["name"] = curie_name
 

@@ -328,18 +328,6 @@
               }
             }
           },
-          "date_created": {
-            "type": "date",
-            "format": "date_optional_time||epoch_millis",
-            "null_value": null,
-            "ignore_malformed": true
-          },
-          "date_updated": {
-            "type": "date",
-            "format": "date_optional_time||epoch_millis",
-            "null_value": null,
-            "ignore_malformed": true
-          },
           "entity": {
             "type": "text",
             "analyzer": "autocompleteAnalyzer",
@@ -369,6 +357,30 @@
           },
           "novel_entity_data": {
             "type": "boolean"
+          },
+          "source_method": {
+            "type": "text",
+            "analyzer": "autocompleteAnalyzer",
+            "search_analyzer": "autocompleteSearchAnalyzer",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "sortNormalizer",
+                "ignore_above": 256
+              }
+            }
+          },
+          "source_evidence_assertion": {
+            "type": "text",
+            "analyzer": "autocompleteAnalyzer",
+            "search_analyzer": "autocompleteSearchAnalyzer",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "sortNormalizer",
+                "ignore_above": 256
+              }
+            }
           }
         }
       }

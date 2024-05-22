@@ -124,6 +124,16 @@ CREATE TABLE reference_mod_referencetype(
     KEY_FORMAT='json'
 );
 
+CREATE TABLE topic_entity_tag_source(
+    topic_entity_tag_source_id string PRIMARY KEY,
+    source_method string,
+    source_evidence_assertion string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.topic_entity_tag_source',
+    VALUE_FORMAT='json',
+    KEY_FORMAT='json'
+);
+
 CREATE TABLE topic_entity_tag(
     topic_entity_tag_id string PRIMARY KEY,
     reference_id string,
@@ -149,10 +159,37 @@ CREATE TABLE topic_entity_tag(
     KEY_FORMAT='json'
 );
 
+CREATE TABLE topic_entity_tag_with_source AS
+    SELECT
+    topic_entity_tag.topic_entity_tag_id \"TOPIC_ENTITY_TAG_ID\",
+    topic_entity_tag.reference_id,
+    topic_entity_tag.\"topic\" \"TOPIC\",
+    topic_entity_tag.entity_type,
+    topic_entity_tag.date_created,
+    topic_entity_tag.date_updated,
+    topic_entity_tag.created_by,
+    topic_entity_tag.updated_by,
+    topic_entity_tag.entity,
+    topic_entity_tag.entity_published_as,
+    topic_entity_tag.species,
+    topic_entity_tag.display_tag,
+    topic_entity_tag.confidence_level,
+    topic_entity_tag.negated,
+    topic_entity_tag.note,
+    topic_entity_tag.topic_entity_tag_source_id,
+    topic_entity_tag.novel_topic_data,
+    topic_entity_tag.entity_id_validation,
+    topic_entity_tag_source.source_method,
+    topic_entity_tag_source.source_evidence_assertion
+    FROM topic_entity_tag topic_entity_tag
+    JOIN topic_entity_tag_source topic_entity_tag_source ON
+    topic_entity_tag.topic_entity_tag_source_id = topic_entity_tag_source.topic_entity_tag_source_id
+    EMIT CHANGES;
+
 CREATE TABLE topic_entity_tags AS
     SELECT reference_id \"REFERENCE_ID\",
-    collect_list(map('topic':=\"topic\", 'entity_type':=entity_type, 'date_created':=SUBSTRING(date_created, 1, 13), 'date_updated':=SUBSTRING(date_updated, 1, 13), 'created_by':=created_by, 'updated_by':=updated_by, 'entity':=entity, 'entity_published_as':=entity_published_as, 'species':=species, 'display_tag':=display_tag, 'confidence_level':=confidence_level, 'negated':=cast(negated as string), 'note':=note, 'novel_topic_data':=cast(novel_topic_data as string), 'entity_id_validation':=entity_id_validation)) \"TOPIC_ENTITY_TAGS\"
-    FROM topic_entity_tag
+    collect_list(map('topic':=\"TOPIC\", 'entity_type':=entity_type, 'entity':=entity, 'entity_published_as':=entity_published_as, 'species':=species, 'display_tag':=display_tag, 'confidence_level':=confidence_level, 'negated':=cast(negated as string), 'novel_topic_data':=cast(novel_topic_data as string), 'source_method':=source_method, 'source_evidence_assertion':=source_evidence_assertion)) \"TOPIC_ENTITY_TAGS\"
+    FROM topic_entity_tag_with_source
     GROUP BY reference_id
     EMIT CHANGES;
 

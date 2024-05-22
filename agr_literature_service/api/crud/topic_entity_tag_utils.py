@@ -3,6 +3,7 @@ import urllib.request
 from os import environ
 from typing import Dict, List
 from urllib.error import HTTPError
+import requests
 
 from cachetools.func import ttl_cache
 from cachetools import TTLCache
@@ -14,7 +15,6 @@ from agr_literature_service.api.models import TopicEntityTagSourceModel, Referen
 from agr_literature_service.api.user import add_user_if_not_exists
 from fastapi_okta.okta_utils import get_authentication_token
 import logging
-# from os import getcwd
 
 logger = logging.getLogger(__name__)
 
@@ -195,6 +195,23 @@ def get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret):
     return return_dict
 
 
+def get_map_complex_pathway_ids_to_names(curies_category, curies):  # pragma: no cover
+
+    curie_list = "|".join(curies).replace(" ", "+")
+    sgd_api_base_url = environ.get("SGD_API_URL")
+    url = f"{sgd_api_base_url}{curies_category}/{curie_list}"
+    id_to_name_mapping = {}
+    try:
+        response = requests.get(url)
+        for res in response.json():
+            id_to_name_mapping[res['modEntityId']] = res['display_name']
+            id_to_name_cache.set(res['modEntityId'], res['display_name'])
+    except requests.RequestException as e:
+        logger.error(f"An error occurred when running 'get_map_complex_pathway_ids_to_names': {e}")
+        return None
+    return id_to_name_mapping
+
+
 def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
 
     curies_not_in_cache = [curie for curie in set(curies) if id_to_name_cache.get(curie) is None]
@@ -205,6 +222,10 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
         curies_category = 'construct'
         return get_map_ateam_construct_ids_to_symbols(curies_category, curies_not_in_cache, maxret)
 
+    if curies_category in ["complex", "protein containing complex", "pathway"]:
+        curies_category = curies_category.replace("protein containing ", "")
+        return get_map_complex_pathway_ids_to_names(curies_category, curies_not_in_cache)
+
     subtype = None
     if curies_category in ["AGMs", "AffectedGenomeModel", "affected genome model",
                            "strain", "genotype", "fish"]:
@@ -212,7 +233,7 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
             subtype = curies_category
         curies_category = "agm"
     return_dict = {}
-    keyword_name = "curie" if curies_category in ["atpterm", "ncbitaxonterm"] else "modEntityId"
+    keyword_name = "curie" if curies_category in ["atpterm", "ncbitaxonterm", "ecoterm"] else "modEntityId"
     ateam_api_base_url = environ.get('ATEAM_API_URL')
     ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit={maxret}&page=0'
     chunked_values = [curies_not_in_cache[i:i + maxret] for i in range(0, len(curies_not_in_cache), maxret)]
