@@ -336,7 +336,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     if date_pubmed_modified or date_pubmed_arrive or date_published or date_created:
         date_range = True
         search_date_range(es_body, date_pubmed_modified, date_pubmed_arrive, date_published, date_created)
-    if not facets_values and not date_range and not negated_facets_values:
+    if not facets_values and not date_range and not negated_facets_values and not tet_facets:
         del es_body["query"]["bool"]["filter"]
 
     if author_filter:
