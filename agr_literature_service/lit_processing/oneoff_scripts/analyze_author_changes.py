@@ -10,9 +10,10 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 # well as any author-person connections, which are not yet allowed in the database.  At that point, this script will not work, as this
 # ignores anything with an operation_type 1.
 #
-# This script groups data in three categories.  results_names_order for when names + order changes, and results_names_orcid_order for when
+# This script groups data in four categories.  results_names_order for when names + order changes, and results_names_orcid_order for when
 # names + orcid + order changes, by aggregating into an ordered list and joining into a long string.  results_names_orcid for when
-# names + orcid changes, by grouping into a set.  In both cases strip leading and trailing spaces, and lowercase, to avoid changes from
+# names + orcid changes, by grouping into a set.  results_order_only for when the set of names + orcid doesn't change, but the
+# names + order (without orcid) does change.  In all cases strip leading and trailing spaces, and lowercase, to avoid changes from
 # minor changes that will be ignored by future pubmed processing.
 #
 # In processing data, first get all the information from author_version, then collect all transactions, to find out the date of the
@@ -26,10 +27,11 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 # change it outputs whether the data is the same for that category, is the original creation of the data, or it has a meaningful change,
 # adding to the counter.
 #
-# Looking at these three categories, we found that in just over five months, there were these many changes
+# Looking at these four categories, we found that in just over five months, there were these many changes
 # results_names_order total 331
 # results_names_orcid_order total 448
 # results_names_orcid total 436
+# results_order_only total 12
 #
 # The full output also breaks down for each category, and for each reference, how many changes there were.  Most of these changes were
 # meaningless.  An orcid added, then removed, then two more added, then removed.  An affiliation adding a comma.  Names changing from
@@ -39,11 +41,10 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 # in the time period was deemed too high to require review by a curator.
 #
 # There was going to be analysis on how often changes happened due to names + order + orcid + affiliation, but it's already too much to
-# review, and this would have even higher counts.  An analysis of reordering could still be useful, when names + order change, but the
-# set of names doesn't change.
+# review, and this would have even higher counts.
 #
 # An output of this run is stored at
-# https://dev.alliancegenome.org/azurebrd/agr-lit/out/author_analysis/20240521_author_analysis
+# https://dev.alliancegenome.org/azurebrd/agr-lit/out/author_analysis/20240522_author_analysis
 
 
 # Set this value to True to see specifics for each PMID, better if only processing one PMID at a time, as there's a lot of output.
@@ -53,10 +54,12 @@ debug_output = False
 results_names_order = dict()
 results_names_orcid_order = dict()
 results_names_orcid = dict()
+results_order_only = dict()
 
 results_names_order['total'] = 0
 results_names_orcid_order['total'] = 0
 results_names_orcid['total'] = 0
+results_order_only['total'] = 0
 
 
 def analyze_author_changes(db_session):
@@ -78,6 +81,7 @@ def analyze_author_changes(db_session):
 
     # 'PMID:37453426'	# 8 changes.
 
+    # rs = db_session.execute("SELECT curie, reference_id FROM cross_reference WHERE curie = 'PMID:37453426'")  # original sample, 8 changes
     # rs = db_session.execute("SELECT curie, reference_id FROM cross_reference WHERE curie = 'PMID:15533247'")	# author names change
     # rs = db_session.execute("SELECT curie, reference_id FROM cross_reference WHERE curie = 'PMID:31333191'")
     # rs = db_session.execute("SELECT curie, reference_id FROM cross_reference WHERE curie = 'PMID:38503366'")	# only affiliation changes
@@ -87,9 +91,10 @@ def analyze_author_changes(db_session):
     # rs = db_session.execute("SELECT curie, reference_id FROM cross_reference WHERE curie = 'PMID:38182577'")	# 20240130 3 orcid, 20240216 same orcid, name change
     # rs = db_session.execute("SELECT curie, reference_id FROM cross_reference WHERE curie = 'PMID:36865105'")	# 20230304 0 orcid, 20231014 1 orcid, 20231221 0 orcid, 20240127 1 orcid (same), 20240309 1 orcid (aff)
     # rs = db_session.execute("SELECT curie, reference_id FROM cross_reference WHERE curie = 'PMID:38140980'")	# 20231224 1 orcid, 20240113 1 orcid (aff), 20240120 1 orcid (aff)
+    # rs = db_session.execute("SELECT curie, reference_id FROM cross_reference WHERE curie = 'PMID:36824729'")	# only order changes twice
 
     # uncomment this block to see output for a specific pmid
-    # rs = db_session.execute("SELECT curie, reference_id FROM cross_reference WHERE curie = 'PMID:37453426'")
+    # rs = db_session.execute("SELECT curie, reference_id FROM cross_reference WHERE curie = 'PMID:36824729'")
     # rows = rs.fetchall()
     # for x in rows:
     #     reference_id = x[1]
@@ -101,6 +106,7 @@ def analyze_author_changes(db_session):
     # for pmid in pmids:
 
     # uncomment this block to process from a db query to get pmids
+    print("SELECT curie FROM cross_reference WHERE reference_id IN ( SELECT reference_id FROM author_version WHERE operation_type = 2 AND date_created > '2024-01-01' ) AND curie_prefix = 'PMID'\n")
     rs = db_session.execute("SELECT curie FROM cross_reference WHERE reference_id IN ( SELECT reference_id FROM author_version WHERE operation_type = 2 AND date_created > '2024-01-01' ) AND curie_prefix = 'PMID'")
     pmids = rs.fetchall()
     for something in pmids:
@@ -122,6 +128,9 @@ def analyze_author_changes(db_session):
     print()
     for key in results_names_orcid:
         print(f"results_names_orcid {key} {results_names_orcid[key]}")
+    print()
+    for key in results_order_only:
+        print(f"results_order_only {key} {results_order_only[key]}")
 
 
 def filter_string(str):
@@ -139,6 +148,7 @@ def process_reference_id(db_session, reference_id, agrkb):      # noqa: C901 pra
     results_names_order[agrkb] = 0
     results_names_orcid_order[agrkb] = 0
     results_names_orcid[agrkb] = 0
+    results_order_only[agrkb] = 0
 
     aid_tid = {}
     tids_author_set = set()
@@ -339,6 +349,11 @@ def process_reference_id(db_session, reference_id, agrkb):      # noqa: C901 pra
                     if debug_output:
                         print(f"AOS {date} {tid} CHANGE\nDELETE {delete_authors_orcid_set}\nCREATE {create_authors_orcid_set}")
             else:
+                if (len(delete_authors_orcid_set) > 0) and delete_authors_order != create_authors_order:
+                    results_order_only[agrkb] = results_order_only[agrkb] + 1
+                    results_order_only['total'] = results_order_only['total'] + 1
+                    if debug_output:
+                        print(f"AOrderOnly {date} {tid} CHANGE\nDELETE {delete_authors_order}\nCREATE {create_authors_order}")
                 if debug_output:
                     print(f"AOS {date} {tid} SAME {create_authors_orcid_set}")
             if debug_output:
