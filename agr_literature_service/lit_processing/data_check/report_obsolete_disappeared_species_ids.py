@@ -21,7 +21,6 @@ def check_data():
 
     logger.info(f"Total {len(all_distinct_curies)} unique species are in topic_entity_tag table.")
 
-    atp_to_name = {}
     valid_curies = get_map_ateam_curies_to_names("ncbitaxonterm", all_distinct_curies)
     obsolete_disappeared_curies = set(all_distinct_curies) - set(valid_curies)
     logger.info(f"{len(obsolete_disappeared_curies)} out of {len(all_distinct_curies)} NCBITaxon ID(s) are obsolete or disappeared from A-team ATP table")
