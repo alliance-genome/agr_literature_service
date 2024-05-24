@@ -45,7 +45,6 @@ def check_data():
             mod_to_report[mod] = report_rows
     db_session.close()
 
-
     # logger.info(f"MODS:-\n{mod_to_report}")
     for mod in mod_to_report:
         logger.info(f"Sending report for {mod}...")
