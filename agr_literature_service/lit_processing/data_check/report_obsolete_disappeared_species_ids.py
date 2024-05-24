@@ -27,7 +27,7 @@ def check_data():
     valid_curies = get_map_ateam_curies_to_names("ncbitaxonterm", all_distinct_curies)
     obsolete_disappeared_curies = set(all_distinct_curies) - set(valid_curies)
     # logger.info(f"odc -> {obsolete_disappeared_curies}")
-    # logger.info(f"{len(obsolete_disappeared_curies)} out of {len(all_distinct_curies)} NCBITaxon ID(s) are obsolete or disappeared from A-team ATP table")
+    logger.info(f"{len(obsolete_disappeared_curies)} out of {len(all_distinct_curies)} NCBITaxon ID(s) are obsolete or disappeared from A-team ATP table")
 
     mod_to_report = {}
     for atp_curie in obsolete_disappeared_curies:
