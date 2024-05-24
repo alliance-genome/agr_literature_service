@@ -19,7 +19,6 @@ def check_data():
     distinct_values = db_session.execute("SELECT DISTINCT species FROM topic_entity_tag").fetchall()
     all_distinct_curies = [row[0] for row in distinct_values if row[0] and row[0].startswith('NCBITaxon:')]
 
-    all_distinct_curies.append('BOB')
     # logger.info(f"adc = {all_distinct_curies}")
     logger.info(f"Total {len(all_distinct_curies)} unique species are in topic_entity_tag table.")
 
