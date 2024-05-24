@@ -19,13 +19,11 @@ def check_data():
     distinct_values = db_session.execute("SELECT DISTINCT species FROM topic_entity_tag").fetchall()
     all_distinct_curies = [row[0] for row in distinct_values if row[0] and row[0].startswith('NCBITaxon:')]
 
-    # logger.info(f"adc = {all_distinct_curies}")
     logger.info(f"Total {len(all_distinct_curies)} unique species are in topic_entity_tag table.")
 
     atp_to_name = {}
     valid_curies = get_map_ateam_curies_to_names("ncbitaxonterm", all_distinct_curies)
     obsolete_disappeared_curies = set(all_distinct_curies) - set(valid_curies)
-    # logger.info(f"odc -> {obsolete_disappeared_curies}")
     logger.info(f"{len(obsolete_disappeared_curies)} out of {len(all_distinct_curies)} NCBITaxon ID(s) are obsolete or disappeared from A-team ATP table")
 
     mod_to_report = {}
@@ -47,10 +45,10 @@ def check_data():
     # logger.info(f"MODS:-\n{mod_to_report}")
     for mod in mod_to_report:
         logger.info(f"Sending report for {mod}...")
-        send_report_to_slack(mod, mod_to_report[mod], atp_to_name)
+        send_report_to_slack(mod, mod_to_report[mod])
 
 
-def send_report_to_slack(mod, rows_to_report, atp_to_name):
+def send_report_to_slack(mod, rows_to_report):
 
     email_subject = f"Report on Obsolete or Disappeared species for {mod} Papers from the topic_entity_tag Table"
 
@@ -63,9 +61,6 @@ def send_report_to_slack(mod, rows_to_report, atp_to_name):
         html_rows = ""
         for count, row_data in enumerate(rows_to_report, start=1):
             ref_curie, species = row_data
-            # topic_name = atp_to_name.get(topic)
-            # entity_type_name = atp_to_name.get(entity_type)
-
             fw.write(f"{ref_curie}\t{species}\n")
 
             if count <= 10:
