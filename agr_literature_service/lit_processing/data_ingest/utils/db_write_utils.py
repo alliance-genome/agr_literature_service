@@ -355,115 +355,277 @@ def _write_log_message(reference_id, log_message, pmid, logger, fw):  # pragma: 
         fw.write(log_message + "\n")
 
 
-def update_authors(db_session, reference_id, author_list_in_db, author_list_in_json, pub_status_changed, pmids_with_pub_status_changed, logger=None, fw=None, pmid=None, update_log=None):  # noqa: C901 # pragma: no cover
-    # If any of the author fields are different, check if any of our ABC authors
-    # have a different corresponding_author or first_author, in which case do not
-    # update the authors at all (in theory, eventually send a message to a curator,
-    # but for now don't do that).  If the first/corr flags have not been changed,
-    # then get rid of all the ABC authors, and repopulate them from the PubMed data
+def update_authors(db_session, reference_id, author_list_in_db, author_list_in_json,
+                   pub_status_changed, pmids_with_pub_status_changed, logger=None,
+                   fw=None, pmid=None, update_log=None):  # noqa: C901 # pragma: no cover
+    """
+    * Perform case-insensitive comparisons of author names after trimming leading and 
+      trailing whitespace.
+    * Update existing author records to maintain author IDs as much as possible.
+    * Handle updates to affiliations and ORCIDs without deleting the entire author record.
+    * Update author names if the order remains the same to maintain author IDs.
+    * Ensure that author order values are updated while respecting unique constraints.
+    """
 
     if author_list_in_json is None:
         author_list_in_json = []
 
-    authors_in_db = []
-    names_db = []
-    author_list_with_first_or_corresponding_author = []
-    if author_list_in_db:
-        for x in author_list_in_db:
-            if x['first_author'] or x['corresponding_author']:
-                id = "REFERENCE_ID:" + str(reference_id)
-                if pmid is not None:
-                    id = f"PMID:{pmid}"
-                author_list_with_first_or_corresponding_author.append((id, x['name'], "first_author = " + str(x['first_author']), "corresponding_author = " + str(x['corresponding_author'])))
-            affiliations = x['affiliations'] if x['affiliations'] else []
-            orcid = x['orcid'] if x['orcid'] else ''
-            authors_in_db.append((x['name'], x['first_name'], x['last_name'], x['first_initial'], x['order'], '|'.join(affiliations), orcid))
-            names_db.append(x['name'])
-
-    authors_in_json = []
-    noAuthorRankInJson = False
-    if len(author_list_in_json) > 0 and 'authorRank' not in author_list_in_json[0]:
-        noAuthorRankInJson = True
-        # will use the order in the author list
-    i = 0
-    names_json = []
+    # rename the field names in json to match the field names from database
+    author_list_in_json_new = []
+    author_order = 0
     for x in author_list_in_json:
-        orcid = 'ORCID:' + x['orcid'] if x.get('orcid') else ''
-        affiliations = x['affiliations'] if x.get('affiliations') else []
-        i += 1
-        authorRank = x.get('authorRank')
-        if noAuthorRankInJson is True:
-            authorRank = i
-        firstName = x['firstname'] if 'firstname' in x else x.get('firstName', '')
-        lastName = x['lastname'] if 'lastname' in x else x.get('lastName', '')
-        firstInitial = x['firstinit'] if 'firstinit' in x else x.get('firstInit', '')
-        name = x.get('name', '').strip()
-        authors_in_json.append((name, firstName, lastName, firstInitial, authorRank, '|'.join(affiliations), orcid))
-        names_json.append(name)
+        author_order += 1
+        orcid = x.get('orcid')
+        if orcid:
+            orcid = f"ORCID:{orcid}" if not orcid.upper().startswith('ORCID') else orcid.upper()
+        author_list_in_json_new.append({
+            'name': x['name'],
+            'first_name': (x['firstname'] if 'firstname' in x else x.get('firstName', '')).strip(),
+            'last_name': (x['lastname'] if 'lastname' in x else x.get('lastName', '')).strip(),
+            'first_initial': (x['firstinit'] if 'firstinit' in x else x.get('firstInit', '')).strip(),
+            'order': x['authorRank'] if 'authorRank' in x else author_order,
+            'affiliations': x['affiliations'] if x.get('affiliations') else [],
+            'orcid': orcid
+        })
 
-    if set(authors_in_db) == set(authors_in_json):
+    # normalize author details for comparison
+    def normalize_author(x):
+        return (
+            x['name'].strip().lower(),
+            x['first_name'].strip().lower() if x['first_name'] else '',
+            x['last_name'].strip().lower() if x['last_name'] else '',
+            x['first_initial'].strip().lower() if x['first_initial'] else '',
+            x['order'],
+            '|'.join(x['affiliations']).strip().lower() if x['affiliations'] else '',
+            x['orcid'].strip().lower() if x['orcid'] else ''
+        )
+
+    
+    # generate a unique key for each author based on specific attributes
+    # using last_name, first_name, first_initial, and name (fullname)
+    def author_key(x):
+        return (x[2], x[1], x[3], x[0])
+    
+    normalized_author_list_in_db = [normalize_author(x) for x in author_list_in_db]
+    normalized_author_list_in_json = [normalize_author(x) for x in author_list_in_json_new]
+    
+    if normalized_author_list_in_db == normalized_author_list_in_json:
         return []
 
-    if len(author_list_with_first_or_corresponding_author) > 0:
-        if logger:
-            logger.info("One of authors for reference_id = " + str(reference_id) + " is first_author or corresponding_author.")
-            logger.info(str(author_list_with_first_or_corresponding_author))
-        return author_list_with_first_or_corresponding_author
+    # create dictionaries of authors for comparison
+    authors_in_db = {author_key(normalize_author(x)): x for x in author_list_in_db}
+    authors_in_json = {author_key(normalize_author(x)): x for x in author_list_in_json_new}
 
-    if update_log:
-        update_log['author_name'] = update_log['author_name'] + 1
-        update_log['pmids_updated'].append(pmid)
+    """
+    print("PMID:" + pmid + " authors_in_db   =", authors_in_db)
+    print("PMID:" + pmid + " authors_in_json =", authors_in_json)
+    """
+    
+    """
+    ('maita', 'nobuo', 'n', 'nobuo maita'): { 'orcid': None, 
+                                              'first_author': False, 
+                                              'order': 1, 
+                                              'corresponding_author': False, 
+                                              'name': 'Nobuo Maita', 
+                                              'affiliations': ['Dept of Molecular Biology, ..'],
+                                              'first_name': 'Nobuo', 
+                                              'last_name': 'Maita', 
+                                              'first_initial': 'N'}, 
+    ('okada', 'kengo', 'k', 'kengo okada'): { 'orcid': None, 
+                                              'first_author': False, 
+                                              'order': 2, 
+                                              'corresponding_author': False, 
+                                              'name': 'Kengo Okada', 
+                                              'affiliations': [], 
+                                              'first_name': 'Kengo', 
+                                              'last_name': 'Okada', 
+                                              'first_initial': 'K'},
+    ...
+    """
+    
+    # check for authors to update or delete
+    author_order_to_update_record = {}
+    author_order_to_delete_record = {}
+    for key, db_author in authors_in_db.items():
+        if key not in authors_in_json:
+            author_order_to_delete_record[db_author['order']] = db_author
+        else:
+            json_author = authors_in_json[key]
+            author_order_to_update_record[db_author['order']] = json_author
 
-    ## deleting authors from database for the given REFERENCE_ID
+    # Check for new authors to add
+    author_order_to_add_record = {}
+    for key, json_author in authors_in_json.items():
+        if key not in authors_in_db:
+            author_order_to_add_record[json_author['order']] = json_author
+
+    if author_order_to_delete_record or author_order_to_add_record or author_order_to_update_record:
+        if update_log:
+            update_log['author_name'] = update_log.get('author_name', 0) + 1
+            update_log['pmids_updated'].append(pmid)
+
+    set_to_update = check_delete_add_rows(len(author_list_in_db), author_order_to_add_record, author_order_to_delete_record)
+    if set_to_update:
+        author_order_to_update_record = author_order_to_add_record
+        author_order_to_add_record = {}
+        author_order_to_delete_record = {}
+        
+    """
+    orcid_to_add_record = {}
+    for author_order in author_order_to_add_record:
+        author = author_order_to_add_record[author_order]
+        if author['orcid']:
+            orcid_to_add_record[author['orcid']] = (author_order, author)
+    for author_order in author_order_to_delete_record:
+        author = author_order_to_add_record[author_order]
+        if author['orcid'] and author['orcid'] in orcid_to_add_record:
+            (author_order_to_add, author_to_add) = orcid_to_add_record[author['orcid']]
+            author_order_to_update_record[author_order] = author_to_add
+            author_order_to_add_record.pop(author_order_to_add)
+            author_order_to_delete_record.pop(author_order)
+    """
+
+    """
+    if author_order_to_update_record:
+        print("PMID:" + pmid + " author_order_to_update_record =", author_order_to_update_record)
+    if author_order_to_delete_record:
+        print("PMID:" + pmid + " author_order_to_delete_record =", author_order_to_delete_record)
+    if author_order_to_add_record:
+        print("PMID:" + pmid + " author_order_to_add_record    =", author_order_to_add_record)
+    """
+    
+    # update author rows & delete authors
+    name_removed = []
+    name_updated = []
     for x in db_session.query(AuthorModel).filter_by(reference_id=reference_id).order_by(AuthorModel.order).all():
-        name = x.name
-        affiliations = x.affiliations if x.affiliations else []
-        try:
+        if x.order in author_order_to_update_record:
+            json_author = author_order_to_update_record[x.order]
+            if x.name != json_author['name']:
+                name_updated.append((x.name, json_author['name']))
+                x.name = json_author['name']
+            if x.first_name != json_author['first_name']:
+                x.first_name = json_author['first_name']
+            if x.last_name != json_author['last_name']:
+                x.last_name = json_author['last_name']
+            if x.first_initial != json_author['first_initial']:
+                x.first_initial = json_author['first_initial']
+            if x.affiliations != json_author['affiliations']:
+                x.affiliations = json_author['affiliations']
+            if x.orcid != json_author['orcid']:
+                x.orcid = json_author['orcid']
+            db_session.add(x)
+        elif x.order in author_order_to_delete_record:
+            author = author_order_to_delete_record[x.order]
+            name_removed.append(author['name'])
             db_session.delete(x)
-            log_message = ": DELETE AUTHOR: " + name + " | '" + '|'.join(affiliations) + "'"
-            _write_log_message(reference_id, log_message, pmid, logger, fw)
-        except Exception as e:
-            log_message = ": DELETE AUTHOR: " + name + " failed: " + str(e)
-            _write_log_message(reference_id, log_message, pmid, logger, fw)
-
-    # 3.5% authors in the database have orcid
-    ## adding authors from pubmed into database
-    for x in authors_in_json:
-        (name, firstname, lastname, firstInitial, authorRank, affiliations, orcid) = x
-        affiliation_list = affiliations.split('|')
-        if len(affiliation_list) == 0 or (len(affiliation_list) == 1 and affiliation_list[0] == ''):
-            affiliation_list = None
-        data = {"reference_id": reference_id,
-                "name": name,
-                "first_name": firstname,
-                "last_name": lastname,
-                "first_initial": firstInitial,
-                "order": authorRank,
-                "affiliations": affiliation_list,
-                "orcid": orcid if orcid else None,
-                "first_author": False,
-                "corresponding_author": False}
-
+        else:
+            ## update author order to match what is in json
+            key = (x.last_name.strip().lower(), x.first_name.strip().lower(), x.first_initial.strip().lower(), x.name.strip().lower())
+            json_author = authors_in_json[key]
+            if x.order != json_author['order']:
+                x.order = json_author['order']
+                db_session.add(x)
+            
+    # add new authors
+    name_added = []
+    for author_order in author_order_to_add_record:
+        author = author_order_to_add_record[author_order]
         try:
-            a = AuthorModel(**data)
-            db_session.add(a)
-            log_message = ": INSERT AUTHOR: " + name + " | '" + affiliations + "'"
+            x = AuthorModel(
+                reference_id=reference_id,
+                name=author['name'],
+                first_name=author['first_name'],
+                last_name=author['last_name'],
+                first_initial=author['first_initial'],
+                order=author['order'],
+                affiliations=author['affiliations'],
+                orcid=author['orcid'],
+                first_author=False,
+                corresponding_author=False
+            )
+            db_session.add(x)
+            log_message = f": INSERT AUTHOR: {author['name']} | '{author['affiliations']}'"
             _write_log_message(reference_id, log_message, pmid, logger, fw)
+            name_added.append(author['name'])
         except Exception as e:
-            log_message = ": INSERT AUTHOR: " + name + " failed: " + str(e)
+            log_message = f": INSERT AUTHOR: {author['name']} failed: {str(e)}"
             _write_log_message(reference_id, log_message, pmid, logger, fw)
+    """
+    print("PMID:" + pmid + " reference_id=" + str(reference_id) + " name_removed=", name_removed)
+    print("PMID:" + pmid + " reference_id=" + str(reference_id) + " name_added  =", name_added)
+    print("PMID:" + pmid + " reference_id=" + str(reference_id) + " name_updated=", name_updated)
+    """
+    
+    ## comment out for now
+    # db_session.commit()
 
-    author_list_db = ", ".join(names_db)
-    author_list_json = ", ".join(names_json)
-    if author_list_db.lower() != author_list_json.lower():
-        message = f"from '{author_list_db}' to '{author_list_json}'"
+    if name_added or name_updated or name_removed:
+        author_update_messages = []
+        if len(name_added) > 0 or len(name_removed) > 0:
+            print("PMID:" + pmid + " reference_id=" + str(reference_id) + " Deleted: ", name_removed)
+            print("PMID:" + pmid + " reference_id=" + str(reference_id) + " Inserted:", name_added)
+            author_update_messages.append(f"Deleted: {', '.join(name_removed)} to Inserted: {', '.join(name_added)}")
+        for (old_name, new_name) in name_updated:
+            print("HELLO PMID:" + pmid + " reference_id=" + str(reference_id) + " Updated:", old_name, " to ", new_name)
+            author_update_messages.append(f"'{old_name}' to '{new_name}'")
+        print("HELLO")
         status_changed = pmids_with_pub_status_changed.get(pub_status_changed, {})
         data_changed = status_changed.get(pmid, {})
-        data_changed['authors'] = message
+        data_changed['authors'] = author_update_messages
         status_changed[pmid] = data_changed
         pmids_with_pub_status_changed[pub_status_changed] = status_changed
-
+    
     return []
+
+
+def check_delete_add_rows(author_count_db, author_order_to_add_record, author_order_to_delete_record):
+
+    """
+    old: ['Guadalupe-Medina V', 'Wisselink HW', 'Luttik MA', 'de Hulster E',
+          'Daran JM', 'Pronk JT', 'van Maris AJ']
+    new: ['Víctor Guadalupe-Medina', 'H Wouter Wisselink', 'Marijke Ah Luttik', 'Erik de Hulster',
+          'Jean-Marc Daran', 'Jack T Pronk', 'Antonius Ja van Maris']
+
+    old: ['Pillai RS', ' Will CL', ' Luhrmann R', ' Schumperli D', ' Muller B']
+    new: ['R S Pillai', 'C L Will', 'R Lührmann', 'D Schümperli', 'B Müller']
+
+    old: ['Keller R', 'Schneider D']
+    new: ['Rebecca Keller', 'Dirk Schneider']
+
+    old: ['Kurat CF', 'Recht J', 'Radovani E', 'Durbic T', 'Andrews B', 'Fillingham J']
+    new: ['Christoph F Kurat', 'Judith Recht', 'Ernest Radovani', 'Tanja Durbic', 'Brenda Andrews',
+          'Jeffrey Fillingham']
+
+    old: ['Strahl T', 'Thorner J']
+    new: ['Thomas Strahl', 'Jeremy Thorner']
+
+    old: ['T Kutateladze']
+    new: ['T G Kutateladze']
+
+    old: ['Santos AL', 'Preta G']
+    new: ['Ana L Santos', 'Giulio Preta']
+    """
+    
+    set_to_update = True
+    if author_count_db == len(author_order_to_add_record) and author_count_db == len(author_order_to_delete_record):
+        for author_order in author_order_to_add_record:
+            json_author = author_order_to_add_record[author_order]
+            db_author =	author_order_to_delete_record.get(author_order)
+            if db_author is None:
+                set_to_update = False
+                break
+            name_json = json_author['name']
+            name_db = db_author['name']
+            name_match = False
+            for	word_db in name_db.split(' '):
+                for word_json in name_json.split(' '):
+                    if word_db.lower() == word_json.lower() and	len(word_db) > 4:
+                        name_match = True
+            if name_match is False:
+                set_to_update = False
+                break
+
+    return set_to_update
 
 
 def update_workflow_tags(db_session, mod_id, reference_id, workflow_tag_rows_db, workflow_tags_json, logger):
@@ -706,7 +868,8 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, log
             else:
                 fw.write(str(datetime.now()) + ": " + xref_id + " for PMID:" + pmid + " is associated with PMID(s) in the database: " + ",".join(found_pmids_for_this_xref_id) + "\n")
                 not_loaded_pmids.append((pmid, xref_id, ",".join(found_pmids_for_this_xref_id)))
-            pmids.remove(pmid)
+            if pmid in pmids:
+                pmids.remove(pmid)
     fw.close()
 
     return (log_path, log_url, not_loaded_pmids)
