@@ -484,6 +484,7 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
     """
 
     # update author rows & delete authors
+    temp_order_map = {}
     name_removed = []
     name_updated = []
     for x in db_session.query(AuthorModel).filter_by(reference_id=reference_id).order_by(AuthorModel.order).all():
@@ -502,6 +503,9 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
                 x.affiliations = json_author['affiliations']
             if x.orcid != json_author['orcid']:
                 x.orcid = json_author['orcid']
+            if x.order != json_author['order']:
+                # x.order = json_author['order']
+                temp_order_map[x.order] = json_author['order']
             db_session.add(x)
         elif x.order in author_order_to_delete_record:
             author = author_order_to_delete_record[x.order]
@@ -512,8 +516,22 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
             key = (x.last_name.strip().lower(), x.first_name.strip().lower(), x.first_initial.strip().lower(), x.name.strip().lower())
             json_author = authors_in_json[key]
             if x.order != json_author['order']:
-                x.order = json_author['order']
+                # x.order = json_author['order']
+                temp_order_map[x.order] = json_author['order']
                 db_session.add(x)
+
+    # resolve any order conflicts - just in case the "order" in JSON is not unique
+    used_orders = set()
+    # for old_order, new_order in temp_order_map.items():
+    for _, new_order in temp_order_map.items():
+        if new_order in used_orders:
+            raise ValueError(f"Duplicate order value detected: {new_order}")
+        used_orders.add(new_order)
+
+    for old_order, new_order in temp_order_map.items():
+        author = db_session.query(AuthorModel).filter_by(reference_id=reference_id, order=old_order).one()
+        author.order = new_order
+        db_session.add(author)
 
     # add new authors
     name_added = []
@@ -545,7 +563,6 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
     print("PMID:" + pmid + " reference_id=" + str(reference_id) + " name_updated=", name_updated)
     """
 
-    ## comment out for now
     # db_session.commit()
 
     if name_added or name_updated or name_removed:
