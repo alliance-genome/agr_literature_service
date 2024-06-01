@@ -591,20 +591,24 @@ def compare_author_lists(old_list, new_list):
         return True
 
     def normalize_name(name):
-        """normalize 'FirstName LastName' to 'LastName FirstInitial'"""
-        # split by space
-        parts = name.split()
+        """Normalize names in various formats to 'LastName FirstInitials'."""
+        # Replace commas, dots, hyphens, and multiple spaces with a single space, then split by space
+        name = name.replace(',', ' ').replace('.', ' ').replace('-', ' ')
+        # Replace multiple spaces with a single space
+        while '  ' in name:
+            name = name.replace('  ', ' ')
+        parts = [part.strip() for part in name.split() if part]
+
         if len(parts) >= 2:
-            # for name like "Yi Heng Zhu", first_name_parts = ["Yi", "Heng"]
-            # for name like "Yi-Heng Zhu", first_name_parts = ["Yi-Heng"]
-            first_name_parts = parts[:-1]
+            # Last name is the last part
             last_name = parts[-1]
-            if len(first_name_parts) == 1 and '-' in first_name_parts[0]:
-                # for name like "Yi-Heng Zhu" => "Zhu YH"
-                first_name_parts = first_name_parts[0].split('-')
-            first_initials = ''.join([part[0] for part in first_name_parts if part])
+
+            # Handle multi-part first names
+            first_name_parts = parts[:-1]
+            first_initials = ''.join([part[0].upper() for part in first_name_parts if part])
+
             return f"{last_name} {first_initials}"
-        return name
+        return name.strip()
 
     def normalize_list(name_list):
         """normalize a list of 'FirstName LastName' to 'LastName FirstInitial'"""
@@ -621,8 +625,8 @@ def compare_author_lists(old_list, new_list):
 
 def check_delete_add_rows(author_count_db, author_order_to_add_record, author_order_to_delete_record):
     """
-    Check if every pair of corresponding old and new name has the same last name.
-    Normalize every name to remove accents and convert to lowercase before comparing.
+    check if every pair of corresponding old and new name has the same last name.
+    normalize every name to remove accents and convert to lowercase before comparing.
     """
 
     """
@@ -653,16 +657,12 @@ def check_delete_add_rows(author_count_db, author_order_to_add_record, author_or
     old: ['Zhu YH', 'Zhang C', 'Liu Y', 'Omenn GS', 'Freddolino PL', 'Yu DJ', 'Zhang Y']
     new: ['Yi-Heng Zhu', 'Chengxin Zhang', 'Yan Liu', 'Gilbert S Omenn', 'Peter L Freddolino',
           'Dong-Jun Yu', 'Yang Zhang']
-
-    old: ['Zhu YH', 'Zhang C', 'Liu Y', 'Omenn GS', 'Freddolino PL', 'Yu DJ', 'Zhang Y']
-    new: ['Yi-Heng Zhu', 'Chengxin Zhang', 'Yan Liu', 'Gilbert S Omenn', 'Peter L Freddolino',
-          'Dong-Jun Yu', 'Yang Zhang']
     """
 
     def normalize_string(s):
         """
-        Normalize a string by removing accents
-        In Unicode normalization, 'NFKD' stands for "Normalization Form KD"
+        normalize a string by removing accents
+        in Unicode normalization, 'NFKD' stands for "Normalization Form KD"
         """
         normalized = unicodedata.normalize('NFKD', s)
         return ''.join([c for c in normalized if not unicodedata.combining(c)])
