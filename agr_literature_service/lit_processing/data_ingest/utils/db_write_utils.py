@@ -1,6 +1,7 @@
 from os import environ, makedirs, path
 import json
 from sqlalchemy import or_
+import unicodedata
 
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
@@ -355,11 +356,9 @@ def _write_log_message(reference_id, log_message, pmid, logger, fw):  # pragma: 
         fw.write(log_message + "\n")
 
 
-def update_authors(db_session, reference_id, author_list_in_db, author_list_in_json,
-                   pub_status_changed, pmids_with_pub_status_changed, logger=None,
-                   fw=None, pmid=None, update_log=None):  # noqa: C901 # pragma: no cover
+def update_authors(db_session, reference_id, author_list_in_db, author_list_in_json, pub_status_changed, pmids_with_pub_status_changed, logger=None, fw=None, pmid=None, update_log=None):  # noqa: C901 # pragma: no cover
     """
-    * Perform case-insensitive comparisons of author names after trimming leading and 
+    * Perform case-insensitive comparisons of author names after trimming leading and
       trailing whitespace.
     * Update existing author records to maintain author IDs as much as possible.
     * Handle updates to affiliations and ORCIDs without deleting the entire author record.
@@ -400,15 +399,14 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
             x['orcid'].strip().lower() if x['orcid'] else ''
         )
 
-    
     # generate a unique key for each author based on specific attributes
     # using last_name, first_name, first_initial, and name (fullname)
     def author_key(x):
         return (x[2], x[1], x[3], x[0])
-    
+
     normalized_author_list_in_db = [normalize_author(x) for x in author_list_in_db]
     normalized_author_list_in_json = [normalize_author(x) for x in author_list_in_json_new]
-    
+
     if normalized_author_list_in_db == normalized_author_list_in_json:
         return []
 
@@ -420,29 +418,20 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
     print("PMID:" + pmid + " authors_in_db   =", authors_in_db)
     print("PMID:" + pmid + " authors_in_json =", authors_in_json)
     """
-    
+
     """
-    ('maita', 'nobuo', 'n', 'nobuo maita'): { 'orcid': None, 
-                                              'first_author': False, 
-                                              'order': 1, 
-                                              'corresponding_author': False, 
-                                              'name': 'Nobuo Maita', 
+    ('maita', 'nobuo', 'n', 'nobuo maita'): { 'orcid': None,
+                                              'first_author': False,
+                                              'order': 1,
+                                              'corresponding_author': False,
+                                              'name': 'Nobuo Maita',
                                               'affiliations': ['Dept of Molecular Biology, ..'],
-                                              'first_name': 'Nobuo', 
-                                              'last_name': 'Maita', 
-                                              'first_initial': 'N'}, 
-    ('okada', 'kengo', 'k', 'kengo okada'): { 'orcid': None, 
-                                              'first_author': False, 
-                                              'order': 2, 
-                                              'corresponding_author': False, 
-                                              'name': 'Kengo Okada', 
-                                              'affiliations': [], 
-                                              'first_name': 'Kengo', 
-                                              'last_name': 'Okada', 
-                                              'first_initial': 'K'},
+                                              'first_name': 'Nobuo',
+                                              'last_name': 'Maita',
+                                              'first_initial': 'N'},
     ...
     """
-    
+
     # check for authors to update or delete
     author_order_to_update_record = {}
     author_order_to_delete_record = {}
@@ -469,7 +458,7 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
         author_order_to_update_record = author_order_to_add_record
         author_order_to_add_record = {}
         author_order_to_delete_record = {}
-        
+
     """
     orcid_to_add_record = {}
     for author_order in author_order_to_add_record:
@@ -493,7 +482,7 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
     if author_order_to_add_record:
         print("PMID:" + pmid + " author_order_to_add_record    =", author_order_to_add_record)
     """
-    
+
     # update author rows & delete authors
     name_removed = []
     name_updated = []
@@ -525,7 +514,7 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
             if x.order != json_author['order']:
                 x.order = json_author['order']
                 db_session.add(x)
-            
+
     # add new authors
     name_added = []
     for author_order in author_order_to_add_record:
@@ -555,7 +544,7 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
     print("PMID:" + pmid + " reference_id=" + str(reference_id) + " name_added  =", name_added)
     print("PMID:" + pmid + " reference_id=" + str(reference_id) + " name_updated=", name_updated)
     """
-    
+
     ## comment out for now
     # db_session.commit()
 
@@ -564,21 +553,77 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
         if len(name_added) > 0 or len(name_removed) > 0:
             print("PMID:" + pmid + " reference_id=" + str(reference_id) + " Deleted: ", name_removed)
             print("PMID:" + pmid + " reference_id=" + str(reference_id) + " Inserted:", name_added)
-            author_update_messages.append(f"Deleted: {', '.join(name_removed)} to Inserted: {', '.join(name_added)}")
+            name_list_removed = ', '.join(name_removed)
+            name_list_added = ', '.join(name_added)
+            author_update_messages.append(f"Deleted: {name_list_removed} to Inserted: {name_list_added}")
+        old_name_list = []
+        new_name_list = []
         for (old_name, new_name) in name_updated:
-            print("HELLO PMID:" + pmid + " reference_id=" + str(reference_id) + " Updated:", old_name, " to ", new_name)
-            author_update_messages.append(f"'{old_name}' to '{new_name}'")
-        print("HELLO")
+            old_name_list.append(old_name)
+            new_name_list.append(new_name)
+            print("PMID:" + pmid + " reference_id=" + str(reference_id) + " Updated:", old_name, " to ", new_name)
+        name_list_old = ', '.join(old_name_list)
+        name_list_new = ', '.join(new_name_list)
+        author_update_messages.append(f"'{name_list_old}' to '{name_list_new}'")
         status_changed = pmids_with_pub_status_changed.get(pub_status_changed, {})
         data_changed = status_changed.get(pmid, {})
         data_changed['authors'] = author_update_messages
         status_changed[pmid] = data_changed
         pmids_with_pub_status_changed[pub_status_changed] = status_changed
-    
+
     return []
 
 
+def compare_author_lists(old_list, new_list):
+    """
+    Convert both lists to 'LastName FirstInitial' format, then compare.
+    """
+
+    def is_lastname_firstinitial(name_list):
+        """check if the name list is in 'LastName FirstInitial' format."""
+        for name in name_list:
+            parts = name.split()
+            if len(parts) != 2:
+                return False
+            last_name, first_initial = parts
+            if len(first_initial) > 2 or not first_initial[0].isupper():
+                return False
+        return True
+
+    def normalize_name(name):
+        """normalize 'FirstName LastName' to 'LastName FirstInitial'"""
+        # split by space
+        parts = name.split()
+        if len(parts) >= 2:
+            # for name like "Yi Heng Zhu", first_name_parts = ["Yi", "Heng"]
+            # for name like "Yi-Heng Zhu", first_name_parts = ["Yi-Heng"]
+            first_name_parts = parts[:-1]
+            last_name = parts[-1]
+            if len(first_name_parts) == 1 and '-' in first_name_parts[0]:
+                # for name like "Yi-Heng Zhu" => "Zhu YH"
+                first_name_parts = first_name_parts[0].split('-')
+            first_initials = ''.join([part[0] for part in first_name_parts if part])
+            return f"{last_name} {first_initials}"
+        return name
+
+    def normalize_list(name_list):
+        """normalize a list of 'FirstName LastName' to 'LastName FirstInitial'"""
+        return [normalize_name(name) for name in name_list]
+
+    old_list_format = is_lastname_firstinitial(old_list)
+    new_list_format = is_lastname_firstinitial(new_list)
+
+    normalized_old_list = old_list if old_list_format else normalize_list(old_list)
+    normalized_new_list = new_list if new_list_format else normalize_list(new_list)
+
+    return normalized_old_list == normalized_new_list
+
+
 def check_delete_add_rows(author_count_db, author_order_to_add_record, author_order_to_delete_record):
+    """
+    Check if every pair of corresponding old and new name has the same last name.
+    Normalize every name to remove accents and convert to lowercase before comparing.
+    """
 
     """
     old: ['Guadalupe-Medina V', 'Wisselink HW', 'Luttik MA', 'de Hulster E',
@@ -604,28 +649,50 @@ def check_delete_add_rows(author_count_db, author_order_to_add_record, author_or
 
     old: ['Santos AL', 'Preta G']
     new: ['Ana L Santos', 'Giulio Preta']
+
+    old: ['Zhu YH', 'Zhang C', 'Liu Y', 'Omenn GS', 'Freddolino PL', 'Yu DJ', 'Zhang Y']
+    new: ['Yi-Heng Zhu', 'Chengxin Zhang', 'Yan Liu', 'Gilbert S Omenn', 'Peter L Freddolino',
+          'Dong-Jun Yu', 'Yang Zhang']
+
+    old: ['Zhu YH', 'Zhang C', 'Liu Y', 'Omenn GS', 'Freddolino PL', 'Yu DJ', 'Zhang Y']
+    new: ['Yi-Heng Zhu', 'Chengxin Zhang', 'Yan Liu', 'Gilbert S Omenn', 'Peter L Freddolino',
+          'Dong-Jun Yu', 'Yang Zhang']
     """
-    
+
+    def normalize_string(s):
+        """
+        Normalize a string by removing accents
+        In Unicode normalization, 'NFKD' stands for "Normalization Form KD"
+        """
+        normalized = unicodedata.normalize('NFKD', s)
+        return ''.join([c for c in normalized if not unicodedata.combining(c)])
+
     set_to_update = True
+    old_list = []
+    new_list = []
+    sorted_author_orders = sorted(author_order_to_add_record.keys())
     if author_count_db == len(author_order_to_add_record) and author_count_db == len(author_order_to_delete_record):
-        for author_order in author_order_to_add_record:
+        for author_order in sorted_author_orders:
             json_author = author_order_to_add_record[author_order]
-            db_author =	author_order_to_delete_record.get(author_order)
+            db_author = author_order_to_delete_record.get(author_order)
             if db_author is None:
                 set_to_update = False
                 break
-            name_json = json_author['name']
-            name_db = db_author['name']
+            name_json = json_author['name'].strip()
+            name_db = db_author['name'].strip()
+            old_list.append(name_db)
+            new_list.append(name_json)
             name_match = False
-            for	word_db in name_db.split(' '):
+            for word_db in name_db.split(' '):
                 for word_json in name_json.split(' '):
-                    if word_db.lower() == word_json.lower() and	len(word_db) > 4:
+                    if normalize_string(word_db).lower() == normalize_string(word_json).lower() and len(word_db) >= 4:
                         name_match = True
-            if name_match is False:
+            if not name_match:
                 set_to_update = False
                 break
-
-    return set_to_update
+    if set_to_update:
+        return True
+    return compare_author_lists(old_list, new_list)
 
 
 def update_workflow_tags(db_session, mod_id, reference_id, workflow_tag_rows_db, workflow_tags_json, logger):
@@ -1237,11 +1304,15 @@ def _insert_pmcid(db_session, fw, pmid, reference_id, pmcid, logger=None):  # pr
 def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_in_db, doi_json, pmcid_db, pmcid_list_in_db, pmcid_json, pub_status_changed, pmids_with_pub_status_changed, update_log, logger=None):  # pragma: no cover
 
     if doi_json:
+        if doi_json.startswith('10.'):
+            doi_json = "DOI:" + doi_json
         status = check_pattern('reference', doi_json)
         if not status:
             logger.info(f"The curie {doi_json} doesn't match the pattern for reference")
             return
     if pmcid_json:
+        if pmcid_json.startswith('PMC'):
+            pmcid_json = "PMCID:" + pmcid_json
         status = check_pattern('reference', pmcid_json)
         if not status:
             logger.info(f"The curie {pmcid_json} doesn't match the pattern for reference")
