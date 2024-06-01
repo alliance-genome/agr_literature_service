@@ -76,7 +76,7 @@ def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cove
         email_subject = mod + " " + email_subject
 
     # remove old log files
-    remove_old_files(log_path, 30)
+    remove_old_files(log_path, 90)
 
     # set new log file with date stamp
     datestamp = str(date.today()).replace("-", "")
