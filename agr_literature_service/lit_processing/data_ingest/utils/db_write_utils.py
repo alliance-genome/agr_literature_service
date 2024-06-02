@@ -366,6 +366,13 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
     * Ensure that author order values are updated while respecting unique constraints.
     """
 
+    """
+    ABC currently does not have any author rows with the first_author or corresponding_author
+    tags set to true. We will address authors with these tags and those connected to PERSON
+    in the future simultaneously.
+    TODO: Skip these authors during the update and send a report to the curators.
+    """
+
     if author_list_in_json is None:
         author_list_in_json = []
 
@@ -458,21 +465,6 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
         author_order_to_update_record = author_order_to_add_record
         author_order_to_add_record = {}
         author_order_to_delete_record = {}
-
-    """
-    orcid_to_add_record = {}
-    for author_order in author_order_to_add_record:
-        author = author_order_to_add_record[author_order]
-        if author['orcid']:
-            orcid_to_add_record[author['orcid']] = (author_order, author)
-    for author_order in author_order_to_delete_record:
-        author = author_order_to_add_record[author_order]
-        if author['orcid'] and author['orcid'] in orcid_to_add_record:
-            (author_order_to_add, author_to_add) = orcid_to_add_record[author['orcid']]
-            author_order_to_update_record[author_order] = author_to_add
-            author_order_to_add_record.pop(author_order_to_add)
-            author_order_to_delete_record.pop(author_order)
-    """
 
     """
     if author_order_to_update_record:
@@ -661,9 +653,6 @@ def check_delete_add_rows(author_count_db, author_order_to_add_record, author_or
     old: ['Kurat CF', 'Recht J', 'Radovani E', 'Durbic T', 'Andrews B', 'Fillingham J']
     new: ['Christoph F Kurat', 'Judith Recht', 'Ernest Radovani', 'Tanja Durbic', 'Brenda Andrews',
           'Jeffrey Fillingham']
-
-    old: ['Strahl T', 'Thorner J']
-    new: ['Thomas Strahl', 'Jeremy Thorner']
 
     old: ['T Kutateladze']
     new: ['T G Kutateladze']
