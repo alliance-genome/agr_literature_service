@@ -507,8 +507,7 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
     """
     if len(author_order_to_add_record) > 0 and len(author_order_to_delete_record) > 0:
         old_order_to_new_order_mapping = synchronize_author_lists(author_order_to_add_record,
-                                                                  author_order_to_delete_record,
-                                                                  logger)
+                                                                  author_order_to_delete_record)
 
         for old_order in old_order_to_new_order_mapping:
             new_order = old_order_to_new_order_mapping[old_order]
@@ -525,10 +524,10 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
     """
     name_removed = []
     for author_order in author_order_to_delete_record:
-        author = db_session.query(AuthorModel).filter_by(reference_id=reference_id, order=author_order).one_or_none()
-        if author:
-            name_removed.append(author.name)
-            db_session.delete(author)
+        x = db_session.query(AuthorModel).filter_by(reference_id=reference_id, order=author_order).one_or_none()
+        if x:
+            name_removed.append(x.name)
+            db_session.delete(x)
 
     """
     step 5: resolve any order conflicts - just in case the "order" in JSON is not unique
@@ -545,10 +544,11 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
     step 6: update the author orders if needed
     """
     for old_order, new_order in temp_order_map.items():
-        author = db_session.query(AuthorModel).filter_by(reference_id=reference_id, order=old_order).one_or_none()
-        if author:
-            author.order = new_order
-            db_session.add(author)
+        if old_order != new_order:
+            x = db_session.query(AuthorModel).filter_by(reference_id=reference_id, order=old_order).one_or_none()
+            if x:
+                x.order = new_order
+                db_session.add(x)
 
     """
     step 7: insert new author rows in the author_order_to_add_record
@@ -636,7 +636,9 @@ def update_author_row(db_session, reference_id, author_order, json_author, pmid,
         if x.orcid != json_author['orcid']:
             x.orcid = json_author['orcid']
         if x.order != json_author['order']:
-            temp_order_map[x.order] = json_author['order']
+            tmp_order = x.order + 1000
+            x.order = tmp_order
+            temp_order_map[tmp_order] = json_author['order']
         db_session.add(x)
         log_message = f": UPDATE AUTHOR for {x.name} | {x.affiliations}"
         _write_log_message(reference_id, log_message, pmid, logger, fw)
@@ -677,7 +679,7 @@ def normalize_name(name):  # pragma: no cover
     return name.strip()
 
 
-def synchronize_author_lists(author_order_to_add_record, author_order_to_delete_record, logger):  # pragma: no cover
+def synchronize_author_lists(author_order_to_add_record, author_order_to_delete_record):  # pragma: no cover
 
     def check_author_list_format(author_record):
         name_list = [author_record[author_order]['name'] for author_order in author_record]
@@ -704,7 +706,7 @@ def synchronize_author_lists(author_order_to_add_record, author_order_to_delete_
             old_order = found_match_old_orders[0]
             old_order_to_new_order_mapping[old_order] = new_order
         else:
-            logger.info(f"NO MATCH found for '{new_name}' in ", debugging_old_names)
+            print(f"NO MATCH found for '{new_name}' in ", debugging_old_names)
 
     return old_order_to_new_order_mapping
 
