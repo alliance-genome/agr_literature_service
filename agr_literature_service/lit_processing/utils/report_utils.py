@@ -378,7 +378,7 @@ def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, upda
             else:
                 messages = [data[colName]]
             for message in messages:
-                [fromVal, toVal] = message.replace("from '", "").split(" to ")
+                [fromVal, toVal] = message.replace("from '", "").split("' to '")
                 fromVal = fromVal.replace("'", "")
                 toVal = toVal.replace("'", "")
                 if colName == 'authors' and 'Deleted' in fromVal:
