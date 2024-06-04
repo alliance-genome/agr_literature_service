@@ -507,7 +507,8 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
     """
     if len(author_order_to_add_record) > 0 and len(author_order_to_delete_record) > 0:
         old_order_to_new_order_mapping = synchronize_author_lists(author_order_to_add_record,
-                                                                  author_order_to_delete_record)
+                                                                  author_order_to_delete_record,
+                                                                  logger)
 
         for old_order in old_order_to_new_order_mapping:
             new_order = old_order_to_new_order_mapping[old_order]
@@ -524,9 +525,10 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
     """
     name_removed = []
     for author_order in author_order_to_delete_record:
-        author = db_session.query(AuthorModel).filter_by(reference_id=reference_id, order=author_order).one()
-        name_removed.append(author.name)
-        db_session.delete(author)
+        author = db_session.query(AuthorModel).filter_by(reference_id=reference_id, order=author_order).one_or_none()
+        if author:
+            name_removed.append(author.name)
+            db_session.delete(author)
 
     """
     step 5: resolve any order conflicts - just in case the "order" in JSON is not unique
@@ -543,9 +545,10 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
     step 6: update the author orders if needed
     """
     for old_order, new_order in temp_order_map.items():
-        author = db_session.query(AuthorModel).filter_by(reference_id=reference_id, order=old_order).one()
-        author.order = new_order
-        db_session.add(author)
+        author = db_session.query(AuthorModel).filter_by(reference_id=reference_id, order=old_order).one_or_none()
+        if author:
+            author.order = new_order
+            db_session.add(author)
 
     """
     step 7: insert new author rows in the author_order_to_add_record
