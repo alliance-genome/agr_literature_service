@@ -1,5 +1,6 @@
 from os import environ, makedirs, path
 import json
+import copy
 from sqlalchemy import or_
 import unicodedata
 
@@ -377,22 +378,7 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
         author_list_in_json = []
 
     # rename the field names in json to match the field names from database
-    author_list_in_json_new = []
-    author_order = 0
-    for x in author_list_in_json:
-        author_order += 1
-        orcid = x.get('orcid')
-        if orcid:
-            orcid = f"ORCID:{orcid}" if not orcid.upper().startswith('ORCID') else orcid.upper()
-        author_list_in_json_new.append({
-            'name': x['name'],
-            'first_name': (x['firstname'] if 'firstname' in x else x.get('firstName', '')).strip(),
-            'last_name': (x['lastname'] if 'lastname' in x else x.get('lastName', '')).strip(),
-            'first_initial': (x['firstinit'] if 'firstinit' in x else x.get('firstInit', '')).strip(),
-            'order': x['authorRank'] if 'authorRank' in x else author_order,
-            'affiliations': x['affiliations'] if x.get('affiliations') else [],
-            'orcid': orcid
-        })
+    author_list_in_json = rename_author_fields(author_list_in_json)
 
     # normalize author details for comparison
     def normalize_author(x):
@@ -412,26 +398,27 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
         return (x[2], x[1], x[3], x[0])
 
     normalized_author_list_in_db = [normalize_author(x) for x in author_list_in_db]
-    normalized_author_list_in_json = [normalize_author(x) for x in author_list_in_json_new]
+    normalized_author_list_in_json = [normalize_author(x) for x in author_list_in_json]
 
     if normalized_author_list_in_db == normalized_author_list_in_json:
         return []
 
     # create dictionaries of authors for comparison
     authors_in_db = {author_key(normalize_author(x)): x for x in author_list_in_db}
-    authors_in_json = {author_key(normalize_author(x)): x for x in author_list_in_json_new}
+    authors_in_json = {author_key(normalize_author(x)): x for x in author_list_in_json}
 
     """
     example unique key: ('maita', 'nobuo', 'n', 'nobuo maita')
-    example value: { 'orcid': None,
-                     'first_author': False,
-                     'order': 1,
-                     'corresponding_author': False,
-                     'name': 'Nobuo Maita',
+    example value: { 'orcid': None, 'first_author': False, 'order': 1,
+                     'corresponding_author': False, 'name': 'Nobuo Maita',
                      'affiliations': ['Dept of Molecular Biology, ..'],
-                     'first_name': 'Nobuo',
-                     'last_name': 'Maita',
-                     'first_initial': 'N'}
+                     'first_name': 'Nobuo', 'last_name': 'Maita',
+                     'first_initial': 'N' }
+    """
+
+    """
+    Step 1: Identified authors as updatable for entries that have the same unique
+    author key (last_name, first_name, first_initial, and name).
     """
 
     # sort out author rows into update or delete groups
@@ -456,81 +443,74 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
             update_log['pmids_updated'].append(pmid)
 
     """
-    step 1: update the authors that have been identified to be updatable
-    for entries that have same unique author key (last_name, first_name, first_initial,
-    and name)
-    note that we will save author order update for later since the combination of
-    reference_id + order is unique in the database
+    Step 2: Check to see if whole set of author names are changed
+    For example, change from LastName FirstInitial to FirstName LastName
+         old: ['Keller R',       'Schneider D']
+         new: ['Rebecca Keller', 'Dirk Schneider']
+    If yes, change every row in the author record from "delete/create" to "update"
     """
 
-    temp_order_map = {}
-    name_updated = []
-    for author_order in author_order_to_update_record:
-        json_author = author_order_to_update_record[author_order]
-        temp_order_map, name_updated = update_author_row(db_session, reference_id,
-                                                         author_order, json_author,
-                                                         pmid, temp_order_map,
-                                                         name_updated, fw,
-                                                         logger)
-
-    """
-    step 2: check to see if whole set of author names / orders are changed
-    for example, change from LastName FirstInitial to FirstName LastName
-    old: ['Keller R', 'Schneider D']
-    new: ['Rebecca Keller', 'Dirk Schneider']
-    If yes, change "delete/recreate" to "update" for whole set of the
-    authors.
-    """
     set_to_update = False
     if len(author_order_to_add_record) > 0 and len(author_order_to_delete_record) > 0:
         set_to_update = check_delete_add_rows(len(author_list_in_db),
                                               author_order_to_add_record,
                                               author_order_to_delete_record)
         if set_to_update:
-            # update authors based on new author set: author_order_to_add_record
-            for author_order in author_order_to_add_record:
-                json_author = author_order_to_add_record[author_order]
-                temp_order_map, name_updated = update_author_row(db_session, reference_id,
-                                                                 author_order, json_author,
-                                                                 pmid, temp_order_map,
-                                                                 name_updated, fw,
-                                                                 logger)
+            author_order_to_update_record = copy.copy(author_order_to_add_record)
             author_order_to_add_record = {}
             author_order_to_delete_record = {}
 
     """
-    step 3: if it is not a whole set change, try to see if any of to-be-delete
+    Step 3: If it is not a whole set change, try to see if any of to-be-delete
     author row can be mapped to one and only one of to-be-added author
-    entry based on same ORCID or name (FullName)
-    if yes, remove the entry from the to-be-delete list and to-be-add
-    list, and update the author row
+    entry based on same ORCID or same LastName FirstInitial
+    If yes, remove the entry from the to-be-delete list and to-be-add
+    list, and add it to to-update-list
     """
+
     if len(author_order_to_add_record) > 0 and len(author_order_to_delete_record) > 0:
         old_order_to_new_order_mapping = synchronize_author_lists(author_order_to_add_record,
-                                                                  author_order_to_delete_record)
+                                                                  author_order_to_delete_record,
+                                                                  pmid)
 
         for old_order in old_order_to_new_order_mapping:
             new_order = old_order_to_new_order_mapping[old_order]
-            json_author = author_order_to_add_record[new_order]
-            temp_order_map, name_updated = update_author_row(db_session, reference_id,
-                                                             old_order, json_author,
-                                                             pmid, temp_order_map,
-                                                             name_updated, fw, logger)
+            author_order_to_update_record[old_order] = author_order_to_add_record[new_order]
             author_order_to_add_record.pop(new_order)
             author_order_to_delete_record.pop(old_order)
 
     """
-    step 4: delete author rows in the author_order_to_delete_record
+    Step 4: Update authors in the author_order_to_update_record
+    """
+
+    temp_order_map = {}
+    name_updated = []
+    for old_order in author_order_to_update_record:
+        json_author = author_order_to_update_record[old_order]
+        temp_order_map, name_updated = update_author_row(db_session, reference_id,
+                                                         old_order, json_author,
+                                                         pmid, temp_order_map,
+                                                         name_updated, fw, logger)
+
+    """
+    Step 5: Delete author rows in the author_order_to_delete_record
     """
     name_removed = []
     for author_order in author_order_to_delete_record:
-        x = db_session.query(AuthorModel).filter_by(reference_id=reference_id, order=author_order).one_or_none()
+        x = db_session.query(AuthorModel).filter_by(
+            reference_id=reference_id, order=author_order).one_or_none()
         if x:
             name_removed.append(x.name)
             db_session.delete(x)
 
     """
-    step 5: resolve any order conflicts - just in case the "order" in JSON is not unique
+    Step 6: Insert new author rows in the author_order_to_add_record
+    """
+    name_added = insert_authors(db_session, reference_id, pmid,
+                                author_order_to_add_record, fw, logger)
+
+    """
+    Step 7: Resolve any order conflicts - just in case the "order" in JSON is not unique
     """
     used_orders = set()
     # for old_order, new_order in temp_order_map.items():
@@ -541,23 +521,18 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
         used_orders.add(new_order)
 
     """
-    step 6: update the author orders if needed
+    Step 8: Set the author orders (from the temp orders) to the ones in json
     """
     for old_order, new_order in temp_order_map.items():
         if old_order != new_order:
-            x = db_session.query(AuthorModel).filter_by(reference_id=reference_id, order=old_order).one_or_none()
+            x = db_session.query(AuthorModel).filter_by(
+                reference_id=reference_id, order=old_order).one_or_none()
             if x:
                 x.order = new_order
                 db_session.add(x)
 
     """
-    step 7: insert new author rows in the author_order_to_add_record
-    """
-    name_added = insert_authors(db_session, reference_id, pmid,
-                                author_order_to_add_record, fw, logger)
-
-    """
-    step 8: logging update summary
+    step 9: logging update summary
     """
     if len(name_added) > 0 or len(name_updated) > 0 or len(name_removed) > 0:
         author_update_messages = []
@@ -570,11 +545,9 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
         for (old_name, new_name) in name_updated:
             old_name_list.append(old_name)
             new_name_list.append(new_name)
-            # print("PMID:" + pmid + " reference_id=" + str(reference_id) + " Updated:", old_name, " to ", new_name)
         if len(old_name_list) > 0 or len(new_name_list) > 0:
             name_list_old = ', '.join(old_name_list)
             name_list_new = ', '.join(new_name_list)
-            # print("UPDATED: PMID:" + pmid + " reference_id=" + str(reference_id) + f"'{name_list_old}' to '{name_list_new}'")
             author_update_messages.append(f"'{name_list_old}' to '{name_list_new}'")
         status_changed = pmids_with_pub_status_changed.get(pub_status_changed, {})
         data_changed = status_changed.get(pmid, {})
@@ -588,7 +561,36 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
     return []
 
 
+def rename_author_fields(author_list_in_json):
+
+    """
+    * clean up each field
+    * rename field name to match the corresponding field name from database
+    * add author order if needed
+    """
+
+    author_list_in_json_new = []
+    author_order = 0
+    for x in author_list_in_json:
+        author_order += 1
+        orcid = x.get('orcid')
+        if orcid:
+            orcid = f"ORCID:{orcid}" if not orcid.upper().startswith('ORCID') else orcid.upper()
+        author_list_in_json_new.append({
+            'name': x['name'].strip(),
+            'first_name': (x['firstname'] if 'firstname' in x else x.get('firstName', '')).strip(),
+            'last_name': (x['lastname'] if 'lastname' in x else x.get('lastName', '')).strip(),
+            'first_initial': (x['firstinit'] if 'firstinit' in x else x.get('firstInit', '')).strip(),
+            'order': x['authorRank'] if 'authorRank' in x else author_order,
+            'affiliations': x['affiliations'] if x.get('affiliations') else [],
+            'orcid': orcid
+        })
+
+    return author_list_in_json_new
+
+
 def insert_authors(db_session, reference_id, pmid, author_order_to_add_record, fw, logger):  # pragma: no cover
+
     name_added = []
     for author_order in author_order_to_add_record:
         author = author_order_to_add_record[author_order]
@@ -618,9 +620,10 @@ def insert_authors(db_session, reference_id, pmid, author_order_to_add_record, f
 
 def update_author_row(db_session, reference_id, author_order, json_author, pmid, temp_order_map, name_updated, fw, logger):  # pragma: no cover
 
-    x = db_session.query(AuthorModel).filter_by(reference_id=reference_id, order=author_order).one_or_none()
+    x = db_session.query(AuthorModel).filter_by(
+        reference_id=reference_id, order=author_order).one_or_none()
     if x is None:
-        return
+        return temp_order_map, name_updated
     try:
         if x.name != json_author['name']:
             name_updated.append((x.name, json_author['name']))
@@ -642,55 +645,21 @@ def update_author_row(db_session, reference_id, author_order, json_author, pmid,
         db_session.add(x)
         log_message = f": UPDATE AUTHOR for {x.name} | {x.affiliations}"
         _write_log_message(reference_id, log_message, pmid, logger, fw)
-        return temp_order_map, name_updated
     except Exception as e:
         log_message = f": UPDATE AUTHOR for {x.name} failed: {str(e)}"
         _write_log_message(reference_id, log_message, pmid, logger, fw)
 
-
-def is_lastname_firstinitial(name_list):  # pragma: no cover
-    """check if the name list is in 'LastName FirstInitial' format."""
-    for name in name_list:
-        parts = name.split()
-        if len(parts) != 2:
-            return False
-        last_name, first_initial = parts
-        if len(first_initial) > 2 or not first_initial[0].isupper():
-            return False
-    return True
+    return temp_order_map, name_updated
 
 
-def normalize_name(name):  # pragma: no cover
-    """Normalize names in various formats to 'LastName FirstInitials'."""
-    # Replace commas, dots, hyphens, and multiple spaces with a single space, then split by space
-    name = name.replace(',', ' ').replace('.', ' ').replace('-', ' ')
-    # Replace multiple spaces with a single space
-    while '  ' in name:
-        name = name.replace('  ', ' ')
-    parts = [part.strip() for part in name.split() if part]
-    if len(parts) >= 2:
-        # Last name is the last part
-        last_name = parts[-1]
-        # Handle multi-part first names
-        first_name_parts = parts[:-1]
-        first_initials = ''.join([part[0].upper() for part in first_name_parts if part])
-
-        return f"{last_name} {first_initials}"
-    return name.strip()
-
-
-def synchronize_author_lists(author_order_to_add_record, author_order_to_delete_record):  # pragma: no cover
-
-    def check_author_list_format(author_record):
-        name_list = [author_record[author_order]['name'] for author_order in author_record]
-        return is_lastname_firstinitial(name_list)
+def synchronize_author_lists(author_order_to_add_record, author_order_to_delete_record, pmid):  # pragma: no cover
 
     old_order_to_new_order_mapping = {}
-    new_author_format = check_author_list_format(author_order_to_add_record)
     for new_order in author_order_to_add_record:
         new_author = author_order_to_add_record[new_order]
-        new_name = new_author['name'].replace(',', ' ').replace('.', '')
-        new_name = new_name if new_author_format else normalize_name(new_name)
+        new_name = generate_author_key(new_author['name'],
+                                       new_author['last_name'],
+                                       new_author['first_initial'])
         found_match_old_orders = []
         debugging_old_names = []
         for old_order in author_order_to_delete_record:
@@ -698,35 +667,65 @@ def synchronize_author_lists(author_order_to_add_record, author_order_to_delete_
             if old_author['orcid'] and old_author['orcid'] == new_author['orcid']:
                 found_match_old_orders = [old_author['order']]
                 break
-            old_name = old_author['name'].replace(',', ' ').replace('.', '')
+            old_name = generate_author_key(old_author['name'],
+                                           old_author['last_name'],
+                                           old_author['first_initial'])
             debugging_old_names.append(old_name)
-            if old_name in new_name or new_name in old_name:
+            if old_name == new_name:
                 found_match_old_orders.append(old_author['order'])
+            elif ' ' not in old_name or ' ' not in new_name:
+                # for the cases: name = last_name
+                if old_name.split(' ')[0] == new_name.split(' ')[0]:
+                    found_match_old_orders.append(old_author['order'])
         if len(found_match_old_orders) == 1:
             old_order = found_match_old_orders[0]
             old_order_to_new_order_mapping[old_order] = new_order
         else:
-            print(f"NO MATCH found for '{new_name}' in ", debugging_old_names)
+            print(f"PMID:{pmid} NO MATCH found for '{new_name}' in ", debugging_old_names)
 
     return old_order_to_new_order_mapping
 
 
-def compare_author_lists(old_list, new_list):  # pragma: no cover
+def generate_author_key(name, last_name, first_initial):  # pragma: no cover
+
+    name = normalize_string(name)
+    last_name = normalize_string(last_name)
+    first_initial = normalize_string(first_initial)
+
+    if last_name and first_initial:
+        return f"{last_name} {first_initial[0]}".strip().upper()
+
+    last_name = None
+    first_name_parts = None
+    if "," in name:
+        # "Andersson,M." | " Specchio,N.A."
+        last_name, first_name_parts = name.strip().replace(', ', ',').split(',')
+    else:
+        parts = name.strip().split(' ')
+        if len(parts) >= 2:
+            last_name = parts[-1]
+            first_name_parts = parts[:-1]
+            if len(last_name) < 3 and last_name == last_name.upper() and \
+               len(first_name_parts) == 1 and len(first_name_parts[0]) > len(last_name) and \
+               first_name_parts[0] != first_name_parts[0].upper():
+                # example name: "Smith W", "Li H", " Blaha A", "Bahrami AH"
+                first_initial = last_name[0]
+                last_name = first_name_parts[0]
+                return f"{last_name} {first_initial}".strip().upper()
+    if last_name and first_name_parts:
+        first_initial = ''.join([part[0] for part in first_name_parts if part])
+        return f"{last_name} {first_initial[0]}".strip().upper()
+    else:
+        return name.strip().upper()
+
+
+def normalize_string(s):
     """
-    Convert both lists to 'LastName FirstInitial' format, then compare.
+    normalize a string by removing accents
+    in Unicode normalization, 'NFKD' stands for "Normalization Form KD"
     """
-
-    def normalize_list(name_list):
-        """normalize a list of 'FirstName LastName' to 'LastName FirstInitial'"""
-        return [normalize_name(name) for name in name_list]
-
-    old_list_format = is_lastname_firstinitial(old_list)
-    new_list_format = is_lastname_firstinitial(new_list)
-
-    normalized_old_list = old_list if old_list_format else normalize_list(old_list)
-    normalized_new_list = new_list if new_list_format else normalize_list(new_list)
-
-    return normalized_old_list == normalized_new_list
+    normalized = unicodedata.normalize('NFKD', s)
+    return ''.join([c for c in normalized if not unicodedata.combining(c)])
 
 
 def check_delete_add_rows(author_count_db, author_order_to_add_record, author_order_to_delete_record):  # pragma: no cover
@@ -762,17 +761,7 @@ def check_delete_add_rows(author_count_db, author_order_to_add_record, author_or
           'Dong-Jun Yu', 'Yang Zhang']
     """
 
-    def normalize_string(s):
-        """
-        normalize a string by removing accents
-        in Unicode normalization, 'NFKD' stands for "Normalization Form KD"
-        """
-        normalized = unicodedata.normalize('NFKD', s)
-        return ''.join([c for c in normalized if not unicodedata.combining(c)])
-
     set_to_update = True
-    old_list = []
-    new_list = []
     sorted_author_orders = sorted(author_order_to_add_record.keys())
     if author_count_db == len(author_order_to_add_record) and author_count_db == len(author_order_to_delete_record):
         for author_order in sorted_author_orders:
@@ -781,21 +770,27 @@ def check_delete_add_rows(author_count_db, author_order_to_add_record, author_or
             if db_author is None:
                 set_to_update = False
                 break
-            name_json = json_author['name'].strip()
-            name_db = db_author['name'].strip()
-            old_list.append(name_db)
-            new_list.append(name_json)
+            name_db = generate_author_key(db_author['name'],
+                                          db_author['last_name'],
+                                          db_author['first_initial'])
+            name_json = generate_author_key(json_author['name'],
+                                            json_author['last_name'],
+                                            json_author['first_initial'])
+            if name_db == name_json:
+                continue
+            name_json = json_author['name'].strip().lower()
+            name_db = db_author['name'].strip().lower()
             name_match = False
             for word_db in name_db.split(' '):
                 for word_json in name_json.split(' '):
-                    if normalize_string(word_db).lower() == normalize_string(word_json).lower() and len(word_db) >= 4:
+                    if normalize_string(word_db) == normalize_string(word_json) and len(word_db) >= 4:
                         name_match = True
+
             if not name_match:
                 set_to_update = False
                 break
-    if set_to_update:
-        return True
-    return compare_author_lists(old_list, new_list)
+
+    return set_to_update
 
 
 def update_workflow_tags(db_session, mod_id, reference_id, workflow_tag_rows_db, workflow_tags_json, logger):
