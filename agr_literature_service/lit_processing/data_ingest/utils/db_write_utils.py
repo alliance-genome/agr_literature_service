@@ -686,7 +686,7 @@ def synchronize_author_lists(author_order_to_add_record, author_order_to_delete_
     return old_order_to_new_order_mapping
 
 
-def generate_author_key(name, last_name, first_initial):  # pragma: no cover
+def generate_author_key(name, last_name, first_initial):
 
     name = normalize_string(name)
     last_name = normalize_string(last_name)
