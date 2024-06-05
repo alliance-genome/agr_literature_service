@@ -10,7 +10,8 @@ from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils impo
     add_cross_references, update_mod_corpus_associations, \
     update_mod_reference_types, add_mca_to_existing_references, \
     update_reference_relations, update_mesh_terms, \
-    mark_false_positive_papers_as_out_of_corpus, mark_not_in_mod_papers_as_out_of_corpus
+    mark_false_positive_papers_as_out_of_corpus, mark_not_in_mod_papers_as_out_of_corpus, \
+    generate_author_key
 
 from ....fixtures import db, load_sanitized_references, populate_test_mod_reference_types # noqa
 
@@ -190,3 +191,48 @@ class TestDbReadUtils:
                              "WHERE curie_prefix = 'Xenbase'").fetchall()
         for x in cr_rows:
             assert x[0] is True
+
+        ## test generate_author_key
+        name = generate_author_key("Noda T", "", "")
+        name2 = generate_author_key("Taichi Noda", "Noda", "T")
+        assert name == name2
+
+        name = generate_author_key(" Blaha A", "", "")
+        name2 = generate_author_key("Andreas Blaha", "Blaha", "A")
+        assert name == name2
+
+        name = generate_author_key("Bahrami AH", "", "")
+        name2 = generate_author_key("Bahrami A", "Bahrami", "A")
+        assert name == name2
+
+        name = generate_author_key("Kurat CF", "", "")
+        name2 = generate_author_key("Christoph F Kurat", "Kurat", "C")
+        assert name == name2
+
+        name = generate_author_key("Bahrami AH", "", "")
+        name2 = generate_author_key("Amir Houshang Bahrami", "Bahrami", "")
+        assert name == name2
+
+        name = generate_author_key("Li H", "", "")
+        name2 = generate_author_key("H Li", "", "")
+        assert name == name2
+
+        name = generate_author_key("Anderson,C", "", "")
+        name2 = generate_author_key("Carrie Anderson", "Anderson", "C")
+        assert name == name2
+
+        name = generate_author_key("Wang,Y.", "", "")
+        name2 = generate_author_key("Yicui Wang", "Wang", "Y")
+        assert name == name2
+
+        name = generate_author_key("T Kutateladze", "", "")
+        name2 = generate_author_key("T G Kutateladze", "", "")
+        assert name == name2
+
+        name = generate_author_key("David J. Smith", "", "")
+        name2 = generate_author_key("David Smith", "", "")
+        assert name == name2
+
+        name = generate_author_key("Smith,David", "", "")
+        name2 = generate_author_key("Smith, David", "", "")
+        assert name == name2
