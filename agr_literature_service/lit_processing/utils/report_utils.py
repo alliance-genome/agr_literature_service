@@ -352,26 +352,42 @@ def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, upda
             data = data_change_for_status[pmid]
             for colName in data:
                 displayColName = "journal" if colName == 'resource_id' else colName
-                logger.info(f"PMID:{pmid}: {displayColName} {data[colName]}")
-                fw.write(f"PMID:{pmid}: {displayColName} {data[colName]}\n")
-                # email_message = email_message + f"PMID:{pmid}: {displayColName} {data[colName]}<br>"
+                messages = []
+                if colName == 'authors':
+                    messages = data[colName]
+                else:
+                    messages = [data[colName]]
+                for message in messages:
+                    logger.info(f"PMID:{pmid}: {displayColName} {message}")
+                    fw.write(f"PMID:{pmid}: {displayColName} {message}\n")
 
     i = 0
     rows = ''
     for pmid in sorted(changes_for_published_papers):
         if i == 0:
-            email_message = email_message + "<p><b>Updates in Journal, Author, Volume, or Issue Fields for Published Papers:</b><p>"
+            email_message += "<p><b>Updates in Journal, Author, Volume, or Issue Fields for Published Papers:</b><p>"
             rows = "<tr><th style='text-align:left' width=150>PubMed ID</th><th style='text-align:left' width=130>Data Type</th><th style='text-align:left' width=300>Old Value</th><th style='text-align:left' width=300>New Value</th></tr>"
         i += 1
         data = changes_for_published_papers[pmid]
         for colName in sorted(data):
             displayColName = "journal" if colName == 'resource_id' else colName
             displayColName = displayColName.lower()
-            [fromVal, toVal] = data[colName].replace("from '", "").split("' to '")
-            toVal = toVal.replace("'", "")
-            rows = rows + f"<tr><th style='text-align:left'>PMID:{pmid}</th><td style='text-align:left'><strong>{displayColName}</strong></td><td style='text-align:left'>{fromVal}</td><td style='text-align:left'>{toVal}</td></tr>"
+            messages = []
+            if colName == 'authors':
+                messages = data[colName]
+            else:
+                messages = [data[colName]]
+            for message in messages:
+                [fromVal, toVal] = message.replace("from '", "").split("' to '")
+                fromVal = fromVal.replace("'", "")
+                toVal = toVal.replace("'", "")
+                if colName == 'authors' and 'Deleted' in fromVal:
+                    fromVal = fromVal.replace("Deleted:", "<span style='color:red;'>Deleted:</span>")
+                    toVal = toVal.replace("Inserted:", "<span style='color:green;'>Inserted:</span>")
+                if fromVal or toVal:
+                    rows += f"<tr><td style='text-align:left'>PMID:{pmid}</td><td style='text-align:left'><strong>{displayColName}</strong></td><td style='text-align:left'>{fromVal}</td><td style='text-align:left'>{toVal}</td></tr>"
     if rows:
-        email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
+        email_message += "<table><tbody>" + rows + "</tbody></table>"
 
     if mod:
         email_message = email_message + "DONE!<p>"
