@@ -424,18 +424,34 @@ def update_authors(db_session, reference_id, author_list_in_db, author_list_in_j
     # sort out author rows into update or delete groups
     author_order_to_update_record = {}
     author_order_to_delete_record = {}
+    old_order_list = []
     for key, db_author in authors_in_db.items():
         if key not in authors_in_json:
             author_order_to_delete_record[db_author['order']] = db_author
         else:
             json_author = authors_in_json[key]
             author_order_to_update_record[db_author['order']] = json_author
+        old_order_list.append(db_author['order'])
 
     # check for new authors to add
     author_order_to_add_record = {}
+    new_order_list = []
     for key, json_author in authors_in_json.items():
         if key not in authors_in_db:
             author_order_to_add_record[json_author['order']] = json_author
+        new_order_list.append(json_author['order'])
+
+    # check if author key (last_name, first_name, first_initial, and name) is unique
+    # if not, reset the to-be-deleted, to-be-updated, to-be-added set
+    if len(old_order_list) != len(author_list_in_db) or len(new_order_list) != len(author_list_in_json):
+        # author key is not unique
+        author_order_to_delete_record = {}
+        author_order_to_add_record = {}
+        for x in author_list_in_db:
+            author_order_to_delete_record[x['order']] = x
+        for x in author_list_in_json:
+            author_order_to_add_record[x['order']] = x
+        author_order_to_update_record = {}
 
     if author_order_to_delete_record or author_order_to_add_record or author_order_to_update_record:
         if update_log:
@@ -686,7 +702,7 @@ def synchronize_author_lists(author_order_to_add_record, author_order_to_delete_
     return old_order_to_new_order_mapping
 
 
-def generate_author_key(name, last_name, first_initial):
+def generate_author_key(name, last_name, first_initial):  # pragma: no cover
 
     name = normalize_string(name)
     last_name = normalize_string(last_name)
