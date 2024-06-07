@@ -472,8 +472,7 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
 
     temp_order_map = {}
     name_updated = []
-    for old_order in author_order_to_update_record:
-        json_author = author_order_to_update_record[old_order]
+    for old_order, json_author in author_order_to_update_record.items():
         temp_order_map, name_updated = update_author_row(db_session, reference_id,
                                                          old_order, json_author,
                                                          pmid, temp_order_map,
@@ -577,30 +576,30 @@ def insert_authors(db_session, reference_id, pmid, author_order_to_add_record, f
     return name_added
 
 
-def update_author_row(db_session, reference_id, author_order, json_author, pmid, temp_order_map, name_updated, fw, logger):  # pragma: no cover
+def update_author_row(db_session, reference_id, author_order, json_author: Author, pmid, temp_order_map, name_updated, fw, logger):  # pragma: no cover
 
     x = db_session.query(AuthorModel).filter_by(
         reference_id=reference_id, order=author_order).one_or_none()
     if x is None:
         return temp_order_map, name_updated
     try:
-        if x.name != json_author['name']:
-            name_updated.append((x.name, json_author['name']))
-            x.name = json_author['name']
-        if x.first_name != json_author['first_name']:
-            x.first_name = json_author['first_name']
-        if x.last_name != json_author['last_name']:
-            x.last_name = json_author['last_name']
-        if x.first_initial != json_author['first_initial']:
-            x.first_initial = json_author['first_initial']
-        if x.affiliations != json_author['affiliations']:
-            x.affiliations = json_author['affiliations']
-        if x.orcid != json_author['orcid']:
-            x.orcid = json_author['orcid']
-        if x.order != json_author['order']:
+        if x.name != json_author.name:
+            name_updated.append((x.name, json_author.name))
+            x.name = json_author.name
+        if x.first_name != json_author.first_name:
+            x.first_name = json_author.first_name
+        if x.last_name != json_author.last_name:
+            x.last_name = json_author.last_name
+        if x.first_initial != json_author.first_initial:
+            x.first_initial = json_author.first_initial
+        if x.affiliations != json_author.affiliations:
+            x.affiliations = json_author.affiliations
+        if x.orcid != json_author.orcid:
+            x.orcid = json_author.orcid
+        if x.order != json_author.order:
             tmp_order = x.order + 1000
             x.order = tmp_order
-            temp_order_map[tmp_order] = json_author['order']
+            temp_order_map[tmp_order] = json_author.order
         db_session.add(x)
         log_message = f": UPDATE AUTHOR for {x.name} | {x.affiliations}"
         _write_log_message(reference_id, log_message, pmid, logger, fw)

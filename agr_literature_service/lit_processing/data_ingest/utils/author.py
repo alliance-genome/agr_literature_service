@@ -4,7 +4,7 @@ from typing import List, Dict
 
 class Author:
     def __init__(self, name, first_name, last_name, first_initial, order, orcid, affiliations: List[str],
-                 first_author=None, corresponding_author=None):
+                 first_author=None, corresponding_author=None, string_affiliations: str = ""):
         self.name = name
         self.first_name = first_name
         self.last_name = last_name
@@ -14,6 +14,7 @@ class Author:
         self.affiliations = affiliations
         self.first_author = first_author
         self.corresponding_author = corresponding_author
+        self.string_affiliations = string_affiliations
 
     @staticmethod
     def normalize_field(field, set_lowercase: bool = False):
@@ -37,8 +38,9 @@ class Author:
                       self.normalize_field(self.last_name, set_lowercase),
                       self.normalize_field(self.first_initial, set_lowercase),
                       self.normalize_field(self.order, set_lowercase),
-                      self.normalize_field(self.affiliations, set_lowercase),
-                      self.first_author, self.corresponding_author)
+                      self.affiliations,
+                      self.first_author, self.corresponding_author,
+                      self.normalize_field(self.affiliations, set_lowercase))
 
     def get_unique_key_based_on_names(self):
         """
@@ -140,7 +142,7 @@ class Author:
         return (str(normalized_author.name) + " | " + str(normalized_author.first_name) + " | " +
                 str(normalized_author.last_name) + " | " + str(normalized_author.first_initial) + " | " +
                 str(normalized_author.orcid) + " | " + str(normalized_author.order) + " | " +
-                str(normalized_author.affiliations))
+                str(normalized_author.string_affiliations))
 
 
 def add_order_to_list_of_authors(authors: List[Author]):
