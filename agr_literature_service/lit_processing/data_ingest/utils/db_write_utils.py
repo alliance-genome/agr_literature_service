@@ -492,8 +492,7 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
     """
     Step 6: Insert new author rows in the author_order_to_add_record
     """
-    name_added = insert_authors(db_session, reference_id, pmid,
-                                author_order_to_add_record, fw, logger)
+    name_added = insert_authors(db_session, reference_id, pmid, author_order_to_add_record, fw, logger)
 
     """
     Step 7: Resolve any order conflicts - just in case the "order" in JSON is not unique
@@ -550,27 +549,27 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
 def insert_authors(db_session, reference_id, pmid, author_order_to_add_record, fw, logger):  # pragma: no cover
 
     name_added = []
-    for author_order in author_order_to_add_record:
-        author = author_order_to_add_record[author_order]
+    author: Author
+    for author_order, author in author_order_to_add_record.items():
         try:
             x = AuthorModel(
                 reference_id=reference_id,
-                name=author['name'],
-                first_name=author['first_name'],
-                last_name=author['last_name'],
-                first_initial=author['first_initial'],
-                order=author['order'],
-                affiliations=author['affiliations'],
-                orcid=author['orcid'],
+                name=author.name,
+                first_name=author.first_name,
+                last_name=author.last_name,
+                first_initial=author.first_initial,
+                order=author.order,
+                affiliations=author.affiliations,
+                orcid=author.orcid,
                 first_author=False,
                 corresponding_author=False
             )
             db_session.add(x)
-            log_message = f": INSERT AUTHOR: {author['name']} | '{author['affiliations']}'"
+            log_message = f": INSERT AUTHOR: {author.name} | '{author.affiliations}'"
             _write_log_message(reference_id, log_message, pmid, logger, fw)
-            name_added.append(author['name'])
+            name_added.append(author.name)
         except Exception as e:
-            log_message = f": INSERT AUTHOR: {author['name']} failed: {str(e)}"
+            log_message = f": INSERT AUTHOR: {author.name} failed: {str(e)}"
             _write_log_message(reference_id, log_message, pmid, logger, fw)
 
     return name_added
