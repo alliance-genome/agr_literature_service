@@ -1,12 +1,12 @@
 from os import environ, makedirs, path
 import json
-import copy
 from typing import List, Dict
 
 from sqlalchemy import or_
-import unicodedata
 
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
+from agr_literature_service.lit_processing.data_ingest.utils.author import Author, authors_lists_are_equal, \
+    authors_have_same_name
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.lit_processing.utils.db_read_utils import \
@@ -359,117 +359,6 @@ def _write_log_message(reference_id, log_message, pmid, logger, fw):  # pragma: 
         fw.write(log_message + "\n")
 
 
-class Author:
-    def __init__(self, name, first_name, last_name, first_initial, order, orcid, affiliations: List[str],
-                 first_author=None, corresponding_author=None):
-        self.name = name
-        self.first_name = first_name
-        self.last_name = last_name
-        self.first_initial = first_initial
-        self.order = order
-        self.orcid = orcid
-        self.affiliations = affiliations
-        self.first_author = first_author
-        self.corresponding_author = corresponding_author
-
-    @staticmethod
-    def normalize_field(field, set_lowercase: bool = False):
-        if type(field) == str:
-            normalized_field = field.strip() if field else ''
-            if set_lowercase:
-                normalized_field = normalized_field.lower()
-        elif type(field) == list:
-            normalized_field = '|'.join(sub_field.strip() for sub_field in field) if field else ''
-            if set_lowercase:
-                normalized_field = normalized_field.lower()
-        elif type(field) == int:
-            return field
-        else:
-            raise Exception
-        return normalized_field
-
-    def get_normalized_author(self, set_lowercase: bool = False):
-        return Author(self.normalize_field(self.name, set_lowercase),
-                      self.normalize_field(self.first_name, set_lowercase),
-                      self.normalize_field(self.last_name, set_lowercase),
-                      self.normalize_field(self.first_initial, set_lowercase),
-                      self.normalize_field(self.order, set_lowercase),
-                      self.normalize_field(self.affiliations, set_lowercase),
-                      self.first_author, self.corresponding_author)
-
-    def get_unique_key(self):
-        """
-        generate a unique key for each author based on specific attributes
-        using last_name, first_name, first_initial, and name (fullname)
-        """
-        normalized_author = self.get_normalized_author(set_lowercase=True)
-        return (normalized_author.last_name, normalized_author.first_name, normalized_author.first_initial,
-                normalized_author.name)
-
-    def fix_orcid_format(self):
-        if self.orcid:
-            self.orcid = f"ORCID:{self.orcid}" if not self.orcid.upper().startswith(
-                'ORCID') else self.orcid.upper()
-        else:
-            self.orcid = None
-
-    @staticmethod
-    def load_from_json_dict(x):
-        loaded_author = Author(name=x['name'],
-                               first_name=x['firstname'] if 'firstname' in x else x.get('firstName', ''),
-                               last_name=x['lastname'] if 'lastname' in x else x.get('lastName', ''),
-                               first_initial=x['firstinit'] if 'firstinit' in x else x.get('firstInit', ''),
-                               order=x['authorRank'] if 'authorRank' in x else None,
-                               affiliations=x['affiliations'] if x.get('affiliations') else [],
-                               orcid=x['orcid'] if 'orcid' in x else None)
-        normalized_author = Author.get_normalized_author(loaded_author, set_lowercase=False)
-        normalized_author.fix_orcid_format()
-        return normalized_author
-
-    @staticmethod
-    def load_from_db_dict(x):
-        loaded_author = Author(name=x['name'],
-                               first_name=x.get('first_name', ''),
-                               last_name=x.get('last_name', ''),
-                               first_initial=x.get('first_initial', ''),
-                               order=x.get('order'),
-                               affiliations=x.get('affiliations', []),
-                               orcid=x.get('orcid', None))
-        normalized_author = Author.get_normalized_author(loaded_author, set_lowercase=False)
-        normalized_author.fix_orcid_format()
-        return normalized_author
-
-    @staticmethod
-    def load_list_of_authors_from_json_dict_list(json_dict_list: List[Dict]):
-        authors = [Author.load_from_json_dict(json_dict) for json_dict in json_dict_list]
-        add_order_to_list_of_authors(authors)
-        return authors
-
-    @staticmethod
-    def load_list_of_authors_from_db_dict_list(db_dict_list: List[Dict]):
-        return [Author.load_from_db_dict(db_dict) for db_dict in db_dict_list]
-
-    def get_normalized_lowercase_author_string(self):
-        normalized_author = Author.get_normalized_author(self, set_lowercase=True)
-        return (str(normalized_author.name) + " | " + str(normalized_author.first_name) + " | " +
-                str(normalized_author.last_name) + " | " + str(normalized_author.first_initial) + " | " +
-                str(normalized_author.orcid) + " | " + str(normalized_author.order) + " | " +
-                str(normalized_author.affiliations))
-
-
-def add_order_to_list_of_authors(authors: List[Author]):
-    if len(authors) > 0 and authors[0].order is None:
-        author_order = 0
-        for author in authors:
-            author_order += 1
-            author.order = author_order
-
-
-def authors_lists_are_equal(author_list1: List[Author], author_list2: List[Author]):
-    return [Author.get_normalized_lowercase_author_string(author) for author in author_list1] == [
-        Author.get_normalized_lowercase_author_string(author) for author in author_list2]
-
-
 def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, str]],
                    author_list_in_json: List[Dict[str, str]],
                    pub_status_changed, pmids_with_pub_status_changed, logger=None, fw=None, pmid=None, update_log=None):  # noqa: C901 # pragma: no cover
@@ -500,8 +389,8 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
         return []
 
     # create dictionaries of authors for comparison
-    authors_in_db_dict = {author.get_unique_key(): author for author in authors_from_db}
-    authors_in_json_dict = {author.get_unique_key(): author for author in authors_from_json}
+    authors_in_db_dict = {author.get_unique_key_based_on_names(): author for author in authors_from_db}
+    authors_in_json_dict = {author.get_unique_key_based_on_names(): author for author in authors_from_json}
 
     """
     example unique key: ('maita', 'nobuo', 'n', 'nobuo maita')
@@ -551,15 +440,12 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
     If yes, change every row in the author record from "delete/create" to "update"
     """
 
-    set_to_update = False
-    if len(author_order_to_add_record) > 0 and len(author_order_to_delete_record) > 0:
-        set_to_update = check_delete_add_rows(len(author_list_in_db),
-                                              author_order_to_add_record,
-                                              author_order_to_delete_record)
-        if set_to_update:
-            author_order_to_update_record = copy.copy(author_order_to_add_record)
-            author_order_to_add_record = {}
-            author_order_to_delete_record = {}
+    if are_additions_and_deletions_only_format_changes(len(author_list_in_db),
+                                                       author_order_to_add_record,
+                                                       author_order_to_delete_record):
+        author_order_to_update_record = author_order_to_add_record
+        author_order_to_add_record = {}
+        author_order_to_delete_record = {}
 
     """
     Step 3: If it is not a whole set change, try to see if any of to-be-delete
@@ -759,49 +645,7 @@ def synchronize_author_lists(author_order_to_add_record, author_order_to_delete_
     return old_order_to_new_order_mapping
 
 
-def generate_author_key(name, last_name, first_initial):  # pragma: no cover
-
-    name = normalize_string(name)
-    last_name = normalize_string(last_name)
-    first_initial = normalize_string(first_initial)
-
-    if last_name and first_initial:
-        return f"{last_name} {first_initial[0]}".strip().upper()
-
-    last_name = None
-    first_name_parts = None
-    if "," in name:
-        # "Andersson,M." | " Specchio,N.A."
-        last_name, first_name_parts = name.strip().replace(', ', ',').split(',')
-    else:
-        parts = name.strip().split(' ')
-        if len(parts) >= 2:
-            last_name = parts[-1]
-            first_name_parts = parts[:-1]
-            if len(last_name) < 3 and last_name == last_name.upper() and \
-               len(first_name_parts) == 1 and len(first_name_parts[0]) > len(last_name) and \
-               first_name_parts[0] != first_name_parts[0].upper():
-                # example name: "Smith W", "Li H", " Blaha A", "Bahrami AH"
-                first_initial = last_name[0]
-                last_name = first_name_parts[0]
-                return f"{last_name} {first_initial}".strip().upper()
-    if last_name and first_name_parts:
-        first_initial = ''.join([part[0] for part in first_name_parts if part])
-        return f"{last_name} {first_initial[0]}".strip().upper()
-    else:
-        return name.strip().upper()
-
-
-def normalize_string(s):
-    """
-    normalize a string by removing accents
-    in Unicode normalization, 'NFKD' stands for "Normalization Form KD"
-    """
-    normalized = unicodedata.normalize('NFKD', s)
-    return ''.join([c for c in normalized if not unicodedata.combining(c)])
-
-
-def check_delete_add_rows(author_count_db, author_order_to_add_record, author_order_to_delete_record):  # pragma: no cover
+def are_additions_and_deletions_only_format_changes(author_count_db, author_order_to_add_record, author_order_to_delete_record):  # pragma: no cover
     """
     check if every pair of corresponding old and new name has the same last name.
     normalize every name to remove accents and convert to lowercase before comparing.
@@ -834,36 +678,19 @@ def check_delete_add_rows(author_count_db, author_order_to_add_record, author_or
           'Dong-Jun Yu', 'Yang Zhang']
     """
 
-    set_to_update = True
-    sorted_author_orders = sorted(author_order_to_add_record.keys())
-    if author_count_db == len(author_order_to_add_record) and author_count_db == len(author_order_to_delete_record):
-        for author_order in sorted_author_orders:
-            json_author = author_order_to_add_record[author_order]
-            db_author = author_order_to_delete_record.get(author_order)
-            if db_author is None:
-                set_to_update = False
-                break
-            name_db = generate_author_key(db_author['name'],
-                                          db_author['last_name'],
-                                          db_author['first_initial'])
-            name_json = generate_author_key(json_author['name'],
-                                            json_author['last_name'],
-                                            json_author['first_initial'])
-            if name_db == name_json:
-                continue
-            name_json = json_author['name'].strip().lower()
-            name_db = db_author['name'].strip().lower()
-            name_match = False
-            for word_db in name_db.split(' '):
-                for word_json in name_json.split(' '):
-                    if normalize_string(word_db) == normalize_string(word_json) and len(word_db) >= 4:
-                        name_match = True
-
-            if not name_match:
-                set_to_update = False
-                break
-
-    return set_to_update
+    if len(author_order_to_add_record) > 0 and len(author_order_to_delete_record) > 0:
+        sorted_author_orders = sorted(author_order_to_add_record.keys())
+        if author_count_db == len(author_order_to_add_record) and author_count_db == len(author_order_to_delete_record):
+            for author_order in sorted_author_orders:
+                json_author = author_order_to_add_record[author_order]
+                db_author = author_order_to_delete_record.get(author_order)
+                if db_author is None:
+                    return False
+                if (db_author.get_key_based_on_unaccented_names() != json_author.get_key_based_on_unaccented_names() and
+                        not authors_have_same_name(db_author, json_author)):
+                    return False
+            return True
+    return False
 
 
 def update_workflow_tags(db_session, mod_id, reference_id, workflow_tag_rows_db, workflow_tags_json, logger):
