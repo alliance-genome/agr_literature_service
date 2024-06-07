@@ -614,33 +614,27 @@ def update_author_row(db_session, reference_id, author_order, json_author, pmid,
 def synchronize_author_lists(author_order_to_add_record, author_order_to_delete_record, pmid):  # pragma: no cover
 
     old_order_to_new_order_mapping = {}
-    for new_order in author_order_to_add_record:
-        new_author = author_order_to_add_record[new_order]
-        new_name = generate_author_key(new_author['name'],
-                                       new_author['last_name'],
-                                       new_author['first_initial'])
+    for new_order, new_author in author_order_to_add_record.items():
+        new_name_key = new_author.get_key_based_on_unaccented_names()
         found_match_old_orders = []
         debugging_old_names = []
-        for old_order in author_order_to_delete_record:
-            old_author = author_order_to_delete_record[old_order]
-            if old_author['orcid'] and old_author['orcid'] == new_author['orcid']:
-                found_match_old_orders = [old_author['order']]
+        for old_order, old_author in author_order_to_delete_record.items():
+            if old_author.orcid and old_author.orcid == new_author.orcid:
+                found_match_old_orders = [old_author.order]
                 break
-            old_name = generate_author_key(old_author['name'],
-                                           old_author['last_name'],
-                                           old_author['first_initial'])
-            debugging_old_names.append(old_name)
-            if old_name == new_name:
-                found_match_old_orders.append(old_author['order'])
-            elif ' ' not in old_name or ' ' not in new_name:
+            old_name_key = old_author.get_key_based_on_unaccented_names()
+            debugging_old_names.append(old_name_key)
+            if old_name_key == new_name_key:
+                found_match_old_orders.append(old_author.order)
+            elif ' ' not in old_name_key or ' ' not in new_name_key:
                 # for the cases: name = last_name
-                if old_name.split(' ')[0] == new_name.split(' ')[0]:
-                    found_match_old_orders.append(old_author['order'])
+                if old_name_key.split(' ')[0] == new_name_key.split(' ')[0]:
+                    found_match_old_orders.append(old_author.order)
         if len(found_match_old_orders) == 1:
             old_order = found_match_old_orders[0]
             old_order_to_new_order_mapping[old_order] = new_order
         else:
-            print(f"PMID:{pmid} NO MATCH found for '{new_name}' in ", debugging_old_names)
+            print(f"PMID:{pmid} NO MATCH found for '{new_name_key}' in ", debugging_old_names)
 
     return old_order_to_new_order_mapping
 
