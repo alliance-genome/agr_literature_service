@@ -497,13 +497,9 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
     """
     Step 7: Resolve any order conflicts - just in case the "order" in JSON is not unique
     """
-    used_orders = set()
-    # for old_order, new_order in temp_order_map.items():
-    for _, new_order in temp_order_map.items():
-        if new_order in used_orders:
-            db_session.rollback()
-            raise ValueError(f"Duplicate order value detected: {new_order}")
-        used_orders.add(new_order)
+    if len(temp_order_map.values()) != len({order for order in temp_order_map.values()}):
+        db_session.rollback()
+        raise ValueError("Duplicate order value detected")
 
     """
     Step 8: Set the author orders (from the temp orders) to the ones in json
