@@ -517,25 +517,19 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
     author key (last_name, first_name, first_initial, and name).
     """
 
-    # sort out author rows into update or delete groups
-    author_order_to_update_record = {}
-    author_order_to_delete_record = {}
-    author_order_to_add_record = {}
-
     keys_in_db = set(authors_in_db_dict.keys())
     keys_in_json = set(authors_in_json_dict.keys())
 
     keys_in_db_and_json = keys_in_json & keys_in_db  # keys in both db and json, add the related json objs
-    for key in keys_in_db_and_json:
-        author_order_to_update_record[authors_in_db_dict[key].order] = authors_in_json_dict[key]
+    author_order_to_update_record = {authors_in_db_dict[key].order: authors_in_json_dict[key]
+                                     for key in keys_in_db_and_json}
 
     keys_only_in_db = keys_in_db - keys_in_json  # keys only in db, add the objects in the list to remove
-    for key in keys_only_in_db:
-        author_order_to_delete_record[authors_in_db_dict[key].order] = authors_in_db_dict[key]
+    author_order_to_delete_record = {authors_in_db_dict[key].order: authors_in_db_dict[key] for key in keys_only_in_db}
 
     keys_only_in_json = keys_in_json - keys_in_db  # keys only in json, add the related objects
-    for key in keys_only_in_json:
-        author_order_to_add_record[authors_in_json_dict[key].order] = authors_in_json_dict[key]
+    author_order_to_add_record = {authors_in_json_dict[key].order: authors_in_json_dict[key]
+                                  for key in keys_only_in_json}
 
     if (len(keys_only_in_db) + len(keys_in_db_and_json) != len(keys_in_db) or len(keys_only_in_json) +
             len(keys_in_db_and_json) != len(keys_in_json)):
