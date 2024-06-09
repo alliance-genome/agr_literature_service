@@ -461,8 +461,8 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
     Step 4: Update authors in the author_order_to_update_record
     """
 
-    temp_order_map = {}
-    name_updated = []
+    temp_order_map: Dict[int, int] = {}
+    name_updated: List[str] = []
     # sort by keys (old_order)
     for old_order, json_author in sorted(author_order_to_update_record.items()):
         temp_order_map, name_updated = update_author_row(db_session, reference_id,
@@ -473,7 +473,7 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
     """
     Step 5: Delete author rows in the author_order_to_delete_record
     """
-    name_removed = []
+    name_removed: List[str] = []
     for author_order in sorted(author_order_to_delete_record.keys()):
         x = db_session.query(AuthorModel).filter_by(
             reference_id=reference_id, order=author_order).one_or_none()
@@ -536,7 +536,7 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
 
 def insert_authors(db_session, reference_id, pmid, author_order_to_add_record, fw, logger):  # pragma: no cover
 
-    name_added = []
+    name_added: List[str] = []
     author: Author
     sorted_orders = sorted(author_order_to_add_record.keys())
     for order in sorted_orders:
