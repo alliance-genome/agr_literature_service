@@ -359,9 +359,7 @@ def _write_log_message(reference_id, log_message, pmid, logger, fw):  # pragma: 
         fw.write(log_message + "\n")
 
 
-def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, str]],
-                   author_list_in_json: List[Dict[str, str]],
-                   pub_status_changed, pmids_with_pub_status_changed, logger=None, fw=None, pmid=None, update_log=None):  # noqa: C901 # pragma: no cover
+def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, str]], author_list_in_json: List[Dict[str, str]], pub_status_changed: str, pmids_with_pub_status_changed: Dict[str, Dict[str, List]], logger=None, fw=None, pmid=None, update_log=None):  # noqa: C901 # pragma: no cover
     """
     Update authors in DB based on data from PubMed or DQM submission for a single reference
 
@@ -389,17 +387,9 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
         return []
 
     # create dictionaries of authors for comparison
+    # example unique key: ('maita', 'nobuo', 'n', 'nobuo maita')
     authors_in_db_dict = {author.get_unique_key_based_on_names(): author for author in authors_from_db}
     authors_in_json_dict = {author.get_unique_key_based_on_names(): author for author in authors_from_json}
-
-    """
-    example unique key: ('maita', 'nobuo', 'n', 'nobuo maita')
-    example value: { 'orcid': None, 'first_author': False, 'order': 1,
-                     'corresponding_author': False, 'name': 'Nobuo Maita',
-                     'affiliations': ['Dept of Molecular Biology, ..'],
-                     'first_name': 'Nobuo', 'last_name': 'Maita',
-                     'first_initial': 'N' }
-    """
 
     """
     Step 1: Identified authors as updatable for entries that have the same unique
@@ -410,6 +400,7 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
     keys_in_json = set(authors_in_json_dict.keys())
 
     keys_in_db_and_json = keys_in_json & keys_in_db  # keys in both db and json, add the related json objs
+
     author_order_to_update_record = {authors_in_db_dict[key].order: authors_in_json_dict[key]
                                      for key in keys_in_db_and_json}
 
@@ -420,8 +411,8 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
     author_order_to_add_record = {authors_in_json_dict[key].order: authors_in_json_dict[key]
                                   for key in keys_only_in_json}
 
-    if (len(keys_only_in_db) + len(keys_in_db_and_json) != len(keys_in_db) or len(keys_only_in_json) +
-            len(keys_in_db_and_json) != len(keys_in_json)):
+    if (len(keys_only_in_db) + len(keys_in_db_and_json) != len(keys_in_db)
+            or len(keys_only_in_json) + len(keys_in_db_and_json) != len(keys_in_json)):
         for order, author in author_order_to_update_record.items():
             author_order_to_delete_record[order] = author
             author_order_to_add_record[author.order] = author
@@ -472,7 +463,8 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
 
     temp_order_map = {}
     name_updated = []
-    for old_order, json_author in author_order_to_update_record.items():
+    # sort by keys (old_order)
+    for old_order, json_author in sorted(author_order_to_update_record.items()):
         temp_order_map, name_updated = update_author_row(db_session, reference_id,
                                                          old_order, json_author,
                                                          pmid, temp_order_map,
@@ -482,7 +474,7 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
     Step 5: Delete author rows in the author_order_to_delete_record
     """
     name_removed = []
-    for author_order in author_order_to_delete_record:
+    for author_order in sorted(author_order_to_delete_record.keys()):
         x = db_session.query(AuthorModel).filter_by(
             reference_id=reference_id, order=author_order).one_or_none()
         if x:
@@ -520,7 +512,7 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
         if len(name_added) > 0 or len(name_removed) > 0:
             name_list_removed = ', '.join(name_removed)
             name_list_added = ', '.join(name_added)
-            author_update_messages.append(f"'Deleted: {name_list_removed}' to 'Inserted: {name_list_added}'")
+            author_update_messages.append(("authors", f"Deleted: {name_list_removed}", f"Inserted: {name_list_added}"))
         old_name_list = []
         new_name_list = []
         for (old_name, new_name) in name_updated:
@@ -529,10 +521,10 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
         if len(old_name_list) > 0 or len(new_name_list) > 0:
             name_list_old = ', '.join(old_name_list)
             name_list_new = ', '.join(new_name_list)
-            author_update_messages.append(f"'{name_list_old}' to '{name_list_new}'")
+            author_update_messages.append(("authors", name_list_old, name_list_new))
         status_changed = pmids_with_pub_status_changed.get(pub_status_changed, {})
-        data_changed = status_changed.get(pmid, {})
-        data_changed['authors'] = author_update_messages
+        data_changed = status_changed.get(pmid, [])
+        data_changed = data_changed + author_update_messages
         status_changed[pmid] = data_changed
         pmids_with_pub_status_changed[pub_status_changed] = status_changed
     """
@@ -546,7 +538,9 @@ def insert_authors(db_session, reference_id, pmid, author_order_to_add_record, f
 
     name_added = []
     author: Author
-    for author_order, author in author_order_to_add_record.items():
+    sorted_orders = sorted(author_order_to_add_record.keys())
+    for order in sorted_orders:
+        author = author_order_to_add_record[order]
         try:
             x = AuthorModel(
                 reference_id=reference_id,
@@ -612,7 +606,7 @@ def synchronize_author_lists(author_order_to_add_record, author_order_to_delete_
         new_name_key = new_author.get_key_based_on_unaccented_names()
         found_match_old_orders = []
         debugging_old_names = []
-        for old_order, old_author in author_order_to_delete_record.items():
+        for old_author in author_order_to_delete_record.values():
             if old_author.orcid and old_author.orcid == new_author.orcid:
                 found_match_old_orders = [old_author.order]
                 break
@@ -674,8 +668,8 @@ def are_additions_and_deletions_only_format_changes(author_count_db, author_orde
                 db_author = author_order_to_delete_record.get(author_order)
                 if db_author is None:
                     return False
-                if (db_author.get_key_based_on_unaccented_names() != json_author.get_key_based_on_unaccented_names() and
-                        not authors_have_same_name(db_author, json_author)):
+                if (db_author.get_key_based_on_unaccented_names() != json_author.get_key_based_on_unaccented_names()
+                        and not authors_have_same_name(db_author, json_author)):
                     return False
             return True
     return False
@@ -1343,10 +1337,9 @@ def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_
         update_log['pmcid'] = update_log['pmcid'] + 1
         update_log['pmids_updated'].append(pmid)
 
-        message = f"from '{pmcid_db}' to '{pmcid_json}'"
         status_changed = pmids_with_pub_status_changed.get(pub_status_changed, {})
-        data_changed = status_changed.get(pmid, {})
-        data_changed['PMCID'] = message
+        data_changed = status_changed.get(pmid, [])
+        data_changed.append(('PMCID', pmcid_db, pmcid_json))
         status_changed[pmid] = data_changed
         pmids_with_pub_status_changed[pub_status_changed] = status_changed
 
