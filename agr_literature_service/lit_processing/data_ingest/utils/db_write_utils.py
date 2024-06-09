@@ -1,6 +1,6 @@
 from os import environ, makedirs, path
 import json
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 from sqlalchemy import or_
 
@@ -462,7 +462,7 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
     """
 
     temp_order_map: Dict[int, int] = {}
-    name_updated: List[str] = []
+    name_updated: List[Tuple[str, str]] = []
     # sort by keys (old_order)
     for old_order, json_author in sorted(author_order_to_update_record.items()):
         temp_order_map, name_updated = update_author_row(db_session, reference_id,
@@ -513,8 +513,8 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
             name_list_removed = ', '.join(name_removed)
             name_list_added = ', '.join(name_added)
             author_update_messages.append(("authors", f"Deleted: {name_list_removed}", f"Inserted: {name_list_added}"))
-        old_name_list = []
-        new_name_list = []
+        old_name_list: List[str] = []
+        new_name_list: List[str] = []
         for (old_name, new_name) in name_updated:
             old_name_list.append(old_name)
             new_name_list.append(new_name)
