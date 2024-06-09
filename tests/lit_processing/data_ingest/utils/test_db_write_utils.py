@@ -10,8 +10,10 @@ from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils impo
     add_cross_references, update_mod_corpus_associations, \
     update_mod_reference_types, add_mca_to_existing_references, \
     update_reference_relations, update_mesh_terms, \
-    mark_false_positive_papers_as_out_of_corpus, mark_not_in_mod_papers_as_out_of_corpus, \
-    generate_author_key
+    mark_false_positive_papers_as_out_of_corpus, \
+    mark_not_in_mod_papers_as_out_of_corpus
+from agr_literature_service.lit_processing.data_ingest.utils.author import Author, \
+    authors_lists_are_equal, authors_have_same_name
 
 from ....fixtures import db, load_sanitized_references, populate_test_mod_reference_types # noqa
 
@@ -192,47 +194,79 @@ class TestDbReadUtils:
         for x in cr_rows:
             assert x[0] is True
 
-        ## test generate_author_key
-        name = generate_author_key("Noda T", "", "")
-        name2 = generate_author_key("Taichi Noda", "Noda", "T")
-        assert name == name2
+    def test_author_functions(self):
 
-        name = generate_author_key(" Blaha A", "", "")
-        name2 = generate_author_key("Andreas Blaha", "Blaha", "A")
-        assert name == name2
+        test_author_pairs = {
+            ("Noda T", "", "", ""): ("Taichi Noda", "Noda", "Taichi", "T"),
+            (" Blaha A", "", "", ""): ("Andreas Blaha", "Blaha", "Andreas", "A"),
+            ("Hahrami AH", "", "", ""): ("Hahrami A", "Hahrami", "Andreas", "A"),
+            ("Kurat CF", "", "", ""): ("Christoph F Kurat", "Kurat", "Christoph Frank", "C"),
+            ("Bahrami AH", "", "", ""): ("Amir Houshang Bahrami", "Bahrami", "", ""),
+            ("Li H", "", "", ""): ("H Li", "", "", ""),
+            ("Anderson,C", "", "", ""): ("Carrie Anderson", "Anderson", "Carrie", "C"),
+            ("Wang,Y.", "", "", ""): ("Yicui Wang", "Wang", "Yicui", "Y"),
+            ("T Kutateladze", "", "", ""): ("T G Kutateladze", "", "", ""),
+            ("David J. Smith", "", "", ""): ("David Smith", "", "", ""),
+            ("Smith,David", "", "", ""): ("Smith, David", "", "", "")
+        }
+        for name_list1, name_list2 in test_author_pairs.items():
+            (name, last_name, first_name, first_initial) = name_list1
+            author1 = Author.load_from_db_dict({"name": name,
+                                                "last_name": last_name,
+                                                "first_name": first_name,
+                                                "first_initial": first_initial,
+                                                "order": 1,
+                                                "orcid": "",
+                                                "affiliations": []})
+            (name, last_name, first_name, first_initial) = name_list2
+            author2 = Author.load_from_json_dict({"name": name,
+                                                  "lastname": last_name,
+                                                  "firstname": first_name,
+                                                  "firstinit": first_initial,
+                                                  "order": 2,
+                                                  "orcid": "ORCID:00099",
+                                                  "affiliations": []})
+            assert author1.get_key_based_on_unaccented_names() == author2.get_key_based_on_unaccented_names()
 
-        name = generate_author_key("Bahrami AH", "", "")
-        name2 = generate_author_key("Bahrami A", "Bahrami", "A")
-        assert name == name2
+        author1 = Author.load_from_db_dict({"name": "Smith D",
+                                            "last_name": "",
+                                            "first_name": "",
+                                            "first_initial": "",
+                                            "order": 1,
+                                            "orcid": "",
+                                            "affiliations": []})
+        author2 = Author.load_from_json_dict({"name": "David Smith",
+                                              "lastname": "Smith",
+                                              "firstname": "David",
+                                              "firstinit": "D",
+                                              "order": 2,
+                                              "orcid": "ORCID:00099",
+                                              "affiliations": []})
+        is_same = authors_have_same_name(author1, author2)
+        assert is_same is True
 
-        name = generate_author_key("Kurat CF", "", "")
-        name2 = generate_author_key("Christoph F Kurat", "Kurat", "C")
-        assert name == name2
+        author_list1 = [
+            {'orcid': None, 'first_author': False, 'order': 1, 'corresponding_author': False,
+             'name': 'Jatin Nason', 'affiliations': [], 'first_name': 'Jatin',
+             'last_name': 'Nason', 'first_initial': 'J'},
+            {'orcid': None, 'first_author': False, 'order': 2, 'corresponding_author': False,
+             'name': 'Amy Each', 'affiliations': [], 'first_name': 'Amy', 'last_name': 'Each',
+             'first_initial': 'A'},
+            {'orcid': None, 'first_author': False, 'order': 3, 'corresponding_author': False,
+             'name': 'Olga Smith', 'affiliations': ['Harker Medical Center'], 'first_name': 'Olga',
+             'last_name': 'Smith', 'first_initial': 'O'}
+        ]
 
-        name = generate_author_key("Bahrami AH", "", "")
-        name2 = generate_author_key("Amir Houshang Bahrami", "Bahrami", "")
-        assert name == name2
+        author_list2 = [
+            {'affiliations': [], 'firstinit': 'J', 'firstname': 'Jatin', 'lastname': 'Nason',
+             'name': 'Jatin Nason'},
+            {'affiliations': [], 'firstinit': 'A', 'firstname': 'Amy', 'lastname': 'Each',
+             'name': 'Amy Each'},
+            {'affiliations': ['Harker medical center'], 'firstinit': 'O', 'firstname': 'olga',
+             'lastname': 'smith', 'name': 'Olga smith'}
+        ]
 
-        name = generate_author_key("Li H", "", "")
-        name2 = generate_author_key("H Li", "", "")
-        assert name == name2
-
-        name = generate_author_key("Anderson,C", "", "")
-        name2 = generate_author_key("Carrie Anderson", "Anderson", "C")
-        assert name == name2
-
-        name = generate_author_key("Wang,Y.", "", "")
-        name2 = generate_author_key("Yicui Wang", "Wang", "Y")
-        assert name == name2
-
-        name = generate_author_key("T Kutateladze", "", "")
-        name2 = generate_author_key("T G Kutateladze", "", "")
-        assert name == name2
-
-        name = generate_author_key("David J. Smith", "", "")
-        name2 = generate_author_key("David Smith", "", "")
-        assert name == name2
-
-        name = generate_author_key("Smith,David", "", "")
-        name2 = generate_author_key("Smith, David", "", "")
-        assert name == name2
+        authors_db = Author.load_list_of_authors_from_db_dict_list(author_list1)
+        authors_json = Author.load_list_of_authors_from_json_dict_list(author_list2)
+        is_equal = authors_lists_are_equal(authors_db, authors_json)
+        assert is_equal is True
