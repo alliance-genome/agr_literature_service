@@ -47,7 +47,7 @@ def get_children(atp_name: str):
     global workflow_children
     if atp_name not in workflow_children:
         load_workflow_parent_children()
-    if atp_name not in workflow_parent:
+    if atp_name not in workflow_children:
         return []
     return workflow_children[atp_name]
 

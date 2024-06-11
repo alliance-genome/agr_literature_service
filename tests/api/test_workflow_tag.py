@@ -30,8 +30,7 @@ def test_workflow_tag(db, auth_headers, test_reference, test_mod): # noqa
                          test_mod.new_mod_abbreviation)
 
 
-@patch("agr_literature_service.api.crud.workflow_tag_crud.get_ancestors")
-def mock_get_ancestors(self, name):
+def get_descendants_mock(name):
     # MUST start with ATP:0000003 for this to work
     print(f"***** Mocking get_ancestors name = {name}")
     if name == 'ATP:0000003':
@@ -47,6 +46,7 @@ def mock_get_ancestors(self, name):
     else:
         print("returning NOTHING!!")
         return []
+
 
 class TestWorkflowTag:
 
@@ -144,12 +144,10 @@ class TestWorkflowTag:
             response = client.delete(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     def test_parent_child_dict(self, test_workflow_tag, auth_headers): # noqa
-        with TestClient(app) as client:
-                response = client.get(url="/workflow_tag/reset_workflow_dict", headers=auth_headers)
-                assert response.status_code == status.HTTP_200_OK
-                assert get_parent('colour') == 'ATP:0000003'
-                children = get_children('ATP:0000003')
-                assert 'colour' in children
-                assert 'size' in children
-                assert 'type' in children
+        assert get_parent('colour') == 'ATP:0000003'
+        children = get_children('ATP:0000003')
+        assert 'colour' in children
+        assert 'size' in children
+        assert 'type' in children
