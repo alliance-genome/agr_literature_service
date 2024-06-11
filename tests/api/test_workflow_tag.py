@@ -30,29 +30,30 @@ def test_workflow_tag(db, auth_headers, test_reference, test_mod): # noqa
                          test_mod.new_mod_abbreviation)
 
 
+@patch("agr_literature_service.api.crud.workflow_tag_crud.get_ancestors")
+def mock_get_ancestors(self, name):
+    # MUST start with ATP:0000003 for this to work
+    print(f"***** Mocking get_ancestors name = {name}")
+    if name == 'ATP:0000003':
+        return ['colour', 'size', 'type']
+    elif name == 'colour':
+        return ['red', 'blue', 'green']
+    elif name == 'size':
+        return ['1', '2', '3']
+    elif name == 'red':
+        return ['dark red', 'crimson']
+    elif name == 'type':
+        return ['5', '6']
+    else:
+        print("returning NOTHING!!")
+        return []
+
 class TestWorkflowTag:
 
     def test_get_bad_ref_wt(self):
         with TestClient(app) as client:
             response = client.get(url="/workflow_tag/-1")
             assert response.status_code == status.HTTP_404_NOT_FOUND
-
-    def mock_get_ancestors(self, name):
-        # MUST start with ATP:0000003 for this to work
-        print(f"***** Mocking get_ancestors name = {name}")
-        if name == 'ATP:0000003':
-            return ['colour', 'size', 'type']
-        elif name == 'colour':
-            return ['red', 'blue', 'green']
-        elif name == 'size':
-            return ['1', '2', '3']
-        elif name == 'red':
-            return ['dark red', 'crimson']
-        elif name == 'type':
-            return ['5', '6']
-        else:
-            print("returning NOTHING!!")
-            return []
 
     def test_create_bad_missing_args(self, test_workflow_tag, auth_headers): # noqa
         with TestClient(app) as client:
@@ -145,7 +146,6 @@ class TestWorkflowTag:
 
     def test_parent_child_dict(self, test_workflow_tag, auth_headers): # noqa
         with TestClient(app) as client:
-            with patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors:  # noqa
                 response = client.get(url="/workflow_tag/reset_workflow_dict", headers=auth_headers)
                 assert response.status_code == status.HTTP_200_OK
                 assert get_parent('colour') == 'ATP:0000003'
