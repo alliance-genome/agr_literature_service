@@ -3,6 +3,7 @@ from collections import namedtuple
 import pytest
 from starlette.testclient import TestClient
 from fastapi import status
+from unittest.mock import patch
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel
@@ -35,6 +36,11 @@ class TestWorkflowTag:
         with TestClient(app) as client:
             response = client.get(url="/workflow_tag/-1")
             assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+    def mock_get_ancestors(self):
+        return []
+
 
     def test_create_bad_missing_args(self, test_workflow_tag, auth_headers): # noqa
         with TestClient(app) as client:
@@ -125,9 +131,10 @@ class TestWorkflowTag:
             response = client.delete(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_parent_child_dict(self):
+    def test_parent_child_dict(self, auth_headers):
         with TestClient(app) as client:
-            response = client.get(url="/workflow_tag/reset_workflow_dict")
+            patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors:
+                 response = client.get(url="/workflow_tag/reset_workflow_dict", headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert get_parent('ATP:0000106') == 'ATP:0000105'
             children = get_children('ATP:0000105')
