@@ -39,6 +39,7 @@ class TestWorkflowTag:
 
     def mock_get_ancestors(self, name):
         # MUST start with ATP:0000003 for this to work
+        print(f"***** Mocking get_ancestors name = {name}")
         if name == 'ATP:0000003':
             return ['colour', 'size', 'type']
         elif name == 'colour':
@@ -50,6 +51,7 @@ class TestWorkflowTag:
         elif name == 'type':
             return ['5', '6']
         else:
+            print("returning NOTHING!!")
             return []
 
     def test_create_bad_missing_args(self, test_workflow_tag, auth_headers): # noqa
