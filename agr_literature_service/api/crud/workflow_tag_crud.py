@@ -2,7 +2,7 @@
 workflow_tag_crud.py
 ===========================
 """
-
+import cachetools.func
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
@@ -14,42 +14,37 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-workflow_children = {}
-workflow_parent = {}
+
+@cachetools.func.ttl_cache(ttl=24 * 60 * 60)
+def load_workflow_parent_children(root_node='ATP:0000003'):
+    workflow_children = {}
+    workflow_parent = {}
+    nodes_to_process = [root_node]
+    while nodes_to_process:
+        parent = nodes_to_process.pop()
+        children = get_descendants(parent)
+        workflow_children[parent] = children
+        for child in children:
+            workflow_parent[child] = parent
+            nodes_to_process.append(child)
+    return workflow_children, workflow_parent
 
 
-def load_workflow_parent_children(parent='ATP:0000003'):
-    global workflow_parent, workflow_children
-
-    # reset and load if top.
-    if parent == 'ATP:0000003':
-        workflow_children = {}
-        workflow_parent = {}
-
-    workflow_children[parent] = get_descendants(parent)
-    # logger.debug(f'Workflow parent {parent} -> has children: {workflow_children[parent]}')
-    for child in workflow_children[parent]:
-        workflow_parent[child] = parent
-        load_workflow_parent_children(child)
+def get_parent_or_children(atp_name: str, parent_or_children: str = "parent"):
+    workflow_children, workflow_parent = load_workflow_parent_children()
+    workflow_to_check = workflow_children if parent_or_children == "children" else workflow_parent
+    if atp_name not in workflow_to_check:
+        logger.error("Could not find parent for {}".format(atp_name))
+        return None
+    return workflow_to_check[atp_name]
 
 
 def get_parent(atp_name: str):
-    global workflow_parent
-    if atp_name not in workflow_parent:
-        load_workflow_parent_children()
-    if atp_name not in workflow_parent:
-        logger.error("Could not find parent for {}".format(atp_name))
-        return None
-    return workflow_parent[atp_name]
+    return get_parent_or_children(atp_name, parent_or_children="parent")
 
 
 def get_children(atp_name: str):
-    global workflow_children
-    if atp_name not in workflow_children:
-        load_workflow_parent_children()
-    if atp_name not in workflow_children:
-        return []
-    return workflow_children[atp_name]
+    return get_parent_or_children(atp_name, parent_or_children="children")
 
 
 def create(db: Session, workflow_tag: WorkflowTagSchemaPost) -> int:
