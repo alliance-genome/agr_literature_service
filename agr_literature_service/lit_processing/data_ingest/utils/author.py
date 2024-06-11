@@ -93,7 +93,7 @@ class Author:
             first_initial = ''.join([part[0] for part in first_name_parts if part])
             return f"{last_name} {first_initial[0]}".upper()
         else:
-            return name.upper()
+            return name.upper() if name else ''
 
     def fix_orcid_format(self):
         if self.orcid and isinstance(self.orcid, str):
