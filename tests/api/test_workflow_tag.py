@@ -6,6 +6,7 @@ from fastapi import status
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel
+from agr_literature_service.api.crud.workflow_tag_crud import get_parent, get_children
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
@@ -123,3 +124,13 @@ class TestWorkflowTag:
             # Deleting it again should give an error as the lookup will fail.
             response = client.delete(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_parent_child_dict(self):
+        with TestClient(app) as client:
+            response = client.get(url="/workflow_tag/reset_workflow_dict")
+            assert response.status_code == status.HTTP_200_OK
+            assert get_parent('ATP:0000106') == 'ATP:0000105'
+            children = get_children('ATP:0000105')
+            assert 'ATP:0000106' in children
+            assert 'ATP:0000107' in children
+            assert 'ATP:0000109' in children
