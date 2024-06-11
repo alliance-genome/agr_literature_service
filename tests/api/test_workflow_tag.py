@@ -48,7 +48,8 @@ def mock_get_ancestors(name):
         print("returning NOTHING!!")
         return []
 
-@patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors")
+
+@patch("agr_literature_service.api.crud.topic_entity_tag_crud_utils.get_descendants")
 def mock_get_desc(name):
     # MUST start with ATP:0000003 for this to work
     print(f"***** Mocking get_ancestors name = {name}")
@@ -65,6 +66,7 @@ def mock_get_desc(name):
     else:
         print("returning NOTHING!!")
         return []
+
 
 class TestWorkflowTag:
 
@@ -164,10 +166,10 @@ class TestWorkflowTag:
 
     def test_parent_child_dict(self, test_workflow_tag, auth_headers): # noqa
         with TestClient(app) as client:
-                response = client.get(url="/workflow_tag/reset_workflow_dict", headers=auth_headers)
-                assert response.status_code == status.HTTP_200_OK
-                assert get_parent('colour') == 'ATP:0000003'
-                children = get_children('ATP:0000003')
-                assert 'colour' in children
-                assert 'size' in children
-                assert 'type' in children
+            response = client.get(url="/workflow_tag/reset_workflow_dict", headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            assert get_parent('colour') == 'ATP:0000003'
+            children = get_children('ATP:0000003')
+            assert 'colour' in children
+            assert 'size' in children
+            assert 'type' in children
