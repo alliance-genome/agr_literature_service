@@ -32,7 +32,7 @@ def test_workflow_tag(db, auth_headers, test_reference, test_mod): # noqa
 
 @patch("agr_literature_service.api.crud.workflow_tag_crud.get_ancestors")
 def mock_get_ancestors(name):
-    # MUST start with ATP:0000003 for this to work
+    # MUST start with ATP:0000003 for this to work -
     print(f"***** Mocking get_ancestors name = {name}")
     if name == 'ATP:0000003':
         return ['colour', 'size', 'type']
