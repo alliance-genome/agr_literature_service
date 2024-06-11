@@ -35,7 +35,7 @@ def create(request: WorkflowTagSchemaPost,
 @router.get('/reset_workflow_dict',
             status_code=status.HTTP_204_NO_CONTENT)
 def reset_parent_children(user: OktaUser = db_user,
-            db: Session = db_session):
+                          db: Session = db_session):
     set_global_user_from_okta(db, user)
     return workflow_tag_crud.load_workflow_parent_children()
 
