@@ -89,9 +89,6 @@ class Author:
                         first_initial = last_name[0]
                         last_name = first_name_parts[0]
                         return f"{last_name} {first_initial}".upper()
-        else:
-            return ''
-
         if last_name and first_name_parts:
             first_initial = ''.join([part[0] for part in first_name_parts if part])
             return f"{last_name} {first_initial[0]}".upper()
@@ -133,12 +130,16 @@ class Author:
 
     @staticmethod
     def load_list_of_authors_from_json_dict_list(json_dict_list: List[Dict]):
+        if json_dict_list is None or len(json_dict_list) == 0:
+            return []
         authors = [Author.load_from_json_dict(json_dict) for json_dict in json_dict_list]
         add_order_to_list_of_authors(authors)
         return authors
 
     @staticmethod
     def load_list_of_authors_from_db_dict_list(db_dict_list: List[Dict]):
+        if db_dict_list is None or len(db_dict_list) == 0:
+            return []
         authors = [Author.load_from_db_dict(db_dict) for db_dict in db_dict_list]
         return authors
 
