@@ -9,6 +9,51 @@ from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, ModModel
 from agr_literature_service.api.schemas import WorkflowTagSchemaPost
+from agr_literature_service.api.crud.topic_entity_tag_utils import get_descendants  # get_ancestors,
+import logging
+
+logger = logging.getLogger(__name__)
+
+workflow_children = {}
+workflow_parent = {}
+
+
+def load_workflow_parent_children(parent='ATP:0000003'):
+    global workflow_parent, workflow_children
+
+    # reset and load if top.
+    if parent == 'ATP:0000003':
+        workflow_children = {}
+        workflow_parent = {}
+
+    workflow_children[parent] = get_descendants(parent)
+    # logger.debug(f'Workflow parent {parent} -> has children: {workflow_children[parent]}')
+    for child in workflow_children[parent]:
+        workflow_parent[child] = parent
+        load_workflow_parent_children(child)
+
+
+# Load it immediately
+load_workflow_parent_children()
+
+
+def get_parent(atp_name: str):
+    global workflow_parent
+    if atp_name not in workflow_parent:
+        load_workflow_parent_children()
+    if atp_name not in workflow_parent:
+        logger.error("Could not find parent for {}".format(atp_name))
+        return None
+    return workflow_parent[atp_name]
+
+
+def get_children(atp_name: str) -> List:
+    global workflow_children
+    if atp_name not in workflow_children:
+        load_workflow_parent_children()
+    if atp_name not in workflow_parent:
+        return []
+    return workflow_children[atp_name]
 
 
 def create(db: Session, workflow_tag: WorkflowTagSchemaPost) -> int:
