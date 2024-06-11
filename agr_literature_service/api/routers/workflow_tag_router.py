@@ -40,6 +40,7 @@ def reset_parent_children(user: OktaUser = db_user,
     workflow_tag_crud.load_workflow_parent_children()
     return Response(status_code=status.HTTP_200_OK)
 
+
 @router.delete('/{reference_workflow_tag_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(reference_workflow_tag_id: int,
