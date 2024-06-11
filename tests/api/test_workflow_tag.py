@@ -41,7 +41,6 @@ class TestWorkflowTag:
     def mock_get_ancestors(self):
         return []
 
-
     def test_create_bad_missing_args(self, test_workflow_tag, auth_headers): # noqa
         with TestClient(app) as client:
             xml = {"reference_curie": test_workflow_tag.related_ref_curie,
@@ -133,11 +132,11 @@ class TestWorkflowTag:
 
     def test_parent_child_dict(self, auth_headers):
         with TestClient(app) as client:
-            patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors:
-                 response = client.get(url="/workflow_tag/reset_workflow_dict", headers=auth_headers)
-            assert response.status_code == status.HTTP_200_OK
-            assert get_parent('ATP:0000106') == 'ATP:0000105'
-            children = get_children('ATP:0000105')
-            assert 'ATP:0000106' in children
-            assert 'ATP:0000107' in children
-            assert 'ATP:0000109' in children
+            with patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors:
+                response = client.get(url="/workflow_tag/reset_workflow_dict", headers=auth_headers)
+                assert response.status_code == status.HTTP_200_OK
+                assert get_parent('ATP:0000106') == 'ATP:0000105'
+                children = get_children('ATP:0000105')
+                assert 'ATP:0000106' in children
+                assert 'ATP:0000107' in children
+                assert 'ATP:0000109' in children
