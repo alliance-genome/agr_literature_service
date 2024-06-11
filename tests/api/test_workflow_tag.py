@@ -37,7 +37,6 @@ class TestWorkflowTag:
             response = client.get(url="/workflow_tag/-1")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-
     def mock_get_ancestors(self):
         return []
 
@@ -130,9 +129,9 @@ class TestWorkflowTag:
             response = client.delete(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_parent_child_dict(self, auth_headers):
+    def test_parent_child_dict(self, test_workflow_tag, auth_headers): # noqa
         with TestClient(app) as client:
-            with patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors:
+            with patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors:  # noqa
                 response = client.get(url="/workflow_tag/reset_workflow_dict", headers=auth_headers)
                 assert response.status_code == status.HTTP_200_OK
                 assert get_parent('ATP:0000106') == 'ATP:0000105'
