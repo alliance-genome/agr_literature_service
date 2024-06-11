@@ -37,8 +37,20 @@ class TestWorkflowTag:
             response = client.get(url="/workflow_tag/-1")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def mock_get_ancestors(self):
-        return []
+    def mock_get_ancestors(self, name):
+        # MUST start with ATP:0000003 for this to work
+        if name == 'ATP:0000003':
+            return ['colour', 'size', 'type']
+        elif name == 'colour':
+            return ['red', 'blue', 'green']
+        elif name == 'size':
+            return ['1', '2', '3']
+        elif name == 'red':
+            return ['dark red', 'crimson']
+        elif name == 'type':
+            return ['5', '6']
+        else:
+            return []
 
     def test_create_bad_missing_args(self, test_workflow_tag, auth_headers): # noqa
         with TestClient(app) as client:
@@ -134,8 +146,8 @@ class TestWorkflowTag:
             with patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors:  # noqa
                 response = client.get(url="/workflow_tag/reset_workflow_dict", headers=auth_headers)
                 assert response.status_code == status.HTTP_200_OK
-                assert get_parent('ATP:0000106') == 'ATP:0000105'
-                children = get_children('ATP:0000105')
-                assert 'ATP:0000106' in children
-                assert 'ATP:0000107' in children
-                assert 'ATP:0000109' in children
+                assert get_parent('colour') == 'ATP:0000003'
+                children = get_children('ATP:0000003')
+                assert 'colour' in children
+                assert 'size' in children
+                assert 'type' in children
