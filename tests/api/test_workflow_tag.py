@@ -3,9 +3,11 @@ from collections import namedtuple
 import pytest
 from starlette.testclient import TestClient
 from fastapi import status
+from unittest.mock import patch
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel
+from agr_literature_service.api.crud.workflow_tag_crud import get_parent, get_children
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
@@ -26,6 +28,24 @@ def test_workflow_tag(db, auth_headers, test_reference, test_mod): # noqa
         response = client.post(url="/workflow_tag/", json=new_wt, headers=auth_headers)
         yield TestWTData(response, response.json(), test_reference.new_ref_curie, test_mod.new_mod_id,
                          test_mod.new_mod_abbreviation)
+
+
+def get_descendants_mock(name):
+    # MUST start with ATP:0000003 for this to work
+    print(f"***** Mocking get_ancestors name = {name}")
+    if name == 'ATP:0000003':
+        return ['colour', 'size', 'type']
+    elif name == 'colour':
+        return ['red', 'blue', 'green']
+    elif name == 'size':
+        return ['1', '2', '3']
+    elif name == 'red':
+        return ['dark red', 'crimson']
+    elif name == 'type':
+        return ['5', '6']
+    else:
+        print("returning NOTHING!!")
+        return []
 
 
 class TestWorkflowTag:
@@ -123,3 +143,11 @@ class TestWorkflowTag:
             # Deleting it again should give an error as the lookup will fail.
             response = client.delete(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
+    def test_parent_child_dict(self, test_workflow_tag, auth_headers): # noqa
+        assert get_parent('colour') == 'ATP:0000003'
+        children = get_children('ATP:0000003')
+        assert 'colour' in children
+        assert 'size' in children
+        assert 'type' in children

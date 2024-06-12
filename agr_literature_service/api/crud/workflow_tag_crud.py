@@ -2,13 +2,49 @@
 workflow_tag_crud.py
 ===========================
 """
-
+import cachetools.func
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, ModModel
 from agr_literature_service.api.schemas import WorkflowTagSchemaPost
+from agr_literature_service.api.crud.topic_entity_tag_utils import get_descendants  # get_ancestors,
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+@cachetools.func.ttl_cache(ttl=24 * 60 * 60)
+def load_workflow_parent_children(root_node='ATP:0000003'):
+    workflow_children = {}
+    workflow_parent = {}
+    nodes_to_process = [root_node]
+    while nodes_to_process:
+        parent = nodes_to_process.pop()
+        children = get_descendants(parent)
+        workflow_children[parent] = children
+        for child in children:
+            workflow_parent[child] = parent
+            nodes_to_process.append(child)
+    return workflow_children, workflow_parent
+
+
+def get_parent_or_children(atp_name: str, parent_or_children: str = "parent"):
+    workflow_children, workflow_parent = load_workflow_parent_children()
+    workflow_to_check = workflow_children if parent_or_children == "children" else workflow_parent
+    if atp_name not in workflow_to_check:
+        logger.error("Could not find parent for {}".format(atp_name))
+        return None
+    return workflow_to_check[atp_name]
+
+
+def get_parent(atp_name: str):
+    return get_parent_or_children(atp_name, parent_or_children="parent")
+
+
+def get_children(atp_name: str):
+    return get_parent_or_children(atp_name, parent_or_children="children")
 
 
 def create(db: Session, workflow_tag: WorkflowTagSchemaPost) -> int:
