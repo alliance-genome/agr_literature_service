@@ -347,19 +347,12 @@ def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, upda
             if i == 0:
                 logger.info(f"Updates in Journal, Volume, or Issue Fields for Papers Changing {pub_status_change}:")
                 fw.write(f"Updates in Journal, Volume, or Issue Fields for Papers Changing {pub_status_change}:\n")
-                # email_message = email_message + f"<p><b>Updates in Journal, Volume, or Issue Fields for Papers Changing {pub_status_change}:</b><p>"
             i += 1
             data = data_change_for_status[pmid]
-            for colName in data:
+            for (colName, oldVal, newVal) in data:
                 displayColName = "journal" if colName == 'resource_id' else colName
-                messages = []
-                if colName == 'authors':
-                    messages = data[colName]
-                else:
-                    messages = [data[colName]]
-                for message in messages:
-                    logger.info(f"PMID:{pmid}: {displayColName} {message}")
-                    fw.write(f"PMID:{pmid}: {displayColName} {message}\n")
+                logger.info(f"PMID:{pmid}: {displayColName} from '{oldVal}' to '{newVal}'")
+                fw.write(f"PMID:{pmid}: {displayColName} from '{oldVal}' to '{newVal}'\n")
 
     i = 0
     rows = ''
@@ -369,23 +362,14 @@ def write_log_and_send_pubmed_update_report(fw, mod, field_names_to_report, upda
             rows = "<tr><th style='text-align:left' width=150>PubMed ID</th><th style='text-align:left' width=130>Data Type</th><th style='text-align:left' width=300>Old Value</th><th style='text-align:left' width=300>New Value</th></tr>"
         i += 1
         data = changes_for_published_papers[pmid]
-        for colName in sorted(data):
+        for (colName, oldVal, newVal) in data:
             displayColName = "journal" if colName == 'resource_id' else colName
             displayColName = displayColName.lower()
-            messages = []
-            if colName == 'authors':
-                messages = data[colName]
-            else:
-                messages = [data[colName]]
-            for message in messages:
-                [fromVal, toVal] = message.replace("from '", "").split("' to '")
-                fromVal = fromVal.replace("'", "")
-                toVal = toVal.replace("'", "")
-                if colName == 'authors' and 'Deleted' in fromVal:
-                    fromVal = fromVal.replace("Deleted:", "<span style='color:red;'>Deleted:</span>")
-                    toVal = toVal.replace("Inserted:", "<span style='color:green;'>Inserted:</span>")
-                if fromVal or toVal:
-                    rows += f"<tr><td style='text-align:left'>PMID:{pmid}</td><td style='text-align:left'><strong>{displayColName}</strong></td><td style='text-align:left'>{fromVal}</td><td style='text-align:left'>{toVal}</td></tr>"
+            if colName == 'authors' and 'Deleted' in oldVal:
+                oldVal = oldVal.replace("Deleted:", "<span style='color:red;'>Deleted:</span>")
+                newVal = newVal.replace("Inserted:", "<span style='color:green;'>Inserted:</span>")
+            if oldVal or newVal:
+                rows += f"<tr><td style='text-align:left'>PMID:{pmid}</td><td style='text-align:left'><strong>{displayColName}</strong></td><td style='text-align:left'>{oldVal}</td><td style='text-align:left'>{newVal}</td></tr>"
     if rows:
         email_message += "<table><tbody>" + rows + "</tbody></table>"
 

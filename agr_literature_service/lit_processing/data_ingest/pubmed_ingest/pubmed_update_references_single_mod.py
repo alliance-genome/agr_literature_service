@@ -595,10 +595,9 @@ def set_data_changed(pmid, colName, pub_status_changed, pmids_with_pub_status_ch
         old_value = None
     if old_value == new_value:
         return
-    message = f"from '{old_value}' to '{new_value}'"
     status_changed = pmids_with_pub_status_changed.get(pub_status_changed, {})
-    data_changed = status_changed.get(pmid, {})
-    data_changed[colName] = message
+    data_changed = status_changed.get(pmid, [])
+    data_changed.append((colName, old_value, new_value))
     status_changed[pmid] = data_changed
     pmids_with_pub_status_changed[pub_status_changed] = status_changed
 
