@@ -27,17 +27,16 @@ def populate_data():
     mods = db_session.query(ModModel).all()
     for mod in mods:
         for transition in mappings:
-            cmd = f"INSERT INTO workflow_transition (mod_id, transition_from, transition_to, date_created) agr_literature_service/lit_processing/oneoff_scripts/6755b395f397-SCRUM-4112.py"
+            cmd = "INSERT INTO workflow_transition (mod_id, transition_from, transition_to, date_created) agr_literature_service/lit_processing/oneoff_scripts/6755b395f397-SCRUM-4112.py"
             cmd += f"VALUES ({mod.mod_id}, '{name_to_atp[transition[0]]}', '{name_to_atp[transition[1]]}', '{datetime.now(tz=pytz.timezone('UTC'))}')"
             db_session.execute(cmd)
             log.info("%s(%s): Inserting transition %s to %s",
-                        mod.abbreviation, mod.mod_id, name_to_atp[transition[0]], name_to_atp[transition[1]])
+                    mod.abbreviation, mod.mod_id, name_to_atp[transition[0]], name_to_atp[transition[1]])
     db_session.rollback()
     # db_session.commit()
     db_session.close()
 
+
 if __name__ == "__main__":
 
     populate_data()
-
-
