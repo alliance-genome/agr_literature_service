@@ -7,7 +7,8 @@ Create Date: 2024-06-13 16:01:11.470456
 """
 from alembic import op
 import sqlalchemy as sa
-
+from datetime import datetime
+import pytz
 
 # revision identifiers, used by Alembic.
 revision = '6755b395f397'
@@ -46,8 +47,8 @@ def upgrade():
     op.create_index(op.f('ix_workflow_transition_version_operation_type'), 'workflow_transition_version', ['operation_type'], unique=False)
     op.create_index(op.f('ix_workflow_transition_version_transaction_id'), 'workflow_transition_version', ['transaction_id'], unique=False)
     op.create_table('workflow_transition',
-    sa.Column('date_created', sa.DateTime(), nullable=False),
-    sa.Column('date_updated', sa.DateTime(), nullable=True),
+    sa.Column('date_created', sa.DateTime(), nullable=False, default=lambda: datetime.now(tz=pytz.timezone("UTC"))),
+    sa.Column('date_updated', sa.DateTime(), nullable=True, default=lambda: datetime.now(tz=pytz.timezone("UTC"))),
     sa.Column('workflow_transition_id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('mod_id', sa.Integer(), nullable=False),
     sa.Column('transition_from', sa.String(), nullable=False),
