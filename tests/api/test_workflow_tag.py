@@ -33,7 +33,7 @@ def test_workflow_tag(db, auth_headers, test_reference, test_mod): # noqa
 def get_descendants_mock(name):
     # MUST start with ATP:0000003 for this to work
     print(f"***** Mocking get_ancestors name = {name}")
-    if name == 'ATP:0000117':
+    if name == 'ATP:0000177':
         return ['colour', 'size', 'type']
     elif name == 'colour':
         return ['red', 'blue', 'green']
@@ -146,8 +146,8 @@ class TestWorkflowTag:
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     def test_parent_child_dict(self, test_workflow_tag, auth_headers): # noqa
-        assert get_parent('colour') == 'ATP:0000117'
-        children = get_children('ATP:0000117')
+        assert get_parent('colour') == 'ATP:0000177'
+        children = get_children('ATP:0000177')
         assert 'colour' in children
         assert 'size' in children
         assert 'type' in children
