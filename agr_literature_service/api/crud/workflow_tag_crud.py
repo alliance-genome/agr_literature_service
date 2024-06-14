@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 @cachetools.func.ttl_cache(ttl=24 * 60 * 60)
-def load_workflow_parent_children(root_node='ATP:0000003'):
+def load_workflow_parent_children(root_node='ATP:0000177'):
     workflow_children = {}
     workflow_parent = {}
     nodes_to_process = [root_node]
