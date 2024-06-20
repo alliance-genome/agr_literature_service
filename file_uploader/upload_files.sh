@@ -87,6 +87,8 @@ parse_main_filename() {
     pdf_type="ocr"
   elif [[ "${additional_options,,}" == "html" ]]; then
     pdf_type="html"
+  elif [[ "${additional_options,,}" == "htm" ]]; then
+    pdf_type="html"
   elif [[ "${additional_options,,}" == "lib" ]]; then
     pdf_type="lib"
   elif [[ "${additional_options,,}" == "tif" ]]; then
