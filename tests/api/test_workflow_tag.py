@@ -158,11 +158,15 @@ class TestWorkflowTag:
                                                                            auth_headers):  # noqa
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
         db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000141', transition_to='ATP:0000139'))
-        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000139', transition_to='ATP:0000141'))
-        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000139', transition_to='ATP:0000135'))
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000139', transition_to='ATP:0000141',
+                                       requirements=["not_referencefiles_present"]))
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000139', transition_to='ATP:0000135',
+                                       requirements=["not_referencefiles_present"], transition_type="manual_only"))
         db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000139', transition_to='ATP:0000134'))
-        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000135', transition_to='ATP:0000139'))
-        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000134', transition_to='ATP:0000141'))
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000135', transition_to='ATP:0000139',
+                                       requirements=["referencefiles_present"]))
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000134', transition_to='ATP:0000141',
+                                       requirements=["not_referencefiles_present"], transition_type="manual_only"))
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
         db.add(WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id='ATP:0000141'))
         db.commit()
@@ -183,3 +187,8 @@ class TestWorkflowTag:
                                                  f"{'ATP:0000140'}", headers=auth_headers)
             assert new_status_response.status_code == status.HTTP_200_OK
             assert new_status_response.json() == 'ATP:0000139'
+            client.get(url=f"/workflow_tag/transition_to_workflow_status/{test_reference.new_ref_curie}/"
+                           f"{test_mod.new_mod_abbreviation}/{'ATP:0000135'}", headers=auth_headers)
+            response = client.get(url=f"/workflow_tag/transition_to_workflow_status/{test_reference.new_ref_curie}/"
+                                      f"{test_mod.new_mod_abbreviation}/{'ATP:0000139'}", headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
