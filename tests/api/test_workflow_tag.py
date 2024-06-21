@@ -151,3 +151,11 @@ class TestWorkflowTag:
         assert 'colour' in children
         assert 'size' in children
         assert 'type' in children
+
+
+    def test_transition_to_workflow_status(self, db):  # noqa
+
+        pass
+
+    def test_get_current_workflow_status(self, db):  # noqa
+        pass
