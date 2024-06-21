@@ -1,12 +1,13 @@
 from collections import namedtuple
 
 import pytest
+from sqlalchemy import and_
 from starlette.testclient import TestClient
 from fastapi import status
 from unittest.mock import patch
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel
+from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, WorkflowTransitionModel, ModModel
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_process_from_tag, get_workflow_tags_from_process
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
@@ -34,15 +35,15 @@ def get_descendants_mock(name):
     # MUST start with ATP:0000003 for this to work
     print(f"***** Mocking get_ancestors name = {name}")
     if name == 'ATP:0000177':
-        return ['colour', 'size', 'type']
-    elif name == 'colour':
-        return ['red', 'blue', 'green']
-    elif name == 'size':
-        return ['1', '2', '3']
-    elif name == 'red':
-        return ['dark red', 'crimson']
-    elif name == 'type':
-        return ['5', '6']
+        return ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161']
+    elif name == 'ATP:0000172':
+        return ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178']
+    elif name == 'ATP:0000140':
+        return ['ATP:0000141', 'ATP:0000135', 'ATP:0000139', 'ATP:0000134']
+    elif name == 'ATP:0000165':
+        return ['ATP:0000168', 'ATP:0000167', 'ATP:0000170', 'ATP:0000171', 'ATP:0000169', 'ATP:0000166']
+    elif name == 'ATP:0000161':
+        return ['ATP:0000164', 'ATP:0000163', 'ATP:0000162']
     else:
         print("returning NOTHING!!")
         return []
@@ -146,16 +147,39 @@ class TestWorkflowTag:
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     def test_parent_child_dict(self, test_workflow_tag, auth_headers): # noqa
-        assert get_workflow_process_from_tag('colour') == 'ATP:0000177'
+        assert get_workflow_process_from_tag('ATP:0000164') == 'ATP:0000161'
         children = get_workflow_tags_from_process('ATP:0000177')
-        assert 'colour' in children
-        assert 'size' in children
-        assert 'type' in children
+        assert 'ATP:0000172' in children
+        assert 'ATP:0000140' in children
+        assert 'ATP:0000165' in children
 
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
+    def test_transition_to_workflow_status_and_get_current_workflow_status(self, db, test_mod, test_reference,  # noqa
+                                                                           auth_headers):  # noqa
+        mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000141', transition_to='ATP:0000139'))
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000139', transition_to='ATP:0000141'))
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000139', transition_to='ATP:0000135'))
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000139', transition_to='ATP:0000134'))
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000135', transition_to='ATP:0000139'))
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000134', transition_to='ATP:0000141'))
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
+        db.add(WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id='ATP:0000141'))
+        db.commit()
+        with TestClient(app) as client:
+            response = client.get(url=f"/workflow_tag/transition_to_workflow_status/{test_reference.new_ref_curie}/"
+                                      f"{test_mod.new_mod_abbreviation}/{'ATP:0000139'}", headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            assert db.query(WorkflowTagModel).filter(
+                and_(
+                    WorkflowTagModel.reference_id == reference.reference_id,
+                    WorkflowTagModel.mod_id == mod.mod_id,
+                    WorkflowTagModel.workflow_tag_id == 'ATP:0000139'
+                )
+            ).first()
 
-    def test_transition_to_workflow_status(self, db):  # noqa
-
-        pass
-
-    def test_get_current_workflow_status(self, db):  # noqa
-        pass
+            new_status_response = client.get(url=f"/workflow_tag/get_current_workflow_status/"
+                                                 f"{test_reference.new_ref_curie}/{test_mod.new_mod_abbreviation}/"
+                                                 f"{'ATP:0000140'}", headers=auth_headers)
+            assert new_status_response.status_code == status.HTTP_200_OK
+            assert new_status_response.json() == 'ATP:0000139'

@@ -53,14 +53,15 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
                                   new_workflow_tag_atp_id: str):
     reference_id = get_reference_id_from_curie_or_id(db=db, curie_or_reference_id=curie_or_reference_id)
     process_atp_id = get_workflow_process_from_tag(workflow_tag_atp_id=new_workflow_tag_atp_id)
-    current_workflow_tag_db_obj: WorkflowTagModel = _get_current_workflow_tag_db_obj(db, reference_id, process_atp_id,
+    current_workflow_tag_db_obj: WorkflowTagModel = _get_current_workflow_tag_db_obj(db, str(reference_id),
+                                                                                     process_atp_id,
                                                                                      mod_abbreviation)
     if not current_workflow_tag_db_obj or db.query(WorkflowTransitionModel).filter(
             and_(
                 WorkflowTransitionModel.transition_from == current_workflow_tag_db_obj.workflow_tag_id,
                 WorkflowTransitionModel.transition_to == new_workflow_tag_atp_id
             )
-    ).exists():
+    ).first():
         current_workflow_tag_db_obj.workflow_tag_id = new_workflow_tag_atp_id
         db.commit()
 

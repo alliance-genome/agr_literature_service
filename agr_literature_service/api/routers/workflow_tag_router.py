@@ -72,11 +72,11 @@ def show_versions(reference_workflow_tag_id: int,
 
 @router.get('/transition_to_workflow_status/{curie_or_reference_id}/{mod_abbreviation}/{new_workflow_tag_atp_id}',
             status_code=200)
-def transition_to_status(curie_or_reference_id: str,
-                         mod_abbreviation: str,
-                         new_workflow_tag_atp_id: str,
-                         user: OktaUser = db_user,
-                         db: Session = db_session):
+def transition_to_workflow_status(curie_or_reference_id: str,
+                                  mod_abbreviation: str,
+                                  new_workflow_tag_atp_id: str,
+                                  user: OktaUser = db_user,
+                                  db: Session = db_session):
     set_global_user_from_okta(db, user)
     return workflow_tag_crud.transition_to_workflow_status(db=db, curie_or_reference_id=curie_or_reference_id,
                                                            mod_abbreviation=mod_abbreviation,
