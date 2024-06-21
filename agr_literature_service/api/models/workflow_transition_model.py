@@ -7,6 +7,7 @@ from typing import Dict
 
 from sqlalchemy import (Column, ForeignKey, Integer,
                         String)
+from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -31,6 +32,11 @@ class WorkflowTransitionModel(AuditedModel, Base):
         ForeignKey("mod.mod_id", ondelete="CASCADE"),
         index=True,
         nullable=False
+    )
+
+    mod = relationship(
+        "ModModel",
+        foreign_keys="WorkflowTransitionModel.mod_id"
     )
 
 # workflow transitions from this workflow_tag, String from A-Team api.

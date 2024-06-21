@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel
-from agr_literature_service.api.crud.workflow_tag_crud import get_parent, get_children
+from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_process_from_tag, get_workflow_tags_from_process
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
@@ -146,8 +146,8 @@ class TestWorkflowTag:
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     def test_parent_child_dict(self, test_workflow_tag, auth_headers): # noqa
-        assert get_parent('colour') == 'ATP:0000177'
-        children = get_children('ATP:0000177')
+        assert get_workflow_process_from_tag('colour') == 'ATP:0000177'
+        children = get_workflow_tags_from_process('ATP:0000177')
         assert 'colour' in children
         assert 'size' in children
         assert 'type' in children

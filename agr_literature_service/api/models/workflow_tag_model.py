@@ -54,3 +54,8 @@ class WorkflowTagModel(AuditedModel, Base):
         index=True,
         nullable=True
     )
+
+    mod = relationship(
+        "ModModel",
+        foreign_keys="WorkflowTagModel.mod_id"
+    )
