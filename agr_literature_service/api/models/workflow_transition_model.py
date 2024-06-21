@@ -63,5 +63,6 @@ class WorkflowTransitionModel(AuditedModel, Base):
         String(),
         unique=False,
         nullable=False,
-        default='any'
+        default='any',
+        server_default='any'
     )
