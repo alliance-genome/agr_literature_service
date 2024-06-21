@@ -9,6 +9,7 @@ from agr_literature_service.api.schemas import (WorkflowTagSchemaShow,
                                                 WorkflowTagSchemaUpdate,
                                                 WorkflowTagSchemaPost,
                                                 ResponseMessageSchema)
+from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTransitionSchemaPost
 from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
@@ -70,17 +71,15 @@ def show_versions(reference_workflow_tag_id: int,
     return workflow_tag_crud.show_changesets(db, reference_workflow_tag_id)
 
 
-@router.get('/transition_to_workflow_status/{curie_or_reference_id}/{mod_abbreviation}/{new_workflow_tag_atp_id}',
-            status_code=200)
-def transition_to_workflow_status(curie_or_reference_id: str,
-                                  mod_abbreviation: str,
-                                  new_workflow_tag_atp_id: str,
+@router.post('/transition_to_workflow_status',
+             status_code=200)
+def transition_to_workflow_status(request: WorkflowTransitionSchemaPost,
                                   user: OktaUser = db_user,
                                   db: Session = db_session):
     set_global_user_from_okta(db, user)
-    return workflow_tag_crud.transition_to_workflow_status(db=db, curie_or_reference_id=curie_or_reference_id,
-                                                           mod_abbreviation=mod_abbreviation,
-                                                           new_workflow_tag_atp_id=new_workflow_tag_atp_id)
+    return workflow_tag_crud.transition_to_workflow_status(db=db, curie_or_reference_id=request.curie_or_reference_id,
+                                                           mod_abbreviation=request.mod_abbreviation,
+                                                           new_workflow_tag_atp_id=request.new_workflow_tag_atp_id)
 
 
 @router.get('/get_current_workflow_status/{curie_or_reference_id}/{mod_abbreviation}/{workflow_process_atp_id}',

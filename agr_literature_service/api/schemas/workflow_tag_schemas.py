@@ -34,3 +34,11 @@ class WorkflowTagSchemaUpdate(BaseModel):
     class Config():
         orm_mode = True
         extra = "forbid"
+
+
+class WorkflowTransitionSchemaPost(BaseModel):
+    curie_or_reference_id: str
+    mod_abbreviation: str
+    new_workflow_tag_atp_id: str
+    transition_type: str = "manual"
+

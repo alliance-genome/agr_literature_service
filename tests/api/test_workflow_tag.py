@@ -171,8 +171,13 @@ class TestWorkflowTag:
         db.add(WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id='ATP:0000141'))
         db.commit()
         with TestClient(app) as client:
-            response = client.get(url=f"/workflow_tag/transition_to_workflow_status/{test_reference.new_ref_curie}/"
-                                      f"{test_mod.new_mod_abbreviation}/{'ATP:0000139'}", headers=auth_headers)
+            transition_req = {
+                "curie_or_reference_id": test_reference.new_ref_curie,
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "new_workflow_tag_atp_id": "ATP:0000139"
+            }
+            response = client.post(url=f"/workflow_tag/transition_to_workflow_status", json=transition_req,
+                                   headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert db.query(WorkflowTagModel).filter(
                 and_(
@@ -187,8 +192,17 @@ class TestWorkflowTag:
                                                  f"{'ATP:0000140'}", headers=auth_headers)
             assert new_status_response.status_code == status.HTTP_200_OK
             assert new_status_response.json() == 'ATP:0000139'
-            client.get(url=f"/workflow_tag/transition_to_workflow_status/{test_reference.new_ref_curie}/"
-                           f"{test_mod.new_mod_abbreviation}/{'ATP:0000135'}", headers=auth_headers)
-            response = client.get(url=f"/workflow_tag/transition_to_workflow_status/{test_reference.new_ref_curie}/"
-                                      f"{test_mod.new_mod_abbreviation}/{'ATP:0000139'}", headers=auth_headers)
+            transition_req = {
+                "curie_or_reference_id": test_reference.new_ref_curie,
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "new_workflow_tag_atp_id": "ATP:0000135"
+            }
+            client.post(url=f"/workflow_tag/transition_to_workflow_status", json=transition_req, headers=auth_headers)
+            wrong_transition_req = {
+                "curie_or_reference_id": test_reference.new_ref_curie,
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "new_workflow_tag_atp_id": "ATP:0000139"
+            }
+            response = client.post(url=f"/workflow_tag/transition_to_workflow_status", json=wrong_transition_req,
+                                   headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
