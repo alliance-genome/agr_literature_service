@@ -74,7 +74,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
             )
         ).first()
     if not current_workflow_tag_db_obj or transition:
-        if transition.requirements:
+        if transition and transition.requirements:
             transition_requirements_met = True
             for requirement_function_str in transition.requirements:
                 negated_function = False
