@@ -14,7 +14,7 @@ from agr_literature_service.api.schemas import WorkflowTagSchemaPost
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_descendants, \
     get_reference_id_from_curie_or_id  # get_ancestors,
 import logging
-from agr_literature_service.api.crud.workflow_transition_requirements import *
+from agr_literature_service.api.crud.workflow_transition_requirements import *  # noqa
 
 logger = logging.getLogger(__name__)
 
