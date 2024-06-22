@@ -15,6 +15,8 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_descendan
     get_reference_id_from_curie_or_id  # get_ancestors,
 import logging
 from agr_literature_service.api.crud.workflow_transition_requirements import *  # noqa
+from agr_literature_service.api.crud.workflow_transition_requirements import (
+    ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS)
 
 logger = logging.getLogger(__name__)
 
