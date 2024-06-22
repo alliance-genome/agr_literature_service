@@ -176,7 +176,7 @@ class TestWorkflowTag:
                 "mod_abbreviation": test_mod.new_mod_abbreviation,
                 "new_workflow_tag_atp_id": "ATP:0000139"
             }
-            response = client.post(url=f"/workflow_tag/transition_to_workflow_status", json=transition_req,
+            response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert db.query(WorkflowTagModel).filter(
@@ -197,12 +197,12 @@ class TestWorkflowTag:
                 "mod_abbreviation": test_mod.new_mod_abbreviation,
                 "new_workflow_tag_atp_id": "ATP:0000135"
             }
-            client.post(url=f"/workflow_tag/transition_to_workflow_status", json=transition_req, headers=auth_headers)
+            client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req, headers=auth_headers)
             wrong_transition_req = {
                 "curie_or_reference_id": test_reference.new_ref_curie,
                 "mod_abbreviation": test_mod.new_mod_abbreviation,
                 "new_workflow_tag_atp_id": "ATP:0000139"
             }
-            response = client.post(url=f"/workflow_tag/transition_to_workflow_status", json=wrong_transition_req,
+            response = client.post(url="/workflow_tag/transition_to_workflow_status", json=wrong_transition_req,
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

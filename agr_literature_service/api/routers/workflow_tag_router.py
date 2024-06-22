@@ -93,4 +93,3 @@ def get_current_workflow_status(curie_or_reference_id: str,
     return workflow_tag_crud.get_current_workflow_status(db=db, curie_or_reference_id=curie_or_reference_id,
                                                          mod_abbreviation=mod_abbreviation,
                                                          workflow_process_atp_id=workflow_process_atp_id)
-
