@@ -41,4 +41,3 @@ class WorkflowTransitionSchemaPost(BaseModel):
     mod_abbreviation: str
     new_workflow_tag_atp_id: str
     transition_type: str = "manual"
-
