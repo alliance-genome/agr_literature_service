@@ -5,12 +5,18 @@ workflow_tag_crud.py
 import cachetools.func
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, ModModel
+from agr_literature_service.api.crud.reference_utils import get_reference
+from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, ModModel, WorkflowTransitionModel
 from agr_literature_service.api.schemas import WorkflowTagSchemaPost
-from agr_literature_service.api.crud.topic_entity_tag_utils import get_descendants  # get_ancestors,
+from agr_literature_service.api.crud.topic_entity_tag_utils import get_descendants, \
+    get_reference_id_from_curie_or_id  # get_ancestors,
 import logging
+from agr_literature_service.api.crud.workflow_transition_requirements import *  # noqa
+from agr_literature_service.api.crud.workflow_transition_requirements import (
+    ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS)
 
 logger = logging.getLogger(__name__)
 
@@ -34,17 +40,79 @@ def get_parent_or_children(atp_name: str, parent_or_children: str = "parent"):
     workflow_children, workflow_parent = load_workflow_parent_children()
     workflow_to_check = workflow_children if parent_or_children == "children" else workflow_parent
     if atp_name not in workflow_to_check:
-        logger.error("Could not find parent for {}".format(atp_name))
+        logger.error(f"Could not find {parent_or_children} for {atp_name}")
         return None
     return workflow_to_check[atp_name]
 
 
-def get_parent(atp_name: str):
-    return get_parent_or_children(atp_name, parent_or_children="parent")
+def get_workflow_process_from_tag(workflow_tag_atp_id: str):
+    return get_parent_or_children(workflow_tag_atp_id, parent_or_children="parent")
 
 
-def get_children(atp_name: str):
-    return get_parent_or_children(atp_name, parent_or_children="children")
+def get_workflow_tags_from_process(workflow_process_atp_id: str):
+    return get_parent_or_children(workflow_process_atp_id, parent_or_children="children")
+
+
+def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_abbreviation: str,
+                                  new_workflow_tag_atp_id: str, transition_type: str = "manual"):
+    if transition_type not in ["manual", "automated"]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Transition type must be manual or automated")
+    reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id)
+    mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
+    process_atp_id = get_workflow_process_from_tag(workflow_tag_atp_id=new_workflow_tag_atp_id)
+    current_workflow_tag_db_obj: WorkflowTagModel = _get_current_workflow_tag_db_obj(db, str(reference.reference_id),
+                                                                                     process_atp_id,
+                                                                                     mod_abbreviation)
+    transition = None
+    if current_workflow_tag_db_obj:
+        transition = db.query(WorkflowTransitionModel).filter(
+            and_(
+                WorkflowTransitionModel.transition_from == current_workflow_tag_db_obj.workflow_tag_id,
+                WorkflowTransitionModel.transition_to == new_workflow_tag_atp_id,
+                WorkflowTransitionModel.transition_type.in_(["any", f"{transition_type}_only"])
+            )
+        ).first()
+    if not current_workflow_tag_db_obj or transition:
+        if transition and transition.requirements:
+            transition_requirements_met = True
+            for requirement_function_str in transition.requirements:
+                negated_function = False
+                if requirement_function_str.startswith('not_'):
+                    requirement_function_str = requirement_function_str[4:]
+                    negated_function = True
+                if requirement_function_str in ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS:
+                    check_passed = locals()[requirement_function_str](reference.reference_id, mod.mod_id)
+                    if negated_function:
+                        check_passed = not check_passed
+                    if not check_passed:
+                        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                            detail=f"{requirement_function_str} requirement not met")
+        current_workflow_tag_db_obj.workflow_tag_id = new_workflow_tag_atp_id
+        db.commit()
+    else:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Workflow status transition not supported")
+
+
+def _get_current_workflow_tag_db_obj(db: Session, curie_or_reference_id: str, workflow_process_atp_id: str,
+                                     mod_abbreviation: str):
+    reference_id = get_reference_id_from_curie_or_id(db=db, curie_or_reference_id=curie_or_reference_id)
+    all_workflow_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
+    return db.query(WorkflowTagModel).join(ModModel).filter(
+        and_(
+            WorkflowTagModel.workflow_tag_id.in_(all_workflow_tags_for_process),
+            WorkflowTagModel.reference_id == reference_id,
+            ModModel.abbreviation == mod_abbreviation
+        )
+    ).one_or_none()
+
+
+def get_current_workflow_status(db: Session, curie_or_reference_id: str, workflow_process_atp_id: str,
+                                mod_abbreviation: str):
+    current_workflow_tag_db_obj = _get_current_workflow_tag_db_obj(db, curie_or_reference_id,
+                                                                   workflow_process_atp_id, mod_abbreviation)
+    return None if not current_workflow_tag_db_obj else current_workflow_tag_db_obj.workflow_tag_id
 
 
 def create(db: Session, workflow_tag: WorkflowTagSchemaPost) -> int:

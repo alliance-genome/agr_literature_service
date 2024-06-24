@@ -6,7 +6,8 @@ workflow_transition_model.py
 from typing import Dict
 
 from sqlalchemy import (Column, ForeignKey, Integer,
-                        String)
+                        String, ARRAY)
+from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -25,7 +26,7 @@ class WorkflowTransitionModel(AuditedModel, Base):
         autoincrement=True
     )
 
-# mod id
+    # mod id
     mod_id = Column(
         Integer,
         ForeignKey("mod.mod_id", ondelete="CASCADE"),
@@ -33,7 +34,12 @@ class WorkflowTransitionModel(AuditedModel, Base):
         nullable=False
     )
 
-# workflow transitions from this workflow_tag, String from A-Team api.
+    mod = relationship(
+        "ModModel",
+        foreign_keys="WorkflowTransitionModel.mod_id"
+    )
+
+    # workflow transitions from this workflow_tag, String from A-Team api.
     transition_from = Column(
         String(),
         unique=False,
@@ -45,4 +51,18 @@ class WorkflowTransitionModel(AuditedModel, Base):
         String(),
         unique=False,
         nullable=False
+    )
+
+    requirements = Column(
+        ARRAY(String),
+        unique=False,
+        nullable=True
+    )
+
+    transition_type = Column(
+        String(),
+        unique=False,
+        nullable=False,
+        default='any',
+        server_default='any'
     )
