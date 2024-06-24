@@ -40,7 +40,7 @@ def get_parent_or_children(atp_name: str, parent_or_children: str = "parent"):
     workflow_children, workflow_parent = load_workflow_parent_children()
     workflow_to_check = workflow_children if parent_or_children == "children" else workflow_parent
     if atp_name not in workflow_to_check:
-        logger.error("Could not find parent for {}".format(atp_name))
+        logger.error(f"Could not find {parent_or_children} for {atp_name}")
         return None
     return workflow_to_check[atp_name]
 
