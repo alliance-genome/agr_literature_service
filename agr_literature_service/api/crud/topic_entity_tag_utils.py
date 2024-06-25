@@ -195,7 +195,7 @@ def get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret):
     return return_dict
 
 
-def get_map_complex_pathway_ids_to_names(curies_category, curies):  # pragma: no cover
+def get_map_sgd_curies_to_names(curies_category, curies):  # pragma: no cover
 
     curie_list = "|".join(curies).replace(" ", "+")
     sgd_api_base_url = environ.get("SGD_API_URL")
@@ -212,6 +212,37 @@ def get_map_complex_pathway_ids_to_names(curies_category, curies):  # pragma: no
     return id_to_name_mapping
 
 
+def get_map_wb_curies_to_names(curies_category, curies):
+    post_data = {
+        "datatype": curies_category, "entities": "|".join(curies)
+    }
+    url = environ.get(
+        "WB_API_URL", "https://caltech-curation.textpressolab.com/pub/cgi-bin/forms/abc_readonly_api.cgi")
+    id_to_name_mapping = {}
+    try:
+        response = requests.post(url, data=post_data)
+        for mod_entity_id, display_name in response.json().items():
+            id_to_name_mapping[mod_entity_id] = display_name
+            id_to_name_cache.set(mod_entity_id, display_name)
+    except requests.RequestException as e:
+        logger.error(f"An error occurred when running 'WB entity curie to name resolution': {e}")
+        return None
+    return id_to_name_mapping
+
+
+def get_map_entity_curies_to_names(entity_id_validation, curies_category, curies):
+    curie_to_name_mapping = {}
+    if entity_id_validation == "alliance":
+        curie_to_name_mapping.update(get_map_ateam_curies_to_names(curies_category=curies_category,
+                                                                   curies=curies))
+    elif entity_id_validation.lower() == "wb":
+        curie_to_name_mapping.update(get_map_wb_curies_to_names(curies_category=curies_category, curies=curies))
+    elif entity_id_validation.lower() == "sgd":
+        curies_category = curies_category.replace("protein containing ", "")
+        curie_to_name_mapping.update(get_map_sgd_curies_to_names(curies_category=curies_category, curies=curies))
+    return curie_to_name_mapping
+
+
 def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
 
     curies_not_in_cache = [curie for curie in set(curies) if id_to_name_cache.get(curie) is None]
@@ -221,10 +252,6 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
     if curies_category == 'transgenicconstruct':
         curies_category = 'construct'
         return get_map_ateam_construct_ids_to_symbols(curies_category, curies_not_in_cache, maxret)
-
-    if curies_category in ["complex", "protein containing complex", "pathway"]:
-        curies_category = curies_category.replace("protein containing ", "")
-        return get_map_complex_pathway_ids_to_names(curies_category, curies_not_in_cache)
 
     subtype = None
     if curies_category in ["AGMs", "AffectedGenomeModel", "affected genome model",

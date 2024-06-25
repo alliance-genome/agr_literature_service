@@ -7,7 +7,7 @@ import logging
 from dateutil import parser as date_parser
 from collections import defaultdict
 from os import environ
-from typing import Dict
+from typing import Dict, List
 import copy
 # from os import getcwd
 
@@ -23,7 +23,7 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
     get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, check_and_set_species, \
     add_audited_object_users_if_not_exist, get_ancestors, get_descendants, \
-    check_atp_ids_validity
+    check_atp_ids_validity, get_map_wb_curies_to_names, get_map_sgd_curies_to_names, get_map_entity_curies_to_names
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
@@ -607,11 +607,11 @@ def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str):
     return entity_curie_to_name
 
 
-def populate_tet_curie_names(db, tet_data):
+def populate_tet_curie_names(db, tet_data: List[Dict[str, str]]):
 
     atp_field_names = ['topic', 'entity_type', 'display_tag']
     atp_curies = set()
-    entity_type_to_entities = {}
+    entity_id_validation_entity_type_entities = defaultdict(lambda: defaultdict(list))
     species_curies = set()
     for tet in tet_data:
         entity_type = None
@@ -626,9 +626,7 @@ def populate_tet_curie_names(db, tet_data):
             elif field == 'species' and tet.get(field):
                 species_curies.add(tet[field])
             if entity_type and entity:
-                entities = entity_type_to_entities.get(entity_type, [])
-                entities.append(entity)
-                entity_type_to_entities[entity_type] = entities
+                entity_id_validation_entity_type_entities[tet["entity_id_validation"]][entity_type].append(entity)
                 entity_type = None
                 entity = None
 
@@ -641,8 +639,8 @@ def populate_tet_curie_names(db, tet_data):
             curies=list(atp_curies))
 
     ## map entities for each entity type (eg, gene, allele, etc) to names
-    for entity_type in entity_type_to_entities:
-        if entity_type and len(entity_type_to_entities[entity_type]) > 0:
+    for entity_id_validation, entity_type_curies_dict in entity_id_validation_entity_type_entities.items():
+        for entity_type, curies in entity_type_curies_dict.items():
             entity_type_name = curie_to_name_mapping[entity_type]
             if entity_type_name == 'species':
                 curie_category = "ncbitaxonterm"
@@ -653,9 +651,7 @@ def populate_tet_curie_names(db, tet_data):
             else:
                 # gene, allele, strain, genotype, fish, 'affected genomic model', etc
                 curie_category = entity_type_name
-            curie_to_name_mapping.update(get_map_ateam_curies_to_names(
-                curies_category=curie_category,
-                curies=entity_type_to_entities[entity_type]))
+            curie_to_name_mapping.update(get_map_entity_curies_to_names(entity_id_validation, entity_type, curies))
 
     ## map species curies to names
     curie_to_name_mapping.update(get_map_ateam_curies_to_names(
