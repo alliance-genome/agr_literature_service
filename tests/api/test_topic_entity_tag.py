@@ -148,8 +148,8 @@ class TestTopicEntityTag:
 
     def test_get_all_reference_tags(self, auth_headers, test_topic_entity_tag_source): # noqa
         with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_map_ateam_curies_to_names") as \
-                mock_get_map_ateam_curies_to_name, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
                 mock_check_atp_ids_validity:
             reference_data = {
@@ -190,7 +190,7 @@ class TestTopicEntityTag:
             assert new_ref_req.status_code == status.HTTP_201_CREATED
             new_curie = new_ref_req.json()
             assert new_curie.startswith("AGRKB:")
-            mock_get_map_ateam_curies_to_name.return_value = {
+            mock_get_curie_to_name_from_all_tets.return_value = {
                 'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
                 'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
                 'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
@@ -518,8 +518,8 @@ class TestTopicEntityTag:
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as \
                 mock_get_descendants, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_map_ateam_curies_to_names") as \
-                mock_get_map_ateam_curies_to_name, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
                 mock_check_atp_ids_validity:
             mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
@@ -610,7 +610,7 @@ class TestTopicEntityTag:
             validating_tags = [int(validating_tag.topic_entity_tag_id) for validating_tag in negative_tag.validated_by]
             assert int(more_specific_positive_tag_id) in validating_tags
             assert int(more_generic_negative_tag_id) in validating_tags
-            mock_get_map_ateam_curies_to_name.return_value = {
+            mock_get_curie_to_name_from_all_tets.return_value = {
                 'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
                 'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
                 'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
@@ -665,8 +665,8 @@ class TestTopicEntityTag:
             assert null_tag_resp.json()["validation_by_author"] == "validated_right_self"
 
     @pytest.mark.webtest
-    def test_get_map_entity_curie_to_name(self, test_topic_entity_tag, test_topic_entity_tag_source, test_mod, # noqa
-                                          auth_headers): # noqa
+    def test_get_curie_to_name_from_all_tets(self, test_topic_entity_tag, test_topic_entity_tag_source, test_mod, # noqa
+                                             auth_headers): # noqa
         with TestClient(app) as client:
             topic_tag = {
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
@@ -675,7 +675,7 @@ class TestTopicEntityTag:
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
             }
             client.post(url="/topic_entity_tag/", json=topic_tag, headers=auth_headers)
-            response = client.get(url="/topic_entity_tag/map_entity_curie_to_name/",
+            response = client.get(url="/topic_entity_tag/get_curie_to_name_from_all_tets/",
                                   params={"curie_or_reference_id": test_topic_entity_tag.related_ref_curie,
                                           "token": get_authentication_token()},
                                   headers=auth_headers)
@@ -696,7 +696,7 @@ class TestTopicEntityTag:
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id
             }
             client.post(url="/topic_entity_tag/", json=alliance_topic_tag, headers=auth_headers)
-            response = client.get(url="/topic_entity_tag/map_entity_curie_to_name/",
+            response = client.get(url="/topic_entity_tag/get_curie_to_name_from_all_tets/",
                                   params={"curie_or_reference_id": test_topic_entity_tag.related_ref_curie,
                                           "token": get_authentication_token()},
                                   headers=auth_headers)
@@ -711,13 +711,13 @@ class TestTopicEntityTag:
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
                 "topic": "ATP:0000009",
                 "entity_type": "ATP:0000099",
-                "entity": "WB:WBTransgene0001",
-                "entity_id_validation": "wormbase",
+                "entity": "WB:WBCnstr00007090",
+                "entity_id_validation": "alliance",
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id
             }
             client.post(url="/topic_entity_tag/", json=wormbase_topic_tag, headers=auth_headers)
-            response = client.get(url="/topic_entity_tag/map_entity_curie_to_name/",
+            response = client.get(url="/topic_entity_tag/get_curie_to_name_from_all_tets/",
                                   params={"curie_or_reference_id": test_topic_entity_tag.related_ref_curie,
                                           "token": get_authentication_token()},
                                   headers=auth_headers)
@@ -727,7 +727,8 @@ class TestTopicEntityTag:
                 'ATP:0000009': 'phenotype',
                 'ATP:0000099': 'existing transgenic construct',
                 'ATP:0000122': 'ATP:0000122',  # not present in the ontology
-                'WB:WBGene00003001': 'lin-12'
+                'WB:WBGene00003001': 'lin-12',
+                'WB:WBCnstr00007090': '[pCAM-1 deletion-S/T, rol-6(d)]'
             }
 
     @pytest.mark.webtest

@@ -113,7 +113,7 @@ def get_sorted_column_values(reference_id: int, db: Session, column_name: str, d
                 entity_type_to_entities[result.entity_type].append(result.entity)
             else:
                 entity_type_to_entities[result.entity_type] = [result.entity]
-        curie_name_map = get_map_ateam_entity_curies_to_names(entity_type_to_entities)
+        curie_name_map = _get_map_ateam_entity_curies_to_names(entity_type_to_entities)
     else:
         curies = db.query(getattr(TopicEntityTagModel, column_name)).filter(
             TopicEntityTagModel.reference_id == reference_id).distinct()
@@ -125,7 +125,7 @@ def get_sorted_column_values(reference_id: int, db: Session, column_name: str, d
                                             key=lambda x: x[0], reverse=desc)]
 
 
-def get_map_ateam_entity_curies_to_names(entity_type_to_entities):
+def _get_map_ateam_entity_curies_to_names(entity_type_to_entities):
 
     entity_types = [entity_type for entity_type in entity_type_to_entities.keys() if entity_type is not None]
 
@@ -151,7 +151,7 @@ def get_map_ateam_entity_curies_to_names(entity_type_to_entities):
     return entity_curie_to_name_map
 
 
-def get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret):
+def _get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret):
     # curies = list(set(curies))
     ateam_api_base_url = environ.get('ATEAM_API_URL')
     ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit={maxret}&page=0'
@@ -184,8 +184,13 @@ def get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret):
                 resp = response.read().decode("utf8")
                 resp_obj = json.loads(resp)
                 for res in resp_obj["results"]:
-                    return_dict[res['modEntityId']] = res['uniqueId'].split('|')[0]
-                    id_to_name_cache.set(res['modEntityId'], res['uniqueId'].split('|')[0])
+                    unique_ids = [unique_id for unique_id in res['uniqueId'].split('|') if unique_id not in res['modEntityId']]
+                    if unique_ids:
+                        unique_id_selected = unique_ids[0]
+                    else:
+                        unique_id_selected = res['modEntityId']
+                    return_dict[res['modEntityId']] = unique_id_selected
+                    id_to_name_cache.set(res['modEntityId'], unique_id_selected)
         except HTTPError as e:
             logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
             continue
@@ -195,7 +200,7 @@ def get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret):
     return return_dict
 
 
-def get_map_sgd_curies_to_names(curies_category, curies):  # pragma: no cover
+def _get_map_sgd_curies_to_names(curies_category, curies):  # pragma: no cover
 
     curie_list = "|".join(curies).replace(" ", "+")
     sgd_api_base_url = environ.get("SGD_API_URL")
@@ -212,7 +217,7 @@ def get_map_sgd_curies_to_names(curies_category, curies):  # pragma: no cover
     return id_to_name_mapping
 
 
-def get_map_wb_curies_to_names(curies_category, curies):
+def _get_map_wb_curies_to_names(curies_category, curies):
     post_data = {
         "datatype": curies_category, "entities": "|".join(curies)
     }
@@ -236,10 +241,10 @@ def get_map_entity_curies_to_names(entity_id_validation, curies_category, curies
         curie_to_name_mapping.update(get_map_ateam_curies_to_names(curies_category=curies_category,
                                                                    curies=curies))
     elif entity_id_validation.lower() == "wb":
-        curie_to_name_mapping.update(get_map_wb_curies_to_names(curies_category=curies_category, curies=curies))
+        curie_to_name_mapping.update(_get_map_wb_curies_to_names(curies_category=curies_category, curies=curies))
     elif entity_id_validation.lower() == "sgd":
         curies_category = curies_category.replace("protein containing ", "")
-        curie_to_name_mapping.update(get_map_sgd_curies_to_names(curies_category=curies_category, curies=curies))
+        curie_to_name_mapping.update(_get_map_sgd_curies_to_names(curies_category=curies_category, curies=curies))
     return curie_to_name_mapping
 
 
@@ -251,7 +256,7 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
 
     if curies_category == 'transgenicconstruct':
         curies_category = 'construct'
-        return get_map_ateam_construct_ids_to_symbols(curies_category, curies_not_in_cache, maxret)
+        return _get_map_ateam_construct_ids_to_symbols(curies_category, curies_not_in_cache, maxret)
 
     subtype = None
     if curies_category in ["AGMs", "AffectedGenomeModel", "affected genome model",

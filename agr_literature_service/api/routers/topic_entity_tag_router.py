@@ -132,12 +132,12 @@ def show_all_reference_tags(curie_or_reference_id: str,
                                                          column_values)
 
 
-@router.get('/map_entity_curie_to_name/',
+@router.get('/get_curie_to_name_from_all_tets/',
             response_model=Dict[str, str],
             status_code=200)
-def get_map_entity_curie_to_name(curie_or_reference_id: str,
-                                 db: Session = db_session):
-    return topic_entity_tag_crud.get_map_entity_curie_to_name(db, curie_or_reference_id)
+def get_curie_to_name_from_all_tets(curie_or_reference_id: str,
+                                    db: Session = db_session):
+    return topic_entity_tag_crud.get_curie_to_name_from_all_tets(db, curie_or_reference_id)
 
 
 def revalidate_tags_process_wrapper(already_running, email: str, delete_all_first: bool, curie_or_reference_id: str):
