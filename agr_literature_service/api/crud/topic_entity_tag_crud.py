@@ -2,38 +2,38 @@
 topic_entity_tag_crud.py
 ===========================
 """
+import copy
 import logging
-
-from dateutil import parser as date_parser
 from collections import defaultdict
 from os import environ
-from typing import Dict, List
-import copy
-# from os import getcwd
+from typing import Dict
 
+from dateutil import parser as date_parser
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import case, and_, create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, sessionmaker
 
-from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
-from agr_literature_service.api.models.audited_model import get_default_user_value
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
     get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, check_and_set_species, \
     add_audited_object_users_if_not_exist, get_ancestors, get_descendants, \
-    check_atp_ids_validity, _get_map_wb_curies_to_names, _get_map_sgd_curies_to_names, get_map_entity_curies_to_names
-from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
+    check_atp_ids_validity, get_map_entity_curies_to_names
+from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
     ReferenceModel, TopicEntityTagSourceModel, ModModel
 )
+from agr_literature_service.api.models.audited_model import get_default_user_value
+from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagSchemaPost,
                                                                          TopicEntityTagSourceSchemaUpdate,
                                                                          TopicEntityTagSourceSchemaCreate,
                                                                          TopicEntityTagSchemaUpdate)
 from agr_literature_service.lit_processing.utils.email_utils import send_email
+
+# from os import getcwd
 
 
 logger = logging.getLogger(__name__)

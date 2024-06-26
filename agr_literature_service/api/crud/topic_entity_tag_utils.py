@@ -1,20 +1,20 @@
 import json
+import logging
 import urllib.request
 from os import environ
 from typing import Dict, List
 from urllib.error import HTTPError
-import requests
 
-from cachetools.func import ttl_cache
+import requests
 from cachetools import TTLCache
+from cachetools.func import ttl_cache
 from fastapi import HTTPException
+from fastapi_okta.okta_utils import get_authentication_token
 from sqlalchemy.orm import Session
 from starlette import status
 
 from agr_literature_service.api.models import TopicEntityTagSourceModel, ReferenceModel, ModModel, TopicEntityTagModel
 from agr_literature_service.api.user import add_user_if_not_exists
-from fastapi_okta.okta_utils import get_authentication_token
-import logging
 
 logger = logging.getLogger(__name__)
 
