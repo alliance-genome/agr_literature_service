@@ -168,6 +168,7 @@ def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagS
     for key, value in patch_data_dict.items():
         setattr(topic_entity_tag, key, value)
     db.commit()
+    revalidate_all_tags(curie_or_reference_id=str(topic_entity_tag.reference_id))
     return {"message": "updated"}
 
 
