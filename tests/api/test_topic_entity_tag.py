@@ -684,7 +684,8 @@ class TestTopicEntityTag:
                 'ATP:0000005': 'gene',
                 'ATP:0000009': 'phenotype',
                 'ATP:0000122': 'ATP:0000122',
-                'WB:WBGene00003001': 'lin-12'
+                'WB:WBGene00003001': 'lin-12',
+                'NCBITaxon:6239': 'Caenorhabditis elegans'
             }
             alliance_topic_tag = {
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
@@ -705,7 +706,8 @@ class TestTopicEntityTag:
                 'ATP:0000005': 'gene',
                 'ATP:0000009': 'phenotype',
                 'ATP:0000122': 'ATP:0000122',
-                'WB:WBGene00003001': 'lin-12'
+                'WB:WBGene00003001': 'lin-12',
+                'NCBITaxon:6239': 'Caenorhabditis elegans'
             }
             wormbase_topic_tag = {
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
@@ -728,7 +730,8 @@ class TestTopicEntityTag:
                 'ATP:0000099': 'existing transgenic construct',
                 'ATP:0000122': 'ATP:0000122',  # not present in the ontology
                 'WB:WBGene00003001': 'lin-12',
-                'WB:WBCnstr00007090': '[pCAM-1 deletion-S/T, rol-6(d)]'
+                'WB:WBCnstr00007090': '[pCAM-1 deletion-S/T, rol-6(d)]',
+                'NCBITaxon:6239': 'Caenorhabditis elegans'
             }
 
     @pytest.mark.webtest

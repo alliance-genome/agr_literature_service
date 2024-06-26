@@ -6,7 +6,7 @@ import copy
 import logging
 from collections import defaultdict
 from os import environ
-from typing import Dict
+from typing import Dict, Set
 
 from dateutil import parser as date_parser
 from fastapi import HTTPException, status
@@ -591,8 +591,9 @@ def get_curie_to_name_from_all_tets(db: Session, curie_or_reference_id: str):
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
     ref_related_tets = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.reference_id == reference_id).all()
     all_atp_terms = set()
-    entity_id_validation_entity_type_entities = defaultdict(lambda: defaultdict(set))
+    entity_id_validation_entity_type_entities: Dict[str, Dict[str, Set[str]]] = defaultdict(lambda: defaultdict(set))
     all_entity_curies = set()
+    tag_species = set()
     for tet in ref_related_tets:
         all_atp_terms.add(tet.topic)
         if tet.display_tag is not None:
@@ -603,7 +604,11 @@ def get_curie_to_name_from_all_tets(db: Session, curie_or_reference_id: str):
                 entity_id_validation_entity_type_entities[tet.entity_id_validation][tet.entity_type].add(
                     tet.entity)
                 all_entity_curies.add(tet.entity)
+        if tet.species:
+            tag_species.add(tet.species)
     entity_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=list(all_atp_terms))
+    entity_curie_to_name.update(get_map_ateam_curies_to_names(curies_category="ncbitaxonterm",
+                                                              curies=list(tag_species)))
     for entity_id_validation, entity_type_curies_dict in entity_id_validation_entity_type_entities.items():
         for entity_type, curies in entity_type_curies_dict.items():
             entity_type_name = entity_curie_to_name[entity_type].replace("species", "ncbitaxonterm")
