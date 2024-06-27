@@ -222,7 +222,19 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         "track_total_hits": True,
         "sort": [
             {
-                "date_published.keyword": {
+                "_script": {
+                    "type": "number",
+                    "script": {
+                        "source": """
+                            if (doc['date_published.keyword'].size() == 0) {
+                                return params.sort_missing_last ? Long.MAX_VALUE : Long.MIN_VALUE;
+                            }
+                            return doc['date_published.keyword'].value.toInstant().toEpochMilli();
+                        """,
+                        "params": {
+                            "sort_missing_last": sort_by_published_date_order == "asc"
+                        }
+                    },
                     "order": sort_by_published_date_order
                 }
             }
