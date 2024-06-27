@@ -33,8 +33,6 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEn
                                                                          TopicEntityTagSchemaUpdate)
 from agr_literature_service.lit_processing.utils.email_utils import send_email
 
-# from os import getcwd
-
 
 logger = logging.getLogger(__name__)
 
