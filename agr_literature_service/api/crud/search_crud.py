@@ -163,57 +163,53 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             "mod_reference_types.keyword": {
                 "terms": {
                     "field": "mod_reference_types.keyword",
-                    "size": facets_limits["mod_reference_types.keyword"] if "mod_reference_types.keyword" in facets_limits else 10
+                    "size": facets_limits.get("mod_reference_types.keyword", 10)
                 }
             },
             "pubmed_types.keyword": {
                 "terms": {
                     "field": "pubmed_types.keyword",
-                    "size": facets_limits["pubmed_types.keyword"] if "pubmed_types.keyword" in facets_limits else 10
+                    "size": facets_limits.get("pubmed_types.keyword", 10)
                 }
             },
             "category.keyword": {
                 "terms": {
                     "field": "category.keyword",
-                    "size": facets_limits["category.keyword"] if "category.keyword" in facets_limits else 10
+                    "size": facets_limits.get("category.keyword", 10)
                 }
             },
             "pubmed_publication_status.keyword": {
                 "terms": {
                     "field": "pubmed_publication_status.keyword",
                     "min_doc_count": 0,
-                    "size": facets_limits["pubmed_publication_status.keyword"] if "pubmed_publication_status.keyword" in facets_limits else 10
+                    "size": facets_limits.get("pubmed_publication_status.keyword", 10)
                 }
             },
             "mods_in_corpus.keyword": {
                 "terms": {
                     "field": "mods_in_corpus.keyword",
                     "min_doc_count": 0,
-                    "size": facets_limits[
-                        "mods_in_corpus.keyword"] if "mods_in_corpus.keyword" in facets_limits else 10
+                    "size": facets_limits.get("mods_in_corpus.keyword", 10)
                 }
             },
             "mods_needs_review.keyword": {
                 "terms": {
                     "field": "mods_needs_review.keyword",
                     "min_doc_count": 0,
-                    "size": facets_limits[
-                        "mods_needs_review.keyword"] if "mods_needs_review.keyword" in facets_limits else 10
+                    "size": facets_limits.get("mods_needs_review.keyword", 10)
                 }
             },
             "mods_in_corpus_or_needs_review.keyword": {
                 "terms": {
                     "field": "mods_in_corpus_or_needs_review.keyword",
                     "min_doc_count": 0,
-                    "size": facets_limits[
-                        "mods_in_corpus_or_needs_review.keyword"] if "mods_in_corpus_or_needs_review.keyword" in facets_limits else 10
+                    "size": facets_limits.get("mods_in_corpus_or_needs_review.keyword", 10)
                 }
             },
             "authors.name.keyword": {
                 "terms": {
                     "field": "authors.name.keyword",
-                    "size": facets_limits[
-                        "authors.name.keyword"] if "authors.name.keyword" in facets_limits else 10
+                    "size": facets_limits.get("authors.name.keyword", 10)
                 }
             }
         },
@@ -222,17 +218,35 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         "track_total_hits": True,
         "sort": [
             {
-                "date_published.keyword": {
+                "_script": {
+                    "type": "number",
+                    "script": {
+                        "source": """
+                            if (!doc.containsKey('date_published.keyword')) {
+                                return params.sort_missing_last ? Long.MAX_VALUE : Long.MIN_VALUE;
+                            }
+                            try {
+                                SimpleDateFormat formatter = new SimpleDateFormat('yyyy-MM-dd');
+                                Date date = formatter.parse(doc['date_published.keyword'].value);
+                                return date.getTime();
+                            } catch (Exception e) {
+                                return params.sort_missing_last ? Long.MAX_VALUE : Long.MIN_VALUE;
+                            }
+                        """,
+                        "params": {
+                            "sort_missing_last": sort_by_published_date_order == "asc"
+                        }
+                    },
                     "order": sort_by_published_date_order
                 }
             }
         ]
     }
-    if sort_by_published_date_order is None:
+    if sort_by_published_date_order not in ["desc", "asc"]:
         del es_body["sort"]
-    elif sort_by_published_date_order not in ["desc", "asc"]:
-        del es_body["sort"]
+
     ensure_structure(es_body)
+
     tet_facets = {}
     if tet_nested_facets_values and "tet_facets_values" in tet_nested_facets_values:
         tet_facets = add_tet_facets_values(es_body, tet_nested_facets_values,
@@ -503,28 +517,28 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits):  # prag
         tet_facets=tet_facets,
         term_field="topic_entity_tags.topic.keyword",
         term_key="topics",
-        size=facets_limits["topics"] if "topics" in facets_limits else 10
+        size=facets_limits.get("topics", 10)
     )
     es_body["aggregations"]["confidence_aggregation"] = create_filtered_aggregation(
         path="topic_entity_tags",
         tet_facets=tet_facets,
         term_field="topic_entity_tags.confidence_level.keyword",
         term_key="confidence_levels",
-        size=facets_limits["confidence_levels"] if "confidence_levels" in facets_limits else 10
+        size=facets_limits.get("confidence_levels", 10)
     )
     es_body["aggregations"]["source_method_aggregation"] = create_filtered_aggregation(
         path="topic_entity_tags",
         tet_facets=tet_facets,
         term_field="topic_entity_tags.source_method.keyword",
         term_key="source_methods",
-        size=facets_limits["source_methods"] if "source_methods" in facets_limits else 10
+        size=facets_limits.get("source_methods", 10)
     )
     es_body["aggregations"]["source_evidence_assertion_aggregation"] = create_filtered_aggregation(
         path="topic_entity_tags",
         tet_facets=tet_facets,
         term_field="topic_entity_tags.source_evidence_assertion.keyword",
         term_key="source_evidence_assertions",
-        size=facets_limits["source_evidence_assertions"] if "source_evidence_assertions" in facets_limits else 10
+        size=facets_limits.get("source_evidence_assertions", 10) 
     )
 
 
