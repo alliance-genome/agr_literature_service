@@ -2,33 +2,31 @@
 topic_entity_tag_crud.py
 ===========================
 """
+import copy
 import logging
-
-from dateutil import parser as date_parser
 from collections import defaultdict
 from os import environ
-from typing import Dict
-import copy
-# from os import getcwd
+from typing import Dict, Set
 
+from dateutil import parser as date_parser
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import case, and_, create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, sessionmaker
 
-from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
-from agr_literature_service.api.models.audited_model import get_default_user_value
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
     get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, check_and_set_species, \
     add_audited_object_users_if_not_exist, get_ancestors, get_descendants, \
-    check_atp_ids_validity
-from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
+    check_atp_ids_validity, get_map_entity_curies_to_names
+from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
     ReferenceModel, TopicEntityTagSourceModel, ModModel
 )
+from agr_literature_service.api.models.audited_model import get_default_user_value
+from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagSchemaPost,
                                                                          TopicEntityTagSourceSchemaUpdate,
                                                                          TopicEntityTagSourceSchemaCreate,
@@ -41,6 +39,8 @@ logger = logging.getLogger(__name__)
 
 ATP_ID_SOURCE_AUTHOR = "author"
 ATP_ID_SOURCE_CURATOR = "professional_biocurator"
+
+TET_CURIE_FIELDS = ['topic', 'entity_type', 'display_tag', 'entity', 'species']
 
 
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate_on_insert: bool = True) -> dict:
@@ -426,7 +426,7 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
     existing_tag = db.query(TopicEntityTagModel).filter_by(**new_tag_data).first()
     if existing_tag:
         existing_date_updated = existing_tag.date_updated
-        tag_data = populate_tag_field_names(db, reference_id, new_tag_data)
+        tag_data = get_tet_with_names(db, tet=new_tag_data, curie_or_reference_id=str(reference_id))
         if note:
             tag_data['note'] = note
         if note == existing_tag.note or note is None:
@@ -468,7 +468,7 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
     new_tag_data_wo_creator.pop('updated_by')
     existing_tag = db.query(TopicEntityTagModel).filter_by(**new_tag_data_wo_creator).first()
     if existing_tag:
-        tag_data = populate_tag_field_names(db, reference_id, new_tag_data)
+        tag_data = get_tet_with_names(db, tet=new_tag_data, curie_or_reference_id=str(reference_id))
         if note:
             tag_data['note'] = note
         tag_data['topic_entity_tag_id'] = existing_tag.topic_entity_tag_id
@@ -581,122 +581,57 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
             tet_data["topic_entity_tag_source"]["secondary_data_provider_abbreviation"] = mod_id_to_mod[
                 tet.topic_entity_tag_source.secondary_data_provider_id]
             all_tet.append(tet_data)
-        tet_data_with_names = populate_tet_curie_names(db, all_tet)
-        return tet_data_with_names
+        curie_to_name = get_curie_to_name_from_all_tets(db, curie_or_reference_id)
+        return [get_tet_with_names(db, tag, curie_to_name) for tag in all_tet]
 
 
-def get_map_entity_curie_to_name(db: Session, curie_or_reference_id: str):
+def get_curie_to_name_from_all_tets(db: Session, curie_or_reference_id: str):
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
-    topics_and_entities = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.reference_id == reference_id).all()
-    all_topics_and_entities = []
-    all_entities = defaultdict(list)
-    for tag in topics_and_entities:
-        all_topics_and_entities.append(tag.topic)
-        if tag.display_tag is not None:
-            all_topics_and_entities.append(tag.display_tag)
-        if tag.entity_type is not None:
-            all_topics_and_entities.append(tag.entity_type)
-            if tag.entity_id_validation == "alliance":
-                all_entities[tag.entity_type].append(tag.entity)
-    entity_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=all_topics_and_entities)
-    for atpterm_curie in all_entities.keys():
-        entity_curie_to_name.update(get_map_ateam_curies_to_names(
-            curies_category=entity_curie_to_name[atpterm_curie].replace(" ", ""),
-            curies=all_entities[atpterm_curie]))
-    for curie_without_name in (set(all_entities) | set(all_topics_and_entities)) - set(entity_curie_to_name.keys()):
+    ref_related_tets = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.reference_id == reference_id).all()
+    all_atp_terms = set()
+    entity_id_validation_entity_type_entities: Dict[str, Dict[str, Set[str]]] = defaultdict(lambda: defaultdict(set))
+    all_entity_curies = set()
+    tag_species = set()
+    for tet in ref_related_tets:
+        all_atp_terms.add(tet.topic)
+        if tet.display_tag is not None:
+            all_atp_terms.add(tet.display_tag)
+        if tet.entity_type is not None:
+            all_atp_terms.add(tet.entity_type)
+            if tet.entity_id_validation:
+                entity_id_validation_entity_type_entities[tet.entity_id_validation][tet.entity_type].add(
+                    tet.entity)
+                all_entity_curies.add(tet.entity)
+        if tet.species:
+            tag_species.add(tet.species)
+    entity_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=list(all_atp_terms))
+    entity_curie_to_name.update(get_map_ateam_curies_to_names(curies_category="ncbitaxonterm",
+                                                              curies=list(tag_species)))
+    for entity_id_validation, entity_type_curies_dict in entity_id_validation_entity_type_entities.items():
+        for entity_type, curies in entity_type_curies_dict.items():
+            entity_type_name = entity_curie_to_name[entity_type].replace("species", "ncbitaxonterm")
+            if "construct" in entity_type_name:
+                entity_type_name = "transgenicconstruct"
+            entity_curie_to_name.update(get_map_entity_curies_to_names(
+                entity_id_validation=entity_id_validation,
+                curies_category=entity_type_name,
+                curies=list(curies)))
+    for curie_without_name in (all_entity_curies | all_atp_terms) - set(entity_curie_to_name.keys()):
         entity_curie_to_name[curie_without_name] = curie_without_name
     return entity_curie_to_name
 
 
-def populate_tet_curie_names(db, tet_data):
-
-    atp_field_names = ['topic', 'entity_type', 'display_tag']
-    atp_curies = set()
-    entity_type_to_entities = {}
-    species_curies = set()
-    for tet in tet_data:
-        entity_type = None
-        entity = None
-        for field in tet:
-            if field in atp_field_names and tet.get(field):
-                atp_curies.add(tet[field])
-                if field == 'entity_type' and tet.get(field):
-                    entity_type = tet[field]
-            elif field == 'entity' and tet.get(field):
-                entity = tet[field]
-            elif field == 'species' and tet.get(field):
-                species_curies.add(tet[field])
-            if entity_type and entity:
-                entities = entity_type_to_entities.get(entity_type, [])
-                entities.append(entity)
-                entity_type_to_entities[entity_type] = entities
-                entity_type = None
-                entity = None
-
-    curie_to_name_mapping = {}
-
-    ## map atp curies to names (topic, entity_type, display_tag)
-    if len(atp_curies) > 0:
-        curie_to_name_mapping = get_map_ateam_curies_to_names(
-            curies_category="atpterm",
-            curies=list(atp_curies))
-
-    ## map entities for each entity type (eg, gene, allele, etc) to names
-    for entity_type in entity_type_to_entities:
-        if entity_type and len(entity_type_to_entities[entity_type]) > 0:
-            entity_type_name = curie_to_name_mapping[entity_type]
-            if entity_type_name == 'species':
-                curie_category = "ncbitaxonterm"
-            # elif entity_type_name in ["AGMs", "affected genomic model", "strain", "genotype", "fish"]:
-            #    curie_category = "agm"
-            elif entity_type_name.startswith('transgenic'):
-                curie_category = 'transgenicconstruct'
-            else:
-                # gene, allele, strain, genotype, fish, 'affected genomic model', etc
-                curie_category = entity_type_name
-            curie_to_name_mapping.update(get_map_ateam_curies_to_names(
-                curies_category=curie_category,
-                curies=entity_type_to_entities[entity_type]))
-
-    ## map species curies to names
-    curie_to_name_mapping.update(get_map_ateam_curies_to_names(
-        curies_category="ncbitaxonterm",
-        curies=list(species_curies)))
-
-    curie_fields = atp_field_names.copy()
-    curie_fields.extend(['entity', 'species'])
-
-    new_tet_data = []
-    for tet in tet_data:
-        new_tet = {}
-        for field in tet:
-            new_tet[field] = tet[field]
-            if field in curie_fields:
-                curie = tet[field]
-                new_field = f"{field}_name"
-                new_tet[new_field] = curie_to_name_mapping.get(curie, curie)
-        new_tet_data.append(new_tet)
-
-    return new_tet_data
-
-
-def populate_tag_field_names(db, reference_id, tag_data):
-
-    curie_to_name = get_map_entity_curie_to_name(db, str(reference_id))
-    new_tag_data = {}
-    for field in tag_data:
-        curie = tag_data[field]
-        new_tag_data[field] = curie
-        new_field = field + "_name"
-        # if (field == 'species' and curie) or (field == 'entity' and curie and curie.startswith('NCBITaxon:')):
-        if (field == 'species' and curie):
-            taxon_id_to_name = get_map_ateam_curies_to_names(curies_category="ncbitaxonterm",
-                                                             curies=[curie])
-            new_tag_data[new_field] = taxon_id_to_name.get(curie, curie)
-        elif curie in curie_to_name:
-            new_tag_data[new_field] = curie_to_name[curie]
-
-    return new_tag_data
+def get_tet_with_names(db: Session, tet, curie_to_name_mapping: Dict = None, curie_or_reference_id: str = None):
+    if curie_to_name_mapping is None:
+        curie_to_name_mapping = get_curie_to_name_from_all_tets(db, str(curie_or_reference_id))
+    new_tet = {}
+    for field in tet:
+        new_tet[field] = tet[field]
+        if field in TET_CURIE_FIELDS:
+            curie = tet[field]
+            new_field = f"{field}_name"
+            new_tet[new_field] = curie_to_name_mapping.get(curie, curie)
+    return new_tet
 
 
 def show_source_by_name(db: Session, source_evidence_assertion: str, source_method: str,
