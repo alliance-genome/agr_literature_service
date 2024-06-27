@@ -225,7 +225,8 @@ def _get_map_wb_curies_to_names(curies_category, curies):
         "WB_API_URL", "https://caltech-curation.textpressolab.com/pub/cgi-bin/forms/abc_readonly_api.cgi")
     id_to_name_mapping = {}
     try:
-        response = requests.post(url, data=post_data)
+        response = requests.post(url, json=post_data,
+                                 headers={'Content-Type': 'application/json', 'Accept': 'application/json'})
         for mod_entity_id, display_name in response.json().items():
             id_to_name_mapping[mod_entity_id] = display_name
             id_to_name_cache.set(mod_entity_id, display_name)
