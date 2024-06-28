@@ -17,7 +17,7 @@ def test_topic_entity_tag_source(db, auth_headers, test_mod): # noqa
     print("***** Adding a test tag source *****")
     with TestClient(app) as client:
         new_source = {
-            "source_evidence_assertion": "automated",
+            "source_evidence_assertion": "ECO:0008025",
             "source_method": "phenotype neural network",
             "validation_type": None,
             "description": "a test source",
