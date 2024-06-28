@@ -360,7 +360,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
     reference_data["invalid_cross_reference_ids"] = bad_cross_ref_ids
 
     if pmid:
-        pmid_no_prefix = pmid.replace('PMID:','')
+        pmid_no_prefix = pmid.replace('PMID:', '')
         resource_links = [
             {
                 "display_name": "Ontomate",
