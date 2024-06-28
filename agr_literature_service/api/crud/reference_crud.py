@@ -360,6 +360,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
     reference_data["invalid_cross_reference_ids"] = bad_cross_ref_ids
 
     if pmid:
+        pmid_no_prefix = pmid.replace('PMID:','')
         resource_links = [
             {
                 "display_name": "Ontomate",
@@ -367,11 +368,11 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             },
             {
                 "display_name": "Pubtator",
-                "link_url": f"https://www.ncbi.nlm.nih.gov/research/pubtator/?view=publication&pmid={pmid.replace('PMID:','')}"
+                "link_url": f"https://www.ncbi.nlm.nih.gov/research/pubtator3/publication/{pmid_no_prefix}?text={pmid_no_prefix}"
             },
             {
                 "display_name": "EuropePMC",
-                "link_url": f"https://europepmc.org/article/MED/{pmid.replace('PMID:','')}"
+                "link_url": f"https://europepmc.org/article/MED/{pmid_no_prefix}"
             }
         ]
         ## generate links to Textpresso
