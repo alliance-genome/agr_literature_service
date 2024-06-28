@@ -635,14 +635,14 @@ def get_tet_with_names(db: Session, tet, curie_to_name_mapping: Dict = None, cur
         curie_to_name_mapping = get_curie_to_name_from_all_tets(db, str(curie_or_reference_id))
     new_tet = {}
     for field in tet:
+        new_tet[field] = tet[field]
         if field == "topic_entity_tag_source":
             for source_field in field:
                 if source_field in TET_SOURCE_CURIE_FIELDS:
                     curie = tet["topic_entity_tag_source"][source_field]
                     new_field = f"{source_field}_name"
-                    new_tet["topic_entity_tag_source"][new_field] = curie_to_name_mapping.get(curie, curie)
+                    new_tet[field][new_field] = curie_to_name_mapping.get(curie, curie)
         else:
-            new_tet[field] = tet[field]
             if field in TET_CURIE_FIELDS:
                 curie = tet[field]
                 new_field = f"{field}_name"
