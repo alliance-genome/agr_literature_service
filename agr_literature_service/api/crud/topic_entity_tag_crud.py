@@ -633,20 +633,17 @@ def get_curie_to_name_from_all_tets(db: Session, curie_or_reference_id: str):
 def get_tet_with_names(db: Session, tet, curie_to_name_mapping: Dict = None, curie_or_reference_id: str = None):
     if curie_to_name_mapping is None:
         curie_to_name_mapping = get_curie_to_name_from_all_tets(db, str(curie_or_reference_id))
-    new_tet = {}
-    for field in tet:
-        new_tet[field] = tet[field]
-        if field == "topic_entity_tag_source":
-            for source_field in field:
-                if source_field in TET_SOURCE_CURIE_FIELDS:
-                    curie = tet["topic_entity_tag_source"][source_field]
-                    new_field = f"{source_field}_name"
-                    new_tet[field][new_field] = curie_to_name_mapping.get(curie, curie)
+    new_tet = copy.deepcopy(tet)
+    for tet_field_name, tet_field_value in tet.items():
+        if tet_field_name == "topic_entity_tag_source":
+            for source_field_name, source_field_value in tet_field_value.items():
+                if source_field_name in TET_SOURCE_CURIE_FIELDS:
+                    new_field = f"{source_field_name}_name"
+                    new_tet[tet_field_name][new_field] = curie_to_name_mapping.get(source_field_value, source_field_value)
         else:
-            if field in TET_CURIE_FIELDS:
-                curie = tet[field]
-                new_field = f"{field}_name"
-                new_tet[new_field] = curie_to_name_mapping.get(curie, curie)
+            if tet_field_name in TET_CURIE_FIELDS:
+                new_field = f"{tet_field_name}_name"
+                new_tet[new_field] = curie_to_name_mapping.get(tet_field_value, tet_field_value)
     return new_tet
 
 
