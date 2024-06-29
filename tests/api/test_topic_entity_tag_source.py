@@ -41,7 +41,7 @@ class TestTopicEntityTagSource:
             assert response.status_code == status.HTTP_200_OK
             res_obj = response.json()
             assert res_obj["source_method"] == "phenotype neural network"
-            assert res_obj["source_evidence_assertion"] == "automated"
+            assert res_obj["source_evidence_assertion"] == 'neural network method evidence used in automatic assertion'
             assert res_obj["description"] == "a test source"
             assert res_obj["data_provider"] == "WB"
             assert res_obj["secondary_data_provider_abbreviation"] == test_mod.new_mod_abbreviation
@@ -49,14 +49,15 @@ class TestTopicEntityTagSource:
     def test_patch_source(self, test_topic_entity_tag_source, auth_headers): # noqa
         with TestClient(app) as client:
             patch_data = {
-                "source_evidence_assertion": "new_evidence_assertion",
+                "source_evidence_assertion": "ECO:0008021",
                 "created_by": "me"
             }
             response = client.patch(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}",
                                     json=patch_data, headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
             response = client.get(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}")
-            assert response.json()["source_evidence_assertion"] == "new_evidence_assertion"
+            assert response.json()[
+                       "source_evidence_assertion"] == 'neural network method evidence used in automatic assertion'
             assert response.json()["created_by"] == "me"
 
     def test_destroy_source(self, test_topic_entity_tag_source, auth_headers):  # noqa
