@@ -56,8 +56,8 @@ class TestTopicEntityTagSource:
                                     json=patch_data, headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
             response = client.get(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}")
-            assert response.json()[
-                       "source_evidence_assertion"] == 'neural network method evidence used in automatic assertion'
+            assertion = response.json()["source_evidence_assertion"]
+            assert assertion == 'neural network method evidence used in automatic assertion'
             assert response.json()["created_by"] == "me"
 
     def test_destroy_source(self, test_topic_entity_tag_source, auth_headers):  # noqa
