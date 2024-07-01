@@ -7,6 +7,7 @@ import logging
 from collections import defaultdict
 from os import environ
 from typing import Dict, Set
+from datetime import datetime, timedelta
 
 from dateutil import parser as date_parser
 from fastapi import HTTPException, status
@@ -41,7 +42,6 @@ ATP_ID_SOURCE_AUTHOR = "author"
 ATP_ID_SOURCE_CURATOR = "professional_biocurator"
 
 TET_CURIE_FIELDS = ['topic', 'entity_type', 'display_tag', 'entity', 'species']
-TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 
 
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate_on_insert: bool = True) -> dict:
@@ -586,6 +586,46 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
         return [get_tet_with_names(db, tag, curie_to_name) for tag in all_tet]
 
 
+def get_reference_tags(db: Session, mod_abbreviation: str, days_updated: int = 7):
+
+    current_date = datetime.now()
+    past_date = current_date - timedelta(days=int(days_updated))
+    last_date_updated = past_date.strftime("%Y-%m-%d")
+
+    rows = db.execute(f"SELECT cr.curie, tet.*, u.email "
+                      f"FROM cross_reference cr "
+                      f"JOIN topic_entity_tag tet ON cr.reference_id = tet.reference_id AND cr.curie_prefix = '{mod_abbreviation}' "
+                      f"JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
+                      f"JOIN users u ON tet.updated_by = u.id "
+                      f"WHERE tets.data_provider = '{mod_abbreviation}' "
+                      f"AND tet.date_updated >= '{last_date_updated}'").fetchall()
+
+    tags = [dict(row) for row in rows]
+
+    curie_to_name_mapping = get_curie_to_name_mapping_for_mod(db, mod_abbreviation, last_date_updated)
+
+    data = [get_tet_with_names(db, tag, curie_to_name_mapping) for tag in tags]
+
+    src_rows = db.execute(f"SELECT * FROM topic_entity_tag_source WHERE data_provider = '{mod_abbreviation}'").fetchall()
+    metadata = [dict(row) for row in src_rows]
+
+    return {"metadata": metadata, "data": data}
+
+
+def get_curie_to_name_mapping_for_mod(db, mod_abbreviation, last_date_updated=None):
+
+    curie_to_name_mapping = {}
+
+    rows = db.execute(f"SELECT DISTINCT tet.reference_id "
+                      f"FROM topic_entity_tag tet "
+                      f"JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
+                      f"WHERE tets.data_provider = '{mod_abbreviation}' "
+                      f"AND tet.date_updated >= '{last_date_updated}'").fetchall()
+    for x in rows:
+        curie_to_name_mapping.update(get_curie_to_name_from_all_tets(db, str(x['reference_id'])))
+    return curie_to_name_mapping
+
+
 def get_curie_to_name_from_all_tets(db: Session, curie_or_reference_id: str):
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
     ref_related_tets = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.reference_id == reference_id).all()
@@ -593,7 +633,6 @@ def get_curie_to_name_from_all_tets(db: Session, curie_or_reference_id: str):
     entity_id_validation_entity_type_entities: Dict[str, Dict[str, Set[str]]] = defaultdict(lambda: defaultdict(set))
     all_entity_curies = set()
     tag_species = set()
-    source_eco_codes = set()
     for tet in ref_related_tets:
         all_atp_terms.add(tet.topic)
         if tet.display_tag is not None:
@@ -606,14 +645,7 @@ def get_curie_to_name_from_all_tets(db: Session, curie_or_reference_id: str):
                 all_entity_curies.add(tet.entity)
         if tet.species:
             tag_species.add(tet.species)
-        if tet.topic_entity_tag_source.source_evidence_assertion:
-            if tet.topic_entity_tag_source.source_evidence_assertion.startswith("ECO:"):
-                source_eco_codes.add(tet.topic_entity_tag_source.source_evidence_assertion)
-            else:
-                all_atp_terms.add(tet.topic_entity_tag_source.source_evidence_assertion)
     entity_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=list(all_atp_terms))
-    entity_curie_to_name.update(get_map_ateam_curies_to_names(curies_category="ecoterm",
-                                                              curies=list(source_eco_codes)))
     entity_curie_to_name.update(get_map_ateam_curies_to_names(curies_category="ncbitaxonterm",
                                                               curies=list(tag_species)))
     for entity_id_validation, entity_type_curies_dict in entity_id_validation_entity_type_entities.items():
@@ -633,17 +665,13 @@ def get_curie_to_name_from_all_tets(db: Session, curie_or_reference_id: str):
 def get_tet_with_names(db: Session, tet, curie_to_name_mapping: Dict = None, curie_or_reference_id: str = None):
     if curie_to_name_mapping is None:
         curie_to_name_mapping = get_curie_to_name_from_all_tets(db, str(curie_or_reference_id))
-    new_tet = copy.deepcopy(tet)
-    for tet_field_name, tet_field_value in tet.items():
-        if tet_field_name == "topic_entity_tag_source":
-            for source_field_name, source_field_value in tet_field_value.items():
-                if source_field_name in TET_SOURCE_CURIE_FIELDS:
-                    new_field = f"{source_field_name}_name"
-                    new_tet[tet_field_name][new_field] = curie_to_name_mapping.get(source_field_value, source_field_value)
-        else:
-            if tet_field_name in TET_CURIE_FIELDS:
-                new_field = f"{tet_field_name}_name"
-                new_tet[new_field] = curie_to_name_mapping.get(tet_field_value, tet_field_value)
+    new_tet = {}
+    for field in tet:
+        new_tet[field] = tet[field]
+        if field in TET_CURIE_FIELDS:
+            curie = tet[field]
+            new_field = f"{field}_name"
+            new_tet[new_field] = curie_to_name_mapping.get(curie, curie)
     return new_tet
 
 
