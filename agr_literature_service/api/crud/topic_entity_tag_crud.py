@@ -42,6 +42,7 @@ ATP_ID_SOURCE_AUTHOR = "author"
 ATP_ID_SOURCE_CURATOR = "professional_biocurator"
 
 TET_CURIE_FIELDS = ['topic', 'entity_type', 'display_tag', 'entity', 'species']
+TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 
 
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate_on_insert: bool = True) -> dict:
@@ -633,6 +634,7 @@ def get_curie_to_name_from_all_tets(db: Session, curie_or_reference_id: str):
     entity_id_validation_entity_type_entities: Dict[str, Dict[str, Set[str]]] = defaultdict(lambda: defaultdict(set))
     all_entity_curies = set()
     tag_species = set()
+    source_eco_codes = set()
     for tet in ref_related_tets:
         all_atp_terms.add(tet.topic)
         if tet.display_tag is not None:
@@ -645,7 +647,14 @@ def get_curie_to_name_from_all_tets(db: Session, curie_or_reference_id: str):
                 all_entity_curies.add(tet.entity)
         if tet.species:
             tag_species.add(tet.species)
+        if tet.topic_entity_tag_source.source_evidence_assertion:
+            if tet.topic_entity_tag_source.source_evidence_assertion.startswith("ECO:"):
+                source_eco_codes.add(tet.topic_entity_tag_source.source_evidence_assertion)
+            else:
+                all_atp_terms.add(tet.topic_entity_tag_source.source_evidence_assertion)
     entity_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=list(all_atp_terms))
+    entity_curie_to_name.update(get_map_ateam_curies_to_names(curies_category="ecoterm",
+                                                              curies=list(source_eco_codes)))
     entity_curie_to_name.update(get_map_ateam_curies_to_names(curies_category="ncbitaxonterm",
                                                               curies=list(tag_species)))
     for entity_id_validation, entity_type_curies_dict in entity_id_validation_entity_type_entities.items():
@@ -665,13 +674,17 @@ def get_curie_to_name_from_all_tets(db: Session, curie_or_reference_id: str):
 def get_tet_with_names(db: Session, tet, curie_to_name_mapping: Dict = None, curie_or_reference_id: str = None):
     if curie_to_name_mapping is None:
         curie_to_name_mapping = get_curie_to_name_from_all_tets(db, str(curie_or_reference_id))
-    new_tet = {}
-    for field in tet:
-        new_tet[field] = tet[field]
-        if field in TET_CURIE_FIELDS:
-            curie = tet[field]
-            new_field = f"{field}_name"
-            new_tet[new_field] = curie_to_name_mapping.get(curie, curie)
+    new_tet = copy.deepcopy(tet)
+    for tet_field_name, tet_field_value in tet.items():
+        if tet_field_name == "topic_entity_tag_source":
+            for source_field_name, source_field_value in tet_field_value.items():
+                if source_field_name in TET_SOURCE_CURIE_FIELDS:
+                    new_field = f"{source_field_name}_name"
+                    new_tet[tet_field_name][new_field] = curie_to_name_mapping.get(source_field_value, source_field_value)
+        else:
+            if tet_field_name in TET_CURIE_FIELDS:
+                new_field = f"{tet_field_name}_name"
+                new_tet[new_field] = curie_to_name_mapping.get(tet_field_value, tet_field_value)
     return new_tet
 
 
