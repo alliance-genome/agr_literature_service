@@ -137,7 +137,7 @@ def show_all_reference_tags(curie_or_reference_id: str,
 def get_reference_tags(mod_abbreviation: str,
                        days_updated: int = 7,
                        db: Session = db_session):
-    return topic_entity_tag_crud.get_reference_tags(db, mod_abbreviation, days_updated)
+    return topic_entity_tag_crud.get_all_topic_entity_tags_by_mod(db, mod_abbreviation, days_updated)
 
 
 @router.get('/get_curie_to_name_from_all_tets/',

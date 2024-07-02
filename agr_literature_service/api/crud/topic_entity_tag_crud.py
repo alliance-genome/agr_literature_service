@@ -587,7 +587,7 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
         return [get_tet_with_names(db, tag, curie_to_name) for tag in all_tet]
 
 
-def get_reference_tags(db: Session, mod_abbreviation: str, days_updated: int = 7):
+def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_updated: int = 7):
 
     current_date = datetime.now()
     past_date = current_date - timedelta(days=int(days_updated))
@@ -613,7 +613,7 @@ def get_reference_tags(db: Session, mod_abbreviation: str, days_updated: int = 7
     return {"metadata": metadata, "data": data}
 
 
-def get_curie_to_name_mapping_for_mod(db, mod_abbreviation, last_date_updated=None):
+def get_curie_to_name_mapping_for_mod(db, mod_abbreviation, last_date_updated):
 
     curie_to_name_mapping = {}
 
