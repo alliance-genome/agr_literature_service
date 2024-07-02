@@ -598,7 +598,8 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
                       f"JOIN topic_entity_tag tet ON cr.reference_id = tet.reference_id AND cr.curie_prefix = '{mod_abbreviation}' "
                       f"JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
                       f"JOIN users u ON tet.updated_by = u.id "
-                      f"WHERE tets.data_provider = '{mod_abbreviation}' "
+                      f"JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
+                      f"WHERE m.abbreviation = '{mod_abbreviation}' "
                       f"AND tet.date_updated >= '{last_date_updated}'").fetchall()
 
     tags = [dict(row) for row in rows]
@@ -607,7 +608,10 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
 
     data = [get_tet_with_names(db, tag, curie_to_name_mapping) for tag in tags]
 
-    src_rows = db.execute(f"SELECT * FROM topic_entity_tag_source WHERE data_provider = '{mod_abbreviation}'").fetchall()
+    src_rows = db.execute(f"SELECT tets.* "
+                          f"FROM topic_entity_tag_source tets "
+                          f"JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
+                          f"WHERE m.abbreviation = '{mod_abbreviation}'").fetchall()
     metadata = [dict(row) for row in src_rows]
 
     return {"metadata": metadata, "data": data}
