@@ -156,7 +156,7 @@ def file_paths_in_dir(directory):
                 yield file_path
 
 
-def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no cover
+def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already_converted: bool = False):  # pragma: no cover
     if not metadata["reference_curie"].startswith("AGRKB:101"):
         ref_curie_res = db.query(ReferenceModel.curie).filter(
             ReferenceModel.cross_reference.any(CrossReferenceModel.curie == metadata["reference_curie"])).one_or_none()
@@ -167,6 +167,22 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no co
                                 detail="The specified curie is not in the standard Alliance format and no cross "
                                        "references match the specified value.")
         metadata["reference_curie"] = ref_curie_res.curie
+    
+    if not upload_if_already_converted and metadata["mod_abbreviation"] and metadata["file_extension"] == 'pdf' and metadata['file_class'] == 'main' and metadata['file_publication_status'] == 'final':
+        # ATP:0000163: file converted to text
+        ref_curie = metadata["reference_curie"]
+        mod_abbreviation = metadata["mod_abbreviation"]
+        rows = db.execute(f"SELECT wft.reference_workflow_tag_id "
+                          f"FROM workflow_tag wft "
+                          f"JOIN reference r on wft.reference_id = r.reference_id "
+                          f"JOIN mod m on wft.mod_id = m.mod_id "
+                          f"WHERE r.curie = '{ref_curie}' "
+                          f"AND m.abbreviation = '{mod_abbreviation}' "
+                          f"AND wft.workflow_tag_id = 'ATP:0000163'").fetchall()        
+        if rows:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail="File already converted to text, use UI if you really need to replace the file.")
+
     if metadata["file_extension"] in ["tgz", "tar.gz"]:
         temp_dir = tempfile.mkdtemp()
         file_tar = tarfile.open(fileobj=file.file)
@@ -197,26 +213,38 @@ def file_upload(db: Session, metadata: dict, file: UploadFile):  # pragma: no co
     else:
         file_upload_single(db, metadata, file)
     mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
-    cleanup_temp_file(db, metadata["reference_curie"], mod_abbreviation)
+    cleanup_old_pdf_file(db, metadata["reference_curie"], mod_abbreviation)
 
 
-def cleanup_temp_file(db: Session, ref_curie: str, mod_abbreviation):  # pragma: no cover
+def cleanup_old_pdf_file(db: Session, ref_curie: str, mod_abbreviation):  # pragma: no cover
     ref = db.query(ReferenceModel).filter_by(curie=ref_curie).one_or_none()
     if ref:
         reffiles = db.query(ReferencefileModel).filter_by(
             reference_id=ref.reference_id, file_class='main', file_extension='pdf').order_by(
-                ReferencefileModel.file_publication_status).all()
+                ReferencefileModel.file_publication_status, ReferencefileModel.date_updated.desc()).all()
 
         if len(reffiles) >= 2:
             mod_ids_with_final = {mod.mod_id for reffile in reffiles for mod in reffile.referencefile_mods if
                                   reffile.file_publication_status == 'final'}
+            temp_files_to_delete = []
+            final_files_to_keep = set()
             for reffile in reffiles:
                 if reffile.file_publication_status == 'temp':
-                    if None in mod_ids_with_final or all([mod.mod_id in mod_ids_with_final for mod in
-                                                          reffile.referencefile_mods]):
-                        destroy(db, reffile.referencefile_id, [okta_access for okta_access, mod_abbr in
-                                                               OKTA_ACCESS_MOD_ABBR.items() if
-                                                               mod_abbr == mod_abbreviation][0])
+                    if None in mod_ids_with_final or all(mod.mod_id in mod_ids_with_final for mod in
+                                                         reffile.referencefile_mods):
+                        temp_files_to_delete.append(reffile.referencefile_id)
+                elif reffile.file_publication_status == 'final':
+                    for mod in reffile.referencefile_mods:
+                        if mod.mod_id is not None:
+                            if mod.mod_id in final_files_to_keep:
+                                temp_files_to_delete.append(reffile.referencefile_id)
+                            else:
+                                final_files_to_keep.add(mod.mod_id)
+
+            # Delete the temp files and older final files
+            for file_id in temp_files_to_delete:
+                destroy(db, file_id, [okta_access for okta_access, mod_abbr in OKTA_ACCESS_MOD_ABBR.items() if
+                                      mod_abbr == mod_abbreviation][0])
 
 
 def create_metadata(db: Session, request: ReferencefileSchemaPost):
