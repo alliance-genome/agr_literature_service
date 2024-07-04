@@ -167,7 +167,7 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
                                 detail="The specified curie is not in the standard Alliance format and no cross "
                                        "references match the specified value.")
         metadata["reference_curie"] = ref_curie_res.curie
-    
+
     if not upload_if_already_converted and metadata["mod_abbreviation"] and metadata["file_extension"] == 'pdf' and metadata['file_class'] == 'main' and metadata['file_publication_status'] == 'final':
         # ATP:0000163: file converted to text
         ref_curie = metadata["reference_curie"]
@@ -178,7 +178,8 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
                           f"JOIN mod m on wft.mod_id = m.mod_id "
                           f"WHERE r.curie = '{ref_curie}' "
                           f"AND m.abbreviation = '{mod_abbreviation}' "
-                          f"AND wft.workflow_tag_id = 'ATP:0000163'").fetchall()        
+                          f"AND wft.workflow_tag_id = 'ATP:0000163'").fetchall()
+
         if rows:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail="File already converted to text, use UI if you really need to replace the file.")
