@@ -22,6 +22,7 @@ from agr_literature_service.api.crud.referencefile_utils import read_referencefi
     get_s3_folder_from_md5sum, remove_from_s3_and_db
 from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection, \
     destroy as destroy_mod_association
+from agr_literature_service.api.crud.workflow_tag_crud import get_current_workflow_status
 from agr_literature_service.api.models import ReferenceModel, ReferencefileModel, ReferencefileModAssociationModel, \
     ModModel, CopyrightLicenseModel, CrossReferenceModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
@@ -169,17 +170,12 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
         metadata["reference_curie"] = ref_curie_res.curie
 
     if not upload_if_already_converted and metadata["mod_abbreviation"] and metadata["file_extension"] == 'pdf' and metadata['file_class'] == 'main' and metadata['file_publication_status'] == 'final':
-        # ATP:0000163: file converted to text
-        ref_curie = metadata["reference_curie"]
-        mod_abbreviation = metadata["mod_abbreviation"]
-        rows = db.execute(f"SELECT wft.reference_workflow_tag_id "
-                          f"FROM workflow_tag wft "
-                          f"JOIN reference r on wft.reference_id = r.reference_id "
-                          f"JOIN mod m on wft.mod_id = m.mod_id "
-                          f"WHERE r.curie = '{ref_curie}' "
-                          f"AND m.abbreviation = '{mod_abbreviation}' "
-                          f"AND wft.workflow_tag_id = 'ATP:0000163'").fetchall()
-        if rows:
+        workflow_process_atp_id = "ATP:0000161" # text conversion
+        workflow_tag_atp_id = get_current_workflow_status(db,
+                                                          metadata["reference_curie"],
+                                                          workflow_process_atp_id,
+                                                          metadata["mod_abbreviation"])
+        if workflow_tag_atp_id == "ATP:0000163": # file converted to text
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail="File already converted to text, use UI if you really need to replace the file.")
 
