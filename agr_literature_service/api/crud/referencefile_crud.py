@@ -170,12 +170,12 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
         metadata["reference_curie"] = ref_curie_res.curie
 
     if not upload_if_already_converted and metadata["mod_abbreviation"] and metadata["file_extension"] == 'pdf' and metadata['file_class'] == 'main' and metadata['file_publication_status'] == 'final':
-        workflow_process_atp_id = "ATP:0000161" # text conversion
+        workflow_process_atp_id = "ATP:0000161"  # text conversion
         workflow_tag_atp_id = get_current_workflow_status(db,
                                                           metadata["reference_curie"],
                                                           workflow_process_atp_id,
                                                           metadata["mod_abbreviation"])
-        if workflow_tag_atp_id == "ATP:0000163": # file converted to text
+        if workflow_tag_atp_id == "ATP:0000163":  # file converted to text
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail="File already converted to text, use UI if you really need to replace the file.")
 
