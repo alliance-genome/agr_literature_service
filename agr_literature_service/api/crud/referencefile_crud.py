@@ -179,7 +179,6 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
                           f"WHERE r.curie = '{ref_curie}' "
                           f"AND m.abbreviation = '{mod_abbreviation}' "
                           f"AND wft.workflow_tag_id = 'ATP:0000163'").fetchall()
-
         if rows:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail="File already converted to text, use UI if you really need to replace the file.")
@@ -227,14 +226,20 @@ def cleanup_old_pdf_file(db: Session, ref_curie: str, mod_abbreviation):  # prag
         if len(reffiles) >= 2:
             mod_ids_with_final = {mod.mod_id for reffile in reffiles for mod in reffile.referencefile_mods if
                                   reffile.file_publication_status == 'final'}
-            temp_files_to_delete = []
             final_files_to_keep = set()
+            temp_files_to_delete = []
+            final_files_with_none = None
+
             for reffile in reffiles:
                 if reffile.file_publication_status == 'temp':
-                    if None in mod_ids_with_final or all(mod.mod_id in mod_ids_with_final for mod in
-                                                         reffile.referencefile_mods):
+                    if None in mod_ids_with_final or all(mod.mod_id in mod_ids_with_final for mod in reffile.referencefile_mods):
                         temp_files_to_delete.append(reffile.referencefile_id)
                 elif reffile.file_publication_status == 'final':
+                    if any(mod.mod_id is None for mod in reffile.referencefile_mods):
+                        if final_files_with_none is not None:
+                            temp_files_to_delete.append(reffile.referencefile_id)
+                        else:
+                            final_files_with_none = reffile.referencefile_id
                     for mod in reffile.referencefile_mods:
                         if mod.mod_id is not None:
                             if mod.mod_id in final_files_to_keep:
