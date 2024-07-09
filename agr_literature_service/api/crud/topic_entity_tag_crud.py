@@ -358,7 +358,7 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
         if not delete_all_first:
             db.execute(f"DELETE FROM topic_entity_tag_validation "
                        f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}")
-        validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False, commit_changes=False)
+        validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False, commit_changes=True)
         if tag_counter % 200 == 0:
             db.commit()
     db.commit()

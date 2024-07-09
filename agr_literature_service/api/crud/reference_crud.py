@@ -548,7 +548,9 @@ def merge_references(db: Session,
             "created_by": str(old_tet.created_by),
             "updated_by": str(old_tet.updated_by),
             "date_created": str(old_tet.date_created),
-            "date_updated": str(old_tet.date_updated)
+            "date_updated": str(old_tet.date_updated),
+            "validation_by_author": str(old_tet.validation_by_author),
+            "validation_by_professional_biocurator": str(old_tet.validation_by_professional_biocurator)
         }
         new_tet = TopicEntityTagSchemaPost(**new_tet_data)
         create_tag(db, new_tet, validate_on_insert=False)
