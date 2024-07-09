@@ -286,7 +286,7 @@ def add_validation_to_db(db: Session, validated_tag: TopicEntityTagModel, valida
 
 def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_tag: bool = True,
                   commit_changes: bool = True):
-    print("entering validate tags ")
+    print(f"entering validate tags id:{new_tag_obj.topic_entity_tag_id}")
     related_tags_in_db = db.query(
         TopicEntityTagModel.topic_entity_tag_id,
         TopicEntityTagModel.topic,
@@ -309,6 +309,7 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
         new_tag_obj.validation_by_professional_biocurator = calculate_validation_value_for_tag(new_tag_obj,
                                                                                                ATP_ID_SOURCE_CURATOR)
         new_tag_obj.validation_by_author = calculate_validation_value_for_tag(new_tag_obj, ATP_ID_SOURCE_AUTHOR)
+        print(f"a: {new_tag_obj.validation_by_author}, pb: {new_tag_obj.validation_by_professional_biocurator}")
         return
     # Validate existing tags
     if new_tag_obj.topic_entity_tag_source.validation_type is not None:
