@@ -306,6 +306,9 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
     # The current tag can validate existing tags or be validated by other tags only if it has a True or False negated
     # value
     if len(related_tags_in_db) == 0 or new_tag_obj.negated is None:
+        new_tag_obj.validation_by_professional_biocurator = calculate_validation_value_for_tag(new_tag_obj,
+                                                                                               ATP_ID_SOURCE_CURATOR)
+        new_tag_obj.validation_by_author = calculate_validation_value_for_tag(new_tag_obj, ATP_ID_SOURCE_AUTHOR)
         return
     # Validate existing tags
     if new_tag_obj.topic_entity_tag_source.validation_type is not None:
