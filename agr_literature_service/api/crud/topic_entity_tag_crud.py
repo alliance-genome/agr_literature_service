@@ -286,7 +286,7 @@ def add_validation_to_db(db: Session, validated_tag: TopicEntityTagModel, valida
 
 def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_tag: bool = True,
                   commit_changes: bool = True):
-    print(f"entering validate tags id:{new_tag_obj.topic_entity_tag_id}")
+    print(f"entering validate tags id:{new_tag_obj.topic_entity_tag_id} topic:{new_tag_obj.topic}")
     related_tags_in_db = db.query(
         TopicEntityTagModel.topic_entity_tag_id,
         TopicEntityTagModel.topic,
