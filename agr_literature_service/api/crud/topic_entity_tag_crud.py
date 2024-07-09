@@ -141,6 +141,7 @@ def show_tag(db: Session, topic_entity_tag_id: int):
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
                                    f"is not available")
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
+    print(f"topic_entity_tag_data is {topic_entity_tag_data}")
     if topic_entity_tag_data["reference_id"]:
         topic_entity_tag_data["reference_curie"] = db.query(ReferenceModel).filter(
             ReferenceModel.reference_id == topic_entity_tag_data["reference_id"]).first().curie
@@ -317,8 +318,8 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
         validate_new_tag_with_existing_tags(db, new_tag_obj, related_validating_tags_in_db)
     # What is the validation type? calculate_validation_value_for_tag(new_tag_obj, ?)
     # "professional_biocurator" OR "author"
-    new_tag_obj.validation_by_professional_biocurator = calculate_validation_value_for_tag(new_tag_obj, "professional_biocurator")
-    new_tag_obj.validation_by_author = calculate_validation_value_for_tag(new_tag_obj, "author")
+    new_tag_obj.validation_by_professional_biocurator = calculate_validation_value_for_tag(new_tag_obj, ATP_ID_SOURCE_CURATOR)
+    new_tag_obj.validation_by_author = calculate_validation_value_for_tag(new_tag_obj, ATP_ID_SOURCE_AUTHOR)
     if commit_changes:
         db.commit()
 
