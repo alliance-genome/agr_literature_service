@@ -323,6 +323,7 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
     print("calc validation")
     new_tag_obj.validation_by_professional_biocurator = calculate_validation_value_for_tag(new_tag_obj, ATP_ID_SOURCE_CURATOR)
     new_tag_obj.validation_by_author = calculate_validation_value_for_tag(new_tag_obj, ATP_ID_SOURCE_AUTHOR)
+    print(f"a: {new_tag_obj.validation_by_author}, pb: {new_tag_obj.validation_by_professional_biocurator}")
     if commit_changes:
         db.commit()
 
