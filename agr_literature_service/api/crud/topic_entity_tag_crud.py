@@ -128,13 +128,6 @@ def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagMo
     return "not_validated"
 
 
-def add_validation_values_to_tag(topic_entity_tag_db_obj: TopicEntityTagModel, tag_data_dict: Dict):
-    tag_data_dict["validation_by_author"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj,
-                                                                               ATP_ID_SOURCE_AUTHOR)
-    tag_data_dict["validation_by_professional_biocurator"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj,
-                                                                                                ATP_ID_SOURCE_CURATOR)
-
-
 def add_list_of_users_who_validated_tag(topic_entity_tag_db_obj: TopicEntityTagModel, tag_data_dict: Dict):
     validating_tag: TopicEntityTagModel
     tag_data_dict["validating_users"] = list({validating_tag.created_by for validating_tag in
@@ -154,7 +147,6 @@ def show_tag(db: Session, topic_entity_tag_id: int):
         del topic_entity_tag_data["reference_id"]
     topic_entity_tag_data[
         "topic_entity_tag_source_id"] = topic_entity_tag.topic_entity_tag_source.topic_entity_tag_source_id
-    add_validation_values_to_tag(topic_entity_tag, topic_entity_tag_data)
     return topic_entity_tag_data
 
 
@@ -323,6 +315,7 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
         related_validating_tags_in_db = [related_tag for related_tag in related_tags_in_db if
                                          related_tag.validation_type is not None]
         validate_new_tag_with_existing_tags(db, new_tag_obj, related_validating_tags_in_db)
+    # What is the validation type? calculate_validation_value_for_tag(new_tag_obj, ?)
     if commit_changes:
         db.commit()
 
