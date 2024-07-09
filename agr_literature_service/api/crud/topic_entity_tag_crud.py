@@ -316,6 +316,9 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
                                          related_tag.validation_type is not None]
         validate_new_tag_with_existing_tags(db, new_tag_obj, related_validating_tags_in_db)
     # What is the validation type? calculate_validation_value_for_tag(new_tag_obj, ?)
+    # "professional_biocurator" OR "author"
+    calculate_validation_value_for_tag(new_tag_obj, "professional_biocurator")
+    calculate_validation_value_for_tag(new_tag_obj, "author")
     if commit_changes:
         db.commit()
 

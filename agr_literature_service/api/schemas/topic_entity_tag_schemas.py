@@ -28,7 +28,6 @@ class TopicEntityTagSourceSchemaUpdate(BaseModel):
     created_by: Optional[constr(min_length=1)]  # type: ignore
     updated_by: Optional[constr(min_length=1)]  # type: ignore
 
-
     class Config:
         orm_mode = True
         extra = "forbid"
