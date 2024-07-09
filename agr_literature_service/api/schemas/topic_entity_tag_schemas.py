@@ -10,6 +10,8 @@ class TopicEntityTagSourceSchemaCreate(AuditedObjectModelSchema):
     description: str
     data_provider: str
     secondary_data_provider_abbreviation: str
+    validation_by_author: Optional[constr(min_length=1)] = None  # type: ignore
+    validation_by_professional_biocurator: Optional[constr(min_length=1)] = None  # type: ignore
 
 
 class TopicEntityTagSourceSchemaShow(TopicEntityTagSourceSchemaCreate):
@@ -27,6 +29,8 @@ class TopicEntityTagSourceSchemaUpdate(BaseModel):
     date_updated: Optional[constr(min_length=1)]  # type: ignore
     created_by: Optional[constr(min_length=1)]  # type: ignore
     updated_by: Optional[constr(min_length=1)]  # type: ignore
+    validation_by_author: Optional[constr(min_length=1)] = None  # type: ignore
+    validation_by_professional_biocurator: Optional[constr(min_length=1)] = None  # type: ignore
 
     class Config:
         orm_mode = True
@@ -47,7 +51,6 @@ class TopicEntityTagSchemaCreate(AuditedObjectModelSchema):
     confidence_level: Optional[constr(min_length=1)] = None  # type: ignore
     note: Optional[constr(min_length=1)] = None  # type: ignore
 
-
 class TopicEntityTagSchemaPost(TopicEntityTagSchemaCreate):
     reference_curie: str
     force_insertion: Optional[bool] = False
@@ -67,8 +70,9 @@ class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     novel_topic_data: Optional[bool] = False
     confidence_level: Optional[str] = None
     note: Optional[str] = None
-    validation_by_author: str
-    validation_by_professional_biocurator: str
+    validation_by_author: Optional[constr(min_length=1)] = None  # type: ignore
+    validation_by_professional_biocurator: Optional[constr(min_length=1)] = None  # type: ignore
+
 
 
 class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
@@ -87,3 +91,5 @@ class TopicEntityTagSchemaUpdate(AuditedObjectModelSchema):
     novel_topic_data: Optional[bool] = False
     confidence_level: Optional[constr(min_length=1)] = None  # type: ignore
     note: Optional[constr(min_length=1)] = None  # type: ignore
+    validation_by_author: Optional[constr(min_length=1)] = None  # type: ignore
+    validation_by_professional_biocurator: Optional[constr(min_length=1)] = None  # type: ignore
