@@ -320,7 +320,7 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
         validate_new_tag_with_existing_tags(db, new_tag_obj, related_validating_tags_in_db)
     # What is the validation type? calculate_validation_value_for_tag(new_tag_obj, ?)
     # "professional_biocurator" OR "author"
-    print("calc validation")
+    print(f"calc validation {commit_changes}")
     new_tag_obj.validation_by_professional_biocurator = calculate_validation_value_for_tag(new_tag_obj, ATP_ID_SOURCE_CURATOR)
     new_tag_obj.validation_by_author = calculate_validation_value_for_tag(new_tag_obj, ATP_ID_SOURCE_AUTHOR)
     print(f"a: {new_tag_obj.validation_by_author}, pb: {new_tag_obj.validation_by_professional_biocurator}")
