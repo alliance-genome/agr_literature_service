@@ -288,6 +288,13 @@ def add_validation_to_db(db: Session, validated_tag: TopicEntityTagModel, valida
     db.execute(f"INSERT INTO topic_entity_tag_validation (validated_topic_entity_tag_id, "
                f"validating_topic_entity_tag_id) VALUES ({validated_tag.topic_entity_tag_id}, "
                f"{validating_tag.topic_entity_tag_id})")
+    db.commit()
+    validated_tag_obj = db.query(TopicEntityTagModel).filter(
+        TopicEntityTagModel.topic_entity_tag_id == validated_tag.topic_entity_tag_id).first()
+    validated_tag_obj.validation_by_professional_biocurator = calculate_validation_value_for_tag(validated_tag_obj,
+                                                                                                 ATP_ID_SOURCE_CURATOR)
+    validated_tag_obj.validation_by_author = calculate_validation_value_for_tag(validated_tag_obj, ATP_ID_SOURCE_AUTHOR)
+    db.commit()
 
 
 def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_tag: bool = True,
@@ -311,29 +318,22 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
     ).all()
     # The current tag can validate existing tags or be validated by other tags only if it has a True or False negated
     # value
-    if len(related_tags_in_db) == 0 or new_tag_obj.negated is None:
-        new_tag_obj.validation_by_professional_biocurator = calculate_validation_value_for_tag(new_tag_obj,
-                                                                                               ATP_ID_SOURCE_CURATOR)
-        new_tag_obj.validation_by_author = calculate_validation_value_for_tag(new_tag_obj, ATP_ID_SOURCE_AUTHOR)
-        print(f"a: {new_tag_obj.validation_by_author}, pb: {new_tag_obj.validation_by_professional_biocurator}")
-        return
-    # Validate existing tags
+    if len(related_tags_in_db) > 0 and new_tag_obj.negated is not None:
+        # Validate existing tags
+        if new_tag_obj.topic_entity_tag_source.validation_type is not None:
+            if new_tag_obj.negated is False:
+                validate_tags_already_in_db_with_positive_tag(db, new_tag_obj, related_tags_in_db)
+            else:
+                validate_tags_already_in_db_with_negative_tag(db, new_tag_obj, related_tags_in_db)
+        # Validate current tag with existing ones
+        if validate_new_tag:
+            related_validating_tags_in_db = [related_tag for related_tag in related_tags_in_db if
+                                             related_tag.validation_type is not None]
+            validate_new_tag_with_existing_tags(db, new_tag_obj, related_validating_tags_in_db)
     if new_tag_obj.topic_entity_tag_source.validation_type is not None:
-        if new_tag_obj.negated is False:
-            validate_tags_already_in_db_with_positive_tag(db, new_tag_obj, related_tags_in_db)
-        else:
-            validate_tags_already_in_db_with_negative_tag(db, new_tag_obj, related_tags_in_db)
-    # Validate current tag with existing ones
-    if validate_new_tag:
-        related_validating_tags_in_db = [related_tag for related_tag in related_tags_in_db if
-                                         related_tag.validation_type is not None]
-        validate_new_tag_with_existing_tags(db, new_tag_obj, related_validating_tags_in_db)
-    # What is the validation type? calculate_validation_value_for_tag(new_tag_obj, ?)
-    # "professional_biocurator" OR "author"
-    print(f"calc validation {commit_changes}")
-    new_tag_obj.validation_by_professional_biocurator = calculate_validation_value_for_tag(new_tag_obj, ATP_ID_SOURCE_CURATOR)
-    new_tag_obj.validation_by_author = calculate_validation_value_for_tag(new_tag_obj, ATP_ID_SOURCE_AUTHOR)
-    print(f"a: {new_tag_obj.validation_by_author}, pb: {new_tag_obj.validation_by_professional_biocurator}")
+        new_tag_obj.validation_by_professional_biocurator = calculate_validation_value_for_tag(
+            new_tag_obj, ATP_ID_SOURCE_CURATOR)
+        new_tag_obj.validation_by_author = calculate_validation_value_for_tag(new_tag_obj, ATP_ID_SOURCE_AUTHOR)
     if commit_changes:
         db.commit()
 
