@@ -166,8 +166,8 @@ class TopicEntityTagModel(AuditedModel, Base):
 
     def __str__(self):
         return f"id:{self.topic_entity_tag_id}\ttopic:{self.topic}" \
-                   f"\n-\tval_auth:{self.validation_by_author}\tval_pb:{self.validation_by_professional_biocurator}" \
-                   f"\n-\teny_type:{self.entity_type}\t entity:{self.entity}"
+               f"\n-\tval_auth:{self.validation_by_author}\tval_pb:{self.validation_by_professional_biocurator}" \
+               f"\n-\teny_type:{self.entity_type}\t entity:{self.entity}"
 
     __table_args__ = (
         CheckConstraint(
