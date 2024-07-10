@@ -416,6 +416,7 @@ def _get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str 
     token = get_authentication_token()
     ateam_api_base_url = environ.get('ATEAM_API_URL', "https://beta-curation.alliancegenome.org/api")
     ateam_api = f'{ateam_api_base_url}/atpterm/{onto_node}/{ancestors_or_descendants}'
+    print(f"using ATEAM? {ateam_api}")
     try:
         request = urllib.request.Request(url=ateam_api)
         request.add_header("Authorization", f"Bearer {token}")
