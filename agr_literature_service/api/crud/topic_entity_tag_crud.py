@@ -107,18 +107,24 @@ def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagMo
     validating_tags_added_ids.add(topic_entity_tag_db_obj.topic_entity_tag_id)
     while len(validating_tags_to_add) > 0:
         validating_tag = validating_tags_to_add.pop()
+        for bob in validating_tag.validated_by:
+            print(f"validated by: {bob}")
+        print(f"\t validating {validating_tag.topic}")
         additional_validating_tags = [
             tag for tag in validating_tag.validated_by
             if tag.topic_entity_tag_source.validation_type == validation_type and tag.topic_entity_tag_id not in
             validating_tags_added_ids]
         additional_validating_tag_values = [tag.negated for tag in additional_validating_tags]
+        print(f"\t additional {additional_validating_tag_values}")
         additional_validating_tag_ids = [tag.topic_entity_tag_id for tag in additional_validating_tags]
         validating_tags_values.extend(additional_validating_tag_values)
         validating_tags_added_ids.update(additional_validating_tag_ids)
         validating_tags_to_add.extend(additional_validating_tags)
+    print(f"\t additional2 {additional_validating_tag_values}")
     if len(validating_tags_values) > 0:
         if topic_entity_tag_db_obj.topic_entity_tag_source.validation_type == validation_type:
             validating_tags_values.append(topic_entity_tag_db_obj.negated)
+        print(f"\t validating {validating_tags_values}")
         if len(set(validating_tags_values)) == 1:
             return "validated_right" if topic_entity_tag_db_obj.negated == validating_tags_values[0] else \
                 "validated_wrong"
@@ -286,7 +292,7 @@ def add_validation_to_db(db: Session, validated_tag: TopicEntityTagModel, valida
 
 def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_tag: bool = True,
                   commit_changes: bool = True):
-    print(f"entering validate tags id:{new_tag_obj.topic_entity_tag_id} topic:{new_tag_obj.topic}")
+    print(f"\n\nentering validate tags id:{new_tag_obj.topic_entity_tag_id} topic:{new_tag_obj.topic}")
     related_tags_in_db = db.query(
         TopicEntityTagModel.topic_entity_tag_id,
         TopicEntityTagModel.topic,
@@ -583,6 +589,8 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
             tet_data = jsonable_encoder(vars(tet), exclude={"validated_by"})
             if "validated_by" in tet_data:
                 del tet_data["validated_by"]
+            print(f"tet is {tet}")
+            print(f"tet data is {tet_data}")
             add_list_of_users_who_validated_tag(tet, tet_data)
             tet_data["topic_entity_tag_source"]["secondary_data_provider_abbreviation"] = mod_id_to_mod[
                 tet.topic_entity_tag_source.secondary_data_provider_id]
