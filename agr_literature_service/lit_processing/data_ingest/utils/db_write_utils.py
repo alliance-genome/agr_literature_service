@@ -142,35 +142,30 @@ def add_not_loaded_pubmed_papers(db_session, mod, mod_id, mod_curies_to_load, mo
 
 def move_obsolete_papers_out_of_corpus(db_session, mod, mod_id, curie_prefix, logger=None):  # pragma: no cover
 
-    rows = db_session.execute(f"SELECT mca.mod_corpus_association_id, cr.reference_id "
-                              f"FROM mod_corpus_association mca, cross_reference cr, reference r "
-                              f"WHERE mca.mod_id = {mod_id} "
-                              f"AND mca.corpus is True "
-                              f"AND mca.reference_id = cr.reference_id "
-                              f"AND cr.curie_prefix = '{curie_prefix}' "
-                              f"AND cr.is_obsolete is True "
-                              f"AND cr.reference_id = r.reference_id "
-                              f"AND r.prepublication_pipeline is False").fetchall()
+    cr_rows = db_session.execute(f"SELECT reference_id "
+                                 f"FROM cross_reference "
+                                 f"WHERE curie_prefix = '{curie_prefix}' "
+                                 f"AND is_obsolete is False").fetchall()
+    valid_reference_ids = {row[0] for row in cr_rows}
 
-    for x in rows:
-        positiveModCurie = db_session.execute(f"SELECT curie "
-                                              f"FROM cross_reference "
-                                              f"WHERE reference_id = {x[1]} "
-                                              f"AND curie_prefix = '{curie_prefix}' "
-                                              f"AND is_obsolete is False").fetchall()
-        if len(positiveModCurie) > 0:
-            # a paper has both valid and invalid MOD curies
-            continue
-        # move the papers outside corpus if they only have invalid MOD curies
-        try:
-            db_session.execute(f"UPDATE mod_corpus_association "
-                               f"SET corpus = False "
-                               f"WHERE mod_corpus_association_id = {int(x[0])}")
-            if logger:
-                logger.info(f"Moving {mod} paper out of corpus for mod_corpus_association_id = {x[0]}")
-        except Exception as e:
-            if logger:
-                logger.info(f"An error occurred when moving {mod} paper out of corpus for mod_corpus_association_id = {x[0]}. Error = {e}")
+    mca_rows = db_session.execute(f"SELECT mca.mod_corpus_association_id, mca.reference_id "
+                                  f"FROM mod_corpus_association mca, reference r "
+                                  f"WHERE mca.mod_id = {mod_id} "
+                                  f"AND mca.corpus is True "
+                                  f"AND mca.reference_id = r.reference_id "
+                                  f"AND r.prepublication_pipeline is False").fetchall()
+    for x in mca_rows:
+        if x['reference_id'] not in valid_reference_ids:
+            # move the papers outside corpus if they only have invalid MOD curies
+            try:
+                db_session.execute(f"UPDATE mod_corpus_association "
+                                   f"SET corpus = False "
+                                   f"WHERE mod_corpus_association_id = {int(x[0])}")
+                if logger:
+                    logger.info(f"Moving {mod} paper out of corpus for mod_corpus_association_id = {x['mod_corpus_association_id']}")
+            except Exception as e:
+                if logger:
+                    logger.info(f"An error occurred when moving {mod} paper out of corpus for mod_corpus_association_id = {x['mod_corpus_association_id']}. Error = {e}")
 
     db_session.commit()
     # db_session.rollback()
