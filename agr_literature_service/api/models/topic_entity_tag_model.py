@@ -152,6 +152,23 @@ class TopicEntityTagModel(AuditedModel, Base):
                       topic_entity_tag_validation.c.validating_topic_entity_tag_id]
     )
 
+    validation_by_author = Column(
+        String(),
+        nullable=True,
+        unique=False
+    )
+
+    validation_by_professional_biocurator = Column(
+        String(),
+        nullable=True,
+        unique=False
+    )
+
+    def __str__(self):
+        return f"id:{self.topic_entity_tag_id}\ttopic:{self.topic}" \
+               f"\n-\tval_auth:{self.validation_by_author}\tval_pb:{self.validation_by_professional_biocurator}" \
+               f"\n-\teny_type:{self.entity_type}\t entity:{self.entity}"
+
     __table_args__ = (
         CheckConstraint(
             or_(
