@@ -125,6 +125,13 @@ class ReferencefileModAssociationModel(Base, AuditedModel):
     )
 
     referencefile = relationship("ReferencefileModel")
+    
+    main_pdf = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default='false'
+    )
 
     __table_args__ = (
         Index('idx_referencefile_mod_not_null',
