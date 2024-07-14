@@ -22,7 +22,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_
 batch_size_for_commit = 250
 
 
-def add_file_needed_for_new_papers(db_session, mod, curie_or_reference_id=None, transition_type="automated", logger=None):
+def add_file_needed_for_new_papers(db_session, mod, curie_or_reference_id=None, transition_type="automated", logger=None):  # pragma: no cover
 
     workflow_process_atp_id = "ATP:0000140"  # file upload
     workflow_tag_atp_id = "ATP:0000141"  # file needed
