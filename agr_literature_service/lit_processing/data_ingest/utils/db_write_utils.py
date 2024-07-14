@@ -2,7 +2,7 @@ from os import environ, makedirs, path
 import json
 from typing import List, Dict, Tuple
 
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.lit_processing.data_ingest.utils.author import Author, authors_lists_are_equal, \
@@ -16,13 +16,14 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     MeshDetailModel, ReferenceModReferencetypeAssociationModel, \
     ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel
 from agr_literature_service.api.crud.utils.patterns_check import check_pattern
-from agr_literature_service.api.crud.workflow_tag_crud import get_current_workflow_status, \
+from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     transition_to_workflow_status
 
 batch_size_for_commit = 250
 
 
 def add_file_needed_for_new_papers(db_session, mod, curie_or_reference_id=None, transition_type="automated", logger=None):
+
     workflow_process_atp_id = "ATP:0000140"  # file upload
     workflow_tag_atp_id = "ATP:0000141"  # file needed
 
@@ -35,14 +36,21 @@ def add_file_needed_for_new_papers(db_session, mod, curie_or_reference_id=None, 
             logger.error(f"The mod abbreviation: {mod} is not in the database.")
         return
     mod_id = m.mod_id
-    
-    rows = db_session.execute(f"SELECT reference_id FROM workflow_tag WHERE mod_id = {mod_id}").fetchall()
-    if rows is None:
-        if logger:
-            logger.error("Error: query for workflow_tag returned None.")
+
+    all_workflow_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
+
+    if all_workflow_tags_for_process is None:
+        logger.info(f"returning None for workflow_process_atp_id: {workflow_process_atp_id}. Not connected to a right database?")
         return
-    reference_ids_with_wft = {row[0] for row in rows}
-    
+
+    rows = db_session.query(WorkflowTagModel.reference_id).filter(
+        and_(
+            WorkflowTagModel.workflow_tag_id.in_(all_workflow_tags_for_process),
+            ModModel.abbreviation == mod
+        )
+    ).all()
+    reference_ids_with_wft = {row.reference_id for row in rows}
+
     if curie_or_reference_id is None:
         rows = db_session.execute(f"SELECT reference_id FROM mod_corpus_association WHERE mod_id = {mod_id} AND corpus is True").fetchall()
         if rows is None:
@@ -65,27 +73,14 @@ def add_file_needed_for_new_papers(db_session, mod, curie_or_reference_id=None, 
     try:
         count = 0
         for reference_id in reference_ids:
-            count += 1
-            if reference_id in reference_ids_with_wft:
-                try:
-                    wft_atp_id = get_current_workflow_status(db_session, str(reference_id), workflow_process_atp_id, mod)
-                    if logger:
-                        logger.info(f"Current workflow status for reference_id {reference_id}: {wft_atp_id}")
-                    if wft_atp_id == workflow_tag_atp_id:
-                        continue
-                except Exception as e:
-                    if logger:
-                        logger.error(f"Error fetching current workflow status for reference_id {reference_id}: {e}")
-                    # continue
-            try:
+            if reference_id not in reference_ids_with_wft:
+                count += 1
                 transition_to_workflow_status(db_session, str(reference_id), mod, workflow_tag_atp_id, transition_type)
                 if logger:
-                    logger.info(f"Adding 'file_needed' tag for reference_id = {reference_id}")
-            except Exception as e:
-                if logger:
-                    logger.error(f"Error transitioning workflow status for reference_id {reference_id}: {e}")
+                    logger.info(f"{count} adding 'file_needed' tag for reference_id = {reference_id}")
             if count % batch_size_for_commit == 0:
                 db_session.commit()
+                # db_session.rollback()
     except Exception as e:
         if logger:
             logger.error(f"An error occurred when adding 'file_needed' tags for new papers. error={e}")
@@ -93,6 +88,7 @@ def add_file_needed_for_new_papers(db_session, mod, curie_or_reference_id=None, 
         return
 
     db_session.commit()
+    # db_session.rollback()
 
 
 def move_mod_papers_into_corpus(db_session, mod, mod_id, mod_reference_id_set, logger=None):  # pragma: no cover
