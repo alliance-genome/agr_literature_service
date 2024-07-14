@@ -43,7 +43,7 @@ def add_file_needed_for_new_papers(db_session, mod, curie_or_reference_id=None, 
         logger.info(f"returning None for workflow_process_atp_id: {workflow_process_atp_id}. Not connected to a right database?")
         return
 
-    rows = db_session.query(WorkflowTagModel.reference_id).filter(
+    rows = db_session.query(WorkflowTagModel).join(ModModel).filter(
         and_(
             WorkflowTagModel.workflow_tag_id.in_(all_workflow_tags_for_process),
             ModModel.abbreviation == mod
