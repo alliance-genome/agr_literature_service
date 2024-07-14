@@ -20,12 +20,11 @@ from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_
     transition_to_workflow_status
 
 batch_size_for_commit = 250
+file_upload_process_atp_id = "ATP:0000140"  # file upload
+file_needed_tag_atp_id = "ATP:0000141"  # file needed
 
 
 def add_file_needed_for_new_papers(db_session, mod, curie_or_reference_id=None, transition_type="automated", logger=None):  # pragma: no cover
-
-    workflow_process_atp_id = "ATP:0000140"  # file upload
-    workflow_tag_atp_id = "ATP:0000141"  # file needed
 
     if logger:
         logger.info("Adding file_needed tag for new papers...")
@@ -37,10 +36,10 @@ def add_file_needed_for_new_papers(db_session, mod, curie_or_reference_id=None, 
         return
     mod_id = m.mod_id
 
-    all_workflow_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
+    all_workflow_tags_for_process = get_workflow_tags_from_process(file_upload_process_atp_id)
 
     if all_workflow_tags_for_process is None:
-        logger.info(f"returning None for workflow_process_atp_id: {workflow_process_atp_id}. Not connected to a right database?")
+        logger.info(f"returning None for file_upload_process_atp_id: {file_upload_process_atp_id}. Not connected to a right database/API is down?")
         return
 
     rows = db_session.query(WorkflowTagModel).join(ModModel).filter(
@@ -75,7 +74,7 @@ def add_file_needed_for_new_papers(db_session, mod, curie_or_reference_id=None, 
         for reference_id in reference_ids:
             if reference_id not in reference_ids_with_wft:
                 count += 1
-                transition_to_workflow_status(db_session, str(reference_id), mod, workflow_tag_atp_id, transition_type)
+                transition_to_workflow_status(db_session, str(reference_id), mod, file_needed_tag_atp_id, transition_type)
                 if logger:
                     logger.info(f"{count} adding 'file_needed' tag for reference_id = {reference_id}")
             if count % batch_size_for_commit == 0:
