@@ -17,11 +17,48 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel
 from agr_literature_service.api.crud.utils.patterns_check import check_pattern
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
-    transition_to_workflow_status
+    transition_to_workflow_status, get_current_workflow_status
+from agr_literature_service.api.crud.reference_utils import get_reference
 
 batch_size_for_commit = 250
 file_upload_process_atp_id = "ATP:0000140"  # file upload
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
+file_uploaded_tag_atp_id = "ATP:0000134"  # file needed
+
+
+def add_file_uploaded_workflow(db_session, curie_or_reference_id, mod=None, transition_type="automated", logger=None):  # pragma: no cover
+
+    ref = get_reference(db=db_session, curie_or_reference_id=str(curie_or_reference_id))
+    if ref is None:
+        if logger:
+            logger.info(f"Invalid curie_or_reference_id = {curie_or_reference_id}")
+            return
+
+    if mod is None:
+        rows = db_session.execute(f"SELECT m.abbreviation "
+                                  f"FROM mod m, mod_corpus_association mca "
+                                  f"WHERE m.mod_id = mca.mod_id "
+                                  f"AND mca.reference_id = {ref.reference_id} "
+                                  f"AND mca.corpus is True").fetchall()
+        mods = {x['abbreviation'] for x in rows}
+    else:
+        mods = {mod}
+
+    for mod in mods:
+        try:
+            curr_tag_atp_id = get_current_workflow_status(db_session, str(ref.reference_id),
+                                                          file_upload_process_atp_id, mod)
+            logger.info(f"curr_tag_atp_id={curr_tag_atp_id}")
+            if curr_tag_atp_id is None or curr_tag_atp_id != file_uploaded_tag_atp_id:
+                transition_to_workflow_status(db_session, str(ref.reference_id), mod, file_uploaded_tag_atp_id, transition_type)
+                if logger:
+                    logger.info(f"Transitioning file_upload workflow_tag to 'file_uploaded' for reference_id = {ref.reference_id}, mod={mod}")
+        except Exception as e:
+            logger.error(f"An error occurred when transitioning file_upload workflow_tag to 'file_uploaded'. error={e}")
+            db_session.rollback()
+            return
+
+    db_session.commit()
 
 
 def add_file_needed_for_new_papers(db_session, mod, curie_or_reference_id=None, transition_type="automated", logger=None):  # pragma: no cover
