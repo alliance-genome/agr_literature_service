@@ -220,7 +220,7 @@ def transition_WFT_for_pdf_file(db, reference_curie, mod_abbreviation, file_publ
 
     file_upload_process_atp_id = "ATP:0000140"
     file_uploaded_tag_atp_id = "ATP:0000134"
-    file_upload_in_progress_tag_atp_id = "ATP:0000139" 
+    file_upload_in_progress_tag_atp_id = "ATP:0000139"
     if file_publication_status == 'final':
         wft_tag_atp_id = file_uploaded_tag_atp_id
     else:
