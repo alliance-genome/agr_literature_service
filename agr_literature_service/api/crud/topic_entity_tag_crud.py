@@ -347,37 +347,39 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
         db.commit()
 
 
-def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie_or_reference_id: str = None):
+def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie_or_reference_id: str = None,
+                        validation_values_only: bool = False):
     engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
     new_session = sessionmaker(bind=engine, autoflush=True)
     db = new_session()
     reference_query_filter = ""
     query_tags = db.query(TopicEntityTagModel)
-    if curie_or_reference_id:
-        delete_all_first = True
-        reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
-        if not reference_id:
-            reference_id = db.query(ReferenceModel.reference_id).filter(ReferenceModel.curie == curie_or_reference_id)
-        all_tag_ids_for_reference = [res[0] for res in db.query(
-            TopicEntityTagModel.topic_entity_tag_id).filter(TopicEntityTagModel.reference_id == reference_id).all()]
-        if not all_tag_ids_for_reference:
-            return
-        all_tag_ids_str = [str(tag_id) for tag_id in all_tag_ids_for_reference]
-        reference_query_filter = (f" WHERE validating_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)}) "
-                                  f"OR validated_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)})")
-        query_tags = query_tags.filter(TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids_for_reference))
-    if delete_all_first:
-        db.execute("DELETE FROM topic_entity_tag_validation" + reference_query_filter)
-        db.commit()
-    for tag_counter, tag in enumerate(query_tags.all()):
-        if not delete_all_first:
-            db.execute(f"DELETE FROM topic_entity_tag_validation "
-                       f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}")
-        validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False, commit_changes=False,
-                      calculate_validation_values=False)
-        if tag_counter % 200 == 0:
+    if not validation_values_only:
+        if curie_or_reference_id:
+            delete_all_first = True
+            reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
+            if not reference_id:
+                reference_id = db.query(ReferenceModel.reference_id).filter(ReferenceModel.curie == curie_or_reference_id)
+            all_tag_ids_for_reference = [res[0] for res in db.query(
+                TopicEntityTagModel.topic_entity_tag_id).filter(TopicEntityTagModel.reference_id == reference_id).all()]
+            if not all_tag_ids_for_reference:
+                return
+            all_tag_ids_str = [str(tag_id) for tag_id in all_tag_ids_for_reference]
+            reference_query_filter = (f" WHERE validating_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)}) "
+                                      f"OR validated_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)})")
+            query_tags = query_tags.filter(TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids_for_reference))
+        if delete_all_first:
+            db.execute("DELETE FROM topic_entity_tag_validation" + reference_query_filter)
             db.commit()
-    db.commit()
+        for tag_counter, tag in enumerate(query_tags.all()):
+            if not delete_all_first:
+                db.execute(f"DELETE FROM topic_entity_tag_validation "
+                           f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}")
+            validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False, commit_changes=False,
+                          calculate_validation_values=False)
+            if tag_counter % 200 == 0:
+                db.commit()
+        db.commit()
     for tag_counter, tag in enumerate(query_tags.all()):
         tag.validation_by_professional_biocurator = calculate_validation_value_for_tag(tag, ATP_ID_SOURCE_CURATOR)
         tag.validation_by_author = calculate_validation_value_for_tag(tag, ATP_ID_SOURCE_AUTHOR)
