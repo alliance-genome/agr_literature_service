@@ -139,7 +139,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
         db.commit()
         # So new tag has been set.
         # Now do the necessary actions if they are specified.
-        if transition.actions:
+        if transition and transition.actions:
             process_transition_actions(db, transition, current_workflow_tag_db_obj)
             db.commit()
     else:
