@@ -66,3 +66,9 @@ class WorkflowTransitionModel(AuditedModel, Base):
         default='any',
         server_default='any'
     )
+
+    actions = Column(
+        ARRAY(String()),
+        unique=False,
+        nullable=True
+    )

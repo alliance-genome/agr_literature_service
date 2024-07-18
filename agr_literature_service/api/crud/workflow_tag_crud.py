@@ -7,6 +7,7 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.exc import NoResultFound
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, ModModel, WorkflowTransitionModel
@@ -53,6 +54,48 @@ def get_workflow_tags_from_process(workflow_process_atp_id: str):
     return get_parent_or_children(workflow_process_atp_id, parent_or_children="children")
 
 
+def workflow_tag_add(current_workflow_tag_db_obj: WorkflowTagModel, new_tag: str = None):
+    WorkflowTagModel(reference=current_workflow_tag_db_obj.reference,
+                     mod=current_workflow_tag_db_obj.mod,
+                     workflow_tag_id=new_tag)
+
+
+def workflow_tag_remove(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, delete_tag: str = None):
+    """
+    Get an existing tag to remove (this is not the current_workflow_tag_db_obj we use this to get the mod and reference)
+    and remove it.
+    Example if we move from out of "file uploaded" then we want to remove "file conversion needed"
+    So here we want to remove "file conversion needed" existing_tag = ATP:0000162
+    """
+    # there are some extra checks here that need to be done on paper type etc but
+    # will fill in here when known.
+    # lookup tag then delete
+    db.query(WorkflowTagModel).\
+        filter(WorkflowTagModel.reference_id == current_workflow_tag_db_obj.reference.reference_id,
+               WorkflowTagModel.mod_id == current_workflow_tag_db_obj.mod_id,
+               WorkflowTagModel.workflow_tag_id == delete_tag).delete()
+
+
+def process_transition_actions(db: Session, transition: WorkflowTransitionModel, current_workflow_tag_db_obj: WorkflowTagModel):
+    """
+    :param db: Session: database session
+    :param transition: WorkflowTransitionModel: workflow transition model to process
+    :param current_workflow_tag_db_obj: WorkflowTagModel: current workflow tag model
+    Get actions from transition.actions
+         This is an array of strings that contain the method to be processed and args that
+         are seperated by '::'
+    Get ref_id and mod_id from current_workflow_tag_db_obj
+    From the list of job_names to methods call the appropriate method with args.
+    """
+    for action in transition.actions:
+        temp_arr = action.split('::')
+        method = temp_arr.pop(0)
+        if method == "workflow_tag_add":
+            workflow_tag_add(current_workflow_tag_db_obj, temp_arr[0])
+        elif method == "workflow_tag_remove":
+            workflow_tag_remove(db, current_workflow_tag_db_obj, temp_arr[0])
+
+
 def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_abbreviation: str,
                                   new_workflow_tag_atp_id: str, transition_type: str = "automated"):
     if transition_type not in ["manual", "automated"]:
@@ -94,6 +137,11 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
         else:
             current_workflow_tag_db_obj.workflow_tag_id = new_workflow_tag_atp_id
         db.commit()
+        # So new tag has been set.
+        # Now do the necessary actions if they are specified.
+        if transition.actions:
+            process_transition_actions(db, transition, current_workflow_tag_db_obj)
+            db.commit()
     else:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="Workflow status transition not supported")
