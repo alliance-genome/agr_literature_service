@@ -2,7 +2,7 @@ from os import environ, makedirs, path
 import json
 from typing import List, Dict, Tuple
 
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.lit_processing.data_ingest.utils.author import Author, authors_lists_are_equal, \
@@ -16,8 +16,115 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     MeshDetailModel, ReferenceModReferencetypeAssociationModel, \
     ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel
 from agr_literature_service.api.crud.utils.patterns_check import check_pattern
+from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
+    transition_to_workflow_status, get_current_workflow_status
+from agr_literature_service.api.crud.reference_utils import get_reference
 
 batch_size_for_commit = 250
+file_upload_process_atp_id = "ATP:0000140"  # file upload
+file_needed_tag_atp_id = "ATP:0000141"  # file needed
+file_uploaded_tag_atp_id = "ATP:0000134"  # file needed
+
+
+def add_file_uploaded_workflow(db_session, curie_or_reference_id, mod=None, transition_type="automated", logger=None):  # pragma: no cover
+
+    ref = get_reference(db=db_session, curie_or_reference_id=str(curie_or_reference_id))
+    if ref is None:
+        if logger:
+            logger.info(f"Invalid curie_or_reference_id = {curie_or_reference_id}")
+            return
+
+    if mod is None:
+        rows = db_session.execute(f"SELECT m.abbreviation "
+                                  f"FROM mod m, mod_corpus_association mca "
+                                  f"WHERE m.mod_id = mca.mod_id "
+                                  f"AND mca.reference_id = {ref.reference_id} "
+                                  f"AND mca.corpus is True").fetchall()
+        mods = {x['abbreviation'] for x in rows}
+    else:
+        mods = {mod}
+
+    for mod in mods:
+        try:
+            curr_tag_atp_id = get_current_workflow_status(db_session, str(ref.reference_id),
+                                                          file_upload_process_atp_id, mod)
+            logger.info(f"curr_tag_atp_id={curr_tag_atp_id}")
+            if curr_tag_atp_id is None or curr_tag_atp_id != file_uploaded_tag_atp_id:
+                transition_to_workflow_status(db_session, str(ref.reference_id), mod, file_uploaded_tag_atp_id, transition_type)
+                if logger:
+                    logger.info(f"Transitioning file_upload workflow_tag to 'file_uploaded' for reference_id = {ref.reference_id}, mod={mod}")
+        except Exception as e:
+            logger.error(f"An error occurred when transitioning file_upload workflow_tag to 'file_uploaded'. error={e}")
+            db_session.rollback()
+            return
+
+    db_session.commit()
+
+
+def add_file_needed_for_new_papers(db_session, mod, curie_or_reference_id=None, transition_type="automated", logger=None):  # pragma: no cover
+
+    if logger:
+        logger.info("Adding file_needed tag for new papers...")
+
+    m = db_session.query(ModModel).filter_by(abbreviation=mod).one_or_none()
+    if m is None:
+        if logger:
+            logger.error(f"The mod abbreviation: {mod} is not in the database.")
+        return
+    mod_id = m.mod_id
+
+    all_workflow_tags_for_process = get_workflow_tags_from_process(file_upload_process_atp_id)
+
+    if all_workflow_tags_for_process is None:
+        logger.info(f"returning None for file_upload_process_atp_id: {file_upload_process_atp_id}. Not connected to a right database/API is down?")
+        return
+
+    rows = db_session.query(WorkflowTagModel).join(ModModel).filter(
+        and_(
+            WorkflowTagModel.workflow_tag_id.in_(all_workflow_tags_for_process),
+            ModModel.abbreviation == mod
+        )
+    ).all()
+    reference_ids_with_wft = {row.reference_id for row in rows}
+
+    if curie_or_reference_id is None:
+        rows = db_session.execute(f"SELECT reference_id FROM mod_corpus_association WHERE mod_id = {mod_id} AND corpus is True").fetchall()
+        if rows is None:
+            if logger:
+                logger.error("Error: query for mod_corpus_association returned None.")
+            return
+        reference_ids = {row[0] for row in rows}
+    else:
+        reference_ids = {curie_or_reference_id}
+
+    if logger:
+        logger.info(f"Total reference_ids to process: {len(reference_ids)}")
+        logger.info(f"Total reference_ids with existing workflow tags: {len(reference_ids_with_wft)}")
+
+    if not reference_ids:
+        if logger:
+            logger.warning("No reference_ids found to process.")
+        return
+
+    try:
+        count = 0
+        for reference_id in reference_ids:
+            if reference_id not in reference_ids_with_wft:
+                count += 1
+                transition_to_workflow_status(db_session, str(reference_id), mod, file_needed_tag_atp_id, transition_type)
+                if logger:
+                    logger.info(f"{count} adding 'file_needed' tag for reference_id = {reference_id}")
+            if count % batch_size_for_commit == 0:
+                db_session.commit()
+                # db_session.rollback()
+    except Exception as e:
+        if logger:
+            logger.error(f"An error occurred when adding 'file_needed' tags for new papers. error={e}")
+        db_session.rollback()
+        return
+
+    db_session.commit()
+    # db_session.rollback()
 
 
 def move_mod_papers_into_corpus(db_session, mod, mod_id, mod_reference_id_set, logger=None):  # pragma: no cover
@@ -142,35 +249,30 @@ def add_not_loaded_pubmed_papers(db_session, mod, mod_id, mod_curies_to_load, mo
 
 def move_obsolete_papers_out_of_corpus(db_session, mod, mod_id, curie_prefix, logger=None):  # pragma: no cover
 
-    rows = db_session.execute(f"SELECT mca.mod_corpus_association_id, cr.reference_id "
-                              f"FROM mod_corpus_association mca, cross_reference cr, reference r "
-                              f"WHERE mca.mod_id = {mod_id} "
-                              f"AND mca.corpus is True "
-                              f"AND mca.reference_id = cr.reference_id "
-                              f"AND cr.curie_prefix = '{curie_prefix}' "
-                              f"AND cr.is_obsolete is True "
-                              f"AND cr.reference_id = r.reference_id "
-                              f"AND r.prepublication_pipeline is False").fetchall()
+    cr_rows = db_session.execute(f"SELECT reference_id "
+                                 f"FROM cross_reference "
+                                 f"WHERE curie_prefix = '{curie_prefix}' "
+                                 f"AND is_obsolete is False").fetchall()
+    valid_reference_ids = {row[0] for row in cr_rows}
 
-    for x in rows:
-        positiveModCurie = db_session.execute(f"SELECT curie "
-                                              f"FROM cross_reference "
-                                              f"WHERE reference_id = {x[1]} "
-                                              f"AND curie_prefix = '{curie_prefix}' "
-                                              f"AND is_obsolete is False").fetchall()
-        if len(positiveModCurie) > 0:
-            # a paper has both valid and invalid MOD curies
-            continue
-        # move the papers outside corpus if they only have invalid MOD curies
-        try:
-            db_session.execute(f"UPDATE mod_corpus_association "
-                               f"SET corpus = False "
-                               f"WHERE mod_corpus_association_id = {int(x[0])}")
-            if logger:
-                logger.info(f"Moving {mod} paper out of corpus for mod_corpus_association_id = {x[0]}")
-        except Exception as e:
-            if logger:
-                logger.info(f"An error occurred when moving {mod} paper out of corpus for mod_corpus_association_id = {x[0]}. Error = {e}")
+    mca_rows = db_session.execute(f"SELECT mca.mod_corpus_association_id, mca.reference_id "
+                                  f"FROM mod_corpus_association mca, reference r "
+                                  f"WHERE mca.mod_id = {mod_id} "
+                                  f"AND mca.corpus is True "
+                                  f"AND mca.reference_id = r.reference_id "
+                                  f"AND r.prepublication_pipeline is False").fetchall()
+    for x in mca_rows:
+        if x['reference_id'] not in valid_reference_ids:
+            # move the papers outside corpus if they only have invalid MOD curies
+            try:
+                db_session.execute(f"UPDATE mod_corpus_association "
+                                   f"SET corpus = False "
+                                   f"WHERE mod_corpus_association_id = {int(x[0])}")
+                if logger:
+                    logger.info(f"Moving {mod} paper out of corpus for mod_corpus_association_id = {x['mod_corpus_association_id']}")
+            except Exception as e:
+                if logger:
+                    logger.info(f"An error occurred when moving {mod} paper out of corpus for mod_corpus_association_id = {x['mod_corpus_association_id']}. Error = {e}")
 
     db_session.commit()
     # db_session.rollback()

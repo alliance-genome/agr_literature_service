@@ -54,7 +54,7 @@ def get_workflow_tags_from_process(workflow_process_atp_id: str):
 
 
 def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_abbreviation: str,
-                                  new_workflow_tag_atp_id: str, transition_type: str = "manual"):
+                                  new_workflow_tag_atp_id: str, transition_type: str = "automated"):
     if transition_type not in ["manual", "automated"]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Transition type must be manual or automated")
@@ -88,7 +88,11 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
                     if not check_passed:
                         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                             detail=f"{requirement_function_str} requirement not met")
-        current_workflow_tag_db_obj.workflow_tag_id = new_workflow_tag_atp_id
+        if not current_workflow_tag_db_obj:
+            current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod,
+                                                           workflow_tag_id=new_workflow_tag_atp_id)
+        else:
+            current_workflow_tag_db_obj.workflow_tag_id = new_workflow_tag_atp_id
         db.commit()
     else:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
