@@ -22,7 +22,8 @@ from agr_literature_service.api.crud.referencefile_utils import read_referencefi
     get_s3_folder_from_md5sum, remove_from_s3_and_db
 from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection, \
     destroy as destroy_mod_association
-from agr_literature_service.api.crud.workflow_tag_crud import get_current_workflow_status
+from agr_literature_service.api.crud.workflow_tag_crud import get_current_workflow_status, \
+    transition_to_workflow_status
 from agr_literature_service.api.models import ReferenceModel, ReferencefileModel, ReferencefileModAssociationModel, \
     ModModel, CopyrightLicenseModel, CrossReferenceModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
@@ -210,6 +211,44 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
         file_upload_single(db, metadata, file)
     mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
     cleanup_old_pdf_file(db, metadata["reference_curie"], mod_abbreviation)
+    if metadata["file_class"] == 'main' and metadata["file_extension"] == 'pdf':
+        transition_WFT_for_pdf_file(db, metadata["reference_curie"], mod_abbreviation,
+                                    metadata["file_publication_status"])
+
+
+def transition_WFT_for_pdf_file(db, reference_curie, mod_abbreviation, file_publication_status):
+
+    file_upload_process_atp_id = "ATP:0000140"
+    file_uploaded_tag_atp_id = "ATP:0000134"
+    file_upload_in_progress_tag_atp_id = "ATP:0000139"
+    if file_publication_status == 'final':
+        wft_tag_atp_id = file_uploaded_tag_atp_id
+    else:
+        wft_tag_atp_id = file_upload_in_progress_tag_atp_id
+
+    ref = get_reference(db=db, curie_or_reference_id=reference_curie)
+
+    if mod_abbreviation is None:
+        rows = db.execute(f"SELECT m.abbreviation "
+                          f"FROM mod m, mod_corpus_association mca "
+                          f"WHERE m.mod_id = mca.mod_id "
+                          f"AND mca.reference_id = {ref.reference_id} "
+                          f"AND mca.corpus is True").fetchall()
+        mods = {x['abbreviation'] for x in rows}
+    else:
+        mods = {mod_abbreviation}
+
+    for mod in mods:
+        try:
+            curr_tag_atp_id = get_current_workflow_status(db, reference_curie,
+                                                          file_upload_process_atp_id, mod)
+            if curr_tag_atp_id is None or (curr_tag_atp_id != wft_tag_atp_id and curr_tag_atp_id != file_uploaded_tag_atp_id):
+                transition_to_workflow_status(db, reference_curie, mod, wft_tag_atp_id)
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"An error occurred when transitioning file_upload WFT for reference_curie = {reference_curie}, mod={mod}. error={e}")
+    db.commit()
 
 
 def cleanup_old_pdf_file(db: Session, ref_curie: str, mod_abbreviation):  # pragma: no cover
