@@ -65,6 +65,7 @@ def initialize_elasticsearch():
         ],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}],
         "mod_reference_types": ["review"],
+        "language" : "English",
         "date_created": "1636139454923830"
 
     }
@@ -80,6 +81,7 @@ def initialize_elasticsearch():
         "authors": [{"name": "Jane Doe", "orcid": "0000-0000-0000-0002"}],
         "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}],
         "mod_reference_types": ["note"],
+        "language": "English",
         "date_created": "1636139454923830"
     }
     doc3 = {
@@ -94,6 +96,7 @@ def initialize_elasticsearch():
         "authors": [{"name": "Sam", "orcid": "null"}, {"name": "Plato", "orcid": "null"}],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "SGD:S000000123", "is_obsolete": "true"}],
         "mod_reference_types": ["Journal"],
+        "language": "English",
         "date_created": "1636139454923830"
     }
     doc4 = {
@@ -108,6 +111,7 @@ def initialize_elasticsearch():
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
         "mod_reference_types": ["paper"],
+        "language": "English",
         "date_created": "1636139454923830"
     }
     es.index(index=config.ELASTICSEARCH_INDEX, id=1, body=doc1)
