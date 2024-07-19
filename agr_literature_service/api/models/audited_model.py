@@ -45,3 +45,13 @@ class AuditedModel(object):
     def updated_by(cls):
         return Column('updated_by', ForeignKey('users.id'), default=get_default_user_value,
                       onupdate=get_default_user_value, nullable=True)
+
+
+# Function to disable the `onupdate` behavior
+def disable_set_updated_by_onupdate(target):
+    target.__table__.columns['updated_by'].onupdate = None
+
+
+# Function to enable the `onupdate` behavior
+def enable_set_updated_by_onupdate(target):
+    target.__table__.columns['updated_by'].onupdate = get_default_user_value
