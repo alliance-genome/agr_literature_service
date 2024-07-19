@@ -5,7 +5,9 @@ from os import environ
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.api.models import CrossReferenceModel, ReferencefileModel
-from agr_literature_service.api.crud.referencefile_crud import cleanup_temp_file
+from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
+    add_file_uploaded_workflow
+from agr_literature_service.api.crud.referencefile_crud import cleanup_old_pdf_file
 
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
@@ -65,7 +67,8 @@ def identify_main_pdfs():
                             db_session.commit()
                             logger.info(pmcid + ": update the file_class to 'main' for the main PDF file " + pmcid_to_pdf_name[pmcid])
                             ref = x.reference
-                            cleanup_temp_file(db_session, ref.curie, 'all_access')
+                            add_file_uploaded_workflow(db_session, str(x.reference_id), logger=logger)
+                            cleanup_old_pdf_file(db_session, ref.curie, 'all_access')
     db_session.close()
 
 

@@ -46,6 +46,8 @@ class TopicEntityTagSchemaCreate(AuditedObjectModelSchema):
     novel_topic_data: Optional[bool] = False
     confidence_level: Optional[constr(min_length=1)] = None  # type: ignore
     note: Optional[constr(min_length=1)] = None  # type: ignore
+    validation_by_author: Optional[constr(min_length=1)] = None  # type: ignore
+    validation_by_professional_biocurator: Optional[constr(min_length=1)] = None  # type: ignore
 
 
 class TopicEntityTagSchemaPost(TopicEntityTagSchemaCreate):
@@ -67,8 +69,8 @@ class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     novel_topic_data: Optional[bool] = False
     confidence_level: Optional[str] = None
     note: Optional[str] = None
-    validation_by_author: str
-    validation_by_professional_biocurator: str
+    validation_by_author: Optional[constr(min_length=1)] = None  # type: ignore
+    validation_by_professional_biocurator: Optional[constr(min_length=1)] = None  # type: ignore
 
 
 class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
@@ -87,3 +89,5 @@ class TopicEntityTagSchemaUpdate(AuditedObjectModelSchema):
     novel_topic_data: Optional[bool] = False
     confidence_level: Optional[constr(min_length=1)] = None  # type: ignore
     note: Optional[constr(min_length=1)] = None  # type: ignore
+    validation_by_author: Optional[constr(min_length=1)] = None  # type: ignore
+    validation_by_professional_biocurator: Optional[constr(min_length=1)] = None  # type: ignore

@@ -81,6 +81,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
     if duplicate_check_result is not None:
         return duplicate_check_result
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
+
     try:
         db.add(new_db_obj)
         db.flush()
@@ -128,13 +129,6 @@ def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagMo
     return "not_validated"
 
 
-def add_validation_values_to_tag(topic_entity_tag_db_obj: TopicEntityTagModel, tag_data_dict: Dict):
-    tag_data_dict["validation_by_author"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj,
-                                                                               ATP_ID_SOURCE_AUTHOR)
-    tag_data_dict["validation_by_professional_biocurator"] = calculate_validation_value_for_tag(topic_entity_tag_db_obj,
-                                                                                                ATP_ID_SOURCE_CURATOR)
-
-
 def add_list_of_users_who_validated_tag(topic_entity_tag_db_obj: TopicEntityTagModel, tag_data_dict: Dict):
     validating_tag: TopicEntityTagModel
     tag_data_dict["validating_users"] = list({validating_tag.created_by for validating_tag in
@@ -154,7 +148,6 @@ def show_tag(db: Session, topic_entity_tag_id: int):
         del topic_entity_tag_data["reference_id"]
     topic_entity_tag_data[
         "topic_entity_tag_source_id"] = topic_entity_tag.topic_entity_tag_source.topic_entity_tag_source_id
-    add_validation_values_to_tag(topic_entity_tag, topic_entity_tag_data)
     return topic_entity_tag_data
 
 
@@ -288,6 +281,13 @@ def add_validation_to_db(db: Session, validated_tag: TopicEntityTagModel, valida
     db.execute(f"INSERT INTO topic_entity_tag_validation (validated_topic_entity_tag_id, "
                f"validating_topic_entity_tag_id) VALUES ({validated_tag.topic_entity_tag_id}, "
                f"{validating_tag.topic_entity_tag_id})")
+    db.commit()
+    validated_tag_obj = db.query(TopicEntityTagModel).filter(
+        TopicEntityTagModel.topic_entity_tag_id == validated_tag.topic_entity_tag_id).first()
+    validated_tag_obj.validation_by_professional_biocurator = calculate_validation_value_for_tag(validated_tag_obj,
+                                                                                                 ATP_ID_SOURCE_CURATOR)
+    validated_tag_obj.validation_by_author = calculate_validation_value_for_tag(validated_tag_obj, ATP_ID_SOURCE_AUTHOR)
+    db.commit()
 
 
 def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_tag: bool = True,
@@ -310,19 +310,22 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
     ).all()
     # The current tag can validate existing tags or be validated by other tags only if it has a True or False negated
     # value
-    if len(related_tags_in_db) == 0 or new_tag_obj.negated is None:
-        return
-    # Validate existing tags
+    if len(related_tags_in_db) > 0 and new_tag_obj.negated is not None:
+        # Validate existing tags
+        if new_tag_obj.topic_entity_tag_source.validation_type is not None:
+            if new_tag_obj.negated is False:
+                validate_tags_already_in_db_with_positive_tag(db, new_tag_obj, related_tags_in_db)
+            else:
+                validate_tags_already_in_db_with_negative_tag(db, new_tag_obj, related_tags_in_db)
+        # Validate current tag with existing ones
+        if validate_new_tag:
+            related_validating_tags_in_db = [related_tag for related_tag in related_tags_in_db if
+                                             related_tag.validation_type is not None]
+            validate_new_tag_with_existing_tags(db, new_tag_obj, related_validating_tags_in_db)
     if new_tag_obj.topic_entity_tag_source.validation_type is not None:
-        if new_tag_obj.negated is False:
-            validate_tags_already_in_db_with_positive_tag(db, new_tag_obj, related_tags_in_db)
-        else:
-            validate_tags_already_in_db_with_negative_tag(db, new_tag_obj, related_tags_in_db)
-    # Validate current tag with existing ones
-    if validate_new_tag:
-        related_validating_tags_in_db = [related_tag for related_tag in related_tags_in_db if
-                                         related_tag.validation_type is not None]
-        validate_new_tag_with_existing_tags(db, new_tag_obj, related_validating_tags_in_db)
+        new_tag_obj.validation_by_professional_biocurator = calculate_validation_value_for_tag(
+            new_tag_obj, ATP_ID_SOURCE_CURATOR)
+        new_tag_obj.validation_by_author = calculate_validation_value_for_tag(new_tag_obj, ATP_ID_SOURCE_AUTHOR)
     if commit_changes:
         db.commit()
 
@@ -353,7 +356,7 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
         if not delete_all_first:
             db.execute(f"DELETE FROM topic_entity_tag_validation "
                        f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}")
-        validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False, commit_changes=False)
+        validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False, commit_changes=True)
         if tag_counter % 200 == 0:
             db.commit()
     db.commit()
@@ -578,7 +581,6 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
             tet_data = jsonable_encoder(vars(tet), exclude={"validated_by"})
             if "validated_by" in tet_data:
                 del tet_data["validated_by"]
-            add_validation_values_to_tag(tet, tet_data)
             add_list_of_users_who_validated_tag(tet, tet_data)
             tet_data["topic_entity_tag_source"]["secondary_data_provider_abbreviation"] = mod_id_to_mod[
                 tet.topic_entity_tag_source.secondary_data_provider_id]

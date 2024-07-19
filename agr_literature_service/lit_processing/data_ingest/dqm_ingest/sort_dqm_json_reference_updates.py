@@ -36,7 +36,8 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     add_cross_references, update_authors, update_mod_corpus_associations, \
     update_mod_reference_types, update_workflow_tags, \
-    mark_not_in_mod_papers_as_out_of_corpus, change_mod_curie_status
+    mark_not_in_mod_papers_as_out_of_corpus, change_mod_curie_status, \
+    add_file_needed_for_new_papers
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
 from agr_literature_service.api.user import set_global_user_id
 
@@ -683,6 +684,8 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
         change_mod_curie_status(db_session, mod, mod_curie_set, dbid2pmid, logger)
 
         agr_to_title = get_curie_to_title_mapping(missing_agr_in_mod[mod])
+
+        add_file_needed_for_new_papers(db_session, mod, logger=logger)
 
         send_dqm_loading_report(mod, report[mod], missing_papers_in_mod[mod],
                                 agr_to_title, bad_date_published,
