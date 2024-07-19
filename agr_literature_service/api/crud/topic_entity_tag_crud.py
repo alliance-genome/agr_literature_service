@@ -14,7 +14,7 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import case, and_, create_engine
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload, sessionmaker
+from sqlalchemy.orm import Session, joinedload, sessionmaker, noload
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
@@ -305,25 +305,31 @@ def add_validation_to_db(db: Session, validated_tag: TopicEntityTagModel, valida
 
 
 def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_tag: bool = True,
-                  commit_changes: bool = True, calculate_validation_values: bool = True):
-    related_tags_in_db = db.query(
-        TopicEntityTagModel.topic_entity_tag_id,
-        TopicEntityTagModel.topic,
-        TopicEntityTagModel.entity_type,
-        TopicEntityTagModel.entity,
-        TopicEntityTagModel.species,
-        TopicEntityTagModel.negated,
-        TopicEntityTagSourceModel.validation_type
-    ).join(
-        TopicEntityTagSourceModel, TopicEntityTagModel.topic_entity_tag_source
-    ).filter(
-        TopicEntityTagModel.topic_entity_tag_id != new_tag_obj.topic_entity_tag_id,
-        TopicEntityTagModel.reference_id == new_tag_obj.reference_id,
-        TopicEntityTagSourceModel.secondary_data_provider_id == new_tag_obj.topic_entity_tag_source.secondary_data_provider_id,
-        TopicEntityTagModel.negated.isnot(None)
-    ).all()
+                  commit_changes: bool = True, calculate_validation_values: bool = True, related_tags_in_db = None):
+    if related_tags_in_db is None:
+        logger.info("Reading related tags from db")
+        related_tags_in_db = db.query(
+            TopicEntityTagModel.topic_entity_tag_id,
+            TopicEntityTagModel.topic,
+            TopicEntityTagModel.entity_type,
+            TopicEntityTagModel.entity,
+            TopicEntityTagModel.species,
+            TopicEntityTagModel.negated,
+            TopicEntityTagSourceModel.validation_type
+        ).join(
+            TopicEntityTagSourceModel, TopicEntityTagModel.topic_entity_tag_source
+        ).filter(
+            TopicEntityTagModel.reference_id == new_tag_obj.reference_id,
+            TopicEntityTagSourceModel.secondary_data_provider_id ==
+            new_tag_obj.topic_entity_tag_source.secondary_data_provider_id,
+            TopicEntityTagModel.negated.isnot(None)
+        ).all()
+    all_related_tags = related_tags_in_db
+    related_tags_in_db = [tag for tag in related_tags_in_db if
+                          tag.topic_entity_tag_id != new_tag_obj.topic_entity_tag_id]
     # The current tag can validate existing tags or be validated by other tags only if it has a True or False negated
     # value
+    logger.info(f"Found {str(len(related_tags_in_db))} related tags")
     if len(related_tags_in_db) > 0 and new_tag_obj.negated is not None:
         # Validate existing tags
         if new_tag_obj.topic_entity_tag_source.validation_type is not None:
@@ -339,12 +345,13 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
                                              related_tag.validation_type is not None]
             validate_new_tag_with_existing_tags(db, new_tag_obj, related_validating_tags_in_db,
                                                 calculate_validation_values=calculate_validation_values)
-    if new_tag_obj.topic_entity_tag_source.validation_type is not None:
+    if calculate_validation_values and new_tag_obj.topic_entity_tag_source.validation_type is not None:
         new_tag_obj.validation_by_professional_biocurator = calculate_validation_value_for_tag(
             new_tag_obj, ATP_ID_SOURCE_CURATOR)
         new_tag_obj.validation_by_author = calculate_validation_value_for_tag(new_tag_obj, ATP_ID_SOURCE_AUTHOR)
     if commit_changes:
         db.commit()
+    return all_related_tags
 
 
 def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie_or_reference_id: str = None,
@@ -353,7 +360,14 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
     new_session = sessionmaker(bind=engine, autoflush=True)
     db = new_session()
     reference_query_filter = ""
-    query_tags = db.query(TopicEntityTagModel)
+    query_tags = (db.query(TopicEntityTagModel)
+                  .join(TopicEntityTagModel.topic_entity_tag_source)
+                  .options(joinedload(TopicEntityTagModel.topic_entity_tag_source))
+                  .options(joinedload(TopicEntityTagModel.validated_by))
+                  .options(noload(TopicEntityTagModel.reference))
+                  .order_by(TopicEntityTagModel.reference_id,
+                            TopicEntityTagModel.topic_entity_tag_source_id,
+                            TopicEntityTagSourceModel.secondary_data_provider_id))
     if not validation_values_only:
         if curie_or_reference_id:
             delete_all_first = True
@@ -371,12 +385,22 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
         if delete_all_first:
             db.execute("DELETE FROM topic_entity_tag_validation" + reference_query_filter)
             db.commit()
+        curr_ref_tags_in_db = None
+        curr_reference_id = None
+        curr_mod_id = None
         for tag_counter, tag in enumerate(query_tags.all()):
+            if (tag.reference_id != curr_reference_id or
+                    tag.topic_entity_tag_source.secondary_data_provider_id != curr_mod_id):
+                curr_reference_id = tag.reference_id
+                curr_mod_id = tag.topic_entity_tag_source.secondary_data_provider_id
+                curr_ref_tags_in_db = None
+            logger.info(f"Processing tag # {str(tag_counter)}")
             if not delete_all_first:
                 db.execute(f"DELETE FROM topic_entity_tag_validation "
                            f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}")
-            validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False, commit_changes=False,
-                          calculate_validation_values=False)
+            curr_ref_tags_in_db = validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False, commit_changes=False,
+                                                calculate_validation_values=False,
+                                                related_tags_in_db=curr_ref_tags_in_db)
             if tag_counter % 200 == 0:
                 db.commit()
         db.commit()
