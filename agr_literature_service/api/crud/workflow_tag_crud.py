@@ -54,7 +54,7 @@ def get_workflow_tags_from_process(workflow_process_atp_id: str):
 
 
 def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_abbreviation: str,
-                                  new_workflow_tag_atp_id: str, transition_type: str = "manual"):
+                                  new_workflow_tag_atp_id: str, transition_type: str = "automated"):
     if transition_type not in ["manual", "automated"]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Transition type must be manual or automated")
