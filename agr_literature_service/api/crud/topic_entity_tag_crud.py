@@ -405,6 +405,8 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
     for tag_counter, tag in enumerate(query_tags.all()):
         logger.info(f"Setting validation values to tag # {str(tag_counter)}")
         set_validation_values_to_tag(tag)
+        if tag_counter > 0 and tag_counter % 200 == 0:
+            db.commit()
     db.commit()
     db.close()
 
