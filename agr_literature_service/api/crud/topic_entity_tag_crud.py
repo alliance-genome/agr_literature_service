@@ -402,11 +402,19 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
             if tag_counter > 0 and tag_counter % 200 == 0:
                 db.commit()
         db.commit()
-    for tag_counter, tag in enumerate(query_tags.all()):
-        logger.info(f"Setting validation values to tag # {str(tag_counter)}")
-        set_validation_values_to_tag(tag)
-        if tag_counter > 0 and tag_counter % 200 == 0:
-            db.commit()
+    offset = 0
+    batch_size = 200
+    tag_counter = 0
+    while True:
+        batch_tags = query_tags.offset(offset).limit(batch_size).all()
+        if not batch_tags:
+            break  # All tags processed
+        for tag in batch_tags:
+            tag_counter += 1
+            logger.info(f"Setting validation values for tag #{tag_counter}")
+            set_validation_values_to_tag(tag)
+        db.commit()
+        offset += batch_size
     db.commit()
     db.close()
 
