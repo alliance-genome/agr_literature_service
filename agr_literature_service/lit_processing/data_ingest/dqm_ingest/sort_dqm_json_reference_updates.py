@@ -35,8 +35,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_references_by_curies, get_curie_to_title_mapping, get_mod_abbreviations
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     add_cross_references, update_authors, update_mod_corpus_associations, \
-    update_mod_reference_types, update_workflow_tags, \
-    mark_not_in_mod_papers_as_out_of_corpus, change_mod_curie_status, \
+    update_mod_reference_types, mark_not_in_mod_papers_as_out_of_corpus, change_mod_curie_status, \
     add_file_needed_for_new_papers
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
 from agr_literature_service.api.user import set_global_user_id
@@ -845,10 +844,12 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
                                        set(db_entry_pubmed_types) | set(dqm_entry_pubmed_types),
                                        logger)
 
+            """
             update_workflow_tags(db_session, mod_to_mod_id[mod], db_entry['reference_id'],
                                  db_entry.get('workflow_tag', []),
                                  dqm_entry.get('workflowTags', []),
                                  logger)
+            """
 
             if processing_flag == 'mod_biblio_all':
                 update_json = dict()
