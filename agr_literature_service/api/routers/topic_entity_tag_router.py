@@ -148,11 +148,13 @@ def get_curie_to_name_from_all_tets(curie_or_reference_id: str,
     return topic_entity_tag_crud.get_curie_to_name_from_all_tets(db, curie_or_reference_id)
 
 
-def revalidate_tags_process_wrapper(already_running, email: str, delete_all_first: bool, curie_or_reference_id: str):
+def revalidate_tags_process_wrapper(already_running, email: str, delete_all_first: bool, curie_or_reference_id: str,
+                                    validation_values_only: bool):
     try:
         already_running.value = True
         topic_entity_tag_crud.revalidate_all_tags(email=email, delete_all_first=delete_all_first,
-                                                  curie_or_reference_id=curie_or_reference_id)
+                                                  curie_or_reference_id=curie_or_reference_id,
+                                                  validation_values_only=validation_values_only)
     finally:
         already_running.value = False
 
@@ -162,6 +164,7 @@ def revalidate_tags_process_wrapper(already_running, email: str, delete_all_firs
 def revalidate_all_tags(email: str = None,
                         delete_all_tags_first: bool = False,
                         curie_or_reference_id: str = None,
+                        validation_values_only: bool = False,
                         user: OktaUser = db_user,
                         db: Session = db_session):
     if not user.groups or "SuperAdmin" not in user.groups:
@@ -180,7 +183,8 @@ def revalidate_all_tags(email: str = None,
         }
     else:
         p = Process(target=revalidate_tags_process_wrapper,
-                    args=(revalidate_all_tags_already_running, email, delete_all_tags_first, curie_or_reference_id))
+                    args=(revalidate_all_tags_already_running, email, delete_all_tags_first, curie_or_reference_id,
+                          validation_values_only))
         p.start()
         return {
             "message": "Revalidation of all tags started. You will receive an email when done."
