@@ -674,7 +674,10 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
         if env_state != 'test':
             merge_md5dict = {}
             merge_md5dict[mod] = {**old_md5dict[mod], **new_md5dict[mod]}
-            save_database_md5data(merge_md5dict)
+            try:
+                save_database_md5data(merge_md5dict)
+            except Exception as e:
+                logger.info(f"An error occurred when updating md5sum for {mod} DQM papers:" + str(e))
 
         fh_mod_report[mod].close()
 
