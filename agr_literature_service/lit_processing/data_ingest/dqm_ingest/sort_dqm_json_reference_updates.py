@@ -681,18 +681,30 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
 
         fh_mod_report[mod].close()
 
-        mark_not_in_mod_papers_as_out_of_corpus(mod, missing_papers_in_mod[mod], logger)
+        try:
+            mark_not_in_mod_papers_as_out_of_corpus(mod, missing_papers_in_mod[mod], logger)
+        except Exception as e:
+            logger.info("An error occurred when marking not in mod papers as out of corpus:" + str(e))
 
-        change_mod_curie_status(db_session, mod, mod_curie_set, dbid2pmid, logger)
+        try:
+            change_mod_curie_status(db_session, mod, mod_curie_set, dbid2pmid, logger)
+        except Exception as e:
+            logger.info("An error occurred when changing mod curie status:" + str(e))
 
         agr_to_title = get_curie_to_title_mapping(missing_agr_in_mod[mod])
 
-        add_file_needed_for_new_papers(db_session, mod, logger=logger)
+        try:
+            add_file_needed_for_new_papers(db_session, mod, logger=logger)
+        except Exception as e:
+            logger.info("An error occurred when adding file needed for new papers:" + str(e))
 
-        send_dqm_loading_report(mod, report[mod], missing_papers_in_mod[mod],
-                                agr_to_title, bad_date_published,
-                                mod_ids_used_in_resource, clashed_pmids,
-                                report_file_path)
+        try:
+            send_dqm_loading_report(mod, report[mod], missing_papers_in_mod[mod],
+                                    agr_to_title, bad_date_published,
+                                    mod_ids_used_in_resource, clashed_pmids,
+                                    report_file_path)
+        except Exception as e:
+            logger.info("An error occurred when sending dqm loading report:" + str(e))
 
 
 def find_unparsable_date_published(json_file, bad_date_published):
