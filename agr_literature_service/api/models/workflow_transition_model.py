@@ -72,3 +72,9 @@ class WorkflowTransitionModel(AuditedModel, Base):
         unique=False,
         nullable=True
     )
+
+    condition = Column(
+        String(),
+        unique=False,
+        nullable=True
+    )
