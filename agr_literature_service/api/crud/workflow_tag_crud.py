@@ -13,6 +13,7 @@ from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, 
 from agr_literature_service.api.schemas import WorkflowTagSchemaPost
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_descendants, \
     get_reference_id_from_curie_or_id  # get_ancestors,
+from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
 import logging
 from agr_literature_service.api.crud.workflow_transition_requirements import *  # noqa
 from agr_literature_service.api.crud.workflow_transition_requirements import (
@@ -308,3 +309,57 @@ def show_changesets(db: Session, reference_workflow_tag_id: int):
                         "changeset": version.changeset})
 
     return history
+
+
+def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id: str = None):
+
+    all_WF_tags_for_process = None
+    atp_curies = []
+    if workflow_process_atp_id:
+        all_WF_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
+        if all_WF_tags_for_process is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"WorkflowTag with the workflow_process_atp_id: {workflow_process_atp_id} is not available")
+        atp_curies = all_WF_tags_for_process
+    else:
+        rows = db.execute("SELECT distinct workflow_tag_id FROM workflow_tag").fetchall()
+        atp_curies = [x[0] for x in rows]
+    atp_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=atp_curies)
+
+    where_clauses = []
+    params = {}
+    if mod_abbreviation:
+        where_clauses.append("m.abbreviation = :mod_abbreviation")
+        params["mod_abbreviation"] = mod_abbreviation
+
+    if all_WF_tags_for_process:
+        where_clauses.append("wt.workflow_tag_id = ANY(:all_WF_tags_for_process)")
+        params["all_WF_tags_for_process"] = all_WF_tags_for_process
+
+    where = ""
+    if where_clauses:
+        where = "WHERE " + " AND ".join(where_clauses)
+
+    query = f"""
+    SELECT m.abbreviation, wt.workflow_tag_id, COUNT(*) AS tag_count
+    FROM mod m
+    JOIN workflow_tag wt ON m.mod_id = wt.mod_id
+    {where}
+    GROUP BY m.abbreviation, wt.workflow_tag_id
+    ORDER BY m.abbreviation, wt.workflow_tag_id
+    """
+
+    try:
+        rows = db.execute(query, params).fetchall()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    data = []
+    for x in rows:
+        data.append({
+            "mod_abbreviation": x['abbreviation'],
+            "workflow_tag_id": x['workflow_tag_id'],
+            "wornflow_tag_name": atp_curie_to_name[x['workflow_tag_id']],
+            "tag_count": x['tag_count']
+        })
+    return data
