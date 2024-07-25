@@ -359,7 +359,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         data.append({
             "mod_abbreviation": x['abbreviation'],
             "workflow_tag_id": x['workflow_tag_id'],
-            "wornflow_tag_name": atp_curie_to_name[x['workflow_tag_id']],
+            "workflow_tag_name": atp_curie_to_name[x['workflow_tag_id']],
             "tag_count": x['tag_count']
         })
     return data
