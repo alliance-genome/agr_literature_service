@@ -35,8 +35,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_references_by_curies, get_curie_to_title_mapping, get_mod_abbreviations
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     add_cross_references, update_authors, update_mod_corpus_associations, \
-    update_mod_reference_types, update_workflow_tags, \
-    mark_not_in_mod_papers_as_out_of_corpus, change_mod_curie_status, \
+    update_mod_reference_types, mark_not_in_mod_papers_as_out_of_corpus, change_mod_curie_status, \
     add_file_needed_for_new_papers
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
 from agr_literature_service.api.user import set_global_user_id
@@ -675,22 +674,37 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
         if env_state != 'test':
             merge_md5dict = {}
             merge_md5dict[mod] = {**old_md5dict[mod], **new_md5dict[mod]}
-            save_database_md5data(merge_md5dict)
+            try:
+                save_database_md5data(merge_md5dict)
+            except Exception as e:
+                logger.info(f"An error occurred when updating md5sum for {mod} DQM papers:" + str(e))
 
         fh_mod_report[mod].close()
 
-        mark_not_in_mod_papers_as_out_of_corpus(mod, missing_papers_in_mod[mod], logger)
+        try:
+            mark_not_in_mod_papers_as_out_of_corpus(mod, missing_papers_in_mod[mod], logger)
+        except Exception as e:
+            logger.info("An error occurred when marking not in mod papers as out of corpus:" + str(e))
 
-        change_mod_curie_status(db_session, mod, mod_curie_set, dbid2pmid, logger)
+        try:
+            change_mod_curie_status(db_session, mod, mod_curie_set, dbid2pmid, logger)
+        except Exception as e:
+            logger.info("An error occurred when changing mod curie status:" + str(e))
 
         agr_to_title = get_curie_to_title_mapping(missing_agr_in_mod[mod])
 
-        add_file_needed_for_new_papers(db_session, mod, logger=logger)
+        try:
+            add_file_needed_for_new_papers(db_session, mod, logger=logger)
+        except Exception as e:
+            logger.info("An error occurred when adding file needed for new papers:" + str(e))
 
-        send_dqm_loading_report(mod, report[mod], missing_papers_in_mod[mod],
-                                agr_to_title, bad_date_published,
-                                mod_ids_used_in_resource, clashed_pmids,
-                                report_file_path)
+        try:
+            send_dqm_loading_report(mod, report[mod], missing_papers_in_mod[mod],
+                                    agr_to_title, bad_date_published,
+                                    mod_ids_used_in_resource, clashed_pmids,
+                                    report_file_path)
+        except Exception as e:
+            logger.info("An error occurred when sending dqm loading report:" + str(e))
 
 
 def find_unparsable_date_published(json_file, bad_date_published):
@@ -845,10 +859,12 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
                                        set(db_entry_pubmed_types) | set(dqm_entry_pubmed_types),
                                        logger)
 
+            """
             update_workflow_tags(db_session, mod_to_mod_id[mod], db_entry['reference_id'],
                                  db_entry.get('workflow_tag', []),
                                  dqm_entry.get('workflowTags', []),
                                  logger)
+            """
 
             if processing_flag == 'mod_biblio_all':
                 update_json = dict()

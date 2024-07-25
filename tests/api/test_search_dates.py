@@ -61,6 +61,7 @@ def initialize_elasticsearch():
         "authors": [{"name": "John Q Public", "orcid": "null"}, {"name": "Socrates", "orcid": "null"}],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}],
         "mod_reference_types": ["paper"],
+        "language": "English",
         "date_created": "1636139454923830"
     }
     doc2 = {
@@ -76,6 +77,7 @@ def initialize_elasticsearch():
         "authors": [{"name": "Jane Doe", "orcid": "null"}],
         "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}],
         "mod_reference_types": ["paper"],
+        "language": "English",
         "date_created": "1636139454923830"
     }
     doc3 = {
@@ -91,6 +93,7 @@ def initialize_elasticsearch():
         "authors": [{"name": "Sam", "orcid": "null"}, {"name": "Plato", "orcid": "null"}],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "SGD:S000000123", "is_obsolete": "true"}],
         "mod_reference_types": ["note"],
+        "language": "English",
         "date_created": "1636139454923830"
     }
     doc4 = {
@@ -106,6 +109,7 @@ def initialize_elasticsearch():
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
         "mod_reference_types": ["paper"],
+        "language": "English",
         "date_created": "1636139454923830"
     }
     doc5 = {
@@ -121,6 +125,7 @@ def initialize_elasticsearch():
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
         "mod_reference_types": ["Journal"],
+        "language": "English",
         "date_created": "1636139454923830"
     }
     doc6 = {
@@ -136,6 +141,7 @@ def initialize_elasticsearch():
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
         "mod_reference_types": ["paper"],
+        "language": "English",
         "date_created": "1636139454923830"
     }
     doc7 = {
@@ -151,6 +157,7 @@ def initialize_elasticsearch():
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
         "mod_reference_types": ["paper"],
+        "language": "English",
         "date_created": "1636139454923830"
     }
     doc8 = {
@@ -181,6 +188,7 @@ def initialize_elasticsearch():
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
         "mod_reference_types": ["paper"],
+        "language": "English",
         "date_created": "1636139454923830"
     }
 

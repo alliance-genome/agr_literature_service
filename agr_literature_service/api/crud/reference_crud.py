@@ -188,6 +188,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     except HTTPException:
                         logger.warning("skipping topic_entity_tag as that is already associated to "
                                        "the reference")
+                db.commit()
                 revalidate_all_tags(curie_or_reference_id=str(reference_db_obj.reference_id))
         elif field == "mod_reference_types":
             for obj in value or []:

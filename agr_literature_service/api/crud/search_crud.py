@@ -150,6 +150,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 }
             }
         },
+        "fields": ["language.keyword"],
         "highlight": {
             "fields": [
                 {"title": {"type": "unified"}},
@@ -160,6 +161,13 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             ]
         },
         "aggregations": {
+            "language.keyword": {
+                "terms": {
+                    "field": "language.keyword",
+                    "min_doc_count": 0,
+                    "size": facets_limits.get("mod_reference_types.keyword", 10)
+                }
+            },
             "mod_reference_types.keyword": {
                 "terms": {
                     "field": "mod_reference_types.keyword",
@@ -384,6 +392,7 @@ def process_search_results(res):  # pragma: no cover
         "cross_references": ref["_source"]["cross_references"],
         "authors": ref["_source"]["authors"],
         "mod_reference_types": ref["_source"]["mod_reference_types"],
+        "language": ref["fields"]["language.keyword"],
         "highlight": remap_highlights(ref.get("highlight", {}))
     } for ref in res["hits"]["hits"]]
 

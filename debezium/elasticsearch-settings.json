@@ -12,12 +12,117 @@
           "max_gram": "20"
         }
       },
+      "char_filter": {
+        "LanguageFilter": {
+          "type": "mapping",
+          "mappings": [
+            "eng=>English",
+            "Czech and English=>English",
+            "English and Dutch=>English",
+            "English and French=>English",
+            "English and Hebrew=>English",
+            "English and Japanese=>English",
+            "English and Russian=>English",
+            "English and Spanish=>English",
+            "French and English=>English",
+            "German and English=>English",
+            "Hungarian and English=>English",
+            "Icelandic and English=>English",
+            "Italian and English=>English",
+            "Portuguese and English=>English",
+            "Russian and English=>English",
+            "Spanish and English=>English",
+            "Ukrainian and English =>English",
+            "Hungarian and German=>Other",
+            "Latin and German=>Other",
+            "Latin and Hungarian=>Other",
+            "Portuguese and French=>Other",
+            "Russian and German=>Other",
+            "Afrikaans=>Other",
+            "Arabic=>Other",
+            "Belarussian=>Other",
+            "Bulgarian=>Other",
+            "Catalan=>Other",
+            "Chinese=>Other",
+            "Czech=>Other",
+            "Danish=>Other",
+            "Dutch=>Other",
+            "Estonian=>Other",
+            "Farsi=>Other",
+            "Finnish=>Other",
+            "Flemish=>Other",
+            "French=>Other",
+            "German=>Other",
+            "Greek=>Other",
+            "Hebrew=>Other",
+            "Hungarian=>Other",
+            "Icelandic=>Other",
+            "Indonesian=>Other",
+            "Italian=>Other",
+            "Japanese=>Other",
+            "Jugoslavian=>Other",
+            "Korean=>Other",
+            "Latin=>Other",
+            "Lithuanian=>Other",
+            "Malayalam=>Other",
+            "Norwegian=>Other",
+            "Polish=>Other",
+            "Portuguese=>Other",
+            "Romanian=>Other",
+            "Russian=>Other",
+            "Serbo-Croat(Roman)=>Other",
+            "Serbo-Croat=>Other",
+            "Slovak=>Other",
+            "Slovenian=>Other",
+            "Spanish=>Other",
+            "Swedish=>Other",
+            "Turkish=>Other",
+            "Ukrainian=>Other",
+            "chi=>Other",
+            "cze=>Other",
+            "dan=>Other",
+            "dut=>Other",
+            "fin=>Other",
+            "fre=>Other",
+            "ger=>Other",
+            "heb=>Other",
+            "hrv=>Other",
+            "hun=>Other",
+            "ice=>Other",
+            "ita=>Other",
+            "jpn=>Other",
+            "kor=>Other",
+            "mul=>Other",
+            "nor=>Other",
+            "pol=>Other",
+            "por=>Other",
+            "rum=>Other",
+            "rus=>Other",
+            "slo=>Other",
+            "spa=>Other",
+            "srp=>Other",
+            "swe=>Other",
+            "tur=>Other",
+            "ukr=>Other",
+            "und=>Other"
+          ]
+        },
+        "EmptyStringFilter" : {
+          "type": "pattern_replace",
+          "pattern": "^$",
+          "replacement": "English"
+        }
+      },
       "normalizer": {
         "sortNormalizer": {
           "filter": [
             "asciifolding",
             "lowercase"
           ],
+          "type": "custom"
+        },
+        "languageNormalizer": {
+          "char_filter" : ["LanguageFilter","EmptyStringFilter"],
           "type": "custom"
         }
       },
@@ -294,6 +399,17 @@
           "keyword": {
             "type": "keyword",
             "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "language": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "languageNormalizer",
+            "null_value": "English",
             "ignore_above": 256
           }
         }
