@@ -1,4 +1,5 @@
 from agr_literature_service.api.crud.workflow_transition_actions import *  # noqa
+from agr_literature_service.api.crud.workflow_transition_actions import ADMISSIBLE_WORKFLOW_TRANSITION_ACTION_FUNCTIONS
 from fastapi import HTTPException, status
 from agr_literature_service.api.models import WorkflowTagModel
 from sqlalchemy.orm import Session
