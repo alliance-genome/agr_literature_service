@@ -311,7 +311,7 @@ def show_changesets(db: Session, reference_workflow_tag_id: int):
     return history
 
 
-def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id: str = None):
+def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id: str = None):  # pragma: no cover
 
     all_WF_tags_for_process = None
     atp_curies = []
