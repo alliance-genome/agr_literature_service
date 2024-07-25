@@ -383,7 +383,7 @@ Another cronjob could be on a flysql server (or at least a different machine)
    Check for "XXX needed" and start appropriate jobs.
    (XXX must be sub jobs not 166, as these may come in after the above)
    Only allow a certain number of these to run at once and/or of a certain type at once.
-   Appropriate jobs should move needed to in progress (these are not there yet) at the start 
+   Appropriate jobs should move needed to in progress (these are not there yet) at the start
    of the job and then change the status from in progress to complete or failed at the end
    At end if successful, check if there are any more needed sub jobs, if not then move main needed to complete.
    (166 -> reference classification complete (ATP:0000169))
@@ -391,17 +391,17 @@ Another cronjob could be on a flysql server (or at least a different machine)
 For each "job" we require a "needed", "in progress", "complete" and "failed". Also for the main ones
 i.e. "reference classification"
 
-Jobs should inherit from a base class that takes a workflowtag object as the first argument, 
+Jobs should inherit from a base class that takes a workflowtag object as the first argument,
 as well as atp ids for what to do on success and failure)
 
 
-In the workflow transitions table would it be okay to add a column "on_condition". 
-This would be a string that would be "on_success" or "on_failure" or null. 
-Primarily this is for controlling/processing jobs. 
-So if we run the job to do text conversion on seeing "catalytic activity classification needed (ATP:0000180)" 
-then we first set this to "in progress" and run the job. If that job fails fails we would lookup the transition from 
+In the workflow transitions table would it be okay to add a column "on_condition".
+This would be a string that would be "on_success" or "on_failure" or null.
+Primarily this is for controlling/processing jobs.
+So if we run the job to do text conversion on seeing "catalytic activity classification needed (ATP:0000180)"
+then we first set this to "in progress" and run the job. If that job fails fails we would lookup the transition from
 "in progress" and on condition "on_failure" and set this. If it works look up 'in progress' and "on_success".
-Also and this may be some work for Ceri, as we would need these "jobs/processes" to all have "needed", "in progress", 
+Also and this may be some work for Ceri, as we would need these "jobs/processes" to all have "needed", "in progress",
 "failed" and "complete" after each type. This seems like the correct place to store these rather than hard coded.
 Anyway happy to discuss if you differ in views have a better idea of how to do this.
 """

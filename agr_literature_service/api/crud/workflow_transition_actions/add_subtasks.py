@@ -41,4 +41,3 @@ def add_subtasks(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, arg
                          mod=current_workflow_tag_db_obj.mod,
                          workflow_tag_id=transition.transition_to)
     db.commit()
-

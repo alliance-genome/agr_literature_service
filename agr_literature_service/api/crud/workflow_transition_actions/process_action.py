@@ -1,5 +1,7 @@
 from agr_literature_service.api.crud.workflow_transition_actions import *  # noqa
 from fastapi import HTTPException, status
+from agr_literature_service.api.models import WorkflowTagModel
+from sqlalchemy.orm import Session
 
 
 def process_action(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, action: str):
