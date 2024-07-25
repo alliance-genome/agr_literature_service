@@ -9,14 +9,14 @@ from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.reference_utils import get_reference
-from agr_literature_service.api.models import WorkflowTagModel, WorkflowTransitionModel
+from agr_literature_service.api.models import WorkflowTagModel, WorkflowTransitionModel, ModModel, ReferenceModel
 from agr_literature_service.api.schemas import WorkflowTagSchemaPost
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_descendants, \
     get_reference_id_from_curie_or_id  # get_ancestors,
 import logging
 from agr_literature_service.api.crud.workflow_transition_requirements import *  # noqa
-# from agr_literature_service.api.crud.workflow_transition_requirements import (
-#    ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS)
+from agr_literature_service.api.crud.workflow_transition_requirements import (
+    ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS)
 from agr_literature_service.api.crud.workflow_transition_actions.process_action import (process_action)
 process_atp_multiple_allowed = ['ATP:123456']
 logger = logging.getLogger(__name__)
