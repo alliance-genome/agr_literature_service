@@ -130,7 +130,7 @@ def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmi
     send_report(email_subject, email_message)
 
 
-def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_title, bad_date_published, mod_ids_used_in_resource, clashed_pmids, log_path):  # noqa: C901
+def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_title, bad_date_published, mod_ids_used_in_resource, clashed_pmids, log_path, curie_to_reftypesConflict):  # noqa: C901
 
     log_url = None
     if environ.get('LOG_URL'):
@@ -228,6 +228,14 @@ def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_t
         else:
             log_path = log_path + log_file
             email_message = email_message + "<p>The clashed PMID list is available at " + log_path
+
+    i = 0
+    for curie in curie_to_reftypesConflict:
+        if curie_to_reftypesConflict[curie] and len(curie_to_reftypesConflict[curie]) > 0:
+            i += 1
+            if i == 1:
+                email_message = email_message + "<p><p><b>Papers with conflict MOD Reference Types</b></p></p>"
+            email_message = email_message + f"<strong>{curie}:</strong> {curie_to_reftypesConflict[curie]}<br>"
 
     ## only send report once a week - on Saturday
     now = datetime.now()
