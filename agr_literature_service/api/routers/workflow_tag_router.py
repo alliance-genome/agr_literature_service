@@ -64,6 +64,25 @@ def show(reference_workflow_tag_id: int,
     return workflow_tag_crud.show(db, reference_workflow_tag_id)
 
 
+@router.get('/jobs/{job_string}',
+            status_code=200)
+def get_jobs(job_string: str, db: Session = db_session):
+    return workflow_tag_crud.get_jobs(db, job_string)
+
+
+@router.get('/job/failed/{workflow_tag_id}',
+            response_model=WorkflowTagSchemaShow,
+            status_code=200)
+def failed_jobs(workflow_tag_id: int, db: Session = db_session):
+    return workflow_tag_crud.job_change_atp_code(db, workflow_tag_id, 'on_failed')
+
+@router.get('/job/completed/{workflow_tag_id}',
+            response_model=WorkflowTagSchemaShow,
+            status_code=200)
+def completed_jobs(workflow_tag_id: int, db: Session = db_session):
+    return workflow_tag_crud.job_change_atp_code(db, workflow_tag_id, 'on_success')
+
+
 @router.get('/{reference_workflow_tag_id}/versions',
             status_code=200)
 def show_versions(reference_workflow_tag_id: int,

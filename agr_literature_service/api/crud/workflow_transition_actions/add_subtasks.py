@@ -5,10 +5,10 @@ if the condition is "add_subtask" then set this to the workflow.
 
 Example.
 If we have in the transition table
-transition_from           transition_to                  condition      action
-XXXX                      entity_extract_needed                         {add_subtasks}
-entity_extract_needed     anti_body_extract_needed       add_subtask
-entity_extract_needed     gene_extract_needed            add_subtask
+transition_from           transition_to                  condition                action
+XXXX                      entity_extract_needed                                   {add_subtasks}
+entity_extract_needed     anti_body_extract_needed       add_subtask,extract_job
+entity_extract_needed     gene_extract_needed            add_subtask,extract_job
 
 NOTE: Here i am using the labels to make it clearer but these will be ATP values.
 
@@ -18,6 +18,9 @@ This method will look for transition_from = 'entity_extract_needed' and conditio
 and add the workflow tags for those. So here anti_body_extract_needed and gene_extract_needed
 would be added.
 
+"job" is used to allow easy fetching of jobs rather than from the "needed" part of the label.
+So in a api call we can get a list of jobs that need running from joining the transition_to field
+and the workflow tag.
 """
 from agr_literature_service.api.models import WorkflowTagModel, WorkflowTransitionModel
 from sqlalchemy.orm import Session
@@ -34,10 +37,15 @@ def add_subtasks(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, arg
 
     transitions = db.query(WorkflowTransitionModel).filter(
         WorkflowTransitionModel.transition_from == current_workflow_tag_db_obj.workflow_tag_id,
-        WorkflowTransitionModel.condition == "add_subtask")
+        WorkflowTransitionModel.condition.contains("add_subtask"))
 
+    trans_count = 0
     for transition in transitions:
+        trans_count += 1
         WorkflowTagModel(reference=current_workflow_tag_db_obj.reference,
                          mod=current_workflow_tag_db_obj.mod,
                          workflow_tag_id=transition.transition_to)
+    if trans_count == 0:
+        raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+                            detail="add_subtasks method did not add any subtasks. Please check the transition table.")
     db.commit()

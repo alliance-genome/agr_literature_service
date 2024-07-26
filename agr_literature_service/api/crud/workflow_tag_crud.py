@@ -7,6 +7,7 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.exc import NoResultFound
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, WorkflowTransitionModel, ModModel, ReferenceModel
@@ -83,6 +84,7 @@ def process_transition_actions(db: Session,
     :param db: Session: database session
     :param transition: WorkflowTransitionModel: workflow transition model to process
     :param current_workflow_tag_db_obj: WorkflowTagModel: current workflow tag model
+
     Get actions from transition.actions
          This is an array of strings that contain the method to be processed and args that
          are seperated by '::'
@@ -92,12 +94,72 @@ def process_transition_actions(db: Session,
     for action in transition.actions:
         process_action(db, current_workflow_tag_db_obj, action)
 
-        # temp_arr = action.split('::')
-        # method = temp_arr.pop(0)
-        # if method == "workflow_tag_add":
-        #     workflow_tag_add(current_workflow_tag_db_obj, temp_arr[0])
-        # elif method == "workflow_tag_remove":
-        #     workflow_tag_remove(db, current_workflow_tag_db_obj, temp_arr[0])
+
+def get_jobs(db: Session, job_str: str):
+    """
+    :param db: Session: database session
+    :param job_str: string can be just general "job" or job types like "extract_job"
+                    We may have different jobs running on different systems so this
+                    allows more flexibility.
+
+    we need to join the workflow_transition table and workflow_tag table via transition_to and workflow_tag_id
+    and condition contains the string defined in job_str.
+    """
+    jobs = []
+    wft_list = db.query(WorkflowTagModel, WorkflowTransitionModel).filter\
+        (WorkflowTagModel.workflow_tag_id == WorkflowTransitionModel.transition_to,
+         WorkflowTransitionModel.condition.contains(job_str)).all()
+    for wft in wft_list:
+        # print(f"WFT: {wft}")
+        conditions = wft[1].condition.split(',')
+        for condition in conditions:
+            if job_str in condition:
+                new_job = {}
+                new_job['job_name'] = condition
+                new_job['workflow_tag_id'] = wft[0].workflow_tag_id
+                new_job['reference_id'] = wft[0].reference_id
+                new_job['reference_workflow_tag_id'] = wft[0].reference_workflow_tag_id
+                # new_job['reference'] = wft[0].reference
+                new_job['mod_id'] = wft[0].mod_id
+                jobs.append(new_job)
+    return jobs
+
+
+def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: str):
+    """
+    param db: Session:          database session
+    param reference_workflow_tag_id': int  WorkflowTagModel: reference_workflow_tag_id
+    param condition: str        WorkflowTransitionModel: workflow transition condition
+                     "on_success" or "on_failure" are the available options currently.
+
+    Lookup the workflow_tag via the reference_workflow_tag_id.
+    Lookup the new workflow_tag via the transition workflow table
+    with transition_from == workflow_tag_id
+    AND condition contains the condition value.
+    Set workflow tag_id to be the transition_to for this.
+    """
+    # Get the workflow_tag
+    try:
+        workflow_tag = db.query(WorkflowTagModel).\
+            filter(WorkflowTagModel.reference_workflow_tag_id == reference_workflow_tag_id).one()
+    except NoResultFound:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Bad reference_workflow_tag_id {reference_workflow_tag_id}")
+    # Get what it is transitioning too
+    try:
+        new_transition = db.query(WorkflowTransitionModel).\
+            filter(WorkflowTransitionModel.transition_from == workflow_tag.workflow_tag_id,
+                   WorkflowTransitionModel.condition.contains(condition),
+                   WorkflowTransitionModel.mod_id == workflow_tag.mod_id).one()
+    except NoResultFound:
+        error = f"""
+            Could not find condition {condition} and
+            transition_from {workflow_tag.workflow_tag_id},
+            for mod {workflow_tag.mod_id}"""
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=error)
+    # Set to new tag
+    workflow_tag.workflow_tag_id = new_transition.transition_to
 
 
 def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_abbreviation: str,
