@@ -777,36 +777,6 @@ def are_additions_and_deletions_only_format_changes(author_count_db, author_orde
     return False
 
 
-def update_workflow_tags(db_session, mod_id, reference_id, workflow_tag_rows_db, workflow_tags_json, logger):
-
-    workflow_tags_db = [x['workflow_tag_id'] for x in workflow_tag_rows_db]
-
-    if sorted(workflow_tags_db) == sorted(workflow_tags_json):
-        return
-
-    for atp in workflow_tags_json:
-        if atp not in workflow_tags_db:
-            try:
-                x = WorkflowTagModel(reference_id=reference_id,
-                                     mod_id=mod_id,
-                                     workflow_tag_id=atp)
-                db_session.add(x)
-                logger.info(f"The workflow_tag row for reference_id = {reference_id}, mod_id = {mod_id}, and workflow_tag_id = {atp} has been added into database.")
-            except Exception as e:
-                logger.info(f"An error occurred when adding workflow_tag row for reference_id = {reference_id}, mod_id = {mod_id}, and workflow_tag_id = {atp}. {e}")
-
-    for atp in workflow_tags_db:
-        if atp not in workflow_tags_json:
-            try:
-                x = db_session.query(WorkflowTagModel).filter_by(
-                    reference_id=reference_id, mod_id=mod_id, workflow_tag_id=atp).one_or_none()
-                if x:
-                    db_session.delete(x)
-                    logger.info(f"The workflow_tag row for reference_id = {reference_id}, mod_id = {mod_id}, and workflow_tag_id = {atp} has been removed from database.")
-            except Exception as e:
-                logger.info(f"An error occurred when deleting workflow_tag row for reference_id = {reference_id}, mod_id = {mod_id}, and workflow_tag_id = {atp}. {e}")
-
-
 def update_mod_corpus_associations(db_session, mod_to_mod_id, reference_id, mod_corpus_association_db, mod_corpus_association_json, logger):
 
     db_mod_corpus_association = {}
@@ -860,9 +830,18 @@ def update_mod_reference_types(db_session, reference_id, db_mod_ref_types, json_
             to_delete_duplicate_rows.append((mrt_id, ref_type))
 
     json_mrt_data = dict()
+    referenceTypes = set()
+    referenceTypesConflict = set()
+    meeting_abstract_present = any(x['referenceType'] == 'Meeting_abstract' for x in json_mod_ref_types)
     for mrt in json_mod_ref_types:
         source = mrt['source']
         ref_type_label = mrt['referenceType']
+        if ref_type_label in referenceTypes:
+            continue
+        if meeting_abstract_present and mrt['referenceType'] in ["Experimental", "Not_experimental"]:
+            referenceTypesConflict.add(mrt['referenceType'])
+            continue
+        referenceTypes.add(ref_type_label)
         if source not in json_mrt_data:
             json_mrt_data[source] = []
         # just in case there is any duplicate in json
@@ -870,18 +849,17 @@ def update_mod_reference_types(db_session, reference_id, db_mod_ref_types, json_
             json_mrt_data[source].append(ref_type_label)
 
     for mod in json_mrt_data:
-        lc_json = [x.lower() for x in json_mrt_data[mod]]
+        lc_json = [x.lower() for x in json_mrt_data[mod] if x]
         lc_db = []
         if mod in db_mrt_data:
-            lc_db = {x.lower() for x in db_mrt_data[mod].keys()}
+            lc_db = {x.lower() for x in db_mrt_data[mod].keys() if x}
         for ref_type_label in json_mrt_data[mod]:
-            if ref_type_label.lower() not in lc_db:
+            if ref_type_label and ref_type_label.lower() not in lc_db:
                 try:
                     insert_mod_reference_type_into_db(db_session, pubmed_types, mod, ref_type_label, reference_id)
                     logger.info("The mod_reference_type for reference_id = " + str(reference_id) + " has been added into the database.")
                 except Exception as e:
-                    logger.info("An error occurred when adding mod_reference_type row for reference_id = " + str(reference_id) + " has been a\
-dded into the database. " + str(e))
+                    logger.info("An error occurred when adding mod_reference_type row for reference_id = " + str(reference_id) + " has been added into the database. " + str(e))
 
         if len(lc_db) == 0:
             continue
@@ -901,6 +879,9 @@ dded into the database. " + str(e))
                 logger.info("The mod_reference_type for mod_reference_type_id = " + str(mod_reference_type_id) + " has been deleted from the database.")
         except Exception as e:
             logger.info("An error occurred when deleting mod_reference_type row for mod_reference_type_id = " + str(mod_reference_type_id) + " has been deleted from the database. " + str(e))
+
+    if len(referenceTypesConflict) > 0:
+        referenceTypesConflict.add('Meeting_abstract')
 
 
 def _get_mod_id_by_mod(db_session, mod):  # pragma: no cover

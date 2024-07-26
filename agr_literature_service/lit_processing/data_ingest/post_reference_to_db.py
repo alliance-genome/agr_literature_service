@@ -7,7 +7,7 @@ from typing import List
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
     AuthorModel, ModCorpusAssociationModel, ModModel, ReferenceRelationModel, \
-    MeshDetailModel, WorkflowTagModel
+    MeshDetailModel
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.utils.db_read_utils import get_journal_data, \
     get_doi_data, get_reference_by_pmid
@@ -111,17 +111,11 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
                 insert_mod_reference_types(db_session, primaryId, reference_id, entry['MODReferenceTypes'],
                                            entry.get('pubmedType', []))
 
-            mod_id = None
             if entry.get('modCorpusAssociations'):
 
-                mod_id = insert_mod_corpus_associations(db_session, primaryId, reference_id,
-                                                        mod_to_mod_id,
-                                                        entry['modCorpusAssociations'])
-
-            if entry.get('workflowTags') and mod_id:
-
-                insert_workflow_tags(db_session, primaryId, reference_id, mod_id,
-                                     entry['workflowTags'])
+                insert_mod_corpus_associations(db_session, primaryId, reference_id,
+                                               mod_to_mod_id,
+                                               entry['modCorpusAssociations'])
 
             log.info("The new reference for for primaryId = " + primaryId + " has been added into database")
             if live_change:
@@ -135,22 +129,8 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
     return new_ref_curies
 
 
-def insert_workflow_tags(db_session, primaryId, reference_id, mod_id, workflowTags):
-
-    for atp in workflowTags:
-        try:
-            x = WorkflowTagModel(reference_id=reference_id,
-                                 mod_id=mod_id,
-                                 workflow_tag_id=atp)
-            db_session.add(x)
-            log.info(primaryId + ": INSERT WORKFLOW_TAG: for reference_id = " + str(reference_id) + ", mod_id = " + str(mod_id) + ", workflog_tag_id = " + atp)
-        except Exception as e:
-            log.info(primaryId + ": INSERT WORKFLOW_TAG: for reference_id = " + str(reference_id) + ", mod_id = " + str(mod_id) + ", workflog_tag_id = " + atp + " " + str(e))
-
-
 def insert_mod_corpus_associations(db_session, primaryId, reference_id, mod_to_mod_id, mod_corpus_associations_from_json):
 
-    mod_id = None
     for x in mod_corpus_associations_from_json:
         try:
             mod_id = mod_to_mod_id.get(x.get('modAbbreviation'))
@@ -165,16 +145,21 @@ def insert_mod_corpus_associations(db_session, primaryId, reference_id, mod_to_m
             log.info(primaryId + ": INSERT MOD_CORPUS_ASSOCIATION: for reference_id = " + str(reference_id) + ", mod_id = " + str(mod_id) + ", mod_corpus_sort_source = " + x['modCorpusSortSource'])
         except Exception as e:
             log.info(primaryId + ": INSERT MOD_CORPUS_ASSOCIATION: for reference_id = " + str(reference_id) + ", mod_id = " + str(mod_id) + ", mod_corpus_sort_source = " + x['modCorpusSortSource'] + " " + str(e))
-    return mod_id
 
 
 def insert_mod_reference_types(db_session, primaryId, reference_id, mod_ref_types_from_json, pubmed_types: List[str]):
 
+    # Check if "Meeting_abstract" is in the referenceType list
+    meeting_abstract_present = any(x['referenceType'] == 'Meeting_abstract' for x in mod_ref_types_from_json)
     found = {}
     for x in mod_ref_types_from_json:
         if (reference_id, x['source'], x['referenceType']) in found:
             continue
         found[(reference_id, x['source'], x['referenceType'])] = 1
+        # Skip insertion if "Meeting_abstract" is present and referenceType is "Experimental" or "Not_experimental"
+        if meeting_abstract_present and x['referenceType'] in ["Experimental", "Not_experimental"]:
+            log.info(primaryId + ": SKIP MOD_REFERENCE_TYPE: for reference_id = " + str(reference_id) + ", source = " + x['source'] + ", reference_type = " + x['referenceType'] + " due to presence of 'Meeting_abstract'")
+            continue
         try:
             insert_mod_reference_type_into_db(db_session, pubmed_types, x['source'], x['referenceType'], reference_id)
             log.info(primaryId + ": INSERT MOD_REFERENCE_TYPE: for reference_id = " + str(reference_id) + ", source = " + x['source'] + ", reference_type = " + x['referenceType'])
