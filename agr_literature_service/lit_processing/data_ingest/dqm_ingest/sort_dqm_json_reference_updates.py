@@ -606,8 +606,10 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
         add_cross_references(cross_reference_to_add, agr_list_for_cross_refs_to_add, logger, live_change)
 
         ## update references with md5sum changed
-        update_db_entries(mod, mod_to_mod_id, aggregate_mod_specific_fields_only,
-                          fh_mod_report[mod], 'mod_specific_fields_only')
+        curie_to_reftypesConflict = update_db_entries(mod, mod_to_mod_id,
+                                                      aggregate_mod_specific_fields_only,
+                                                      fh_mod_report[mod],
+                                                      'mod_specific_fields_only')
 
         update_db_entries(mod, mod_to_mod_id, aggregate_mod_biblio_all, fh_mod_report[mod],
                           'mod_biblio_all')
@@ -702,7 +704,8 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
             send_dqm_loading_report(mod, report[mod], missing_papers_in_mod[mod],
                                     agr_to_title, bad_date_published,
                                     mod_ids_used_in_resource, clashed_pmids,
-                                    report_file_path)
+                                    report_file_path,
+                                    curie_to_reftypesConflict)
         except Exception as e:
             logger.info("An error occurred when sending dqm loading report:" + str(e))
 
@@ -808,6 +811,7 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
     j = 0
     k = 0
     db_session = create_postgres_session(False)
+    curie_to_reftypesConflict = {}
     while start_index < curies_count:
         if k > batch_db_connection_size:
             k = 0
@@ -853,18 +857,15 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
             if dqm_entry_pubmed_types is None:
                 dqm_entry_pubmed_types = []
 
-            update_mod_reference_types(db_session, db_entry['reference_id'],
-                                       db_entry.get('mod_referencetypes', []),
-                                       dqm_entry.get('MODReferenceTypes', []),
-                                       set(db_entry_pubmed_types) | set(dqm_entry_pubmed_types),
-                                       logger)
-
-            """
-            update_workflow_tags(db_session, mod_to_mod_id[mod], db_entry['reference_id'],
-                                 db_entry.get('workflow_tag', []),
-                                 dqm_entry.get('workflowTags', []),
-                                 logger)
-            """
+            try:
+                referenceTypesConflict = update_mod_reference_types(db_session, db_entry['reference_id'],
+                                                                    db_entry.get('mod_referencetypes', []),
+                                                                    dqm_entry.get('MODReferenceTypes', []),
+                                                                    set(db_entry_pubmed_types) | set(dqm_entry_pubmed_types),
+                                                                    logger)
+                curie_to_reftypesConflict[agr] = referenceTypesConflict
+            except Exception as e:
+                logger.info(f"{agr}: update_mod_reference_types: error={e}")
 
             if processing_flag == 'mod_biblio_all':
                 update_json = dict()
@@ -883,7 +884,7 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
                     db_value = None
                     if field_camel in dqm_entry:
                         dqm_value = dqm_entry[field_camel]
-                        if field_snake == 'category':
+                        if field_snake == 'category' and dqm_value:
                             dqm_value = dqm_value.lower().replace(" ", "_")
                     if field_snake in db_entry:
                         db_value = db_entry[field_snake]
@@ -937,6 +938,7 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
         else:
             db_session.rollback()
     db_session.close()
+    return curie_to_reftypesConflict
 
 
 # def compare_resource(db_entry, dqm_entry):
