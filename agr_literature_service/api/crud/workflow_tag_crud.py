@@ -106,9 +106,9 @@ def get_jobs(db: Session, job_str: str):
     and condition contains the string defined in job_str.
     """
     jobs = []
-    wft_list = db.query(WorkflowTagModel, WorkflowTransitionModel).filter\
-        (WorkflowTagModel.workflow_tag_id == WorkflowTransitionModel.transition_to,
-         WorkflowTransitionModel.condition.contains(job_str)).all()
+    wft_list = db.query(WorkflowTagModel, WorkflowTransitionModel).\
+        filter(WorkflowTagModel.workflow_tag_id == WorkflowTransitionModel.transition_to,
+               WorkflowTransitionModel.condition.contains(job_str)).all()
     for wft in wft_list:
         # print(f"WFT: {wft}")
         conditions = wft[1].condition.split(',')

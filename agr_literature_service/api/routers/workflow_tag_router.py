@@ -76,6 +76,7 @@ def get_jobs(job_string: str, db: Session = db_session):
 def failed_jobs(workflow_tag_id: int, db: Session = db_session):
     return workflow_tag_crud.job_change_atp_code(db, workflow_tag_id, 'on_failed')
 
+
 @router.get('/job/completed/{workflow_tag_id}',
             response_model=WorkflowTagSchemaShow,
             status_code=200)
