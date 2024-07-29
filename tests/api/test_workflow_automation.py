@@ -25,7 +25,7 @@
 # Check these are correct and old ones are removed.
 # Check main is now set to failed too.
 #
-from collections import namedtuple
+# from collections import namedtuple
 
 # import pytest
 # from sqlalchemy import and_
@@ -44,7 +44,7 @@ from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 
 
-def test_workflow_automation_init(db, mod_id):
+def test_workflow_automation_init(db_session, mod_id):
     test_data = [
         # [transition_from, transition_to, actions, condition]
         ["ATP:initial", "ATP:main_needed", "proceed_on_value::category::thesis::ATP:task1_needed,proceed_on_value::category::thesis::ATP:task2_needed,proceed_on_value::category::failure::ATP:task3_needed", None],
@@ -59,14 +59,13 @@ def test_workflow_automation_init(db, mod_id):
         ["ATP:task2_needed", "ATP:task2_in_progress", None, "on_start_job"],
         ["ATP:task2_in_progress", "ATP:task2_successful", None, "on_success"],
         ["ATP:task2_in_progress", "ATP:task2_failed", None, "on_failure"]
-
     ]
     for data in test_data:
-        db.add(WorkflowTransitionModel(mod_id=mod_id,
-                                       transition_from=data[0],
-                                       transition_to=data[1],
-                                       actions=data[2],
-                                       condition=data[3]))
+        db_session.add(WorkflowTransitionModel(mod_id=mod_id,
+                                               transition_from=data[0],
+                                               transition_to=data[1],
+                                               actions=data[2],
+                                               condition=data[3]))
 
 
 class TestWorkflowTagAutomation:
@@ -75,7 +74,7 @@ class TestWorkflowTagAutomation:
                                                                            auth_headers):  # noqa
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
         test_workflow_automation_init(db, mod.mod_id)
-        reference = db.query(ReferenceModel).filter(ReferenceModel.reference_id == test_reference.new_ref_curie).one()
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
 
         # Set initial workflow tag to "ATP:initial"
         with TestClient(app) as client:
@@ -113,7 +112,7 @@ class TestWorkflowTagAutomation:
             #       Code should check actions for the atp code it is and set
             #       the main one from needed to in progress
             #       Similarly for success of all subtasks or failure of any.
-            for atp in ["ATP:main_needed","ATP:task1_needed"," ATP:task2_needed"]:
+            for atp in ["ATP:main_needed", "ATP:task1_needed", " ATP:task2_needed"]:
                 response = client.post(url=f"/workflow_tag/job/started/{wft[atp]}",
                                        headers=auth_headers)
                 assert response.status_code == status.HTTP_200_OK
@@ -124,7 +123,7 @@ class TestWorkflowTagAutomation:
                            WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
                 assert test_id is None
 
-            for atp in ["ATP:main_in_progress","ATP:task1_in_progress"," ATP:task2_in_progress"]:
+            for atp in ["ATP:main_in_progress", "ATP:task1_in_progress", "ATP:task2_in_progress"]:
                 response = client.post(url=f"/workflow_tag/job/started/{wft[atp]}",
                                        headers=auth_headers)
                 assert response.status_code == status.HTTP_200_OK
@@ -136,12 +135,12 @@ class TestWorkflowTagAutomation:
                 assert test_id
 
             # set task1 and task2 to successful.
-            for atp in ["ATP:task1_in_progress"," ATP:task2_in_progress"]:
+            for atp in ["ATP:task1_in_progress", "ATP:task2_in_progress"]:
                 response = client.post(url=f"/workflow_tag/job/success/{wft[atp]}",
                                        headers=auth_headers)
                 assert response.status_code == status.HTTP_200_OK
 
-            for atp in ["ATP:main_in_progress","ATP:task1_in_progress"," ATP:task2_in_progress"]:
+            for atp in ["ATP:main_in_progress", "ATP:task1_in_progress", "ATP:task2_in_progress"]:
                 response = client.post(url=f"/workflow_tag/job/started/{wft[atp]}",
                                        headers=auth_headers)
                 assert response.status_code == status.HTTP_200_OK
@@ -152,7 +151,7 @@ class TestWorkflowTagAutomation:
                            WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
                 assert test_id is None
 
-            for atp in ["ATP:main_successful","ATP:task1_successful"," ATP:task2_successful"]:
+            for atp in ["ATP:main_successful", "ATP:task1_successful", "ATP:task2_successful"]:
                 response = client.post(url=f"/workflow_tag/job/started/{wft[atp]}",
                                        headers=auth_headers)
                 assert response.status_code == status.HTTP_200_OK
@@ -167,11 +166,11 @@ class TestWorkflowTagAutomation:
                                                                            auth_headers):  # noqa
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
         test_workflow_automation_init(db, mod.mod_id)
-        reference = db.query(ReferenceModel).filter(ReferenceModel.reference_id == test_reference.new_ref_curie).one()
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
 
         with TestClient(app) as client:
             # Set initial workflow tag to "ATP:XXXX_in_progress"
-            for atp in ["ATP:main_in_progress", "ATP:task1_in_progress"," ATP:task2_in_progress"]:
+            for atp in ["ATP:main_in_progress", "ATP:task1_in_progress", "ATP:task2_in_progress"]:
                 new_wft = {"reference_curie": reference.curie,
                            "mod_abbreviation": mod.abbreviation,
                            "workflow_tag_id": atp,
@@ -191,7 +190,7 @@ class TestWorkflowTagAutomation:
             assert response.status_code == status.HTTP_200_OK
 
             # we should have "ATP:task1_successful", "ATP:task2_failed" and "ATP:main_failed"
-            for atp in ["ATP:main_failed","ATP:task1_successful"," ATP:task2_failed"]:
+            for atp in ["ATP:main_failed", "ATP:task1_successful", "ATP:task2_failed"]:
 
                 test_id = db.query(WorkflowTagModel). \
                     filter(WorkflowTagModel.workflow_tag_id == atp,
@@ -200,7 +199,7 @@ class TestWorkflowTagAutomation:
                 assert test_id
 
             # make sure originals have gone
-            for atp in ["ATP:main_in_progress", "ATP:task1_in_progress", " ATP:task2_in_progress"]:
+            for atp in ["ATP:main_in_progress", "ATP:task1_in_progress", "ATP:task2_in_progress"]:
                 test_id = db.query(WorkflowTagModel). \
                     filter(WorkflowTagModel.workflow_tag_id == atp,
                            WorkflowTagModel.reference_id == reference.reference_id,
