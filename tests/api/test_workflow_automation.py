@@ -44,7 +44,7 @@ from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 
 
-def test_workflow_automation_init(db_session, mod_id):
+def workflow_automation_init(db_session, mod_id):
     test_data = [
         # [transition_from, transition_to, actions, condition]
         ["ATP:initial", "ATP:main_needed", "proceed_on_value::category::thesis::ATP:task1_needed,proceed_on_value::category::thesis::ATP:task2_needed,proceed_on_value::category::failure::ATP:task3_needed", None],
@@ -73,7 +73,7 @@ class TestWorkflowTagAutomation:
     def test_transition_actions(self, db, test_mod, test_reference,  # noqa
                                                                            auth_headers):  # noqa
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
-        test_workflow_automation_init(db, mod.mod_id)
+        workflow_automation_init(db, mod.mod_id)
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
 
         # Set initial workflow tag to "ATP:initial"
@@ -165,7 +165,7 @@ class TestWorkflowTagAutomation:
     def test_transition_job_failure(self, db, test_mod, test_reference,  # noqa
                                                                            auth_headers):  # noqa
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
-        test_workflow_automation_init(db, mod.mod_id)
+        workflow_automation_init(db, mod.mod_id)
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
 
         with TestClient(app) as client:
