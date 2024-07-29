@@ -188,7 +188,7 @@ def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmid
         if len(pmids_in_db_but_not_associated_with_mod_set) > 0:
             fw.write(f"Not Associated with {mod}:\n\n")
             for pmid in pmids_in_db_but_not_associated_with_mod_set:
-                fw.write(f"PMID:{pmid}\n")
+                fw.write(f"PMID:{pmid} ({pmid_to_src.get(pmid)})\n")
             fw.write("\n")
             has_logfile = True
     else:
@@ -203,7 +203,7 @@ def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmid
         for o_pmid in obsolete_pmids:
             pmid_with_src = f"PMID:{o_pmid}"
             if pmid_to_src.get(o_pmid):
-                pmid_with_src = f"{pmid_with_src} {pmid_to_src.get(o_pmid)}"
+                pmid_with_src = f"{pmid_with_src} ({pmid_to_src.get(o_pmid)})"
             fw.write(f"{pmid_with_src}\n")
             full_obsolete_set.add(pmid_with_src)
         fw.close()
