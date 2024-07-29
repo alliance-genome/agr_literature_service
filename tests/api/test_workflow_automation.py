@@ -53,7 +53,7 @@ def test_workflow_automation_init(db_session, mod_id):
         ["ATP:main_in_progress", "ATP:main_successful", None, "on_success"],
 
         ["ATP:task1_needed", "ATP:task1_in_progress", None, "on_start_job"],
-        ["ATP:task1_in_progress", "ATP:task1_successful",None, "on_success"],
+        ["ATP:task1_in_progress", "ATP:task1_successful", None, "on_success"],
         ["ATP:task1_in_progress", "ATP:task1_failed", None, "on_failure"],
 
         ["ATP:task2_needed", "ATP:task2_in_progress", None, "on_start_job"],
@@ -98,7 +98,7 @@ class TestWorkflowTagAutomation:
             # So we should have "ATP:main_needed", "ATP:task1_needed"," ATP:task2_needed"
             # all set for this mod and reference
             wft = {}
-            for atp in ["ATP:main_needed", "ATP:task1_needed"," ATP:task2_needed"]:
+            for atp in ["ATP:main_needed", "ATP:task1_needed", "ATP:task2_needed"]:
                 wft[atp] = db.query(WorkflowTagModel).\
                     filter(WorkflowTagModel.workflow_tag_id == atp,
                            WorkflowTagModel.reference_id == reference.reference_id,
