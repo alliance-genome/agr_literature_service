@@ -71,10 +71,21 @@ def get_jobs(job_string: str, db: Session = db_session):
 
 
 @router.get('/job/failed/{workflow_tag_id}',
-            response_model=WorkflowTagSchemaShow,
             status_code=200)
-def failed_jobs(workflow_tag_id: int, db: Session = db_session):
+def failed_job(workflow_tag_id: int, db: Session = db_session):
     return workflow_tag_crud.job_change_atp_code(db, workflow_tag_id, 'on_failed')
+
+
+@router.get('/job/success/{workflow_tag_id}',
+            status_code=200)
+def successful_job(workflow_tag_id: int, db: Session = db_session):
+    return workflow_tag_crud.job_change_atp_code(db, workflow_tag_id, 'on_success')
+
+
+@router.get('/job/started/{workflow_tag_id}',
+            status_code=200)
+def start_job(workflow_tag_id: int, db: Session = db_session):
+    return workflow_tag_crud.job_change_atp_code(db, workflow_tag_id, 'on_start_job')
 
 
 @router.get('/job/completed/{workflow_tag_id}',

@@ -130,7 +130,7 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
     param db: Session:          database session
     param reference_workflow_tag_id': int  WorkflowTagModel: reference_workflow_tag_id
     param condition: str        WorkflowTransitionModel: workflow transition condition
-                     "on_success" or "on_failure" are the available options currently.
+                     "on_success", "on_failure" and "on_start_job" are the available options currently.
 
     Lookup the workflow_tag via the reference_workflow_tag_id.
     Lookup the new workflow_tag via the transition workflow table
