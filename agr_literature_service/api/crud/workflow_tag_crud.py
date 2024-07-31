@@ -14,6 +14,7 @@ from agr_literature_service.api.models import WorkflowTagModel, WorkflowTransiti
 from agr_literature_service.api.schemas import WorkflowTagSchemaPost
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_descendants, \
     get_reference_id_from_curie_or_id  # get_ancestors,
+from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
 import logging
 from agr_literature_service.api.crud.workflow_transition_requirements import *  # noqa
 from agr_literature_service.api.crud.workflow_transition_requirements import (
@@ -433,37 +434,56 @@ def show_changesets(db: Session, reference_workflow_tag_id: int):
     return history
 
 
-"""
-NOTES:
-  If transitioning to "reference classification needed (ATP:0000166)" found then add actions
-  to add the sub tasks.
-   classifications based on mod and reference specifics. i.e.
-       interaction classification needed (ATP:0000182),
-       disease classification needed (ATP:0000179), ...
+def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id: str = None):  # pragma: no cover
 
-Another cronjob could be on a flysql server (or at least a different machine)
-   Check for "XXX needed" and start appropriate jobs.
-   (XXX must be sub jobs not 166, as these may come in after the above)
-   Only allow a certain number of these to run at once and/or of a certain type at once.
-   Appropriate jobs should move needed to in progress (these are not there yet) at the start
-   of the job and then change the status from in progress to complete or failed at the end
-   At end if successful, check if there are any more needed sub jobs, if not then move main needed to complete.
-   (166 -> reference classification complete (ATP:0000169))
+    all_WF_tags_for_process = None
+    atp_curies = []
+    if workflow_process_atp_id:
+        all_WF_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
+        if all_WF_tags_for_process is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"WorkflowTag with the workflow_process_atp_id: {workflow_process_atp_id} is not available")
+        atp_curies = all_WF_tags_for_process
+    else:
+        rows = db.execute("SELECT distinct workflow_tag_id FROM workflow_tag").fetchall()
+        atp_curies = [x[0] for x in rows]
+    atp_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=atp_curies)
 
-For each "job" we require a "needed", "in progress", "complete" and "failed". Also for the main ones
-i.e. "reference classification"
+    where_clauses = []
+    params = {}
+    if mod_abbreviation:
+        where_clauses.append("m.abbreviation = :mod_abbreviation")
+        params["mod_abbreviation"] = mod_abbreviation
 
-Jobs should inherit from a base class that takes a workflowtag object as the first argument,
-as well as atp ids for what to do on success and failure)
+    if all_WF_tags_for_process:
+        where_clauses.append("wt.workflow_tag_id = ANY(:all_WF_tags_for_process)")
+        params["all_WF_tags_for_process"] = all_WF_tags_for_process
 
+    where = ""
+    if where_clauses:
+        where = "WHERE " + " AND ".join(where_clauses)
 
-In the workflow transitions table would it be okay to add a column "on_condition".
-This would be a string that would be "on_success" or "on_failure" or null.
-Primarily this is for controlling/processing jobs.
-So if we run the job to do text conversion on seeing "catalytic activity classification needed (ATP:0000180)"
-then we first set this to "in progress" and run the job. If that job fails fails we would lookup the transition from
-"in progress" and on condition "on_failure" and set this. If it works look up 'in progress' and "on_success".
-Also and this may be some work for Ceri, as we would need these "jobs/processes" to all have "needed", "in progress",
-"failed" and "complete" after each type. This seems like the correct place to store these rather than hard coded.
-Anyway happy to discuss if you differ in views have a better idea of how to do this.
-"""
+    query = f"""
+    SELECT m.abbreviation, wt.workflow_tag_id, COUNT(*) AS tag_count
+    FROM mod m
+    JOIN workflow_tag wt ON m.mod_id = wt.mod_id
+    {where}
+    GROUP BY m.abbreviation, wt.workflow_tag_id
+    ORDER BY m.abbreviation, wt.workflow_tag_id
+    """
+
+    try:
+        rows = db.execute(query, params).fetchall()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    data = []
+    for x in rows:
+        data.append({
+            "mod_abbreviation": x['abbreviation'],
+            "workflow_tag_id": x['workflow_tag_id'],
+            "workflow_tag_name": atp_curie_to_name[x['workflow_tag_id']],
+            "tag_count": x['tag_count']
+        })
+    return data
+

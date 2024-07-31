@@ -124,3 +124,12 @@ def get_current_workflow_status(curie_or_reference_id: str,
     return workflow_tag_crud.get_current_workflow_status(db=db, curie_or_reference_id=curie_or_reference_id,
                                                          mod_abbreviation=mod_abbreviation,
                                                          workflow_process_atp_id=workflow_process_atp_id)
+
+
+@router.get('/counters/',
+            status_code=200)
+def counters(mod_abbreviation: str = None,
+             workflow_process_atp_id: str = None,
+             db: Session = db_session):
+    return workflow_tag_crud.counters(db=db, mod_abbreviation=mod_abbreviation,
+                                      workflow_process_atp_id=workflow_process_atp_id)
