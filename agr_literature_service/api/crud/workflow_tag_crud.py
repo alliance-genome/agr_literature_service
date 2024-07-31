@@ -20,7 +20,7 @@ from agr_literature_service.api.crud.workflow_transition_requirements import *  
 from agr_literature_service.api.crud.workflow_transition_requirements import (
     ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS)
 from agr_literature_service.api.crud.workflow_transition_actions.process_action import (process_action)
-process_atp_multiple_allowed = ['ATP:123456']
+process_atp_multiple_allowed = ['ATP:ont1']
 logger = logging.getLogger(__name__)
 
 
@@ -93,6 +93,7 @@ def process_transition_actions(db: Session,
     From the list of job_names to methods call the appropriate method with args.
     """
     for action in transition.actions:
+        print(action)
         process_action(db, current_workflow_tag_db_obj, action)
 
 
@@ -171,12 +172,28 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
     reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id)
     mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
     # Get the parent/process and see if it allows multiple values
+    print(f"pre get parent for {new_workflow_tag_atp_id}")
     process_atp_id = get_workflow_process_from_tag(workflow_tag_atp_id=new_workflow_tag_atp_id)
+    print(f"parent id {process_atp_id }")
     if process_atp_id in process_atp_multiple_allowed:
-        pass
-    current_workflow_tag_db_obj: WorkflowTagModel = _get_current_workflow_tag_db_obj(db, str(reference.reference_id),
-                                                                                     process_atp_id,
-                                                                                     mod_abbreviation)
+        current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod,
+                                                       workflow_tag_id=new_workflow_tag_atp_id)
+        transition :WorkflowTransitionModel = db.query(WorkflowTransitionModel).filter(
+            and_(
+                WorkflowTransitionModel.transition_to == new_workflow_tag_atp_id,
+                WorkflowTransitionModel.transition_type.in_(["any", f"{transition_type}_only"]))).one()
+        print(transition)
+        if transition and transition.actions:
+            print(transition.actions)
+            process_transition_actions(db, transition, current_workflow_tag_db_obj)
+            db.commit()
+        else:
+            print(f"NO actions for {transition.workflow_transition_id}")
+        return
+    else:
+        current_workflow_tag_db_obj: WorkflowTagModel = _get_current_workflow_tag_db_obj(db, str(reference.reference_id),
+                                                                                         process_atp_id,
+                                                                                         mod_abbreviation)
     transition = None
     if current_workflow_tag_db_obj:
         transition = db.query(WorkflowTransitionModel).filter(
@@ -186,6 +203,14 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
                 WorkflowTransitionModel.transition_type.in_(["any", f"{transition_type}_only"])
             )
         ).first()
+    print("BOB: before transition")
+    print(f"requirement_function_str: {transition}")
+    if transition and transition.requirements:
+        print(f"requirement_function_str: {transition.requirements}")
+    else:
+        print("NO requirements")
+    print(f"ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS: {ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS}")
+    print(f"{locals()}")
     if not current_workflow_tag_db_obj or transition:
         if transition and transition.requirements:
             transition_requirements_met = True
@@ -195,6 +220,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
                     requirement_function_str = requirement_function_str[4:]
                     negated_function = True
                 if requirement_function_str in ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS:
+                    print(f"BOB: {locals()}")
                     check_passed = locals()[requirement_function_str](reference.reference_id, mod.mod_id)
                     if negated_function:
                         check_passed = not check_passed

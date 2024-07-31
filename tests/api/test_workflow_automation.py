@@ -25,13 +25,13 @@
 # Check these are correct and old ones are removed.
 # Check main is now set to failed too.
 #
-# from collections import namedtuple
+from collections import namedtuple
 
-# import pytest
+import pytest
 # from sqlalchemy import and_
 from starlette.testclient import TestClient
 from fastapi import status
-# from unittest.mock import patch
+from unittest.mock import patch
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, WorkflowTransitionModel, ModModel
@@ -42,12 +42,29 @@ from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
+from .test_workflow_tag import test_workflow_tag
+
+test_reference2 = test_reference
 
 
-def workflow_automation_init(db_session, mod_id):
+# TestWFTData = namedtuple('TestWFTData', ['response'])
+def get_process_mock(workflow_tag_atp_id: str):
+    # MUST start with ATP:0000003 for this to work
+    print(f"***** Mocking get_ancestors name = {workflow_tag_atp_id}")
+    if workflow_tag_atp_id == 'ATP:main_needed':
+        return 'ATP:ont1'
+    else:
+        print("returning NOTHING!!")
+        return []
+
+
+def workflow_automation_init(db, mod_id):
+    print("workflow_automation_init")
     test_data = [
         # [transition_from, transition_to, actions, condition]
-        ["ATP:initial", "ATP:main_needed", "proceed_on_value::category::thesis::ATP:task1_needed,proceed_on_value::category::thesis::ATP:task2_needed,proceed_on_value::category::failure::ATP:task3_needed", None],
+        ["ATP:ont1", "ATP:main_needed", ["proceed_on_value::category::thesis::ATP:task1_needed",
+                                         "proceed_on_value::category::thesis::ATP:task2_needed",
+                                         "proceed_on_value::category::failure::ATP:task3_needed"], None],
         ["ATP:main_needed", "ATP:main_in_progress", None, "on_start_job"],
         ["ATP:main_in_progress", "ATP:main_failed", None, "on_failure"],
         ["ATP:main_in_progress", "ATP:main_successful", None, "on_success"],
@@ -60,31 +77,38 @@ def workflow_automation_init(db_session, mod_id):
         ["ATP:task2_in_progress", "ATP:task2_successful", None, "on_success"],
         ["ATP:task2_in_progress", "ATP:task2_failed", None, "on_failure"]
     ]
+    # mod = db.query(ModModel).filter(ModModel.mod_id == mod_id).one()
+    ids = []
     for data in test_data:
-        db_session.add(WorkflowTransitionModel(mod_id=mod_id,
-                                               transition_from=data[0],
-                                               transition_to=data[1],
-                                               actions=data[2],
-                                               condition=data[3]))
+        print(data)
+        db.add(WorkflowTransitionModel(mod_id=mod_id,
+                                       transition_from=data[0],
+                                       transition_to=data[1],
+                                       actions=data[2],
+                                       condition=data[3]))
+        db.commit()
+        bob: WorkflowTransitionModel = db.query(WorkflowTransitionModel).filter(
+            WorkflowTransitionModel.mod_id == mod_id,
+            WorkflowTransitionModel.transition_from == data[0],
+            WorkflowTransitionModel.transition_to == data[1]).one()
+        ids.append(bob.workflow_transition_id)
+    db.commit()
+    print(ids)
+    print("data added for transitions")
+    return ids[0]
 
 
 class TestWorkflowTagAutomation:
-
-    def test_transition_actions(self, db, test_mod, test_reference,  # noqa
-                                                                           auth_headers):  # noqa
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_process_mock)
+    def test_transition_actions(self, db, auth_headers, test_mod, test_reference,  # noqa
+                                test_workflow_tag):  # noqa
+        print("test_transition_actions")
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
-        workflow_automation_init(db, mod.mod_id)
+        # workflow_automation_init(db, mod.mod_id)
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
-
+        workflow_automation_init(db, mod.mod_id)
         # Set initial workflow tag to "ATP:initial"
         with TestClient(app) as client:
-            new_wt = {"reference_curie": reference.curie,
-                      "mod_abbreviation": mod.abbreviation,
-                      "workflow_tag_id": "ATP:initial",
-                      }
-            response = client.post(url="/workflow_tag/", json=new_wt, headers=auth_headers)
-            assert response.status_code == status.HTTP_200_OK
-
             # Test actions by transitioning from "ATP:initial" to "ATP:main_needed"
             transition_req = {
                 "curie_or_reference_id": reference.curie,
@@ -93,6 +117,9 @@ class TestWorkflowTagAutomation:
             }
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                    headers=auth_headers)
+            print(response.content)
+            print(response.text)
+            print(response.reason)
             assert response.status_code == status.HTTP_200_OK
 
             # So we should have "ATP:main_needed", "ATP:task1_needed"," ATP:task2_needed"
@@ -162,9 +189,13 @@ class TestWorkflowTagAutomation:
                            WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
                 assert test_id
 
-    def test_transition_job_failure(self, db, test_mod, test_reference,  # noqa
-                                                                           auth_headers):  # noqa
+
+
+    def transition_job_failure(self, db, test_mod, test_reference,  test_workflow_tag,  # noqa
+                                    auth_headers):  # noqa
+        print("test_transition_job_failure")
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
+        # workflow_automation_init(db, mod.mod_id)
         workflow_automation_init(db, mod.mod_id)
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
 
