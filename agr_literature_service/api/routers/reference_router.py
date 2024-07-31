@@ -242,7 +242,7 @@ def get_bib_info(curie: str,
             response_model=List[Dict])
 def get_textpresso_reference_list(mod_abbreviation: str,
                                   files_updated_from_date: datetime.date = None,
-                                  workflow_tag: str = None,
+                                  reference_type: str = None,
                                   species: str = None,
                                   from_reference_id: int = None,
                                   page_size: int = 1000,
@@ -251,7 +251,7 @@ def get_textpresso_reference_list(mod_abbreviation: str,
     set_global_user_from_okta(db, user)
     return reference_crud.get_textpresso_reference_list(db, mod_abbreviation,
                                                         files_updated_from_date,
-                                                        workflow_tag,
+                                                        reference_type,
                                                         species,
                                                         from_reference_id,
                                                         page_size)
