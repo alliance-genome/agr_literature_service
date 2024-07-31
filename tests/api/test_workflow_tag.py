@@ -195,7 +195,8 @@ class TestWorkflowTag:
             transition_req = {
                 "curie_or_reference_id": test_reference.new_ref_curie,
                 "mod_abbreviation": test_mod.new_mod_abbreviation,
-                "new_workflow_tag_atp_id": "ATP:0000135"
+                "new_workflow_tag_atp_id": "ATP:0000135",
+                "transition_type": "manual",
             }
             client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req, headers=auth_headers)
             wrong_transition_req = {
