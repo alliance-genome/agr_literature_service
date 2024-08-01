@@ -84,7 +84,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
 
     try:
         db.add(new_db_obj)
-        db.flush()
+        db.commit()
         db.refresh(new_db_obj)
         if validate_on_insert:
             validate_tags(db=db, new_tag_obj=new_db_obj)
@@ -340,7 +340,7 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
                                              related_tag.validation_type is not None]
             validate_new_tag_with_existing_tags(db, new_tag_obj, related_validating_tags_in_db,
                                                 calculate_validation_values=calculate_validation_values)
-    if calculate_validation_values and new_tag_obj.topic_entity_tag_source.validation_type is not None:
+    if calculate_validation_values:
         set_validation_values_to_tag(new_tag_obj)
     if commit_changes:
         db.commit()
