@@ -25,9 +25,9 @@
 # Check these are correct and old ones are removed.
 # Check main is now set to failed too.
 #
-from collections import namedtuple
+# from collections import namedtuple
 
-import pytest
+# import pytest
 # from sqlalchemy import and_
 from starlette.testclient import TestClient
 from fastapi import status
@@ -42,7 +42,7 @@ from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
-from .test_workflow_tag import test_workflow_tag
+# from .test_workflow_tag import test_workflow_tag
 
 test_reference2 = test_reference
 
@@ -58,7 +58,7 @@ def get_process_mock(workflow_tag_atp_id: str):
         return []
 
 
-def workflow_automation_init(db, mod_id):
+def workflow_automation_init(db, mod_id):  # noqa
     print("workflow_automation_init")
     test_data = [
         # [transition_from, transition_to, actions, condition]
@@ -205,7 +205,6 @@ class TestWorkflowTagAutomation:
 
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
 
-
             # Set initial workflow tag to "ATP:XXXX_in_progress"
             atp_to_ref_wft_id = {}
             for atp in ["ATP:main_in_progress", "ATP:task1_in_progress", "ATP:task2_in_progress"]:
@@ -243,7 +242,7 @@ class TestWorkflowTagAutomation:
 
             # make sure originals have gone
             # Ditto here "ATP:main_in_progress",
-            for atp in [ "ATP:task1_in_progress", "ATP:task2_in_progress"]:
+            for atp in ["ATP:task1_in_progress", "ATP:task2_in_progress"]:
                 test_id = db.query(WorkflowTagModel). \
                     filter(WorkflowTagModel.workflow_tag_id == atp,
                            WorkflowTagModel.reference_id == reference.reference_id,

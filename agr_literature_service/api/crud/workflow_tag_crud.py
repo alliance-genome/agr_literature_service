@@ -147,7 +147,7 @@ def job_condition_on_start_process(db: Session, workflow_tag: WorkflowTagModel, 
                WorkflowTransitionModel.mod_id == workflow_tag.mod_id).all()
     if not transitions:
         # in example from = "ATP:ont1", to = "ATP:main_needed"
-        print(f"No actions.")
+        print("No actions.")
         return
     else:
         first_transition = None
@@ -274,7 +274,6 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
         ).first()
     if not current_workflow_tag_db_obj or transition:
         if transition and transition.requirements:
-            transition_requirements_met = True
             for requirement_function_str in transition.requirements:
                 negated_function = False
                 if requirement_function_str.startswith('not_'):
@@ -574,4 +573,3 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             "tag_count": x['tag_count']
         })
     return data
-
