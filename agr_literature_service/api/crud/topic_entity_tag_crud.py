@@ -26,7 +26,8 @@ from agr_literature_service.api.models import (
     TopicEntityTagModel,
     ReferenceModel, TopicEntityTagSourceModel, ModModel
 )
-from agr_literature_service.api.models.audited_model import get_default_user_value, disable_set_updated_by_onupdate
+from agr_literature_service.api.models.audited_model import get_default_user_value, disable_set_updated_by_onupdate, \
+    disable_set_date_updated_onupdate
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagSchemaPost,
                                                                          TopicEntityTagSourceSchemaUpdate,
@@ -349,6 +350,7 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
 
 def set_validation_values_to_tag(tag: TopicEntityTagModel):
     disable_set_updated_by_onupdate(tag)
+    disable_set_date_updated_onupdate(tag)
     tag.validation_by_professional_biocurator = calculate_validation_value_for_tag(tag, ATP_ID_SOURCE_CURATOR)
     tag.validation_by_author = calculate_validation_value_for_tag(tag, ATP_ID_SOURCE_AUTHOR)
 
