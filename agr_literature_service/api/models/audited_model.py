@@ -63,4 +63,3 @@ def disable_set_date_updated_onupdate(target):
 
 def enable_date_updated_onupdate(target):
     target.__table__.columns['date_updated'].onupdate = lambda: datetime.now(tz=pytz.timezone("UTC"))
-
