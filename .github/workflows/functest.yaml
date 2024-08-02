@@ -36,4 +36,12 @@ jobs:
           RESOURCE_DESCRIPTOR_URL: 'https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/resourceDescriptors.yaml'
           OKTA_DOMAIN: 'dev-30456587.okta.com/oauth2/default'
           OKTA_API_AUDIENCE: 'api://default'
-        run: make run-functest
+        run: |
+          docker compose --env-file .env.test down
+          docker compose --env-file .env.test up -d postgres
+          sleep 5
+          docker compose --env-file .env.test build test_runner
+          docker compose --env-file .env.test build dev_app
+          docker compose --env-file .env.test run --rm dev_app sh tests/init_test_db.sh
+          docker compose --env-file .env.test run test_runner python3 agr_literature_service/lit_processing/tests/functional_tests.py
+          docker compose --env-file .env.test down
