@@ -129,7 +129,7 @@ def get_jobs(db: Session, job_str: str):
 
 
 def job_condition_on_success_process(db: Session, workflow_tag: WorkflowTagModel, orig_wft):
-    print("No idea yet need some hierarchy in ontology to sort this out.")
+    print(f"No idea yet need some hierarchy in ontology to sort this out. {db} {workflow_tag} {orig_wft}")
 
 
 def job_condition_on_start_process(db: Session, workflow_tag: WorkflowTagModel, orig_wft):
@@ -238,8 +238,7 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
         job_condition_on_start_process(db, workflow_tag, orig_wft)
 
 
-def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_abbreviation: str,
-                                  new_workflow_tag_atp_id: str, transition_type: str = "automated"):  # noqa
+def transition_sanity_check(db, transition_type, mod_abbreviation, curie_or_reference_id, new_workflow_tag_atp_id):
     if transition_type not in ["manual", "automated"]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Transition type must be manual or automated")
@@ -255,7 +254,30 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
     if not process_atp_id:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"process_atp_id {new_workflow_tag_atp_id} has NO process.")
-    current_workflow_tag_db_obj: Union[WorkflowTagModel, None] = None
+    return mod, process_atp_id, reference
+
+
+def check_requirements(reference, mod, transition):
+    for requirement_function_str in transition.requirements:
+        negated_function = False
+        if requirement_function_str.startswith('not_'):
+            requirement_function_str = requirement_function_str[4:]
+            negated_function = True
+        if requirement_function_str in ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS:
+            check_passed = ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS[
+                requirement_function_str](reference, mod.mod_id)
+            if negated_function:
+                check_passed = not check_passed
+            if not check_passed:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    detail=f"{requirement_function_str} requirement not met")
+
+
+def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_abbreviation: str,
+                                  new_workflow_tag_atp_id: str, transition_type: str = "automated"):
+    mod, process_atp_id, reference = transition_sanity_check(db, transition_type, mod_abbreviation,
+                                                             curie_or_reference_id, new_workflow_tag_atp_id)
+    # current_workflow_tag_db_obj: Union[WorkflowTagModel, None] = None
     transition: Union[WorkflowTransitionModel, None] = None
     if process_atp_id in process_atp_multiple_allowed:
         current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod,
@@ -273,8 +295,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
         print("get current WFT")
         try:
             current_workflow_tag_db_obj = _get_current_workflow_tag_db_obj(db, str(reference.reference_id),
-                                                                           process_atp_id,
-                                                                           mod_abbreviation)
+                                                                           process_atp_id, mod_abbreviation)
         except TypeError:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
     if current_workflow_tag_db_obj:
@@ -297,19 +318,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
             detail=message)
     if not current_workflow_tag_db_obj or transition:
         if transition and transition.requirements:
-            for requirement_function_str in transition.requirements:
-                negated_function = False
-                if requirement_function_str.startswith('not_'):
-                    requirement_function_str = requirement_function_str[4:]
-                    negated_function = True
-                if requirement_function_str in ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS:
-                    check_passed = ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS[
-                        requirement_function_str](reference, mod.mod_id)
-                    if negated_function:
-                        check_passed = not check_passed
-                    if not check_passed:
-                        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                            detail=f"{requirement_function_str} requirement not met")
+            check_requirements(reference, mod, transition)
         if not current_workflow_tag_db_obj:
             current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod,
                                                            workflow_tag_id=new_workflow_tag_atp_id)
@@ -549,12 +558,12 @@ def show_changesets(db: Session, reference_workflow_tag_id: int):
 def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id: str = None):  # pragma: no cover
 
     all_WF_tags_for_process = None
-    atp_curies = []
     if workflow_process_atp_id:
         all_WF_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
         if all_WF_tags_for_process is None:
+            message = f"WorkflowTag with the workflow_process_atp_id: {workflow_process_atp_id} is not available"
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"WorkflowTag with the workflow_process_atp_id: {workflow_process_atp_id} is not available")
+                                detail=message)
         atp_curies = all_WF_tags_for_process
     else:
         rows = db.execute("SELECT distinct workflow_tag_id FROM workflow_tag").fetchall()
