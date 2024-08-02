@@ -47,10 +47,10 @@ jobs:
           OKTA_CLIENT_ID: ${{ secrets.okta_client_id }}
           OKTA_CLIENT_SECRET: ${{ secrets.okta_client_secret }}
         run: |
-          docker-compose --env-file .env.test down -v
-          docker-compose --env-file .env.test up -d postgres
+          docker compose --env-file .env.test down -v
+          docker compose --env-file .env.test up -d postgres
           sleep 5
-          docker-compose --env-file .env.test up -d elasticsearch
+          docker compose --env-file .env.test up -d elasticsearch
           sleep 10
           pytest -m "not webtest"
-          docker-compose --env-file .env.test down -v
+          docker compose --env-file .env.test down -v
