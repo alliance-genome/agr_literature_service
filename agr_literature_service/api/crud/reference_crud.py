@@ -901,15 +901,31 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     return bib_info.get_formatted_bib(format_type=return_format)
 
 
-def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=None, workflow_tag=None,
+def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=None, reference_type=None,
                                   species: str = None, from_reference_id: int = None, page_size: int = 1000):
-    if workflow_tag and not workflow_tag.upper().startswith('ATP:'):
+    if reference_type and reference_type not in ['Experimental', 'Not_experimental', 'Meeting_abstract']:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="The workflow_tag passed in is not an ATP curie.")
+                            detail="The reference_type passed in is not an valid reference_type.")
     mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
     if not mod:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"The mod_abbreviation: {mod_abbreviation} is not in the database.")
+
+    """
+    Caenorhabditis elegans   NCBITaxon:6239
+    Caenorhabditis brenneri  NCBITaxon:135651
+    Caenorhabditis briggsae  NCBITaxon:6238
+    Caenorhabditis japonica  NCBITaxon:281687
+    Caenorhabditis remanei   NCBITaxon:31234
+    Brugia malayi 	     NCBITaxon:6279
+    Onchocerca volvulus      NCBITaxon:6282
+    Pristionchus pacificus   NCBITaxon:54126
+    Strongyloides ratti      NCBITaxon:34506
+    Trichuris muris          NCBITaxon:70415
+    """
+
+    wb_textpresso_species_list = "'NCBITaxon:6239', 'NCBITaxon:135651', 'NCBITaxon:6238', 'NCBITaxon:281687', 'NCBITaxon:31234', 'NCBITaxon:6279', 'NCBITaxon:6282', 'NCBITaxon:54126', 'NCBITaxon:34506', 'NCBITaxon:70415'"
+
     mod_id = mod.mod_id
     select_stmt = f"""SELECT r.curie, r.reference_id, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
       FROM reference r
@@ -922,10 +938,22 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
       AND rf.file_extension = 'pdf'
       AND (rfm.mod_id is NULL OR rfm.mod_id = {mod_id})"""
 
-    if workflow_tag:
-        select_stmt += f" AND r.reference_id IN (SELECT reference_id FROM workflow_tag WHERE workflow_tag_id = '{workflow_tag}' AND mod_id = {mod_id})"
+    if reference_type:
+        select_stmt += f"""
+        AND r.reference_id IN (
+            SELECT rmrt.reference_id
+            FROM reference_mod_referencetype rmrt, mod_referencetype mrt, referencetype rt
+            WHERE rt.label = '{reference_type}'
+            AND rt.referencetype_id = mrt.referencetype_id
+            AND mrt.mod_id = {mod_id}
+            AND mrt.mod_referencetype_id = rmrt.mod_referencetype_id
+        )
+        """
     if species:
         select_stmt += f" AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity = '{species}')"
+    elif mod_abbreviation == 'WB':
+        select_stmt += f" AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity in ({wb_textpresso_species_list}))"
+
     if from_reference_id:
         select_stmt += f" AND r.reference_id > {from_reference_id}"
     if files_updated_from_date:

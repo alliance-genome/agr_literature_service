@@ -55,3 +55,11 @@ def disable_set_updated_by_onupdate(target):
 # Function to enable the `onupdate` behavior
 def enable_set_updated_by_onupdate(target):
     target.__table__.columns['updated_by'].onupdate = get_default_user_value
+
+
+def disable_set_date_updated_onupdate(target):
+    target.__table__.columns['date_updated'].onupdate = None
+
+
+def enable_set_date_updated_onupdate(target):
+    target.__table__.columns['date_updated'].onupdate = lambda: datetime.now(tz=pytz.timezone("UTC"))
