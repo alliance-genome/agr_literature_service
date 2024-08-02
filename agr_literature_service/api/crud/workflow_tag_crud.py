@@ -239,7 +239,7 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
 
 
 def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_abbreviation: str,
-                                  new_workflow_tag_atp_id: str, transition_type: str = "automated"):
+                                  new_workflow_tag_atp_id: str, transition_type: str = "automated"):  # noqa
     if transition_type not in ["manual", "automated"]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Transition type must be manual or automated")
@@ -275,7 +275,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
             current_workflow_tag_db_obj = _get_current_workflow_tag_db_obj(db, str(reference.reference_id),
                                                                            process_atp_id,
                                                                            mod_abbreviation)
-        except TypeError as e:
+        except TypeError:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
     if current_workflow_tag_db_obj:
         transition = db.query(WorkflowTransitionModel).filter(

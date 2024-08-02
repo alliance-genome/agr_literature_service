@@ -301,6 +301,3 @@ class TestWorkflowTagAutomation:
                                headers=auth_headers)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         assert response.json().get("detail") == 'Transition to ATP:task2_failed not allowed as not initial state.'
-
-
-
