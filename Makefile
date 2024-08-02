@@ -16,7 +16,7 @@ login-ecr:
 	docker run -v ~/.aws/credentials:/root/.aws/credentials --rm -it amazon/aws-cli ecr get-login-password | docker login --username AWS --password-stdin ${REG}
 
 build:
-	docker-compose build
+	docker compose build
 
 run-flake8:
 	docker-compose --env-file .env.test down -v
@@ -53,25 +53,25 @@ run-test-bash:
 	docker-compose --env-file .env.test rm -svf elasticsearch
 	docker-compose --env-file .env.test up -d postgres
 	sleep 5
-	docker-compose --env-file .env.test build test_runner
-	docker-compose --env-file .env.test build dev_app
-	docker-compose --env-file .env.test run --rm dev_app sh tests/init_test_db.sh
-	docker-compose --env-file .env.test up -d elasticsearch
+	docker compose --env-file .env.test build test_runner
+	docker compose --env-file .env.test build dev_app
+	docker compose --env-file .env.test run --rm dev_app sh tests/init_test_db.sh
+	docker compose --env-file .env.test up -d elasticsearch
 	sleep 10
 	-docker-compose --env-file .env.test run -v ${PWD}:/workdir test_runner ./run_tests.sh > pytest.out
     #doing here after shutdown of database
 	python3 check_tests.py
-	docker-compose --env-file .env.test down
+	docker compose --env-file .env.test down
 
 run-functest:
-	docker-compose --env-file .env.test down
-	docker-compose --env-file .env.test up -d postgres
+	docker compose --env-file .env.test down
+	docker compose --env-file .env.test up -d postgres
 	sleep 5
-	docker-compose --env-file .env.test build test_runner
-	docker-compose --env-file .env.test build dev_app
-	docker-compose --env-file .env.test run --rm dev_app sh tests/init_test_db.sh
-	docker-compose --env-file .env.test run test_runner python3 agr_literature_service/lit_processing/tests/functional_tests.py
-	docker-compose --env-file .env.test down
+	docker compose --env-file .env.test build test_runner
+	docker compose --env-file .env.test build dev_app
+	docker compose --env-file .env.test run --rm dev_app sh tests/init_test_db.sh
+	docker compose --env-file .env.test run test_runner python3 agr_literature_service/lit_processing/tests/functional_tests.py
+	docker compose --env-file .env.test down
 
 restart-debezium-local:
 	docker-compose --env-file ${ENV_FILE} rm -svf dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server
