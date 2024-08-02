@@ -8,6 +8,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
+from typing import Union
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, WorkflowTransitionModel, ModModel, ReferenceModel
@@ -143,7 +144,7 @@ def job_condition_on_start_process(db: Session, workflow_tag: WorkflowTagModel, 
     """
     print("lookup up first transition")
     transitions = db.query(WorkflowTransitionModel). \
-        filter(WorkflowTransitionModel.actions != None,
+        filter(WorkflowTransitionModel.actions != None,  # noqa
                WorkflowTransitionModel.mod_id == workflow_tag.mod_id).all()
     if not transitions:
         # in example from = "ATP:ont1", to = "ATP:main_needed"
@@ -246,6 +247,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
     mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
     # Get the parent/process and see if it allows multiple values
     process_atp_id = get_workflow_process_from_tag(workflow_tag_atp_id=new_workflow_tag_atp_id)
+    current_workflow_tag_db_obj: Union[WorkflowTagModel, None] = None
     if process_atp_id in process_atp_multiple_allowed:
         current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod,
                                                        workflow_tag_id=new_workflow_tag_atp_id)
@@ -260,10 +262,10 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
             print(f"NO actions for {transition.workflow_transition_id}")
         return
     else:
-        current_workflow_tag_db_obj: WorkflowTagModel = _get_current_workflow_tag_db_obj(db, str(reference.reference_id),
+        current_workflow_tag_db_obj = _get_current_workflow_tag_db_obj(db, str(reference.reference_id),
                                                                                          process_atp_id,
                                                                                          mod_abbreviation)
-    transition = None
+    transition: Union[WorkflowTransitionModel, None] = None
     if current_workflow_tag_db_obj:
         transition = db.query(WorkflowTransitionModel).filter(
             and_(
