@@ -53,6 +53,10 @@ def get_process_mock(workflow_tag_atp_id: str):
     print(f"***** Mocking get_ancestors name = {workflow_tag_atp_id}")
     if workflow_tag_atp_id == 'ATP:main_needed':
         return 'ATP:ont1'
+    elif workflow_tag_atp_id == 'ATP:main_needed':
+        return 'ATP:ont1'
+    elif workflow_tag_atp_id == 'ATP:task2_failed':
+        return 'ATP:task2_needed'
     else:
         print("returning NOTHING!!")
         return []
@@ -199,8 +203,7 @@ class TestWorkflowTagAutomation:
         print("test_transition_actions")
         with TestClient(app) as client:
             mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
-            # workflow_automation_init(db, mod.mod_id)
-            reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
+            # reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
             workflow_automation_init(db, mod.mod_id)
 
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
@@ -248,3 +251,56 @@ class TestWorkflowTagAutomation:
                            WorkflowTagModel.reference_id == reference.reference_id,
                            WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
                 assert test_id is None
+
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_process_mock)
+    def test_bad_transitions(self, db, auth_headers, test_mod, test_reference):  # noqa
+        print("test_bad_transitions")
+        with TestClient(app) as client:
+            mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
+            workflow_automation_init(db, mod.mod_id)
+
+            # Bad new workflow ?
+            transition_req = {
+                "curie_or_reference_id": test_reference.new_ref_curie,
+                "mod_abbreviation": mod.abbreviation,
+                "new_workflow_tag_atp_id": "ATP:MadeUp"
+            }
+            response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.json().get("detail") == "process_atp_id ATP:MadeUp has NO process."
+
+            # Bad mod abbreviation
+            transition_req = {
+                "curie_or_reference_id": test_reference.new_ref_curie,
+                "mod_abbreviation": "BadMod",
+                "new_workflow_tag_atp_id": "ATP:main_needed"
+            }
+            response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+            assert response.json().get("detail") == 'Mod abbreviation BadMod does not exist'
+
+        # Bad mod abbreviation
+        transition_req = {
+            "curie_or_reference_id": "MadeUpCurie",
+            "mod_abbreviation": mod.abbreviation,
+            "new_workflow_tag_atp_id": "ATP:main_needed"
+        }
+        response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
+                               headers=auth_headers)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+        # Now do transition NOT in the transition table.
+        transition_req = {
+            "curie_or_reference_id": test_reference.new_ref_curie,
+            "mod_abbreviation": mod.abbreviation,
+            "new_workflow_tag_atp_id": "ATP:task2_failed"
+        }
+        response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
+                               headers=auth_headers)
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.json().get("detail") == 'Transition to ATP:task2_failed not allowed as not initial state.'
+
+
+

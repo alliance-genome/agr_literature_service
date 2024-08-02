@@ -245,9 +245,16 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
                             detail="Transition type must be manual or automated")
     reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id)
     mod: ModModel = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
+    if not mod:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Mod abbreviation {mod_abbreviation} does not exist")
 
     # Get the parent/process and see if it allows multiple values
     process_atp_id = get_workflow_process_from_tag(workflow_tag_atp_id=new_workflow_tag_atp_id)
+    print(f"process_atp_id is {process_atp_id}")
+    if not process_atp_id:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"process_atp_id {new_workflow_tag_atp_id} has NO process.")
     current_workflow_tag_db_obj: Union[WorkflowTagModel, None] = None
     transition: Union[WorkflowTransitionModel, None] = None
     if process_atp_id in process_atp_multiple_allowed:
@@ -256,25 +263,38 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
         transition = db.query(WorkflowTransitionModel).filter(
             and_(
                 WorkflowTransitionModel.transition_to == new_workflow_tag_atp_id,
+                WorkflowTransitionModel.mod_id == mod.mod_id,
                 WorkflowTransitionModel.transition_type.in_(["any", f"{transition_type}_only"]))).one()
         if transition and transition.actions:
             process_transition_actions(db, transition, current_workflow_tag_db_obj)
             db.commit()
-        else:
-            print(f"NO actions for {transition.workflow_transition_id}")
         return
     else:
-        current_workflow_tag_db_obj = _get_current_workflow_tag_db_obj(db, str(reference.reference_id),
-                                                                       process_atp_id,
-                                                                       mod_abbreviation)
+        print("get current WFT")
+        try:
+            current_workflow_tag_db_obj = _get_current_workflow_tag_db_obj(db, str(reference.reference_id),
+                                                                           process_atp_id,
+                                                                           mod_abbreviation)
+        except TypeError as e:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
     if current_workflow_tag_db_obj:
         transition = db.query(WorkflowTransitionModel).filter(
             and_(
+                WorkflowTransitionModel.mod_id == mod.mod_id,
                 WorkflowTransitionModel.transition_from == current_workflow_tag_db_obj.workflow_tag_id,
                 WorkflowTransitionModel.transition_to == new_workflow_tag_atp_id,
                 WorkflowTransitionModel.transition_type.in_(["any", f"{transition_type}_only"])
             )
         ).first()
+    if not transition:
+        message = f"Transition to {new_workflow_tag_atp_id} not allowed as not initial state."
+        "Please set initial WFT first."
+        if current_workflow_tag_db_obj and current_workflow_tag_db_obj.workflow_tag_id:
+            message = f"Transition from {current_workflow_tag_db_obj.workflow_tag_id} to {new_workflow_tag_atp_id} "
+            "NOT in the transition table and hence NOT allowed."
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=message)
     if not current_workflow_tag_db_obj or transition:
         if transition and transition.requirements:
             for requirement_function_str in transition.requirements:
@@ -310,6 +330,8 @@ def _get_current_workflow_tag_db_obj(db: Session, curie_or_reference_id: str, wo
                                      mod_abbreviation: str):
     reference_id = get_reference_id_from_curie_or_id(db=db, curie_or_reference_id=curie_or_reference_id)
     all_workflow_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
+    if not all_workflow_tags_for_process:  # No process set at the moment
+        return None
     return db.query(WorkflowTagModel).join(ModModel).filter(
         and_(
             WorkflowTagModel.workflow_tag_id.in_(all_workflow_tags_for_process),
