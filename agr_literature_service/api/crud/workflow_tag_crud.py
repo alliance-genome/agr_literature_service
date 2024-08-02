@@ -244,14 +244,16 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Transition type must be manual or automated")
     reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id)
-    mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
+    mod: ModModel = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
+
     # Get the parent/process and see if it allows multiple values
     process_atp_id = get_workflow_process_from_tag(workflow_tag_atp_id=new_workflow_tag_atp_id)
     current_workflow_tag_db_obj: Union[WorkflowTagModel, None] = None
+    transition: Union[WorkflowTransitionModel, None] = None
     if process_atp_id in process_atp_multiple_allowed:
         current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod,
                                                        workflow_tag_id=new_workflow_tag_atp_id)
-        transition: WorkflowTransitionModel = db.query(WorkflowTransitionModel).filter(
+        transition = db.query(WorkflowTransitionModel).filter(
             and_(
                 WorkflowTransitionModel.transition_to == new_workflow_tag_atp_id,
                 WorkflowTransitionModel.transition_type.in_(["any", f"{transition_type}_only"]))).one()
@@ -263,9 +265,8 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
         return
     else:
         current_workflow_tag_db_obj = _get_current_workflow_tag_db_obj(db, str(reference.reference_id),
-                                                                                         process_atp_id,
-                                                                                         mod_abbreviation)
-    transition: Union[WorkflowTransitionModel, None] = None
+                                                                       process_atp_id,
+                                                                       mod_abbreviation)
     if current_workflow_tag_db_obj:
         transition = db.query(WorkflowTransitionModel).filter(
             and_(
@@ -445,7 +446,7 @@ def show(db: Session, reference_workflow_tag_id: int):
     :return:
     """
 
-    workflow_tag = db.query(WorkflowTagModel).\
+    workflow_tag: WorkflowTagModel = db.query(WorkflowTagModel).\
         filter(WorkflowTagModel.reference_workflow_tag_id == reference_workflow_tag_id).first()
     if not workflow_tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
