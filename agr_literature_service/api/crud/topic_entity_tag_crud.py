@@ -494,7 +494,8 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
         tag_data = get_tet_with_names(db, tet=new_tag_data, curie_or_reference_id=str(reference_id))
         if note:
             tag_data['note'] = note
-        if note == existing_tag.note or note is None:
+        existing_note_list = existing_tag.note.split(" | ") if existing_tag.note else []
+        if (note and note in existing_note_list) or note is None:
             return {
                 "status": "exists",
                 "message": "The tag already exists in the database.",
