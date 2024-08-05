@@ -42,6 +42,9 @@ def load_workflow_parent_children(root_node='ATP:0000177'):
 
 def get_parent_or_children(atp_name: str, parent_or_children: str = "parent"):
     workflow_children, workflow_parent = load_workflow_parent_children()
+    print(f"children are: {workflow_children}")
+    print(f"parents are: {workflow_parent}")
+    print(f"parent_or_children are: {parent_or_children}")
     workflow_to_check = workflow_children if parent_or_children == "children" else workflow_parent
     if atp_name not in workflow_to_check:
         logger.error(f"Could not find {parent_or_children} for {atp_name}")
