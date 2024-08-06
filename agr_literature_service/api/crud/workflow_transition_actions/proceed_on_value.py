@@ -17,7 +17,6 @@ def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel,
     for other organisms it would be
     proceed_on_value::category::Research_Article::ATP:0000162
     """
-    print(f"Inside proceed_on_value {checktype, checktype, new_atp}")
     call_process = False
     if checktype == "category":  # Check reference category is "Research article"
         if current_workflow_tag_db_obj.reference.category == check_value:

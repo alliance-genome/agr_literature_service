@@ -14,13 +14,9 @@ def process_action(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, a
     checks = False
     if method in ADMISSIBLE_WORKFLOW_TRANSITION_ACTION_FUNCTIONS:
         try:
-            print(f"Calling {method} with args {args}")
-            print(f"AWTAF: {ADMISSIBLE_WORKFLOW_TRANSITION_ACTION_FUNCTIONS}")
-            print(f"locals: {locals()}")
             ADMISSIBLE_WORKFLOW_TRANSITION_ACTION_FUNCTIONS[method](db, current_workflow_tag_db_obj, args[0], args[1], args[2])
             # checks = locals()[method](db, current_workflow_tag_db_obj, args[0], args[1], args[2])
         except Exception as e:
-            print(f"Exception {e} {type(e)}")
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 detail=f"Problem running method {method} which raises exception {e}. {checks}")
     else:
