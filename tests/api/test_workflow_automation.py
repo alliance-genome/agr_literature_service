@@ -53,8 +53,6 @@ def get_process_mock(workflow_tag_atp_id: str):
     print(f"***** Mocking get_ancestors name = {workflow_tag_atp_id}")
     if workflow_tag_atp_id == 'ATP:main_needed':
         return 'ATP:ont1'
-    elif workflow_tag_atp_id == 'ATP:main_needed':
-        return 'ATP:ont1'
     elif workflow_tag_atp_id == 'ATP:task2_failed':
         return 'ATP:task2_needed'
     else:

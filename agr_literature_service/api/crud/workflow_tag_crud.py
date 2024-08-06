@@ -30,6 +30,7 @@ def load_workflow_parent_children(root_node='ATP:0000177'):
     workflow_children = {}
     workflow_parent = {}
     nodes_to_process = [root_node]
+    print(f"root_node: {root_node}")
     while nodes_to_process:
         parent = nodes_to_process.pop()
         children = get_descendants(parent)
@@ -37,6 +38,8 @@ def load_workflow_parent_children(root_node='ATP:0000177'):
         for child in children:
             workflow_parent[child] = parent
             nodes_to_process.append(child)
+    print(f"workflow_children: {workflow_children}")
+    print(f"workflow_parent: {workflow_parent}")
     return workflow_children, workflow_parent
 
 

@@ -150,7 +150,7 @@ class TestWorkflowTag:
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     def test_parent_child_dict(self, test_workflow_tag, auth_headers): # noqa
-        load_workflow_parent_children()
+        # load_workflow_parent_children()
         assert get_workflow_process_from_tag('ATP:0000164') == 'ATP:0000161'
         children = get_workflow_tags_from_process('ATP:0000177')
         assert 'ATP:0000172' in children
