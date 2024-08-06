@@ -30,7 +30,6 @@ def load_workflow_parent_children(root_node='ATP:0000177'):
     workflow_children = {}
     workflow_parent = {}
     nodes_to_process = [root_node]
-    print(f"root_node: {root_node}")
     while nodes_to_process:
         parent = nodes_to_process.pop()
         children = get_descendants(parent)
@@ -38,17 +37,11 @@ def load_workflow_parent_children(root_node='ATP:0000177'):
         for child in children:
             workflow_parent[child] = parent
             nodes_to_process.append(child)
-    print(f"workflow_children: {workflow_children}")
-    print(f"workflow_parent: {workflow_parent}")
     return workflow_children, workflow_parent
 
 
 def get_parent_or_children(atp_name: str, parent_or_children: str = "parent"):
     workflow_children, workflow_parent = load_workflow_parent_children()
-    print(f"wft crud atp_name: {atp_name}")
-    print(f"wft crud children are: {workflow_children}")
-    print(f"wft crud parents are: {workflow_parent}")
-    print(f"wft crud parent_or_children are: {parent_or_children}")
     workflow_to_check = workflow_children if parent_or_children == "children" else workflow_parent
     if atp_name not in workflow_to_check:
         logger.error(f"Could not find {parent_or_children} for {atp_name}")
@@ -57,7 +50,6 @@ def get_parent_or_children(atp_name: str, parent_or_children: str = "parent"):
 
 
 def get_workflow_process_from_tag(workflow_tag_atp_id: str):
-    print(f"get_workflow_process_from_tag: {workflow_tag_atp_id}")
     return get_parent_or_children(workflow_tag_atp_id, parent_or_children="parent")
 
 
@@ -102,7 +94,6 @@ def process_transition_actions(db: Session,
     From the list of job_names to methods call the appropriate method with args.
     """
     for action in transition.actions:
-        print(action)
         process_action(db, current_workflow_tag_db_obj, action)
 
 
@@ -121,7 +112,6 @@ def get_jobs(db: Session, job_str: str):
         filter(WorkflowTagModel.workflow_tag_id == WorkflowTransitionModel.transition_to,
                WorkflowTransitionModel.condition.contains(job_str)).all()
     for wft in wft_list:
-        # print(f"WFT: {wft}")
         conditions = wft[1].condition.split(',')
         for condition in conditions:
             if job_str in condition:
@@ -150,13 +140,10 @@ def job_condition_on_start_process(db: Session, workflow_tag: WorkflowTagModel, 
                                               "proceed_on_value::category::thesis::ATP:task2_needed"]], None],
            2)  ["ATP:main_needed", "ATP:main_in_progress", None, "on_start_job"],
     """
-    print("lookup up first transition")
     transitions = db.query(WorkflowTransitionModel). \
         filter(WorkflowTransitionModel.actions != None,  # noqa
                WorkflowTransitionModel.mod_id == workflow_tag.mod_id).all()
     if not transitions:
-        # in example from = "ATP:ont1", to = "ATP:main_needed"
-        print("No actions.")
         return
     else:
         first_transition = None
@@ -164,38 +151,27 @@ def job_condition_on_start_process(db: Session, workflow_tag: WorkflowTagModel, 
             for action in transition.actions:
                 if orig_wft in action:
                     first_transition = transition
-        if first_transition:
-            print(f"first transition {first_transition}")
-        else:
-            print(f"no actions contain {orig_wft}")
+        if not first_transition:
             return
     # New Lookup of transition_to from 2). Presume only one of these
     # Once we know the hierarchy we can probably do this easier
     # by getting parent and then the condition 'on_start'
     # from = "ATP:main_needed", to = "ATP:main_in_progress", cond = "on_start_job"]
-    print("lookup up second transition")
     second_transition = db.query(WorkflowTransitionModel). \
         filter(WorkflowTransitionModel.transition_from == first_transition.transition_to,
                WorkflowTransitionModel.condition.contains('on_start_job'),
                WorkflowTransitionModel.mod_id == workflow_tag.mod_id).one_or_none()
     if not second_transition:
-        print("no second tran")
         return
-    else:
-        print(f"second transition {second_transition}")
     # second_transition.workflow_tag_id = new_transition.transition_to
-    print("lookup up main")
     main_workflow_tag = db.query(WorkflowTagModel). \
         filter(WorkflowTagModel.workflow_tag_id == second_transition.transition_from,
                WorkflowTagModel.reference_id == workflow_tag.reference_id,
                WorkflowTagModel.mod_id == workflow_tag.mod_id).one_or_none()
     if main_workflow_tag:
         # replace needed with in_progress
-        print(F"resetting {main_workflow_tag} TO {second_transition.transition_to}")
         main_workflow_tag.workflow_tag_id = second_transition.transition_to
         db.commit()
-    else:
-        print("no main_workflow_tag might already have been moved by a previous sub task")
 
 
 def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: str = ""):
@@ -213,11 +189,9 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
 
     """
     # Get the workflow_tag
-    print(f"JOB CHANGE reference workflow_tag_id: {reference_workflow_tag_id}, cond: {condition}")
     try:
         workflow_tag = db.query(WorkflowTagModel).\
             filter(WorkflowTagModel.reference_workflow_tag_id == reference_workflow_tag_id).one()
-        print(f"wft: {workflow_tag}")
         orig_wft = workflow_tag.workflow_tag_id
     except NoResultFound:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -229,7 +203,6 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
                    WorkflowTransitionModel.condition.contains(condition),
                    WorkflowTransitionModel.mod_id == workflow_tag.mod_id).one()
         # Set to new tag
-        print(f"changing {workflow_tag.workflow_tag_id} to {new_transition.transition_to}")
         workflow_tag.workflow_tag_id = new_transition.transition_to
         db.commit()
     except NoResultFound:
@@ -241,7 +214,6 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
                             detail=error)
 
     # get main atp. There may not be one. If not just return
-    print(f"condition is {condition}")
     if condition == "on_start_job":
         job_condition_on_start_process(db, workflow_tag, orig_wft)
 
@@ -258,7 +230,6 @@ def transition_sanity_check(db, transition_type, mod_abbreviation, curie_or_refe
 
     # Get the parent/process and see if it allows multiple values
     process_atp_id = get_workflow_process_from_tag(workflow_tag_atp_id=new_workflow_tag_atp_id)
-    print(f"process_atp_id is {process_atp_id}")
     if not process_atp_id:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"process_atp_id {new_workflow_tag_atp_id} has NO process.")
@@ -300,7 +271,6 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
             db.commit()
         return
     else:
-        print("get current WFT")
         try:
             current_workflow_tag_db_obj = _get_current_workflow_tag_db_obj(db, str(reference.reference_id),
                                                                            process_atp_id, mod_abbreviation)
@@ -374,7 +344,6 @@ def create(db: Session, workflow_tag: WorkflowTagSchemaPost) -> int:
     """
 
     workflow_tag_data = jsonable_encoder(workflow_tag)
-    print(f"create WFT data: {workflow_tag_data}")
     reference_curie = workflow_tag_data["reference_curie"]
     del workflow_tag_data["reference_curie"]
     mod_abbreviation = workflow_tag_data["mod_abbreviation"]

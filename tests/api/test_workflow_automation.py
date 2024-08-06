@@ -59,6 +59,7 @@ def get_process_mock(workflow_tag_atp_id: str):
         print("returning NOTHING!!")
         return []
 
+
 def get_descendants_mock(name):
     # MUST start with ATP:0000003 for this to work
     print(f"***** Mocking get_ancestors name = {name}")
@@ -319,4 +320,3 @@ class TestWorkflowTagAutomation:
                                headers=auth_headers)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         assert response.json().get("detail") == 'Transition to ATP:task2_failed not allowed as not initial state.'
-        assert 1 == 0
