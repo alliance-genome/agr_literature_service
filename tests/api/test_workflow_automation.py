@@ -59,6 +59,23 @@ def get_process_mock(workflow_tag_atp_id: str):
         print("returning NOTHING!!")
         return []
 
+def get_descendants_mock(name):
+    # MUST start with ATP:0000003 for this to work
+    print(f"***** Mocking get_ancestors name = {name}")
+    if name == 'ATP:0000177':
+        return ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161']
+    elif name == 'ATP:0000172':
+        return ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178']
+    elif name == 'ATP:0000140':
+        return ['ATP:0000141', 'ATP:0000135', 'ATP:0000139', 'ATP:0000134']
+    elif name == 'ATP:0000165':
+        return ['ATP:0000168', 'ATP:0000167', 'ATP:0000170', 'ATP:0000171', 'ATP:0000169', 'ATP:0000166']
+    elif name == 'ATP:0000161':
+        return ['ATP:0000164', 'ATP:0000163', 'ATP:0000162']
+    else:
+        print("returning NOTHING!!")
+        return []
+
 
 def workflow_automation_init(db, mod_id):  # noqa
     print("workflow_automation_init")
@@ -102,6 +119,7 @@ def workflow_automation_init(db, mod_id):  # noqa
 
 class TestWorkflowTagAutomation:
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_process_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     def transition_actions(self, db, auth_headers, test_mod, test_reference):  # noqa
         print("test_transition_actions")
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
@@ -197,6 +215,7 @@ class TestWorkflowTagAutomation:
                 assert test_id
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_process_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     def test_transition_work_failed(self, db, auth_headers, test_mod, test_reference):  # noqa
         print("test_transition_actions")
         with TestClient(app) as client:
@@ -251,6 +270,7 @@ class TestWorkflowTagAutomation:
                 assert test_id is None
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_process_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     def test_bad_transitions(self, db, auth_headers, test_mod, test_reference):  # noqa
         print("test_bad_transitions")
         with TestClient(app) as client:
@@ -299,4 +319,4 @@ class TestWorkflowTagAutomation:
                                headers=auth_headers)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         assert response.json().get("detail") == 'Transition to ATP:task2_failed not allowed as not initial state.'
-        assert 1 ==0
+        assert 1 == 0
