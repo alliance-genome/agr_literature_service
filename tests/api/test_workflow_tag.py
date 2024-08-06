@@ -8,7 +8,10 @@ from unittest.mock import patch
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, WorkflowTransitionModel, ModModel
-from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_process_from_tag, get_workflow_tags_from_process
+from agr_literature_service.api.crud.workflow_tag_crud import (
+    get_workflow_process_from_tag,
+    get_workflow_tags_from_process,
+    load_workflow_parent_children)
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
@@ -147,6 +150,7 @@ class TestWorkflowTag:
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     def test_parent_child_dict(self, test_workflow_tag, auth_headers): # noqa
+        load_workflow_parent_children()
         assert get_workflow_process_from_tag('ATP:0000164') == 'ATP:0000161'
         children = get_workflow_tags_from_process('ATP:0000177')
         assert 'ATP:0000172' in children
@@ -171,6 +175,7 @@ class TestWorkflowTag:
         db.add(WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id='ATP:0000141'))
         db.commit()
         with TestClient(app) as client:
+            load_workflow_parent_children()
             transition_req = {
                 "curie_or_reference_id": test_reference.new_ref_curie,
                 "mod_abbreviation": test_mod.new_mod_abbreviation,
