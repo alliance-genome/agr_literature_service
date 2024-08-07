@@ -5,8 +5,6 @@ import json
 from fastapi_okta.okta_utils import get_authentication_token
 import urllib.request
 import argparse
-
-from os import environ
 import logging
 from fastapi import HTTPException
 from urllib.error import HTTPError
@@ -82,10 +80,10 @@ def add_transitions(db: Session, filename: str):
     else:
         return
     for transition in data_to_add:
-        mod_list = []
+        mod_list: list = []
         if 'mod' in transition:
             if transition['mod'] == 'ALL':
-                mod_list = mod_ids.keys()
+                mod_list = list(mod_ids.keys())
                 print(mod_list)
             elif transition['mod'].startswith("NOT_"):
                 for mod in mod_ids.keys():
