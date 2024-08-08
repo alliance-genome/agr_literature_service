@@ -85,7 +85,7 @@ def get_name_to_atp_and_children(token, debug, curie='ATP:0000177'):
                             detail="Error from A-team API")
 
 
-def add_transitions(db: Session, filename: str, debug: bool = False):
+def add_transitions(db: Session, filename: str, debug: bool = False):  # noqa
     global name_to_atp
     global mod_ids
 
