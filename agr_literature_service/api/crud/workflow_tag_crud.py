@@ -21,7 +21,10 @@ from agr_literature_service.api.crud.workflow_transition_requirements import *  
 from agr_literature_service.api.crud.workflow_transition_requirements import (
     ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS)
 from agr_literature_service.api.crud.workflow_transition_actions.process_action import (process_action)
-process_atp_multiple_allowed = ['ATP:ont1']
+process_atp_multiple_allowed = [
+    'ATP:ont1',  # used in testing
+    'ATP:0000165', 'ATP:0000169', 'ATP:0000189', 'ATP:0000178', 'ATP:0000166'  # classifications and subtasks
+]
 logger = logging.getLogger(__name__)
 
 
@@ -266,6 +269,8 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
                 WorkflowTransitionModel.transition_to == new_workflow_tag_atp_id,
                 WorkflowTransitionModel.mod_id == mod.mod_id,
                 WorkflowTransitionModel.transition_type.in_(["any", f"{transition_type}_only"]))).one()
+        if transition and transition.requirements:
+            check_requirements(reference, mod, transition)
         if transition and transition.actions:
             process_transition_actions(db, transition, current_workflow_tag_db_obj)
             db.commit()

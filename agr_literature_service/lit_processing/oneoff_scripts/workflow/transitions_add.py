@@ -28,6 +28,8 @@ from agr_literature_service.api.models import WorkflowTransitionModel
 
 # Data files
 from agr_literature_service.lit_processing.oneoff_scripts.workflow.data.file_upload import get_data as file_upload
+from agr_literature_service.lit_processing.oneoff_scripts.workflow.data.classification import get_data as classifications
+
 logger = logging.getLogger(__name__)
 name_to_atp = {}
 atp_to_name = {}
@@ -92,6 +94,8 @@ def add_transitions(db: Session, filename: str, debug: bool = False):  # noqa
     # Add new data files here with appropriate elif
     if filename == "file_upload":
         data_to_add = file_upload(name_to_atp)
+    elif filename == "classifications":
+        data_to_add = classifications(name_to_atp)
     else:
         return
     for transition in data_to_add:
