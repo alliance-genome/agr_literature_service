@@ -126,10 +126,6 @@ def get_jobs(db: Session, job_str: str):
     return jobs
 
 
-def job_condition_on_success_process(db: Session, workflow_tag: WorkflowTagModel, orig_wft):
-    print(f"No idea yet need some hierarchy in ontology to sort this out. {db} {workflow_tag} {orig_wft}")
-
-
 def job_condition_on_start_process(db: Session, workflow_tag: WorkflowTagModel, orig_wft):
     """
            On a task we need to set the main one to in_progress too
