@@ -66,3 +66,22 @@ class WorkflowTransitionModel(AuditedModel, Base):
         default='any',
         server_default='any'
     )
+
+    actions = Column(
+        ARRAY(String()),
+        unique=False,
+        nullable=True
+    )
+
+    condition = Column(
+        String(),
+        unique=False,
+        nullable=True
+    )
+
+    def __str__(self):
+        """
+        Overwrite the default output.
+        """
+        return f"mod: {self.mod_id}, from: {self.transition_from}  to: {self.transition_to}\n\t"\
+            f"actions: {self.actions}, condition: {self.condition}, req: {self.requirements}"

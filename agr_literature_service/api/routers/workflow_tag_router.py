@@ -64,6 +64,30 @@ def show(reference_workflow_tag_id: int,
     return workflow_tag_crud.show(db, reference_workflow_tag_id)
 
 
+@router.get('/jobs/{job_string}',
+            status_code=200)
+def get_jobs(job_string: str, db: Session = db_session):
+    return workflow_tag_crud.get_jobs(db, job_string)
+
+
+@router.post('/job/failed/{reference_workflow_tag_id}',
+             status_code=200)
+def failed_job(reference_workflow_tag_id: int, db: Session = db_session):
+    return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, 'on_failed')
+
+
+@router.post('/job/success/{reference_workflow_tag_id}',
+             status_code=200)
+def successful_job(reference_workflow_tag_id: int, db: Session = db_session):
+    return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, 'on_success')
+
+
+@router.post('/job/started/{reference_workflow_tag_id}',
+             status_code=200)
+def start_job(reference_workflow_tag_id: int, db: Session = db_session):
+    return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, 'on_start_job')
+
+
 @router.get('/{reference_workflow_tag_id}/versions',
             status_code=200)
 def show_versions(reference_workflow_tag_id: int,
@@ -79,7 +103,8 @@ def transition_to_workflow_status(request: WorkflowTransitionSchemaPost,
     set_global_user_from_okta(db, user)
     return workflow_tag_crud.transition_to_workflow_status(db=db, curie_or_reference_id=request.curie_or_reference_id,
                                                            mod_abbreviation=request.mod_abbreviation,
-                                                           new_workflow_tag_atp_id=request.new_workflow_tag_atp_id)
+                                                           new_workflow_tag_atp_id=request.new_workflow_tag_atp_id,
+                                                           transition_type=request.transition_type)
 
 
 @router.get('/get_current_workflow_status/{curie_or_reference_id}/{mod_abbreviation}/{workflow_process_atp_id}',
