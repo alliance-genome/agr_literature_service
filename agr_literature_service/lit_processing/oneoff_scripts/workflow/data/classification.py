@@ -54,7 +54,7 @@ def get_data(name_to_atp):
              f"{ref_type}::Journal::{name_to_atp['interaction classification needed']}"],
          'condition': 'on_success'
          }
-        ]
+    ]
     # for each XXX activity add transitions needed for job control
     for entry in ('catalytic activity', 'disease', 'expression', 'interaction'):
         item = {
