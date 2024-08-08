@@ -200,6 +200,10 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
                    WorkflowTransitionModel.mod_id == workflow_tag.mod_id).one()
         # Set to new tag
         workflow_tag.workflow_tag_id = new_transition.transition_to
+        # if we have any actions then do these.
+        if new_transition.actions:
+            process_transition_actions(db, new_transition, workflow_tag)
+            db.commit()
         db.commit()
     except NoResultFound:
         error = f"""
