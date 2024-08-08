@@ -61,7 +61,7 @@ def get_data(name_to_atp):
             'mod': 'ALL',
             'from': f'{entry} classification needed',
             'to': f'{entry} classification in progress',
-            'condition': 'on_start_job'}
+            'condition': f'on_start_job,{entry}_classification_job'}
         test_data.append(item)
         item = {
             'mod': 'ALL',
