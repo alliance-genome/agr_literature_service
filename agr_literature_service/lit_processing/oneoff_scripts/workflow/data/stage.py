@@ -1,4 +1,4 @@
-
+# flake8: noqa
 
 def get_data(name_to_atp):  # noqa
     """
