@@ -149,6 +149,16 @@ def show_tag(db: Session, topic_entity_tag_id: int):
         del topic_entity_tag_data["reference_id"]
     topic_entity_tag_data[
         "topic_entity_tag_source_id"] = topic_entity_tag.topic_entity_tag_source.topic_entity_tag_source_id
+    entity_type = topic_entity_tag_data["entity_type"]
+    entity = topic_entity_tag_data["entity"]
+    entity_type_to_name_mapping = get_map_ateam_curies_to_names("atpterm", [entity_type])
+    entity_type_name = entity_type_to_name_mapping.get(entity_type)
+    if entity_type_name:
+        entity_curie_to_name_mapping = get_map_entity_curies_to_names(topic_entity_tag_data["entity_id_validation"],
+                                                                      entity_type_name, [entity])
+        entity_name = entity_curie_to_name_mapping.get(entity)
+        if entity_name:
+            topic_entity_tag_data["entity_name"] = entity_name
     return topic_entity_tag_data
 
 
