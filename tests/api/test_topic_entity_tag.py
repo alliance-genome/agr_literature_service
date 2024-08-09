@@ -659,12 +659,10 @@ class TestTopicEntityTag:
             mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009'}
             mock_get_descendants.return_value = {'ATP:0000009', 'ATP:0000033', 'ATP:0000034', 'ATP:0000079', 'ATP:0000080', 'ATP:0000081', 'ATP:0000082', 'ATP:0000083', 'ATP:0000084', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087', 'ATP:0000100'}
             null_tag_id = client.post(url="/topic_entity_tag/", json=null_tag, headers=auth_headers).json()['topic_entity_tag_id']
-            """
             positive_tag_resp = client.get(url=f"/topic_entity_tag/{positive_tag_id}", headers=auth_headers)
             assert positive_tag_resp.json()["validation_by_author"] == "validated_right_self"
             null_tag_resp = client.get(url=f"/topic_entity_tag/{null_tag_id}", headers=auth_headers)
             assert null_tag_resp.json()["validation_by_author"] == "validated_right_self"
-            """
 
     @pytest.mark.webtest
     def test_get_curie_to_name_from_all_tets(self, test_topic_entity_tag, test_topic_entity_tag_source, test_mod, # noqa
