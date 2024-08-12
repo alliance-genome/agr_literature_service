@@ -26,7 +26,7 @@ mod_abbrs = {}
 
 helptext = "--filename file1 -debug"
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=helptext)
-parser.add_argument('-f', '--filename', help='Filename to be processed.', type=str, required=True)
+parser.add_argument('-f', '--filename', help='Filename to be created.', type=str, required=True)
 parser.add_argument('-v', '--verbose', help='Print a lot of info during run.', default=False, type=bool, required=False)
 args = parser.parse_args()
 
@@ -83,7 +83,7 @@ def get_transitions(db: Session, filename: str, debug: bool = False):  # noqa
 
     try:
         query = r"""
-        select mod_id, transition_from, transition_to, requirements, transition_type 
+        select mod_id, transition_from, transition_to, requirements, transition_type
           from workflow_transition;"""
         trans_results = db.execute(query)
         trans = trans_results.fetchall()
