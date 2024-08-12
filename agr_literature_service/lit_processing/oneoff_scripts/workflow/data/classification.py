@@ -38,16 +38,16 @@ def get_data(name_to_atp):
         {'mod': "WB",
          'from': "file converted to text",
          'to': "reference classification needed",
-         'action': [f"{ref_type}::Experimental::{name_to_atp['catalytic activity classification needed']}",
-                    f"{ref_type}::Experimental::{name_to_atp['disease classification needed']}",
-                    f"{ref_type}::Experimental::{name_to_atp['expression classification needed']}",
-                    f"{ref_type}::Experimental::{name_to_atp['interaction classification needed']}"],
+         'actions': [f"{ref_type}::Experimental::{name_to_atp['catalytic activity classification needed']}",
+                     f"{ref_type}::Experimental::{name_to_atp['disease classification needed']}",
+                     f"{ref_type}::Experimental::{name_to_atp['expression classification needed']}",
+                     f"{ref_type}::Experimental::{name_to_atp['interaction classification needed']}"],
          'condition': 'on_success'
          },
         {'mod': "ZFIN",
          'from': "file converted to text",
          'to': "reference classification needed",
-         'action': [
+         'actions': [
              f"{ref_type}::Journal::{name_to_atp['catalytic activity classification needed']}",
              f"{ref_type}::Journal::{name_to_atp['disease classification needed']}",
              f"{ref_type}::Journal::{name_to_atp['expression classification needed']}",
