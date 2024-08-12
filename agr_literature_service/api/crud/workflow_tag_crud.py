@@ -340,6 +340,14 @@ def get_current_workflow_status(db: Session, curie_or_reference_id: str, workflo
     return None if not current_workflow_tag_db_obj else current_workflow_tag_db_obj.workflow_tag_id
 
 
+def get_ref_ids_with_status(db: Session, workflow_atp_id: str, mod_abbreviation: str = None):
+    query = db.query(WorkflowTagModel.reference_id).filter(WorkflowTagModel.workflow_tag_id == workflow_atp_id)
+    if mod_abbreviation is not None:
+        mod_id = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
+        query = query.filter(WorkflowTagModel.mod_id == mod_id)
+    query.all()
+
+
 def create(db: Session, workflow_tag: WorkflowTagSchemaPost) -> int:
     """
     Create a new workflow_tag
