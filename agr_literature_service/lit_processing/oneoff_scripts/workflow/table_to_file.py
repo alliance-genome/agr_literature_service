@@ -1,8 +1,8 @@
 """
-Get transitions form table and dump to file.
+Get transitions from table and print.
 
 i.e.
-   python3 -d table_to_file.py -f new_filename -v 1
+   python3 table_to_file.py > new_filename
 
 """
 import json
@@ -26,8 +26,7 @@ mod_abbrs = {}
 
 helptext = "--filename file1 -debug"
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=helptext)
-parser.add_argument('-f', '--filename', help='Filename to be created.', type=str, required=True)
-parser.add_argument('-v', '--verbose', help='Print a lot of info during run.', default=False, type=bool, required=False)
+parser.add_argument('-h', '--help', help='run and see', default=False, type=bool, required=False)
 args = parser.parse_args()
 
 
@@ -44,7 +43,7 @@ def load_mod_abbr(db):
         print('Error: ' + str(type(e)))
 
 
-def get_name_to_atp_and_children(token, debug, curie='ATP:0000177'):
+def get_name_to_atp_and_children(token, curie='ATP:0000177'):
     """
     Add data to atp_to_name and name_to_atp dictionaries.
     From the top curie given go down all children and store the data.
@@ -67,17 +66,15 @@ def get_name_to_atp_and_children(token, debug, curie='ATP:0000177'):
             resp_obj = json.loads(resp)
             for bob in resp_obj:
                 for jane in resp_obj[bob]:
-                    if debug:
-                        print(f"\t {jane['curie']} - {jane['name']}")
                     name_to_atp[jane['name']] = jane['curie']
                     atp_to_name[jane['curie']] = jane['name']
-                    get_name_to_atp_and_children(token=token, curie=jane['curie'], debug=debug)
+                    get_name_to_atp_and_children(token=token, curie=jane['curie'])
     except HTTPError:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail="Error from A-team API")
 
 
-def get_transitions(db: Session, filename: str, debug: bool = False):  # noqa
+def get_transitions(db: Session, debug: bool = False):  # noqa
     global atp_to_name
     global mod_abbrs
 
@@ -105,10 +102,10 @@ if __name__ == "__main__":
     auth_token = get_authentication_token()
     if not auth_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-    get_name_to_atp_and_children(token=auth_token, debug=args.verbose)
+    get_name_to_atp_and_children(token=auth_token)
     engine = create_postgres_engine(False)
     db_connection = engine.connect()
     db_session: Session = create_postgres_session(False)
 
     load_mod_abbr(db_session)
-    get_transitions(db_session, args.filename, args.verbose)
+    get_transitions(db_session)
