@@ -60,6 +60,7 @@ class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     topic: str
     entity_type: Optional[str] = None
     entity: Optional[str] = None
+    entity_name: Optional[str] = None
     entity_id_validation: Optional[str] = None
     entity_published_as: Optional[str] = None
     species: Optional[str] = None

@@ -20,7 +20,7 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
     get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, check_and_set_species, \
     add_audited_object_users_if_not_exist, get_ancestors, get_descendants, \
-    check_atp_ids_validity, get_map_entity_curies_to_names
+    check_atp_ids_validity, get_map_entity_curies_to_names, id_to_name_cache
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
     TopicEntityTagModel,
@@ -149,6 +149,10 @@ def show_tag(db: Session, topic_entity_tag_id: int):
         del topic_entity_tag_data["reference_id"]
     topic_entity_tag_data[
         "topic_entity_tag_source_id"] = topic_entity_tag.topic_entity_tag_source.topic_entity_tag_source_id
+    if topic_entity_tag_data["entity"]:
+        name = id_to_name_cache.get(topic_entity_tag_data["entity"])
+        if name:
+            topic_entity_tag_data["entity_name"] = name
     return topic_entity_tag_data
 
 
