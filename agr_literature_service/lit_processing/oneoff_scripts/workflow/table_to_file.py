@@ -1,16 +1,9 @@
 """
-Add transitions.
+Get transitions form table and dump to file.
 
 i.e.
-   python3 -d transitions_add.py -f file_upload -v 1
+   python3 -d table_to_file.py -f new_filename -v 1
 
-   data files (methods that return the data to insert into the table) are in the
-   directory 'data'.
-   If new transitions are added then update existing files or create a new file and
-   import it here (See # Data files) and add an elif (see # Add new data files here with appropriate elif)
-
-    get_name_to_atp_and_children method maybe useful outside the workflow module,
-    so we may want to move this into the api at some point.
 """
 import json
 from fastapi_okta.okta_utils import get_authentication_token
@@ -24,11 +17,6 @@ from sqlalchemy.orm import Session
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_engine, \
     create_postgres_session
 
-from agr_literature_service.api.models import WorkflowTransitionModel
-
-# Data files
-from agr_literature_service.lit_processing.oneoff_scripts.workflow.data.file_upload import get_data as file_upload
-from agr_literature_service.lit_processing.oneoff_scripts.workflow.data.classification import get_data as classifications
 
 logger = logging.getLogger(__name__)
 name_to_atp = {}
@@ -100,9 +88,9 @@ def get_transitions(db: Session, filename: str, debug: bool = False):  # noqa
         trans_results = db.execute(query)
         trans = trans_results.fetchall()
         start = '{'
-        end= '}'
+        end = '}'
         for tran in trans:
-            print (f"""
+            print(f"""
         {start}'mod': "{mod_abbrs[tran['mod_id']]}",
                'from': "{atp_to_name[tran['transition_from']]}",
                'to': "{atp_to_name[tran['transition_to']]}",
