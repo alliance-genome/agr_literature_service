@@ -1,5 +1,8 @@
 # flake8: noqa
-
+"""
+This file was mostly generated from table_to_file.py pointing the db to literature on stage.
+Hence, no flake8 checking is done as too much hassle to reformat etc.
+"""
 def get_data(name_to_atp):  # noqa
     """
     Data after test_data line generated from table_to_file.py
