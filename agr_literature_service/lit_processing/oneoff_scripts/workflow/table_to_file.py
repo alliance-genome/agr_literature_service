@@ -80,7 +80,7 @@ def get_transitions(db: Session, debug: bool = False):  # noqa
 
     try:
         query = r"""
-        select mod_id, transition_from, transition_to, requirements, transition_type, actions, condition 
+        select mod_id, transition_from, transition_to, requirements, transition_type, actions, condition
           from workflow_transition;"""
         trans_results = db.execute(query)
         trans = trans_results.fetchall()
