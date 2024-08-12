@@ -80,7 +80,7 @@ def get_transitions(db: Session, debug: bool = False):  # noqa
 
     try:
         query = r"""
-        select mod_id, transition_from, transition_to, requirements, transition_type
+        select mod_id, transition_from, transition_to, requirements, transition_type, actions, condition 
           from workflow_transition;"""
         trans_results = db.execute(query)
         trans = trans_results.fetchall()
@@ -92,6 +92,8 @@ def get_transitions(db: Session, debug: bool = False):  # noqa
                'from': "{atp_to_name[tran['transition_from']]}",
                'to': "{atp_to_name[tran['transition_to']]}",
                'requirements': "{tran['requirements']}",
+               'actions': "{tran['actions']}",
+               'condition': "{tran['condition']}",
                'transition_type': "{tran['transition_type']}"{end},""")
     except Exception as e:
         logger.error(e)
