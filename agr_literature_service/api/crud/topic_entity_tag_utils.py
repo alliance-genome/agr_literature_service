@@ -315,9 +315,13 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
                 for curie, name in new_mappings.items():
                     id_to_name_cache.set(curie, name)
                     return_dict[curie] = name
-        except HTTPError as e:
+        except HTTPError as e:  # ateam lookup failed so just return the match to themselves
+            for atp_value in chunk:
+                return_dict[atp_value] = atp_value
             logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
-        except Exception as e:
+        except Exception as e:  # ateam lookup failed so just return the match to themselves
+            for atp_value in chunk:
+                return_dict[atp_value] = atp_value
             logger.error(f"Exception in get_map_ateam_curies_to_names: {e}")
 
     # add already cached curies to return_dict
