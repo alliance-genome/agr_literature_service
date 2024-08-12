@@ -142,7 +142,10 @@ def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, m
         CrossReferenceModel.is_obsolete).first()
     if not cross_reference:
         env_state = os.environ.get("ENV_STATE", "")
-        if mod_abbreviation == 'WB' and env_state != "prod":
+        if env_state == "prod":
+            ## do not create MOD IDs for prod at the momemt
+            return
+        if mod_abbreviation == 'WB':
             new_wbpaper_number = 1
             cross_reference = db.query(CrossReferenceModel.curie).filter(
                 and_(CrossReferenceModel.curie.startswith("WB:WBPaper0"),
@@ -160,6 +163,23 @@ def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, m
                 "reference_curie": reference_obj.curie
             }
             create(db, new_wbpaper_xref)
+        elif mod_abbreviation == 'SGD':
+            new_sgdid_number = 100000001
+            cross_reference = db.query(CrossReferenceModel.curie).filter(
+                and_(CrossReferenceModel.curie.startswith("SGD:S100"),
+                     CrossReferenceModel.curie_prefix == mod_abbreviation)).order_by(
+                CrossReferenceModel.curie.desc()).first()
+            if cross_reference:
+                new_sgdid_number = int(cross_reference.curie[5:]) + 1
+            new_sgdid = f"SGD:S{new_sgdid_number}"
+            new_xref = {
+                "curie": new_sgdid,
+                "pages": [
+                    "reference"
+                ],
+                "reference_curie": reference_obj.curie
+            }
+            create(db, new_xref)
 
 
 def show_changesets(db: Session, cross_reference_id: int):
