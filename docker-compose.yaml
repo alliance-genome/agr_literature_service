@@ -198,6 +198,7 @@ services:
       DEBEZIUM_KSQLDB_HOST: "${DEBEZIUM_KSQLDB_HOST}"
       DEBEZIUM_KSQLDB_PORT: "${DEBEZIUM_KSQLDB_PORT}"
       TZ: "UTC"
+      PDF2TEI_API_URL: "${PDF2TEI_API_URL}"
     volumes:
       - "${LOG_PATH}:/var/log/automated_scripts"
       - /etc/localtime:/etc/localtime:ro

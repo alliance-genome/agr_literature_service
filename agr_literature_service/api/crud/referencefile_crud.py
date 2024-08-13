@@ -7,7 +7,7 @@ import shutil
 import tarfile
 import tempfile
 from itertools import count
-from typing import List
+from typing import List, Union
 
 import boto3
 from fastapi import HTTPException, status, UploadFile
@@ -35,6 +35,25 @@ from agr_literature_service.api.schemas.response_message_schemas import messageE
 from agr_literature_service.lit_processing.utils.s3_utils import download_file_from_s3
 
 logger = logging.getLogger(__name__)
+
+
+def get_main_pdf_referencefile_id(db: Session, curie_or_reference_id: str,
+                                  mod_abbreviation: str = None) -> Union[int, None]:
+    reference: ReferenceModel = get_reference(db=db, curie_or_reference_id=curie_or_reference_id, load_referencefiles=True)
+    referencefile: ReferencefileModel
+    main_pdf_referencefiles = [referencefile for referencefile in reference.referencefiles if
+                               referencefile.file_class == "main" and referencefile.file_publication_status == "final"
+                               and referencefile.pdf_type == "pdf" and referencefile.file_extension == "pdf"]
+    if mod_abbreviation is not None:
+        for main_pdf_ref_file in main_pdf_referencefiles:
+            for ref_file_mod in main_pdf_ref_file.referencefile_mods:
+                if ref_file_mod.mod.abbreviation == mod_abbreviation:
+                    return main_pdf_ref_file.referencefile_id
+    for main_pdf_ref_file in main_pdf_referencefiles:
+        for ref_file_mod in main_pdf_ref_file.referencefile_mods:
+            if ref_file_mod.mod.abbreviation is None:
+                return main_pdf_ref_file.referencefile_id
+    return None
 
 
 def set_referencefile_mods(referencefile_obj, referencefile_dict):
@@ -388,7 +407,8 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
     return md5sum
 
 
-def download_file(db: Session, referencefile_id: int, mod_access: OktaAccess):  # pragma: no cover
+def download_file(db: Session, referencefile_id: int, mod_access: OktaAccess,  # pragma: no cover
+                  use_in_api: bool = True):  # pragma: no cover
     referencefile = read_referencefile_db_obj(db, referencefile_id)
 
     user_permission = False
@@ -411,8 +431,14 @@ def download_file(db: Session, referencefile_id: int, mod_access: OktaAccess):  
         with gzip.open(md5sum + ".gz", 'rb') as f_in, open(display_name, 'wb') as f_out:
             shutil.copyfileobj(f_in, f_out)
         os.remove(md5sum + ".gz")
-        return FileResponse(path=display_name, filename=display_name, media_type="application/octet-stream",
-                            background=BackgroundTask(cleanup, display_name))
+        if use_in_api:
+            return FileResponse(path=display_name, filename=display_name, media_type="application/octet-stream",
+                                background=BackgroundTask(cleanup, display_name))
+        else:
+            with open(display_name, 'rb') as file:
+                file_content = file.read()
+            os.remove(display_name)
+            return file_content
 
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                         detail="The current user does not have permissions to get the requested file url. "
