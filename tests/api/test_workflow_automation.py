@@ -85,15 +85,15 @@ def workflow_automation_init(db, mod_id):  # noqa
         ["ATP:ont1", "ATP:main_needed", ["proceed_on_value::category::thesis::ATP:task1_needed",
                                          "proceed_on_value::category::thesis::ATP:task2_needed",
                                          "proceed_on_value::category::failure::ATP:task3_needed"], None],
-        ["ATP:main_needed", "ATP:main_in_progress", None, "on_start_job"],
+        ["ATP:main_needed", "ATP:main_in_progress", None, "on_start"],
         ["ATP:main_in_progress", "ATP:main_failed", None, "on_failed"],
         ["ATP:main_in_progress", "ATP:main_successful", None, "on_success"],
 
-        ["ATP:task1_needed", "ATP:task1_in_progress", None, "on_start_job"],
+        ["ATP:task1_needed", "ATP:task1_in_progress", None, "on_start"],
         ["ATP:task1_in_progress", "ATP:task1_successful", None, "on_success"],
         ["ATP:task1_in_progress", "ATP:task1_failed", None, "on_failed"],
 
-        ["ATP:task2_needed", "ATP:task2_in_progress", None, "on_start_job"],
+        ["ATP:task2_needed", "ATP:task2_in_progress", None, "on_start"],
         ["ATP:task2_in_progress", "ATP:task2_successful", None, "on_success"],
         ["ATP:task2_in_progress", "ATP:task2_failed", None, "on_failed"]
     ]
