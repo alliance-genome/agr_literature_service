@@ -13,7 +13,6 @@ import logging
 from fastapi import HTTPException
 from urllib.error import HTTPError
 
-from pip._internal import req
 from starlette import status
 from sqlalchemy.orm import Session
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_engine, \
@@ -127,4 +126,3 @@ if __name__ == "__main__":
     load_mod_abbr(db_session)
     print("pre get trans")
     get_transitions(db_session, args.comma_seperated, args.mod_abbr)
-
