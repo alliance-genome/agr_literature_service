@@ -1,23 +1,19 @@
 import io
 import json
 import os
-from os import environ
 from unittest.mock import patch
 
-from fastapi import UploadFile
 from starlette import status
 from starlette.testclient import TestClient
 
-from agr_literature_service.api.crud.referencefile_crud import create_metadata
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import WorkflowTransitionModel, ReferencefileModel
-from agr_literature_service.api.schemas import ReferencefileSchemaPost
-from ...api.test_reference import test_reference
-from ...api.test_mod import test_mod
-from ...api.fixtures import auth_headers
-from ...api.test_workflow_tag import get_descendants_mock
-from ...fixtures import db
 from agr_literature_service.lit_processing.pdf2tei.pdf2tei import main as convert_pdf_to_tei
+from ...api.fixtures import auth_headers  # noqa
+from ...api.test_mod import test_mod  # noqa
+from ...api.test_reference import test_reference  # noqa
+from ...api.test_workflow_tag import get_descendants_mock  # noqa
+from ...fixtures import db  # noqa
 
 
 class TestPdf2TEI:
@@ -81,4 +77,3 @@ class TestPdf2TEI:
             file_response = client.get(url=f"/reference/referencefile/download_file/{all_ref_files[0].referencefile_id}",
                                        headers=auth_headers)
             assert file_response.content
-
