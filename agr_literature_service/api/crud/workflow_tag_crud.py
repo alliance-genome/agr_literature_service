@@ -137,7 +137,7 @@ def job_condition_on_start_process(db: Session, workflow_tag: WorkflowTagModel, 
            Similarly for success of all subtasks or failure of any.
            1) ["ATP:ont1", "ATP:main_needed", ["proceed_on_value::category::thesis::ATP:task1_needed",
                                               "proceed_on_value::category::thesis::ATP:task2_needed"]], None],
-           2)  ["ATP:main_needed", "ATP:main_in_progress", None, "on_start_job"],
+           2)  ["ATP:main_needed", "ATP:main_in_progress", None, "on_start"],
     """
     transitions = db.query(WorkflowTransitionModel). \
         filter(WorkflowTransitionModel.actions != None,  # noqa
@@ -155,10 +155,10 @@ def job_condition_on_start_process(db: Session, workflow_tag: WorkflowTagModel, 
     # New Lookup of transition_to from 2). Presume only one of these
     # Once we know the hierarchy we can probably do this easier
     # by getting parent and then the condition 'on_start'
-    # from = "ATP:main_needed", to = "ATP:main_in_progress", cond = "on_start_job"]
+    # from = "ATP:main_needed", to = "ATP:main_in_progress", cond = "on_start"]
     second_transition = db.query(WorkflowTransitionModel). \
         filter(WorkflowTransitionModel.transition_from == first_transition.transition_to,
-               WorkflowTransitionModel.condition.contains('on_start_job'),
+               WorkflowTransitionModel.condition.contains('on_start'),
                WorkflowTransitionModel.mod_id == workflow_tag.mod_id).one_or_none()
     if not second_transition:
         return
@@ -178,7 +178,7 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
     param db: Session:          database session
     param reference_workflow_tag_id: int  WorkflowTagModel.reference_workflow_tag_id
     param condition: str        workflow transition condition
-                                "on_success", "on_failure" and "on_start_job" are the available options currently.
+                                "on_success", "on_failure" and "on_start" are the available options currently.
 
     Change the current workflow tag based on condition. If this is a sub task then alter the main
     one accordingly.
@@ -217,7 +217,7 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
                             detail=error)
 
     # get main atp. There may not be one. If not just return
-    if condition == "on_start_job":
+    if condition == "on_start":
         job_condition_on_start_process(db, workflow_tag, orig_wft)
 
 
