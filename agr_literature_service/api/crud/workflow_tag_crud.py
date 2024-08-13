@@ -343,8 +343,8 @@ def get_current_workflow_status(db: Session, curie_or_reference_id: str, workflo
 def get_ref_ids_with_workflow_status(db: Session, workflow_atp_id: str, mod_abbreviation: str = None):
     query = db.query(WorkflowTagModel.reference_id).filter(WorkflowTagModel.workflow_tag_id == workflow_atp_id)
     if mod_abbreviation is not None:
-        mod_id = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
-        query = query.filter(WorkflowTagModel.mod_id == mod_id)
+        mod = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).first()
+        query = query.filter(WorkflowTagModel.mod_id == mod.mod_id)
     return [ref.reference_id for ref in query.all()]
 
 
