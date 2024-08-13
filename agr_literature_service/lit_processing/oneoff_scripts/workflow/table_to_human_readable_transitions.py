@@ -77,7 +77,7 @@ def get_name_to_atp_and_children(token, curie='ATP:0000177'):
                             detail="Error from A-team API")
 
 
-def get_transitions(db: Session, comma_format, mod_only: str):  # noqa
+def print_transitions(db: Session, comma_format, mod_only: str):  # noqa
     global atp_to_name
     global mod_abbrs
 
@@ -85,11 +85,8 @@ def get_transitions(db: Session, comma_format, mod_only: str):  # noqa
         query = r"""
         select mod_id, transition_from, transition_to, requirements, transition_type, actions, condition
           from workflow_transition"""
-        print(f"query is {query}")
-        print(f"{comma_format}, {mod_only}")
         if mod_only:
             query += f" where mod_id = '{mod_ids[mod_only]}'"
-        print(f"query is {query}")
         trans_results = db.execute(query)
         trans = trans_results.fetchall()
         start = '{'
@@ -109,7 +106,7 @@ def get_transitions(db: Session, comma_format, mod_only: str):  # noqa
                'transition_type': "{tran['transition_type']}"{end},""")
     except Exception as e:
         logger.error(e)
-        print("Error: " + str(type(e)))
+        print(f"Error: {e}")
         exit(-1)
 
 
@@ -121,8 +118,6 @@ if __name__ == "__main__":
     engine = create_postgres_engine(False)
     db_connection = engine.connect()
     db_session: Session = create_postgres_session(False)
-    print(f"db_connection: {db_connection}")
 
     load_mod_abbr(db_session)
-    print("pre get trans")
-    get_transitions(db_session, args.comma_seperated, args.mod_abbr)
+    print_transitions(db_session, args.comma_seperated, args.mod_abbr)
