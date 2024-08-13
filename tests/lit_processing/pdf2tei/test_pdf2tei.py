@@ -53,7 +53,8 @@ class TestPdf2TEI:
                 "transition_type": "manual"
             }
             client.post(url="/workflow_tag/transition_to_workflow_status", json=req_data, headers=auth_headers)
-            with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "test_data", "test.pdf"), "rb") as f:
+            with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "test_data", "test.pdf"),
+                      "rb") as f:
                 pdf_bytes = f.read()
             metadata = {
                 "reference_curie": test_reference.new_ref_curie,

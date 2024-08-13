@@ -290,7 +290,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
                 WorkflowTransitionModel.transition_type.in_(["any", f"{transition_type}_only"])
             )
         ).first()
-    if current_workflow_tag_db_obj and not transition:
+    if not transition and new_workflow_tag_atp_id != "ATP:0000141":
         message = f"Transition to {new_workflow_tag_atp_id} not allowed as not initial state."
         "Please set initial WFT first."
         if current_workflow_tag_db_obj and current_workflow_tag_db_obj.workflow_tag_id:
@@ -299,7 +299,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=message)
-    else:
+    if not current_workflow_tag_db_obj or transition:
         if transition and transition.requirements:
             check_requirements(reference, mod, transition)
         if not current_workflow_tag_db_obj:
@@ -313,6 +313,9 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
         if transition and transition.actions:
             process_transition_actions(db, transition, current_workflow_tag_db_obj)
             db.commit()
+    else:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Workflow status transition not supported")
 
 
 def _get_current_workflow_tag_db_obj(db: Session, curie_or_reference_id: str, workflow_process_atp_id: str,
