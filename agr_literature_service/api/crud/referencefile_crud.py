@@ -39,7 +39,8 @@ logger = logging.getLogger(__name__)
 
 def get_main_pdf_referencefile_id(db: Session, curie_or_reference_id: str,
                                   mod_abbreviation: str = None) -> Union[int, None]:
-    reference: ReferenceModel = get_reference(db=db, curie_or_reference_id=curie_or_reference_id, load_referencefiles=True)
+    reference: ReferenceModel = get_reference(db=db, curie_or_reference_id=str(curie_or_reference_id),
+                                              load_referencefiles=True)
     referencefile: ReferencefileModel
     main_pdf_referencefiles = [referencefile for referencefile in reference.referencefiles if
                                referencefile.file_class == "main" and referencefile.file_publication_status == "final"

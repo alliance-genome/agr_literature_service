@@ -247,7 +247,7 @@ def check_requirements(reference, mod, transition):
             negated_function = True
         if requirement_function_str in ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS:
             check_passed = ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS[
-                requirement_function_str](reference, mod.mod_id)
+                requirement_function_str](reference, mod)
             if negated_function:
                 check_passed = not check_passed
             if not check_passed:
@@ -290,7 +290,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
                 WorkflowTransitionModel.transition_type.in_(["any", f"{transition_type}_only"])
             )
         ).first()
-    if not transition:
+    if current_workflow_tag_db_obj and not transition:
         message = f"Transition to {new_workflow_tag_atp_id} not allowed as not initial state."
         "Please set initial WFT first."
         if current_workflow_tag_db_obj and current_workflow_tag_db_obj.workflow_tag_id:
@@ -299,7 +299,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=message)
-    if not current_workflow_tag_db_obj or transition:
+    else:
         if transition and transition.requirements:
             check_requirements(reference, mod, transition)
         if not current_workflow_tag_db_obj:
@@ -313,9 +313,6 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
         if transition and transition.actions:
             process_transition_actions(db, transition, current_workflow_tag_db_obj)
             db.commit()
-    else:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail="Workflow status transition not supported")
 
 
 def _get_current_workflow_tag_db_obj(db: Session, curie_or_reference_id: str, workflow_process_atp_id: str,
