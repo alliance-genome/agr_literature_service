@@ -3,6 +3,7 @@ import json
 import os
 from unittest.mock import patch
 
+import pytest
 from starlette import status
 from starlette.testclient import TestClient
 
@@ -18,6 +19,7 @@ from ...fixtures import db  # noqa
 
 class TestPdf2TEI:
 
+    @pytest.mark.webtest
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     def test_pdf2tei(self, db, auth_headers, test_reference, test_mod): # noqa
         with TestClient(app) as client:
