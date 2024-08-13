@@ -85,4 +85,3 @@ class TestPdf2TEI:
             response = client.get(url=f"/workflow_tag/get_current_workflow_status/{test_reference.new_ref_curie}/"
                                       f"{mod_abbreviation}/ATP:0000161", headers=auth_headers)
             assert response.json() == "ATP:0000163"
-
