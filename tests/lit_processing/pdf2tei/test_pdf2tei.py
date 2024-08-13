@@ -50,7 +50,7 @@ class TestPdf2TEI:
                 "new_workflow_tag_atp_id": "ATP:0000141",
                 "transition_type": "manual"
             }
-            client.post(url=f"/workflow_tag/transition_to_workflow_status", json=req_data, headers=auth_headers)
+            client.post(url="/workflow_tag/transition_to_workflow_status", json=req_data, headers=auth_headers)
             with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "test_data", "test.pdf"), "rb") as f:
                 pdf_bytes = f.read()
             metadata = {
@@ -69,7 +69,7 @@ class TestPdf2TEI:
             }
             mod_auth_headers = auth_headers.copy()
             del mod_auth_headers["Content-Type"]
-            response = client.post(url=f"/reference/referencefile/file_upload/", files=files, headers=mod_auth_headers)
+            response = client.post(url="/reference/referencefile/file_upload/", files=files, headers=mod_auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
             convert_pdf_to_tei()
             all_ref_files = db.query(ReferencefileModel).filter(ReferencefileModel.file_class == "tei").all()
