@@ -8,7 +8,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from agr_literature_service.api.crud.referencefile_crud import get_main_pdf_referencefile_id, download_file, file_upload
-from agr_literature_service.api.crud.workflow_tag_crud import get_ref_ids_with_workflow_status
+from agr_literature_service.api.crud.workflow_tag_crud import get_ref_ids_with_workflow_status, \
+    transition_to_workflow_status
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import ModModel, ReferencefileModel, ReferenceModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess
@@ -55,9 +56,15 @@ def main():
                     file_upload(db=db, metadata=metadata, file=UploadFile(file=BytesIO(response.content),
                                                                           filename=ref_file_obj.display_name),
                                 upload_if_already_converted=True)
+                    transition_to_workflow_status(db=db, curie_or_reference_id=str(reference_obj.reference_id),
+                                                  mod_abbreviation=mod_abbreviation,
+                                                  new_workflow_tag_atp_id="ATP:0000163", transition_type="automated")
                 else:
                     logger.error(f"Failed to process referencefile with ID {ref_file_id_to_convert}. "
                                  f"Status code: {response.status_code}")
+                    transition_to_workflow_status(db=db, curie_or_reference_id=str(reference_obj.reference_id),
+                                                  mod_abbreviation=mod_abbreviation,
+                                                  new_workflow_tag_atp_id="ATP:0000164", transition_type="automated")
 
 
 if __name__ == '__main__':

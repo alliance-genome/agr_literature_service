@@ -35,7 +35,9 @@ class TestPdf2TEI:
 
             transitions_to_add = [
                 ["ATP:0000141", "ATP:0000134", ["referencefiles_present"],
-                 ["proceed_on_value::category::thesis::ATP:0000162"], "on_success"]
+                 ["proceed_on_value::category::thesis::ATP:0000162"], "on_success"],
+                ["ATP:0000162", "ATP:0000163", [], [], None],
+                ["ATP:0000162", "ATP:0000164", [], [], None]
             ]
 
             for transition_to_add in transitions_to_add:
@@ -80,3 +82,7 @@ class TestPdf2TEI:
             file_response = client.get(url=f"/reference/referencefile/download_file/{all_ref_files[0].referencefile_id}",
                                        headers=auth_headers)
             assert file_response.content
+            response = client.get(url=f"/workflow_tag/get_current_workflow_status/{test_reference.new_ref_curie}/"
+                                      f"{mod_abbreviation}/ATP:0000161", headers=auth_headers)
+            assert response.json() == "ATP:0000163"
+
