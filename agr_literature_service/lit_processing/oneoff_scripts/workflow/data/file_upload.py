@@ -14,7 +14,7 @@ def get_data(name_to_atp):
             'from': "file upload in progress",
             'to': "files uploaded",
             'condition': 'on_success, text_convert_job',
-            'actions': [f"proceed_on_value::category::thesis::{name_to_atp['text conversion needed']}"]
+            'actions': [f"proceed_on_value::category::reasearch_article::{name_to_atp['text conversion needed']}"]
         },
         {
             'mod': "WB",
