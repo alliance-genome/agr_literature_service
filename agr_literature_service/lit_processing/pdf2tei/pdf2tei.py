@@ -16,6 +16,14 @@ from agr_literature_service.api.routers.okta_utils import OktaAccess
 logger = logging.getLogger(__name__)
 
 
+def convert_pdf_with_grobid(file_content):
+    grobid_api_url = os.environ.get("PDF2TEI_API_URL",
+                                    "https://grobid.alliancegenome.org/api/processFulltextDocument")
+    # Send the file content to the GROBID API
+    response = requests.post(grobid_api_url, files={'input': ("file", file_content)})
+    return response
+
+
 def main():
     engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
     new_session = sessionmaker(bind=engine, autoflush=True)
@@ -34,13 +42,7 @@ def main():
             # TODO: job starts here - set to in_progress once we have the new ATP node
             file_content = download_file(db=db, referencefile_id=ref_file_id_to_convert,
                                          mod_access=OktaAccess.ALL_ACCESS, use_in_api=False)
-            # Define the GROBID API endpoint
-            grobid_api_url = os.environ.get("PDF2TEI_API_URL",
-                                            "https://grobid.alliancegenome.org/api/processFulltextDocument")
-
-            # Send the file content to the GROBID API
-            response = requests.post(grobid_api_url, files={'input': ("file", file_content)})
-
+            response = convert_pdf_with_grobid(file_content)
             # Check the response
             if response.status_code == 200:
                 logger.info(f"referencefile with ID {str(ref_file_id_to_convert)} successfully processed by GROBID.")

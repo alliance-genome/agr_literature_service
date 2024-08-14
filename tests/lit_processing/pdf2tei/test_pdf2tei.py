@@ -1,7 +1,7 @@
 import io
 import json
 import os
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 import pytest
 from starlette import status
@@ -17,10 +17,18 @@ from ...api.test_workflow_tag import get_descendants_mock  # noqa
 from ...fixtures import db  # noqa
 
 
+def convert_pdf_with_grobid_mock(file_content):
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.content = b"Mocked TEI content"
+    return mock_response
+
+
 class TestPdf2TEI:
 
-    @pytest.mark.webtest
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
+    @patch("agr_literature_service.lit_processing.pdf2tei.pdf2tei.convert_pdf_with_grobid",
+           convert_pdf_with_grobid_mock)
     def test_pdf2tei(self, db, auth_headers, test_reference, test_mod): # noqa
         with TestClient(app) as client:
             mod_response = client.get(url=f"/mod/{test_mod.new_mod_abbreviation}")
@@ -82,7 +90,7 @@ class TestPdf2TEI:
             assert len(all_ref_files) == 1
             file_response = client.get(url=f"/reference/referencefile/download_file/{all_ref_files[0].referencefile_id}",
                                        headers=auth_headers)
-            assert file_response.content
+            assert file_response.content == b"Mocked TEI content"
             response = client.get(url=f"/workflow_tag/get_current_workflow_status/{test_reference.new_ref_curie}/"
                                       f"{mod_abbreviation}/ATP:0000161", headers=auth_headers)
             assert response.json() == "ATP:0000163"
