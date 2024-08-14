@@ -16,7 +16,6 @@ BASH_ENV=/container.env
 0 4 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_export/dump_database.py -t cron > /var/log/automated_scripts/dump_prod_database.log  2>&1
 0 14 * * 7 [ "${ENV_STATE}" = "build" ] && python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/upload_pdfs_to_s3.py > /var/log/automated_scripts/upload_pdfs_to_s3.log 2>&1
 0 0 15 * * [ "${ENV_STATE}" = "prod" ] && python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/full_text/compare_referencefiles_s3_to_db.py > /var/log/automated_scripts/compare_referencefiles_s3_to_db.log 2>&1
-0 0 15 * * [ "${ENV_STATE}" = "prod" ] && python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/full_text/compare_referencefiles_s3_to_db.py > /var/log/automated_scripts/compare_referencefiles_s3_to_db.log 2>&1
 0 18 * * 7 [ "${ENV_STATE}" = "prod" ] && python3 /usr/src/app/agr_literature_service/lit_processing/pdf2tei/pdf2tei.py > /var/log/automated_scripts/pdf2tei.log 2>&1
 
 #0 1 * * 0 bash /usr/src/app/debezium/setup.sh > /var/log/automated_scripts/rebuild_debezium.log  2>&1
