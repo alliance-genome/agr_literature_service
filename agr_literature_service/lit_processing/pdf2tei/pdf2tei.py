@@ -8,12 +8,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from agr_literature_service.api.crud.referencefile_crud import get_main_pdf_referencefile_id, download_file, file_upload
-from agr_literature_service.api.crud.workflow_tag_crud import get_ref_ids_with_workflow_status, \
-    transition_to_workflow_status, get_jobs, job_change_atp_code
+from agr_literature_service.api.crud.workflow_tag_crud import get_jobs, job_change_atp_code
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import ModModel, ReferencefileModel, ReferenceModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess
-
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +21,6 @@ def main():
     new_session = sessionmaker(bind=engine, autoflush=True)
     db = new_session()
     for job in get_jobs(db, "text_convert_job"):
-        workflow_tag_id = job['workflow_tag_id']
         ref_id = job['reference_id']
         reference_workflow_tag_id = job['reference_workflow_tag_id']
         mod_id = job['mod_id']
