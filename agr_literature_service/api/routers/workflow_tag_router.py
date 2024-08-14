@@ -85,7 +85,7 @@ def successful_job(reference_workflow_tag_id: int, db: Session = db_session):
 @router.post('/job/started/{reference_workflow_tag_id}',
              status_code=200)
 def start_job(reference_workflow_tag_id: int, db: Session = db_session):
-    return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, 'on_start_job')
+    return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, 'on_start')
 
 
 @router.get('/{reference_workflow_tag_id}/versions',

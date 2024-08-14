@@ -97,6 +97,7 @@ def add_transitions(db: Session, filename: str, debug: bool = False):  # noqa
     elif filename == "classifications":
         data_to_add = classifications(name_to_atp)
     else:
+        print(f"Unknown filename {filename}")
         return
     for transition in data_to_add:
         mod_list: list = []
