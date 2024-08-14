@@ -3,7 +3,6 @@ import json
 import os
 from unittest.mock import patch, Mock
 
-import pytest
 from starlette import status
 from starlette.testclient import TestClient
 
