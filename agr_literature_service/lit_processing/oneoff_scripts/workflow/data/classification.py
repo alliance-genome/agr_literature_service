@@ -33,7 +33,6 @@ def get_data(name_to_atp):
     mod can only be 'ALL', the actual mod abbreviation or 'NOT_' + mod abbreviation
     i.e. ALL, WB, NOT_FB are three examples.
     """
-    ref_type = "proceed_on_value::reference_type"
     test_data = [
         {'mod': "WB",
          'from': "file converted to text",
