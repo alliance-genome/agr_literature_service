@@ -38,7 +38,7 @@ def get_data(name_to_atp):
     for entry in ('catalytic activity', 'disease', 'expression', 'interaction'):
         item = {
             'mod': 'ALL',
-            'from': f'reference classification needed',
+            'from': 'reference classification needed',
             'to': f'{entry} classification needed',
             'condition': f'{entry}_classification_job'}
         test_data.append(item)
@@ -46,7 +46,7 @@ def get_data(name_to_atp):
             'mod': 'ALL',
             'from': f'{entry} classification needed',
             'to': f'{entry} classification in progress',
-            'condition': f'on_start'}
+            'condition': 'on_start'}
         test_data.append(item)
         item = {
             'mod': 'ALL',
