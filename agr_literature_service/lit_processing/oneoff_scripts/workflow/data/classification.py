@@ -67,7 +67,7 @@ def get_data(name_to_atp):
             'mod': 'ALL',
             'from': f'{entry} classification in progress',
             'to': f'{entry} classification failed',
-            'condition': 'on_failure'}
+            'condition': 'on_failed'}
         test_data.append(item)
         item = {
             'mod': 'ALL',
