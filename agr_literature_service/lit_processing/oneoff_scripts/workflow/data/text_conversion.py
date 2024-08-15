@@ -8,6 +8,13 @@ def get_data(name_to_atp):
     test_data = [
         {
             'mod': "ALL",
+            'from': "files uploaded",
+            'to': "file conversion needed",
+            'condition': 'text_convert_job',
+            'actions': []
+        },
+        {
+            'mod': "ALL",
             'from': "file conversion needed",
             'to': "file converted to text",
             'condition': 'on_success',

@@ -9,18 +9,33 @@ def get_data(name_to_atp):
             'from': "file needed",
             'to': "file upload in progress",
         },
+        # Do not like this but it looks like some processes go from needed to uploaded so add transitions for this.
+        {
+            'mod': "NOT_WB",
+            'from': "file needed",
+            'to': "files uploaded",
+            'condition': 'on_success, text_convert_job',
+            'actions': [f"proceed_on_value::category::research_article::{name_to_atp['text conversion needed']}"]
+        },
+        {
+            'mod': "WB",
+            'from': "file needed",
+            'to': "files uploaded",
+            'condition': 'on_success, text_convert_job',
+            'actions': [f"proceed_on_value::reference_type::experimental::{name_to_atp['text conversion needed']}"]
+        },
         {
             'mod': "NOT_WB",
             'from': "file upload in progress",
             'to': "files uploaded",
-            'condition': 'on_success, text_convert_job',
-            'actions': [f"proceed_on_value::category::reasearch_article::{name_to_atp['text conversion needed']}"]
+            'condition': 'on_success',
+            'actions': [f"proceed_on_value::category::research_article::{name_to_atp['text conversion needed']}"]
         },
         {
             'mod': "WB",
             'from': "file upload in progress",
             'to': "files uploaded",
-            'condition': 'on_success, text_convert_job',
+            'condition': 'on_success',
             'actions': [f"proceed_on_value::reference_type::experimental::{name_to_atp['text conversion needed']}"]
         },
         {
