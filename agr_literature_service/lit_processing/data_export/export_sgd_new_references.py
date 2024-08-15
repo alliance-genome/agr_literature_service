@@ -33,7 +33,7 @@ ondemand_bucket = sub_bucket + 'ondemand/'
 mod = 'SGD'
 
 
-def dump_data(email, ondemand, ui_root_url=None):  # noqa: C901
+def dump_data(email, ondemand, ui_root_url=None):  # noqa: C901  pragma: no cover
 
     json_file = "reference_new" + "_" + mod
     datestamp = str(date.today()).replace("-", "")
