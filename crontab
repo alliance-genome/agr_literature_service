@@ -1,9 +1,10 @@
-SHELL=/bin/bash
+cSHELL=/bin/bash
 BASH_ENV=/container.env
 
 
 0 2 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_export/export_all_mod_references_to_json.py > /var/log/automated_scripts/export_all_mod_references_to_json.log 2>&1
-0 5 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_search_new_references.py > /var/log/automated_scripts/pubmed_search_new_references.log 2>&1
+0 5 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_export/export_sgd_new_references.py > /var/log/automated_scripts/export_sgd_new_references.log 2>&1
+0 6 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_search_new_references.py > /var/log/automated_scripts/pubmed_search_new_references.log 2>&1
 0 1 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/interaction/load_interaction_papers.py > /var/log/automated_scripts/load_interaction_papers.log 2>&1
 0 11 * * 6 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_all_mods.py > /var/log/automated_scripts/pubmed_update_references_all_mods.log 2>&1
 # 0 9 * * 7 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/dqm_ingest/load_dqm_resource.py > /var/log/automated_scripts/load_dqm_resource.log 2>&1
