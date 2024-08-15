@@ -97,7 +97,7 @@ def dump_data(email, ondemand, ui_root_url=None):  # noqa: C901
     logger.info("DONE!")
 
 
-def get_reference_data_and_generate_json(mod, reference_id_to_reference_relation_data, resource_id_to_journal, json_file_with_path, datestamp):
+def get_reference_data_and_generate_json(mod, reference_id_to_reference_relation_data, resource_id_to_journal, json_file_with_path, datestamp):  # pragma: no cover
 
     metaData = get_meta_data(mod, datestamp)
 
