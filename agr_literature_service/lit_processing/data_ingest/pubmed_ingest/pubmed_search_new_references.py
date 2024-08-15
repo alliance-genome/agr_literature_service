@@ -193,7 +193,7 @@ def query_mods(input_mod, reldate):  # noqa: C901
     mod_daterange = {
         'FB': '&reldate=365',
         'ZFIN': '&reldate=730',
-        'SGD': '&reldate=200',
+        'SGD': '&reldate=14',
         'WB': '&reldate=1825',
         'XB': '&reldate=365'
     }
