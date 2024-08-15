@@ -247,7 +247,7 @@ def check_requirements(reference, mod, transition):
             negated_function = True
         if requirement_function_str in ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS:
             check_passed = ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS[
-                requirement_function_str](reference, mod.mod_id)
+                requirement_function_str](reference, mod)
             if negated_function:
                 check_passed = not check_passed
             if not check_passed:
@@ -290,7 +290,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
                 WorkflowTransitionModel.transition_type.in_(["any", f"{transition_type}_only"])
             )
         ).first()
-    if not transition:
+    if not transition and new_workflow_tag_atp_id != "ATP:0000141":
         message = f"Transition to {new_workflow_tag_atp_id} not allowed as not initial state."
         "Please set initial WFT first."
         if current_workflow_tag_db_obj and current_workflow_tag_db_obj.workflow_tag_id:
@@ -338,6 +338,14 @@ def get_current_workflow_status(db: Session, curie_or_reference_id: str, workflo
     current_workflow_tag_db_obj = _get_current_workflow_tag_db_obj(db, curie_or_reference_id,
                                                                    workflow_process_atp_id, mod_abbreviation)
     return None if not current_workflow_tag_db_obj else current_workflow_tag_db_obj.workflow_tag_id
+
+
+def get_ref_ids_with_workflow_status(db: Session, workflow_atp_id: str, mod_abbreviation: str = None):
+    query = db.query(WorkflowTagModel.reference_id).filter(WorkflowTagModel.workflow_tag_id == workflow_atp_id)
+    if mod_abbreviation is not None:
+        mod = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).first()
+        query = query.filter(WorkflowTagModel.mod_id == mod.mod_id)
+    return [ref.reference_id for ref in query.all()]
 
 
 def create(db: Session, workflow_tag: WorkflowTagSchemaPost) -> int:
