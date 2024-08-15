@@ -33,27 +33,20 @@ def get_data(name_to_atp):
     mod can only be 'ALL', the actual mod abbreviation or 'NOT_' + mod abbreviation
     i.e. ALL, WB, NOT_FB are three examples.
     """
-    test_data = [
-        {'mod': "WB",
-         'from': "file converted to text",
-         'to': "reference classification needed",
-         'actions': [],
-         'condition': 'on_success'
-         },
-        {'mod': "ZFIN",
-         'from': "file converted to text",
-         'to': "reference classification needed",
-         'actions': [],
-         'condition': 'on_success'
-         }
-    ]
+    test_data = []
     # for each XXX activity add transitions needed for job control
     for entry in ('catalytic activity', 'disease', 'expression', 'interaction'):
         item = {
             'mod': 'ALL',
+            'from': f'reference classification needed',
+            'to': f'{entry} classification needed',
+            'condition': f'{entry}_classification_job'}
+        test_data.append(item)
+        item = {
+            'mod': 'ALL',
             'from': f'{entry} classification needed',
             'to': f'{entry} classification in progress',
-            'condition': f'on_start,{entry}_classification_job'}
+            'condition': f'on_start'}
         test_data.append(item)
         item = {
             'mod': 'ALL',
