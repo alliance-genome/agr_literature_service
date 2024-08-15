@@ -14,14 +14,14 @@ def get_data(name_to_atp):
             'mod': "NOT_WB",
             'from': "file needed",
             'to': "files uploaded",
-            'condition': 'on_success, text_convert_job',
+            'condition': 'on_success',
             'actions': [f"proceed_on_value::category::research_article::{name_to_atp['text conversion needed']}"]
         },
         {
             'mod': "WB",
             'from': "file needed",
             'to': "files uploaded",
-            'condition': 'on_success, text_convert_job',
+            'condition': 'on_success',
             'actions': [f"proceed_on_value::reference_type::experimental::{name_to_atp['text conversion needed']}"]
         },
         {
