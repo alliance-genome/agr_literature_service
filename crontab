@@ -1,4 +1,4 @@
-cSHELL=/bin/bash
+SHELL=/bin/bash
 BASH_ENV=/container.env
 
 
