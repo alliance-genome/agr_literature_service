@@ -141,12 +141,20 @@ def add_transitions(db: Session, filename: str, debug: bool = False):  # noqa
                 db.add(wft)
             if 'actions' in transition:
                 wft.actions = transition['actions']
+            else:
+                wft.actions = []
             if 'condition' in transition:
                 wft.condition = transition['condition']
+            else:
+                wft.condition = None
             if 'requirements' in transition and transition['requirements'] != "None":
                 wft.requirements = transition['requirements']
+            else:
+                wft.requirements = None
             if 'transition_type' in transition:
                 wft.transition_type = transition['transition_type']
+            else:
+                wft.transition_type = "any"
     db.commit()
     if debug:
         wfts = db.query(WorkflowTransitionModel).all()
