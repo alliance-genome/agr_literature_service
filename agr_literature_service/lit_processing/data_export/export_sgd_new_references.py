@@ -118,7 +118,7 @@ def get_reference_data_and_generate_json(mod, reference_id_to_reference_relation
                             f"AND reference_id IN "
                             f"(select reference_id from cross_reference "
                             f"where curie_prefix = 'SGD' and curie like 'SGD:S1%' "
-                            f"and is_obsolete is false) "
+                            f"and is_obsolete is False) "
                             f"order by reference_id")
 
     rows = rs.fetchall()
