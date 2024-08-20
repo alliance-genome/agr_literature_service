@@ -10,26 +10,13 @@ We will try to keep this doc up to date but beware this table may change over ti
 Table structure.
 ^^^^^^^^^^^^^^^^
 
-.. list-table:: Table
-    :widths: 25 25 25 50
-    :header-rows: 1
+.. code-block:: python
 
-    * - Column
-      - Type
-      - Nullable
-      - Default
-
-
-    * - date_created
-      - timestamp
-      #- False
-      - None
-
-    * - date_updated
-      - timestamp
-      - True
-      - None
-
+    ======                 ====                 ========  =======
+    Column                 Type                 Nullable  Default
+    ======                 ====                 ========  =======
+    date_created           timestamp            False     None
+    date_updated           timestamp            True      None
     workflow_transition_id integer              False     nextval(...)
     mod_id                 integer              False     None
     transition_from        character varying    False     None
