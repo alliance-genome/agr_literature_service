@@ -62,7 +62,7 @@ Requirements overview.
 
 Actions overview.
 ^^^^^^^^^^^^^^^^^
-    This is an array of strings that define methods and arguments that are processed when we transition.
+    This is an array of strings that define methods and arguments that are processed after the transition.
     An example would be to add a workflow_tag 'text conversion needed' for WormBase files of reference type
     'experimental' when transitioning from "file upload in progress" to "files uploaded".
     The following shows the section from the data load file for this.
@@ -81,6 +81,7 @@ Actions overview.
 
     In this example when we do the above transition then afterwards the method proceed_on_value is called with
     the arguments reference_type, experimental and the value of name_to_atp['text conversion needed'].
+    Format is method name and then '::' separates each argument for it.
 
     These methods are in api/crud/workflow_transition_actions/*.py
     To add new ones, create a new file with function of the specified name in.
@@ -111,6 +112,9 @@ Adding data to the workflow_transition Table.
     The script transitions_add.py should be used to process these files.
     If you add new data files then the python script will need to be altered to find this data.
     Alterations include adding an import of the new file and adding another elif statement to run it.
+
+    Something that might need changing if needed at some point is to allow a list of mods in the dict element 'mod',
+    Currently only one mod can be used or not_mod (to add all but that mod) and  'ALL' which adds to all mods.
 
 Automated jobs.
 ^^^^^^^^^^^^^^^
@@ -167,6 +171,9 @@ Automated jobs.
     At the end of the job we call job_change_atp_code() with a string of either "on_success" or
     "on_failed" depending on how the job went. This will replace the workflow_tag from "interaction classification in progress"
     to "interaction classification complete" or "interaction classification failed" based on this.
+
+    There are router api end points for all the job methods so that external processes can process jobs
+    and update the database without having to have all the same code, versions etc locally.
 
 
 When to use requirements, condition or action.
