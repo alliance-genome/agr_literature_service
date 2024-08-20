@@ -30,8 +30,10 @@ Table structure.
     ======                 =====               ========   =======
 
 
+Table column guide
+^^^^^^^^^^^^^^^^^^
 
-   - transition_from:
+    - transition_from:
        ATP string from which we are starting.
     - transition_to:
        ATP string to which we want to move too.
