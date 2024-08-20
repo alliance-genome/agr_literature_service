@@ -10,11 +10,26 @@ We will try to keep this doc up to date but beware this table may change over ti
 Table structure.
 ^^^^^^^^^^^^^^^^
 
-    ======                 ====                 ========  =======
-    Column                 Type                 Nullable  Default
-    ======                 ====                 ========  =======
-    date_created           timestamp            False     None
-    date_updated           timestamp            True      None
+.. list-table:: Table
+    :widths: 25 25 25 50
+    :header-rows: 1
+
+    * - Column
+      - Type
+      - Nullable
+      - Default
+
+
+    * - date_created
+      - timestamp
+      #- False
+      - None
+
+    * - date_updated
+      - timestamp
+      - True
+      - None
+
     workflow_transition_id integer              False     nextval(...)
     mod_id                 integer              False     None
     transition_from        character varying    False     None
@@ -27,7 +42,7 @@ Table structure.
     condition              character varying    True      None
     ======                 =====               ========   =======
 
-    - transition_from:
+   - transition_from:
        ATP string from which we are starting.
     - transition_to:
        ATP string to which we want to move too.
