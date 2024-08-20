@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
 
-def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, checktype, check_value, new_atp):
+def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, args: list):
     """
     args: [0] should be what to check to see if the ATP should be added.
               category: for reference.category or
@@ -12,11 +12,15 @@ def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel,
     args: [2] should be the new ATP value for the new workflow tag if test passes.
               e.g. "ATP:0000162"  :text conversion needed (ATP:0000162)
     So in the transition table we would have in the actions column
-    mod_id for wormbase on transition to files uploaded (ATP:0000134)
+    mod_id for WormBase on transition to files uploaded (ATP:0000134)
     we would have action of proceed_on_value::reference_type::experimental::ATP:0000162
     for other organisms it would be
     proceed_on_value::category::Research_Article::ATP:0000162
     """
+    checktype = args[0]
+    check_value = args[1]
+    new_atp = args[2]
+
     call_process = False
     if checktype == "category":  # Check reference category is "Research article"
         if current_workflow_tag_db_obj.reference.category == check_value:

@@ -14,7 +14,7 @@ def process_action(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, a
     checks = False
     if method in ADMISSIBLE_WORKFLOW_TRANSITION_ACTION_FUNCTIONS:
         try:
-            ADMISSIBLE_WORKFLOW_TRANSITION_ACTION_FUNCTIONS[method](db, current_workflow_tag_db_obj, args[0], args[1], args[2])
+            ADMISSIBLE_WORKFLOW_TRANSITION_ACTION_FUNCTIONS[method](db, current_workflow_tag_db_obj, args)
             # checks = locals()[method](db, current_workflow_tag_db_obj, args[0], args[1], args[2])
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
