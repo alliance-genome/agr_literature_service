@@ -10,6 +10,8 @@ We will try to keep this doc up to date but beware this table may change over ti
 Table structure.
 ^^^^^^^^^^^^^^^^
 
+.. code-block:: python
+
     ======                 ====                 ========  =======
     Column                 Type                 Nullable  Default
     ======                 ====                 ========  =======
@@ -26,6 +28,10 @@ Table structure.
     actions                character varying[]  True      None
     condition              character varying    True      None
     ======                 =====               ========   =======
+
+
+Table column guide
+^^^^^^^^^^^^^^^^^^
 
     - transition_from:
        ATP string from which we are starting.
@@ -72,6 +78,15 @@ Actions overview.
             'condition': 'on_success',
             'actions': [f"proceed_on_value::reference_type::experimental::{name_to_atp['text conversion needed']}"]
      },
+
+    In this example when we do the above transition then afterwards the method proceed_on_value is called with
+    the arguments reference_type, experimental and the value of name_to_atp['text conversion needed'].
+
+    These methods are in api/crud/workflow_transition_actions/*.py
+    To add new ones, create a new file with function of the specified name in.
+
+    Add the string and method name to the dict ADMISSIBLE_WORKFLOW_TRANSITION_ACTION_FUNCTIONS
+    in file api/crud/workflow_transition_actions/__init__.py
 
 
 Condition overview.
