@@ -22,7 +22,7 @@ def get_data(name_to_atp):
             'from': "file needed",
             'to': "files uploaded",
             'condition': 'on_success',
-            'actions': [f"proceed_on_value::reference_type::experimental::{name_to_atp['text conversion needed']}"]
+            'actions': [f"proceed_on_value::reference_type::Experimental::{name_to_atp['text conversion needed']}"]
         },
         {
             'mod': "NOT_WB",
@@ -36,7 +36,7 @@ def get_data(name_to_atp):
             'from': "file upload in progress",
             'to': "files uploaded",
             'condition': 'on_success',
-            'actions': [f"proceed_on_value::reference_type::experimental::{name_to_atp['text conversion needed']}"]
+            'actions': [f"proceed_on_value::reference_type::Experimental::{name_to_atp['text conversion needed']}"]
         },
         {
             'mod': "ALL",
