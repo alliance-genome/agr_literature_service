@@ -10,7 +10,7 @@ We will try to keep this doc up to date but beware this table may change over ti
 Table structure.
 ^^^^^^^^^^^^^^^^
 
-    .. code-block:: python
+.. code-block:: python
 
     ======                 ====                 ========  =======
     Column                 Type                 Nullable  Default
@@ -28,6 +28,8 @@ Table structure.
     actions                character varying[]  True      None
     condition              character varying    True      None
     ======                 =====               ========   =======
+
+
 
    - transition_from:
        ATP string from which we are starting.
