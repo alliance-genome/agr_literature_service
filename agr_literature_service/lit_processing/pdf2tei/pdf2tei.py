@@ -56,10 +56,13 @@ def main():
                     "is_annotation": None,
                     "mod_abbreviation": mod_abbreviation
                 }
-                file_upload(db=db, metadata=metadata, file=UploadFile(file=BytesIO(response.content),
-                                                                      filename=ref_file_obj.display_name),
-                            upload_if_already_converted=True)
-                job_change_atp_code(db, reference_workflow_tag_id, "on_success")
+                if response.content == "[NO_BLOCKS] PDF parsing resulted in empty content":
+                    job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
+                else:
+                    file_upload(db=db, metadata=metadata, file=UploadFile(file=BytesIO(response.content),
+                                                                          filename=ref_file_obj.display_name),
+                                upload_if_already_converted=True)
+                    job_change_atp_code(db, reference_workflow_tag_id, "on_success")
             else:
                 logger.error(f"Failed to process referencefile with ID {ref_file_id_to_convert}. "
                              f"Status code: {response.status_code}")
