@@ -12,7 +12,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file needed",
                'to': "file upload in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -20,7 +20,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file needed",
                'to': "file upload in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -28,7 +28,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file needed",
                'to': "file upload in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -36,7 +36,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file needed",
                'to': "file upload in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -44,7 +44,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file needed",
                'to': "file upload in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -52,7 +52,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file needed",
                'to': "file upload in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -60,14 +60,14 @@ def get_data(name_to_atp):  # noqa
                'from': "file needed",
                'to': "file upload in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
         {'mod': "WB",
                'from': "file upload in progress",
                'to': "file needed",
-               'requirements': "['not_referencefiles_present']",
+               'requirements': ['not_referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "any"},
@@ -75,7 +75,7 @@ def get_data(name_to_atp):  # noqa
         {'mod': "WB",
                'from': "file unavailable",
                'to': "file upload in progress",
-               'requirements': "['referencefiles_present']",
+               'requirements': ['referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "any"},
@@ -83,7 +83,7 @@ def get_data(name_to_atp):  # noqa
         {'mod': "WB",
                'from': "files uploaded",
                'to': "file needed",
-               'requirements': "['not_referencefiles_present']",
+               'requirements': ['not_referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "manual_only"},
@@ -91,7 +91,7 @@ def get_data(name_to_atp):  # noqa
         {'mod': "FB",
                'from': "files uploaded",
                'to': "file needed",
-               'requirements': "['not_referencefiles_present']",
+               'requirements': ['not_referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "manual_only"},
@@ -99,7 +99,7 @@ def get_data(name_to_atp):  # noqa
         {'mod': "FB",
                'from': "file upload in progress",
                'to': "file needed",
-               'requirements': "['not_referencefiles_present']",
+               'requirements': ['not_referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "any"},
@@ -107,7 +107,7 @@ def get_data(name_to_atp):  # noqa
         {'mod': "FB",
                'from': "file unavailable",
                'to': "file upload in progress",
-               'requirements': "['referencefiles_present']",
+               'requirements': ['referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "any"},
@@ -115,7 +115,7 @@ def get_data(name_to_atp):  # noqa
         {'mod': "ZFIN",
                'from': "file upload in progress",
                'to': "file needed",
-               'requirements': "['not_referencefiles_present']",
+               'requirements': ['not_referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "any"},
@@ -124,14 +124,14 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "disease classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "disease_classification_job",
                'transition_type': "any"},
 
         {'mod': "ZFIN",
                'from': "file unavailable",
                'to': "file upload in progress",
-               'requirements': "['referencefiles_present']",
+               'requirements': ['referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "any"},
@@ -139,7 +139,7 @@ def get_data(name_to_atp):  # noqa
         {'mod': "ZFIN",
                'from': "files uploaded",
                'to': "file needed",
-               'requirements': "['not_referencefiles_present']",
+               'requirements': ['not_referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "manual_only"},
@@ -148,14 +148,14 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "disease classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "disease_classification_job",
                'transition_type': "any"},
 
         {'mod': "SGD",
                'from': "file upload in progress",
                'to': "file needed",
-               'requirements': "['not_referencefiles_present']",
+               'requirements': ['not_referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "any"},
@@ -164,14 +164,14 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "disease classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "disease_classification_job",
                'transition_type': "any"},
 
         {'mod': "SGD",
                'from': "file unavailable",
                'to': "file upload in progress",
-               'requirements': "['referencefiles_present']",
+               'requirements': ['referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "any"},
@@ -179,7 +179,7 @@ def get_data(name_to_atp):  # noqa
         {'mod': "SGD",
                'from': "files uploaded",
                'to': "file needed",
-               'requirements': "['not_referencefiles_present']",
+               'requirements': ['not_referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "manual_only"},
@@ -188,14 +188,14 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "disease classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "disease_classification_job",
                'transition_type': "any"},
 
         {'mod': "MGI",
                'from': "file upload in progress",
                'to': "file needed",
-               'requirements': "['not_referencefiles_present']",
+               'requirements': ['not_referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "any"},
@@ -204,14 +204,14 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "disease classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "disease_classification_job",
                'transition_type': "any"},
 
         {'mod': "MGI",
                'from': "file unavailable",
                'to': "file upload in progress",
-               'requirements': "['referencefiles_present']",
+               'requirements': ['referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "any"},
@@ -219,7 +219,7 @@ def get_data(name_to_atp):  # noqa
         {'mod': "MGI",
                'from': "files uploaded",
                'to': "file needed",
-               'requirements': "['not_referencefiles_present']",
+               'requirements': ['not_referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "manual_only"},
@@ -227,7 +227,7 @@ def get_data(name_to_atp):  # noqa
         {'mod': "RGD",
                'from': "file upload in progress",
                'to': "file needed",
-               'requirements': "['not_referencefiles_present']",
+               'requirements': ['not_referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "any"},
@@ -235,7 +235,7 @@ def get_data(name_to_atp):  # noqa
         {'mod': "RGD",
                'from': "file unavailable",
                'to': "file upload in progress",
-               'requirements': "['referencefiles_present']",
+               'requirements': ['referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "any"},
@@ -243,7 +243,7 @@ def get_data(name_to_atp):  # noqa
         {'mod': "RGD",
                'from': "files uploaded",
                'to': "file needed",
-               'requirements': "['not_referencefiles_present']",
+               'requirements': ['not_referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "manual_only"},
@@ -251,7 +251,7 @@ def get_data(name_to_atp):  # noqa
         {'mod': "XB",
                'from': "file upload in progress",
                'to': "file needed",
-               'requirements': "['not_referencefiles_present']",
+               'requirements': ['not_referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "any"},
@@ -259,7 +259,7 @@ def get_data(name_to_atp):  # noqa
         {'mod': "XB",
                'from': "file unavailable",
                'to': "file upload in progress",
-               'requirements': "['referencefiles_present']",
+               'requirements': ['referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "any"},
@@ -268,7 +268,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file needed",
                'to': "files uploaded",
                'requirements': "None",
-               'actions': "['proceed_on_value::category::research_article::ATP:0000162']",
+               'actions': ['proceed_on_value::category::research_article::ATP:0000162'],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -276,7 +276,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file needed",
                'to': "files uploaded",
                'requirements': "None",
-               'actions': "['proceed_on_value::category::research_article::ATP:0000162']",
+               'actions': ['proceed_on_value::category::research_article::ATP:0000162'],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -284,7 +284,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file needed",
                'to': "files uploaded",
                'requirements': "None",
-               'actions': "['proceed_on_value::category::research_article::ATP:0000162']",
+               'actions': ['proceed_on_value::category::research_article::ATP:0000162'],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -292,7 +292,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file needed",
                'to': "files uploaded",
                'requirements': "None",
-               'actions': "['proceed_on_value::category::research_article::ATP:0000162']",
+               'actions': ['proceed_on_value::category::research_article::ATP:0000162'],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -300,7 +300,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file needed",
                'to': "files uploaded",
                'requirements': "None",
-               'actions': "['proceed_on_value::category::research_article::ATP:0000162']",
+               'actions': ['proceed_on_value::category::research_article::ATP:0000162'],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -308,7 +308,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file needed",
                'to': "files uploaded",
                'requirements': "None",
-               'actions': "['proceed_on_value::category::research_article::ATP:0000162']",
+               'actions': ['proceed_on_value::category::research_article::ATP:0000162'],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -316,14 +316,14 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "files uploaded",
                'requirements': "None",
-               'actions': "['proceed_on_value::category::research_article::ATP:0000162']",
+               'actions': ['proceed_on_value::category::research_article::ATP:0000162'],
                'condition': "on_success",
                'transition_type': "any"},
 
         {'mod': "XB",
                'from': "files uploaded",
                'to': "file needed",
-               'requirements': "['not_referencefiles_present']",
+               'requirements': ['not_referencefiles_present'],
                'actions': "None",
                'condition': "None",
                'transition_type': "manual_only"},
@@ -332,7 +332,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file needed",
                'to': "files uploaded",
                'requirements': "None",
-               'actions': "['proceed_on_value::reference_type::Experimental::ATP:0000162']",
+               'actions': ['proceed_on_value::reference_type::Experimental::ATP:0000162'],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -340,7 +340,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "files uploaded",
                'requirements': "None",
-               'actions': "['proceed_on_value::reference_type::Experimental::ATP:0000162']",
+               'actions': ['proceed_on_value::reference_type::Experimental::ATP:0000162'],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -348,7 +348,7 @@ def get_data(name_to_atp):  # noqa
                'from': "files uploaded",
                'to': "text conversion needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "text_convert_job",
                'transition_type': "action"},
 
@@ -356,7 +356,7 @@ def get_data(name_to_atp):  # noqa
                'from': "text conversion needed",
                'to': "file to text conversion failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -364,7 +364,7 @@ def get_data(name_to_atp):  # noqa
                'from': "text conversion needed",
                'to': "file to text conversion failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -372,7 +372,7 @@ def get_data(name_to_atp):  # noqa
                'from': "text conversion needed",
                'to': "file to text conversion failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -380,7 +380,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification in progress",
                'to': "catalytic activity classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -388,7 +388,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification in progress",
                'to': "catalytic activity classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -396,7 +396,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification in progress",
                'to': "catalytic activity classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -404,7 +404,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification in progress",
                'to': "catalytic activity classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -412,7 +412,7 @@ def get_data(name_to_atp):  # noqa
                'from': "files uploaded",
                'to': "text conversion needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "text_convert_job",
                'transition_type': "action"},
 
@@ -420,7 +420,7 @@ def get_data(name_to_atp):  # noqa
                'from': "files uploaded",
                'to': "text conversion needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "text_convert_job",
                'transition_type': "action"},
 
@@ -428,7 +428,7 @@ def get_data(name_to_atp):  # noqa
                'from': "files uploaded",
                'to': "text conversion needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "text_convert_job",
                'transition_type': "action"},
 
@@ -436,7 +436,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file converted to text",
                'to': "reference classification needed",
                'requirements': "None",
-               'actions': "['proceed_on_value::reference_type::Experimental::ATP:0000180', 'proceed_on_value::reference_type::Experimental::ATP:0000179', 'proceed_on_value::reference_type::Experimental::ATP:0000181', 'proceed_on_value::reference_type::Experimental::ATP:0000182']",
+               'actions': ['proceed_on_value::reference_type::Experimental::ATP:0000180', 'proceed_on_value::reference_type::Experimental::ATP:0000179', 'proceed_on_value::reference_type::Experimental::ATP:0000181', 'proceed_on_value::reference_type::Experimental::ATP:0000182'],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -444,7 +444,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file converted to text",
                'to': "reference classification needed",
                'requirements': "None",
-               'actions': "['proceed_on_value::reference_type::Journal::ATP:0000180', 'proceed_on_value::reference_type::Journal::ATP:0000179', 'proceed_on_value::reference_type::Journal::ATP:0000181', 'proceed_on_value::reference_type::Journal::ATP:0000182']",
+               'actions': ['proceed_on_value::reference_type::Journal::ATP:0000180', 'proceed_on_value::reference_type::Journal::ATP:0000179', 'proceed_on_value::reference_type::Journal::ATP:0000181', 'proceed_on_value::reference_type::Journal::ATP:0000182'],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -452,7 +452,7 @@ def get_data(name_to_atp):  # noqa
                'from': "files uploaded",
                'to': "text conversion needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "text_convert_job",
                'transition_type': "action"},
 
@@ -460,7 +460,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification in progress",
                'to': "catalytic activity classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -468,7 +468,7 @@ def get_data(name_to_atp):  # noqa
                'from': "text conversion needed",
                'to': "file converted to text",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "automated_only"},
 
@@ -476,7 +476,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification in progress",
                'to': "catalytic activity classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -484,7 +484,7 @@ def get_data(name_to_atp):  # noqa
                'from': "text conversion needed",
                'to': "file converted to text",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "automated_only"},
 
@@ -492,7 +492,7 @@ def get_data(name_to_atp):  # noqa
                'from': "text conversion needed",
                'to': "file converted to text",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "automated_only"},
 
@@ -500,7 +500,7 @@ def get_data(name_to_atp):  # noqa
                'from': "text conversion needed",
                'to': "file converted to text",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "automated_only"},
 
@@ -508,7 +508,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification in progress",
                'to': "catalytic activity classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -516,7 +516,7 @@ def get_data(name_to_atp):  # noqa
                'from': "files uploaded",
                'to': "text conversion needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "text_convert_job",
                'transition_type': "action"},
 
@@ -524,7 +524,7 @@ def get_data(name_to_atp):  # noqa
                'from': "files uploaded",
                'to': "text conversion needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "text_convert_job",
                'transition_type': "action"},
 
@@ -532,7 +532,7 @@ def get_data(name_to_atp):  # noqa
                'from': "text conversion needed",
                'to': "file converted to text",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "automated_only"},
 
@@ -540,7 +540,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "files uploaded",
                'requirements': "None",
-               'actions': "['proceed_on_value::category::research_article::ATP:0000162']",
+               'actions': ['proceed_on_value::category::research_article::ATP:0000162'],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -548,7 +548,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "files uploaded",
                'requirements': "None",
-               'actions': "['proceed_on_value::category::research_article::ATP:0000162']",
+               'actions': ['proceed_on_value::category::research_article::ATP:0000162'],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -556,7 +556,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "files uploaded",
                'requirements': "None",
-               'actions': "['proceed_on_value::category::research_article::ATP:0000162']",
+               'actions': ['proceed_on_value::category::research_article::ATP:0000162'],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -564,7 +564,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "file unavailable",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -572,7 +572,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "file unavailable",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -580,7 +580,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "file unavailable",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -588,7 +588,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "file unavailable",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -596,7 +596,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "file unavailable",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -604,7 +604,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "file unavailable",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -612,7 +612,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "file unavailable",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -620,7 +620,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification in progress",
                'to': "catalytic activity classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -628,7 +628,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification in progress",
                'to': "catalytic activity classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -636,7 +636,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "disease classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "disease_classification_job",
                'transition_type': "any"},
 
@@ -644,7 +644,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification needed",
                'to': "disease classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -652,7 +652,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification needed",
                'to': "disease classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -660,7 +660,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification needed",
                'to': "disease classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -668,7 +668,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification needed",
                'to': "disease classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -676,7 +676,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification needed",
                'to': "disease classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -684,7 +684,7 @@ def get_data(name_to_atp):  # noqa
                'from': "text conversion needed",
                'to': "file to text conversion failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -692,7 +692,7 @@ def get_data(name_to_atp):  # noqa
                'from': "text conversion needed",
                'to': "file to text conversion failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -700,7 +700,7 @@ def get_data(name_to_atp):  # noqa
                'from': "text conversion needed",
                'to': "file to text conversion failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -708,7 +708,7 @@ def get_data(name_to_atp):  # noqa
                'from': "text conversion needed",
                'to': "file to text conversion failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -716,7 +716,7 @@ def get_data(name_to_atp):  # noqa
                'from': "text conversion needed",
                'to': "file converted to text",
                'requirements': "None",
-               'actions': "['proceed_on_value::reference_type::Experimental::ATP:0000180', 'proceed_on_value::reference_type::Experimental::ATP:0000179', 'proceed_on_value::reference_type::Experimental::ATP:0000181', 'proceed_on_value::reference_type::Experimental::ATP:0000182', 'proceed_on_value::reference_type::Experimental::ATP:0000166']",
+               'actions': ['proceed_on_value::reference_type::Experimental::ATP:0000180', 'proceed_on_value::reference_type::Experimental::ATP:0000179', 'proceed_on_value::reference_type::Experimental::ATP:0000181', 'proceed_on_value::reference_type::Experimental::ATP:0000182', 'proceed_on_value::reference_type::Experimental::ATP:0000166'],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -724,7 +724,7 @@ def get_data(name_to_atp):  # noqa
                'from': "text conversion needed",
                'to': "file converted to text",
                'requirements': "None",
-               'actions': "['proceed_on_value::reference_type::Journal::ATP:0000180', 'proceed_on_value::reference_type::Journal::ATP:0000179', 'proceed_on_value::reference_type::Journal::ATP:0000181', 'proceed_on_value::reference_type::Journal::ATP:0000182proceed_on_value::reference_type::Journal::ATP:0000166']",
+               'actions': ['proceed_on_value::reference_type::Journal::ATP:0000180', 'proceed_on_value::reference_type::Journal::ATP:0000179', 'proceed_on_value::reference_type::Journal::ATP:0000181', 'proceed_on_value::reference_type::Journal::ATP:0000182proceed_on_value::reference_type::Journal::ATP:0000166'],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -732,7 +732,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "catalytic activity classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "catalytic activity_classification_job",
                'transition_type': "any"},
 
@@ -740,7 +740,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "catalytic activity classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "catalytic activity_classification_job",
                'transition_type': "any"},
 
@@ -748,7 +748,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "catalytic activity classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "catalytic activity_classification_job",
                'transition_type': "any"},
 
@@ -756,7 +756,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "catalytic activity classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "catalytic activity_classification_job",
                'transition_type': "any"},
 
@@ -764,7 +764,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "catalytic activity classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "catalytic activity_classification_job",
                'transition_type': "any"},
 
@@ -772,7 +772,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "catalytic activity classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "catalytic activity_classification_job",
                'transition_type': "any"},
 
@@ -780,7 +780,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "catalytic activity classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "catalytic activity_classification_job",
                'transition_type': "any"},
 
@@ -788,7 +788,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification needed",
                'to': "catalytic activity classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -796,7 +796,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification needed",
                'to': "catalytic activity classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -804,7 +804,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification needed",
                'to': "catalytic activity classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -812,7 +812,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification needed",
                'to': "catalytic activity classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -820,7 +820,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification needed",
                'to': "catalytic activity classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -828,7 +828,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification needed",
                'to': "catalytic activity classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -836,7 +836,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification needed",
                'to': "catalytic activity classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -844,7 +844,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "disease classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "disease_classification_job",
                'transition_type': "any"},
 
@@ -852,7 +852,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification needed",
                'to': "disease classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -860,7 +860,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification in progress",
                'to': "expression classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -868,7 +868,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification in progress",
                'to': "expression classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -876,7 +876,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification in progress",
                'to': "expression classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -884,7 +884,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "files uploaded",
                'requirements': "None",
-               'actions': "['proceed_on_value::category::research_article::ATP:0000162']",
+               'actions': ['proceed_on_value::category::research_article::ATP:0000162'],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -892,7 +892,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "files uploaded",
                'requirements': "None",
-               'actions': "['proceed_on_value::category::research_article::ATP:0000162']",
+               'actions': ['proceed_on_value::category::research_article::ATP:0000162'],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -900,7 +900,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification in progress",
                'to': "catalytic activity classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -908,7 +908,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification in progress",
                'to': "catalytic activity classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -916,7 +916,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification in progress",
                'to': "catalytic activity classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -924,7 +924,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification in progress",
                'to': "catalytic activity classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -932,7 +932,7 @@ def get_data(name_to_atp):  # noqa
                'from': "catalytic activity classification in progress",
                'to': "catalytic activity classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -940,7 +940,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification needed",
                'to': "disease classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -948,7 +948,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification in progress",
                'to': "disease classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -956,7 +956,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification in progress",
                'to': "disease classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -964,7 +964,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification in progress",
                'to': "disease classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -972,7 +972,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification in progress",
                'to': "disease classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -980,7 +980,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification in progress",
                'to': "disease classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -988,7 +988,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification in progress",
                'to': "disease classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -996,7 +996,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification in progress",
                'to': "disease classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -1004,7 +1004,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification in progress",
                'to': "disease classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -1012,7 +1012,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification in progress",
                'to': "disease classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -1020,7 +1020,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification in progress",
                'to': "disease classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -1028,7 +1028,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification in progress",
                'to': "disease classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -1036,7 +1036,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification in progress",
                'to': "disease classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -1044,7 +1044,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification in progress",
                'to': "disease classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -1052,7 +1052,7 @@ def get_data(name_to_atp):  # noqa
                'from': "disease classification in progress",
                'to': "disease classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -1060,7 +1060,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "expression classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "expression_classification_job",
                'transition_type': "any"},
 
@@ -1068,7 +1068,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "expression classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "expression_classification_job",
                'transition_type': "any"},
 
@@ -1076,7 +1076,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "expression classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "expression_classification_job",
                'transition_type': "any"},
 
@@ -1084,7 +1084,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "expression classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "expression_classification_job",
                'transition_type': "any"},
 
@@ -1092,7 +1092,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "expression classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "expression_classification_job",
                'transition_type': "any"},
 
@@ -1100,7 +1100,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "expression classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "expression_classification_job",
                'transition_type': "any"},
 
@@ -1108,7 +1108,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "expression classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "expression_classification_job",
                'transition_type': "any"},
 
@@ -1116,7 +1116,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification needed",
                'to': "expression classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -1124,7 +1124,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification needed",
                'to': "expression classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -1132,7 +1132,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification needed",
                'to': "expression classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -1140,7 +1140,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification needed",
                'to': "expression classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -1148,7 +1148,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification needed",
                'to': "expression classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -1156,7 +1156,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification needed",
                'to': "expression classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -1164,7 +1164,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification needed",
                'to': "expression classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -1172,7 +1172,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification in progress",
                'to': "expression classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -1180,7 +1180,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification in progress",
                'to': "expression classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -1188,7 +1188,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification in progress",
                'to': "expression classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -1196,7 +1196,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification in progress",
                'to': "expression classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -1204,7 +1204,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification in progress",
                'to': "expression classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -1212,7 +1212,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification in progress",
                'to': "expression classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -1220,7 +1220,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification in progress",
                'to': "expression classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -1228,7 +1228,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification in progress",
                'to': "expression classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -1236,7 +1236,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification in progress",
                'to': "expression classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -1244,7 +1244,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification in progress",
                'to': "expression classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -1252,7 +1252,7 @@ def get_data(name_to_atp):  # noqa
                'from': "expression classification in progress",
                'to': "expression classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -1260,7 +1260,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "interaction classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "interaction_classification_job",
                'transition_type': "any"},
 
@@ -1268,7 +1268,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "interaction classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "interaction_classification_job",
                'transition_type': "any"},
 
@@ -1276,7 +1276,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "interaction classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "interaction_classification_job",
                'transition_type': "any"},
 
@@ -1284,7 +1284,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "interaction classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "interaction_classification_job",
                'transition_type': "any"},
 
@@ -1292,7 +1292,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "interaction classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "interaction_classification_job",
                'transition_type': "any"},
 
@@ -1300,7 +1300,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "interaction classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "interaction_classification_job",
                'transition_type': "any"},
 
@@ -1308,7 +1308,7 @@ def get_data(name_to_atp):  # noqa
                'from': "reference classification needed",
                'to': "interaction classification needed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "interaction_classification_job",
                'transition_type': "any"},
 
@@ -1316,7 +1316,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification needed",
                'to': "interaction classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -1324,7 +1324,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification needed",
                'to': "interaction classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -1332,7 +1332,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification needed",
                'to': "interaction classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -1340,7 +1340,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification needed",
                'to': "interaction classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -1348,7 +1348,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification needed",
                'to': "interaction classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -1356,7 +1356,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification needed",
                'to': "interaction classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -1364,7 +1364,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification needed",
                'to': "interaction classification in progress",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_start",
                'transition_type': "any"},
 
@@ -1372,7 +1372,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification in progress",
                'to': "interaction classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -1380,7 +1380,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification in progress",
                'to': "interaction classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -1388,7 +1388,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification in progress",
                'to': "interaction classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -1396,7 +1396,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification in progress",
                'to': "interaction classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -1404,7 +1404,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification in progress",
                'to': "interaction classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -1412,7 +1412,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification in progress",
                'to': "interaction classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -1420,7 +1420,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification in progress",
                'to': "interaction classification failed",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_failed",
                'transition_type': "any"},
 
@@ -1428,7 +1428,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification in progress",
                'to': "interaction classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -1436,7 +1436,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification in progress",
                'to': "interaction classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -1444,7 +1444,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification in progress",
                'to': "interaction classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -1452,7 +1452,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification in progress",
                'to': "interaction classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -1460,7 +1460,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification in progress",
                'to': "interaction classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -1468,7 +1468,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification in progress",
                'to': "interaction classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
 
@@ -1476,7 +1476,7 @@ def get_data(name_to_atp):  # noqa
                'from': "interaction classification in progress",
                'to': "interaction classification complete",
                'requirements': "None",
-               'actions': "[]",
+               'actions': [],
                'condition': "on_success",
                'transition_type': "any"},
     ]
