@@ -275,7 +275,7 @@ def cleanup_old_pdf_file(db: Session, ref_curie: str, mod_abbreviation):  # prag
     ref = db.query(ReferenceModel).filter_by(curie=ref_curie).one_or_none()
     if ref:
         reffiles = db.query(ReferencefileModel).filter_by(
-            reference_id=ref.reference_id, file_class='main', file_extension='pdf').order_by(
+            reference_id=ref.reference_id, file_class='main', file_extension='pdf', pdf_type='pdf').order_by(
                 ReferencefileModel.file_publication_status, ReferencefileModel.date_updated.desc()).all()
 
         if len(reffiles) >= 2:
