@@ -8,7 +8,7 @@ i.e.
 import json
 from fastapi_okta.okta_utils import get_authentication_token
 import urllib.request
-import argparse
+# import argparse
 import logging
 from fastapi import HTTPException
 from urllib.error import HTTPError
@@ -23,11 +23,6 @@ name_to_atp = {}
 atp_to_name = {}
 mod_ids = {}
 mod_abbrs = {}
-
-helptext = "--filename file1 -debug"
-parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=helptext)
-parser.add_argument('-h', '--help', help='run and see', default=False, type=bool, required=False)
-args = parser.parse_args()
 
 
 def load_mod_abbr(db):
