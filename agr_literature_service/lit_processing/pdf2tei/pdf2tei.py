@@ -29,11 +29,7 @@ def main():
     new_session = sessionmaker(bind=engine, autoflush=True)
     db = new_session()
     jobs = get_jobs(db, "text_convert_job")
-    ref_wf_tag_ids_added = set()
     for job in jobs:
-        if job["reference_workflow_tag_id"] in ref_wf_tag_ids_added:
-            continue
-        ref_wf_tag_ids_added.add(job["reference_workflow_tag_id"])
         ref_id = job['reference_id']
         reference_workflow_tag_id = job['reference_workflow_tag_id']
         mod_id = job['mod_id']
