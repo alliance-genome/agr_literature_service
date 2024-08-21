@@ -111,18 +111,25 @@ def get_jobs(db: Session, job_str: str):
     and condition contains the string defined in job_str.
     """
     jobs = []
-    workflow_tag_ids = set([res.transition_to for res in db.query(WorkflowTransitionModel.transition_to).\
-                           filter(WorkflowTransitionModel.condition.contains(job_str)).all()])
-    wft_list = db.query(WorkflowTagModel).\
-        filter(WorkflowTagModel.workflow_tag_id.in_(workflow_tag_ids)).all()
+    wft_list = db.query(WorkflowTagModel, WorkflowTransitionModel).\
+        filter(WorkflowTagModel.workflow_tag_id == WorkflowTransitionModel.transition_to,
+               WorkflowTransitionModel.condition.contains(job_str)).all()
+    wft_id_seen = set()
     for wft in wft_list:
-        new_job = {}
-        new_job['workflow_tag_id'] = wft[0].workflow_tag_id
-        new_job['reference_id'] = wft[0].reference_id
-        new_job['reference_workflow_tag_id'] = wft[0].reference_workflow_tag_id
-        # new_job['reference'] = wft[0].reference
-        new_job['mod_id'] = wft[0].mod_id
-        jobs.append(new_job)
+        if wft[0].reference_workflow_tag_id in wft_id_seen:
+            continue
+        wft_id_seen.add(wft[0].reference_workflow_tag_id)
+        conditions = wft[1].condition.split(',')
+        for condition in conditions:
+            if job_str in condition:
+                new_job = {}
+                new_job['job_name'] = condition
+                new_job['workflow_tag_id'] = wft[0].workflow_tag_id
+                new_job['reference_id'] = wft[0].reference_id
+                new_job['reference_workflow_tag_id'] = wft[0].reference_workflow_tag_id
+                # new_job['reference'] = wft[0].reference
+                new_job['mod_id'] = wft[0].mod_id
+                jobs.append(new_job)
     return jobs
 
 
