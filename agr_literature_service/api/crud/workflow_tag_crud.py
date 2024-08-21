@@ -114,7 +114,11 @@ def get_jobs(db: Session, job_str: str):
     wft_list = db.query(WorkflowTagModel, WorkflowTransitionModel).\
         filter(WorkflowTagModel.workflow_tag_id == WorkflowTransitionModel.transition_to,
                WorkflowTransitionModel.condition.contains(job_str)).all()
+    wft_id_seen = set()
     for wft in wft_list:
+        if wft[0].reference_workflow_tag_id in wft_id_seen:
+            continue
+        wft_id_seen.add(wft[0].reference_workflow_tag_id)
         conditions = wft[1].condition.split(',')
         for condition in conditions:
             if job_str in condition:

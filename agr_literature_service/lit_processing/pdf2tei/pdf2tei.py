@@ -28,7 +28,8 @@ def main():
     engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
     new_session = sessionmaker(bind=engine, autoflush=True)
     db = new_session()
-    for job in get_jobs(db, "text_convert_job"):
+    jobs = get_jobs(db, "text_convert_job")
+    for job in jobs:
         ref_id = job['reference_id']
         reference_workflow_tag_id = job['reference_workflow_tag_id']
         mod_id = job['mod_id']
