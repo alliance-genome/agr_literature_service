@@ -51,6 +51,28 @@ def get_data(name_to_atp):
             'from': "file upload in progress",
             'to': "file unavailable",
             'condition': 'on_failed'
-        }
+        },
+        {
+            'mod': "ALL",
+            'from': "files uploaded",
+            'to': "file needed",
+            'requirements': ['not_referencefiles_present'],
+            'actions': []
+        },
+        {
+            'mod': "ALL",
+            'from': "file upload in progress",
+            'to': "file needed",
+            'requirements': ['not_referencefiles_present'],
+            'actions': []
+        },
+        {
+            'mod': "ALL",
+            'from': "file unavailable",
+            'to': "file needed",
+            'condition': 'on_failed',
+            'requirements': ['not_referencefiles_present'],
+            'actions': []
+        },
     ]
     return test_data
