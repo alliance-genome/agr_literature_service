@@ -59,7 +59,7 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
     if "corpus" in mod_corpus_association_data and mod_corpus_association_data["corpus"] is True:
         check_xref_and_generate_mod_id(db, reference, mod_abbreviation)
     transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
-        
+
     return db_obj.mod_corpus_association_id
 
 
