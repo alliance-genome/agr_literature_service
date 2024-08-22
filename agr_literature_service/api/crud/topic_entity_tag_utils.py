@@ -140,8 +140,10 @@ def _get_map_ateam_entity_curies_to_names(entity_type_to_entities):
         category = entity_type_curie_name_map[entity_type].replace(" ", "")
         # if "complex" in category:
         #    category = "complex"
-        # elif "pathway" in category:
+        # elif "pathway" in category
         #    category = "pathway"
+        if "allele" in category:
+            category = "allele"
         curie_to_name_map = get_map_ateam_curies_to_names(category, entity_curies)
         entity_curie_to_name_map.update(curie_to_name_map)
 
@@ -250,6 +252,9 @@ def get_map_entity_curies_to_names(entity_id_validation, curies_category, curies
 
 
 def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
+
+    if "allele" in curies_category:
+        curies_category = "allele"
 
     curies_not_in_cache = [curie for curie in set(curies) if id_to_name_cache.get(curie) is None]
     if len(curies_not_in_cache) == 0:
