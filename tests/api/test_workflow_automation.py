@@ -38,23 +38,39 @@ from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, 
 # from agr_literature_service.api.crud.workflow_tag_crud import (
 # get_workflow_process_from_tag,
 # get_workflow_tags_from_process)
+from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 # from .test_workflow_tag import test_workflow_tag
+from agr_literature_service.api.crud import workflow_tag_crud
 
 test_reference2 = test_reference
+
+
+def get_tags_mock(workflow_tag_atp_id: str):
+    print(f"***** Mocking get_parents name = {workflow_tag_atp_id}")
+    if workflow_tag_atp_id == 'ATP:fileupload':
+        return ['ATP:0000141', 'ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed']
 
 
 # TestWFTData = namedtuple('TestWFTData', ['response'])
 def get_process_mock(workflow_tag_atp_id: str):
     # MUST start with ATP:0000003 for this to work
     print(f"***** Mocking get_ancestors name = {workflow_tag_atp_id}")
-    if workflow_tag_atp_id == 'ATP:main_needed':
-        return 'ATP:ont1'
+    if workflow_tag_atp_id == 'ATP:0000141':  # file upload needed
+        return 'ATP:fileupload'
+    elif workflow_tag_atp_id == 'ATP:fileuploadinprogress':
+        return 'ATP:fileupload'
+    elif workflow_tag_atp_id == 'ATP:fileuploadcomplete':
+        return 'ATP:fileupload'
+    elif workflow_tag_atp_id == 'ATP:fileuploadfailed':
+        return 'ATP:fileupload'
     elif workflow_tag_atp_id == 'ATP:task2_failed':
         return 'ATP:task2_needed'
+    elif workflow_tag_atp_id == 'ATP:fileupload':
+        return ['ATP:ont1']
     else:
         print("returning NOTHING!!")
         return []
@@ -73,22 +89,31 @@ def get_descendants_mock(name):
         return ['ATP:0000168', 'ATP:0000167', 'ATP:0000170', 'ATP:0000171', 'ATP:0000169', 'ATP:0000166']
     elif name == 'ATP:0000161':
         return ['ATP:0000164', 'ATP:0000163', 'ATP:0000162']
+    elif name == 'ATP:fileupload':
+        return ['ATP:0000141', 'ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed']
     else:
         print("returning NOTHING!!")
         return []
 
 
-def workflow_automation_init(db, mod_id):  # noqa
+def workflow_automation_init(db):  # noqa
     print("workflow_automation_init")
+    populate_test_mods()
     test_data = [
         # [transition_from, transition_to, actions, condition]
-        ["ATP:ont1", "ATP:main_needed", ["proceed_on_value::category::thesis::ATP:task1_needed",
-                                         "proceed_on_value::category::thesis::ATP:task2_needed",
-                                         "proceed_on_value::category::failure::ATP:task3_needed"], None],
-        ["ATP:main_needed", "ATP:main_in_progress", None, "on_start"],
-        ["ATP:main_in_progress", "ATP:main_failed", None, "on_failed"],
-        ["ATP:main_in_progress", "ATP:main_successful", None, "on_success"],
-
+        # ATP:0000141 is file upload needed and hard coded in
+        ["ATP:top", "ATP:0000141", [], None],
+        ["ATP:0000141", "ATP:fileuploadinprogress", [], 'on_start'],
+        ["ATP:fileuploadinprogress",
+         "ATP:fileuploadcomplete",
+         ["proceed_on_value::category::thesis::ATP:task1_needed",
+          "proceed_on_value::category::thesis::ATP:task2_needed",
+          "proceed_on_value::category::failure::ATP:task3_needed"],
+         'on_success'],
+        ["ATP:fileuploadinprogress", "ATP:fileuploadfailed", [], 'on_failed'],
+        ["ATP:needed", "ATP:task1_needed", None, "task1_job"],
+        ["ATP:needed", "ATP:task2_needed", None, "task2_job"],
+        ["ATP:needed", "ATP:task3_needed", None, "task3_job"],
         ["ATP:task1_needed", "ATP:task1_in_progress", None, "on_start"],
         ["ATP:task1_in_progress", "ATP:task1_successful", None, "on_success"],
         ["ATP:task1_in_progress", "ATP:task1_failed", None, "on_failed"],
@@ -97,44 +122,67 @@ def workflow_automation_init(db, mod_id):  # noqa
         ["ATP:task2_in_progress", "ATP:task2_successful", None, "on_success"],
         ["ATP:task2_in_progress", "ATP:task2_failed", None, "on_failed"]
     ]
-    # mod = db.query(ModModel).filter(ModModel.mod_id == mod_id).one()
-    ids = []
+    mods = db.query(ModModel).all()
+    for mod in mods:
+        print(f"BOB: {mod.mod_id}, {mod.abbreviation}")
     for data in test_data:
-        print(data)
-        db.add(WorkflowTransitionModel(mod_id=mod_id,
-                                       transition_from=data[0],
-                                       transition_to=data[1],
-                                       actions=data[2],
-                                       condition=data[3]))
-        db.commit()
-        bob: WorkflowTransitionModel = db.query(WorkflowTransitionModel).filter(
-            WorkflowTransitionModel.mod_id == mod_id,
-            WorkflowTransitionModel.transition_from == data[0],
-            WorkflowTransitionModel.transition_to == data[1]).one()
-        ids.append(bob.workflow_transition_id)
+        for mod in mods:
+            # print(data)
+            db.add(WorkflowTransitionModel(mod_id=mod.mod_id,
+                                           transition_from=data[0],
+                                           transition_to=data[1],
+                                           actions=data[2],
+                                           condition=data[3]))
     db.commit()
-    print(ids)
-    print("data added for transitions")
-    return ids[0]
+    return
 
 
 class TestWorkflowTagAutomation:
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_process_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
-    def transition_actions(self, db, auth_headers, test_mod, test_reference):  # noqa
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process", get_tags_mock)
+    def test_transition_actions(self, db, auth_headers, test_mod, test_reference):  # noqa
         print("test_transition_actions")
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
         # workflow_automation_init(db, mod.mod_id)
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
-        workflow_automation_init(db, mod.mod_id)
-        # Set initial workflow tag to "ATP:initial"
+        workflow_automation_init(db)
+        print(f"BOB1: {mod}")
+
+        # sworkflow_tag_crud.transition_to_workflow_status(
+        #    db,
+        #    curie_or_reference_id=reference.curie,
+        #    mod_abbreviation=mod.abbreviation,
+        #    new_workflow_tag_atp_id="ATP:0000141",
+        #    transition_type='automated')
+
         with TestClient(app) as client:
-            # Test actions by transitioning from "ATP:initial" to "ATP:main_needed"
+            # Set initial workflow tag to "ATP:0000141" , hard coded so allowed
+            print(f"BOB2: {reference}")
+
             transition_req = {
                 "curie_or_reference_id": reference.curie,
                 "mod_abbreviation": mod.abbreviation,
-                "new_workflow_tag_atp_id": "ATP:main_needed"
+                "new_workflow_tag_atp_id": "ATP:0000141",
+                "transition_type": 'automated'
             }
+            print(f"BOB3: {transition_req}")
+            response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
+                                  headers=auth_headers)
+            print(response.content)
+            print(response.text)
+            print(response.reason)
+            assert response.status_code == status.HTTP_200_OK
+
+            # Test actions by transitioning from "ATP:0000141" to "ATP:fileuploadinprogress"
+            print(f"BOB4: {reference}")
+            transition_req = {
+                "curie_or_reference_id": reference.curie,
+                "mod_abbreviation": mod.abbreviation,
+                "new_workflow_tag_atp_id": "ATP:fileuploadinprogress",
+                "transition_type": 'automated'
+            }
+            print(f"BOB: {transition_req}")
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                    headers=auth_headers)
             print(response.content)
@@ -142,18 +190,41 @@ class TestWorkflowTagAutomation:
             print(response.reason)
             assert response.status_code == status.HTTP_200_OK
 
+            transition_req = {
+                "curie_or_reference_id": reference.curie,
+                "mod_abbreviation": mod.abbreviation,
+                "new_workflow_tag_atp_id": "ATP:fileuploadcomplete"
+            }
+            response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
+                                   headers=auth_headers)
+            print(response.content)
+            print(response.text)
+            print(response.reason)
+            assert response.status_code == status.HTTP_200_OK
             # So we should have "ATP:main_needed", "ATP:task1_needed"," ATP:task2_needed"
             # all set for this mod and reference
             wft = {}
-            for atp in ["ATP:main_needed", "ATP:task1_needed", "ATP:task2_needed"]:
+            for atp in ["ATP:task1_needed", "ATP:task2_needed"]:
+                print(f"atp = {atp}")
                 wft[atp] = db.query(WorkflowTagModel).\
                     filter(WorkflowTagModel.workflow_tag_id == atp,
                            WorkflowTagModel.reference_id == reference.reference_id,
                            WorkflowTagModel.mod_id == mod.mod_id).one()
                 assert wft[atp].reference_workflow_tag_id
 
-            # task1 and task2, pretend we are a job and we are starting it so we want
-            # to let the api know it is now in progress
+            # Check the get_jobs url
+            response = client.get(url="/workflow_tag/jobs/task1_job",
+                                  headers=auth_headers)
+            print(response.content)
+            print(response.text)
+            print(response.reason)
+            results = response.json()
+            assert response.status_code == status.HTTP_200_OK
+            results = response.json()
+
+            # test jobs returning duplicates
+            # we should have only 1 response here.
+            assert len(results) == 1
 
             # TODO: on a task we need to set the main one to in_progress too
             #       Code should check actions for the atp code it is and set
@@ -171,30 +242,12 @@ class TestWorkflowTagAutomation:
                            WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
                 assert test_id is None
 
-            # for atp in ["ATP:task1_in_progress", "ATP:task2_in_progress"]:
-            #     response = client.post(url=f"/workflow_tag/job/started/{wft[atp]}",
-            #                            headers=auth_headers)
-            #     assert response.status_code == status.HTTP_200_OK
-            #
-            #     test_id = db.query(WorkflowTagModel). \
-            #         filter(WorkflowTagModel.workflow_tag_id == atp,
-            #                WorkflowTagModel.reference_id == reference.reference_id,
-            #                WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
-            #     assert test_id
-
-            # on starting sub tasks the main one should be set to in_progress too.
-            test_id = db.query(WorkflowTagModel).\
-                filter(WorkflowTagModel.workflow_tag_id == "ATP:main_needed",
-                       WorkflowTagModel.reference_id == reference.reference_id,
-                       WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
-            assert not test_id
-
-            # make sure the needed has gone
-            test_id = db.query(WorkflowTagModel).\
-                filter(WorkflowTagModel.workflow_tag_id == "ATP:main_in_progress",
-                       WorkflowTagModel.reference_id == reference.reference_id,
-                       WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
-            assert test_id
+            for atp in ["ATP:task1_in_progress", "ATP:task2_in_progress"]:
+                test_id = db.query(WorkflowTagModel). \
+                    filter(WorkflowTagModel.workflow_tag_id == atp,
+                           WorkflowTagModel.reference_id == reference.reference_id,
+                           WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
+                assert test_id
 
             # set task1 and task2 to successful.
             for atp in ["ATP:task1_in_progress", "ATP:task2_in_progress"]:
@@ -222,7 +275,7 @@ class TestWorkflowTagAutomation:
         with TestClient(app) as client:
             mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
             # reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
-            workflow_automation_init(db, mod.mod_id)
+            workflow_automation_init(db)
 
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
 
@@ -276,7 +329,7 @@ class TestWorkflowTagAutomation:
         print("test_bad_transitions")
         with TestClient(app) as client:
             mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
-            workflow_automation_init(db, mod.mod_id)
+            workflow_automation_init(db)
 
             # Bad new workflow ?
             transition_req = {
