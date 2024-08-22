@@ -278,10 +278,8 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
         return
     else:
         try:
-            print(f"Looking up: {reference.reference_id} {process_atp_id} {mod_abbreviation}")
             current_workflow_tag_db_obj = _get_current_workflow_tag_db_obj(db, str(reference.reference_id),
                                                                            process_atp_id, mod_abbreviation)
-            print(f"Looking up result: {current_workflow_tag_db_obj}")
         except TypeError:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"Could not find wft for {reference.reference_id} {process_atp_id} {mod_abbreviation}")
