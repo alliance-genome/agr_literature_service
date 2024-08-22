@@ -44,7 +44,7 @@ from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 # from .test_workflow_tag import test_workflow_tag
-from agr_literature_service.api.crud import workflow_tag_crud
+from agr_literature_service.api.crud import workflow_tag_crud  # noqa
 
 test_reference2 = test_reference
 
@@ -168,7 +168,7 @@ class TestWorkflowTagAutomation:
             }
             print(f"BOB3: {transition_req}")
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
-                                  headers=auth_headers)
+                                   headers=auth_headers)
             print(response.content)
             print(response.text)
             print(response.reason)
