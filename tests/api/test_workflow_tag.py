@@ -12,7 +12,8 @@ from agr_literature_service.api.crud.workflow_tag_crud import (
     get_workflow_process_from_tag,
     get_workflow_tags_from_process,
     load_workflow_parent_children)
-from ..fixtures import db, get_descendants_mock  # noqa
+from ..fixtures import load_workflow_parent_children_mock
+from ..fixtures import db  # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
@@ -130,7 +131,8 @@ class TestWorkflowTag:
             response = client.delete(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
+           load_workflow_parent_children_mock)
     def test_parent_child_dict(self, test_workflow_tag, auth_headers): # noqa
         # load_workflow_parent_children()
         assert get_workflow_process_from_tag('ATP:0000164') == 'ATP:0000161'
@@ -139,7 +141,8 @@ class TestWorkflowTag:
         assert 'ATP:0000140' in children
         assert 'ATP:0000165' in children
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
+           load_workflow_parent_children_mock)
     def test_transition_to_workflow_status_and_get_current_workflow_status(self, db, test_mod, test_reference,  # noqa
                                                                            auth_headers):  # noqa
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()

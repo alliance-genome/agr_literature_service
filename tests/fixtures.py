@@ -94,19 +94,35 @@ def load_sanitized_references(populate_test_mod_reference_types):
     yield None
 
 
-def get_descendants_mock(name):
-    # MUST start with ATP:0000003 for this to work
-    print(f"***** Mocking get_ancestors name = {name}")
-    if name == 'ATP:0000177':
-        return ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161']
-    elif name == 'ATP:0000172':
-        return ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178']
-    elif name == 'ATP:0000140':
-        return ['ATP:0000141', 'ATP:0000135', 'ATP:0000139', 'ATP:0000134']
-    elif name == 'ATP:0000165':
-        return ['ATP:0000168', 'ATP:0000167', 'ATP:0000170', 'ATP:0000171', 'ATP:0000169', 'ATP:0000166']
-    elif name == 'ATP:0000161':
-        return ['ATP:0000164', 'ATP:0000163', 'ATP:0000162']
-    else:
-        print("returning NOTHING!!")
-        return []
+def load_workflow_parent_children_mock():
+    workflow_children = {
+        'ATP:0000177': ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161'],
+        'ATP:0000172': ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178'],
+        'ATP:0000140': ['ATP:0000141', 'ATP:0000135', 'ATP:0000139', 'ATP:0000134'],
+        'ATP:0000165': ['ATP:0000168', 'ATP:0000167', 'ATP:0000170', 'ATP:0000171', 'ATP:0000169', 'ATP:0000166'],
+        'ATP:0000161': ['ATP:0000164', 'ATP:0000163', 'ATP:0000162']
+    }
+    workflow_parent = {
+        'ATP:0000172': 'ATP:0000177',
+        'ATP:0000140': 'ATP:0000177',
+        'ATP:0000165': 'ATP:0000177',
+        'ATP:0000161': 'ATP:0000177',
+        'ATP:0000175': 'ATP:0000172',
+        'ATP:0000174': 'ATP:0000172',
+        'ATP:0000173': 'ATP:0000172',
+        'ATP:0000178': 'ATP:0000172',
+        'ATP:0000141': 'ATP:0000140',
+        'ATP:0000135': 'ATP:0000140',
+        'ATP:0000139': 'ATP:0000140',
+        'ATP:0000134': 'ATP:0000140',
+        'ATP:0000168': 'ATP:0000165',
+        'ATP:0000167': 'ATP:0000165',
+        'ATP:0000170': 'ATP:0000165',
+        'ATP:0000171': 'ATP:0000165',
+        'ATP:0000169': 'ATP:0000165',
+        'ATP:0000166': 'ATP:0000165',
+        'ATP:0000164': 'ATP:0000161',
+        'ATP:0000163': 'ATP:0000161',
+        'ATP:0000162': 'ATP:0000161'
+    }
+    return workflow_children, workflow_parent
