@@ -257,18 +257,6 @@ class TestReference:
                     }
                 ],
                 "prepublication_pipeline": True,
-                "workflow_tags": [
-                    {
-                        "workflow_tag_id": "workflow_tag1",
-                        "mod_abbreviation": "001_FB",
-                        "created_by": "001_Bob"
-                    },
-                    {
-                        "workflow_tag_id": "workflow_tag2",
-                        "mod_abbreviation": "001_RGD",
-                        "created_by": "001_Bob"
-                    }
-                ],
                 "topic_entity_tags": [
                     {
                         "topic": "string",
@@ -339,13 +327,7 @@ class TestReference:
             assert response["volume"] == "433"
 
             print(response)
-            for ont in response["workflow_tags"]:
-                if ont['mod_abbreviation'] == "001_RGD":
-                    assert ont['workflow_tag_id'] == "workflow_tag2"
-                elif ont['mod_abbreviation'] == "001_FB":
-                    assert ont['workflow_tag_id'] == "workflow_tag1"
-                else:
-                    assert 1 == 0  # Not RGD or FB ?
+            assert response["workflow_tags"][0]["workflow_tag_id"] == "ATP:0000141"
 
             delete_response = client.delete(url=f"/reference/{new_curie}", headers=auth_headers)
             assert delete_response.status_code == status.HTTP_204_NO_CONTENT
