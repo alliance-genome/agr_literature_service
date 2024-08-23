@@ -143,11 +143,11 @@ def add_transitions(db: Session, filename: str, debug: bool = False):  # noqa
                                               transition_from=trans_from,
                                               transition_to=trans_to)
                 db.add(wft)
-            if 'actions' in transition:
+            if 'actions' in transition and transition['actions'] != "None":
                 wft.actions = transition['actions']
             else:
                 wft.actions = []
-            if 'condition' in transition:
+            if 'condition' in transition and transition['condition'] != "None":
                 wft.condition = transition['condition']
             else:
                 wft.condition = None
