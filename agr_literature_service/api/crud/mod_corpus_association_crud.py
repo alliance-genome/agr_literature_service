@@ -12,6 +12,9 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
 from agr_literature_service.api.models import ModCorpusAssociationModel, ReferenceModel, ModModel
 from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost
+from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status
+
+file_needed_tag_atp_id = "ATP:0000141"  # file needed
 
 
 def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) -> int:
@@ -55,6 +58,7 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
 
     if "corpus" in mod_corpus_association_data and mod_corpus_association_data["corpus"] is True:
         check_xref_and_generate_mod_id(db, reference, mod_abbreviation)
+        transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
 
     return db_obj.mod_corpus_association_id
 
@@ -110,6 +114,7 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                     db_mod = db.query(ModModel).filter(ModModel.abbreviation == mod_corpus_association_data["mod_abbreviation"]).first()
                     mod_abbreviation = db_mod.abbreviation
                 check_xref_and_generate_mod_id(db, reference_obj, mod_abbreviation)
+                transition_to_workflow_status(db, reference_obj.curie, mod_abbreviation, file_needed_tag_atp_id)
             setattr(mod_corpus_association_db_obj, field, value)
         else:
             setattr(mod_corpus_association_db_obj, field, value)
