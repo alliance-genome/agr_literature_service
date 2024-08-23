@@ -12,7 +12,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import (
     get_workflow_process_from_tag,
     get_workflow_tags_from_process,
     load_workflow_parent_children)
-from ..fixtures import db # noqa
+from ..fixtures import db, get_descendants_mock  # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
@@ -32,24 +32,6 @@ def test_workflow_tag(db, auth_headers, test_reference, test_mod): # noqa
         response = client.post(url="/workflow_tag/", json=new_wt, headers=auth_headers)
         yield TestWTData(response, response.json(), test_reference.new_ref_curie, test_mod.new_mod_id,
                          test_mod.new_mod_abbreviation)
-
-
-def get_descendants_mock(name):
-    # MUST start with ATP:0000003 for this to work
-    print(f"***** Mocking get_ancestors name = {name}")
-    if name == 'ATP:0000177':
-        return ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161']
-    elif name == 'ATP:0000172':
-        return ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178']
-    elif name == 'ATP:0000140':
-        return ['ATP:0000141', 'ATP:0000135', 'ATP:0000139', 'ATP:0000134']
-    elif name == 'ATP:0000165':
-        return ['ATP:0000168', 'ATP:0000167', 'ATP:0000170', 'ATP:0000171', 'ATP:0000169', 'ATP:0000166']
-    elif name == 'ATP:0000161':
-        return ['ATP:0000164', 'ATP:0000163', 'ATP:0000162']
-    else:
-        print("returning NOTHING!!")
-        return []
 
 
 class TestWorkflowTag:
