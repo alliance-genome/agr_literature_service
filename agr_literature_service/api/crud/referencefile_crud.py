@@ -48,11 +48,11 @@ def get_main_pdf_referencefile_id(db: Session, curie_or_reference_id: str,
     if mod_abbreviation is not None:
         for main_pdf_ref_file in main_pdf_referencefiles:
             for ref_file_mod in main_pdf_ref_file.referencefile_mods:
-                if ref_file_mod.mod.abbreviation == mod_abbreviation:
+                if ref_file_mod.mod and ref_file_mod.mod.abbreviation == mod_abbreviation:
                     return main_pdf_ref_file.referencefile_id
     for main_pdf_ref_file in main_pdf_referencefiles:
         for ref_file_mod in main_pdf_ref_file.referencefile_mods:
-            if ref_file_mod.mod.abbreviation is None:
+            if ref_file_mod.mod is None:
                 return main_pdf_ref_file.referencefile_id
     return None
 
