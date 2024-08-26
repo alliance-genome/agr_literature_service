@@ -26,8 +26,10 @@ def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel,
         if current_workflow_tag_db_obj.reference.category == check_value:
             call_process = True
     elif checktype == "reference_type":
-        if check_value in current_workflow_tag_db_obj.reference.mod_referencetypes:
-            call_process = True
+        for ref_type in current_workflow_tag_db_obj.reference.mod_referencetypes:
+            if check_value == ref_type.reference_type:
+                call_process = True
+                continue
     else:  # Problem currently ONLY category and reference_type allowed
         raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
                             detail="Method {method} with first arg {checktype} not supported")
