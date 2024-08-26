@@ -12,7 +12,7 @@ from agr_literature_service.lit_processing.pdf2tei.pdf2tei import main as conver
 from ...api.fixtures import auth_headers  # noqa
 from ...api.test_mod import test_mod  # noqa
 from ...api.test_reference import test_reference  # noqa
-from ...api.test_workflow_tag import get_descendants_mock  # noqa
+from ...fixtures import load_workflow_parent_children_mock
 from ...fixtures import db  # noqa
 
 
@@ -25,7 +25,8 @@ def convert_pdf_with_grobid_mock(file_content):
 
 class TestPdf2TEI:
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
+           load_workflow_parent_children_mock)
     @patch("agr_literature_service.lit_processing.pdf2tei.pdf2tei.convert_pdf_with_grobid",
            convert_pdf_with_grobid_mock)
     def test_pdf2tei(self, db, auth_headers, test_reference, test_mod): # noqa
