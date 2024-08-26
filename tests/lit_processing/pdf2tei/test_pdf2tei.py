@@ -85,6 +85,22 @@ class TestPdf2TEI:
             del mod_auth_headers["Content-Type"]
             response = client.post(url="/reference/referencefile/file_upload/", files=files, headers=mod_auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
+            metadata = {
+                "reference_curie": test_reference.new_ref_curie,
+                "display_name": "test",
+                "file_class": "main",
+                "file_publication_status": "final",
+                "file_extension": "pdf",
+                "pdf_type": "pdf",
+                "mod_abbreviation": None
+            }
+            metadata_json = json.dumps(metadata)
+            files = {
+                "file": ("test.pdf", io.BytesIO(pdf_bytes), "application/pdf"),
+                "metadata_file": ("metadata.txt", io.BytesIO(metadata_json.encode('utf-8')), "text/plain")
+            }
+            response = client.post(url="/reference/referencefile/file_upload/", files=files, headers=mod_auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
             convert_pdf_to_tei()
             all_ref_files = db.query(ReferencefileModel).filter(ReferencefileModel.file_class == "tei").all()
             assert len(all_ref_files) == 1
