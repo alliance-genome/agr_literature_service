@@ -34,7 +34,14 @@ from fastapi import status
 from unittest.mock import patch
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, WorkflowTransitionModel, ModModel
+from agr_literature_service.api.models import (
+    WorkflowTagModel,
+    ReferenceModel,
+    WorkflowTransitionModel,
+    ModModel,
+    ModReferencetypeAssociationModel,
+    ReferencetypeModel
+)
 # from agr_literature_service.api.crud.workflow_tag_crud import (
 # get_workflow_process_from_tag,
 # get_workflow_tags_from_process)
@@ -108,6 +115,7 @@ def workflow_automation_init(db):  # noqa
          "ATP:fileuploadcomplete",
          ["proceed_on_value::category::thesis::ATP:task1_needed",
           "proceed_on_value::category::thesis::ATP:task2_needed",
+          "proceed_on_value::reference::Experimental::ATP:NEW",
           "proceed_on_value::category::failure::ATP:task3_needed"],
          'on_success'],
         ["ATP:fileuploadinprogress", "ATP:fileuploadfailed", [], 'on_failed'],
@@ -159,6 +167,22 @@ class TestWorkflowTagAutomation:
         with TestClient(app) as client:
             # Set initial workflow tag to "ATP:0000141" , hard coded so allowed
             print(f"BOB2: {reference}")
+            ref_type = ReferencetypeModel(label="Experimental")
+            db.add(ref_type)
+            db.commit()
+            ref_type = db.query(ReferencetypeModel).filter(ReferencetypeModel.label == "Experimental").one()
+            mod_ref_type= ModReferencetypeAssociationModel(referencetype_id=ref_type.referencetype_id, mod_id=mod.mod_id, display_order=1)
+            db.add(mod_ref_type)
+            db.commit()
+            new_mod_ref_type = {
+                "reference_curie": reference.curie,
+                "reference_type": "Experimental",
+                "mod_abbreviation": mod.abbreviation
+            }
+            response = client.post(url="/reference/mod_reference_type/", json=new_mod_ref_type, headers=auth_headers)
+            print(response.content)
+            print(response.text)
+            print(response.reason)
 
             transition_req = {
                 "curie_or_reference_id": reference.curie,
@@ -204,7 +228,7 @@ class TestWorkflowTagAutomation:
             # So we should have "ATP:main_needed", "ATP:task1_needed"," ATP:task2_needed"
             # all set for this mod and reference
             wft = {}
-            for atp in ["ATP:task1_needed", "ATP:task2_needed"]:
+            for atp in ["ATP:task1_needed", "ATP:task2_needed", "ATP:NEW"]:
                 print(f"atp = {atp}")
                 wft[atp] = db.query(WorkflowTagModel).\
                     filter(WorkflowTagModel.workflow_tag_id == atp,
