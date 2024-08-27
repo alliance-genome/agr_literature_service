@@ -171,7 +171,7 @@ class TestWorkflowTagAutomation:
             db.add(ref_type)
             db.commit()
             ref_type = db.query(ReferencetypeModel).filter(ReferencetypeModel.label == "Experimental").one()
-            mod_ref_type= ModReferencetypeAssociationModel(referencetype_id=ref_type.referencetype_id, mod_id=mod.mod_id, display_order=1)
+            mod_ref_type = ModReferencetypeAssociationModel(referencetype_id=ref_type.referencetype_id, mod_id=mod.mod_id, display_order=1)
             db.add(mod_ref_type)
             db.commit()
             new_mod_ref_type = {

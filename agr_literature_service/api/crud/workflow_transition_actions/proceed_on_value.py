@@ -1,11 +1,7 @@
 from agr_literature_service.api.models import (
-    WorkflowTagModel,
-    ModReferencetypeAssociationModel,
-    ReferencetypeModel,
-    ReferenceModel,
-    ReferenceModReferencetypeAssociationModel
+    WorkflowTagModel
 )
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
 
