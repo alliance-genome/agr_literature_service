@@ -34,6 +34,7 @@ def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel,
           from referencetype rt, mod_referencetype mrt, reference_mod_referencetype rmrt
           where rt.referencetype_id = mrt.referencetype_id and
                 mrt.mod_id = {current_workflow_tag_db_obj.mod_id} and
+                rmrt.reference_id = {current_workflow_tag_db_obj.reference_id} and
                 mrt.mod_referencetype_id = rmrt.mod_referencetype_id
         """
         rows = db.execute(select).fetchall()
