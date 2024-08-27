@@ -29,11 +29,12 @@ def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel,
             call_process = True
     elif checktype == "reference":
         # reference types are not loaded by default so we have to grab them manually
-        select = """
+        select = f"""
         select rt.label
           from referencetype rt, mod_referencetype mrt, reference_mod_referencetype rmrt
           where rt.referencetype_id = mrt.referencetype_id and
-                mrt.mod_referencetype_id = rmrt.mod_referencetype_id;
+                mrt.mod_id = {current_workflow_tag_db_obj.mod_id} and
+                mrt.mod_referencetype_id = rmrt.mod_referencetype_id
         """
         rows = db.execute(select).fetchall()
         for row in rows:
