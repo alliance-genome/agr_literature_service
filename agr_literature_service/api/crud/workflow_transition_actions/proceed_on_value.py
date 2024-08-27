@@ -1,4 +1,6 @@
-from agr_literature_service.api.models import WorkflowTagModel
+from agr_literature_service.api.models import (
+    WorkflowTagModel
+)
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
@@ -25,9 +27,21 @@ def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel,
     if checktype == "category":  # Check reference category is "Research article"
         if current_workflow_tag_db_obj.reference.category == check_value:
             call_process = True
-    elif checktype == "reference_type":
-        if check_value in current_workflow_tag_db_obj.reference.mod_referencetypes:
-            call_process = True
+    elif checktype == "reference":
+        # reference types are not loaded by default so we have to grab them manually
+        select = f"""
+        select rt.label
+          from referencetype rt, mod_referencetype mrt, reference_mod_referencetype rmrt
+          where rt.referencetype_id = mrt.referencetype_id and
+                mrt.mod_id = {current_workflow_tag_db_obj.mod_id} and
+                rmrt.reference_id = {current_workflow_tag_db_obj.reference_id} and
+                mrt.mod_referencetype_id = rmrt.mod_referencetype_id
+        """
+        rows = db.execute(select).fetchall()
+        for row in rows:
+            if check_value == row[0]:
+                call_process = True
+                continue
     else:  # Problem currently ONLY category and reference_type allowed
         raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
                             detail="Method {method} with first arg {checktype} not supported")
