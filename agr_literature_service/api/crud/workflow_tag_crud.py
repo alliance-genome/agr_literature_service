@@ -326,11 +326,12 @@ def _get_current_workflow_tag_db_obj(db: Session, curie_or_reference_id: str, wo
     all_workflow_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
     if not all_workflow_tags_for_process:  # No process set at the moment
         return None
-    return db.query(WorkflowTagModel).join(ModModel).filter(
+    mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).first().mod_id
+    return db.query(WorkflowTagModel).filter(
         and_(
             WorkflowTagModel.workflow_tag_id.in_(all_workflow_tags_for_process),
             WorkflowTagModel.reference_id == reference_id,
-            ModModel.abbreviation == mod_abbreviation
+            WorkflowTagModel.mod_id == mod_id
         )
     ).one_or_none()
 

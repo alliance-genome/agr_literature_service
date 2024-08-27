@@ -10,9 +10,9 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
-from agr_literature_service.api.models import ModCorpusAssociationModel, ReferenceModel, ModModel
+from agr_literature_service.api.models import ModCorpusAssociationModel, ReferenceModel, ModModel, WorkflowTagModel
 from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost
-from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status
+from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, get_current_workflow_status
 
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
 
@@ -58,9 +58,24 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
 
     if "corpus" in mod_corpus_association_data and mod_corpus_association_data["corpus"] is True:
         check_xref_and_generate_mod_id(db, reference, mod_abbreviation)
-        transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
-
+        if get_current_workflow_status(db, reference_curie, "ATP:0000140",
+                                       mod_abbreviation) is None:
+            transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
     return db_obj.mod_corpus_association_id
+
+
+def delete_workflow_tag_if_file_needed(db, reference, mod):
+    if mod:
+        current_file_upload_status = get_current_workflow_status(db, str(reference.reference_id),
+                                                                 "ATP:0000140",
+                                                                 mod_abbreviation=mod.abbreviation)
+        if current_file_upload_status == file_needed_tag_atp_id:
+            cur_workflow_tag = db.query(WorkflowTagModel).filter(
+                WorkflowTagModel.reference_id == reference.reference_id,
+                WorkflowTagModel.mod_id == mod.mod_id,
+                WorkflowTagModel.workflow_tag_id == file_needed_tag_atp_id).first()
+            db.delete(cur_workflow_tag)
+            db.commit()
 
 
 def destroy(db: Session, mod_corpus_association_id: int) -> None:
@@ -75,9 +90,9 @@ def destroy(db: Session, mod_corpus_association_id: int) -> None:
     if not mod_corpus_association:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModCorpusAssociation with mod_corpus_association_id {mod_corpus_association_id} not found")
+    delete_workflow_tag_if_file_needed(db, mod_corpus_association.reference, mod_corpus_association.mod)
     db.delete(mod_corpus_association)
     db.commit()
-
     return None
 
 
@@ -105,16 +120,21 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                                         detail=f"Reference with curie {reference_curie} does not exist")
                 mod_corpus_association_db_obj.reference = new_reference
         elif field == "corpus":
+            reference_obj = mod_corpus_association_db_obj.reference
+            if "reference_curie" in mod_corpus_association_data and mod_corpus_association_data["reference_curie"] is not None:
+                reference_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == mod_corpus_association_data["reference_curie"]).first()
+            mod_abbreviation = mod_corpus_association_db_obj.mod.abbreviation
+            if "mod_abbreviation" in mod_corpus_association_data and mod_corpus_association_data["mod_abbreviation"] is not None:
+                db_mod = db.query(ModModel).filter(ModModel.abbreviation == mod_corpus_association_data["mod_abbreviation"]).first()
+                mod_abbreviation = db_mod.abbreviation
             if value is True and mod_corpus_association_db_obj.corpus is not True:
-                reference_obj = mod_corpus_association_db_obj.reference
-                if "reference_curie" in mod_corpus_association_data and mod_corpus_association_data["reference_curie"] is not None:
-                    reference_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == mod_corpus_association_data["reference_curie"]).first()
-                mod_abbreviation = mod_corpus_association_db_obj.mod.abbreviation
-                if "mod_abbreviation" in mod_corpus_association_data and mod_corpus_association_data["mod_abbreviation"] is not None:
-                    db_mod = db.query(ModModel).filter(ModModel.abbreviation == mod_corpus_association_data["mod_abbreviation"]).first()
-                    mod_abbreviation = db_mod.abbreviation
                 check_xref_and_generate_mod_id(db, reference_obj, mod_abbreviation)
-                transition_to_workflow_status(db, reference_obj.curie, mod_abbreviation, file_needed_tag_atp_id)
+                if get_current_workflow_status(db, str(reference_obj.reference_id),
+                                               "ATP:0000140",
+                                               mod_abbreviation=mod_abbreviation) is None:
+                    transition_to_workflow_status(db, reference_obj.curie, mod_abbreviation, file_needed_tag_atp_id)
+            elif (value is False or value is None) and mod_corpus_association_db_obj.corpus is True:
+                delete_workflow_tag_if_file_needed(db, reference_obj, mod_corpus_association_db_obj.mod)
             setattr(mod_corpus_association_db_obj, field, value)
         else:
             setattr(mod_corpus_association_db_obj, field, value)
