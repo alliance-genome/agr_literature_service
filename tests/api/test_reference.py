@@ -15,6 +15,7 @@ from agr_literature_service.api.main import app
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, CrossReferenceModel
 from agr_literature_service.api.schemas import ReferencefileSchemaPost
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
+from ..fixtures import load_workflow_parent_children_mock
 from ..fixtures import db, populate_test_mod_reference_types # noqa
 from .fixtures import auth_headers # noqa
 from .test_resource import test_resource # noqa
@@ -184,6 +185,8 @@ class TestReference:
             delete_response = client.delete(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             assert delete_response.status_code == status.HTTP_404_NOT_FOUND
 
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
+           load_workflow_parent_children_mock)
     def test_reference_mca_wb(self, db, auth_headers): # noqa
         with TestClient(app) as client:
             populate_test_mods()
@@ -207,6 +210,8 @@ class TestReference:
             xref = db.query(CrossReferenceModel).filter_by(reference_id=reference_obj.reference_id).one()
             assert xref.curie == 'WB:WBPaper00000001'
 
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
+           load_workflow_parent_children_mock)
     def test_reference_large(self, db, auth_headers, populate_test_mod_reference_types, test_mod, # noqa
                              test_topic_entity_tag_source): # noqa
         with TestClient(app) as client:
@@ -252,18 +257,6 @@ class TestReference:
                     }
                 ],
                 "prepublication_pipeline": True,
-                "workflow_tags": [
-                    {
-                        "workflow_tag_id": "workflow_tag1",
-                        "mod_abbreviation": "001_FB",
-                        "created_by": "001_Bob"
-                    },
-                    {
-                        "workflow_tag_id": "workflow_tag2",
-                        "mod_abbreviation": "001_RGD",
-                        "created_by": "001_Bob"
-                    }
-                ],
                 "topic_entity_tags": [
                     {
                         "topic": "string",
@@ -334,13 +327,7 @@ class TestReference:
             assert response["volume"] == "433"
 
             print(response)
-            for ont in response["workflow_tags"]:
-                if ont['mod_abbreviation'] == "001_RGD":
-                    assert ont['workflow_tag_id'] == "workflow_tag2"
-                elif ont['mod_abbreviation'] == "001_FB":
-                    assert ont['workflow_tag_id'] == "workflow_tag1"
-                else:
-                    assert 1 == 0  # Not RGD or FB ?
+            assert response["workflow_tags"][0]["workflow_tag_id"] == "ATP:0000141"
 
             delete_response = client.delete(url=f"/reference/{new_curie}", headers=auth_headers)
             assert delete_response.status_code == status.HTTP_204_NO_CONTENT

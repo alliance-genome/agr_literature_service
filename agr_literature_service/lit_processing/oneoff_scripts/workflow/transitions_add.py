@@ -29,6 +29,9 @@ from agr_literature_service.api.models import WorkflowTransitionModel
 # Data files
 from agr_literature_service.lit_processing.oneoff_scripts.workflow.data.file_upload import get_data as file_upload
 from agr_literature_service.lit_processing.oneoff_scripts.workflow.data.classification import get_data as classifications
+from agr_literature_service.lit_processing.oneoff_scripts.workflow.data.text_conversion import get_data as text_conversions
+from agr_literature_service.lit_processing.oneoff_scripts.workflow.data.stage import get_data as stage
+
 
 logger = logging.getLogger(__name__)
 name_to_atp = {}
@@ -96,7 +99,12 @@ def add_transitions(db: Session, filename: str, debug: bool = False):  # noqa
         data_to_add = file_upload(name_to_atp)
     elif filename == "classifications":
         data_to_add = classifications(name_to_atp)
+    elif filename == "text_conversions":
+        data_to_add = text_conversions(name_to_atp)
+    elif filename == "stage":
+        data_to_add = stage(name_to_atp)
     else:
+        print(f"Unknown filename {filename}")
         return
     for transition in data_to_add:
         mod_list: list = []
@@ -135,14 +143,22 @@ def add_transitions(db: Session, filename: str, debug: bool = False):  # noqa
                                               transition_from=trans_from,
                                               transition_to=trans_to)
                 db.add(wft)
-            if 'actions' in transition:
+            if 'actions' in transition and transition['actions'] != "None":
                 wft.actions = transition['actions']
-            if 'condition' in transition:
+            else:
+                wft.actions = []
+            if 'condition' in transition and transition['condition'] != "None":
                 wft.condition = transition['condition']
+            else:
+                wft.condition = None
             if 'requirements' in transition and transition['requirements'] != "None":
                 wft.requirements = transition['requirements']
+            else:
+                wft.requirements = None
             if 'transition_type' in transition:
                 wft.transition_type = transition['transition_type']
+            else:
+                wft.transition_type = "any"
     db.commit()
     if debug:
         wfts = db.query(WorkflowTransitionModel).all()

@@ -5,9 +5,10 @@ workflow_tag_crud.py
 import cachetools.func
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import and_
+from sqlalchemy import and_, text
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
+from datetime import datetime, timedelta
 from typing import Union
 
 from agr_literature_service.api.crud.reference_utils import get_reference
@@ -113,6 +114,7 @@ def get_jobs(db: Session, job_str: str):
     jobs = []
     wft_list = db.query(WorkflowTagModel, WorkflowTransitionModel).\
         filter(WorkflowTagModel.workflow_tag_id == WorkflowTransitionModel.transition_to,
+               WorkflowTagModel.mod_id == WorkflowTransitionModel.mod_id,
                WorkflowTransitionModel.condition.contains(job_str)).all()
     for wft in wft_list:
         conditions = wft[1].condition.split(',')
@@ -137,7 +139,7 @@ def job_condition_on_start_process(db: Session, workflow_tag: WorkflowTagModel, 
            Similarly for success of all subtasks or failure of any.
            1) ["ATP:ont1", "ATP:main_needed", ["proceed_on_value::category::thesis::ATP:task1_needed",
                                               "proceed_on_value::category::thesis::ATP:task2_needed"]], None],
-           2)  ["ATP:main_needed", "ATP:main_in_progress", None, "on_start_job"],
+           2)  ["ATP:main_needed", "ATP:main_in_progress", None, "on_start"],
     """
     transitions = db.query(WorkflowTransitionModel). \
         filter(WorkflowTransitionModel.actions != None,  # noqa
@@ -155,10 +157,10 @@ def job_condition_on_start_process(db: Session, workflow_tag: WorkflowTagModel, 
     # New Lookup of transition_to from 2). Presume only one of these
     # Once we know the hierarchy we can probably do this easier
     # by getting parent and then the condition 'on_start'
-    # from = "ATP:main_needed", to = "ATP:main_in_progress", cond = "on_start_job"]
+    # from = "ATP:main_needed", to = "ATP:main_in_progress", cond = "on_start"]
     second_transition = db.query(WorkflowTransitionModel). \
         filter(WorkflowTransitionModel.transition_from == first_transition.transition_to,
-               WorkflowTransitionModel.condition.contains('on_start_job'),
+               WorkflowTransitionModel.condition.contains('on_start'),
                WorkflowTransitionModel.mod_id == workflow_tag.mod_id).one_or_none()
     if not second_transition:
         return
@@ -178,7 +180,7 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
     param db: Session:          database session
     param reference_workflow_tag_id: int  WorkflowTagModel.reference_workflow_tag_id
     param condition: str        workflow transition condition
-                                "on_success", "on_failure" and "on_start_job" are the available options currently.
+                                "on_success", "on_failure" and "on_start" are the available options currently.
 
     Change the current workflow tag based on condition. If this is a sub task then alter the main
     one accordingly.
@@ -217,7 +219,7 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
                             detail=error)
 
     # get main atp. There may not be one. If not just return
-    if condition == "on_start_job":
+    if condition == "on_start":
         job_condition_on_start_process(db, workflow_tag, orig_wft)
 
 
@@ -247,7 +249,7 @@ def check_requirements(reference, mod, transition):
             negated_function = True
         if requirement_function_str in ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS:
             check_passed = ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS[
-                requirement_function_str](reference, mod.mod_id)
+                requirement_function_str](reference, mod)
             if negated_function:
                 check_passed = not check_passed
             if not check_passed:
@@ -280,7 +282,8 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
             current_workflow_tag_db_obj = _get_current_workflow_tag_db_obj(db, str(reference.reference_id),
                                                                            process_atp_id, mod_abbreviation)
         except TypeError:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"Could not find wft for {reference.reference_id} {process_atp_id} {mod_abbreviation}")
     if current_workflow_tag_db_obj:
         transition = db.query(WorkflowTransitionModel).filter(
             and_(
@@ -290,7 +293,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
                 WorkflowTransitionModel.transition_type.in_(["any", f"{transition_type}_only"])
             )
         ).first()
-    if not transition:
+    if not transition and new_workflow_tag_atp_id != "ATP:0000141":
         message = f"Transition to {new_workflow_tag_atp_id} not allowed as not initial state."
         "Please set initial WFT first."
         if current_workflow_tag_db_obj and current_workflow_tag_db_obj.workflow_tag_id:
@@ -324,11 +327,12 @@ def _get_current_workflow_tag_db_obj(db: Session, curie_or_reference_id: str, wo
     all_workflow_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
     if not all_workflow_tags_for_process:  # No process set at the moment
         return None
-    return db.query(WorkflowTagModel).join(ModModel).filter(
+    mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).first().mod_id
+    return db.query(WorkflowTagModel).filter(
         and_(
             WorkflowTagModel.workflow_tag_id.in_(all_workflow_tags_for_process),
             WorkflowTagModel.reference_id == reference_id,
-            ModModel.abbreviation == mod_abbreviation
+            WorkflowTagModel.mod_id == mod_id
         )
     ).one_or_none()
 
@@ -338,6 +342,14 @@ def get_current_workflow_status(db: Session, curie_or_reference_id: str, workflo
     current_workflow_tag_db_obj = _get_current_workflow_tag_db_obj(db, curie_or_reference_id,
                                                                    workflow_process_atp_id, mod_abbreviation)
     return None if not current_workflow_tag_db_obj else current_workflow_tag_db_obj.workflow_tag_id
+
+
+def get_ref_ids_with_workflow_status(db: Session, workflow_atp_id: str, mod_abbreviation: str = None):
+    query = db.query(WorkflowTagModel.reference_id).filter(WorkflowTagModel.workflow_tag_id == workflow_atp_id)
+    if mod_abbreviation is not None:
+        mod = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).first()
+        query = query.filter(WorkflowTagModel.mod_id == mod.mod_id)
+    return [ref.reference_id for ref in query.all()]
 
 
 def create(db: Session, workflow_tag: WorkflowTagSchemaPost) -> int:
@@ -589,3 +601,43 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             "tag_count": x['tag_count']
         })
     return data
+
+
+def get_reference_workflow_tags_by_mod(
+    db: Session,
+    mod_abbreviation: str,
+    workflow_tag_id: str,
+    startDate: str = None,
+    endDate: str = None
+):  # pragma: no cover
+
+    curie_prefix = "Xenbase" if mod_abbreviation == 'XB' else mod_abbreviation
+
+    if not startDate:
+        startDate = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+    if not endDate:
+        endDate = datetime.now().strftime('%Y-%m-%d')
+    # startDate: "2024-08-19"
+    # endDate:   "2024-08-26"
+    query = text(
+        "SELECT r.curie AS reference_curie, cr.curie AS cross_reference_curie, wft.date_updated "
+        "FROM reference r "
+        "JOIN cross_reference cr ON r.reference_id = cr.reference_id "
+        "JOIN workflow_tag wft ON cr.reference_id = wft.reference_id "
+        "JOIN mod m ON wft.mod_id = m.mod_id "
+        "WHERE cr.curie_prefix = :curie_prefix "
+        "AND m.abbreviation = :mod_abbreviation "
+        "AND wft.workflow_tag_id = :workflow_tag_id "
+        "AND wft.date_updated BETWEEN :startDate AND :endDate"
+    )
+
+    rows = db.execute(query, {
+        'curie_prefix': curie_prefix,
+        'mod_abbreviation': mod_abbreviation,
+        'workflow_tag_id': workflow_tag_id,
+        'startDate': startDate,
+        'endDate': endDate
+    }).fetchall()
+
+    tags = [dict(row) for row in rows]
+    return tags

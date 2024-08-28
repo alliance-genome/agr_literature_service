@@ -33,41 +33,26 @@ def get_data(name_to_atp):
     mod can only be 'ALL', the actual mod abbreviation or 'NOT_' + mod abbreviation
     i.e. ALL, WB, NOT_FB are three examples.
     """
-    ref_type = "proceed_on_value::reference_type"
-    test_data = [
-        {'mod': "WB",
-         'from': "file converted to text",
-         'to': "reference classification needed",
-         'actions': [f"{ref_type}::Experimental::{name_to_atp['catalytic activity classification needed']}",
-                     f"{ref_type}::Experimental::{name_to_atp['disease classification needed']}",
-                     f"{ref_type}::Experimental::{name_to_atp['expression classification needed']}",
-                     f"{ref_type}::Experimental::{name_to_atp['interaction classification needed']}"],
-         'condition': 'on_success'
-         },
-        {'mod': "ZFIN",
-         'from': "file converted to text",
-         'to': "reference classification needed",
-         'actions': [
-             f"{ref_type}::Journal::{name_to_atp['catalytic activity classification needed']}",
-             f"{ref_type}::Journal::{name_to_atp['disease classification needed']}",
-             f"{ref_type}::Journal::{name_to_atp['expression classification needed']}",
-             f"{ref_type}::Journal::{name_to_atp['interaction classification needed']}"],
-         'condition': 'on_success'
-         }
-    ]
+    test_data = []
     # for each XXX activity add transitions needed for job control
     for entry in ('catalytic activity', 'disease', 'expression', 'interaction'):
         item = {
             'mod': 'ALL',
+            'from': 'reference classification needed',
+            'to': f'{entry} classification needed',
+            'condition': f'{entry}_classification_job'}
+        test_data.append(item)
+        item = {
+            'mod': 'ALL',
             'from': f'{entry} classification needed',
             'to': f'{entry} classification in progress',
-            'condition': f'on_start_job,{entry}_classification_job'}
+            'condition': 'on_start'}
         test_data.append(item)
         item = {
             'mod': 'ALL',
             'from': f'{entry} classification in progress',
             'to': f'{entry} classification failed',
-            'condition': 'on_failure'}
+            'condition': 'on_failed'}
         test_data.append(item)
         item = {
             'mod': 'ALL',

@@ -50,3 +50,9 @@ class ModModel(Base, AuditedModel):
     )
 
     referencetypes = relationship("ModReferencetypeAssociationModel")
+
+    def __str__(self):
+        """
+        Overwrite the default output.
+        """
+        return f"{self.abbreviation} {self.full_name} {self.taxon_ids}"

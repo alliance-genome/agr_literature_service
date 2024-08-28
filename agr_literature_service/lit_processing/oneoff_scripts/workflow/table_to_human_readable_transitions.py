@@ -8,10 +8,11 @@ i.e.
 import json
 from fastapi_okta.okta_utils import get_authentication_token
 import urllib.request
-# import argparse
+import argparse
 import logging
 from fastapi import HTTPException
 from urllib.error import HTTPError
+
 from starlette import status
 from sqlalchemy.orm import Session
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_engine, \
@@ -23,6 +24,13 @@ name_to_atp = {}
 atp_to_name = {}
 mod_ids = {}
 mod_abbrs = {}
+
+helptext = r"example: python3 table_to_human_readable_transition -c -m FB"
+parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=helptext)
+# parser.add_argument('-h', '--help', help='run and see', default=False, type=bool, required=False)
+parser.add_argument('-c', '--comma_seperated', help='comma seperated output', type=bool, default=False, required=False)
+parser.add_argument('-m', '--mod_abbr', help='list transition for a specific mod', type=str, required=False, default="")
+args = parser.parse_args()
 
 
 def load_mod_abbr(db):
@@ -69,20 +77,26 @@ def get_name_to_atp_and_children(token, curie='ATP:0000177'):
                             detail="Error from A-team API")
 
 
-def get_transitions(db: Session, debug: bool = False):  # noqa
+def print_transitions(db: Session, comma_format, mod_only: str):  # noqa
     global atp_to_name
     global mod_abbrs
 
     try:
         query = r"""
         select mod_id, transition_from, transition_to, requirements, transition_type, actions, condition
-          from workflow_transition;"""
+          from workflow_transition"""
+        if mod_only:
+            query += f" where mod_id = '{mod_ids[mod_only]}'"
         trans_results = db.execute(query)
         trans = trans_results.fetchall()
         start = '{'
         end = '}'
         for tran in trans:
-            print(f"""
+            if comma_format:
+                print(f"'{mod_abbrs[tran['mod_id']]}', '{atp_to_name[tran['transition_from']]}', '{atp_to_name[tran['transition_to']]}', ",
+                      f"'{tran['requirements']}', '{tran['actions']}', '{tran['condition']}'")
+            else:
+                print(f"""
         {start}'mod': "{mod_abbrs[tran['mod_id']]}",
                'from': "{atp_to_name[tran['transition_from']]}",
                'to': "{atp_to_name[tran['transition_to']]}",
@@ -92,6 +106,7 @@ def get_transitions(db: Session, debug: bool = False):  # noqa
                'transition_type': "{tran['transition_type']}"{end},""")
     except Exception as e:
         logger.error(e)
+        print(f"Error: {e}")
         exit(-1)
 
 
@@ -105,4 +120,4 @@ if __name__ == "__main__":
     db_session: Session = create_postgres_session(False)
 
     load_mod_abbr(db_session)
-    get_transitions(db_session)
+    print_transitions(db_session, args.comma_seperated, args.mod_abbr)
