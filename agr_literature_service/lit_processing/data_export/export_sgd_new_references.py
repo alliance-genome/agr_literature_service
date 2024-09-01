@@ -9,7 +9,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import get_journa
     get_all_reference_relation_data, get_mod_corpus_association_data_for_ref_ids, \
     get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
     get_mesh_term_data_for_ref_ids, get_mod_reference_type_data_for_ref_ids
-from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json2 import \
+from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import \
     generate_json_file, upload_json_file_to_s3, get_meta_data, get_reference_col_names, \
     generate_json_data
 from agr_literature_service.lit_processing.utils.report_utils import send_data_export_report
