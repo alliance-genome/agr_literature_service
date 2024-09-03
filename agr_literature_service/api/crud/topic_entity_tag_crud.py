@@ -676,7 +676,16 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
                       f"WHERE m.abbreviation = '{mod_abbreviation}' "
                       f"AND tet.date_updated >= '{last_date_updated}'").fetchall()
 
-    tags = [dict(row) for row in rows]
+    # tags = [dict(row) for row in rows]
+    # there are duplicate rows returned
+    tags = []
+    processed_ids = set()
+    for row in rows:
+        row_dict = dict(row)
+        topic_entity_tag_id = row_dict['topic_entity_tag_id']
+        if topic_entity_tag_id not in processed_ids:
+            tags.append(row_dict)
+            processed_ids.add(topic_entity_tag_id)
 
     curie_to_name_mapping = get_curie_to_name_mapping_for_mod(db, mod_abbreviation, last_date_updated)
 
