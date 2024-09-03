@@ -4,8 +4,11 @@ ENV TZ=UTC
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN apt-get update && apt-get install -y cron git python3-pip
 WORKDIR /usr/src/app/
+RUN mkdir -p /usr/app/agr_literature_service
+ADD ./agr_literature_service /usr/src/app/agr_literature_service
+COPY ./requirements.txt .
+COPY ./logging.conf .
 
-ADD . .
 ADD crontab /etc/cron.d/automate_scripts_crontab
 
 RUN pip3 install -r requirements.txt  && \
