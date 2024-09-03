@@ -5,9 +5,10 @@ workflow_tag_crud.py
 import cachetools.func
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import and_
+from sqlalchemy import and_, text
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
+from datetime import datetime, timedelta
 from typing import Union
 
 from agr_literature_service.api.crud.reference_utils import get_reference
@@ -326,11 +327,12 @@ def _get_current_workflow_tag_db_obj(db: Session, curie_or_reference_id: str, wo
     all_workflow_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
     if not all_workflow_tags_for_process:  # No process set at the moment
         return None
-    return db.query(WorkflowTagModel).join(ModModel).filter(
+    mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).first().mod_id
+    return db.query(WorkflowTagModel).filter(
         and_(
             WorkflowTagModel.workflow_tag_id.in_(all_workflow_tags_for_process),
             WorkflowTagModel.reference_id == reference_id,
-            ModModel.abbreviation == mod_abbreviation
+            WorkflowTagModel.mod_id == mod_id
         )
     ).one_or_none()
 
@@ -599,3 +601,43 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             "tag_count": x['tag_count']
         })
     return data
+
+
+def get_reference_workflow_tags_by_mod(
+    db: Session,
+    mod_abbreviation: str,
+    workflow_tag_id: str,
+    startDate: str = None,
+    endDate: str = None
+):  # pragma: no cover
+
+    curie_prefix = "Xenbase" if mod_abbreviation == 'XB' else mod_abbreviation
+
+    if not startDate:
+        startDate = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+    if not endDate:
+        endDate = datetime.now().strftime('%Y-%m-%d')
+    # startDate: "2024-08-19"
+    # endDate:   "2024-08-26"
+    query = text(
+        "SELECT r.curie AS reference_curie, cr.curie AS cross_reference_curie, wft.date_updated "
+        "FROM reference r "
+        "JOIN cross_reference cr ON r.reference_id = cr.reference_id "
+        "JOIN workflow_tag wft ON cr.reference_id = wft.reference_id "
+        "JOIN mod m ON wft.mod_id = m.mod_id "
+        "WHERE cr.curie_prefix = :curie_prefix "
+        "AND m.abbreviation = :mod_abbreviation "
+        "AND wft.workflow_tag_id = :workflow_tag_id "
+        "AND wft.date_updated BETWEEN :startDate AND :endDate"
+    )
+
+    rows = db.execute(query, {
+        'curie_prefix': curie_prefix,
+        'mod_abbreviation': mod_abbreviation,
+        'workflow_tag_id': workflow_tag_id,
+        'startDate': startDate,
+        'endDate': endDate
+    }).fetchall()
+
+    tags = [dict(row) for row in rows]
+    return tags

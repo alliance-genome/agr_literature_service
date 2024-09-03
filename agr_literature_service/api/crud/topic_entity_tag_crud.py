@@ -136,6 +136,12 @@ def add_list_of_users_who_validated_tag(topic_entity_tag_db_obj: TopicEntityTagM
                                               topic_entity_tag_db_obj.validated_by})
 
 
+def add_list_of_validating_tag_ids(topic_entity_tag_db_obj: TopicEntityTagModel, tag_data_dict: Dict):
+    validating_tag: TopicEntityTagModel
+    tag_data_dict["validating_tags"] = list({validating_tag.topic_entity_tag_id for validating_tag in
+                                            topic_entity_tag_db_obj.validated_by})
+
+
 def show_tag(db: Session, topic_entity_tag_id: int):
     topic_entity_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
     if not topic_entity_tag:
@@ -647,6 +653,7 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
             if "validated_by" in tet_data:
                 del tet_data["validated_by"]
             add_list_of_users_who_validated_tag(tet, tet_data)
+            add_list_of_validating_tag_ids(tet, tet_data)
             tet_data["topic_entity_tag_source"]["secondary_data_provider_abbreviation"] = mod_id_to_mod[
                 tet.topic_entity_tag_source.secondary_data_provider_id]
             all_tet.append(tet_data)
@@ -669,7 +676,16 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
                       f"WHERE m.abbreviation = '{mod_abbreviation}' "
                       f"AND tet.date_updated >= '{last_date_updated}'").fetchall()
 
-    tags = [dict(row) for row in rows]
+    # tags = [dict(row) for row in rows]
+    # there are duplicate rows returned
+    tags = []
+    processed_ids = set()
+    for row in rows:
+        row_dict = dict(row)
+        topic_entity_tag_id = row_dict['topic_entity_tag_id']
+        if topic_entity_tag_id not in processed_ids:
+            tags.append(row_dict)
+            processed_ids.add(topic_entity_tag_id)
 
     curie_to_name_mapping = get_curie_to_name_mapping_for_mod(db, mod_abbreviation, last_date_updated)
 

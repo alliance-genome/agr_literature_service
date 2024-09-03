@@ -127,3 +127,15 @@ def counters(mod_abbreviation: str = None,
              db: Session = db_session):
     return workflow_tag_crud.counters(db=db, mod_abbreviation=mod_abbreviation,
                                       workflow_process_atp_id=workflow_process_atp_id)
+
+
+@router.get('/by_mod/{mod_abbreviation}',
+            status_code=200)
+def get_reference_workflow_tags(mod_abbreviation: str,
+                                workflow_tag_id: str,
+                                startDate: str = None,
+                                endDate: str = None,
+                                db: Session = db_session):
+    return workflow_tag_crud.get_reference_workflow_tags_by_mod(db, mod_abbreviation,
+                                                                workflow_tag_id,
+                                                                startDate, endDate)
