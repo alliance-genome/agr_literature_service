@@ -44,7 +44,7 @@ def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel,
                 continue
     else:  # Problem currently ONLY category and reference_type allowed
         raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-                            detail="Method {method} with first arg {checktype} not supported")
+                            detail="Method {method} not supported")
 
     if call_process:
         # sanity check, should start with ATP

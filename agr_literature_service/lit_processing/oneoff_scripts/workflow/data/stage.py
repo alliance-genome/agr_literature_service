@@ -68,7 +68,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "file needed",
                'requirements': ['not_referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -76,7 +76,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file unavailable",
                'to': "file upload in progress",
                'requirements': ['referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -84,7 +84,7 @@ def get_data(name_to_atp):  # noqa
                'from': "files uploaded",
                'to': "file needed",
                'requirements': ['not_referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "manual_only"},
 
@@ -92,7 +92,7 @@ def get_data(name_to_atp):  # noqa
                'from': "files uploaded",
                'to': "file needed",
                'requirements': ['not_referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "manual_only"},
 
@@ -100,7 +100,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "file needed",
                'requirements': ['not_referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -108,7 +108,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file unavailable",
                'to': "file upload in progress",
                'requirements': ['referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -116,7 +116,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "file needed",
                'requirements': ['not_referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -132,7 +132,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file unavailable",
                'to': "file upload in progress",
                'requirements': ['referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -140,7 +140,7 @@ def get_data(name_to_atp):  # noqa
                'from': "files uploaded",
                'to': "file needed",
                'requirements': ['not_referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "manual_only"},
 
@@ -156,7 +156,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "file needed",
                'requirements': ['not_referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -172,7 +172,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file unavailable",
                'to': "file upload in progress",
                'requirements': ['referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -180,7 +180,7 @@ def get_data(name_to_atp):  # noqa
                'from': "files uploaded",
                'to': "file needed",
                'requirements': ['not_referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "manual_only"},
 
@@ -196,7 +196,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "file needed",
                'requirements': ['not_referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -212,7 +212,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file unavailable",
                'to': "file upload in progress",
                'requirements': ['referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -220,7 +220,7 @@ def get_data(name_to_atp):  # noqa
                'from': "files uploaded",
                'to': "file needed",
                'requirements': ['not_referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "manual_only"},
 
@@ -228,7 +228,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "file needed",
                'requirements': ['not_referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -236,7 +236,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file unavailable",
                'to': "file upload in progress",
                'requirements': ['referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -244,7 +244,7 @@ def get_data(name_to_atp):  # noqa
                'from': "files uploaded",
                'to': "file needed",
                'requirements': ['not_referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "manual_only"},
 
@@ -252,7 +252,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file upload in progress",
                'to': "file needed",
                'requirements': ['not_referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -260,7 +260,7 @@ def get_data(name_to_atp):  # noqa
                'from': "file unavailable",
                'to': "file upload in progress",
                'requirements': ['referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "any"},
 
@@ -324,7 +324,7 @@ def get_data(name_to_atp):  # noqa
                'from': "files uploaded",
                'to': "file needed",
                'requirements': ['not_referencefiles_present'],
-               'actions': "None",
+               'actions': [],
                'condition': "None",
                'transition_type': "manual_only"},
 
