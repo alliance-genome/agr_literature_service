@@ -50,7 +50,8 @@ def get_data(name_to_atp):
             'mod': "ALL",
             'from': "file upload in progress",
             'to': "file unavailable",
-            'condition': 'on_failed'
+            'condition': 'on_failed',
+            'actions': []
         },
         {
             'mod': "ALL",
@@ -74,5 +75,12 @@ def get_data(name_to_atp):
             'requirements': ['not_referencefiles_present'],
             'actions': []
         },
+        {
+            'mod': "ALL",
+            'from': "file unavailable",
+            'to': "file upload in progress",
+            'requirements': ['referencefiles_present'],
+            'actions': []
+        }
     ]
     return test_data
