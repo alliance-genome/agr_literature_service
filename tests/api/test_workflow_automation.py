@@ -115,7 +115,7 @@ def workflow_automation_init(db):  # noqa
          "ATP:fileuploadcomplete",
          ["proceed_on_value::category::thesis::ATP:task1_needed",
           "proceed_on_value::category::thesis::ATP:task2_needed",
-          "proceed_on_value::reference::Experimental::ATP:NEW",
+          "proceed_on_value::reference_type::Experimental::ATP:NEW",
           "proceed_on_value::category::failure::ATP:task3_needed"],
          'on_success'],
         ["ATP:fileuploadinprogress", "ATP:fileuploadfailed", [], 'on_failed'],

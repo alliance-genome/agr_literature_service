@@ -27,7 +27,7 @@ def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel,
     if checktype == "category":  # Check reference category is "Research article"
         if current_workflow_tag_db_obj.reference.category == check_value:
             call_process = True
-    elif checktype == "reference":
+    elif checktype == "reference_type":
         # reference types are not loaded by default so we have to grab them manually
         select = f"""
         select rt.label
@@ -44,7 +44,7 @@ def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel,
                 continue
     else:  # Problem currently ONLY category and reference_type allowed
         raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-                            detail="Method {method} with first arg {checktype} not supported")
+                            detail="Method {method} not supported")
 
     if call_process:
         # sanity check, should start with ATP
