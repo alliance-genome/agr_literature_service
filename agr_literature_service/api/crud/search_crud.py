@@ -226,26 +226,9 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         "track_total_hits": True,
         "sort": [
             {
-                "_script": {
-                    "type": "number",
-                    "script": {
-                        "source": """
-                            if (!doc.containsKey('date_published.keyword')) {
-                                return params.sort_missing_last ? Long.MAX_VALUE : Long.MIN_VALUE;
-                            }
-                            try {
-                                SimpleDateFormat formatter = new SimpleDateFormat('yyyy-MM-dd');
-                                Date date = formatter.parse(doc['date_published.keyword'].value);
-                                return date.getTime();
-                            } catch (Exception e) {
-                                return params.sort_missing_last ? Long.MAX_VALUE : Long.MIN_VALUE;
-                            }
-                        """,
-                        "params": {
-                            "sort_missing_last": sort_by_published_date_order == "asc"
-                        }
-                    },
-                    "order": sort_by_published_date_order
+                "date_published_start": {
+                    "order": sort_by_published_date_order,
+                    "missing": "_last"
                 }
             }
         ]
