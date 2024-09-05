@@ -2,10 +2,9 @@ import logging
 from dataclasses import dataclass, field
 from typing import List
 
+from fastapi import HTTPException, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, Load
-from fastapi import HTTPException, status
-from sqlalchemy.orm.exc import NoResultFound
 
 from agr_literature_service.api.models import ReferenceModel, ObsoleteReferenceModel, ReferencefileModel
 
