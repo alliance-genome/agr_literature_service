@@ -224,6 +224,7 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
 
 
 def transition_sanity_check(db, transition_type, mod_abbreviation, curie_or_reference_id, new_workflow_tag_atp_id):
+    logger.info("Transition sanity check")
     if transition_type not in ["manual", "automated"]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Transition type must be manual or automated")

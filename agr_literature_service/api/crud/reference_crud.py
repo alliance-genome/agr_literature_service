@@ -294,6 +294,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
     :param http_request:
     :return:
     """
+    logger.info("Show reference called")
     reference = get_reference(db, curie_or_reference_id, load_authors=True, load_mod_corpus_associations=True,
                               load_mesh_terms=True, load_obsolete_references=True)
     reference_data = jsonable_encoder(reference)
@@ -518,6 +519,7 @@ def merge_references(db: Session,
     """
 
     # Lookup both curies
+    logger.info("Merging references started")
     old_ref = get_reference(db=db, curie_or_reference_id=old_curie)
     new_ref = get_reference(db=db, curie_or_reference_id=new_curie)
 
@@ -877,6 +879,7 @@ def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, fi
 
 
 def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
+    logger.info("Get biblio info")
     bib_info = BibInfo()
     reference: ReferenceModel = get_reference(db, curie, load_authors=True)
     author: AuthorModel

@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 
 def get_main_pdf_referencefile_id(db: Session, curie_or_reference_id: str,
                                   mod_abbreviation: str = None) -> Union[int, None]:
+    logger.info("Getting main pdf referencefile")
     reference: ReferenceModel = get_reference(db=db, curie_or_reference_id=str(curie_or_reference_id),
                                               load_referencefiles=True)
     referencefile: ReferencefileModel
@@ -82,6 +83,7 @@ def show(db: Session, referencefile_id: int):
 
 
 def show_all(db: Session, curie_or_reference_id: str) -> List[ReferencefileSchemaRelated]:
+    logger.info("Show all referencefiles")
     reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id, load_referencefiles=True)
     reference_files = []
     if reference.referencefiles:
@@ -144,7 +146,7 @@ def merge_referencefiles(db: Session,
     Then delete losing_referencefile.
     Then attach winning referencefile to reference, if it's not already attached to it.
     """
-
+    logger.info("Merging referencefiles")
     reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id, load_referencefiles=True)
 
     # Lookup both referencefiles
@@ -237,7 +239,7 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
 
 
 def transition_WFT_for_pdf_file(db, reference_curie, mod_abbreviation, file_publication_status):
-
+    logger.info("Transition WFT for pdf file")
     file_upload_process_atp_id = "ATP:0000140"
     file_uploaded_tag_atp_id = "ATP:0000134"
     file_upload_in_progress_tag_atp_id = "ATP:0000139"
