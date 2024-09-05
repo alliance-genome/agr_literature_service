@@ -27,7 +27,7 @@ file_uploaded_tag_atp_id = "ATP:0000134"  # file needed
 
 
 def add_file_uploaded_workflow(db_session, curie_or_reference_id, mod=None, transition_type="automated", logger=None):  # pragma: no cover
-
+    logger.info("Add file uploaded workflow")
     ref = get_reference(db=db_session, curie_or_reference_id=str(curie_or_reference_id))
     if ref is None:
         if logger:
