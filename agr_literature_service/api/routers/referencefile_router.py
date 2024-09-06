@@ -8,14 +8,14 @@ from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
+from agr_literature_service.api.crud import referencefile_crud
 from agr_literature_service.api.deps import s3_auth
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.routers.okta_utils import get_okta_mod_access
 from agr_literature_service.api.schemas import ResponseMessageSchema
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, ReferencefileSchemaUpdate, \
-    ReferencefileSchemaRelated
+    ReferencefileSchemaRelated, ReferenceFileAllMainPDFIdsSchemaPost
 from agr_literature_service.api.user import set_global_user_from_okta
-from agr_literature_service.api.crud import referencefile_crud
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +157,15 @@ def show(referencefile_id: int,
 def show_all(curie_or_reference_id: str,
              db: Session = db_session):
     return referencefile_crud.show_all(db, curie_or_reference_id)
+
+
+@router.post('/show_main_pdf_ids_for_curies',
+             status_code=status.HTTP_200_OK,
+             response_model=dict)
+def show_main_pdf_ids_for_curies(data: ReferenceFileAllMainPDFIdsSchemaPost,
+                                 db: Session = db_session):
+    return referencefile_crud.get_main_pdf_referencefile_ids_for_ref_curies_list(
+        db=db, curies=data.curies, mod_abbreviation=data.mod_abbreviation)
 
 
 @router.patch('/{referencefile_id}',

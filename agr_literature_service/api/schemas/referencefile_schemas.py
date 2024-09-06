@@ -62,3 +62,8 @@ class ReferencefileSchemaRelated(AuditedObjectModelSchema):
     class Config:
         orm_mode = True
         extra = "forbid"
+
+
+class ReferenceFileAllMainPDFIdsSchemaPost(BaseModel):
+    curies: List[str]
+    mod_abbreviation: str

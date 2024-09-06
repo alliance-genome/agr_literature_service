@@ -58,6 +58,25 @@ def get_main_pdf_referencefile_id(db: Session, curie_or_reference_id: str,
     return None
 
 
+def get_main_pdf_referencefile_ids_for_ref_curies_list(db: Session, curies: List[str], mod_abbreviation: str):
+    ref_id_curie_map = {ref.reference_id: ref.curie for ref in db.query(
+        ReferenceModel.reference_id, ReferenceModel.curie).filter(ReferenceModel.curie.in_(curies)).all()}
+    all_ref_files = db.query(ReferencefileModel).filter(ReferencefileModel.reference_id.in_(
+        list(ref_id_curie_map.keys()))).all()
+    curie_main_ref_file_map = {}
+    for ref_file in all_ref_files:
+        main_pdf_reffile_id = None
+        if ref_file.file_class == "main" and ref_file.file_publication_status == "final" and ref_file.pdf_type == "pdf":
+            for ref_file_mod in ref_file.referencefile_mods:
+                if (ref_file_mod.mod and ref_file_mod.mod.abbreviation == mod_abbreviation or ref_file_mod.mod is
+                        None and main_pdf_reffile_id is None):
+                    main_pdf_reffile_id = ref_file.referencefile_id
+                    if ref_file_mod.mod is not None:
+                        break
+        curie_main_ref_file_map[ref_id_curie_map[ref_file.reference_id]] = main_pdf_reffile_id
+    return curie_main_ref_file_map
+
+
 def set_referencefile_mods(referencefile_obj, referencefile_dict):
     del referencefile_dict["reference_id"]
     referencefile_dict["referencefile_mods"] = []
