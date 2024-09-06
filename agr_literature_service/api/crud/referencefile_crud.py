@@ -68,13 +68,14 @@ def get_main_pdf_referencefile_ids_for_ref_curies_list(db: Session, curies: List
         main_pdf_reffile_id = None
         if ref_file.file_class == "main" and ref_file.file_publication_status == "final" and ref_file.pdf_type == "pdf":
             for ref_file_mod in ref_file.referencefile_mods:
-                if (ref_file_mod.mod and ref_file_mod.mod.abbreviation == mod_abbreviation or
-                        ref_file_mod.mod is None and main_pdf_reffile_id is None):
+                if (ref_file_mod.mod and ref_file_mod.mod.abbreviation == mod_abbreviation or ref_file_mod.mod is
+                        None and main_pdf_reffile_id is None):
                     main_pdf_reffile_id = ref_file.referencefile_id
                     if ref_file_mod.mod is not None:
                         break
         curie_main_ref_file_map[ref_id_curie_map[ref_file.reference_id]] = main_pdf_reffile_id
     return curie_main_ref_file_map
+
 
 def set_referencefile_mods(referencefile_obj, referencefile_dict):
     del referencefile_dict["reference_id"]
