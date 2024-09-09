@@ -483,5 +483,5 @@ def check_and_set_sgd_display_tag(topic_entity_tag_data):
             topic_entity_tag_data['topic'] = topic_entity_tag_data['entity_type']
         else:
             # when there is no entity attached to the paper
-            # currently 2% review papers without an entity attached 
+            # currently 2% review papers without an entity attached
             topic_entity_tag_data['topic'] = root_topic_atp
